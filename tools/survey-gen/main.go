@@ -3,7 +3,7 @@
 // Copyright (c) 2023 HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-// survey-gen generates stateless/survey.json, the machine-derived companion
+// survey-gen generates live/survey.json, the machine-derived companion
 // to live/SURVEY.md's hand-written per-type table (issue #25,
 // increments 1 and 2).
 //
@@ -43,7 +43,7 @@ import (
 const (
 	// surveyJSONRel is where the generated artifact is committed, relative
 	// to the repository root.
-	surveyJSONRel = "stateless/survey.json"
+	surveyJSONRel = "live/survey.json"
 
 	// surveyMDRel is the hand-written survey whose per-type table names the
 	// roster this tool derives signals and paths for.
