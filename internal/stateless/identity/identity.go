@@ -182,6 +182,26 @@ type ParentRef struct {
 type Result struct {
 	byAddr map[string]Resolution
 	order  []string
+
+	// signal is the config-side naming signal collected on the same walk.
+	// See [Result.Signal].
+	signal *ConfigSignal
+}
+
+// Signal is the config-side naming signal for the configuration this result
+// was resolved from: which arguments each managed resource instance sets.
+//
+// It covers every managed resource type in the configuration, not only the
+// ones the admission table knows, because its purpose is the question the
+// table cannot answer for itself - which types could join it. See
+// [ConfigSignal] and [DerivableWith]. A result assembled by hand rather
+// than by [Resolve], such as one marker discovery has added to, carries no
+// signal and returns nil, which every consumer treats as "nothing to say".
+func (res *Result) Signal() *ConfigSignal {
+	if res == nil {
+		return nil
+	}
+	return res.signal
 }
 
 func newResult() *Result {

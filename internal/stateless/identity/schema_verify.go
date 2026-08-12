@@ -103,7 +103,17 @@ type Verification struct {
 	// Derivable is the self-admission candidate set: every type in this
 	// provider's schemas whose identity is fully client-assigned. See
 	// [Derivable].
+	//
+	// When the check was given a configuration's naming signal, the set
+	// includes the types only that signal could settle, each carrying
+	// [AdmitConfigSignal] and the per-instance evidence. See
+	// [DerivableWith].
 	Derivable []DerivableType
+
+	// Report is the machine-readable derivability report over the same
+	// schemas: the admitted types, and the ones a configuration could admit
+	// with the arguments it would have to set. See [DerivabilityReport].
+	Report DerivabilityReport
 }
 
 // VerifyTable checks [DefaultTable] against the resource schemas one
@@ -121,11 +131,27 @@ type Verification struct {
 // this provider does not serve is skipped rather than reported, because a
 // run that wires one provider says nothing about another's types.
 func VerifyTable(resourceTypes map[string]providers.Schema) Verification {
-	return verifyTable(DefaultTable, resourceTypes)
+	return verifyTable(DefaultTable, resourceTypes, nil)
 }
 
-func verifyTable(table map[string]TypeIdentity, resourceTypes map[string]providers.Schema) Verification {
-	v := Verification{Derivable: Derivable(resourceTypes)}
+// VerifyTableIn is [VerifyTable] told what the configuration being run
+// says about who names each resource, so that the derivable set it reports
+// includes the types the schemas alone leave undecided.
+//
+// The signal comes from [Result.Signal] or [ScanConfig], and it is the only
+// thing in this file that is not a property of the provider: a type
+// admitted this way is admitted for this configuration, on the evidence of
+// the blocks in it. A nil signal makes this exactly [VerifyTable]. See
+// [DerivableWith] for why the cohort needs a configuration at all.
+func VerifyTableIn(resourceTypes map[string]providers.Schema, signal *ConfigSignal) Verification {
+	return verifyTable(DefaultTable, resourceTypes, signal)
+}
+
+func verifyTable(table map[string]TypeIdentity, resourceTypes map[string]providers.Schema, signal *ConfigSignal) Verification {
+	v := Verification{
+		Derivable: DerivableWith(resourceTypes, signal),
+		Report:    Report(resourceTypes, signal),
+	}
 
 	types := make([]string, 0, len(table))
 	for typeName := range table {
@@ -343,14 +369,19 @@ func (v Verification) Summary() string {
 		}
 	}
 	newly := 0
+	byConfig := 0
 	for _, d := range v.Derivable {
 		if !d.InTable {
 			newly++
 		}
+		if d.Admits == AdmitConfigSignal {
+			byConfig++
+		}
 	}
 	return fmt.Sprintf(
-		"%d table entries confirmed, %d unverifiable, %d divergences (%d breaking); the provider's identity schemas would admit %d types on their own, %d of them not in the table",
-		len(v.Agreed), len(v.Skipped), len(v.Findings), breaking, len(v.Derivable), newly,
+		"%d table entries confirmed, %d unverifiable, %d divergences (%d breaking); %d types admit themselves (%d of them only because this configuration names them), %d of those not in the table; %d more would admit themselves against a configuration that sets their identity arguments",
+		len(v.Agreed), len(v.Skipped), len(v.Findings), breaking,
+		len(v.Derivable), byConfig, newly, v.Report.Counts.NeedsConfigSignal,
 	)
 }
 

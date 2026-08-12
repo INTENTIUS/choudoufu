@@ -92,28 +92,20 @@ func ResolveIn(ctx context.Context, cfg *configs.Config, cloud CloudContext) (*R
 		return newResult(), diags
 	}
 
-	r := &resolver{
-		ctx:   ctx,
-		mod:   cfg.Module,
-		cloud: cloud,
-		// Pure on purpose: an identity is a claim about which cloud object a
-		// block owns, and a function that answers differently every time it
-		// is called cannot make that claim. See impure.go.
-		eval:       cfg.Module.StaticEvaluator.Pure(),
-		expansions: make(map[string]*expansion),
-		expFailed:  make(map[string]bool),
-		expVisit:   make(map[string]bool),
-		insts:      make(map[string]Resolution),
-		instFailed: make(map[string]bool),
-		instVisit:  make(map[string]bool),
-	}
+	r := newResolver(ctx, cfg, cloud)
 
 	result := newResult()
+	result.signal = newConfigSignal()
 	for _, rc := range sortedResources(cfg.Module.ManagedResources) {
 		exp, ok := r.expansionFor(rc)
 		if !ok {
 			continue
 		}
+		// Recorded before the instances are classified, and for every type
+		// rather than only the admitted ones: the config-side naming signal
+		// is what says which types could join the table, so a type the
+		// table has never heard of is the interesting case. See signal.go.
+		r.signalFor(result.signal, rc, exp)
 		for _, key := range exp.keys {
 			addr := rc.Addr().Instance(key).Absolute(addrs.RootModuleInstance)
 			res, ok := r.instance(addr, rc.DeclRange)
@@ -161,6 +153,24 @@ func (r *resolver) checkCollisions(result *Result) {
 		r.errorf(rng, "Two resources with the same identity",
 			"%s and %s both resolve to the identity %q. Both would bind to the same live resource, so one of them has to change: an identity is what tells a live-markers run which cloud object a configuration block owns.",
 			first.String(), res.Addr.String(), ident)
+	}
+}
+
+func newResolver(ctx context.Context, cfg *configs.Config, cloud CloudContext) *resolver {
+	return &resolver{
+		ctx:   ctx,
+		mod:   cfg.Module,
+		cloud: cloud,
+		// Pure on purpose: an identity is a claim about which cloud object a
+		// block owns, and a function that answers differently every time it
+		// is called cannot make that claim. See impure.go.
+		eval:       cfg.Module.StaticEvaluator.Pure(),
+		expansions: make(map[string]*expansion),
+		expFailed:  make(map[string]bool),
+		expVisit:   make(map[string]bool),
+		insts:      make(map[string]Resolution),
+		instFailed: make(map[string]bool),
+		instVisit:  make(map[string]bool),
 	}
 }
 
@@ -577,6 +587,22 @@ func (r *resolver) evalStatic(expr hcl.Expression, scope instScope, ident config
 		return cty.NilVal, false
 	}
 
+	val, diags := r.evalPure(expr, scope, ident)
+	if diags.HasErrors() {
+		r.diags = r.diags.Append(diags)
+		return cty.NilVal, false
+	}
+	return val, true
+}
+
+// evalPure is the evaluation itself, with its diagnostics handed back
+// rather than recorded. [resolver.evalStatic] records them, because an
+// argument that will not evaluate is a resolution failure; the config-side
+// naming signal (signal.go) discards them, because an argument it cannot
+// read is still an argument the configuration sets.
+func (r *resolver) evalPure(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) (cty.Value, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+
 	var travs []hcl.Traversal
 	for _, trav := range expr.Variables() {
 		switch trav.RootName() {
@@ -590,14 +616,12 @@ func (r *resolver) evalStatic(expr hcl.Expression, scope instScope, ident config
 
 	refs, refDiags := lang.References(addrs.ParseRef, travs)
 	if refDiags.HasErrors() {
-		r.diags = r.diags.Append(refDiags)
-		return cty.NilVal, false
+		return cty.NilVal, diags.Append(refDiags)
 	}
 
 	hclCtx, ctxDiags := r.eval.EvalContext(r.ctx, ident, refs)
 	if ctxDiags.HasErrors() {
-		r.diags = r.diags.Append(ctxDiags)
-		return cty.NilVal, false
+		return cty.NilVal, diags.Append(ctxDiags)
 	}
 	if hclCtx == nil {
 		hclCtx = &hcl.EvalContext{}
@@ -610,10 +634,9 @@ func (r *resolver) evalStatic(expr hcl.Expression, scope instScope, ident config
 
 	val, valDiags := expr.Value(hclCtx)
 	if valDiags.HasErrors() {
-		r.diags = r.diags.Append(valDiags)
-		return cty.NilVal, false
+		return cty.NilVal, diags.Append(valDiags)
 	}
-	return val, true
+	return val, diags
 }
 
 func (r *resolver) stringValue(val cty.Value, expr hcl.Expression, ident configs.StaticIdentifier) (string, bool) {

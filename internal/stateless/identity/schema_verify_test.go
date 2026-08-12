@@ -174,7 +174,7 @@ func TestVerifyTableSkips(t *testing.T) {
 	v := verifyTable(map[string]TypeIdentity{
 		"aws_ecs_cluster": DefaultTable["aws_ecs_cluster"],
 		"aws_s3_bucket":   DefaultTable["aws_s3_bucket"],
-	}, schemas)
+	}, schemas, nil)
 
 	if len(v.Agreed) != 0 {
 		t.Errorf("nothing could be confirmed, got %v", v.Agreed)
@@ -213,7 +213,7 @@ func TestVerifyTableDivergence(t *testing.T) {
 
 	v := verifyTable(map[string]TypeIdentity{
 		"aws_route_table_association": DefaultTable["aws_route_table_association"],
-	}, schemas)
+	}, schemas, nil)
 
 	kinds := findingKinds(v)
 	if !kinds[FindingUnnamedIdentityAttr] {
@@ -269,7 +269,7 @@ func TestVerifyServerAssignedDisputed(t *testing.T) {
 		},
 	})
 
-	v := verifyTable(map[string]TypeIdentity{"aws_vpc": DefaultTable["aws_vpc"]}, schemas)
+	v := verifyTable(map[string]TypeIdentity{"aws_vpc": DefaultTable["aws_vpc"]}, schemas, nil)
 
 	f := findingOf(t, v, FindingServerAssignedDisputed)
 	if f.Breaking {
@@ -305,7 +305,7 @@ func TestVerifyTableBreaking(t *testing.T) {
 		},
 	}
 
-	v := verifyTable(table, schemas)
+	v := verifyTable(table, schemas, nil)
 
 	arg := findingOf(t, v, FindingArgumentNotInSchema)
 	if !arg.Breaking {
@@ -343,7 +343,7 @@ func TestVerifyTableBreakingWithoutIdentitySchema(t *testing.T) {
 
 	v := verifyTable(map[string]TypeIdentity{
 		"aws_thing": {Type: "aws_thing", Components: []Component{attr("name")}},
-	}, schemas)
+	}, schemas, nil)
 
 	if !findingKinds(v)[FindingArgumentNotInSchema] {
 		t.Fatalf("expected the missing argument to be reported without an identity schema: %v", v.Findings)
@@ -366,7 +366,7 @@ func TestVerificationSummary(t *testing.T) {
 	})
 	v := VerifyTable(schemas)
 	s := v.Summary()
-	for _, want := range []string{"1 table entries confirmed", "0 breaking", "would admit 1 types"} {
+	for _, want := range []string{"1 table entries confirmed", "0 breaking", "1 types admit themselves"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("summary does not contain %q:\n%s", want, s)
 		}

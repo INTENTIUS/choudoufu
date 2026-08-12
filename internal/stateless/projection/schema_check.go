@@ -55,12 +55,23 @@ import (
 //     client-assigned, so the schemas admit them with no hand inference -
 //     is logged as the candidate list a wiring batch should draw from.
 //     See [identity.Derivable].
+//
+// The check is given one thing besides the schemas: what the configuration
+// under projection says about who names each of its resources
+// ([identity.ConfigSignal]). It is not a second source of truth about the
+// provider, and it decides nothing the schemas decide. It answers the one
+// question they cannot - a legacy-SDK schema marks aws_s3_bucket's bucket
+// and aws_vpc's id the same way and means opposite things - and it answers
+// it by reading the blocks in front of it: this bucket sets a name, that
+// VPC does not. Those verdicts are logged apart from the schema-only ones,
+// because a type admitted on the evidence of one configuration is a
+// different claim from a type admitted on the evidence of a provider.
 
 // verifySchemas checks the identity table against one provider's schemas
 // and logs what it found. Called once per provider configuration, from the
 // provider cache, right after the schemas arrive.
-func verifySchemas(addr addrs.AbsProviderConfig, resourceTypes map[string]providers.Schema) identity.Verification {
-	v := identity.VerifyTable(resourceTypes)
+func verifySchemas(addr addrs.AbsProviderConfig, resourceTypes map[string]providers.Schema, signal *identity.ConfigSignal) identity.Verification {
+	v := identity.VerifyTableIn(resourceTypes, signal)
 
 	log.Printf("[DEBUG] projection: identity table checked against %s: %s", addr, v.Summary())
 
@@ -83,10 +94,18 @@ func verifySchemas(addr addrs.AbsProviderConfig, resourceTypes map[string]provid
 		if d.InTable {
 			continue
 		}
-		log.Printf(
-			"[TRACE] projection: %s's identity schema for %s is fully client-assigned (%v), so the type could admit itself without a table entry",
-			addr, d.Type, d.IdentityAttrs,
-		)
+		switch d.Admits {
+		case identity.AdmitConfigSignal:
+			log.Printf(
+				"[TRACE] projection: %s's identity schema for %s leaves %v settable rather than required, and every %s block in this configuration sets them, so the type admits itself here without a table entry",
+				addr, d.Type, d.IdentityAttrs, d.Type,
+			)
+		default:
+			log.Printf(
+				"[TRACE] projection: %s's identity schema for %s is fully client-assigned (%v), so the type could admit itself without a table entry",
+				addr, d.Type, d.IdentityAttrs,
+			)
+		}
 	}
 
 	return v
