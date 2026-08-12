@@ -25,9 +25,21 @@ outside that subset are refused up front by a lint pass rather than half
 supported. The full boundary, with the reasoning for each limit, is in
 [`stateless/LIMITATIONS.md`](stateless/LIMITATIONS.md).
 
-Prebuilt binaries for macOS and Linux (amd64 and arm64) are on the
-[releases page](https://github.com/INTENTIUS/choudoufu/releases). Building
-from source stays one command (below).
+## Install
+
+Every tagged release publishes prebuilt binaries for macOS and Linux
+(amd64 and arm64), with a `SHA256SUMS` file, on the
+[releases page](https://github.com/INTENTIUS/choudoufu/releases). To fetch
+the latest for your platform:
+
+```
+os=$(uname -s | tr '[:upper:]' '[:lower:]')
+arch=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
+gh release download -R INTENTIUS/choudoufu --pattern "*_${os}_${arch}.tar.gz"
+tar xzf choudoufu_*_"${os}"_"${arch}".tar.gz   # unpacks ./choudoufu
+```
+
+Building from source stays one command (below).
 
 ## See it prove itself
 
@@ -47,8 +59,12 @@ demo end to end.
 Clone https://github.com/INTENTIUS/choudoufu, then do the following.
 
 1. Confirm Docker is running (`docker info` must succeed).
-2. From the repo root, run: bash stateless/e2e/run.sh --expect 5
-3. Report each step's result as the script prints it, and the final exit code.
+2. If Go is installed, skip this step. Otherwise download the latest
+   release tarball for this platform from
+   https://github.com/INTENTIUS/choudoufu/releases, extract it, and
+   export TOFU_BIN=<absolute path to the extracted choudoufu binary>.
+3. From the repo root, run: bash stateless/e2e/run.sh --expect 5
+4. Report each step's result as the script prints it, and the final exit code.
 
 Exit code 0 means every claim the script makes about live resource markers
 held. Non-zero means one of them did not. Report which step failed.
