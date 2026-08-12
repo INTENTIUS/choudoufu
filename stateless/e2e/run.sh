@@ -444,6 +444,17 @@ unowned_omissions() {
   omitted_instances "$1" | sed -n 's/ UNOWNED$//p'
 }
 
+# unowned_section is the "Unowned:" block — the rendered section that gathers
+# the [UNOWNED] omissions by disposition ([ADOPTABLE] or [IN_THE_WAY]) —
+# header to the horizontal rule that ends it.
+unowned_section() {
+  printf '%s\n' "$1" | awk '
+    /^Unowned:/ { on = 1 }
+    on && /^─────/ { exit }
+    on { print }
+  '
+}
+
 # assert_estate_plan is the single definition of "this full-estate plan is
 # what it should be". Every step that takes a full-estate plan goes through
 # it, so there is one place to be right.
@@ -508,6 +519,14 @@ assert_estate_plan() {
       || fail "$step" "$label: $addr is reported [UNOWNED], which is not one of this fixture's documented emulator read gaps ($RESIDUE_UNOWNED): $(omission_section "$out")"
     echo "$out" | grep -qF "tofu-address=\"$addr\"" \
       || fail "$step" "$label: $addr's [UNOWNED] omission carries no adoption hint naming it: $(omission_section "$out")"
+    # The rendered Unowned section gathers the same refusals by disposition.
+    # An unmarked resource at a declared identity, with the estate known, is
+    # the adoptable case, and the section must carry the ready-to-run tag
+    # values alongside the omission's prose.
+    unowned_section "$out" | grep -qF "  $addr [ADOPTABLE] <- " \
+      || fail "$step" "$label: $addr is reported [UNOWNED] but the Unowned section does not offer it as [ADOPTABLE]: $(unowned_section "$out")"
+    unowned_section "$out" | grep -qF "adopt by writing: tofu-estate=stateless-e2e tofu-address=$addr" \
+      || fail "$step" "$label: the Unowned section entry for $addr does not carry the exact tag values to write: $(unowned_section "$out")"
   done <<< "$omitted"
   unowned="$(unowned_omissions "$out")"
 

@@ -704,10 +704,20 @@ func TestLivePlan_unownedNameIsNotAdopted(t *testing.T) {
 		t.Errorf("the declared bucket is not planned as a create:\n%s", stdout)
 	}
 
-	// Said out loud, twice over: in the omissions section that explains every
-	// create, and as a warning carrying the adoption instruction.
+	// Said out loud, three times over: in the omissions section that explains
+	// every create, in the Unowned section that says what resolves it, and as
+	// a warning carrying the adoption instruction.
 	if !strings.Contains(stdout, "aws_s3_bucket.data [UNOWNED]") {
 		t.Errorf("the unowned resource is not named in the omissions section:\n%s", stdout)
+	}
+	if !strings.Contains(stdout, "Unowned: 1 live resource holds an identity this configuration declares (1 adoptable)") {
+		t.Errorf("no Unowned section heading:\n%s", stdout)
+	}
+	if !strings.Contains(stdout, "aws_s3_bucket.data [ADOPTABLE] <- aws_s3_bucket tofu-stateless-unit-data") {
+		t.Errorf("the Unowned section does not offer the resource as adoptable:\n%s", stdout)
+	}
+	if !strings.Contains(stdout, "adopt by writing: tofu-estate=stateless-unit tofu-address=aws_s3_bucket.data") {
+		t.Errorf("the Unowned section does not carry the exact tag values to write:\n%s", stdout)
 	}
 	if !strings.Contains(stdout, "Live resource outside this estate") {
 		t.Errorf("no warning about the unowned resource:\n%s", stdout)
@@ -747,6 +757,17 @@ func TestLivePlan_otherEstatesResourceIsNotAdopted(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "somebody-elses-estate") {
 		t.Errorf("the report does not name the estate that owns it:\n%s", stdout)
+	}
+	// The Unowned section says at a glance that this one is not adoptable
+	// here: it is in the way, and its holder is named.
+	if !strings.Contains(stdout, "aws_s3_bucket.data [IN_THE_WAY] <- aws_s3_bucket tofu-stateless-unit-data") {
+		t.Errorf("the Unowned section does not report the resource as in the way:\n%s", stdout)
+	}
+	if !strings.Contains(stdout, `held by estate "somebody-elses-estate"`) {
+		t.Errorf("the Unowned section does not name the holding estate:\n%s", stdout)
+	}
+	if strings.Contains(stdout, "aws_s3_bucket.data [ADOPTABLE]") {
+		t.Errorf("another estate's resource is offered as adoptable:\n%s", stdout)
 	}
 }
 
