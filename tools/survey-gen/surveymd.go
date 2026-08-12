@@ -38,11 +38,12 @@ func readRoster(path string) ([]HandRow, error) {
 	}
 
 	validPaths := map[string]bool{
-		pathClientNamed:   true,
-		pathMarker:        true,
-		pathParentDerived: true,
-		pathListContent:   true,
-		pathOps:           true,
+		pathClientNamed:    true,
+		pathMarker:         true,
+		pathParentDerived:  true,
+		pathListContent:    true,
+		pathAccountDerived: true,
+		pathOps:            true,
 	}
 
 	var rows []HandRow
