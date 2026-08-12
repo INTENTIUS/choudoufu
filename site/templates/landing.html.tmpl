@@ -20,6 +20,34 @@
   Start with the <a href="faq.html">FAQ</a>.</p>
 </section>
 
+<section class="migration">
+  <h2>Moving an existing estate over</h2>
+  <p>A greenfield estate is two steps: declare a <code>live</code> block and
+  apply. An estate that already has live resources is not, and the
+  difference is the one thing to get right before trying this on anything
+  you care about. Adoption is a deliberate tag write. Nothing binds a live
+  resource to your configuration until its markers are on it.</p>
+  <ol>
+    <li>Add <code>live { estate = "..." }</code> to your <code>terraform</code>
+    block, remove any <code>backend</code> or <code>cloud</code> block, and
+    delete the state file.</li>
+    <li>Run <code>choudoufu plan</code> and <strong>read it</strong>. Live
+    resources with no markers show up in the <code>Adoptable</code> and
+    <code>Unowned</code> sections, each naming the tags that claim it.</li>
+    <li>Write those tags, with the command the plan prints or your own
+    tooling. There is no <code>adopt</code> command: two tags is the whole
+    contract.</li>
+    <li>Plan again. Adopted resources now read back their own markers and
+    report no changes.</li>
+    <li>Apply once the plan is what you expect.</li>
+  </ol>
+  <p>Applying at step 2 instead of reading is how you get duplicates:
+  an unmarked resource is not yours yet, so the plan proposes creating a
+  second one beside it. Types the plan cannot offer automatically, and the
+  ones with no adoption path at all, are covered in
+  <a href="live-markers.html">Migrating an Existing Estate</a>.</p>
+</section>
+
 <section class="demo">
   <h2>See it work</h2>
   <p>One command runs the full demo against a local AWS emulator. It needs
