@@ -60,7 +60,14 @@ func SingleProvider(addr addrs.AbsProviderConfig, p providers.Interface) Provide
 // remembers its schema, so that a run over twenty resource instances makes
 // one GetProviderSchema call rather than twenty.
 type providerCache struct {
-	source  Providers
+	source Providers
+
+	// signal is what the configuration under projection says about who
+	// names each of its resources, or nil. It is half the input to the
+	// identity check: the schemas are the other half, and neither settles
+	// the Optional+Computed cohort alone. See schema_check.go.
+	signal *identity.ConfigSignal
+
 	entries map[string]*providerEntry
 }
 
@@ -75,9 +82,10 @@ type providerEntry struct {
 	verification identity.Verification
 }
 
-func newProviderCache(source Providers) *providerCache {
+func newProviderCache(source Providers, signal *identity.ConfigSignal) *providerCache {
 	return &providerCache{
 		source:  source,
+		signal:  signal,
 		entries: make(map[string]*providerEntry),
 	}
 }
@@ -114,7 +122,7 @@ func (c *providerCache) get(ctx context.Context, addr addrs.AbsProviderConfig) (
 
 	// The schemas are here, so the identity table's claims about these
 	// types can be checked against the provider's own account of them.
-	e.verification = verifySchemas(addr, schema.ResourceTypes)
+	e.verification = verifySchemas(addr, schema.ResourceTypes, c.signal)
 
 	return e, nil
 }
