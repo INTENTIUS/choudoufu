@@ -949,7 +949,9 @@ else
     aws_s3_bucket_server_side_encryption_configuration.data
     aws_s3_bucket_lifecycle_configuration.data
     aws_iam_role.app
+    aws_iam_role_policy.app
     aws_iam_role_policy_attachment.app
+    aws_kms_alias.main
     aws_cloudwatch_log_group.app
     aws_cloudwatch_log_group.optional
     aws_dynamodb_table.events

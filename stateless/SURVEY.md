@@ -113,8 +113,8 @@ token per row.
 
 | Status | Meaning | Rows |
 |---|---|---|
-| `wired` | in the fork's admission table (`internal/stateless/lint/admission.go`) and identity table (`internal/stateless/identity/table.go`) today | 22 |
-| `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 26 |
+| `wired` | in the fork's admission table (`internal/stateless/lint/admission.go`) and identity table (`internal/stateless/identity/table.go`) today | 25 |
+| `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 23 |
 | `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components | 4 |
 | `ops` | excluded by the rule, forwarded to the lifecycle layer | 3 |
 | `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 13 |
@@ -166,7 +166,7 @@ identity argument were derived like every other row's.
 | aws_lambda_function | client-named | blocked-emulator | function_name; blocked: floci cannot create Lambda functions (lex00/floci#26) | survey note; schema |
 | aws_lambda_permission | client-named | blocked-emulator | function_name + statement_id, optionally qualifier; blocked: needs a live parent function, which floci cannot create (lex00/floci#26) | survey note; schema |
 | aws_eks_cluster | client-named | blocked-emulator | name; blocked: floci cannot create EKS clusters (lex00/floci#27) | survey note; schema |
-| aws_route53_record | client-named | ready | zone_id + name + type, plus set_identifier for weighted and latency sets | survey note; schema |
+| aws_route53_record | client-named | wired | zone_id + name + type, plus set_identifier for weighted and latency sets; the fork wires it as a composite through the aws_route53_zone marker, since the Z-ID is the zone's server-assigned identity (see the wrinkles below) | survey note; schema |
 | aws_sqs_queue | client-named | needs-account-derived | name, but the required import attribute is the queue URL | survey note; schema |
 | aws_sns_topic | client-named | needs-account-derived | name, but the required import attribute is the topic ARN | survey note; schema |
 | aws_instance | marker | ready | server-assigned instance ID (i-...) | survey note; schema |
@@ -187,7 +187,7 @@ identity argument were derived like every other row's.
 | aws_s3_bucket_server_side_encryption_configuration | client-named | wired | bucket | roster fit; schema |
 | aws_s3_bucket_lifecycle_configuration | client-named | wired | bucket | roster fit; schema |
 | aws_iam_instance_profile | client-named | blocked-emulator | name; blocked: floci's iam:GetInstanceProfile omits Tags, the GetRole gap family, so the marker never reads back (probed 2026-08-12; choudoufu#26) | roster fit; schema |
-| aws_iam_role_policy | client-named | ready | role + name, both client-named, so concrete wherever the role is | roster fit; schema |
+| aws_iam_role_policy | client-named | wired | role + name, both client-named, so concrete wherever the role is | roster fit; schema |
 | aws_iam_group | client-named | ready | name; no identity schema shipped, import ID documented as the group name | roster fit; docs |
 | aws_autoscaling_group | client-named | ready | name; tags are `tag` blocks rather than a `tags` argument, so the marker path is not open to it | roster fit; schema |
 | aws_key_pair | client-named | ready | key_name; no identity schema shipped, import ID documented as key_name | roster fit; docs |
@@ -195,7 +195,7 @@ identity argument were derived like every other row's.
 | aws_cloudwatch_event_rule | client-named | ready | name; import ID is event_bus_name/name, the bus defaulting to `default` when omitted | roster fit; schema |
 | aws_db_subnet_group | client-named | blocked-emulator | name; blocked: floci's rds:ListTagsForResource serves no tags back, so the written marker never reads back (probed 2026-08-12; choudoufu#26) | roster fit; schema |
 | aws_db_parameter_group | client-named | blocked-emulator | name; no identity schema shipped, import ID documented as the group name; blocked: floci's rds:ListTagsForResource serves no tags back (probed 2026-08-12; choudoufu#26) | roster fit; docs |
-| aws_kms_alias | client-named | ready | name, the full `alias/...` string | roster fit; schema |
+| aws_kms_alias | client-named | wired | name, the full `alias/...` string | roster fit; schema |
 | aws_ecs_service | client-named | blocked-emulator | cluster + name, the cluster itself client-named; blocked: floci's ecs:CreateService demands a task definition even for an EXTERNAL deployment controller, which real ECS does not (probed 2026-08-12; choudoufu#26) | roster fit; schema |
 | aws_ecr_repository | client-named | blocked-emulator | name; blocked: floci's ecr:CreateRepository dies starting the backing registry container (choudoufu#26) | roster fit; schema |
 | aws_ecr_lifecycle_policy | client-named | blocked-emulator | repository (one policy per repository); blocked: needs a live parent repository, which floci cannot create (choudoufu#26) | roster fit; schema |
@@ -214,7 +214,7 @@ identity argument were derived like every other row's.
 | aws_efs_file_system | marker | ready | server-assigned file system ID (fs-...); no identity schema shipped, `creation_token` is client-chosen but is not the import ID | roster fit; docs |
 | aws_ebs_volume | marker | ready | server-assigned volume ID (vol-...) | roster fit; schema |
 
-Two classification wrinkles between the survey and the wired code, recorded
+Classification wrinkles between the survey and the wired code, recorded
 rather than smoothed over. The survey's five parent-derived types are
 enumerated in full above (route, route_table_association,
 lb_target_group_attachment, sns_topic_subscription, ecs_task_definition)
@@ -223,9 +223,13 @@ components are client-named strings, so the survey presumably counted it
 under client-named, while `admission.go` groups it structurally as
 parent-derived. Likewise `aws_eip` is taggable, so the survey's
 strongest-path classification would be marker, while the fork wires it
-through list-plus-content as a fungible set with a tofu-slot marker. The
-table above shows each wired type under the path the fork actually
-implements.
+through list-plus-content as a fungible set with a tofu-slot marker. And
+`aws_route53_record` keeps its client-named row — its name and type are
+client-chosen — while the wired code composes its import ID through the
+`aws_route53_zone` marker, because the third component is the zone's
+server-assigned Z-ID (flag F5). The table above shows each wired type
+under the path the fork actually implements, except where a row's own note
+says otherwise.
 
 A third wrinkle surfaced in the re-run and points the other way.
 `aws_db_instance` sits under marker, but its documented import ID is
@@ -281,14 +285,18 @@ table above where the failure blocks wiring.
 Which component each one needs, and the open question about
 `aws_secretsmanager_secret`, are recorded on the wiring lanes that will
 pick them up: issue #19 for the client-named rows, issue #21 for
-`aws_sns_topic_subscription`.
+`aws_sns_topic_subscription`. Two further rows fail the strict test on a
+parent component rather than the account — `aws_route53_record` (the
+zone's Z-ID) and `aws_sns_topic_subscription` (the topic ARN) — and need
+parent resolution, which the fork already has; the record is wired through
+the `aws_route53_zone` marker today.
 
 ## The three the rule excludes
 
 Exactly three of the 68 fail the admission rule, and they fail it
 permanently: they are out by the rule itself, not by v0 scoping. This is a
 different kind of "not admitted" than the surveyed types that are merely
-not wired yet (43 of them at the 22 types wired today, the `ready`,
+not wired yet (40 of them at the 25 types wired today, the `ready`,
 `needs-account-derived` and `blocked-emulator` rows above), and `stateless/LIMITATIONS.md`'s
 `unadmitted-type` entry draws the same distinction.
 

@@ -54,6 +54,14 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_route":                      {},
 	"aws_route_table_association":    {},
 	"aws_iam_role_policy_attachment": {},
+	// aws_route53_record (#19's second slice): the survey classes it
+	// client-named, and its name and type are, but the third component of
+	// its import identity (ZONEID_NAME_TYPE) is the parent zone's
+	// server-assigned Z-ID, so the fork wires it as a composite through the
+	// aws_route53_zone marker — flag F5 in stateless/SURVEY.md, resolved by
+	// #20 wiring the zone. Verified against the provider's identity schema
+	// (required import attributes: name, type, zone_id) and against floci.
+	"aws_route53_record": {},
 
 	// Client-assigned identity: the name is already in the configuration.
 	"aws_s3_bucket":            {},
@@ -79,6 +87,14 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_s3_bucket_public_access_block":                  {},
 	"aws_s3_bucket_server_side_encryption_configuration": {},
 	"aws_s3_bucket_lifecycle_configuration":              {},
+	// Same slice (#19): an inline role policy imports by ROLENAME:POLICYNAME,
+	// both halves client-chosen strings already in configuration (the same
+	// concrete-composite shape as aws_iam_role_policy_attachment), and a KMS
+	// alias imports by its full alias/... name argument — the alias is the
+	// client-named handle on the marker-discovered key. Both verified
+	// against the provider's identity schemas and against floci.
+	"aws_iam_role_policy": {},
+	"aws_kms_alias":       {},
 
 	// List plus content match, as a fungible set bound by tofu-slot marker.
 	"aws_eip": {},
