@@ -101,6 +101,25 @@ func TestResolveEstate(t *testing.T) {
 		// block.
 		`aws_kms_key.main`:      `NEEDS_DISCOVERY`,
 		`aws_route53_zone.main`: `NEEDS_DISCOVERY`,
+
+		// Second slice of the marker cohort (#20): three ELBv2 objects, each
+		// named in configuration and each identified by an ARN ELBv2 mints.
+		`aws_lb.main`:             `NEEDS_DISCOVERY`,
+		`aws_lb_target_group.app`: `NEEDS_DISCOVERY`,
+		`aws_lb_listener.app`:     `NEEDS_DISCOVERY`,
+
+		// #21's parent-derived slice: the target group's ARN is live, the
+		// target and port are config data, and the provider's import ID
+		// joins the three with commas.
+		`aws_lb_target_group_attachment.app`: `PARENT_DERIVED ${aws_lb_target_group.app.arn},10.42.1.55,80`,
+
+		// Account-derived (SURVEY.md flags F1 and F2): both names are right
+		// there in configuration, and both import identities wrap them in an
+		// account and a region this run was not given. Resolve passes no
+		// CloudContext, so they defer to marker discovery rather than
+		// erroring - TestResolveInCloudContext is the other half of this.
+		`aws_sqs_queue.jobs`:   `NEEDS_DISCOVERY`,
+		`aws_sns_topic.alerts`: `NEEDS_DISCOVERY`,
 	}
 
 	assertClassifications(t, result, want)
@@ -121,7 +140,7 @@ func TestResolveEstateDisabled(t *testing.T) {
 	if _, ok := result.Get(mustAddr(t, `aws_cloudwatch_log_group.optional[0]`)); ok {
 		t.Error("aws_cloudwatch_log_group.optional[0] is present with enabled = false; count = 0 must expand to no instances")
 	}
-	if got, want := result.Len(), 23; got != want {
+	if got, want := result.Len(), 29; got != want {
 		t.Errorf("resolved %d instances, want %d", got, want)
 	}
 	if _, ok := result.Get(mustAddr(t, `aws_cloudwatch_log_group.app`)); !ok {
@@ -153,9 +172,14 @@ func TestEstateNeedsDiscoveryList(t *testing.T) {
 		`aws_eip.pool[2]`,
 		`aws_internet_gateway.main`,
 		`aws_kms_key.main`,
+		`aws_lb.main`,
+		`aws_lb_listener.app`,
+		`aws_lb_target_group.app`,
 		`aws_route53_zone.main`,
 		`aws_route_table.main`,
 		`aws_security_group.main`,
+		`aws_sns_topic.alerts`,
+		`aws_sqs_queue.jobs`,
 		`aws_subnet.this["a"]`,
 		`aws_subnet.this["b"]`,
 		`aws_vpc.main`,
@@ -176,6 +200,7 @@ func TestEstateFormulaParents(t *testing.T) {
 		`aws_route.internet_gateway`:            {`aws_route_table.main`},
 		`aws_route_table_association.this["a"]`: {`aws_route_table.main`, `aws_subnet.this["a"]`},
 		`aws_route_table_association.this["b"]`: {`aws_route_table.main`, `aws_subnet.this["b"]`},
+		`aws_lb_target_group_attachment.app`:    {`aws_lb_target_group.app`},
 	}
 	for addr, wantParents := range tests {
 		res, ok := result.Get(mustAddr(t, addr))
@@ -200,16 +225,17 @@ func TestFormulaRender(t *testing.T) {
 	result, diags := Resolve(context.Background(), cfg)
 	assertNoErrors(t, diags)
 
+	// Keyed by parent address and identity attribute: the ELBv2 chain reads
+	// its parent's arn where the EC2 types read an id, and a formula that
+	// asked for the wrong one must not render.
 	live := map[string]string{
-		`aws_route_table.main`: "rtb-0a1b2c3d",
-		`aws_subnet.this["a"]`: "subnet-1111",
-		`aws_subnet.this["b"]`: "subnet-2222",
+		`aws_route_table.main` + "\x00id":     "rtb-0a1b2c3d",
+		`aws_subnet.this["a"]` + "\x00id":     "subnet-1111",
+		`aws_subnet.this["b"]` + "\x00id":     "subnet-2222",
+		`aws_lb_target_group.app` + "\x00arn": "arn:aws:elasticloadbalancing:us-east-1:000000000000:targetgroup/tofu-stateless-e2e-tg/73d2c",
 	}
 	lookup := func(parent addrs.AbsResourceInstance, attr string) (string, bool) {
-		if attr != "id" {
-			return "", false
-		}
-		v, ok := live[parent.String()]
+		v, ok := live[parent.String()+"\x00"+attr]
 		return v, ok
 	}
 
@@ -217,6 +243,7 @@ func TestFormulaRender(t *testing.T) {
 		`aws_route.internet_gateway`:            "rtb-0a1b2c3d_0.0.0.0/0",
 		`aws_route_table_association.this["a"]`: "subnet-1111/rtb-0a1b2c3d",
 		`aws_route_table_association.this["b"]`: "subnet-2222/rtb-0a1b2c3d",
+		`aws_lb_target_group_attachment.app`:    "arn:aws:elasticloadbalancing:us-east-1:000000000000:targetgroup/tofu-stateless-e2e-tg/73d2c,10.42.1.55,80",
 	}
 	for addr, want := range tests {
 		res, ok := result.Get(mustAddr(t, addr))
@@ -239,6 +266,72 @@ func TestFormulaRender(t *testing.T) {
 		return "", false
 	}); ok {
 		t.Error("render succeeded with an unknown parent ID")
+	}
+}
+
+// TestResolveInCloudContext is the account-derived mechanism's own test: the
+// same two blocks that defer to marker discovery under [Resolve] resolve
+// concrete under [ResolveIn] once the run says which account and region it is
+// against, and the strings they resolve to are the provider's real import
+// identities.
+func TestResolveInCloudContext(t *testing.T) {
+	cfg := loadConfig(t, estateDir(t), nil)
+
+	result, diags := ResolveIn(context.Background(), cfg, CloudContext{
+		AccountID: "000000000000",
+		Region:    "us-east-1",
+	})
+	assertNoErrors(t, diags)
+
+	want := map[string]string{
+		`aws_sqs_queue.jobs`:   `https://sqs.us-east-1.amazonaws.com/000000000000/tofu-stateless-e2e-jobs`,
+		`aws_sns_topic.alerts`: `arn:aws:sns:us-east-1:000000000000:tofu-stateless-e2e-alerts`,
+	}
+	for addr, wantID := range want {
+		res, ok := result.Get(mustAddr(t, addr))
+		if !ok {
+			t.Fatalf("%s missing from the result", addr)
+		}
+		if res.Class != ClassConcrete {
+			t.Errorf("%s = %s with a cloud context, want CONCRETE", addr, res.Class)
+			continue
+		}
+		if res.ImportID != wantID {
+			t.Errorf("%s import ID = %q, want %q", addr, res.ImportID, wantID)
+		}
+	}
+
+	// Nothing else moved: a cloud context changes the classification of the
+	// types whose identity embeds one of its values and of nothing else.
+	if res, _ := result.Get(mustAddr(t, `aws_kms_key.main`)); res.Class != ClassNeedsDiscovery {
+		t.Errorf("aws_kms_key.main = %s with a cloud context, want NEEDS_DISCOVERY", res.Class)
+	}
+	if res, _ := result.Get(mustAddr(t, `aws_s3_bucket.data`)); res.Class != ClassConcrete {
+		t.Errorf("aws_s3_bucket.data = %s with a cloud context, want CONCRETE", res.Class)
+	}
+}
+
+// TestResolveInPartialCloudContext pins the halfway case: a run that knows
+// the region and not the account still cannot name an SQS queue, and says
+// which value it is missing rather than building a URL with a hole in it.
+func TestResolveInPartialCloudContext(t *testing.T) {
+	cfg := loadConfig(t, estateDir(t), nil)
+
+	result, diags := ResolveIn(context.Background(), cfg, CloudContext{Region: "us-east-1"})
+	assertNoErrors(t, diags)
+
+	res, ok := result.Get(mustAddr(t, `aws_sqs_queue.jobs`))
+	if !ok {
+		t.Fatal("aws_sqs_queue.jobs missing from the result")
+	}
+	if res.Class != ClassNeedsDiscovery {
+		t.Fatalf("aws_sqs_queue.jobs = %s with no account ID, want NEEDS_DISCOVERY", res.Class)
+	}
+	if !strings.Contains(res.Reason, "AWS account ID") {
+		t.Errorf("reason does not name the missing value: %q", res.Reason)
+	}
+	if res.ImportID != "" {
+		t.Errorf("a needs-discovery resolution carries an import ID: %q", res.ImportID)
 	}
 }
 
@@ -388,7 +481,7 @@ func TestTableCoversFixtureTypes(t *testing.T) {
 			t.Errorf("the v0 identity table covers %s, which the fixture does not use", typeName)
 		}
 	}
-	if got, want := len(AdmittedTypes()), 18; got != want {
+	if got, want := len(AdmittedTypes()), 24; got != want {
 		t.Errorf("table covers %d types, want the fixture's %d", got, want)
 	}
 }
@@ -415,8 +508,42 @@ func TestTableEntriesWellFormed(t *testing.T) {
 			t.Errorf("%s: no identity components and not server-assigned", typeName)
 		}
 		for i, comp := range entry.Components {
-			if len(comp.Attrs) == 0 && comp.Literal == "" {
-				t.Errorf("%s: component %d is neither an argument nor a separator", typeName, i)
+			switch {
+			case comp.Cloud != CloudNone:
+				if comp.Cloud != CloudAccountID && comp.Cloud != CloudRegion {
+					t.Errorf("%s: component %d names the unknown cloud value %q", typeName, i, comp.Cloud)
+				}
+				if len(comp.Attrs) != 0 || comp.Literal != "" {
+					t.Errorf("%s: component %d is a cloud value and also carries an argument or a separator", typeName, i)
+				}
+			case len(comp.Attrs) == 0 && comp.Literal == "":
+				t.Errorf("%s: component %d is neither an argument, a separator, nor a cloud value", typeName, i)
+			}
+		}
+	}
+}
+
+// TestCloudComponentsHaveAnEmptyContextAnswer is the property the whole
+// mechanism rests on: an entry that names a cloud value must classify
+// needs-discovery when the run supplies none, never error and never build a
+// half-rendered identity. Stated over the table rather than over the two
+// types that have such components today, so a third one inherits the check.
+func TestCloudComponentsHaveAnEmptyContextAnswer(t *testing.T) {
+	var empty CloudContext
+	for _, typeName := range AdmittedTypes() {
+		entry, _ := LookupType(typeName)
+		for _, comp := range entry.Components {
+			if comp.Cloud == CloudNone {
+				continue
+			}
+			if _, ok := empty.value(comp.Cloud); ok {
+				t.Errorf("%s: the zero CloudContext claims to know its %s", typeName, comp.Cloud)
+			}
+			if missing, ok := (&resolver{}).missingCloudValue(entry); !ok || missing == CloudNone {
+				t.Errorf("%s: an empty context does not report a missing cloud value", typeName)
+			}
+			if reason := cloudReason(entry, comp.Cloud); !strings.Contains(reason, entry.ImportSyntax) {
+				t.Errorf("%s: the needs-discovery reason does not show the import syntax: %q", typeName, reason)
 			}
 		}
 	}
