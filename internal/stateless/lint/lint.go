@@ -62,6 +62,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, issues *[]Issue) {
 	checkMovedBlocks(mod, path, issues)
 	checkManagedResources(mod, path, issues)
 	checkForEachKeys(ctx, mod, path, issues)
+	checkOverlongAddresses(ctx, mod, path, issues)
 	checkDataResources(mod, path, issues)
 	checkReceiptLeafRule(mod, path, issues)
 

@@ -45,6 +45,7 @@ var enforcedLimits = map[string]Rule{
 	"unadmitted-type":    RuleUnadmittedType,
 	"count-index-in-tag": RuleCountIndex,
 	"foreach-dotted-key": RuleForEachKey,
+	"overlong-address":   RuleOverlongAddress,
 }
 
 // notYetEnforcedLimits is every stateless/e2e/limits directory whose
@@ -56,13 +57,11 @@ var enforcedLimits = map[string]Rule{
 // same change, not to relax the assertion.
 // RA.3 moved foreach-dotted-key out of this list and into enforcedLimits:
 // RuleForEachKey (internal/stateless/lint/foreach_key.go) now rejects a key
-// carrying "." or ":" or anything else outside the AWS tag-value set. The
-// fixture's own header comment and stateless/LIMITATIONS.md still describe
-// it as documented-not-enforced; correcting that prose belongs to RA.5's
-// docs pass, and TestLimitationsDocCoversDirs only requires the heading,
-// which is unchanged.
+// carrying "." or ":" or anything else outside the AWS tag-value set.
+// overlong-address followed the same path: RuleOverlongAddress
+// (internal/stateless/lint/overlong_address.go) now measures the escaped
+// address against MARKERS.md's 256-character cap.
 var notYetEnforcedLimits = []string{
-	"overlong-address",   // MARKERS.md 256-char cap, no lint check yet
 	"duplicate-identity", // enforced at resolve time (internal/stateless/identity), not lint
 }
 

@@ -287,8 +287,6 @@ so a configuration that reaches identity resolution without passing lint
 still cannot mint a marker nothing can read back. Fixture at
 `stateless/e2e/limits/foreach-dotted-key/`.
 
-## Documented, not yet enforced
-
 ### overlong-address
 
 **Construct.** A resource whose escaped `tofu-address` would exceed 256
@@ -300,12 +298,19 @@ is a lint-time error, not a truncation. Silently truncating an ownership
 key is worse than refusing to admit the resource."
 
 **Forwarding address.** Shorten the resource address, with a shorter label
-or less module nesting (module path is part of the address).
+or a shorter instance key.
 
-**Enforcement.** Documented, not yet enforced. A MARKERS-adjacent rule, no
-roadmap task number assigned yet. No lint rule measures address length
-today. Fixture at `stateless/e2e/limits/overlong-address/`, asserted to
-produce zero issues by `TestLimitsNotYetEnforced`.
+**Enforcement.** `RuleOverlongAddress`, `internal/stateless/lint/overlong_address.go`
+(`checkOverlongAddresses`). It escapes each instance address exactly as the
+stamped marker would be escaped (per `stateless/MARKERS.md`, `[` becomes `:`
+and `]` and `"` are dropped) and rejects anything past 256 Unicode
+characters. A plain resource is measured directly, a `for_each` resource is
+measured once per statically evaluable key under the same boundary as
+`foreach-dotted-key`, and a `count` resource is measured at its highest
+index when the count is statically evaluable. Fixture at
+`stateless/e2e/limits/overlong-address/`.
+
+## Documented, not yet enforced
 
 ### duplicate-identity
 

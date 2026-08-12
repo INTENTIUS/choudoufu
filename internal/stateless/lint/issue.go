@@ -57,6 +57,12 @@ const (
 	// root-module mode. See child_module.go.
 	RuleChildModule Rule = "child-module"
 
+	// RuleOverlongAddress covers a resource instance whose escaped
+	// tofu-address does not fit in a tag value: more than 256 Unicode
+	// characters, the AWS hard cap stateless/MARKERS.md adopts. See
+	// overlong_address.go.
+	RuleOverlongAddress Rule = "overlong-address"
+
 	// RuleReceiptLeaf covers a direct reference, from another managed
 	// resource or an output, into a resource that is statically
 	// recognizable as a receipt (stateless/RECEIPTS.md's naming
@@ -107,6 +113,10 @@ var ruleInfo = map[Rule]struct {
 	RuleChildModule: {
 		summary: "Child modules are not available in stateless mode",
 		docsRef: `stateless/LIMITATIONS.md, "child-module"`,
+	},
+	RuleOverlongAddress: {
+		summary: "Resource address does not fit in a marker",
+		docsRef: `stateless/LIMITATIONS.md, "overlong-address"`,
 	},
 	RuleReceiptLeaf: {
 		// No stateless/LIMITATIONS.md entry exists for this rule; cite the
