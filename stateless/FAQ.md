@@ -67,7 +67,9 @@ compute, no databases, and no Lambda. The gap to the rest of AWS is
 mechanical rather than conceptual. The provider survey found 65 of the top
 68 AWS types satisfy the admission rule, but each type has to be wired
 into the hardcoded v0 admission table by hand until provider identity
-schemas (opentofu#2854) make the table derivable. Beyond types, there are
+schemas (opentofu#2854) make the table derivable. The survey itself, its
+method, and its per-type table are committed in `stateless/SURVEY.md`.
+Beyond types, there are
 construct limits too. No child modules, no provisioners, no `random_*` or
 other logical resources, no workspaces, no saved plan files. Each limit is
 documented with its reasoning and its enforcing lint rule in
