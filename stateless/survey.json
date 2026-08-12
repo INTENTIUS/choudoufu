@@ -37,6 +37,7 @@
           "certificate_arn"
         ]
       },
+      "admission": "schema",
       "evidence": "excluded by hand per SURVEY.md's rule - waiter: records only that DNS validation finished; waiting belongs to the lifecycle layer"
     },
     {
@@ -56,6 +57,7 @@
           "region"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
     },
     {
@@ -75,6 +77,7 @@
           "region"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, native list resource exists"
     },
     {
@@ -93,6 +96,7 @@
           "account_id"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
     },
     {
@@ -122,6 +126,7 @@
           "region"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
     },
     {
@@ -141,6 +146,7 @@
           "region"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
     },
     {
@@ -160,6 +166,7 @@
           "region"
         ]
       },
+      "admission": "schema",
       "evidence": "every required-for-import identity attribute is a required argument: alarm_name"
     },
     {
@@ -199,6 +206,7 @@
           "region"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
     },
     {
@@ -218,6 +226,7 @@
           "region"
         ]
       },
+      "admission": "schema",
       "evidence": "every required-for-import identity attribute is a required argument: name"
     },
     {
@@ -237,6 +246,7 @@
           "region"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
     },
     {
@@ -256,6 +266,7 @@
           "region"
         ]
       },
+      "admission": "schema",
       "evidence": "every required-for-import identity attribute is a required argument: repository"
     },
     {
@@ -275,6 +286,7 @@
           "region"
         ]
       },
+      "admission": "schema",
       "evidence": "every required-for-import identity attribute is a required argument: name"
     },
     {
@@ -305,6 +317,7 @@
           "region"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity attrs (cluster, name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
     },
     {
@@ -354,6 +367,7 @@
           "region"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
     },
     {
@@ -373,6 +387,7 @@
           "region"
         ]
       },
+      "admission": "schema",
       "evidence": "every required-for-import identity attribute is a required argument: name"
     },
     {
@@ -393,6 +408,7 @@
           "region"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity attrs (cluster_name, node_group_name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
     },
     {
@@ -411,6 +427,7 @@
           "account_id"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "excluded by hand per SURVEY.md's rule - credential: the secret half is unreadable after create, and an external holder makes set semantics inapplicable"
     },
     {
@@ -439,6 +456,7 @@
           "account_id"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
     },
     {
@@ -472,6 +490,7 @@
           "account_id"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
     },
     {
@@ -491,6 +510,7 @@
           "account_id"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity attrs (name, role) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, native list resource exists"
     },
     {
@@ -510,6 +530,7 @@
           "account_id"
         ]
       },
+      "admission": "schema",
       "evidence": "identity fully client-assigned (policy_arn, role), composed over other types' identities: policy_arn (-> aws_fms_policy)"
     },
     {
@@ -528,6 +549,7 @@
           "account_id"
         ]
       },
+      "admission": "schema",
       "evidence": "every required-for-import identity attribute is a required argument: name"
     },
     {
@@ -547,6 +569,7 @@
           "region"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
     },
     {
@@ -566,6 +589,7 @@
           "region"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
     },
     {
@@ -595,6 +619,7 @@
           "region"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, native list resource exists"
     },
     {
@@ -614,6 +639,7 @@
           "region"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
     },
     {
@@ -633,6 +659,7 @@
           "region"
         ]
       },
+      "admission": "schema",
       "evidence": "every required-for-import identity attribute is a required argument: function_name"
     },
     {
@@ -654,6 +681,7 @@
           "region"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity attrs (function_name, statement_id) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, native list resource exists"
     },
     {
@@ -673,6 +701,7 @@
           "region"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
     },
     {
@@ -741,6 +770,7 @@
           "region"
         ]
       },
+      "admission": "schema",
       "evidence": "identity fully client-assigned (target_group_arn, target_id), composed over other types' identities: target_group_arn (-> aws_lb_target_group), target_id (-> aws_db_proxy_target)"
     },
     {
@@ -760,6 +790,7 @@
           "region"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
     },
     {
@@ -782,6 +813,7 @@
           "region"
         ]
       },
+      "admission": "schema",
       "evidence": "identity fully client-assigned (route_table_id), composed over other types' identities: route_table_id (-> aws_route_table)"
     },
     {
@@ -803,6 +835,7 @@
           "set_identifier"
         ]
       },
+      "admission": "schema",
       "evidence": "identity fully client-assigned (name, type, zone_id), composed over other types' identities: zone_id (-> aws_route53_zone)"
     },
     {
@@ -840,6 +873,7 @@
           "region"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
     },
     {
@@ -859,6 +893,7 @@
           "region"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity requires server-assigned id; untaggable, native list resource exists"
     },
     {
@@ -878,6 +913,7 @@
           "region"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity attrs (bucket) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
     },
     {
@@ -897,6 +933,7 @@
           "region"
         ]
       },
+      "admission": "schema",
       "evidence": "every required-for-import identity attribute is a required argument: bucket"
     },
     {
@@ -916,6 +953,7 @@
           "region"
         ]
       },
+      "admission": "schema",
       "evidence": "every required-for-import identity attribute is a required argument: bucket"
     },
     {
@@ -935,6 +973,7 @@
           "region"
         ]
       },
+      "admission": "schema",
       "evidence": "every required-for-import identity attribute is a required argument: bucket"
     },
     {
@@ -954,6 +993,7 @@
           "region"
         ]
       },
+      "admission": "schema",
       "evidence": "every required-for-import identity attribute is a required argument: bucket"
     },
     {
@@ -973,6 +1013,7 @@
           "region"
         ]
       },
+      "admission": "schema",
       "evidence": "every required-for-import identity attribute is a required argument: bucket"
     },
     {
@@ -1027,6 +1068,7 @@
           "region"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
     },
     {
@@ -1106,6 +1148,7 @@
           "region"
         ]
       },
+      "admission": "schema",
       "evidence": "every required-for-import identity attribute is a required argument: name"
     },
     {
@@ -1125,6 +1168,7 @@
           "region"
         ]
       },
+      "admission": "schema",
       "evidence": "every required-for-import identity attribute is a required argument: name"
     },
     {
@@ -1144,6 +1188,7 @@
           "region"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
     },
     {
@@ -1163,6 +1208,7 @@
           "region"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
     },
     {
