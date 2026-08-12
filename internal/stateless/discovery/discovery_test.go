@@ -37,12 +37,15 @@ func estateDir(t *testing.T) string {
 
 const estateName = "stateless-e2e"
 
-// The nine needs-discovery instances the fixture declares.
+// The eleven needs-discovery instances the fixture declares, sorted the way
+// discovery reports them.
 var allDiscovered = []string{
 	`aws_eip.pool[0]`,
 	`aws_eip.pool[1]`,
 	`aws_eip.pool[2]`,
 	`aws_internet_gateway.main`,
+	`aws_kms_key.main`,
+	`aws_route53_zone.main`,
 	`aws_route_table.main`,
 	`aws_security_group.main`,
 	`aws_subnet.this["a"]`,
@@ -117,9 +120,9 @@ func TestValidEstateName(t *testing.T) {
 // Binding
 // ---------------------------------------------------------------------------
 
-// TestDiscoverBindsWholeEstate is the happy path over the real fixture: nine
-// server-assigned instances, nine live resources carrying spec-conformant
-// markers, nine bindings and nothing else.
+// TestDiscoverBindsWholeEstate is the happy path over the real fixture:
+// eleven server-assigned instances, eleven live resources carrying
+// spec-conformant markers, eleven bindings and nothing else.
 func TestDiscoverBindsWholeEstate(t *testing.T) {
 	cloud := newFakeCloud()
 	cloud.own("aws_vpc", "vpc-1", `aws_vpc.main`)
@@ -131,6 +134,8 @@ func TestDiscoverBindsWholeEstate(t *testing.T) {
 	cloud.own("aws_eip", "eipalloc-0", `aws_eip.pool:0`)
 	cloud.own("aws_eip", "eipalloc-1", `aws_eip.pool:1`)
 	cloud.own("aws_eip", "eipalloc-2", `aws_eip.pool:2`)
+	cloud.own("aws_kms_key", "8b0e2a2c-key", `aws_kms_key.main`)
+	cloud.own("aws_route53_zone", "Z0E2E", `aws_route53_zone.main`)
 
 	res, diags := discoverFixture(t, cloud, Request{})
 	assertNoErrors(t, diags)
@@ -145,6 +150,8 @@ func TestDiscoverBindsWholeEstate(t *testing.T) {
 		`aws_eip.pool[0]`:           "eipalloc-0",
 		`aws_eip.pool[1]`:           "eipalloc-1",
 		`aws_eip.pool[2]`:           "eipalloc-2",
+		`aws_kms_key.main`:          "8b0e2a2c-key",
+		`aws_route53_zone.main`:     "Z0E2E",
 	})
 	if len(res.Unbound) != 0 {
 		t.Errorf("unbound instances: %v", res.Unbound)
@@ -153,14 +160,14 @@ func TestDiscoverBindsWholeEstate(t *testing.T) {
 		t.Errorf("problems:\n%s", res)
 	}
 
-	// The output resolution list is the whole estate: the nine discovered
+	// The output resolution list is the whole estate: the eleven discovered
 	// instances are now concrete, and everything static rides through.
 	byAddr := map[string]identity.Resolution{}
 	for _, r := range res.Resolutions {
 		byAddr[r.Addr.String()] = r
 	}
-	if got := len(res.Resolutions); got != 22 {
-		t.Errorf("Resolutions holds %d entries, want the fixture's 22", got)
+	if got := len(res.Resolutions); got != 24 {
+		t.Errorf("Resolutions holds %d entries, want the fixture's 24", got)
 	}
 	for _, addr := range allDiscovered {
 		r, ok := byAddr[addr]
@@ -801,9 +808,23 @@ type fakeCloud struct {
 
 func newFakeCloud() *fakeCloud {
 	return &fakeCloud{
-		objects:   make(map[string][]*fakeObject),
-		types:     []string{"aws_vpc", "aws_subnet", "aws_security_group", "aws_route_table", "aws_internet_gateway", "aws_eip"},
-		unfilter:  make(map[string]bool),
+		objects: make(map[string][]*fakeObject),
+		types: []string{
+			"aws_vpc", "aws_subnet", "aws_security_group", "aws_route_table",
+			"aws_internet_gateway", "aws_eip",
+			// #20's marker slice. The estate fixture declares both, so
+			// every discovery pass over that fixture lists them.
+			"aws_kms_key", "aws_route53_zone",
+		},
+		// Neither of #20's list schemas carries a filter block in the real
+		// provider - a KMS key list takes a region and nothing else, a
+		// hosted zone list takes private_zone - so both fall back to the
+		// client-side filter, and the fake says so rather than offering a
+		// filter the provider does not have.
+		unfilter: map[string]bool{
+			"aws_kms_key":      true,
+			"aws_route53_zone": true,
+		},
 		missing:   make(map[string]bool),
 		untagged:  make(map[string]bool),
 		accountID: "000000000000",

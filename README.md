@@ -19,7 +19,7 @@ OpenTofu user tends to ask in the first five minutes.
 ## Where this stands
 
 Live markers are experimental, and the scope is deliberately narrow. The mode
-covers AWS only, 14 admitted resource types, and the root module. Configs
+covers AWS only, 18 admitted resource types, and the root module. Configs
 outside that subset are refused up front by a lint pass rather than half
 supported. The full boundary, with the reasoning for each limit, is in
 [`stateless/LIMITATIONS.md`](stateless/LIMITATIONS.md).
