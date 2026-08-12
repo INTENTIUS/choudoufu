@@ -31,6 +31,15 @@ resource "aws_iam_role_policy_attachment" "app" {
 # (aws_iam_role_policy — the import ID is ROLENAME:POLICYNAME, both halves
 # client-chosen strings already in config). Untaggable by type, like the
 # attachment. #19's second slice.
+#
+# The policy names the data bucket's ARN as a literal, not as
+# aws_s3_bucket.data.arn. The bucket's name is fixed in this fixture, so
+# the two spell the same string — but under floci's S3 tag-replacement gap
+# (mv_test.go's flociS3TagGap) a renamed bucket loses its estate marker and
+# plans as a create, and an interpolated ARN would drag this untaggable
+# child into that plan the way aws_s3_bucket_policy.data already is. The
+# literal keeps this block out of the emulator's boundary; on real AWS both
+# spellings plan identically.
 resource "aws_iam_role_policy" "app" {
   name = "tofu-stateless-e2e-app-inline"
   role = aws_iam_role.app.name
@@ -41,7 +50,7 @@ resource "aws_iam_role_policy" "app" {
       Sid      = "AllowListDataBucket"
       Effect   = "Allow"
       Action   = ["s3:ListBucket"]
-      Resource = aws_s3_bucket.data.arn
+      Resource = "arn:aws:s3:::tofu-stateless-e2e-data"
     }]
   })
 }
