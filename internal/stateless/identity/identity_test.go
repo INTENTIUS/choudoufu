@@ -241,7 +241,7 @@ func TestResolveErrors(t *testing.T) {
 	}{
 		{
 			dir:         "unknown-type",
-			wantSummary: "Resource type outside the stateless subset",
+			wantSummary: "Resource type outside the live-markers subset",
 			wantDetail:  `"aws_instance"`,
 			wantAbsent:  `aws_instance.app`,
 		},

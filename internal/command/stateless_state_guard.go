@@ -48,7 +48,7 @@ func (m *Meta) statelessStateGuard(ctx context.Context, subcommand string) tfdia
 	// read.
 	return diags.Append(tfdiags.Sourceless(
 		tfdiags.Error,
-		"Command not available in stateless mode",
+		"Command not available under live resource markers",
 		fmt.Sprintf(
 			"\"choudoufu state %s\" operates on a stored state file, and this configuration's live block says there is no stored state. %s",
 			subcommand, statelessStateReplacement(subcommand),
@@ -74,8 +74,8 @@ var statelessStateReplacements = map[string]string{
 	"mv":   "Run \"choudoufu live-mv OLD NEW\", which rewrites the tofu-address marker on the live resource. That is the whole rename.",
 	"rm": "Delete the resource block from the configuration, or, to stop managing a resource without destroying it, remove its tofu-estate and tofu-address tags. " +
 		"A resource block deleted from the configuration is planned as a destroy by the estate sweep, so forgetting a resource without destroying it is a tag removal here rather than an edit to a record.",
-	"pull": "There is no state to pull. Prior state in stateless mode is a projection built by reading the live system, and it is discarded when the run ends.",
-	"push": "There is no state to push, and the record it would install is exactly the authority stateless mode removes.",
-	"replace-provider": "Provider addresses live in a state file, and a stateless run derives each resource's provider from the configuration on every run, " +
+	"pull": "There is no state to pull. Prior state under live resource markers is a projection built by reading the live system, and it is discarded when the run ends.",
+	"push": "There is no state to push, and the record it would install is exactly the authority live resource markers remove.",
+	"replace-provider": "Provider addresses live in a state file, and a live-markers run derives each resource's provider from the configuration on every run, " +
 		"so changing the configuration is the whole operation.",
 }

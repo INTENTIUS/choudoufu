@@ -41,7 +41,7 @@ func (r *resolver) checkedForEachKeys(rc *configs.Resource, exp *expansion) (*ex
 		r.errorf(rc.ForEach.Range(), "for_each key cannot be recorded as a marker",
 			"%s expands to an instance keyed %q, and that key contains %s. "+
 				"The key becomes part of the resource's address, the address becomes the tofu-address marker on the live resource, "+
-				"and that marker is the only record of ownership a stateless run has (stateless/MARKERS.md). "+
+				"and that marker is the only record of ownership a live-markers run has (stateless/MARKERS.md). "+
 				"A key may contain letters, digits, space, and the characters + - = _ / @: the AWS tag-value character set, "+
 				"less \".\" and \":\", which separate the segments of an escaped address. Rename the key.",
 			rc.Addr().String(), string(strKey), lint.DescribeForEachKeyRune(bad))

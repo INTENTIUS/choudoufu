@@ -309,7 +309,7 @@ func bindOne(typeName string, addr addrs.AbsResourceInstance, escaped string, c 
 			Addr:     addr,
 			Marker:   escaped,
 			Detail: fmt.Sprintf(
-				"The live %s bound to %s came back from the list call with no usable identity, so there is no import ID to build a projection from. The provider must serve an identity for a type stateless mode discovers by marker.",
+				"The live %s bound to %s came back from the list call with no usable identity, so there is no import ID to build a projection from. The provider must serve an identity for a type discovered by marker.",
 				typeName, addr),
 		}))
 		return Binding{}, false

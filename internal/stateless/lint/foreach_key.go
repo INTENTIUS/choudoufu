@@ -153,7 +153,7 @@ func checkForEachKeys(ctx context.Context, mod *configs.Module, path addrs.Modul
 					"the for_each key %q contains %s, which cannot survive the trip through a "+
 						"tofu-address marker. An instance key becomes part of the resource's address, the "+
 						"address becomes the marker on the live resource, and that marker is the only record "+
-						"of ownership a stateless run has (stateless/MARKERS.md). A key may contain letters, "+
+						"of ownership a live-markers run has (stateless/MARKERS.md). A key may contain letters, "+
 						"digits, space, and %s: the AWS tag-value character set, less \".\" and \":\", which "+
 						"separate the segments of an escaped address and so cannot appear inside one. This is "+
 						"caught here rather than at apply on purpose: a key like this applies cleanly and "+

@@ -44,7 +44,7 @@ func (m *Meta) statelessCommandGuard(ctx context.Context, command string) tfdiag
 		// A command wired to this guard and not listed below still gets
 		// refused, with the answer that is true of all of them.
 		refusal = statelessCommandRefusal{
-			summary: "Command not available in stateless mode",
+			summary: "Command not available under live resource markers",
 			detail: fmt.Sprintf("\"choudoufu %s\" operates on a stored state file, and this configuration's live block says there is no stored state. ", command) +
 				"Run \"choudoufu plan\", which reads the live system on every run.",
 		}
@@ -61,19 +61,19 @@ type statelessCommandRefusal struct {
 
 var statelessCommandRefusals = map[string]statelessCommandRefusal{
 	"import": {
-		summary: "Import is not available in stateless mode",
-		detail:  "\"choudoufu import\" writes a record of an existing resource into a state file, and this configuration's live block says there is no state file to write it into. Ownership in stateless mode is the tofu-estate and tofu-address tag pair described in stateless/MARKERS.md. Adopt the resource instead: add its resource block to the configuration and run \"choudoufu plan\", which prints the live resource under \"Adoptable\" together with the exact command that stamps its markers. The marker pair is the whole contract, so any tool that writes those two tags adopts the resource.",
+		summary: "Import is not available under live resource markers",
+		detail:  "\"choudoufu import\" writes a record of an existing resource into a state file, and this configuration's live block says there is no state file to write it into. Ownership under live resource markers is the tofu-estate and tofu-address tag pair described in stateless/MARKERS.md. Adopt the resource instead: add its resource block to the configuration and run \"choudoufu plan\", which prints the live resource under \"Adoptable\" together with the exact command that stamps its markers. The marker pair is the whole contract, so any tool that writes those two tags adopts the resource.",
 	},
 	"refresh": {
-		summary: "Refresh is not available in stateless mode",
+		summary: "Refresh is not available under live resource markers",
 		detail:  "\"choudoufu refresh\" updates a stored state file to match the live system, and this configuration's live block says there is no stored state to update. Run \"choudoufu plan\": it reads the live system on every run, which is the comparison refresh exists to make possible.",
 	},
 	"taint": {
-		summary: "Taint is not available in stateless mode",
-		detail:  "\"choudoufu taint\" marks an object in a state file as degraded so that the next plan replaces it, and this configuration's live block says there is no state file to carry that mark from one run to the next. A stateless run rebuilds its prior state by reading the live system every time, so a mark written now would not survive to the next plan. Ask for the replacement in the run that performs it: \"choudoufu plan -replace=ADDRESS\" and \"choudoufu apply -replace=ADDRESS\".",
+		summary: "Taint is not available under live resource markers",
+		detail:  "\"choudoufu taint\" marks an object in a state file as degraded so that the next plan replaces it, and this configuration's live block says there is no state file to carry that mark from one run to the next. A live-markers run rebuilds its prior state by reading the live system every time, so a mark written now would not survive to the next plan. Ask for the replacement in the run that performs it: \"choudoufu plan -replace=ADDRESS\" and \"choudoufu apply -replace=ADDRESS\".",
 	},
 	"untaint": {
-		summary: "Untaint is not available in stateless mode",
-		detail:  "\"choudoufu untaint\" removes a degraded mark from a state file, and this configuration's live block says there is no state file. Stateless mode never records one, so there is nothing to remove, and nothing in a stateless run can leave an object tainted.",
+		summary: "Untaint is not available under live resource markers",
+		detail:  "\"choudoufu untaint\" removes a degraded mark from a state file, and this configuration's live block says there is no state file. A live-markers run never records one, so there is nothing to remove, and nothing in a live-markers run can leave an object tainted.",
 	},
 }

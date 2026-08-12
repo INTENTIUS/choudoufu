@@ -128,7 +128,7 @@ func TestLivePlan_lintFatal(t *testing.T) {
 	}
 
 	stderr := output.Stderr()
-	if !strings.Contains(stderr, "Logical resources are not available in stateless mode") {
+	if !strings.Contains(stderr, "Logical resources are not available under live resource markers") {
 		t.Errorf("no lint diagnostic for the logical resource:\n%s", stderr)
 	}
 	if !strings.Contains(stderr, "logical-resource") {
@@ -222,10 +222,10 @@ func TestLivePlan_rejectsStateOptions(t *testing.T) {
 		args []string
 		want string
 	}{
-		{[]string{"-out=tfplan"}, "Saved plan files are not available in stateless mode"},
-		{[]string{"-state=other.tfstate"}, "State file options are not available in stateless mode"},
-		{[]string{"-destroy"}, "Only the normal planning mode is available in stateless mode yet"},
-		{[]string{"-json"}, "Machine-readable output is not available in stateless mode yet"},
+		{[]string{"-out=tfplan"}, "Saved plan files are not available under live resource markers"},
+		{[]string{"-state=other.tfstate"}, "State file options are not available under live resource markers"},
+		{[]string{"-destroy"}, "Only the normal planning mode is available under live resource markers yet"},
+		{[]string{"-json"}, "Machine-readable output is not available under live resource markers yet"},
 	} {
 		t.Run(tc.args[0], func(t *testing.T) {
 			cloud := newStatelessTestCloud()

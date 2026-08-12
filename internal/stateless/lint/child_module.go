@@ -47,7 +47,7 @@ func checkChildModules(mod *configs.Module, path addrs.Module, issues *[]Issue) 
 			Rule:      RuleChildModule,
 			Construct: fmt.Sprintf("module %q", name),
 			Module:    path,
-			Detail: "stateless mode v0 covers the root module only. Identity resolution, " +
+			Detail: "live resource markers v0 cover the root module only. Identity resolution, " +
 				"discovery, marker stamping and the projection all stop at the root, and " +
 				"module expansion - count or for_each on a module block - changes every " +
 				"resource address inside the module, which is what a tofu-address marker " +
