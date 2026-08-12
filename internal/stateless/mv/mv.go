@@ -193,8 +193,8 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			tfdiags.Error,
 			"Resource type outside the live-markers subset",
 			fmt.Sprintf(
-				"There is no identity knowledge for resource type %q, so a live resource of that type cannot be found, read or rewritten. The v0 identity table covers: %s.",
-				res.TypeName, strings.Join(identity.AdmittedTypes(), ", ")),
+				"There is no identity knowledge for resource type %q, so a live resource of that type cannot be found, read or rewritten. See stateless/LIMITATIONS.md, \"unadmitted-type\", for the admitted set.",
+				res.TypeName),
 		))
 	}
 
@@ -277,8 +277,8 @@ func checkAddresses(req Request) tfdiags.Diagnostics {
 			tfdiags.Error,
 			"Mismatched resource types in a rename",
 			fmt.Sprintf(
-				"%s is a %s and %s is a %s. Rewriting the marker points the same live resource at a new address; it does not turn one kind of cloud object into another, and a marker naming an address of a different type would bind a %s to a %s block on the next run.",
-				req.Old, oldRes.Type, req.New, newRes.Type, oldRes.Type, newRes.Type),
+				"%s is a %s and %s is a %s. A rename rewrites the marker on one live resource; it does not turn one kind of cloud object into another. See stateless/MARKERS.md, \"The rename rule\".",
+				req.Old, oldRes.Type, req.New, newRes.Type),
 		))
 	case !req.Old.Module.IsRoot() || !req.New.Module.IsRoot():
 		// Unlike the guard at the top of Move, this one is about the two
@@ -344,7 +344,7 @@ func anchorAddr(req Request) (addrs.AbsResourceInstance, tfdiags.Diagnostics) {
 		return req.New, diags
 	case !req.AllowMissingConfig:
 		detail := fmt.Sprintf(
-			"%s is not declared in this configuration, so rewriting a live resource's marker to it would produce a resource owned by an address that does not exist. Rename the resource block first (that edit is the rename; this command makes the live system agree with it), or pass -allow-missing-config to rewrite the marker now and rename the block in the same change.",
+			"%s is not declared in this configuration, so rewriting a live resource's marker to it would produce a resource owned by an address that does not exist. Rename the resource block first, or pass -allow-missing-config to rewrite the marker now and rename the block in the same change.",
 			req.New)
 		if !oldDeclared {
 			detail += fmt.Sprintf(" Note that %s is not declared either.", req.Old)
@@ -357,7 +357,7 @@ func anchorAddr(req Request) (addrs.AbsResourceInstance, tfdiags.Diagnostics) {
 			tfdiags.Warning,
 			"Configuration still naming the old address",
 			fmt.Sprintf(
-				"-allow-missing-config was given and %s is not declared, so the live resource was read through %s, which still is. The marker now names an address the configuration does not declare: until the resource block is renamed, a plan will report this resource as an orphan of this estate.",
+				"-allow-missing-config was given and %s is not declared, so the live resource was read through %s. Until the resource block is renamed, a plan will report this resource as an orphan of this estate.",
 				req.New, req.Old),
 		))
 	default:
@@ -365,7 +365,7 @@ func anchorAddr(req Request) (addrs.AbsResourceInstance, tfdiags.Diagnostics) {
 			tfdiags.Error,
 			"Neither address in the configuration",
 			fmt.Sprintf(
-				"Neither %s nor %s is declared here. One of them has to be: the resource block is what names the provider configuration this resource is reached through, and with neither there is nothing to read the live resource with.",
+				"Neither %s nor %s is declared here. One of them has to be, to name the provider configuration the live resource is reached through.",
 				req.Old, req.New),
 		))
 	}
@@ -469,7 +469,7 @@ func (m *mover) find(ctx context.Context) (*states.ResourceInstanceObject, tfdia
 				tfdiags.Error,
 				"No marker search path for this resource type",
 				fmt.Sprintf(
-					"The identity of a %s is assigned by the provider at create time (%s), so the only way to find the live resource carrying %q is to list the type and read the markers - and this provider cannot list %s. Nothing was searched and nothing was written; this is not a report that no such resource exists. The provider needs list support for this type before live-mv can rename it.",
+					"The identity of a %s is provider-assigned (%s), so the resource carrying %q can only be found by listing the type, and this provider cannot list it. Nothing was searched and nothing was written; this is not a report that no such resource exists. The provider needs list support for %s before live-mv can rename it.",
 					m.res.TypeName, discoveryReason(resolution), m.res.OldMarker, m.res.TypeName),
 			))
 		}
@@ -602,7 +602,7 @@ func (m *mover) destinationDiags(claimNew []listed) tfdiags.Diagnostics {
 		tfdiags.Error,
 		"Destination address already claimed",
 		fmt.Sprintf(
-			"%s (%s) already carries the address %q, and rewriting %s to the same value would make two live resources claim one address - the collision the marker spec names as needing a human. Nothing was written.",
+			"%s (%s) already carries the address %q; rewriting %s to the same value would make two live resources claim one address. Nothing was written. See stateless/MARKERS.md, \"Ownership semantics\".",
 			strings.Join(liveIDs(others), ", "), m.res.TypeName, m.res.NewMarker, m.res.LiveID),
 	))
 }
@@ -629,7 +629,7 @@ func (m *mover) locateByList(ctx context.Context, ts listclient.TypeSchema) (str
 			tfdiags.Error,
 			"Two live resources claiming one address",
 			fmt.Sprintf(
-				"%d live %s resources carry estate %q and address %q at once: %s. The marker admission path assumes at most one live resource per address per estate, so which of them this rename is about is not something their shared marker answers. A human has to resolve the collision - by retagging or deleting the wrong one - before either can be renamed.",
+				"%d live %s resources carry estate %q and address %q at once: %s. Retag or delete the wrong one before renaming either; see stateless/MARKERS.md, \"Ownership semantics\".",
 				len(claimOld), m.res.TypeName, m.req.Estate, m.res.OldMarker, strings.Join(liveIDs(claimOld), ", ")),
 		))
 	}
@@ -670,7 +670,7 @@ func notFoundDiag(res *Result, listed, inEstate int, newClaimed bool) tfdiags.Di
 		tfdiags.Error,
 		"No live resource at the old address",
 		fmt.Sprintf(
-			"The provider listed %d %s, %d of which carry estate %q, and none of those carries the tofu-address value %q. Nothing was written. This is an answer about the live system rather than about the provider: the type was enumerated, so a resource with that marker does not exist.",
+			"The provider listed %d %s, %d of which carry estate %q, and none of those carries the tofu-address value %q. Nothing was written; the type was enumerated, so a resource with that marker does not exist.",
 			listed, res.TypeName, inEstate, res.Estate, res.OldMarker),
 	)
 }
@@ -715,7 +715,7 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 			tfdiags.Error,
 			"Live resource owned by another estate",
 			fmt.Sprintf(
-				"The live %s at %s carries tofu-estate = %q, and this rename is for estate %q. An estate is the ownership boundary, so moving a resource across one is a transfer of ownership rather than a rename, and this command will not do it silently.",
+				"The live %s at %s carries tofu-estate = %q, and this rename is for estate %q. Moving a resource across estates is a transfer of ownership, not a rename; see stateless/MARKERS.md, \"Ownership semantics\".",
 				m.res.TypeName, m.res.LiveID, estate, m.req.Estate),
 		))
 	case marker == m.res.NewMarker:
@@ -731,7 +731,7 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 			tfdiags.Error,
 			"No live resource at the old address",
 			fmt.Sprintf(
-				"The live %s at %s carries no tofu-address tag at all, so it does not carry %q. A resource with no marker is unowned rather than misnamed: adopting it means stamping its markers deliberately, which a rename is not. Nothing was written.",
+				"The live %s at %s carries no tofu-address tag at all, so it does not carry %q. An unmarked resource is adopted by stamping its markers, not renamed. Nothing was written.",
 				m.res.TypeName, m.res.LiveID, m.res.OldMarker),
 		))
 	default:

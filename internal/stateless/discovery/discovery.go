@@ -490,7 +490,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				TypeName: typeName,
 				Reason:   SweepGapNotListable,
 				Detail: fmt.Sprintf(
-					"The provider cannot list %s, so this run could not look for resources of that type which this estate owns but no longer declares. If a %s block was deleted from this configuration, its live resource is still there and no plan will propose destroying it until the provider can list the type.",
+					"The provider cannot list %s, so this run could not look for resources of that type which this estate owns but no longer declares. A deleted %s block's live resource stays live until the provider can list the type.",
 					typeName, typeName),
 			}))
 		}
@@ -499,7 +499,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			Kind:     ProblemTypeNotListable,
 			TypeName: typeName,
 			Detail: fmt.Sprintf(
-				"The provider cannot list %s, so the %d declared instance(s) of it cannot be discovered by marker. Reporting them as absent would propose creating resources that may already exist; the provider needs list support for this type before live resource markers can manage it.",
+				"The provider cannot list %s, so the %d declared instance(s) of it cannot be discovered by marker. The provider needs list support for this type before live resource markers can manage it.",
 				typeName, scan.Declared),
 		}))
 	}
@@ -510,7 +510,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			TypeName: typeName,
 			Reason:   SweepGapNotTaggable,
 			Detail: fmt.Sprintf(
-				"A %s carries no tags, so it can carry no ownership marker, and the sweep has nothing to search on. A resource of this type is found by an identity built from its own configuration, which means deleting its resource block deletes the only record of which resource it was. Destroy it before removing its block, or delete it out of band.",
+				"A %s carries no tags, so it can carry no ownership marker and the sweep has nothing to search on. Destroy a resource of this type before removing its block, or delete it out of band.",
 				typeName),
 		}))
 	}
@@ -612,7 +612,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				TypeName: typeName,
 				LiveIDs:  liveIDs(importID),
 				Detail: fmt.Sprintf(
-					"The provider listed a %s with no tags attribute on the returned object, so its ownership markers cannot be read. Marker discovery requires the list results to carry the resource object; this is a provider bug or a type that should never have been admitted as marker-discoverable.",
+					"The provider listed a %s with no tags attribute on the returned object, so its ownership markers cannot be read. This is a provider bug or a type that should not be marker-discoverable.",
 					typeName),
 			}))
 			continue
@@ -683,7 +683,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				Marker:   raw,
 				LiveIDs:  liveIDs(importID),
 				Detail: fmt.Sprintf(
-					"A live %s claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. A tofu-address marker is the resource's own address, so its leading segment is its own type; this one cannot be, and discovery will not read a marker as naming a resource of a type it is not on. See stateless/MARKERS.md. Retag the resource with its own address, or remove the marker to disown it.",
+					"A live %s claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. A marker names the resource it is written on (see stateless/MARKERS.md). Retag the resource with its own address, or remove the marker to disown it.",
 					typeName, req.Estate, raw, markerTypeLabel(markerType), typeName),
 			}))
 			continue
@@ -755,7 +755,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			Kind:     ProblemUnresolvedAccount,
 			TypeName: typeName,
 			Detail: fmt.Sprintf(
-				"Every %s the provider listed came back with an empty account ID, which means the provider resolved no AWS account and the owner-id filter it appends to a filtered list went out empty. An emulator ignores that; real EC2 matches nothing against it, and this discovery pass would silently find no resources. Remove skip_requesting_account_id from the provider configuration so the provider can resolve the account once via STS.",
+				"Every %s the provider listed came back with an empty account ID, so the owner-id filter the provider appends to a filtered list went out empty and real EC2 would silently match nothing. Remove skip_requesting_account_id from the provider configuration so the provider can resolve the account via STS.",
 				typeName),
 		}))
 	}
@@ -864,7 +864,7 @@ func classifyOrphans(req Request, res *Result) tfdiags.Diagnostics {
 				Marker:   o.Normalized,
 				LiveIDs:  liveIDs(o.ImportID),
 				Detail: fmt.Sprintf(
-					"A live %s carries estate %q and the tofu-address value %q, which no declared instance matches and which the escaping rule in stateless/MARKERS.md cannot turn back into an address. This estate owns a resource it cannot name, so nothing is proposed for it: a human has to give it a marker that round-trips, or remove it.",
+					"A live %s carries estate %q and the tofu-address value %q, which no declared instance matches and which the escaping rule in stateless/MARKERS.md cannot turn back into an address. Nothing is proposed for it: give it a marker that round-trips, or remove it.",
 					o.TypeName, req.Estate, o.Normalized),
 			}))
 			o.Withheld = "its marker cannot be turned back into an address, so there is no instance to plan a destroy at"
@@ -882,9 +882,8 @@ func classifyOrphans(req Request, res *Result) tfdiags.Diagnostics {
 				Marker:   o.Normalized,
 				LiveIDs:  liveIDs(o.ImportID),
 				Detail: fmt.Sprintf(
-					"A live %s carries estate %q and the tofu-address value %q, which is the address of a %s. A marker names the resource it is written on, so this one cannot be acted on at all: destroying %s would be destroying a %s at an address that says %s. Retag the resource with its own address, or remove the marker to disown it.",
-					o.TypeName, req.Estate, o.Normalized, o.Addr.Resource.Resource.Type,
-					o.Addr, o.TypeName, o.Addr.Resource.Resource.Type),
+					"A live %s carries estate %q and the tofu-address value %q, which is the address of a %s. A marker names the resource it is written on (see stateless/MARKERS.md), so nothing can be planned for it. Retag the resource with its own address, or remove the marker to disown it.",
+					o.TypeName, req.Estate, o.Normalized, o.Addr.Resource.Resource.Type),
 			}))
 			o.Withheld = fmt.Sprintf(
 				"its marker names a %s and the live resource is a %s, so no instance address describes it",
@@ -950,7 +949,7 @@ func collisionOrphanProblem(req Request, res *Result, idx []int) Problem {
 		Marker:   first.Normalized,
 		LiveIDs:  ids,
 		Detail: fmt.Sprintf(
-			"%d live %s resources carry estate %q and the address %q, which this configuration no longer declares: %s. Removal proposes destroying the resource an address names, and this address names several, so nothing is proposed for any of them until a human says which is which.",
+			"%d live %s resources carry estate %q and the address %q, which this configuration no longer declares: %s. This address names several live resources, so nothing is proposed for any of them until a human says which is which.",
 			len(ids), first.TypeName, req.Estate, first.Normalized, strings.Join(ids, ", ")),
 	}
 }
@@ -1141,7 +1140,7 @@ func bind(req Request, decl *declared, res *Result) tfdiags.Diagnostics {
 				Marker:   blk.addr,
 				LiveIDs:  claimantIDs(blk.claimants),
 				Detail: fmt.Sprintf(
-					"%d live %s resource(s) carry the marker %q, which is the address of a for_each block with %d expanded instances rather than the address of any one of them. A for_each instance is named by its key, so nothing here distinguishes which live resource is which instance and binding them in list order would attach a plan to an arbitrary one. Rewrite each resource's tofu-address to the keyed address it belongs to; until then these instances stay unbound.",
+					"%d live %s resource(s) carry the marker %q, which is the address of a for_each block with %d expanded instances rather than the address of any one of them. Nothing distinguishes which live resource is which instance. Rewrite each resource's tofu-address to the keyed address it belongs to; until then these instances stay unbound.",
 					len(blk.claimants), typeName, blk.addr, blk.instances),
 			}))
 		}
@@ -1201,7 +1200,7 @@ func collisionProblem(req Request, typeName string, entry *declaredEntry) Proble
 			Marker:   entry.escaped,
 			LiveIDs:  ids,
 			Detail: fmt.Sprintf(
-				"%d live %s resources claim the count instance %s (%s). Count instances are a fungible set, so which of them is this slot is not something their shared address answers; stamping tofu-slot markers (roadmap P3.1) is what does. Discovery will not pick one.",
+				"%d live %s resources claim the count instance %s (%s). Count instances are a fungible set, so their shared address does not say which is which; tofu-slot markers do (see stateless/MARKERS.md, \"tofu-slot\"). Discovery will not pick one.",
 				len(ids), typeName, entry.res.Addr, strings.Join(ids, ", ")),
 		}
 	}
@@ -1212,7 +1211,7 @@ func collisionProblem(req Request, typeName string, entry *declaredEntry) Proble
 		Marker:   entry.escaped,
 		LiveIDs:  ids,
 		Detail: fmt.Sprintf(
-			"%d live %s resources carry estate %q and address %q at once: %s. The marker admission path assumes at most one live resource per address per estate, so something upstream - a hand-edited tag, an interrupted rename - needs a human to resolve before this estate can be planned.",
+			"%d live %s resources carry estate %q and address %q at once: %s. A human has to resolve the collision before this estate can be planned; see stateless/MARKERS.md, \"Ownership semantics\".",
 			len(ids), typeName, req.Estate, entry.escaped, strings.Join(ids, ", ")),
 	}
 }

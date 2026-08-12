@@ -143,17 +143,17 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 	switch {
 	case own.Estate == "":
 		detail = fmt.Sprintf(
-			"A live %s exists with identity %q, and this run has no estate name, so there is nothing to check its ownership marker against. Adopting it on the strength of the configuration naming it is what a live-markers run never does: the record of ownership is on the resource, not in the configuration that would like to own it. Pass -estate=<name>, or name the estate in the live block, and re-run.",
+			"A live %s exists with identity %q, and this run has no estate name, so there is nothing to check its ownership marker against. Pass -estate=<name>, or name the estate in the live block, and re-run. See stateless/MARKERS.md, \"Ownership semantics\".",
 			typeName, importID)
 	case estate == "":
 		detail = fmt.Sprintf(
-			"A live %s already exists with identity %q and carries no %s marker, so this estate does not own it. It is not in the prior state, nothing in this plan changes or destroys it, and the plan proposes creating the resource this configuration declares - which the cloud will refuse while the unowned one holds the name. Adopt it by writing %s=%q and %s=%q onto it, then re-run; or point this resource at a name nobody is using.",
+			"A live %s already exists with identity %q and carries no %s marker, so this estate does not own it and the plan proposes creating the resource this configuration declares - which the cloud will refuse while the unowned one holds the name. Adopt it by writing %s=%q and %s=%q onto it, then re-run; or point this resource at a name nobody is using.",
 			typeName, importID, markers.TagEstate,
 			markers.TagEstate, own.Estate,
 			markers.TagAddress, markers.EscapeAddress(addr.String()))
 	default:
 		detail = fmt.Sprintf(
-			"A live %s already exists with identity %q and carries %s=%q, so it belongs to another estate. It is not in the prior state and nothing in this plan changes or destroys it. Moving a resource between estates is a deliberate retag, never a side effect of the estate next door planning.",
+			"A live %s already exists with identity %q and carries %s=%q, so it belongs to another estate and nothing in this plan reads, changes or destroys it. See stateless/MARKERS.md, \"Ownership semantics\".",
 			typeName, importID, markers.TagEstate, estate)
 	}
 	b.unowned(addr, typeName, importID, estate, detail)
