@@ -1,6 +1,7 @@
 // Command site generates the static docs site for choudoufu: a landing
-// page plus rendered pages for the fork-unique docs (stateless mode,
-// markers, limitations, receipts, the e2e harness). It is its own Go
+// page plus rendered pages for the fork-unique docs (the FAQ, live
+// markers, the marker spec, limitations, receipts, the e2e harness). It
+// is its own Go
 // module so the root module's go.mod/go.sum never change on its account.
 //
 // Usage:
@@ -43,9 +44,15 @@ type docPage struct {
 
 var docPages = []docPage{
 	{
-		Slug:       "stateless-mode",
-		NavLabel:   "Stateless Mode",
-		Title:      "Stateless Mode",
+		Slug:       "faq",
+		NavLabel:   "FAQ",
+		Title:      "FAQ",
+		SourcePath: "stateless/FAQ.md",
+	},
+	{
+		Slug:       "live-markers",
+		NavLabel:   "Live Markers",
+		Title:      "Live Resource Markers",
 		SourcePath: "website/docs/language/stateless-mode.mdx",
 		IsMDX:      true,
 	},
@@ -70,7 +77,7 @@ var docPages = []docPage{
 	{
 		Slug:       "e2e",
 		NavLabel:   "E2E Harness",
-		Title:      "stateless/e2e — the harness",
+		Title:      "The e2e harness",
 		SourcePath: "stateless/e2e/README.md",
 	},
 }
@@ -192,6 +199,13 @@ func run(root, out string) error {
 		}); err != nil {
 			return err
 		}
+	}
+
+	// The live-markers page was first published at stateless-mode.html;
+	// keep a redirect stub at the old URL so existing links still land.
+	redirect := []byte(`<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=live-markers.html"><link rel="canonical" href="live-markers.html"><title>Live Resource Markers</title><p>Moved to <a href="live-markers.html">live-markers.html</a>.</p>` + "\n")
+	if err := os.WriteFile(filepath.Join(out, "stateless-mode.html"), redirect, 0o644); err != nil {
+		return fmt.Errorf("writing stateless-mode.html redirect: %w", err)
 	}
 
 	return nil
