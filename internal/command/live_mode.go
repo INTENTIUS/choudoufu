@@ -326,16 +326,23 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// snapshot was never enabled.
 	r.mgr.SetSnapshotEstate(estate)
 
-	resolutions, idDiags := identity.Resolve(ctx, config)
+	provs := newStatelessProviders(config, r.lib)
+
+	// Resolution runs ahead of the providers being configured and is handed
+	// their schemas, so that a type with no hand-written table row resolves
+	// when the provider's own identity schema describes it completely enough.
+	// See [identity.SynthesizeTypeIdentity].
+	resolutions, idDiags := identity.ResolveWith(ctx, config, identity.Context{
+		Schemas: provs.resourceSchemas(ctx),
+	})
 	diags = diags.Append(idDiags)
 	if idDiags.HasErrors() {
 		// Fatal on purpose. An identity map with holes in it produces a
 		// projection with holes in it, and the run would create objects that
 		// already exist.
+		diags = diags.Append(provs.close(ctx))
 		return nil, diags
 	}
-
-	provs := newStatelessProviders(config, r.lib)
 
 	merged := resolutions.All()
 	disco, discoProvider, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs)

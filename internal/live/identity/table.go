@@ -46,6 +46,17 @@ type TypeIdentity struct {
 	// attribute is a provider-synthesized value distinct from the import
 	// ID.
 	IdentityAttrs []string
+
+	// Synthesized is true when this entry was not written by hand but built
+	// from the provider's own identity schema at resolution time. See
+	// [SynthesizeTypeIdentity].
+	Synthesized bool
+
+	// Admits records what backed a synthesized entry: the schemas alone
+	// ([AdmitSchema]) or the schemas plus this configuration
+	// ([AdmitConfigSignal]). Empty for a hand-written row, which is asserted
+	// rather than derived.
+	Admits Admission
 }
 
 // Component is one piece of an import identity: a fixed separator (Literal,
@@ -71,6 +82,30 @@ type Component struct {
 	// and this package will not read it from anywhere: it is handed the
 	// values or it says it does not have them. See [ResolveIn].
 	Cloud CloudValue
+
+	// IdentityAttr names the attribute of the provider's resource identity
+	// schema that this component supplies, and is the inference the schemas
+	// themselves do not carry: an identity schema says a route is identified
+	// by a route_table_id, not that the route_table_id argument is where
+	// that value is written.
+	//
+	// Several components may name one attribute, in which case their
+	// rendered strings concatenate in order to form it - which is how an SNS
+	// topic's single "arn" identity attribute is built out of a literal
+	// prefix, the region, the account and the topic's name. A component with
+	// no IdentityAttr contributes to the concatenated import-ID string and
+	// to no identity attribute: that is what the separator between two
+	// identity attributes is, and it is exactly the character that stops
+	// mattering once a run imports by identity object instead.
+	//
+	// An entry whose components do not name every attribute the provider
+	// requires for import cannot be imported by identity, and its import-ID
+	// string is used instead. aws_route_table_association is the archetype:
+	// the provider identifies an association by the rtbassoc- ID it assigns,
+	// and the table builds the association's documented import string out of
+	// a subnet and a route table. Both are right about different things, and
+	// only one of them is an identity object.
+	IdentityAttr string
 }
 
 // CloudValue names one property of the cloud a run is against, for a

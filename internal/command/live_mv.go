@@ -129,14 +129,6 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 		return nil, diags
 	}
 
-	resolutions, idDiags := identity.Resolve(ctx, config)
-	diags = diags.Append(idDiags)
-	if idDiags.HasErrors() {
-		// Fatal for the same reason it is fatal in a plan: an identity map
-		// with holes in it cannot say which live resource an address means.
-		return nil, diags
-	}
-
 	estate, estateDiags := c.liveMvEstate(ctx, args.estate, config)
 	diags = diags.Append(estateDiags)
 	if estateDiags.HasErrors() {
@@ -152,6 +144,19 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 	provs := newStatelessProviders(config, coreOpts.Plugins)
 	// A named return, so that the shutdown warning still reaches the caller.
 	defer func() { diags = diags.Append(provs.close(ctx)) }()
+
+	// The same resolution a plan runs, with the same inputs, for the reason
+	// the comment above gives: a rename that derived the identity map
+	// differently from a plan would rewrite a marker a plan then disputes.
+	resolutions, idDiags := identity.ResolveWith(ctx, config, identity.Context{
+		Schemas: provs.resourceSchemas(ctx),
+	})
+	diags = diags.Append(idDiags)
+	if idDiags.HasErrors() {
+		// Fatal for the same reason it is fatal in a plan: an identity map
+		// with holes in it cannot say which live resource an address means.
+		return nil, diags
+	}
 
 	// Starting the provider here rather than leaving it to the mv package is
 	// what lets the region a list call goes to come from the provider block

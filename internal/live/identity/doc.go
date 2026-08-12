@@ -127,12 +127,18 @@
 //
 // # The type table
 //
-// Per-type identity knowledge lives in [DefaultTable], a v0 hardcoded
-// table covering the estate fixture's twenty-six AWS types. See table.go for
-// what it holds and for the note on replacing it with provider-served
-// table covering the estate fixture's twenty-three AWS types. See table.go
-// for what it holds and for the note on replacing it with provider-served
-// resource identity schemas.
+// Per-type identity knowledge lives in [DefaultTable], a v0 hardcoded table
+// covering thirty-one AWS types. See table.go for what it holds and for the
+// note on replacing it with provider-served resource identity schemas.
+//
+// A type absent from it is no longer automatically outside the subset.
+// [SynthesizeTypeIdentity] builds an entry from the provider's own resource
+// identity schema for the shape that needs no inference at all - one identity
+// attribute, named after the configuration argument that supplies it - when
+// the caller had the schemas to hand ([Context.Schemas]). A caller that had
+// none, which is every caller running before a plugin has started, gets the
+// table and nothing else. Composite identities stay hand-written, because the
+// character that joins their halves into an import ID is in no schema.
 //
 // # Checking the table against the provider's own schemas
 //
