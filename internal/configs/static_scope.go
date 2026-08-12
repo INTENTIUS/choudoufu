@@ -28,9 +28,35 @@ func newStaticScope(eval *StaticEvaluator, stack0 StaticIdentifier, stack ...Sta
 		Data:        staticScopeData{eval, append([]StaticIdentifier{stack0}, stack...)},
 		ParseRef:    addrs.ParseRef,
 		BaseDir:     ".", // Always current working directory for now. (same as Evaluator.Scope())
-		PureOnly:    false,
+		PureOnly:    eval.pureOnly,
 		ConsoleMode: false,
 	}
+}
+
+// Pure returns a copy of the evaluator whose scopes evaluate uuid(),
+// timestamp() and bcrypt() to unknown values instead of calling them, the
+// same way the plan walk does outside of apply (see lang.Scope.PureOnly and
+// internal/tofu/evaluate.go).
+//
+// The default is impure because the original callers of the static evaluator
+// - module source, backend configuration, module call variables - all want
+// whatever the function returns and consume it once, immediately.
+//
+// A caller that is deriving a stable identity from configuration wants the
+// opposite. An impure function evaluated here produces a value that is real,
+// known, and different on the next run: for stateless mode's identity
+// resolution that means a fabricated import ID, a plan that proposes to
+// create something that already exists, and a leaked resource per run, with
+// no diagnostic anywhere because nothing about the value looks wrong. Such a
+// caller asks for a pure evaluator, and gets an unknown value it can refuse
+// on rather than a plausible one it cannot tell from a real answer.
+func (s *StaticEvaluator) Pure() *StaticEvaluator {
+	if s == nil || s.pureOnly {
+		return s
+	}
+	dup := *s
+	dup.pureOnly = true
+	return &dup
 }
 
 // This structure represents the data required to evaluate a specific identifier reference (top of the stack)

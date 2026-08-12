@@ -444,7 +444,7 @@ func TestOperation_planNextStep(t *testing.T) {
 		},
 		"state path": {
 			path: "good plan.tfplan",
-			want: `tofu apply "good plan.tfplan"`,
+			want: `choudoufu apply "good plan.tfplan"`,
 		},
 	}
 	for name, tc := range testCases {

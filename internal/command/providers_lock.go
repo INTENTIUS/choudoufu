@@ -386,10 +386,10 @@ func (c *ProvidersLockCommand) Run(rawArgs []string) int {
 
 func (c *ProvidersLockCommand) Help() string {
 	return `
-Usage: tofu [global options] providers lock [options] [providers...]
+Usage: choudoufu [global options] providers lock [options] [providers...]
 
   Normally the dependency lock file (.terraform.lock.hcl) is updated
-  automatically by "tofu init", but the information available to the
+  automatically by "choudoufu init", but the information available to the
   normal provider installer can be constrained when you're installing providers
   from filesystem or network mirrors, and so the generated lock file can end
   up incomplete.

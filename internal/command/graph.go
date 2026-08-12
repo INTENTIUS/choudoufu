@@ -267,7 +267,7 @@ func (c *GraphCommand) Run(rawArgs []string) int {
 
 func (c *GraphCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] graph [options]
+Usage: choudoufu [global options] graph [options]
 
   Produces a representation of the dependency graph between different
   objects in the current configuration and state.

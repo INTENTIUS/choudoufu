@@ -49,6 +49,12 @@ func (c *StatePullCommand) Run(rawArgs []string) int {
 
 	c.Meta.variableArgs = args.Vars.All()
 
+	// See statelessStateGuard: refused before anything reaches a state manager.
+	if guardDiags := c.statelessStateGuard(ctx, "pull"); guardDiags.HasErrors() {
+		view.Diagnostics(diags.Append(guardDiags))
+		return 1
+	}
+
 	if diags := c.Meta.checkRequiredVersion(ctx); diags != nil {
 		view.Diagnostics(diags)
 		return 1
@@ -110,7 +116,7 @@ func (c *StatePullCommand) Run(rawArgs []string) int {
 
 func (c *StatePullCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] state pull [options]
+Usage: choudoufu [global options] state pull [options]
 
   Pull the state from its location, upgrade the local copy, and output it
   to stdout.

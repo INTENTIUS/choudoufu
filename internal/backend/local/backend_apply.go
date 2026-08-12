@@ -78,7 +78,7 @@ func (b *Local) opApply(
 			"No configuration files",
 			"Apply requires configuration to be present. Applying without a configuration "+
 				"would mark everything for destruction, which is normally not what is desired. "+
-				"If you would like to destroy everything, run 'tofu destroy' instead.",
+				"If you would like to destroy everything, run 'choudoufu destroy' instead.",
 		))
 		op.ReportResult(runningOp, diags)
 		return
@@ -386,10 +386,10 @@ func (b *Local) backupStateForError(stateFile *statefile.File, err error, view v
 
 const stateWriteBackedUpError = `The error shown above has prevented OpenTofu from writing the updated state to the configured backend. To allow for recovery, the state has been written to the file "errored.tfstate" in the current working directory.
 
-Running "tofu apply" again at this point will create a forked state, making it harder to recover.
+Running "choudoufu apply" again at this point will create a forked state, making it harder to recover.
 
 To retry writing this state, use the following command:
-    tofu state push errored.tfstate
+    choudoufu state push errored.tfstate
 `
 
 const stateWriteConsoleFallbackError = `The errors shown above prevented OpenTofu from writing the updated state to
@@ -397,7 +397,7 @@ the configured backend and from creating a local backup file. As a fallback,
 the raw state data is printed above as a JSON object.
 
 To retry writing this state, copy the state data (from the first { to the last } inclusive) and save it into a local file called errored.tfstate, then run the following command:
-    tofu state push errored.tfstate
+    choudoufu state push errored.tfstate
 `
 
 const stateWriteFatalErrorFmt = `Failed to save state after apply.

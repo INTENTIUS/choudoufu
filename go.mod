@@ -278,7 +278,7 @@ replace github.com/hashicorp/hcl/v2 v2.20.1 => github.com/opentofu/hcl/v2 v2.20.
 
 tool (
 	github.com/mitchellh/gox
-	github.com/opentofu/opentofu/cmd/tofu
+	github.com/opentofu/opentofu/cmd/choudoufu
 	github.com/opentofu/opentofu/tools/find-dep-upgrades
 	github.com/opentofu/opentofu/tools/find-pkg-importer
 	github.com/opentofu/opentofu/tools/loggraphdiff

@@ -55,6 +55,12 @@ func (c *StateReplaceProviderCommand) Run(rawArgs []string) int {
 	c.Meta.variableArgs = args.Vars.All()
 	c.Meta.backendArgs = *args.Backend
 
+	// See statelessStateGuard: refused before anything reaches a state manager.
+	if guardDiags := c.statelessStateGuard(ctx, "replace-provider"); guardDiags.HasErrors() {
+		view.Diagnostics(diags.Append(guardDiags))
+		return 1
+	}
+
 	if diags := c.Meta.checkRequiredVersion(ctx); diags != nil {
 		view.Diagnostics(diags)
 		return 1
@@ -210,7 +216,7 @@ func (c *StateReplaceProviderCommand) Run(rawArgs []string) int {
 
 func (c *StateReplaceProviderCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] state replace-provider [options] FROM_PROVIDER_FQN TO_PROVIDER_FQN
+Usage: choudoufu [global options] state replace-provider [options] FROM_PROVIDER_FQN TO_PROVIDER_FQN
 
   Replace provider for resources in the OpenTofu state.
 

@@ -33,6 +33,7 @@ type Module struct {
 
 	Backend              *Backend
 	CloudConfig          *CloudConfig
+	Live                 *Live
 	ProviderConfigs      map[string]*Provider
 	ProviderRequirements *RequiredProviders
 	ProviderLocalNames   map[addrs.Provider]string
@@ -91,6 +92,7 @@ func (m *Module) GetProviderConfig(name, alias string) (*Provider, bool) {
 type File struct {
 	Backends          []*Backend
 	CloudConfigs      []*CloudConfig
+	Lives             []*Live
 	ProviderConfigs   []*Provider
 	ProviderMetas     []*ProviderMeta
 	RequiredProviders []*RequiredProviders
@@ -139,6 +141,11 @@ func (s SelectiveLoader) filter(input []*File) []*File {
 		case SelectiveLoadBackend:
 			outFile.Backends = inFile.Backends
 			outFile.CloudConfigs = inFile.CloudConfigs
+			// The live block travels with the backend blocks because it
+			// answers the same question they do - where does prior state come
+			// from - and because it is mutually exclusive with them, which
+			// only a load that can see all three can check.
+			outFile.Lives = inFile.Lives
 		case SelectiveLoadEncryption:
 			outFile.Encryptions = inFile.Encryptions
 		}
@@ -342,6 +349,41 @@ func (m *Module) appendFile(file *File) hcl.Diagnostics {
 			Summary:  "Both a backend and a cloud configuration are present",
 			Detail:   fmt.Sprintf("A module may declare either one 'cloud' block configuring a cloud backend OR one 'backend' block configuring a state backend. A cloud backend is configured at %s; a backend is configured at %s. Remove the backend block to configure a cloud backend.", m.CloudConfig.DeclRange, m.Backend.DeclRange),
 			Subject:  &m.Backend.DeclRange,
+		})
+	}
+
+	for _, s := range file.Lives {
+		if m.Live != nil {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Duplicate live configuration",
+				Detail:   fmt.Sprintf("A module may have only one 'live' block. Stateless mode was previously configured at %s.", m.Live.DeclRange),
+				Subject:  &s.DeclRange,
+			})
+			continue
+		}
+		m.Live = s
+	}
+
+	// Stateless mode and a state store are mutually exclusive by construction:
+	// a stateless run has no state to put anywhere, so a backend beside it is
+	// not a redundant setting but a contradiction about where the truth lives.
+	// Refusing it here, in the decoder, means no command can reach a state
+	// manager while believing it is in stateless mode.
+	if m.Live != nil && m.Backend != nil {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Both a backend and a live configuration are present",
+			Detail:   fmt.Sprintf("A module may declare either one 'live' block, which removes state entirely, OR one 'backend' block configuring where state is stored. Stateless mode is configured at %s; a backend is configured at %s. Remove one of them.", m.Live.DeclRange, m.Backend.DeclRange),
+			Subject:  &m.Backend.DeclRange,
+		})
+	}
+	if m.Live != nil && m.CloudConfig != nil {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Both a cloud and a live configuration are present",
+			Detail:   fmt.Sprintf("A module may declare either one 'live' block, which removes state entirely, OR one 'cloud' block configuring a cloud backend. Stateless mode is configured at %s; a cloud backend is configured at %s. Remove one of them.", m.Live.DeclRange, m.CloudConfig.DeclRange),
+			Subject:  &m.CloudConfig.DeclRange,
 		})
 	}
 

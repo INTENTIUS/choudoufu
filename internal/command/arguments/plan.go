@@ -6,6 +6,8 @@
 package arguments
 
 import (
+	"flag"
+
 	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
@@ -39,6 +41,18 @@ type Plan struct {
 // If errors are encountered, a Plan value is still returned representing
 // the best effort interpretation of the arguments.
 func ParsePlan(args []string) (*Plan, func(), tfdiags.Diagnostics) {
+	return parsePlan(args, nil)
+}
+
+// parsePlan is ParsePlan with a hook for a command that is the plan command
+// plus one option of its own. The hook registers those extra flags on the
+// same flag set, which is what makes them parse and interleave with -target,
+// -var and friends the way any other plan option does. Nil means the stock
+// plan command, whose flag set is exactly what it always was.
+//
+// The one caller is [ParseLivePlan]; see there for why -estate is added at
+// this seam rather than to the Plan struct itself.
+func parsePlan(args []string, extraFlags func(*flag.FlagSet)) (*Plan, func(), tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	plan := &Plan{
 		State:     &State{},
@@ -54,6 +68,10 @@ func ParsePlan(args []string) (*Plan, func(), tfdiags.Diagnostics) {
 	cmdFlags.BoolVar(&plan.ShowSensitive, "show-sensitive", false, "displays sensitive values")
 
 	plan.ViewOptions.AddFlags(cmdFlags, true)
+
+	if extraFlags != nil {
+		extraFlags(cmdFlags)
+	}
 
 	if err := cmdFlags.Parse(args); err != nil {
 		diags = diags.Append(tfdiags.Sourceless(

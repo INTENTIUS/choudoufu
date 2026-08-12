@@ -88,6 +88,13 @@ type Local struct {
 	// If this is nil, local performs normal state loading and storage.
 	Backend backend.Backend
 
+	// Stateless, if non-nil, puts this backend into the fork's stateless
+	// mode: the state manager persists nothing and the prior state is a
+	// projection of the live system. See stateless.go. Nil - the case for
+	// every configuration without a "live" block - leaves every code
+	// path below exactly as it was.
+	Stateless StatelessRun
+
 	// opLock locks operations
 	opLock sync.Mutex
 
@@ -247,6 +254,13 @@ func (b *Local) DeleteWorkspace(ctx context.Context, name string, force bool) er
 }
 
 func (b *Local) StateMgr(ctx context.Context, name string) (statemgr.Full, error) {
+	// A stateless run has no state to store, so it never reaches a file
+	// path, a workspace directory or a backend. This is deliberately the
+	// first thing here: everything below creates something on disk.
+	if b.Stateless != nil {
+		return b.Stateless.StateMgr(), nil
+	}
+
 	// If we have a backend handling state, delegate to that.
 	if b.Backend != nil {
 		return b.Backend.StateMgr(ctx, name)

@@ -26,7 +26,7 @@ type VersionCommand struct {
 
 func (c *VersionCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] version [options]
+Usage: choudoufu [global options] version [options]
 
   Displays the version of OpenTofu and all installed plugins
 

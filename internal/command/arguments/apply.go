@@ -117,13 +117,13 @@ func ParseApplyDestroy(args []string) (*Apply, func(), tfdiags.Diagnostics) {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Invalid mode option",
-			"The -destroy option is not valid for \"tofu destroy\", because this command always runs in destroy mode.",
+			"The -destroy option is not valid for \"choudoufu destroy\", because this command always runs in destroy mode.",
 		))
 	case plans.RefreshOnlyMode:
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Invalid mode option",
-			"The -refresh-only option is not valid for \"tofu destroy\".",
+			"The -refresh-only option is not valid for \"choudoufu destroy\".",
 		))
 	default:
 		// This is a non-ideal error message for if we forget to handle a
@@ -132,7 +132,7 @@ func ParseApplyDestroy(args []string) (*Apply, func(), tfdiags.Diagnostics) {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Invalid mode option",
-			fmt.Sprintf("The \"tofu destroy\" command doesn't support %s.", apply.Operation.PlanMode),
+			fmt.Sprintf("The \"choudoufu destroy\" command doesn't support %s.", apply.Operation.PlanMode),
 		))
 	}
 

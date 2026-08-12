@@ -81,6 +81,17 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 		return 1
 	}
 
+	// Stateless mode is switched on by a "live" block in the
+	// configuration, never by a flag, so that a run cannot fall back to
+	// writing a state file by forgetting one. Without the block this is nil
+	// and nothing below changes.
+	statelessCfg, statelessDiags := c.statelessSettings(ctx, false)
+	diags = diags.Append(statelessDiags)
+	if statelessDiags.HasErrors() {
+		view.Diagnostics(diags)
+		return 1
+	}
+
 	// Prepare the backend with the backend-specific arguments
 	be, beDiags := c.PrepareBackend(ctx, args.State, view, enc)
 	diags = diags.Append(beDiags)
@@ -95,6 +106,16 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 	if diags.HasErrors() {
 		view.Diagnostics(diags)
 		return 1
+	}
+
+	if statelessCfg != nil {
+		moreDiags := statelessBegin(be, opReq, statelessCfg, c.View,
+			statelessRejections(args.Operation, args.State, args.ViewOptions, args.OutPath, args.GenerateConfigPath, ""))
+		diags = diags.Append(moreDiags)
+		if moreDiags.HasErrors() {
+			view.Diagnostics(diags)
+			return 1
+		}
 	}
 
 	// Before we delegate to the backend, we'll print any warning diagnostics
@@ -179,7 +200,7 @@ func (c *PlanCommand) OperationRequest(
 
 func (c *PlanCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] plan [options]
+Usage: choudoufu [global options] plan [options]
 
   Generates a speculative execution plan, showing what actions OpenTofu would
   take to apply the current configuration. This command will not actually
@@ -191,7 +212,7 @@ Usage: tofu [global options] plan [options]
 Plan Customization Options:
 
   The following options customize how OpenTofu will produce its plan. You can
-  also use these options when you run "tofu apply" without passing it a saved
+  also use these options when you run "choudoufu apply" without passing it a saved
   plan, in order to plan and apply in a single command.
 
   -destroy                Select the "destroy" planning mode, which creates a

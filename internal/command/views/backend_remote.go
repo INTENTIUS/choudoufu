@@ -100,7 +100,7 @@ func (v *BackendRemoteHuman) OperationNotCancelled() {
 }
 
 func (v *BackendRemoteHuman) PreRefresh() {
-	_, _ = v.view.streams.Println(v.view.colorize.Color(`[bold][yellow]Proceeding with 'tofu apply -refresh-only -auto-approve'.[reset]
+	_, _ = v.view.streams.Println(v.view.colorize.Color(`[bold][yellow]Proceeding with 'choudoufu apply -refresh-only -auto-approve'.[reset]
 `))
 }
 

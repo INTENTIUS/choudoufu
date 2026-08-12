@@ -235,7 +235,7 @@ persisted. Your existing states are untouched.
 			wantJson: []map[string]any{
 				{
 					"@level":   "error",
-					"@message": "printing the pulled state is not available in the JSON view. The `tofu state pull` should not be configured with the `-json` flag",
+					"@message": "printing the pulled state is not available in the JSON view. The `choudoufu state pull` should not be configured with the `-json` flag",
 					"@module":  "tofu.ui",
 				},
 			},
@@ -424,7 +424,7 @@ operation.
 					"@message": "Error: Error parsing instance address \"aws_instance.example\"",
 					"@module":  "tofu.ui",
 					"diagnostic": map[string]any{
-						"detail":   `This command requires that the address references one specific instance. To view the available instances, use "tofu state list". Please modify the address to reference a specific instance.`,
+						"detail":   `This command requires that the address references one specific instance. To view the available instances, use "choudoufu state list". Please modify the address to reference a specific instance.`,
 						"severity": "error",
 						"summary":  `Error parsing instance address "aws_instance.example"`,
 					},
@@ -435,7 +435,7 @@ operation.
 Error: Error parsing instance address "aws_instance.example"
 
 This command requires that the address references one specific instance. To
-view the available instances, use "tofu state list". Please modify the
+view the available instances, use "choudoufu state list". Please modify the
 address to reference a specific instance.
 `,
 		},
@@ -449,7 +449,7 @@ address to reference a specific instance.
 					"@message": "Error: No instance found for the given address",
 					"@module":  "tofu.ui",
 					"diagnostic": map[string]any{
-						"detail":   `This command requires that the address references one specific instance. To view the available instances, use "tofu state list". Please modify the address to reference a specific instance.`,
+						"detail":   `This command requires that the address references one specific instance. To view the available instances, use "choudoufu state list". Please modify the address to reference a specific instance.`,
 						"severity": "error",
 						"summary":  "No instance found for the given address",
 					},
@@ -460,7 +460,7 @@ address to reference a specific instance.
 Error: No instance found for the given address
 
 This command requires that the address references one specific instance. To
-view the available instances, use "tofu state list". Please modify the
+view the available instances, use "choudoufu state list". Please modify the
 address to reference a specific instance.
 `,
 		},

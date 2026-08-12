@@ -49,7 +49,7 @@ func (c *MetadataFunctionsCommand) Run(rawArgs []string) int {
 }
 
 const metadataFunctionsCommandHelp = `
-Usage: tofu [global options] metadata functions -json
+Usage: choudoufu [global options] metadata functions -json
 
   Prints out a json representation of the available function signatures.
 `

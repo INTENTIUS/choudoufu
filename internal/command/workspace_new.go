@@ -60,6 +60,14 @@ func (c *WorkspaceNewCommand) Run(rawArgs []string) int {
 
 	workspace := args.WorkspaceName
 
+	// A live block makes a new workspace both meaningless and harmful: see
+	// Meta.statelessWorkspaceGuard. Refused here, before a backend is
+	// prepared, so nothing is created and nothing is selected.
+	if guardDiags := c.statelessWorkspaceGuard(ctx, "new", workspace); guardDiags.HasErrors() {
+		view.Diagnostics(diags.Append(guardDiags))
+		return 1
+	}
+
 	if !validWorkspaceName(workspace) {
 		view.WorkspaceInvalidName(workspace)
 		return 1
@@ -227,7 +235,7 @@ func (c *WorkspaceNewCommand) AutocompleteFlags() complete.Flags {
 
 func (c *WorkspaceNewCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] workspace new [OPTIONS] NAME
+Usage: choudoufu [global options] workspace new [OPTIONS] NAME
 
   Create a new OpenTofu workspace.
 

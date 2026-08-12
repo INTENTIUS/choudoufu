@@ -1373,6 +1373,10 @@
     ]
   },
   {
+    "title": "Stateless Mode",
+    "path": "language/stateless-mode"
+  },
+  {
     "title": "v1.x Compatibility Promises",
     "path": "language/v1-compatibility-promises"
   }

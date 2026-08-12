@@ -22,16 +22,16 @@ test:
 
 EXT := $(shell go env GOEXE)
 
-# build tofu binary in the current directory with the version set to the git tag
+# build choudoufu binary in the current directory with the version set to the git tag
 # or commit hash if there is no tag.
 .PHONY: build
 build:
-	go build -ldflags "-X main.version=$(shell git describe --tags --always --dirty)" -o tofu$(EXT) ./cmd/tofu
+	go build -ldflags "-X main.version=$(shell git describe --tags --always --dirty)" -o choudoufu$(EXT) ./cmd/choudoufu
 
 # Experimental engine building
 .PHONY: build-experimental
 build-experimental:
-	TOFU_X_EXPERIMENTAL_RUNTIME=1 go build -ldflags "-X main.version=$(shell git describe --tags --always --dirty) -X main.experimentsAllowed=yes" -o tofu$(EXT) ./cmd/tofu
+	TOFU_X_EXPERIMENTAL_RUNTIME=1 go build -ldflags "-X main.version=$(shell git describe --tags --always --dirty) -X main.experimentsAllowed=yes" -o choudoufu$(EXT) ./cmd/choudoufu
 
 # Experimental engine testing
 .PHONY: test-experimental
@@ -231,15 +231,40 @@ test-kubernetes-clean: ## Cleans environment after `test-kubernetes`.
 	@ test -s /tmp/tofu-k8s-config && rm /tmp/tofu-k8s-config || echo "" > /dev/null
 	@ test -s /tmp/tofuk8s && (/tmp/tofuk8s -q delete cluster --name tofu-kubernetes && rm /tmp/tofuk8s) || echo "" > /dev/null
 
+# integration test for the stateless mode, against the floci AWS emulator
+.PHONY: test-floci test-floci-clean
+
+FLOCI_IMAGE := floci/floci:latest
+
+define infoTestFloci
+ Test requires:
+ * Docker: https://docs.docker.com/engine/install/
+ * The AWS CLI, which reads the emulated cloud back independently of tofu
+ * terraform on PATH, which stands up the estates these tests recover
+ * Ports in the 4603-4632 range: every test runs its own emulator
+
+ Each test applies a real estate to the emulator, so the tier takes tens of
+ minutes. Set TF_ACC=1 instead of TF_FLOCI_TEST=1 to run it as part of a
+ wider acceptance run.
+
+endef
+
+test-floci: ## Runs the stateless-mode tests against the floci AWS emulator.
+	@ $(info $(infoTestFloci))
+	@ TF_FLOCI_TEST=1 go test -count=1 -timeout 60m ./internal/stateless/...
+
+test-floci-clean: ## Removes floci containers left behind by `test-floci`.
+	@ docker ps -aq --filter ancestor=$(FLOCI_IMAGE) | while read -r id; do docker rm -f $$id > /dev/null; done
+
 .PHONY:
 test-linux-install-instructions:
 	@cd "$(CURDIR)/website/docs/intro/install" && ./test-install-instructions.sh
 
 .PHONY:
-integration-tests: test-s3 test-pg test-consul test-kubernetes integration-tests-clean ## Runs all integration tests test.
+integration-tests: test-s3 test-pg test-consul test-kubernetes test-floci integration-tests-clean ## Runs all integration tests test.
 
 .PHONY:
-integration-tests-clean: test-pg-clean test-consul-clean test-kubernetes-clean ## Cleans environment after all integration tests.
+integration-tests-clean: test-pg-clean test-consul-clean test-kubernetes-clean test-floci-clean ## Cleans environment after all integration tests.
 
 .PHONY: help
 help: ## Prints this help message.

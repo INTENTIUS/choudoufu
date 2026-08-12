@@ -26,11 +26,11 @@ transfers immediately into one of the "command" implementations in
 [the `command` package](https://pkg.go.dev/github.com/opentofu/opentofu/internal/command).
 The mapping between the user-facing command names and
 their corresponding `command` package types can be found in the `commands.go`
-file under the `cmd/tofu` directory (package `main`).
+file under the `cmd/choudoufu` directory (package `main`).
 
 The full flow illustrated above does not actually apply to _all_ commands,
-but it applies to the main OpenTofu workflow commands `tofu plan` and
-`tofu apply`, along with a few others.
+but it applies to the main OpenTofu workflow commands `choudoufu plan` and
+`choudoufu apply`, along with a few others.
 
 For these commands, the role of the command implementation is to read and parse
 any command line arguments, command line options, and environment variables
@@ -108,7 +108,7 @@ configuration objects, but the main entry point is in the sub-package
 via
 [`configload.Loader`](https://pkg.go.dev/github.com/opentofu/opentofu/internal/configs/configload#Loader).
 A loader deals with all of the details of installing child modules
-(during `tofu init`) and then locating those modules again when a
+(during `choudoufu init`) and then locating those modules again when a
 configuration is loaded by a backend. It takes the path to a root module
 and recursively loads all of the child modules to produce a single
 [`configs.Config`](https://pkg.go.dev/github.com/opentofu/opentofu/internal/configs#Config)

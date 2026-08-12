@@ -78,6 +78,19 @@ func (c *RefreshCommand) Run(rawArgs []string) int {
 		return 1
 	}
 
+	// Refresh is the one remaining operation whose whole purpose is to write
+	// a state file, so a stateless configuration is refused here rather than
+	// left to produce one as a side effect of a command that changes nothing.
+	// What it would do is what a stateless plan does anyway: read the live
+	// system.
+	if guardDiags := c.statelessCommandGuard(ctx, "refresh"); len(guardDiags) > 0 {
+		diags = diags.Append(guardDiags)
+		if guardDiags.HasErrors() {
+			view.Diagnostics(diags)
+			return 1
+		}
+	}
+
 	// Prepare the backend with the backend-specific arguments
 	be, beDiags := c.PrepareBackend(ctx, args.State, view, enc)
 	diags = diags.Append(beDiags)
@@ -160,7 +173,7 @@ func (c *RefreshCommand) OperationRequest(ctx context.Context, be backend.Enhanc
 
 func (c *RefreshCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] refresh [options]
+Usage: choudoufu [global options] refresh [options]
 
   Update the state file of your infrastructure with metadata that matches
   the physical resources they are tracking.

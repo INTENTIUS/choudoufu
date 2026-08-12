@@ -5,7 +5,7 @@ Eager to get started on coding? Here's the short version:
 1. Set up a Go development environment with Git.
 2. Pay attention to copyright: [please read the DCO](https://developercertificate.org/), write the code yourself, avoid copy/paste. Disable your AI coding assistant.
 3. Run the tests with `go test` in the package you are working on.
-4. Build OpenTofu by running `go build ./cmd/tofu`.
+4. Build OpenTofu (the `choudoufu` binary) by running `go build ./cmd/choudoufu`.
 5. Update [the changelog](../CHANGELOG.md).
 6. When you commit, use `git commit -s` to sign off your commits for the DCO.
 7. Submit a PR and complete the checklist included in the template.
@@ -26,10 +26,10 @@ Alternatively, if you use Visual Studio Code or Goland/IntelliJ and have Docker 
 To build OpenTofu, you will need to install Go in the environment you are running in. You can then run the `go build` command from your OpenTofu source directory as follows:
 
 ```sh
-go build ./cmd/tofu
+go build ./cmd/choudoufu
 ```
 
-This command will produce a `tofu` binary in your current directory, which you can test by running `./tofu --version`.
+This command will produce a `choudoufu` binary in your current directory, which you can test by running `./choudoufu --version`.
 
 > [!TIP]
 > Add the `GOOS` and `GOARCH` values with your target platform if you wish to cross-compile. You can find more information in the [Go documentation](https://pkg.go.dev/cmd/go#hdr-Compile_and_run_Go_program).
@@ -70,11 +70,11 @@ For VSCode, add the following setting to `.vscode/launch.json` for easy debuggin
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "tofu init",
+            "name": "choudoufu init",
             "type": "go",
             "request": "launch",
             "mode": "debug",
-            "program": "${workspaceFolder}/cmd/tofu",
+            "program": "${workspaceFolder}/cmd/choudoufu",
             // You can update the environment variables here
             // For more information, visit: https://opentofu.org/docs/cli/config/environment-variables/
             "env": {
@@ -86,11 +86,11 @@ For VSCode, add the following setting to `.vscode/launch.json` for easy debuggin
             "args": ["init"]
         },
         {
-            "name": "tofu plan",
+            "name": "choudoufu plan",
             "type": "go",
             "request": "launch",
             "mode": "debug",
-            "program": "${workspaceFolder}/cmd/tofu",
+            "program": "${workspaceFolder}/cmd/choudoufu",
             "env": {
                 "TF_LOG": "trace"
             },
@@ -119,15 +119,15 @@ For VSCode, add the following setting to `.vscode/launch.json` for easy debuggin
 Similarly, you can add the following configurations to your `.idea/runConfigurations` folder if you use Goland/IntelliJ:
 
 ```xml
-<!-- .idea/runConfigurations/tofu_init.xml -->
+<!-- .idea/runConfigurations/choudoufu_init.xml -->
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="tofu init" type="GoApplicationRunConfiguration" factoryName="Go Application">
+  <configuration default="false" name="choudoufu init" type="GoApplicationRunConfiguration" factoryName="Go Application">
     <module name="opentofu" />
     <working_directory value="$PROJECT_DIR$" />
     <parameters value="init" />
     <kind value="DIRECTORY" />
-    <package value="github.com/opentofu/opentofu/cmd/tofu" />
-    <directory value="$PROJECT_DIR$/cmd/tofu" />
+    <package value="github.com/opentofu/opentofu/cmd/choudoufu" />
+    <directory value="$PROJECT_DIR$/cmd/choudoufu" />
     <filePath value="$PROJECT_DIR$" />
     <method v="2" />
   </configuration>
@@ -135,15 +135,15 @@ Similarly, you can add the following configurations to your `.idea/runConfigurat
 ```
 
 ```xml
-<!-- .idea/runConfigurations/tofu_plan.xml -->
+<!-- .idea/runConfigurations/choudoufu_plan.xml -->
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="tofu plan" type="GoApplicationRunConfiguration" factoryName="Go Application">
+  <configuration default="false" name="choudoufu plan" type="GoApplicationRunConfiguration" factoryName="Go Application">
     <module name="opentofu" />
     <working_directory value="$PROJECT_DIR$" />
     <parameters value="plan" />
     <kind value="DIRECTORY" />
-    <package value="github.com/opentofu/opentofu/cmd/tofu" />
-    <directory value="$PROJECT_DIR$/cmd/tofu" />
+    <package value="github.com/opentofu/opentofu/cmd/choudoufu" />
+    <directory value="$PROJECT_DIR$/cmd/choudoufu" />
     <filePath value="$PROJECT_DIR$" />
     <method v="2" />
   </configuration>
@@ -218,6 +218,21 @@ For example, execute the command to run integration tests with s3 backend:
 
 ```commandline
 make test-s3
+```
+
+The stateless mode has an integration tier of its own. It runs the built
+binary against floci (`floci/floci:latest`), a local AWS emulator in a Docker
+container, applying real estates and reading them back with the AWS CLI
+rather than through tofu: what it covers is discovery, marker stamping,
+projection, renames, count slots and the whole apply/plan/shrink/remove
+lifecycle, plus a crash mid-apply. It needs Docker, terraform and the AWS CLI,
+it binds a port per test in the 4603-4632 range, and it takes tens of
+minutes. Enable it
+with `TF_FLOCI_TEST=1`, or with `TF_ACC=1` alongside the other acceptance
+tests:
+
+```commandline
+make test-floci
 ```
 
 ---

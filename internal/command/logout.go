@@ -89,7 +89,7 @@ func (c *LogoutCommand) Run(rawArgs []string) int {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			fmt.Sprintf("Credentials for %s are manually configured", dispHostname),
-			"The \"tofu logout\" command cannot log out because credentials for this host are manually configured in a CLI configuration file.\n\nTo log out, revoke the existing credentials and remove that block from the CLI configuration.",
+			"The \"choudoufu logout\" command cannot log out because credentials for this host are manually configured in a CLI configuration file.\n\nTo log out, revoke the existing credentials and remove that block from the CLI configuration.",
 		))
 	}
 
@@ -141,7 +141,7 @@ func (c *LogoutCommand) Help() string {
 	}
 
 	helpText := fmt.Sprintf(`
-Usage: tofu [global options] logout [hostname]
+Usage: choudoufu [global options] logout [hostname]
 
   Removes locally-stored credentials for specified hostname.
 

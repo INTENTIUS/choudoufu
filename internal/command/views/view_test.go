@@ -428,8 +428,8 @@ func TestView_HelpPrompt(t *testing.T) {
 			output := done(t)
 
 			stderr := output.Stderr()
-			if !strings.Contains(stderr, fmt.Sprintf("tofu %s -help", cmd)) {
-				t.Errorf("expected help prompt to contain 'tofu apply -help', got %q", stderr)
+			if !strings.Contains(stderr, fmt.Sprintf("choudoufu %s -help", cmd)) {
+				t.Errorf("expected help prompt to contain 'choudoufu apply -help', got %q", stderr)
 			}
 		})
 	}

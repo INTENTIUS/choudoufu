@@ -47,7 +47,7 @@ func (c *WorkspaceCommand) Run(rawArgs []string) int {
 
 func (c *WorkspaceCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] workspace
+Usage: choudoufu [global options] workspace
 
   new, list, show, select and delete OpenTofu workspaces.
 

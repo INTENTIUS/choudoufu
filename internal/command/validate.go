@@ -157,7 +157,7 @@ func (c *ValidateCommand) Synopsis() string {
 
 func (c *ValidateCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] validate [options]
+Usage: choudoufu [global options] validate [options]
 
   Validate the configuration files in a directory, referring only to the
   configuration and not accessing any remote services such as remote state,
@@ -175,10 +175,10 @@ Usage: tofu [global options] validate [options]
   Validation requires an initialized working directory with any referenced
   plugins and modules installed. To initialize a working directory for
   validation without accessing any configured remote backend, use:
-      tofu init -backend=false
+      choudoufu init -backend=false
 
   To verify configuration in the context of a particular run (a particular
-  target workspace, input variable values, etc), use the 'tofu plan'
+  target workspace, input variable values, etc), use the 'choudoufu plan'
   command instead, which includes an implied validation check.
 
 Options:

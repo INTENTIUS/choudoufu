@@ -1,0 +1,1288 @@
+// Copyright (c) The OpenTofu Authors
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2023 HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package discovery
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"sort"
+	"strings"
+
+	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty"
+
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/configs"
+	"github.com/opentofu/opentofu/internal/configs/configschema"
+	"github.com/opentofu/opentofu/internal/stateless/identity"
+	"github.com/opentofu/opentofu/internal/stateless/listclient"
+	"github.com/opentofu/opentofu/internal/stateless/markers"
+	"github.com/opentofu/opentofu/internal/tfdiags"
+)
+
+// Request is one discovery pass.
+type Request struct {
+	// Estate is the tofu-estate value that identifies this estate's
+	// resources. It must satisfy the marker spec's grammar.
+	Estate string
+
+	// Config is the configuration the resolutions came from. It is what
+	// says a needs-discovery instance really is declared, so that a
+	// resolution list and a configuration that have drifted apart produce
+	// an error rather than a binding onto nothing.
+	Config *configs.Config
+
+	// Resolutions is the identity package's output for the whole
+	// configuration, needs-discovery instances included. The
+	// needs-discovery ones drive the scan; the rest ride through untouched
+	// so that [Result.Resolutions] is a complete list.
+	Resolutions []identity.Resolution
+
+	// Provider is a configured provider handle that speaks the list
+	// protocol - the same handles listclient takes, which in practice means
+	// *plugin.GRPCProvider or *plugin6.GRPCProvider.
+	Provider any
+
+	// Region is the region to list in, passed to any list configuration
+	// that accepts a region argument. Empty leaves it unset, which lets the
+	// provider's own configured region stand.
+	Region string
+
+	// CollectUnclaimed widens every list from "this estate's resources" to
+	// "every resource of the type", so that resources carrying no estate
+	// marker are visible in [Result.Unclaimed]. It costs a wider scan and
+	// gives up server-side filtering, and it is what P2.4 sets.
+	CollectUnclaimed bool
+
+	// Sweep asks for the estate-wide sweep as well as the config-driven
+	// scan: every admitted resource type the configuration no longer
+	// declares is listed too, looking for this estate's markers.
+	//
+	// Without it, discovery can only see the types something in
+	// configuration is waiting on, which means deleting a whole resource
+	// block makes its live resources invisible rather than doomed. See
+	// [sweepTypes] for which types are covered and why that list is the
+	// right one.
+	Sweep bool
+
+	// SweepTypes overrides the sweep's type universe. Empty means the
+	// default in [sweepTypes], which is the admission table. It exists for
+	// tests and for a future in which the admitted set is derived from
+	// provider schemas rather than asserted.
+	SweepTypes []string
+}
+
+// Discover finds the live resources of an estate and binds them to the
+// declared addresses that own them.
+//
+// The returned Result is usable even when diagnostics carry errors: the
+// bindings that were unambiguous are still in it, which is what lets a
+// caller report a collision alongside everything else it found. A caller
+// must not build a projection from a result whose diagnostics have errors,
+// because a marker problem means the estate's ownership records disagree
+// with each other and a plan built on them would act on the wrong resource.
+func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+
+	res := &Result{
+		Estate:      req.Estate,
+		Resolutions: append([]identity.Resolution(nil), req.Resolutions...),
+	}
+
+	switch {
+	case !ValidEstateName(req.Estate):
+		return res, diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"Invalid estate name",
+			fmt.Sprintf("Discovery needs the estate's name, matching the tofu-estate marker grammar in stateless/MARKERS.md (a lowercase letter followed by letters, digits or hyphens, at most 128 characters). Got %q.", req.Estate),
+		))
+	case req.Config == nil || req.Config.Module == nil:
+		return res, diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"No configuration to discover against",
+			"Discovery needs the configuration the identity resolutions were computed from, so that a marker can be matched against an address that is actually declared, and none was given.",
+		))
+	case len(req.Config.Children) > 0:
+		// Defense in depth: lint's RuleChildModule is what an operator sees.
+		return res, diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"Configuration with child modules reached discovery",
+			"Stateless mode v0 covers the root module only. Lint rejects module calls before this point, so this is a bug in the stateless pipeline.",
+		))
+	case req.Provider == nil:
+		return res, diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"No provider access",
+			"Discovery needs a configured provider handle to list live resources with, and none was given.",
+		))
+	}
+
+	decl, declDiags := declaredInstances(req)
+	diags = diags.Append(declDiags)
+	if declDiags.HasErrors() {
+		return res, diags
+	}
+	if len(decl.types) == 0 && !req.Sweep {
+		// Nothing waits on discovery and no sweep was asked for, which is a
+		// legitimate configuration: every instance was named by static
+		// analysis, and without a sweep there is nothing else to look at.
+		res.sortEverything()
+		return res, diags
+	}
+
+	schemas, schemaDiags := listclient.ListSchemas(ctx, req.Provider)
+	diags = diags.Append(schemaDiags)
+	if schemaDiags.HasErrors() {
+		return res, diags
+	}
+
+	for _, typeName := range decl.typeNames() {
+		diags = diags.Append(scanType(ctx, req, schemas, decl, typeName, res, false))
+	}
+
+	// The sweep runs after the config-driven scan so that a type appearing
+	// in both is scanned once, on the terms the configuration set.
+	if req.Sweep {
+		for _, typeName := range sweepTypes(req, decl) {
+			diags = diags.Append(scanType(ctx, req, schemas, decl, typeName, res, true))
+		}
+	}
+
+	diags = diags.Append(bind(req, decl, res))
+	diags = diags.Append(classifyOrphans(req, res))
+
+	res.sortEverything()
+	return res, diags
+}
+
+// sweepTypes is the estate-wide sweep's type universe: every type the
+// stateless admission table covers that the config-driven scan did not
+// already list.
+//
+// The admission table is the right source and the only one available. There
+// is no record of what an estate contains - that record is the thing this
+// fork removes - so the question "which types might this estate own" has to
+// be answered from a rule rather than from memory. The rule the whole fork
+// already runs on is admission: lint refuses a configuration that declares a
+// type outside the table, so every resource an estate acquired through
+// stateless mode is of an admitted type. Sweeping the admission table is
+// therefore complete over everything this tool can have created, and it
+// costs a bounded, small number of list calls (fourteen types today) rather
+// than the ~180 a whole-provider sweep would take.
+//
+// What it does not cover is a resource of an unadmitted type that somebody
+// stamped this estate's markers onto by hand. Adoption is a tag write, so
+// that is possible, and it is a documented limit rather than a silent one:
+// the markers are the contract, and the admission table is the list of types
+// the contract is defined over.
+//
+// The other two candidate designs were weighed and rejected. Sweeping every
+// listable type the provider offers is complete against hand-stamping too,
+// but it turns every plan into ~180 list calls against the account, most of
+// them for types no estate will ever hold; the sweep would dominate the cost
+// of a run and the sweep's own failures would dominate its output. Sweeping
+// "the types recorded as belonging to this estate" is the design that cannot
+// exist here: the recording of it would be a store, which is exactly the
+// thing whose absence is the point.
+func sweepTypes(req Request, decl *declared) []string {
+	universe := req.SweepTypes
+	if len(universe) == 0 {
+		universe = identity.AdmittedTypes()
+	}
+	out := make([]string, 0, len(universe))
+	for _, t := range universe {
+		if decl.types[t] != nil {
+			continue
+		}
+		out = append(out, t)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// ---------------------------------------------------------------------------
+// Declared instances
+// ---------------------------------------------------------------------------
+
+// declaredEntry is one declared needs-discovery instance and the live
+// resources that claimed it.
+type declaredEntry struct {
+	res       identity.Resolution
+	escaped   string
+	claimants []claimant
+
+	// inCount is set for an instance of a count block, whose binding is the
+	// set matcher's business rather than this entry's own.
+	inCount bool
+}
+
+// claimant is one live resource carrying a marker that named a declared
+// address.
+type claimant struct {
+	importID     string
+	identityAttr string
+	identity     cty.Value
+	displayName  string
+	marker       string
+	escaped      string
+	normalized   bool
+	slot         string
+	tags         map[string]string
+	noIdentity   bool
+}
+
+// displayID is how a claimant is named in a message: its live identity, or a
+// stand-in when the provider sent none. A resource with no identity still has
+// to appear in a problem, since "one of these is unidentifiable" is
+// information.
+func (c claimant) displayID() string {
+	if c.importID == "" {
+		return "(no identity)"
+	}
+	return c.importID
+}
+
+// declaredBlock is a resource block with expanded instances, used to
+// recognize a marker that names the block rather than one of its instances.
+type declaredBlock struct {
+	addr      string // escaped block address, e.g. "aws_eip.pool"
+	instances int
+	keyed     bool
+	claimants []claimant
+}
+
+// declared is the configuration side of the binding: which addresses of
+// which types are waiting to be found.
+type declared struct {
+	types  map[string]map[string]*declaredEntry // type -> escaped instance address -> entry
+	blocks map[string]map[string]*declaredBlock // type -> escaped block address -> block
+	counts map[string]map[string]*countBlock    // type -> escaped block address -> count block
+	order  map[string][]string                  // type -> escaped instance addresses, in address order
+
+	// unscanned holds the types whose scan never happened - the provider
+	// cannot list them, or listing errored. Their declared instances are
+	// not reported as unbound, because "nothing claims this address" and
+	// "nobody looked" are different answers and only the first one means
+	// the plan should propose creating something.
+	unscanned map[string]bool
+
+	// all is the escaped address of every declared instance in the
+	// configuration, whatever its identity class - not only the ones waiting
+	// on discovery - indexed by resource type.
+	//
+	// It exists for the sweep, and it is the difference between a sweep and
+	// a catastrophe. The sweep lists types nothing is waiting on, which is
+	// mostly the client-named ones: a live bucket carrying the marker
+	// aws_s3_bucket.data is not claiming anything the scan was looking for,
+	// because that instance's identity came out of the configuration and it
+	// was never in the discovery list at all. Judging it by that alone would
+	// make it an orphan, and orphans are destroyed. Membership here is what
+	// says "this address is declared, by something that did not need
+	// finding", and it is checked before anything is called undeclared.
+	//
+	// The type key is load-bearing rather than tidiness (audit finding C4). A
+	// flat set of escaped addresses answers "is this string declared
+	// somewhere" and not "is this live resource's marker its own address", so
+	// a subnet tagged with an EIP's address matched the set and was dropped
+	// on the floor - neither bound, nor orphan, nor problem, which is a hole
+	// in the owned/malformed/foreign trichotomy the marker spec is built on.
+	all map[string]map[string]bool
+}
+
+// declares reports whether the configuration declares the given escaped
+// instance address for the given resource type.
+func (d *declared) declares(typeName, escaped string) bool {
+	return d.all[typeName][escaped]
+}
+
+func (d *declared) typeNames() []string {
+	out := make([]string, 0, len(d.types))
+	for t := range d.types {
+		out = append(out, t)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// declaredInstances indexes the needs-discovery resolutions by type and
+// escaped address, checking each against the configuration as it goes.
+func declaredInstances(req Request) (*declared, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+
+	d := &declared{
+		types:     make(map[string]map[string]*declaredEntry),
+		blocks:    make(map[string]map[string]*declaredBlock),
+		counts:    make(map[string]map[string]*countBlock),
+		order:     make(map[string][]string),
+		unscanned: make(map[string]bool),
+		all:       make(map[string]map[string]bool, len(req.Resolutions)),
+	}
+
+	for _, r := range req.Resolutions {
+		typeName := r.Type()
+		if d.all[typeName] == nil {
+			d.all[typeName] = make(map[string]bool)
+		}
+		d.all[typeName][EscapeAddress(r.Addr.String())] = true
+	}
+
+	// Sorting first makes both the scan order and the reported order
+	// deterministic regardless of how the caller assembled its list.
+	sorted := append([]identity.Resolution(nil), req.Resolutions...)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Addr.String() < sorted[j].Addr.String()
+	})
+
+	for _, r := range sorted {
+		if r.Class != identity.ClassNeedsDiscovery {
+			continue
+		}
+		typeName := r.Type()
+		blockAddr := r.Addr.Resource.Resource.String()
+		// The resource block is bound rather than discarded because the two
+		// diagnostics below are about what the configuration says, and its
+		// DeclRange is the only thing that can point at the block that says
+		// it.
+		block, ok := req.Config.Module.ManagedResources[blockAddr]
+		if !ok {
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"Resolved resource missing from the configuration",
+				fmt.Sprintf("Discovery was asked to find %s, but the configuration it was given declares no resource block %q. The resolutions and the configuration come from different runs; this is a bug in whatever assembled them.", r.Addr, blockAddr),
+			))
+			continue
+		}
+
+		escaped := EscapeAddress(r.Addr.String())
+		if len([]rune(escaped)) > MaxTagValue {
+			diags = diags.Append(&hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Address too long to carry an ownership marker",
+				Detail:   fmt.Sprintf("The address %s escapes to %d characters, over the %d-character AWS tag value limit, so no live resource can carry it as a tofu-address marker. See stateless/MARKERS.md; this is a lint-time error, not something discovery can work around.", r.Addr, len([]rune(escaped)), MaxTagValue),
+				Subject:  block.DeclRange.Ptr(),
+			})
+			continue
+		}
+
+		if d.types[typeName] == nil {
+			d.types[typeName] = make(map[string]*declaredEntry)
+			d.blocks[typeName] = make(map[string]*declaredBlock)
+		}
+		if existing, ok := d.types[typeName][escaped]; ok {
+			// Two declared instances escaping to one marker value. The
+			// marker spec calls this out as possible in principle (a count
+			// index and a quoted key with the same digits) and impossible
+			// in practice within one block; if it ever happens, binding
+			// either one would be a guess.
+			diags = diags.Append(&hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "One marker value for two declared addresses",
+				Detail:   fmt.Sprintf("%s and %s both escape to the marker value %q, so a tofu-address tag cannot tell them apart. See the escaping rule in stateless/MARKERS.md.", existing.res.Addr, r.Addr, escaped),
+				Subject:  block.DeclRange.Ptr(),
+			})
+			continue
+		}
+		d.types[typeName][escaped] = &declaredEntry{res: r, escaped: escaped}
+		d.order[typeName] = append(d.order[typeName], escaped)
+
+		escapedBlock := EscapeAddress(blockAddr)
+		blk := d.blocks[typeName][escapedBlock]
+		if blk == nil {
+			blk = &declaredBlock{addr: escapedBlock}
+			d.blocks[typeName][escapedBlock] = blk
+		}
+		blk.instances++
+		if r.Addr.Resource.Key != addrs.NoKey {
+			blk.keyed = true
+		}
+	}
+
+	d.indexCountBlocks(req)
+	return d, diags
+}
+
+// indexCountBlocks records the configuration's count blocks and hangs their
+// declared instances off them, in index order.
+//
+// The blocks come from the configuration rather than from the resolutions,
+// because a count that has shrunk to zero declares no instances at all and
+// still owns whatever is live: `count = var.enabled ? 1 : 0` flipped to false
+// is a block with a set of size zero, not a block that stopped existing. Only
+// types that something else already put in scope are indexed, since a type
+// with no declared instances of any kind is never listed and a count block of
+// it would have nothing to match against.
+func (d *declared) indexCountBlocks(req Request) {
+	for name, rc := range req.Config.Module.ManagedResources {
+		if rc.Count == nil {
+			continue
+		}
+		typeName := rc.Type
+		if d.types[typeName] == nil {
+			continue
+		}
+		escaped := EscapeAddress(name)
+		if d.counts[typeName] == nil {
+			d.counts[typeName] = make(map[string]*countBlock)
+		}
+		d.counts[typeName][escaped] = &countBlock{
+			addr:     escaped,
+			resource: rc.Addr(),
+			typeName: typeName,
+		}
+	}
+
+	for typeName, entries := range d.types {
+		for _, entry := range entries {
+			blockAddr := EscapeAddress(entry.res.Addr.Resource.Resource.String())
+			cb, ok := d.counts[typeName][blockAddr]
+			if !ok {
+				continue
+			}
+			entry.inCount = true
+			cb.entries = append(cb.entries, entry)
+		}
+	}
+
+	// Index order, not address order: "aws_eip.pool[10]" sorts before
+	// "aws_eip.pool[2]" as a string, and the set matcher pairs the k-th
+	// lowest slot with the k-th index.
+	for _, blocks := range d.counts {
+		for _, cb := range blocks {
+			sort.Slice(cb.entries, func(i, j int) bool {
+				return instanceIndex(cb.entries[i].res.Addr) < instanceIndex(cb.entries[j].res.Addr)
+			})
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Scanning one type
+// ---------------------------------------------------------------------------
+
+// scanType lists one resource type and files what comes back.
+//
+// sweep says this type is being listed because the estate may own resources
+// of it that the configuration no longer declares, rather than because
+// something declared is waiting to be found. The difference is narrow and
+// entirely about what a failure means: a declared type that cannot be listed
+// is an error, because the plan would propose creating resources that may
+// exist, while a swept type that cannot be listed is a hole in removal
+// coverage, reported as a [SweepGap] so that "nothing to destroy" is never
+// confused with "nobody looked".
+func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl *declared, typeName string, res *Result, sweep bool) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+
+	scan := TypeScan{
+		TypeName: typeName,
+		Declared: len(decl.types[typeName]),
+		Sweep:    sweep,
+	}
+
+	ts, ok := schemas.Get(typeName)
+	if !ok {
+		res.Scans = append(res.Scans, scan)
+		if sweep {
+			return diags.Append(sweepGapDiag(res, SweepGap{
+				TypeName: typeName,
+				Reason:   SweepGapNotListable,
+				Detail: fmt.Sprintf(
+					"The provider cannot list %s, so this run could not look for resources of that type which this estate owns but no longer declares. If a %s block was deleted from this configuration, its live resource is still there and no plan will propose destroying it until the provider can list the type.",
+					typeName, typeName),
+			}))
+		}
+		decl.unscanned[typeName] = true
+		return diags.Append(problemDiag(res, Problem{
+			Kind:     ProblemTypeNotListable,
+			TypeName: typeName,
+			Detail: fmt.Sprintf(
+				"The provider cannot list %s, so the %d declared instance(s) of it cannot be discovered by marker. Reporting them as absent would propose creating resources that may already exist; the provider needs list support for this type before stateless mode can manage it.",
+				typeName, scan.Declared),
+		}))
+	}
+
+	if sweep && !markerCapable(ts) {
+		res.Scans = append(res.Scans, scan)
+		return diags.Append(sweepGapDiag(res, SweepGap{
+			TypeName: typeName,
+			Reason:   SweepGapNotTaggable,
+			Detail: fmt.Sprintf(
+				"A %s carries no tags, so it can carry no ownership marker, and the sweep has nothing to search on. A resource of this type is found by an identity built from its own configuration, which means deleting its resource block deletes the only record of which resource it was. Destroy it before removing its block, or delete it out of band.",
+				typeName),
+		}))
+	}
+
+	vals := make(map[string]cty.Value)
+	if hasAttr(ts.Config, "region") && req.Region != "" {
+		vals["region"] = cty.StringVal(req.Region)
+	}
+
+	filterOK, filterWhy := supportsTagFilter(ts)
+	switch {
+	case req.CollectUnclaimed && !sweep:
+		scan.Filtering = FilterClientSide
+		scan.Scope = ScopeAll
+		scan.FilterReason = "unclaimed resources were asked for, which a server-side estate filter would hide"
+	case filterOK:
+		// The sweep always takes this branch when the type offers it, which
+		// is what makes it cheap: a filtered list of a type this estate holds
+		// nothing of comes back empty without the account's whole population
+		// crossing the wire.
+		scan.Filtering = FilterServerSide
+		scan.Scope = ScopeEstate
+		vals["filter"] = tagFilter(TagEstate, req.Estate)
+	default:
+		scan.Filtering = FilterClientSide
+		scan.Scope = ScopeAll
+		scan.FilterReason = filterWhy
+	}
+
+	config, cfgDiags := ts.BuildConfig(vals)
+	diags = diags.Append(cfgDiags)
+	if cfgDiags.HasErrors() {
+		res.Scans = append(res.Scans, scan)
+		if sweep {
+			return diags.Append(sweepGapDiag(res, SweepGap{
+				TypeName: typeName,
+				Reason:   SweepGapConfigFailed,
+				Detail: fmt.Sprintf(
+					"The list configuration for %s could not be built from the provider's schema, so the sweep could not look for undeclared resources of that type. This is a bug in the provider's list schema or in stateless mode, not a fact about the estate.",
+					typeName),
+			}))
+		}
+		decl.unscanned[typeName] = true
+		return diags
+	}
+
+	if scan.Filtering == FilterClientSide {
+		log.Printf("[DEBUG] stateless/discovery: listing %s unfiltered (%s)", typeName, scan.FilterReason)
+	}
+
+	// The full object is always requested: the markers are resource tags,
+	// and a list identity carries only the identity attributes.
+	results, listDiags := listclient.List(ctx, req.Provider, typeName, config, true)
+	if listDiags.HasErrors() {
+		res.Scans = append(res.Scans, scan)
+		if sweep {
+			// Not appended to diags: a provider that cannot list a type this
+			// configuration never mentions must not fail the run, or adding a
+			// type to the admission table would break every estate whose
+			// provider version does not list it yet. The gap is reported.
+			return diags.Append(sweepGapDiag(res, SweepGap{
+				TypeName: typeName,
+				Reason:   SweepGapListFailed,
+				Detail: fmt.Sprintf(
+					"Listing %s failed, so the sweep could not look for resources of that type which this estate owns but no longer declares: %s.",
+					typeName, listDiags.Err()),
+			}))
+		}
+		decl.unscanned[typeName] = true
+		diags = diags.Append(listDiags)
+		return diags.Append(problemDiag(res, Problem{
+			Kind:     ProblemListFailed,
+			TypeName: typeName,
+			Detail:   fmt.Sprintf("The provider failed while listing %s, so nothing of that type could be discovered: %s.", typeName, listDiags.Err()),
+		}))
+	}
+	diags = diags.Append(listDiags)
+	scan.Listed = len(results)
+	if sweep {
+		res.SweepCovered = append(res.SweepCovered, typeName)
+	}
+
+	var sawAccountID, sawIdentity bool
+	for _, r := range results {
+		if acct, ok := r.IdentityAttr("account_id"); ok {
+			sawIdentity = true
+			if acct != "" {
+				sawAccountID = true
+				scan.AccountID = acct
+			}
+		}
+
+		importID, idAttr, hasID := importIdentity(typeName, r)
+
+		tags, taggable := markers.TagsOf(r.Resource)
+		if !taggable {
+			diags = diags.Append(problemDiag(res, Problem{
+				Kind:     ProblemNoTags,
+				TypeName: typeName,
+				LiveIDs:  liveIDs(importID),
+				Detail: fmt.Sprintf(
+					"The provider listed a %s with no tags attribute on the returned object, so its ownership markers cannot be read. Marker discovery requires the list results to carry the resource object; this is a provider bug or a type that should never have been admitted as marker-discoverable.",
+					typeName),
+			}))
+			continue
+		}
+
+		estate := tags[TagEstate]
+		switch {
+		case estate == "":
+			if sweep {
+				// A sweep is looking for this estate's markers and for
+				// nothing else. The type is not in the configuration, so no
+				// declared instance could ever be offered this resource for
+				// adoption, and reporting it as foreign would widen the
+				// foreign section to every admitted type in the account.
+				continue
+			}
+			scan.Unclaimed++
+			res.Unclaimed = append(res.Unclaimed, UnclaimedResource{
+				TypeName:     typeName,
+				ImportID:     importID,
+				IdentityAttr: idAttr,
+				Identity:     r.Identity,
+				DisplayName:  r.DisplayName,
+				Tags:         tags,
+				Resource:     r.Resource,
+			})
+			continue
+		case estate != req.Estate:
+			// Another estate's resource. Not ours, not foreign, not
+			// reported: ignored entirely, which is the whole point of the
+			// estate being the ownership boundary.
+			scan.OtherEstate++
+			continue
+		}
+
+		raw := tags[TagAddress]
+		escaped := EscapeAddress(raw)
+		if !ValidMarkerAddress(escaped) {
+			what := "carries no tofu-address tag"
+			if raw != "" {
+				what = fmt.Sprintf("carries the tofu-address value %q, which is not a well-formed escaped address", raw)
+			}
+			diags = diags.Append(problemDiag(res, Problem{
+				Kind:     ProblemMalformedMarker,
+				TypeName: typeName,
+				Marker:   raw,
+				LiveIDs:  liveIDs(importID),
+				Detail: fmt.Sprintf(
+					"A live %s claims estate %q but %s. Per stateless/MARKERS.md such a resource is malformed - neither owned nor foreign - and a human has to say which address it belongs to; discovery will not guess.",
+					typeName, req.Estate, what),
+			}))
+			continue
+		}
+
+		if markerType := markerTypeOf(escaped); markerType != typeName {
+			// The estate owns this resource and its marker names an address
+			// of another type. Nothing can be done with it: binding it to the
+			// address it names would attach a plan for one resource type to a
+			// resource of another, and ignoring it would leave a resource this
+			// estate owns invisible to every section of the output. So it is
+			// the marker spec's third answer - malformed - and a human says
+			// which address it belongs to. (Audit finding C4: this used to
+			// match the declared-address set, which carried no type, and the
+			// resource was silently dropped.)
+			diags = diags.Append(problemDiag(res, Problem{
+				Kind:     ProblemMalformedMarker,
+				TypeName: typeName,
+				Marker:   raw,
+				LiveIDs:  liveIDs(importID),
+				Detail: fmt.Sprintf(
+					"A live %s claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. A tofu-address marker is the resource's own address, so its leading segment is its own type; this one cannot be, and discovery will not read a marker as naming a resource of a type it is not on. See stateless/MARKERS.md. Retag the resource with its own address, or remove the marker to disown it.",
+					typeName, req.Estate, raw, markerTypeLabel(markerType), typeName),
+			}))
+			continue
+		}
+
+		c := claimant{
+			importID:     importID,
+			identityAttr: idAttr,
+			identity:     r.Identity,
+			displayName:  r.DisplayName,
+			marker:       raw,
+			escaped:      escaped,
+			normalized:   escaped != raw,
+			slot:         tags[TagSlot],
+			tags:         tags,
+			noIdentity:   !hasID,
+		}
+
+		if entry, ok := decl.types[typeName][escaped]; ok {
+			entry.claimants = append(entry.claimants, c)
+			continue
+		}
+		if decl.declares(typeName, escaped) {
+			// A declared instance whose identity came out of the
+			// configuration rather than out of a marker: nothing was waiting
+			// to be found here, the projection reads it by the identity the
+			// configuration gives, and the marker only confirms the estate
+			// still owns what it thinks it owns. Seen mostly by the sweep,
+			// which is the only thing that lists such types at all.
+			continue
+		}
+		// A marker naming a count block, by its bare address or by an index
+		// the configuration no longer expands to. It is not an orphan and
+		// not a stranger: it is a member of that block's set whose position
+		// in the set its address does not settle, which is exactly the
+		// question slots answer. Parking it on the block hands it to the set
+		// matcher, which either binds it by slot or - for an estate with no
+		// slots - puts it back where it was.
+		if cb := countBlockFor(decl.counts[typeName], escaped); cb != nil {
+			cb.extra = append(cb.extra, c)
+			continue
+		}
+		if blk, ok := decl.blocks[typeName][escaped]; ok && blk.keyed {
+			// The marker names the resource block, not one of its
+			// instances: markers written before instance keys were part of
+			// the address. For a for_each block nothing distinguishes which
+			// live resource is which declared instance, and the address is
+			// the only identity a for_each instance has.
+			blk.claimants = append(blk.claimants, c)
+			continue
+		}
+		res.Orphans = append(res.Orphans, OwnedResource{
+			TypeName:     typeName,
+			ImportID:     importID,
+			IdentityAttr: idAttr,
+			Identity:     r.Identity,
+			Marker:       raw,
+			Normalized:   escaped,
+			Slot:         tags[TagSlot],
+			DisplayName:  r.DisplayName,
+			Tags:         tags,
+			Resource:     r.Resource,
+			Swept:        sweep,
+		})
+	}
+
+	if scan.Filtering == FilterServerSide && sawIdentity && !sawAccountID && scan.Listed > 0 {
+		diags = diags.Append(problemDiag(res, Problem{
+			Kind:     ProblemUnresolvedAccount,
+			TypeName: typeName,
+			Detail: fmt.Sprintf(
+				"Every %s the provider listed came back with an empty account ID, which means the provider resolved no AWS account and the owner-id filter it appends to a filtered list went out empty. An emulator ignores that; real EC2 matches nothing against it, and this discovery pass would silently find no resources. Remove skip_requesting_account_id from the provider configuration so the provider can resolve the account once via STS.",
+				typeName),
+		}))
+	}
+
+	res.Scans = append(res.Scans, scan)
+	return diags
+}
+
+// markerTypeOf is the resource type a marker value names: the first segment
+// of an escaped address, which by the spec's grammar is the resource type of
+// the resource carrying it.
+//
+// A module-path marker ("module.subnets:a.aws_subnet.this") returns "module",
+// which matches no resource type and is therefore reported the same way a
+// cross-type marker is - correct for v0, which has no child modules and can
+// neither bind nor plan such an address.
+func markerTypeOf(escaped string) string {
+	head, _, _ := strings.Cut(escaped, ".")
+	return head
+}
+
+// markerTypeLabel renders what a marker's leading segment names, for a
+// message that has to read sensibly whether that segment is another resource
+// type or the "module" keyword.
+func markerTypeLabel(markerType string) string {
+	if markerType == "module" {
+		return "resource inside a child module, which stateless mode v0 does not manage,"
+	}
+	return markerType
+}
+
+// markerCapable reports whether a resource type can carry the ownership
+// markers at all, read from the provider's own schema for the type rather
+// than from a list in stateless mode: a type with no tags attribute has nowhere
+// to put a tofu-estate tag, so no sweep of it could ever find anything.
+func markerCapable(ts listclient.TypeSchema) bool {
+	if ts.Resource == nil {
+		return false
+	}
+	return hasAttr(ts.Resource, "tags") || hasAttr(ts.Resource, "tags_all")
+}
+
+// ---------------------------------------------------------------------------
+// Orphans
+// ---------------------------------------------------------------------------
+
+// classifyOrphans decides which owned-but-undeclared resources this run
+// proposes destroying, and puts the ones it does into the resolution list.
+//
+// The order of the checks is the whole safety property, and it is this way
+// round on purpose. A rename is a resource that needs a new tag; a removal is
+// a resource that needs to stop existing. Getting that wrong in the safe
+// direction costs an operator one command; getting it wrong in the other
+// direction destroys and recreates a resource that nobody asked to touch. So
+// an orphan sitting in a resource block that still has an unclaimed declared
+// instance is withheld from removal before anything else is considered -
+// before the pairing rule in the foreign package has even run, and whether or
+// not that rule will end up offering a command. The classifier's job is to
+// name the pairing; withholding is not conditional on it succeeding, because
+// the case where it fails - two orphans and two unclaimed instances, say - is
+// the case where guessing is least defensible.
+//
+// What survives that check reaches the projection as a concrete resolution
+// with no configuration behind it, which is precisely the shape a stock run's
+// prior state has for a resource whose block was deleted, and which the plan
+// engine's own orphan handling turns into a destroy.
+func classifyOrphans(req Request, res *Result) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+
+	if len(res.Orphans) == 0 {
+		return diags
+	}
+
+	// The resource blocks that still have a declared instance nothing
+	// claimed. Membership here is what makes an orphan a possible rename.
+	pending := make(map[string]bool, len(res.Unbound))
+	for _, addr := range res.Unbound {
+		pending[EscapeAddress(addr.Resource.Resource.String())] = true
+	}
+
+	// Two live resources whose markers unescape to one address would
+	// overwrite each other in the prior state, and the survivor would be
+	// destroyed while the other stayed live and unrecorded.
+	byAddr := make(map[string][]int)
+	for i := range res.Orphans {
+		o := &res.Orphans[i]
+		o.Addr, o.Addressable = UnescapeAddress(o.Normalized)
+		if o.Addressable {
+			byAddr[o.Addr.String()] = append(byAddr[o.Addr.String()], i)
+		}
+	}
+
+	for i := range res.Orphans {
+		o := &res.Orphans[i]
+		block, _, _ := strings.Cut(o.Normalized, ":")
+
+		switch {
+		case pending[block]:
+			o.Withheld = fmt.Sprintf(
+				"a declared instance of %s is unclaimed, so this may be the same resource under a new instance key rather than a resource to destroy; see the rename section",
+				block)
+		case !o.Addressable:
+			diags = diags.Append(problemDiag(res, Problem{
+				Kind:     ProblemMalformedMarker,
+				TypeName: o.TypeName,
+				Marker:   o.Normalized,
+				LiveIDs:  liveIDs(o.ImportID),
+				Detail: fmt.Sprintf(
+					"A live %s carries estate %q and the tofu-address value %q, which no declared instance matches and which the escaping rule in stateless/MARKERS.md cannot turn back into an address. This estate owns a resource it cannot name, so nothing is proposed for it: a human has to give it a marker that round-trips, or remove it.",
+					o.TypeName, req.Estate, o.Normalized),
+			}))
+			o.Withheld = "its marker cannot be turned back into an address, so there is no instance to plan a destroy at"
+		case o.Addr.Resource.Resource.Type != o.TypeName:
+			// The marker round-trips into an address of another type. The scan
+			// refuses these at the source, so reaching here means a caller
+			// assembled the orphan list itself; either way the answer is the
+			// same and it is never a destroy, because the address a removal
+			// would be planned at names a different resource than the live one
+			// it would destroy (audit finding C4, the A1 illegibility).
+			diags = diags.Append(problemDiag(res, Problem{
+				Kind:     ProblemMalformedMarker,
+				TypeName: o.TypeName,
+				Addr:     o.Addr,
+				Marker:   o.Normalized,
+				LiveIDs:  liveIDs(o.ImportID),
+				Detail: fmt.Sprintf(
+					"A live %s carries estate %q and the tofu-address value %q, which is the address of a %s. A marker names the resource it is written on, so this one cannot be acted on at all: destroying %s would be destroying a %s at an address that says %s. Retag the resource with its own address, or remove the marker to disown it.",
+					o.TypeName, req.Estate, o.Normalized, o.Addr.Resource.Resource.Type,
+					o.Addr, o.TypeName, o.Addr.Resource.Resource.Type),
+			}))
+			o.Withheld = fmt.Sprintf(
+				"its marker names a %s and the live resource is a %s, so no instance address describes it",
+				o.Addr.Resource.Resource.Type, o.TypeName)
+		case o.ImportID == "":
+			diags = diags.Append(problemDiag(res, Problem{
+				Kind:     ProblemNoIdentity,
+				TypeName: o.TypeName,
+				Addr:     o.Addr,
+				Marker:   o.Normalized,
+				Detail: fmt.Sprintf(
+					"A live %s carrying this estate's marker for %s came back from the list call with no usable identity, so there is nothing to read it with and no destroy can be planned for it. The provider must serve an identity for a type stateless mode discovers by marker.",
+					o.TypeName, o.Addr),
+			}))
+			o.Withheld = "the provider served no identity for it, so it cannot be read or destroyed"
+		case len(byAddr[o.Addr.String()]) > 1:
+			diags = diags.Append(problemDiag(res, collisionOrphanProblem(req, res, byAddr[o.Addr.String()])))
+			o.Withheld = fmt.Sprintf(
+				"another live %s carries the same marker, and destroying one of two resources that claim one address would be a guess",
+				o.TypeName)
+		default:
+			o.Removal = true
+		}
+	}
+
+	declaredBlocks := req.Config.Module.ManagedResources
+	for _, o := range res.Orphans {
+		if !o.Removal {
+			continue
+		}
+		_, declared := declaredBlocks[o.Addr.Resource.Resource.String()]
+		res.Resolutions = append(res.Resolutions, identity.Resolution{
+			Addr:       o.Addr,
+			Class:      identity.ClassConcrete,
+			ImportID:   o.ImportID,
+			Undeclared: !declared,
+		})
+	}
+
+	return diags
+}
+
+// collisionOrphanProblem is the ownership collision of the undeclared: two
+// or more live resources carrying one estate and one address, none of which
+// the configuration declares. It is the same condition
+// [collisionProblem] reports for a declared address, and it is refused for
+// the same reason.
+func collisionOrphanProblem(req Request, res *Result, idx []int) Problem {
+	ids := make([]string, 0, len(idx))
+	for _, i := range idx {
+		id := res.Orphans[i].ImportID
+		if id == "" {
+			id = "(no identity)"
+		}
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	first := res.Orphans[idx[0]]
+	return Problem{
+		Kind:     ProblemCollision,
+		TypeName: first.TypeName,
+		Addr:     first.Addr,
+		Marker:   first.Normalized,
+		LiveIDs:  ids,
+		Detail: fmt.Sprintf(
+			"%d live %s resources carry estate %q and the address %q, which this configuration no longer declares: %s. Removal proposes destroying the resource an address names, and this address names several, so nothing is proposed for any of them until a human says which is which.",
+			len(ids), first.TypeName, req.Estate, first.Normalized, strings.Join(ids, ", ")),
+	}
+}
+
+// sweepGapDiag records a sweep gap on the result, and returns a diagnostic
+// for the ones that are events rather than standing facts.
+//
+// No gap is ever an error. The plan in front of the operator is correct
+// about everything the sweep did reach, and failing a run because the
+// provider cannot list a type nothing in the configuration mentions would
+// make the admission table impossible to grow.
+//
+// Only a failure raises a diagnostic. A type the provider does not list, or
+// that carries no tags, is a standing property of the provider version and
+// the type: it is the same on every run of every configuration, and a
+// warning per type per run would bury the one that means something. Those
+// are reported in the sweep-coverage section instead, where a reader sees
+// the whole shape of the coverage at once. A list call that failed is the
+// opposite - a fact about this run, and one that may not repeat - so it says
+// so out loud.
+func sweepGapDiag(res *Result, g SweepGap) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	res.SweepGaps = append(res.SweepGaps, g)
+	if g.Reason == SweepGapNotListable || g.Reason == SweepGapNotTaggable {
+		return diags
+	}
+	return diags.Append(tfdiags.Sourceless(
+		tfdiags.Warning,
+		"Incomplete sweep for undeclared resources",
+		g.Detail,
+	))
+}
+
+// supportsTagFilter reports whether a type's list configuration accepts
+// EC2-style filter blocks, and if not, why not - the reason travels into
+// [TypeScan.FilterReason] so an operator reading a slow scan can see which
+// type made it slow.
+func supportsTagFilter(ts listclient.TypeSchema) (bool, string) {
+	if ts.Config == nil {
+		return false, "the type has no list configuration schema"
+	}
+	nested, ok := ts.Config.BlockTypes["filter"]
+	if !ok {
+		return false, fmt.Sprintf("the list configuration for %s has no filter argument", ts.TypeName)
+	}
+	if nested.Nesting != configschema.NestingList && nested.Nesting != configschema.NestingSet {
+		return false, fmt.Sprintf("the filter argument of %s is not a repeatable block", ts.TypeName)
+	}
+	name, hasName := nested.Block.Attributes["name"]
+	values, hasValues := nested.Block.Attributes["values"]
+	if !hasName || !hasValues || name.Type != cty.String {
+		return false, fmt.Sprintf("the filter block of %s is not the name/values shape a tag filter needs", ts.TypeName)
+	}
+	if !values.Type.IsListType() && !values.Type.IsSetType() {
+		return false, fmt.Sprintf("the filter block of %s takes a %s for its values, not a collection", ts.TypeName, values.Type.FriendlyName())
+	}
+	return true, ""
+}
+
+// tagFilter builds the one filter block discovery ever sends: match a tag
+// key to one value, server-side.
+func tagFilter(key, value string) cty.Value {
+	return cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{
+		"name":   cty.StringVal("tag:" + key),
+		"values": cty.ListVal([]cty.Value{cty.StringVal(value)}),
+	})})
+}
+
+func hasAttr(b *configschema.Block, name string) bool {
+	if b == nil {
+		return false
+	}
+	_, ok := b.Attributes[name]
+	return ok
+}
+
+// importIdentity reads the live import ID out of a list result, following
+// the identity table's IdentityAttrs for the type - "id" for every EC2 type
+// in the v0 subset, with aws_eip also accepting allocation_id - and falling
+// back to "id" for a type the table does not cover.
+func importIdentity(typeName string, r listclient.Result) (string, string, bool) {
+	attrs := []string{"id"}
+	if ti, ok := identity.LookupType(typeName); ok && len(ti.IdentityAttrs) > 0 {
+		attrs = ti.IdentityAttrs
+	}
+	for _, attr := range attrs {
+		if v, ok := r.IdentityAttr(attr); ok && v != "" {
+			return v, attr, true
+		}
+	}
+	return "", "", false
+}
+
+// liveIDs renders the import identities of the live resources a problem is
+// about. A resource the provider sent no identity for still has to appear:
+// "one of these two is unidentifiable" is information, and a problem naming
+// nothing at all would be unactionable.
+func liveIDs(ids ...string) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if id == "" {
+			id = "(no identity)"
+		}
+		out = append(out, id)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// ---------------------------------------------------------------------------
+// Binding
+// ---------------------------------------------------------------------------
+
+// bind turns the claims collected by the scan into bindings, unbound
+// addresses and problems, and rewrites the resolution list.
+func bind(req Request, decl *declared, res *Result) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+
+	bound := make(map[string]Binding)
+
+	for _, typeName := range decl.typeNames() {
+		if decl.unscanned[typeName] {
+			// Nothing was listed for this type, and a problem already says
+			// why. Calling its instances unbound here would tell the plan
+			// to create resources that may well exist.
+			continue
+		}
+		// Count blocks first: their instances are a set, and the set matcher
+		// owns every one of them at once.
+		for _, cb := range sortedCountBlocks(decl.counts[typeName]) {
+			diags = diags.Append(bindCountBlock(req, cb, res, bound))
+		}
+
+		for _, escaped := range decl.order[typeName] {
+			entry := decl.types[typeName][escaped]
+			if entry.inCount {
+				continue
+			}
+			switch len(entry.claimants) {
+			case 0:
+				// Nothing claims this address. Absence is the answer, and
+				// the plan proposing a create is the correct outcome.
+				res.Unbound = append(res.Unbound, entry.res.Addr)
+			case 1:
+				c := entry.claimants[0]
+				if c.noIdentity {
+					diags = diags.Append(problemDiag(res, Problem{
+						Kind:     ProblemNoIdentity,
+						TypeName: typeName,
+						Addr:     entry.res.Addr,
+						Marker:   escaped,
+						Detail: fmt.Sprintf(
+							"The live %s carrying the marker for %s came back from the list call with no usable identity, so there is no import ID to build a projection from. The provider must serve an identity for a type stateless mode discovers by marker.",
+							typeName, entry.res.Addr),
+					}))
+					continue
+				}
+				b := Binding{
+					Addr:         entry.res.Addr,
+					TypeName:     typeName,
+					ImportID:     c.importID,
+					IdentityAttr: c.identityAttr,
+					Marker:       c.marker,
+					Normalized:   c.normalized,
+					Slot:         c.slot,
+					DisplayName:  c.displayName,
+					Identity:     c.identity,
+				}
+				res.Bindings = append(res.Bindings, b)
+				bound[entry.res.Addr.String()] = b
+			default:
+				diags = diags.Append(problemDiag(res, collisionProblem(req, typeName, entry)))
+			}
+		}
+
+		// Markers naming a whole for_each block rather than one of its
+		// instances: pre-instance-key writers. Never bound by guess, and
+		// never resolvable by slots either - a for_each instance's key is
+		// its identity, not a position in a fungible set.
+		for _, blockAddr := range sortedBlockAddrs(decl.blocks[typeName]) {
+			blk := decl.blocks[typeName][blockAddr]
+			if len(blk.claimants) == 0 {
+				continue
+			}
+			diags = diags.Append(problemDiag(res, Problem{
+				Kind:     ProblemNeedsSlotMarkers,
+				TypeName: typeName,
+				Marker:   blk.addr,
+				LiveIDs:  claimantIDs(blk.claimants),
+				Detail: fmt.Sprintf(
+					"%d live %s resource(s) carry the marker %q, which is the address of a for_each block with %d expanded instances rather than the address of any one of them. A for_each instance is named by its key, so nothing here distinguishes which live resource is which instance and binding them in list order would attach a plan to an arbitrary one. Rewrite each resource's tofu-address to the keyed address it belongs to; until then these instances stay unbound.",
+					len(blk.claimants), typeName, blk.addr, blk.instances),
+			}))
+		}
+	}
+
+	// The bound count is only knowable once claims are resolved, so the
+	// scan rows are completed here rather than during the scan.
+	perType := make(map[string]int, len(res.Bindings))
+	for _, b := range res.Bindings {
+		perType[b.TypeName]++
+	}
+	for i := range res.Scans {
+		res.Scans[i].Bound = perType[res.Scans[i].TypeName]
+	}
+
+	if len(bound) > 0 {
+		for i, r := range res.Resolutions {
+			b, ok := bound[r.Addr.String()]
+			if !ok {
+				continue
+			}
+			res.Resolutions[i] = identity.Resolution{
+				Addr:     r.Addr,
+				Class:    identity.ClassConcrete,
+				ImportID: b.ImportID,
+			}
+		}
+	}
+
+	// Surplus members are not declared anywhere, so they are appended rather
+	// than rewritten. They reach the projection as concrete resolutions at
+	// the instance addresses just above the declared count, which is how a
+	// shrunken count's leftovers appear in a stock run's prior state - and
+	// from there the plan engine's own orphan handling proposes destroying
+	// them, with nothing in stateless mode teaching it anything about slots.
+	for _, s := range res.Surplus {
+		res.Resolutions = append(res.Resolutions, identity.Resolution{
+			Addr:     s.Addr,
+			Class:    identity.ClassConcrete,
+			ImportID: s.ImportID,
+		})
+	}
+	return diags
+}
+
+// collisionProblem distinguishes the two ways several live resources come to
+// claim one address: a genuine ownership collision, and a set of count
+// instances that phase 3's slot markers exist to tell apart.
+func collisionProblem(req Request, typeName string, entry *declaredEntry) Problem {
+	ids := claimantIDs(entry.claimants)
+
+	if _, isCount := entry.res.Addr.Resource.Key.(addrs.IntKey); isCount {
+		return Problem{
+			Kind:     ProblemNeedsSlotMarkers,
+			TypeName: typeName,
+			Addr:     entry.res.Addr,
+			Marker:   entry.escaped,
+			LiveIDs:  ids,
+			Detail: fmt.Sprintf(
+				"%d live %s resources claim the count instance %s (%s). Count instances are a fungible set, so which of them is this slot is not something their shared address answers; stamping tofu-slot markers (roadmap P3.1) is what does. Discovery will not pick one.",
+				len(ids), typeName, entry.res.Addr, strings.Join(ids, ", ")),
+		}
+	}
+	return Problem{
+		Kind:     ProblemCollision,
+		TypeName: typeName,
+		Addr:     entry.res.Addr,
+		Marker:   entry.escaped,
+		LiveIDs:  ids,
+		Detail: fmt.Sprintf(
+			"%d live %s resources carry estate %q and address %q at once: %s. The marker admission path assumes at most one live resource per address per estate, so something upstream - a hand-edited tag, an interrupted rename - needs a human to resolve before this estate can be planned.",
+			len(ids), typeName, req.Estate, entry.escaped, strings.Join(ids, ", ")),
+	}
+}
+
+func claimantIDs(cs []claimant) []string {
+	out := make([]string, 0, len(cs))
+	for _, c := range cs {
+		id := c.importID
+		if id == "" {
+			id = "(no identity)"
+		}
+		out = append(out, id)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func sortedBlockAddrs(m map[string]*declaredBlock) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// problemDiag records a problem on the result and returns the diagnostic
+// that goes with it, so the two can never drift apart.
+func problemDiag(res *Result, p Problem) tfdiags.Diagnostic {
+	res.Problems = append(res.Problems, p)
+
+	severity := tfdiags.Error
+	if p.Kind.Severity() == SeverityWarning {
+		severity = tfdiags.Warning
+	}
+
+	// Every kind in problemSummaries has a summary of its own, and
+	// TestProblemSummariesCoverKinds keeps it that way. The fallback names
+	// the kind rather than saying "Discovery problem", because a summary an
+	// operator cannot act on should at least be one they can report: the kind
+	// is what identifies the code path that produced it.
+	summary := problemSummaries[p.Kind]
+	if summary == "" {
+		summary = fmt.Sprintf("Unclassified discovery problem (%s)", p.Kind)
+	}
+
+	// The live IDs are appended as their own sentence, so the detail has to
+	// end as one. Every Problem.Detail in this package does; a later one that
+	// forgets gets the period here rather than a run-on line in the output.
+	detail := strings.TrimRight(p.Detail, " ")
+	if len(p.LiveIDs) > 0 && !strings.Contains(detail, p.LiveIDs[0]) {
+		if detail != "" && !strings.HasSuffix(detail, ".") && !strings.HasSuffix(detail, ":") {
+			detail += "."
+		}
+		detail += " Live resources: " + strings.Join(p.LiveIDs, ", ") + "."
+	}
+	return tfdiags.Sourceless(severity, summary, detail)
+}
+
+var problemSummaries = map[ProblemKind]string{
+	ProblemCollision:         "Two live resources claiming one address",
+	ProblemMalformedMarker:   "Malformed ownership marker",
+	ProblemNeedsSlotMarkers:  "Indistinguishable instances without per-instance markers",
+	ProblemMixedSlots:        "Partial slot markers on a count set",
+	ProblemMalformedSlot:     "Malformed slot marker",
+	ProblemDuplicateSlot:     "Two live resources claiming one slot",
+	ProblemSlotExhausted:     "No slot left to mint",
+	ProblemNoIdentity:        "Listed resource with no identity",
+	ProblemNoTags:            "Listed resource with no tags",
+	ProblemTypeNotListable:   "Unlistable marker-discovered type",
+	ProblemUnresolvedAccount: "No AWS account ID from the provider",
+	ProblemListFailed:        "Failed to list a resource type",
+}

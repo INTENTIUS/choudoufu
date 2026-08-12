@@ -70,6 +70,18 @@ func (c *ImportCommand) Run(rawArgs []string) int {
 	// continue to mutate the Meta object state for now.
 	c.Meta.input = args.ViewOptions.InputEnabled
 
+	// Import's whole product is a new entry in a state file, so a stateless
+	// configuration is refused here, before a backend is prepared and before
+	// anything can reach a state manager. Stateless mode has its own way to
+	// take over an existing resource, and it is named in the diagnostic.
+	if guardDiags := c.statelessCommandGuard(ctx, "import"); len(guardDiags) > 0 {
+		diags = diags.Append(guardDiags)
+		if guardDiags.HasErrors() {
+			view.Diagnostics(diags)
+			return 1
+		}
+	}
+
 	// Parse the provided resource address.
 	traversalSrc := []byte(args.ResourceAddress)
 	traversal, travDiags := hclsyntax.ParseTraversalAbs(traversalSrc, "<import-address>", hcl.Pos{Line: 1, Column: 1})
@@ -329,7 +341,7 @@ func (c *ImportCommand) Run(rawArgs []string) int {
 
 func (c *ImportCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] import [options] ADDR ID
+Usage: choudoufu [global options] import [options] ADDR ID
 
   Import existing infrastructure into your OpenTofu state.
 

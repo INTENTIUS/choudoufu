@@ -182,7 +182,7 @@ func (v *WorkspaceHuman) WorkspaceAlreadyExists(name string) {
 		tfdiags.Error,
 		fmt.Sprintf("Workspace %q already exists", name),
 		fmt.Sprintf(`A workspace having the given name already exists.
-Use "tofu workspace select %s" to switch to it.`, name),
+Use "choudoufu workspace select %s" to switch to it.`, name),
 	)})
 }
 
@@ -221,7 +221,7 @@ func (v *WorkspaceHuman) WorkspaceCreated(name string) {
 	const msg = `[reset][green][bold]Created and switched to workspace %q![reset][green]
 
 You're now on a new, empty workspace. Workspaces isolate their state,
-so if you run "tofu plan" OpenTofu will not see any existing state
+so if you run "choudoufu plan" OpenTofu will not see any existing state
 for this configuration.`
 	colorisedMsg := fmt.Sprintf(v.view.colorize.Color(msg), name)
 	_, _ = v.view.streams.Println(colorisedMsg)
@@ -281,10 +281,10 @@ func (v *WorkspaceHuman) WarnWhenUsedAsEnvCmd(usedAsEnvCmd bool) {
 	}
 	v.Diagnostics(tfdiags.Diagnostics{tfdiags.Sourceless(
 		tfdiags.Warning,
-		`The "tofu env" family of commands is deprecated`,
+		`The "choudoufu env" family of commands is deprecated`,
 		`"Workspace" is now the preferred term for what earlier OpenTofu versions called "environment", to reduce ambiguity caused by the latter term colliding with other concepts.
 
-The "tofu workspace" commands should be used instead. "tofu env" will be removed in a future OpenTofu version.`,
+The "choudoufu workspace" commands should be used instead. "choudoufu env" will be removed in a future OpenTofu version.`,
 	)})
 }
 
@@ -305,7 +305,7 @@ func (v *WorkspaceJSON) Diagnostics(diags tfdiags.Diagnostics) {
 }
 
 func (v *WorkspaceJSON) WorkspaceAlreadyExists(name string) {
-	v.view.Error(fmt.Sprintf("Workspace %q already exists. Use \"tofu workspace select %s\" to switch to it", name, name))
+	v.view.Error(fmt.Sprintf("Workspace %q already exists. Use \"choudoufu workspace select %s\" to switch to it", name, name))
 }
 
 func (v *WorkspaceJSON) WorkspaceDoesNotExist(name string) {
@@ -325,7 +325,7 @@ func (v *WorkspaceJSON) WorkspaceOverwrittenByEnvVarWarn() {
 }
 
 func (v *WorkspaceJSON) WorkspaceCreated(name string) {
-	v.view.Info(fmt.Sprintf("Created and switched to workspace %q. You're now on a new, empty workspace. Workspaces isolate their state, so if you run \"tofu plan\" OpenTofu will not see any existing state for this configuration", name))
+	v.view.Info(fmt.Sprintf("Created and switched to workspace %q. You're now on a new, empty workspace. Workspaces isolate their state, so if you run \"choudoufu plan\" OpenTofu will not see any existing state for this configuration", name))
 }
 
 func (v *WorkspaceJSON) WorkspaceChanged(name string) {
@@ -360,7 +360,7 @@ func (v *WorkspaceJSON) WarnWhenUsedAsEnvCmd(usedAsEnvCmd bool) {
 	if !usedAsEnvCmd {
 		return
 	}
-	v.view.Warn("The \"tofu env\" family of commands is deprecated. Use \"tofu workspace\" instead")
+	v.view.Warn("The \"choudoufu env\" family of commands is deprecated. Use \"choudoufu workspace\" instead")
 }
 
 func (v *WorkspaceJSON) Backend() Backend {

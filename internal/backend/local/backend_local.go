@@ -170,9 +170,9 @@ func (b *Local) localRunDirect(ctx context.Context, stopCtx context.Context, op 
 			// didn't yet update to populate DependencyLocks, which is a bug.
 			suggestion = "This run has no dependency lock information provided at all, which is a bug in OpenTofu; please report it!"
 		case op.DependencyLocks.Empty():
-			suggestion = "To make the initial dependency selections that will initialize the dependency lock file, run:\n  tofu init"
+			suggestion = "To make the initial dependency selections that will initialize the dependency lock file, run:\n  choudoufu init"
 		default:
-			suggestion = "To update the locked dependency selections to match a changed configuration, run:\n  tofu init -upgrade"
+			suggestion = "To update the locked dependency selections to match a changed configuration, run:\n  choudoufu init -upgrade"
 		}
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
@@ -228,6 +228,47 @@ func (b *Local) localRunDirect(ctx context.Context, stopCtx context.Context, op 
 		},
 	}
 
+	tfCtx, moreDiags := tofu.NewContext(coreOpts)
+	diags = diags.Append(moreDiags)
+	if moreDiags.HasErrors() {
+		return nil, nil, diags
+	}
+	run.Core = tfCtx
+
+	if b.Stateless != nil {
+		// A stateless run has no stored snapshot to start from. The prior
+		// state is built here, by reading the live system, and written into
+		// the (non-persisting) state manager so that everything downstream
+		// reads it the ordinary way.
+		projected, projDiags := b.Stateless.PriorState(ctx, config, tfCtx)
+		diags = diags.Append(projDiags)
+		if projDiags.HasErrors() {
+			return nil, nil, diags
+		}
+		if err := s.WriteState(projected); err != nil {
+			diags = diags.Append(fmt.Errorf("error recording the projection as prior state: %w", err))
+			return nil, nil, diags
+		}
+		// The projection was built from live reads a moment ago, so a refresh
+		// walk would read every object again to learn what it already knows.
+		planOpts.SkipRefresh = true
+
+		// Nothing is rescued to disk when the graph panics, because there is
+		// nowhere for a stateless run to rescue it to and nothing that would
+		// read it back. What replaces the rescue file is the ownership
+		// markers: whatever was created before the panic carries them, so the
+		// next plan finds it instead of proposing to create it again.
+		run.ApplyOpts.BackupStateForPanic = func(*states.State) {
+			var panicDiags tfdiags.Diagnostics
+			panicDiags = panicDiags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"Graph traversal panic during a stateless apply",
+				"No state was written, because a stateless run has no state file. Any object created before the panic carries this estate's ownership markers, so run \"choudoufu plan\" again to see what exists now.",
+			))
+			op.View.Diagnostics(panicDiags)
+		}
+	}
+
 	// For a "direct" local run, the input state is the most recently stored
 	// snapshot, from the previous run.
 	state := s.State()
@@ -241,12 +282,6 @@ func (b *Local) localRunDirect(ctx context.Context, stopCtx context.Context, op 
 	}
 	run.InputState = state
 
-	tfCtx, moreDiags := tofu.NewContext(coreOpts)
-	diags = diags.Append(moreDiags)
-	if moreDiags.HasErrors() {
-		return nil, nil, diags
-	}
-	run.Core = tfCtx
 	return run, configSnap, diags
 }
 

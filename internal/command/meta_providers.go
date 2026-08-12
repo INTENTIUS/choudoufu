@@ -164,7 +164,7 @@ func (m *Meta) providerDevOverrideInitWarnings() tfdiags.Diagnostics {
 	for addr, path := range m.ProviderDevOverrides {
 		detailMsg.WriteString(fmt.Sprintf(" - %s in %s\n", addr.ForDisplay(), path))
 	}
-	detailMsg.WriteString("\nSkip tofu init when using provider development overrides. It is not necessary and may error unexpectedly.")
+	detailMsg.WriteString("\nSkip choudoufu init when using provider development overrides. It is not necessary and may error unexpectedly.")
 	return tfdiags.Diagnostics{
 		tfdiags.Sourceless(
 			tfdiags.Warning,
@@ -295,7 +295,7 @@ func (m *Meta) providerFactories() (map[addrs.Provider]providers.Factory, error)
 				}
 				if !matched {
 					return fmt.Errorf(
-						"the cached package for %s %s (in %s) does not match any of the checksums recorded in the dependency lock file, run tofu init to ensure all providers are correctly installed",
+						"the cached package for %s %s (in %s) does not match any of the checksums recorded in the dependency lock file, run choudoufu init to ensure all providers are correctly installed",
 						provider, version, cacheDir.BasePath(),
 					)
 				}

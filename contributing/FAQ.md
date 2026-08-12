@@ -56,22 +56,22 @@ Please accept our apologies, sometimes issues and comments fall through the crac
 
 ---
 
-### When I run `tofu version`, it contains a `-dev` suffix. How do I get rid of it?
+### When I run `choudoufu version`, it contains a `-dev` suffix. How do I get rid of it?
 
 You can get rid of this suffix by changing the `version.dev` ldflag:
 
 ```
-go build -ldflags "-w -s -X 'github.com/opentofu/opentofu/version.dev=no'" -o tofu ./cmd/tofu
+go build -ldflags "-w -s -X 'github.com/opentofu/opentofu/version.dev=no'" -o choudoufu ./cmd/choudoufu
 ```
 
 ---
 
 ### How do I enable experimental features?
 
-You can build `tofu` with the experimental features enabled using the `main.experimentsAllowed` ldflag set to `yes`:
+You can build `choudoufu` with the experimental features enabled using the `main.experimentsAllowed` ldflag set to `yes`:
 
 ```
-go build -ldflags "-w -s -X 'main.experimentsAllowed=yes'" -o tofu ./cmd/tofu
+go build -ldflags "-w -s -X 'main.experimentsAllowed=yes'" -o choudoufu ./cmd/choudoufu
 ```
 
 ---

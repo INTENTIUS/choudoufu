@@ -90,7 +90,7 @@ func (c *LoginCommand) Run(rawArgs []string) int {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Login is an interactive command",
-			"The \"tofu login\" command uses interactive prompts to obtain and record credentials, so it can't be run with input disabled.\n\nTo configure credentials in a non-interactive context, write existing credentials directly to a CLI configuration file.",
+			"The \"choudoufu login\" command uses interactive prompts to obtain and record credentials, so it can't be run with input disabled.\n\nTo configure credentials in a non-interactive context, write existing credentials directly to a CLI configuration file.",
 		))
 		view.Diagnostics(diags)
 		return 1
@@ -156,7 +156,7 @@ func (c *LoginCommand) Run(rawArgs []string) int {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Warning,
 			"Host does not support OpenTofu login",
-			fmt.Sprintf("The given hostname %q cannot support \"tofu login\": %s.", dispHostname, err),
+			fmt.Sprintf("The given hostname %q cannot support \"choudoufu login\": %s.", dispHostname, err),
 		))
 	}
 
@@ -183,7 +183,7 @@ func (c *LoginCommand) Run(rawArgs []string) int {
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
 				"Host does not support OpenTofu tokens API",
-				fmt.Sprintf("The given hostname %q cannot support \"tofu login\": %s.", dispHostname, err),
+				fmt.Sprintf("The given hostname %q cannot support \"choudoufu login\": %s.", dispHostname, err),
 			))
 		}
 	}
@@ -192,7 +192,7 @@ func (c *LoginCommand) Run(rawArgs []string) int {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			fmt.Sprintf("Credentials for %s are manually configured", dispHostname),
-			"The \"tofu login\" command cannot log in because credentials for this host are already configured in a CLI configuration file.\n\nTo log in, first revoke the existing credentials and remove that block from the CLI configuration.",
+			"The \"choudoufu login\" command cannot log in because credentials for this host are already configured in a CLI configuration file.\n\nTo log in, first revoke the existing credentials and remove that block from the CLI configuration.",
 		))
 	}
 
@@ -337,7 +337,7 @@ func (c *LoginCommand) Help() string {
 	defaultFile := c.credentialsFileForHelp()
 
 	helpText := fmt.Sprintf(`
-Usage: tofu [global options] login [hostname]
+Usage: choudoufu [global options] login [hostname]
 
   Retrieves an authentication token for the given hostname, if it supports
   automatic login, and saves it in a credentials file in your home directory.
@@ -885,7 +885,7 @@ body {
 <body>
 
 <p>The login server has returned an authentication code to OpenTofu.</p>
-<p>Now close this page and return to the terminal where <tt>tofu login</tt>
+<p>Now close this page and return to the terminal where <tt>choudoufu login</tt>
 is running to see the result of the login process.</p>
 
 </body>

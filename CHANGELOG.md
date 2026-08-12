@@ -14,6 +14,12 @@ UPGRADE NOTES:
 
     This may cause certain invalid input that was previously accepted to now be rejected, in an attempt to better match the expectations of other implementations of these protocols and formats.
 
+- The built binary in this fork is named `choudoufu`, not `tofu`. Build with `go build ./cmd/choudoufu`; every command's help and usage text names the binary accordingly.
+
+EXPERIMENTS:
+
+- **Stateless mode** — fork-only, experimental: no state file, backend, or lock; prior state is rebuilt from the live system each run via ownership tags (tofu-estate/tofu-address/tofu-slot). Opt in with a `live` block; new `choudoufu live-plan` and `choudoufu live-mv` commands, EXPERIMENTAL in their help. v0: AWS only, 14 types, root module only. See the Stateless Mode docs page, `stateless/MARKERS.md`, `stateless/LIMITATIONS.md`.
+
 ENHANCEMENTS:
 
 - The `gcp_kms` key provider now supports an optional `additional_authenticated_data` as part of the encryption and decryption operations. ([#4287](https://github.com/opentofu/opentofu/pull/4287))

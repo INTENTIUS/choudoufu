@@ -225,7 +225,7 @@ func (c *WorkspaceDeleteCommand) AutocompleteFlags() complete.Flags {
 
 func (c *WorkspaceDeleteCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] workspace delete [options] NAME
+Usage: choudoufu [global options] workspace delete [options] NAME
 
   Delete a OpenTofu workspace
 

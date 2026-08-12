@@ -108,7 +108,7 @@ func (c *ProvidersMirrorCommand) Run(rawArgs []string) int {
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
 				"Inconsistent dependency lock file",
-				fmt.Sprintf("To update the locked dependency selections to match a changed configuration, run:\n  tofu init -upgrade\n got:%v", errs),
+				fmt.Sprintf("To update the locked dependency selections to match a changed configuration, run:\n  choudoufu init -upgrade\n got:%v", errs),
 			))
 		}
 	}
@@ -391,7 +391,7 @@ func (c *ProvidersMirrorCommand) Run(rawArgs []string) int {
 
 func (c *ProvidersMirrorCommand) Help() string {
 	return `
-Usage: tofu [global options] providers mirror [options] <target-dir>
+Usage: choudoufu [global options] providers mirror [options] <target-dir>
 
   Populates a local directory with copies of the provider plugins needed for
   the current configuration, so that the directory can be used either directly

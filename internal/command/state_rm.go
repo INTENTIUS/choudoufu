@@ -50,6 +50,12 @@ func (c *StateRmCommand) Run(rawArgs []string) int {
 	c.Meta.stateArgs = *args.State
 	c.Meta.backendArgs = *args.Backend
 
+	// See statelessStateGuard: refused before anything reaches a state manager.
+	if guardDiags := c.statelessStateGuard(ctx, "rm"); guardDiags.HasErrors() {
+		view.Diagnostics(diags.Append(guardDiags))
+		return 1
+	}
+
 	if diags := c.Meta.checkRequiredVersion(ctx); diags != nil {
 		view.Diagnostics(diags)
 		return 1
@@ -158,7 +164,7 @@ func (c *StateRmCommand) Run(rawArgs []string) int {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Invalid target address",
-			"No matching objects found. To view the available instances, use \"tofu state list\". Please modify the address to reference a specific instance.",
+			"No matching objects found. To view the available instances, use \"choudoufu state list\". Please modify the address to reference a specific instance.",
 		))
 		view.Diagnostics(diags)
 		return 1
@@ -170,14 +176,14 @@ func (c *StateRmCommand) Run(rawArgs []string) int {
 
 func (c *StateRmCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] state (remove|rm) [options] ADDRESS...
+Usage: choudoufu [global options] state (remove|rm) [options] ADDRESS...
 
   Remove one or more items from the OpenTofu state, causing OpenTofu to
   "forget" those items without first destroying them in the remote system.
 
   This command removes one or more resource instances from the OpenTofu state
   based on the addresses given. You can view and list the available instances
-  with "tofu state list".
+  with "choudoufu state list".
 
   If you give the address of an entire module then all of the instances in
   that module and any of its child modules will be removed from the state.

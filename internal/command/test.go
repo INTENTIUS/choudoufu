@@ -47,7 +47,7 @@ type TestCommand struct {
 
 func (c *TestCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] test [options]
+Usage: choudoufu [global options] test [options]
 
   Executes automated integration tests against the current OpenTofu 
   configuration.

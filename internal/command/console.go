@@ -227,7 +227,7 @@ func (c *ConsoleCommand) modePiped(session *repl.Session, view views.Console) in
 
 func (c *ConsoleCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] console [options]
+Usage: choudoufu [global options] console [options]
 
   Starts an interactive console for experimenting with OpenTofu
   interpolations.

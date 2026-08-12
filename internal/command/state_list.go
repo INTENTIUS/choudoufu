@@ -52,6 +52,12 @@ func (c *StateListCommand) Run(rawArgs []string) int {
 		c.Meta.stateArgs.StatePath = args.State.StatePath
 	}
 
+	// See statelessStateGuard: refused before anything reaches a state manager.
+	if guardDiags := c.statelessStateGuard(ctx, "list"); guardDiags.HasErrors() {
+		view.Diagnostics(diags.Append(guardDiags))
+		return 1
+	}
+
 	// Load the encryption configuration
 	enc, encDiags := c.Encryption(ctx)
 	if encDiags.HasErrors() {
@@ -125,7 +131,7 @@ func (c *StateListCommand) Run(rawArgs []string) int {
 
 func (c *StateListCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] state (list|ls) [options] [address...]
+Usage: choudoufu [global options] state (list|ls) [options] [address...]
 
   List resources in the OpenTofu state.
 

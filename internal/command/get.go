@@ -69,7 +69,7 @@ func (c *GetCommand) Run(rawArgs []string) int {
 
 func (c *GetCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] get [options]
+Usage: choudoufu [global options] get [options]
 
   Downloads and installs modules needed for the configuration in the 
   current working directory.
@@ -80,7 +80,7 @@ Usage: tofu [global options] get [options]
   unless the -update flag is specified.
 
   Module installation also happens automatically by default as part of
-  the "tofu init" command, so you should rarely need to run this
+  the "choudoufu init" command, so you should rarely need to run this
   command separately.
 
 Options:

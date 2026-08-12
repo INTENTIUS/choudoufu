@@ -137,6 +137,13 @@ func loadConfigFileBody(body hcl.Body, _ string, override bool) (*File, hcl.Diag
 						file.Encryptions = append(file.Encryptions, encryptionCfg)
 					}
 
+				case "live":
+					liveCfg, cfgDiags := decodeLiveBlock(innerBlock)
+					diags = append(diags, cfgDiags...)
+					if liveCfg != nil {
+						file.Lives = append(file.Lives, liveCfg)
+					}
+
 				default:
 					// Should never happen because the above cases should be
 					// exhaustive for all block type names in our schema.
@@ -347,6 +354,10 @@ var terraformBlockSchema = &hcl.BodySchema{
 		},
 		{
 			Type: "encryption",
+		},
+		{
+			// Fork addition: stateless mode. See live.go.
+			Type: "live",
 		},
 	},
 }

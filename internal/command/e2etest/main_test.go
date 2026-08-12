@@ -50,7 +50,7 @@ func setup() func() {
 		return func() {}
 	}
 
-	tmpFilename := e2e.GoBuild("github.com/opentofu/opentofu/cmd/tofu", "tofu")
+	tmpFilename := e2e.GoBuild("github.com/opentofu/opentofu/cmd/choudoufu", "tofu")
 
 	// Make the executable available for use in tests
 	tofuBin = tmpFilename

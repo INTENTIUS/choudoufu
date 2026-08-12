@@ -114,6 +114,7 @@ func (p *GRPCProvider) getProviderSchema(ctx context.Context) (resp providers.Ge
 	resp.DataSources = make(map[string]providers.Schema)
 	resp.EphemeralResources = make(map[string]providers.Schema)
 	resp.Functions = make(map[string]providers.FunctionSpec)
+	resp.ListResourceTypes = make(map[string]providers.Schema)
 
 	protoResp, err := p.getProtoProviderSchema(ctx)
 	if err != nil {
@@ -156,6 +157,13 @@ func (p *GRPCProvider) getProviderSchema(ctx context.Context) (resp providers.Ge
 
 	for name, fn := range protoResp.Functions {
 		resp.Functions[name] = convert.ProtoToFunctionSpec(fn)
+	}
+
+	// list_resource_schemas is absent for providers that do not implement
+	// the list protocol; an empty map is the correct result there, not an
+	// error.
+	for name, list := range protoResp.ListResourceSchemas {
+		resp.ListResourceTypes[name] = convert.ProtoToProviderSchema(list)
 	}
 
 	identitySchemas, idsDiags := p.getResourceIdentitySchemas(ctx)

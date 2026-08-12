@@ -190,6 +190,21 @@ type GetProviderSchemaResponse struct {
 
 	// EphemeralResources maps the ephemeral type name to that type's schema.
 	EphemeralResources map[string]Schema
+
+	// ListResourceTypes maps a list resource type name to the schema of the
+	// configuration block that parameterizes a ListResource call for it (the
+	// list_resource_schemas field of the tfplugin5/tfplugin6
+	// GetProviderSchema response).
+	//
+	// A list resource type name is the same as the managed resource type
+	// name it enumerates, so the corresponding entry in ResourceTypes carries
+	// the schemas needed to decode a ListResource result: IdentitySchema for
+	// the result identity and Block for the optional full resource object.
+	//
+	// This map is empty for providers that do not implement the list
+	// protocol, which is not an error: callers must treat a missing entry as
+	// "this provider cannot list this type" rather than as a failure.
+	ListResourceTypes map[string]Schema
 }
 
 type ResourceIdentitySchema struct {
@@ -659,6 +674,66 @@ type MoveResourceStateResponse struct {
 	TargetPrivate []byte
 
 	// Diagnostics contains any warnings or errors from the method call.
+	Diagnostics tfdiags.Diagnostics
+}
+
+// ListResourceRequest asks a provider to enumerate the live instances of one
+// managed resource type, via the tfplugin5/tfplugin6 ListResource RPC.
+//
+// ListResource is a server-streaming RPC, so there is no single response
+// message on the wire; see ListResourceEvent and ListResourceResponse.
+type ListResourceRequest struct {
+	// TypeName is the list resource type name, which is the same string as
+	// the managed resource type name being enumerated.
+	TypeName string
+
+	// Config is the configuration for the list call, conforming to the
+	// list resource type's schema in
+	// GetProviderSchemaResponse.ListResourceTypes. It carries whatever
+	// scoping and filtering the provider offers, so its shape is entirely
+	// provider-defined.
+	Config cty.Value
+
+	// IncludeResourceObject asks the provider to attach the full resource
+	// object to every result. Providers are free to charge a read per
+	// result for this, so leave it false unless the objects are wanted.
+	IncludeResourceObject bool
+
+	// Limit caps how many results the caller wants; the provider ends the
+	// stream once it is reached. Zero means no limit is sent.
+	Limit int64
+}
+
+// ListResourceEvent is one result from a ListResource stream.
+type ListResourceEvent struct {
+	// Identity is the resource identity of the listed instance, decoded
+	// with the identity schema of the corresponding managed resource type.
+	// It is cty.NilVal if the provider sent no identity, or if the provider
+	// serves no identity schema for the type.
+	Identity cty.Value
+
+	// DisplayName is a provider-chosen human-readable label for the result.
+	// It carries no guarantee of uniqueness and must not be used as a key.
+	DisplayName string
+
+	// ResourceObject is the full resource object, decoded with the managed
+	// resource type's schema. It is cty.NilVal unless the request set
+	// IncludeResourceObject and the provider honored it.
+	ResourceObject cty.Value
+
+	// Diagnostics are the per-result diagnostics the provider attached to
+	// this event. A result carrying error diagnostics is still delivered,
+	// because the rest of the stream remains valid.
+	Diagnostics tfdiags.Diagnostics
+}
+
+// ListResourceResponse is a whole ListResource stream, buffered.
+type ListResourceResponse struct {
+	// Events are the stream's results in the order the provider sent them.
+	Events []ListResourceEvent
+
+	// Diagnostics contains any warnings or errors from the call itself, as
+	// distinct from the per-event diagnostics in Events.
 	Diagnostics tfdiags.Diagnostics
 }
 

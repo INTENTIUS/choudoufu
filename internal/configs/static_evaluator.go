@@ -81,6 +81,10 @@ func RootModuleCallForTesting() StaticModuleCall {
 type StaticEvaluator struct {
 	call StaticModuleCall
 	cfg  *Module
+
+	// pureOnly makes every scope this evaluator builds refuse to produce a
+	// value from an impure function. See [StaticEvaluator.Pure].
+	pureOnly bool
 }
 
 // Creates a static evaluator based from the given module and module call

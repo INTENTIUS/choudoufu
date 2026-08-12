@@ -168,7 +168,7 @@ func (plan Plan) renderHuman(renderer Renderer, mode plans.Mode, opts ...plans.Q
 						suggestion := "."
 						if !renderer.RunningInAutomation {
 							// The normal message includes a specific command line to run.
-							suggestion = ":\n  tofu apply -refresh-only"
+							suggestion = ":\n  choudoufu apply -refresh-only"
 						}
 						renderer.Streams.Println(format.WordWrap(
 							"\nYour configuration already matches the changes detected above. If you'd like to update the OpenTofu state to match, create and apply a refresh-only plan"+suggestion,
@@ -351,7 +351,7 @@ func renderHumanDiffDrift(renderer Renderer, diffs diffs, mode plans.Mode) bool 
 	renderer.Streams.Print(renderer.Colorize.Color("\n[bold][cyan]Note:[reset][bold] Objects have changed outside of OpenTofu\n"))
 	renderer.Streams.Println()
 	renderer.Streams.Print(format.WordWrap(
-		"OpenTofu detected the following changes made outside of OpenTofu since the last \"tofu apply\" which may have affected this plan:\n",
+		"OpenTofu detected the following changes made outside of OpenTofu since the last \"choudoufu apply\" which may have affected this plan:\n",
 		renderer.Streams.Stdout.Columns()))
 
 	for _, drift := range drs {

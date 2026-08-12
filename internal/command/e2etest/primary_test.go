@@ -73,7 +73,7 @@ func TestPrimarySeparatePlan(t *testing.T) {
 	if !strings.Contains(stdout, "Saved the plan to: tfplan") {
 		t.Errorf("missing \"Saved the plan to...\" message in plan output\n%s", stdout)
 	}
-	if !strings.Contains(stdout, "tofu apply \"tfplan\"") {
+	if !strings.Contains(stdout, "choudoufu apply \"tfplan\"") {
 		t.Errorf("missing next-step instruction in plan output\n%s", stdout)
 	}
 
@@ -182,7 +182,7 @@ func TestPrimaryChdirOption(t *testing.T) {
 	if !strings.Contains(stdout, "Saved the plan to: tfplan") {
 		t.Errorf("missing \"Saved the plan to...\" message in plan output\n%s", stdout)
 	}
-	if !strings.Contains(stdout, "tofu apply \"tfplan\"") {
+	if !strings.Contains(stdout, "choudoufu apply \"tfplan\"") {
 		t.Errorf("missing next-step instruction in plan output\n%s", stdout)
 	}
 
@@ -694,7 +694,7 @@ func TestApplyPanic(t *testing.T) {
 		t.Skip("custom build required with additional LDFLAGS")
 	}
 
-	e2eTofuBin := e2e.GoBuild("github.com/opentofu/opentofu/cmd/tofu", "tofu_e2e", `-ldflags=-X 'main.e2eTestingFeatures=yes'`)
+	e2eTofuBin := e2e.GoBuild("github.com/opentofu/opentofu/cmd/choudoufu", "tofu_e2e", `-ldflags=-X 'main.e2eTestingFeatures=yes'`)
 	defer func() {
 		os.Remove(e2eTofuBin)
 	}()

@@ -55,6 +55,12 @@ func (c *StateShowCommand) Run(rawArgs []string) int {
 	c.Meta.variableArgs = args.Vars.All()
 	c.Meta.stateArgs = *args.State
 
+	// See statelessStateGuard: refused before anything reaches a state manager.
+	if guardDiags := c.statelessStateGuard(ctx, "show"); guardDiags.HasErrors() {
+		view.Diagnostics(diags.Append(guardDiags))
+		return 1
+	}
+
 	// Check for user-supplied plugin path
 	var err error
 	if c.pluginPath, err = c.loadPluginPath(); err != nil {
@@ -200,13 +206,13 @@ func (c *StateShowCommand) Run(rawArgs []string) int {
 
 func (c *StateShowCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] state show [options] ADDRESS
+Usage: choudoufu [global options] state show [options] ADDRESS
 
   Shows the attributes of a resource in the OpenTofu state.
 
   This command shows the attributes of a single resource in the OpenTofu
   state. The address argument must be used to specify a single resource.
-  You can view the list of available resources with "tofu state list".
+  You can view the list of available resources with "choudoufu state list".
 
 Options:
 

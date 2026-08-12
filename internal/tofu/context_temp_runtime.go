@@ -56,7 +56,7 @@ import (
 // possible to accidentally enable this experimental functionality in normal
 // release builds.
 //
-// Refer to "cmd/tofu/experiments.go" for information on how to produce an
+// Refer to "cmd/choudoufu/experiments.go" for information on how to produce an
 // experiments-enabled build.
 func SetExperimentalRuntimeAllowed(allowed bool) {
 	experimentalRuntimeAllowed.Store(allowed)

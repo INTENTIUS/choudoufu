@@ -147,7 +147,7 @@ func (c *UnlockCommand) Run(rawArgs []string) int {
 
 func (c *UnlockCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] force-unlock [options] LOCK_ID
+Usage: choudoufu [global options] force-unlock [options] LOCK_ID
 
   Manually unlock the state for the defined configuration.
 

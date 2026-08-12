@@ -57,6 +57,13 @@ func (c *StatePushCommand) Run(rawArgs []string) int {
 	c.Meta.stateArgs = *args.State
 	c.Meta.backendArgs = *args.Backend
 
+	// See statelessStateGuard: refused before the source state is even read,
+	// and well before anything reaches a state manager.
+	if guardDiags := c.statelessStateGuard(ctx, "push"); guardDiags.HasErrors() {
+		view.Diagnostics(diags.Append(guardDiags))
+		return 1
+	}
+
 	if diags := c.Meta.checkRequiredVersion(ctx); diags != nil {
 		view.Diagnostics(diags)
 		return 1
@@ -204,7 +211,7 @@ func (c *StatePushCommand) Run(rawArgs []string) int {
 
 func (c *StatePushCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] state push [options] PATH
+Usage: choudoufu [global options] state push [options] PATH
 
   Update remote state from a local state file at PATH.
 

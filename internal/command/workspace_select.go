@@ -51,6 +51,15 @@ func (c *WorkspaceSelectCommand) Run(rawArgs []string) int {
 
 	configPath := c.WorkingDir.NormalizePath(c.WorkingDir.RootModuleDir())
 
+	// A live block makes every workspace but the default unrunnable, so
+	// selecting one is refused here rather than at the plan that would have
+	// been the operator's first sign. Selecting the default stays allowed,
+	// because it is the way out. See Meta.statelessWorkspaceGuard.
+	if guardDiags := c.statelessWorkspaceGuard(ctx, "select", args.WorkspaceName); guardDiags.HasErrors() {
+		view.Diagnostics(diags.Append(guardDiags))
+		return 1
+	}
+
 	backendConfig, backendDiags := c.loadBackendConfig(ctx, configPath)
 	diags = diags.Append(backendDiags)
 	if diags.HasErrors() {
@@ -167,7 +176,7 @@ func (c *WorkspaceSelectCommand) AutocompleteFlags() complete.Flags {
 
 func (c *WorkspaceSelectCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] workspace select [options] NAME
+Usage: choudoufu [global options] workspace select [options] NAME
 
   Select a different OpenTofu workspace.
 
