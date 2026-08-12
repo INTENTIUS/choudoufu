@@ -6,8 +6,13 @@
 package foreign
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/stateless/discovery"
@@ -295,6 +300,241 @@ func TestRenameCommandQuoting(t *testing.T) {
 			t.Errorf("shellQuote(%s) = %s, want %s", tc.in, got, tc.want)
 		}
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Content as a tiebreaker
+// ---------------------------------------------------------------------------
+//
+// The estate fixture's subnet block reads both of its identity-bearing
+// arguments from each.value, so every pairing above was decided by the block
+// match alone. The tests below run against a block that fixes
+// availability_zone as a literal, which is what gives content something to
+// say - and they pin the exact extent of what it may say: it can remove a
+// pairing and it can settle an ambiguous block, but it can never create a
+// pairing the block match refused.
+
+// TestRenameContentIsOptional: a one-to-one block match is offered exactly as
+// it always was, whether the provider sent no object at all or an object that
+// agrees. Content absent is not content against.
+func TestRenameContentIsOptional(t *testing.T) {
+	t.Run("no object", func(t *testing.T) {
+		res := classifyContentFixture(t, discovery.Result{
+			Scans:   []discovery.TypeScan{scan("aws_subnet", 1)},
+			Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
+			Orphans: []discovery.OwnedResource{orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a")},
+		})
+		if len(res.Renames) != 1 {
+			t.Fatalf("want one rename candidate with no content to compare, got:\n%s", res)
+		}
+		if len(res.Renames[0].MatchedOn) != 0 {
+			t.Errorf("a pairing decided by the block match alone claims content evidence: %v", res.Renames[0].MatchedOn)
+		}
+	})
+
+	t.Run("an agreeing object", func(t *testing.T) {
+		res := classifyContentFixture(t, discovery.Result{
+			Scans:   []discovery.TypeScan{scan("aws_subnet", 1)},
+			Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
+			Orphans: []discovery.OwnedResource{
+				withContent(orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a"),
+					map[string]string{"availability_zone": "us-east-1a"}),
+			},
+		})
+		if len(res.Renames) != 1 {
+			t.Fatalf("want one rename candidate, got:\n%s", res)
+		}
+		c := res.Renames[0]
+		if len(c.MatchedOn) != 1 || c.MatchedOn[0] != (AttrMatch{Attr: "availability_zone", Value: "us-east-1a"}) {
+			t.Errorf("the agreement was not recorded as evidence: %v", c.MatchedOn)
+		}
+	})
+}
+
+// TestRenameContentResolvesAmbiguity: two live resources at keys that are
+// gone, one declared instance waiting - unanswerable by the markers alone,
+// and exactly the case the live objects can settle when the block fixes an
+// identity-bearing argument. One orphan carries the declared availability
+// zone and one does not, so a single pairing survives, agrees positively, and
+// is offered - with the argument it was decided on recorded on the candidate.
+func TestRenameContentResolvesAmbiguity(t *testing.T) {
+	res := classifyContentFixture(t, discovery.Result{
+		Scans:   []discovery.TypeScan{scan("aws_subnet", 2)},
+		Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
+		Orphans: []discovery.OwnedResource{
+			withContent(orphan("aws_subnet", "subnet-keep", "", "aws_subnet.this:a"),
+				map[string]string{"availability_zone": "us-east-1a"}),
+			withContent(orphan("aws_subnet", "subnet-else", "", "aws_subnet.this:b"),
+				map[string]string{"availability_zone": "us-east-1b"}),
+		},
+	})
+
+	if len(res.Renames) != 1 {
+		t.Fatalf("content left one agreeing pairing standing and it was not offered:\n%s", res)
+	}
+	c := res.Renames[0]
+	if c.LiveID != "subnet-keep" {
+		t.Errorf("the offered pairing names live %s, want the orphan whose content agrees", c.LiveID)
+	}
+	if c.Old.String() != `aws_subnet.this["a"]` || c.New.String() != `aws_subnet.this["c"]` {
+		t.Errorf("the pairing is %s -> %s", c.Old, c.New)
+	}
+	if len(c.MatchedOn) != 1 || c.MatchedOn[0] != (AttrMatch{Attr: "availability_zone", Value: "us-east-1a"}) {
+		t.Errorf("the candidate does not carry the evidence it was decided on: %v", c.MatchedOn)
+	}
+	if len(res.Ambiguous) != 0 {
+		t.Errorf("a block content settled is still reported ambiguous:\n%s", res)
+	}
+}
+
+// TestRenameContentStaysAmbiguous: content that cannot settle a block leaves
+// it exactly where the block match left it - reported, with no command.
+func TestRenameContentStaysAmbiguous(t *testing.T) {
+	t.Run("two declared instances share one body", func(t *testing.T) {
+		// One orphan agreeing with the block's configuration says nothing
+		// about which of two unclaimed keys it became: a for_each block has
+		// one body, so content cannot tell c from d.
+		res := classifyContentFixture(t, discovery.Result{
+			Scans: []discovery.TypeScan{scan("aws_subnet", 1)},
+			Unbound: []addrs.AbsResourceInstance{
+				mustAddr(t, `aws_subnet.this["c"]`),
+				mustAddr(t, `aws_subnet.this["d"]`),
+			},
+			Orphans: []discovery.OwnedResource{
+				withContent(orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a"),
+					map[string]string{"availability_zone": "us-east-1a"}),
+			},
+		})
+		if len(res.Renames) != 0 {
+			t.Fatalf("content picked one of two declared instances that share a body:\n%s", res)
+		}
+		if _, ok := res.AmbiguousFor("aws_subnet.this"); !ok {
+			t.Fatalf("the unsettled block was not reported:\n%s", res)
+		}
+	})
+
+	t.Run("the survivor cannot be compared", func(t *testing.T) {
+		// Content ruled one orphan out, but the one left sent no object.
+		// "Everything else was ruled out" is not positive agreement, so
+		// nothing is offered.
+		res := classifyContentFixture(t, discovery.Result{
+			Scans:   []discovery.TypeScan{scan("aws_subnet", 2)},
+			Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
+			Orphans: []discovery.OwnedResource{
+				orphan("aws_subnet", "subnet-mute", "", "aws_subnet.this:a"),
+				withContent(orphan("aws_subnet", "subnet-else", "", "aws_subnet.this:b"),
+					map[string]string{"availability_zone": "us-east-1b"}),
+			},
+		})
+		if len(res.Renames) != 0 {
+			t.Fatalf("a pairing that could not be compared was offered on elimination alone:\n%s", res)
+		}
+		if _, ok := res.AmbiguousFor("aws_subnet.this"); !ok {
+			t.Fatalf("the unsettled block was not reported:\n%s", res)
+		}
+	})
+}
+
+// TestRenameContentRemovesTheOnlyPairing: one of each, block-matched, but the
+// live object's availability zone is not the declared one. A resource whose
+// identifying arguments disagree is not the declared instance under a new
+// key, so the pairing is removed and the report shows the comparison.
+func TestRenameContentRemovesTheOnlyPairing(t *testing.T) {
+	res := classifyContentFixture(t, discovery.Result{
+		Scans:   []discovery.TypeScan{scan("aws_subnet", 1)},
+		Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
+		Orphans: []discovery.OwnedResource{
+			withContent(orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.this:a"),
+				map[string]string{"availability_zone": "us-east-1b"}),
+		},
+	})
+
+	if len(res.Renames) != 0 {
+		t.Fatalf("a pairing content disqualified was offered anyway:\n%s", res)
+	}
+	amb, ok := res.AmbiguousFor("aws_subnet.this")
+	if !ok {
+		t.Fatalf("the disqualified pairing was dropped instead of reported:\n%s", res)
+	}
+	if !strings.Contains(amb.Detail, "availability_zone") ||
+		!strings.Contains(amb.Detail, `"us-east-1b"`) || !strings.Contains(amb.Detail, `"us-east-1a"`) {
+		t.Errorf("the detail does not show the values that disagreed: %q", amb.Detail)
+	}
+}
+
+// TestRenameContentNeverOverridesTheBlockMatch: agreement on content is not a
+// pairing. A live resource of another type, or marked for another block,
+// stays unpaired no matter what its attributes say - the block match is the
+// requirement, and content only ever narrows what it admits.
+func TestRenameContentNeverOverridesTheBlockMatch(t *testing.T) {
+	agreeing := map[string]string{"availability_zone": "us-east-1a"}
+
+	t.Run("another type", func(t *testing.T) {
+		res := classifyContentFixture(t, discovery.Result{
+			Scans:   []discovery.TypeScan{scan("aws_subnet", 1)},
+			Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
+			Orphans: []discovery.OwnedResource{
+				withContent(orphan("aws_route_table", "rtb-xyz", "", "aws_subnet.this:a"), agreeing),
+			},
+		})
+		if len(res.Renames) != 0 || len(res.Ambiguous) != 0 {
+			t.Errorf("agreeing content paired a resource of another type:\n%s", res)
+		}
+	})
+
+	t.Run("another block", func(t *testing.T) {
+		res := classifyContentFixture(t, discovery.Result{
+			Scans:   []discovery.TypeScan{scan("aws_subnet", 1)},
+			Unbound: []addrs.AbsResourceInstance{mustAddr(t, `aws_subnet.this["c"]`)},
+			Orphans: []discovery.OwnedResource{
+				withContent(orphan("aws_subnet", "subnet-xyz", "", "aws_subnet.other:a"), agreeing),
+			},
+		})
+		if len(res.Renames) != 0 || len(res.Ambiguous) != 0 {
+			t.Errorf("agreeing content paired a marker naming another block:\n%s", res)
+		}
+	})
+}
+
+// classifyContentFixture classifies against a one-block configuration whose
+// availability_zone is a literal, so that a content comparison has a
+// configuration value to read. cidr_block stays on each.value, as it would be
+// in any real for_each block, pinning that an unreadable argument is skipped
+// rather than treated as a mismatch.
+func classifyContentFixture(t *testing.T, res discovery.Result) *Result {
+	t.Helper()
+
+	dir := t.TempDir()
+	cfg := `resource "aws_subnet" "this" {
+  for_each          = { c = "10.42.3.0/24", d = "10.42.4.0/24" }
+  cidr_block        = each.value
+  availability_zone = "us-east-1a"
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(cfg), 0o600); err != nil {
+		t.Fatalf("writing the content fixture: %v", err)
+	}
+
+	out, diags := Classify(context.Background(), Request{
+		Estate:    estateName,
+		Config:    loadConfig(t, dir),
+		Discovery: &res,
+	})
+	if diags.HasErrors() {
+		t.Fatalf("classification failed:\n%s", renderDiags(diags))
+	}
+	return out
+}
+
+// withContent attaches a listed object to an orphan, the way discovery does
+// when the provider sends full resource objects.
+func withContent(o discovery.OwnedResource, attrs map[string]string) discovery.OwnedResource {
+	vals := make(map[string]cty.Value, len(attrs))
+	for k, v := range attrs {
+		vals[k] = cty.StringVal(v)
+	}
+	o.Resource = cty.ObjectVal(vals)
+	return o
 }
 
 // orphan is one live resource carrying this estate's marker at an address no

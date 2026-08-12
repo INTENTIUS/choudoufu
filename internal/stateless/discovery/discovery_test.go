@@ -567,6 +567,9 @@ func TestDiscoverOrphan(t *testing.T) {
 	if o.ImportID != "vpc-gone" || o.Normalized != `aws_vpc.retired` {
 		t.Errorf("orphan recorded wrong: %s", o)
 	}
+	if o.Resource == cty.NilVal {
+		t.Error("the orphan does not carry the listed object, which is what a rename pairing compares content on")
+	}
 	if len(res.Unclaimed) != 0 {
 		t.Errorf("an owned resource was reported as unclaimed:\n%s", res)
 	}
