@@ -166,8 +166,8 @@ func TestDiscoverBindsWholeEstate(t *testing.T) {
 	for _, r := range res.Resolutions {
 		byAddr[r.Addr.String()] = r
 	}
-	if got := len(res.Resolutions); got != 31 {
-		t.Errorf("Resolutions holds %d entries, want the fixture's 31", got)
+	if got := len(res.Resolutions); got != 32 {
+		t.Errorf("Resolutions holds %d entries, want the fixture's 32", got)
 	}
 	for _, addr := range allDiscovered {
 		r, ok := byAddr[addr]

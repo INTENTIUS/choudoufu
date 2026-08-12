@@ -14,7 +14,7 @@ a feature under test), no provisioners, no logical resources.
 |---|---|---|
 | Marker path (server IDs) | `aws_vpc.main`, `aws_subnet.this`, `aws_security_group.main`, `aws_kms_key.main` | Identity is a server-assigned ID (`vpc-…`, `subnet-…`, `sg-…`, a KMS key UUID) not derivable from config; recovered only by the `tofu-address` tag. |
 | Marker path, non-`id` identity attribute | `aws_route53_zone.main` | Same path, but the provider's identity schema for the type names `zone_id` rather than `id`, so the identity table has to say which attribute carries the import ID. |
-| Client-named path | `aws_s3_bucket.data`, `aws_iam_role.app`, `aws_cloudwatch_log_group.app`, `aws_dynamodb_table.events` | Identity is a name already in config (bucket name, role name, log group name, table name) — nothing to recover. |
+| Client-named path | `aws_s3_bucket.data`, `aws_iam_role.app`, `aws_cloudwatch_log_group.app`, `aws_dynamodb_table.events`, `aws_cloudwatch_metric_alarm.cpu` | Identity is a name already in config (bucket name, role name, log group name, table name, alarm name) — nothing to recover. |
 | Client-named path, ARN-shaped id | `aws_ecs_cluster.app` | The documented import ID is the cluster name, already in config, but the provider sets `id` to the cluster ARN — so only the `name` attribute may hand out the identity, the same care `aws_route`'s synthesized id gets. |
 | Named singleton child | `aws_s3_bucket_policy.data`, `aws_s3_bucket_versioning.data`, `aws_s3_bucket_public_access_block.data`, `aws_s3_bucket_server_side_encryption_configuration.data`, `aws_s3_bucket_lifecycle_configuration.data` | At most one per bucket; each one's identity is the parent bucket's name, so it needs no marker of its own (and none of the five types carries a `tags` argument to put one on). The four bucket children beyond the policy are #19's second slice. |
 | Parent-derived | `aws_route.internet_gateway`, `aws_route_table_association.this` | Identity is a composite of admitted parents: a route is (route table, destination CIDR); an association is (subnet, route table). Neither type accepts a `tags` argument. |
@@ -66,6 +66,7 @@ parent-derived path, not from a marker, so admission doesn't need a tag.
 | `containers.tf` | The ECS cluster (client-named with an ARN-shaped `id`, same slice). |
 | `keys.tf` | The KMS key (marker path, #20's first slice) and its alias (client-named, #19's second slice). |
 | `dns.tf` | The Route 53 hosted zone (marker path with a `zone_id` identity attribute, same slice) and a record set in it (composite through the zone's marker, #19's second slice). |
+| `monitoring.tf` | The CloudWatch metric alarm (client-named, #19's second slice). |
 | `receipts.tf` | The receipt demo, both flavors (`aws_ssm_parameter.demo_existence`, `aws_ssm_parameter.demo_effect`). See `stateless/RECEIPTS.md`. |
 
 ## Verifying by hand

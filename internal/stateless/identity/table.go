@@ -74,7 +74,7 @@ func serverAssigned(typeName, reason, importSyntax string, identityAttrs ...stri
 	}
 }
 
-// DefaultTable is the v0 identity table: the twenty-five AWS resource types
+// DefaultTable is the v0 identity table: the twenty-six AWS resource types
 // the estate fixture (stateless/e2e/estate) uses, which are also the types
 // the P1.1 admission lint admits. A type absent from this table is outside
 // the stateless subset and resolving it is an error.
@@ -184,6 +184,14 @@ var DefaultTable = buildTable(
 		Components:    []Component{attr("name")},
 		ImportSyntax:  "CLUSTERNAME",
 		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// #19's second slice. A metric alarm imports by its alarm_name
+		// argument, and its id attribute is set to that same name.
+		Type:          "aws_cloudwatch_metric_alarm",
+		Components:    []Component{attr("alarm_name")},
+		ImportSyntax:  "ALARMNAME",
+		IdentityAttrs: []string{"id", "alarm_name"},
 	},
 	TypeIdentity{
 		// #19's second slice. A KMS alias imports by its name argument,
