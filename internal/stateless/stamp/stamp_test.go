@@ -9,6 +9,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -26,6 +27,7 @@ import (
 	"github.com/opentofu/opentofu/internal/lang/funcs"
 	"github.com/opentofu/opentofu/internal/providers"
 	"github.com/opentofu/opentofu/internal/stateless/flocitest"
+	"github.com/opentofu/opentofu/internal/stateless/identity"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
@@ -393,6 +395,121 @@ func TestTaggable(t *testing.T) {
 	}
 }
 
+// The taggability pin: the v0 admission table, split by what the AWS
+// provider's schema answers for each type. Whether a type can carry a marker
+// is read from the schema at runtime (taggable), never from a list, so the
+// admission table itself does not record the answer - and without this pin a
+// provider release that adds a tags argument to aws_route, or removes one
+// from a type that has it, would change SkipUntaggable behavior with no test
+// failing. stateless/LIMITATIONS.md names the untaggable four in its
+// "Untaggable types cannot be removed by the sweep" entry, and
+// TestUntaggableTypesMatchLimitationsDoc keeps that list and this one the
+// same.
+var (
+	taggableAdmittedTypes = []string{
+		"aws_vpc",
+		"aws_subnet",
+		"aws_security_group",
+		"aws_route_table",
+		"aws_internet_gateway",
+		"aws_eip",
+		"aws_s3_bucket",
+		"aws_iam_role",
+		"aws_cloudwatch_log_group",
+		"aws_ssm_parameter",
+	}
+	untaggableAdmittedTypes = []string{
+		"aws_route",
+		"aws_route_table_association",
+		"aws_s3_bucket_policy",
+		"aws_iam_role_policy_attachment",
+	}
+)
+
+// TestTaggableSetCoversAdmissionTable is the taggability half of lint's
+// TestAdmissionTableCoversEstate: that test pins which types are admitted,
+// and this one pins which of the admitted types can carry a marker. The two
+// pinned lists must cover identity.AdmittedTypes exactly, in both
+// directions, so a type added to the admission table has to be classified
+// here before this passes.
+//
+// The schemas are the caricature in testSchemas rather than the real AWS
+// provider's, the same trade every unit test in this file makes.
+// TestTaggableSetAgainstRealSchemas in stamp_live_test.go is the same pin
+// against the schema the real provider serves.
+func TestTaggableSetCoversAdmissionTable(t *testing.T) {
+	pinned := make(map[string]bool, len(taggableAdmittedTypes)+len(untaggableAdmittedTypes))
+	for _, resourceType := range taggableAdmittedTypes {
+		pinned[resourceType] = true
+	}
+	for _, resourceType := range untaggableAdmittedTypes {
+		if pinned[resourceType] {
+			t.Errorf("%s is pinned as both taggable and untaggable", resourceType)
+		}
+		pinned[resourceType] = true
+	}
+	for _, resourceType := range identity.AdmittedTypes() {
+		if !pinned[resourceType] {
+			t.Errorf("%s is in the v0 admission table but its taggability is not pinned here", resourceType)
+		}
+		delete(pinned, resourceType)
+	}
+	for resourceType := range pinned {
+		t.Errorf("%s has its taggability pinned here but is not in the v0 admission table", resourceType)
+	}
+
+	schemas := testSchemas()
+	check := func(types []string, want bool) {
+		for _, resourceType := range types {
+			schema, _ := schemas.ResourceTypeConfig(addrs.NewDefaultProvider("aws"), addrs.ManagedResourceMode, resourceType)
+			if schema == nil || schema.Block == nil {
+				t.Errorf("the test schemas have no entry for admitted type %s", resourceType)
+				continue
+			}
+			if got := taggable(schema.Block); got != want {
+				t.Errorf("taggable(%s) = %v, want %v", resourceType, got, want)
+			}
+		}
+	}
+	check(taggableAdmittedTypes, true)
+	check(untaggableAdmittedTypes, false)
+}
+
+// TestUntaggableTypesMatchLimitationsDoc: stateless/LIMITATIONS.md tells the
+// operator which types the sweep cannot remove because they carry no tags,
+// and that list is the untaggable pin above in prose form. Drift between the
+// two would mean the doc names a type the code stamps, or stays silent about
+// one it skips, so the doc's own entry is held to the pinned set.
+func TestUntaggableTypesMatchLimitationsDoc(t *testing.T) {
+	doc := filepath.Join(flocitest.RepoRoot(t), "stateless", "LIMITATIONS.md")
+	content, err := os.ReadFile(doc) //nolint:gosec // a fixed path in the checkout
+	if err != nil {
+		t.Fatalf("reading %s: %v", doc, err)
+	}
+
+	const heading = "**Untaggable types cannot be removed by the sweep.**"
+	_, entry, found := strings.Cut(string(content), heading)
+	if !found {
+		t.Fatalf("stateless/LIMITATIONS.md has no %q entry", heading)
+	}
+	if end := strings.Index(entry, "\n\n"); end >= 0 {
+		entry = entry[:end]
+	}
+
+	var docTypes []string
+	for _, m := range regexp.MustCompile("`([a-z0-9_]+)`").FindAllStringSubmatch(entry, -1) {
+		docTypes = append(docTypes, m[1])
+	}
+	sort.Strings(docTypes)
+
+	want := append([]string(nil), untaggableAdmittedTypes...)
+	sort.Strings(want)
+
+	if strings.Join(docTypes, " ") != strings.Join(want, " ") {
+		t.Errorf("the doc entry names %v, want exactly the pinned untaggable set %v", docTypes, want)
+	}
+}
+
 // TestStamp_tagsAsNestedBlockIsNotStamped: the tags-as-repeated-blocks shape
 // is not the tag map the marker spec describes, and is left alone.
 func TestStamp_tagsAsNestedBlockIsNotStamped(t *testing.T) {
@@ -669,6 +786,7 @@ func testSchemas() Schemas {
 		"aws_s3_bucket":            tagged("id", "bucket"),
 		"aws_iam_role":             tagged("id", "name", "assume_role_policy"),
 		"aws_cloudwatch_log_group": tagged("id", "name", "retention_in_days"),
+		"aws_ssm_parameter":        tagged("id", "name", "type", "value"),
 
 		// Untaggable, likewise.
 		"aws_route":                      untagged("route_table_id", "destination_cidr_block", "gateway_id"),
