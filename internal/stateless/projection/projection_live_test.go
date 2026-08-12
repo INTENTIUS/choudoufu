@@ -132,7 +132,9 @@ func TestBuildAgainstFloci(t *testing.T) {
 		`aws_dynamodb_table.events`,
 		`aws_ecs_cluster.app`,
 		`aws_iam_role.app`,
+		`aws_iam_role_policy.app`,
 		`aws_iam_role_policy_attachment.app`,
+		`aws_kms_alias.main`,
 		`aws_s3_bucket.data`,
 		`aws_s3_bucket_lifecycle_configuration.data`,
 		`aws_s3_bucket_policy.data`,
@@ -161,6 +163,8 @@ func TestBuildAgainstFloci(t *testing.T) {
 		{`aws_s3_bucket_public_access_block.data`, "tofu-stateless-e2e-data"},
 		{`aws_s3_bucket_server_side_encryption_configuration.data`, "AES256"},
 		{`aws_s3_bucket_lifecycle_configuration.data`, "expire-tmp"},
+		{`aws_iam_role_policy.app`, "AllowListDataBucket"},
+		{`aws_kms_alias.main`, "alias/tofu-stateless-e2e-main"},
 	} {
 		is := res.State.ResourceInstance(mustAddr(t, spec.addr))
 		if is == nil || is.Current == nil {

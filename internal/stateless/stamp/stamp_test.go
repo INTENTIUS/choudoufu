@@ -431,6 +431,9 @@ var (
 		"aws_s3_bucket_public_access_block",
 		"aws_s3_bucket_server_side_encryption_configuration",
 		"aws_s3_bucket_lifecycle_configuration",
+		"aws_iam_role_policy",
+		"aws_kms_alias",
+		"aws_route53_record",
 	}
 )
 
@@ -809,6 +812,9 @@ func testSchemas() Schemas {
 		"aws_s3_bucket_public_access_block":                  untagged("id", "bucket", "block_public_acls", "block_public_policy"),
 		"aws_s3_bucket_server_side_encryption_configuration": untagged("id", "bucket"),
 		"aws_s3_bucket_lifecycle_configuration":              untagged("id", "bucket"),
+		"aws_iam_role_policy":                                untagged("id", "role", "name", "policy"),
+		"aws_kms_alias":                                      untagged("id", "name", "target_key_id"),
+		"aws_route53_record":                                 untagged("id", "zone_id", "name", "type", "ttl"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.

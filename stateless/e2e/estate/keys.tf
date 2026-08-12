@@ -18,3 +18,12 @@ resource "aws_kms_key" "main" {
     tofu-address = "aws_kms_key.main"
   }
 }
+
+# Coverage: client-named path (aws_kms_alias — the alias imports by its full
+# alias/... name argument, already in config; it is the client-named handle
+# on the marker-discovered key above). No tags argument on this resource
+# type — untaggable by type. #19's second slice.
+resource "aws_kms_alias" "main" {
+  name          = "alias/tofu-stateless-e2e-main"
+  target_key_id = aws_kms_key.main.key_id
+}

@@ -17,3 +17,18 @@ resource "aws_route53_zone" "main" {
     tofu-address = "aws_route53_zone.main"
   }
 }
+
+# Coverage: composite through a marker-discovered parent
+# (aws_route53_record — the import ID is ZONEID_NAME_TYPE; name and type are
+# client-named but the Z-ID is the zone's server-assigned identity, flag F5
+# in stateless/SURVEY.md, resolved by wiring the zone above). No tags
+# argument on this resource type — untaggable by type. No set_identifier:
+# the identity table's components deliberately build only the plain-record
+# grammar. #19's second slice.
+resource "aws_route53_record" "app" {
+  zone_id = aws_route53_zone.main.zone_id
+  name    = "app.stateless-e2e.example.com"
+  type    = "A"
+  ttl     = 300
+  records = ["10.42.0.10"]
+}
