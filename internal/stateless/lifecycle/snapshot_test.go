@@ -45,13 +45,13 @@ func TestStatelessSnapshotAgainstFloci(t *testing.T) {
 	flocitest.RequireBinary(t, "aws")
 	flocitest.RequireBinary(t, "go")
 
-	flocitest.StartFloci(t, snapshotContainerFn, snapshotFlociPort)
+	snapshotFlociPort := flocitest.StartFloci(t, snapshotContainerFn)
 
 	t.Setenv("AWS_ENDPOINT_URL", "http://localhost:"+snapshotFlociPort)
 	t.Setenv("AWS_ACCESS_KEY_ID", "test")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
 	t.Setenv("AWS_REGION", awsRegion)
-	t.Setenv("TF_PLUGIN_CACHE_DIR", t.TempDir())
+	flocitest.PluginCacheDir(t)
 
 	tofuBin := flocitest.BuildTofu(t)
 	dir := t.TempDir()
@@ -161,14 +161,10 @@ func TestStatelessSnapshotAgainstFloci(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 const (
-	// snapshotFlociPort is this test's own floci port, distinct from the
-	// lifecycle test's (4615) so the two can run at the same time.
-	snapshotFlociPort = "4618"
-
 	snapshotEstate      = "p42-snapshot"
 	snapshotVPCCIDR     = "10.62.0.0/16"
 	snapshotBucketName  = "p42-snapshot-data"
-	snapshotContainerFn = "tofu-stateless-p42-snapshot"
+	snapshotContainerFn = "cdf-p42-snapshot"
 )
 
 // snapshotFixture is a small estate - one marker-path resource, one

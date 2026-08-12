@@ -31,11 +31,11 @@ import (
 // Both are live tests rather than unit tests because both are claims about
 // what reaches the cloud: C1's is that nothing does, and C2's is that the
 // marker does.
-const (
-	// ra1Port is RA.1's own port. The suites either side of it own 4601-4623
-	// and this package's older test owns 4608.
-	ra1Port = "4631"
+// ra1Port is this run's emulator port, chosen by the kernel when RA.1's test
+// starts its container. ra1AWS reads it after that test assigns it.
+var ra1Port string
 
+const (
 	// ra1Estate and ra1MergeEstate are separate so the two phases cannot bind
 	// each other's resources even if the emulator kept them.
 	ra1Estate      = "ra1-ownership"
@@ -53,13 +53,13 @@ func TestOwnershipAgainstFloci(t *testing.T) {
 	flocitest.RequireBinary(t, "aws")
 	flocitest.RequireBinary(t, "go")
 
-	flocitest.StartFloci(t, "tofu-ra1-floci", ra1Port)
+	ra1Port = flocitest.StartFloci(t, "cdf-ra1")
 
 	t.Setenv("AWS_ENDPOINT_URL", "http://localhost:"+ra1Port)
 	t.Setenv("AWS_ACCESS_KEY_ID", "test")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
 	t.Setenv("AWS_REGION", awsRegion)
-	t.Setenv("TF_PLUGIN_CACHE_DIR", t.TempDir())
+	flocitest.PluginCacheDir(t)
 
 	tofuBin := flocitest.BuildTofu(t)
 
