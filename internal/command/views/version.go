@@ -14,6 +14,7 @@ import (
 
 	"github.com/opentofu/opentofu/internal/command/arguments"
 	"github.com/opentofu/opentofu/internal/tfdiags"
+	tfversion "github.com/opentofu/opentofu/version"
 )
 
 type Version interface {
@@ -75,6 +76,12 @@ func (v *VersionMixed) printHumanVersion(version string, versionPrerelease strin
 	formattedVersion := fmt.Sprintf("OpenTofu v%s", version)
 	if versionPrerelease != "" {
 		formattedVersion = fmt.Sprintf("%s-%s", formattedVersion, versionPrerelease)
+	}
+	// Release builds of choudoufu set tfversion.Fork to the release tag via
+	// linker flags; name that release while keeping the upstream base version
+	// visible for tooling that looks for it.
+	if tfversion.Fork != "" {
+		formattedVersion = fmt.Sprintf("choudoufu %s (based on %s)", tfversion.Fork, formattedVersion)
 	}
 	_, _ = v.view.streams.Println(formattedVersion)
 	_, _ = v.view.streams.Println(fmt.Sprintf("on %s", platform))
