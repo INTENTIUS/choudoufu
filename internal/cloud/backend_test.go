@@ -383,7 +383,7 @@ func TestCloud_config(t *testing.T) {
 					"project": cty.NullVal(cty.String),
 				}),
 			}),
-			confErr: "tofu login localhost",
+			confErr: "choudoufu login localhost",
 		},
 		"with_tags": {
 			config: cty.ObjectVal(map[string]cty.Value{

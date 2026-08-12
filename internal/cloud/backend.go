@@ -306,7 +306,7 @@ func (b *Cloud) Configure(ctx context.Context, obj cty.Value) tfdiags.Diagnostic
 			fmt.Sprintf(
 				"Run the following command to generate a token for %s:\n    %s",
 				b.hostname,
-				fmt.Sprintf("tofu login %s", b.hostname),
+				fmt.Sprintf("choudoufu login %s", b.hostname),
 			),
 		))
 		return diags
@@ -1277,7 +1277,7 @@ configuration to workspaces within a cloud backend organization. Two strategies 
 	schemaDescriptionOrganization = `The name of the organization containing the targeted workspace(s).`
 
 	schemaDescriptionToken = `The token used to authenticate with the cloud backend. Typically this argument should not
-be set, and 'tofu login' used instead; your credentials will then be fetched from your CLI
+be set, and 'choudoufu login' used instead; your credentials will then be fetched from your CLI
 configuration file or configured credential helper.`
 
 	schemaDescriptionTags = `A set of tags used to select remote cloud backend workspaces to be used for this single

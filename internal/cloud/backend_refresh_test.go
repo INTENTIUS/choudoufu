@@ -70,7 +70,7 @@ func TestCloud_refreshBasicActuallyRunsApplyRefresh(t *testing.T) {
 	}
 
 	output := voutput.Stdout()
-	if !strings.Contains(output, "Proceeding with 'tofu apply -refresh-only -auto-approve'") {
+	if !strings.Contains(output, "Proceeding with 'choudoufu apply -refresh-only -auto-approve'") {
 		t.Fatalf("expected TFC header in output: %s", output)
 	}
 

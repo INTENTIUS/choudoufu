@@ -386,7 +386,7 @@ Changes to Outputs:
 		}
 
 		{ // APPLY with no ephemeral variable value
-			expectedToContain := "╷ Error: No value for required variable    on main.tf line 15:   15: variable \"ephemeral_input\" {  Variable \"ephemeral_input\" is configured as ephemeral. This type of variables need to be given a value during `tofu plan` and also during `tofu apply`.╵"
+			expectedToContain := "╷ Error: No value for required variable    on main.tf line 15:   15: variable \"ephemeral_input\" {  Variable \"ephemeral_input\" is configured as ephemeral. This type of variables need to be given a value during `choudoufu plan` and also during `choudoufu apply`.╵"
 			expectedErr := fmt.Errorf("exit status 1")
 			_, stderr, err := tf.Run("apply", `-var=simple_input=plan_val`, "tfplan")
 			if err == nil {
