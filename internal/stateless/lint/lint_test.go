@@ -425,6 +425,10 @@ func TestAdmissionTableCoversEstate(t *testing.T) {
 		"aws_ecs_cluster",
 		"aws_kms_key",
 		"aws_route53_zone",
+		"aws_s3_bucket_versioning",
+		"aws_s3_bucket_public_access_block",
+		"aws_s3_bucket_server_side_encryption_configuration",
+		"aws_s3_bucket_lifecycle_configuration",
 	}
 	for _, resourceType := range estateTypes {
 		if !admitted(resourceType) {

@@ -113,8 +113,8 @@ token per row.
 
 | Status | Meaning | Rows |
 |---|---|---|
-| `wired` | in the fork's admission table (`internal/stateless/lint/admission.go`) and identity table (`internal/stateless/identity/table.go`) today | 18 |
-| `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 30 |
+| `wired` | in the fork's admission table (`internal/stateless/lint/admission.go`) and identity table (`internal/stateless/identity/table.go`) today | 22 |
+| `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 26 |
 | `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components | 4 |
 | `ops` | excluded by the rule, forwarded to the lifecycle layer | 3 |
 | `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 13 |
@@ -182,10 +182,10 @@ identity argument were derived like every other row's.
 | aws_iam_access_key | moves to Ops | ops | server-assigned access key ID (AKIA...), and the secret half is unreadable after create | survey note; schema |
 | aws_secretsmanager_secret_version | moves to Ops | ops | secret_id + server-assigned version_id (a UUID) | survey note; schema |
 | aws_acm_certificate_validation | moves to Ops | ops | certificate_arn, recording only that the wait finished | survey note; schema |
-| aws_s3_bucket_versioning | client-named | ready | bucket (named singleton child) | roster fit; schema |
-| aws_s3_bucket_public_access_block | client-named | ready | bucket | roster fit; schema |
-| aws_s3_bucket_server_side_encryption_configuration | client-named | ready | bucket | roster fit; schema |
-| aws_s3_bucket_lifecycle_configuration | client-named | ready | bucket | roster fit; schema |
+| aws_s3_bucket_versioning | client-named | wired | bucket (named singleton child) | roster fit; schema |
+| aws_s3_bucket_public_access_block | client-named | wired | bucket | roster fit; schema |
+| aws_s3_bucket_server_side_encryption_configuration | client-named | wired | bucket | roster fit; schema |
+| aws_s3_bucket_lifecycle_configuration | client-named | wired | bucket | roster fit; schema |
 | aws_iam_instance_profile | client-named | blocked-emulator | name; blocked: floci's iam:GetInstanceProfile omits Tags, the GetRole gap family, so the marker never reads back (probed 2026-08-12; choudoufu#26) | roster fit; schema |
 | aws_iam_role_policy | client-named | ready | role + name, both client-named, so concrete wherever the role is | roster fit; schema |
 | aws_iam_group | client-named | ready | name; no identity schema shipped, import ID documented as the group name | roster fit; docs |
@@ -288,7 +288,7 @@ pick them up: issue #19 for the client-named rows, issue #21 for
 Exactly three of the 68 fail the admission rule, and they fail it
 permanently: they are out by the rule itself, not by v0 scoping. This is a
 different kind of "not admitted" than the surveyed types that are merely
-not wired yet (47 of them at the 18 types wired today, the `ready`,
+not wired yet (43 of them at the 22 types wired today, the `ready`,
 `needs-account-derived` and `blocked-emulator` rows above), and `stateless/LIMITATIONS.md`'s
 `unadmitted-type` entry draws the same distinction.
 

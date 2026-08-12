@@ -16,7 +16,7 @@ a feature under test), no provisioners, no logical resources.
 | Marker path, non-`id` identity attribute | `aws_route53_zone.main` | Same path, but the provider's identity schema for the type names `zone_id` rather than `id`, so the identity table has to say which attribute carries the import ID. |
 | Client-named path | `aws_s3_bucket.data`, `aws_iam_role.app`, `aws_cloudwatch_log_group.app`, `aws_dynamodb_table.events` | Identity is a name already in config (bucket name, role name, log group name, table name) — nothing to recover. |
 | Client-named path, ARN-shaped id | `aws_ecs_cluster.app` | The documented import ID is the cluster name, already in config, but the provider sets `id` to the cluster ARN — so only the `name` attribute may hand out the identity, the same care `aws_route`'s synthesized id gets. |
-| Named singleton child | `aws_s3_bucket_policy.data` | Exactly one policy per bucket; its own identity is the parent bucket's name, so it needs no marker of its own (and the type carries no `tags` argument to put one on). |
+| Named singleton child | `aws_s3_bucket_policy.data`, `aws_s3_bucket_versioning.data`, `aws_s3_bucket_public_access_block.data`, `aws_s3_bucket_server_side_encryption_configuration.data`, `aws_s3_bucket_lifecycle_configuration.data` | At most one per bucket; each one's identity is the parent bucket's name, so it needs no marker of its own (and none of the five types carries a `tags` argument to put one on). The four bucket children beyond the policy are #19's second slice. |
 | Parent-derived | `aws_route.internet_gateway`, `aws_route_table_association.this` | Identity is a composite of admitted parents: a route is (route table, destination CIDR); an association is (subnet, route table). Neither type accepts a `tags` argument. |
 | Fungible count | `aws_eip.pool` (`count = 3`) | Three interchangeable elastic IPs; no identity-bearing property distinguishes one slot from another, which is the shape phase 3's slot-marker matcher is built for. |
 | Conditional idiom | `aws_cloudwatch_log_group.optional` (`count = var.enabled ? 1 : 0`) | The `enabled`-gated single-instance idiom the roadmap calls out as surviving unchanged. |
@@ -36,9 +36,13 @@ here — they'd be admitted the same way `aws_vpc` is, incidentally.
 
 ## Untaggable types
 
-Four types in the table above carry no `tags` argument in the AWS provider:
-`aws_s3_bucket_policy`, `aws_route`, `aws_route_table_association`,
-`aws_iam_role_policy_attachment`. Each is commented in its resource block.
+Eight types in the table above carry no `tags` argument in the AWS provider:
+`aws_s3_bucket_policy`, `aws_s3_bucket_versioning`,
+`aws_s3_bucket_public_access_block`,
+`aws_s3_bucket_server_side_encryption_configuration`,
+`aws_s3_bucket_lifecycle_configuration`, `aws_route`,
+`aws_route_table_association`, `aws_iam_role_policy_attachment`. Each is
+commented in its resource block.
 This is expected, not a gap — their identity comes from the client-named or
 parent-derived path, not from a marker, so admission doesn't need a tag.
 
@@ -50,7 +54,7 @@ parent-derived path, not from a marker, so admission doesn't need a tag.
 | `variables.tf` | `enabled` (bool, default `true`). |
 | `locals.tf` | `estate_tag` (the marker's estate value) and the `subnets` map the for_each keys off. |
 | `network.tf` | VPC, subnets, security group, route table, internet gateway, route, route table associations. |
-| `storage.tf` | S3 bucket and bucket policy. |
+| `storage.tf` | S3 bucket, bucket policy, and the four bucket children (versioning, public access block, SSE configuration, lifecycle configuration — named singleton children, #19's second slice). |
 | `iam.tf` | IAM role and its policy attachment. |
 | `logs.tf` | The two CloudWatch log groups (client-named, conditional). |
 | `compute.tf` | The three-EIP fungible-count pool. |

@@ -944,6 +944,10 @@ else
   CONCRETE_TARGETS=(
     aws_s3_bucket.data
     aws_s3_bucket_policy.data
+    aws_s3_bucket_versioning.data
+    aws_s3_bucket_public_access_block.data
+    aws_s3_bucket_server_side_encryption_configuration.data
+    aws_s3_bucket_lifecycle_configuration.data
     aws_iam_role.app
     aws_iam_role_policy_attachment.app
     aws_cloudwatch_log_group.app

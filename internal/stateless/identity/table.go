@@ -74,7 +74,7 @@ func serverAssigned(typeName, reason, importSyntax string, identityAttrs ...stri
 	}
 }
 
-// DefaultTable is the v0 identity table: the eighteen AWS resource types
+// DefaultTable is the v0 identity table: the twenty-two AWS resource types
 // the estate fixture (stateless/e2e/estate) uses, which are also the types
 // the P1.1 admission lint admits. A type absent from this table is outside
 // the stateless subset and resolving it is an error.
@@ -194,6 +194,38 @@ var DefaultTable = buildTable(
 		// bucket, identified by the bucket's own name. Concrete whenever
 		// the bucket is.
 		Type:          "aws_s3_bucket_policy",
+		Components:    []Component{attr("bucket")},
+		ImportSyntax:  "BUCKETNAME",
+		IdentityAttrs: []string{"id", "bucket"},
+	},
+	// The four S3 bucket children below (#19's second slice) are the same
+	// named-singleton-child shape as the bucket policy: at most one per
+	// bucket, imported by the bucket name, verified against the provider's
+	// identity schemas (required import attribute: bucket; account_id and
+	// region optional). The provider's documented import grammar also
+	// accepts "BUCKETNAME,EXPECTED_BUCKET_OWNER", and each type's id
+	// attribute carries that suffixed form when expected_bucket_owner is
+	// set — a configuration the v0 subset's own fixture does not use.
+	TypeIdentity{
+		Type:          "aws_s3_bucket_versioning",
+		Components:    []Component{attr("bucket")},
+		ImportSyntax:  "BUCKETNAME",
+		IdentityAttrs: []string{"id", "bucket"},
+	},
+	TypeIdentity{
+		Type:          "aws_s3_bucket_public_access_block",
+		Components:    []Component{attr("bucket")},
+		ImportSyntax:  "BUCKETNAME",
+		IdentityAttrs: []string{"id", "bucket"},
+	},
+	TypeIdentity{
+		Type:          "aws_s3_bucket_server_side_encryption_configuration",
+		Components:    []Component{attr("bucket")},
+		ImportSyntax:  "BUCKETNAME",
+		IdentityAttrs: []string{"id", "bucket"},
+	},
+	TypeIdentity{
+		Type:          "aws_s3_bucket_lifecycle_configuration",
 		Components:    []Component{attr("bucket")},
 		ImportSyntax:  "BUCKETNAME",
 		IdentityAttrs: []string{"id", "bucket"},

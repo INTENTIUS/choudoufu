@@ -69,6 +69,16 @@ var admittedTypesV0 = map[string]struct{}{
 	// import grammar and against the floci emulator.
 	"aws_dynamodb_table": {},
 	"aws_ecs_cluster":    {},
+	// Second slice of the client-named cohort (#19): the four S3 bucket
+	// children. Each is a named singleton child of its bucket — at most one
+	// per bucket, imported by the bucket argument alone, the same shape as
+	// aws_s3_bucket_policy — verified against the provider's identity
+	// schemas (required import attribute: bucket) and against the floci
+	// emulator.
+	"aws_s3_bucket_versioning":                           {},
+	"aws_s3_bucket_public_access_block":                  {},
+	"aws_s3_bucket_server_side_encryption_configuration": {},
+	"aws_s3_bucket_lifecycle_configuration":              {},
 
 	// List plus content match, as a fungible set bound by tofu-slot marker.
 	"aws_eip": {},

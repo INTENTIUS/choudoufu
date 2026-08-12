@@ -427,6 +427,10 @@ var (
 		"aws_route_table_association",
 		"aws_s3_bucket_policy",
 		"aws_iam_role_policy_attachment",
+		"aws_s3_bucket_versioning",
+		"aws_s3_bucket_public_access_block",
+		"aws_s3_bucket_server_side_encryption_configuration",
+		"aws_s3_bucket_lifecycle_configuration",
 	}
 )
 
@@ -797,10 +801,14 @@ func testSchemas() Schemas {
 		"aws_route53_zone":         tagged("id", "zone_id", "name"),
 
 		// Untaggable, likewise.
-		"aws_route":                      untagged("route_table_id", "destination_cidr_block", "gateway_id"),
-		"aws_route_table_association":    untagged("subnet_id", "route_table_id"),
-		"aws_s3_bucket_policy":           untagged("bucket", "policy"),
-		"aws_iam_role_policy_attachment": untagged("role", "policy_arn"),
+		"aws_route":                                          untagged("route_table_id", "destination_cidr_block", "gateway_id"),
+		"aws_route_table_association":                        untagged("subnet_id", "route_table_id"),
+		"aws_s3_bucket_policy":                               untagged("bucket", "policy"),
+		"aws_iam_role_policy_attachment":                     untagged("role", "policy_arn"),
+		"aws_s3_bucket_versioning":                           untagged("id", "bucket"),
+		"aws_s3_bucket_public_access_block":                  untagged("id", "bucket", "block_public_acls", "block_public_policy"),
+		"aws_s3_bucket_server_side_encryption_configuration": untagged("id", "bucket"),
+		"aws_s3_bucket_lifecycle_configuration":              untagged("id", "bucket"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.
