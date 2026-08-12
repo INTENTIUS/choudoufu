@@ -121,6 +121,22 @@ func cssVersion() string {
 // embedded as Content in layoutData.
 type landingData struct {
 	Pages []navItem
+
+	// UpstreamVersion is the OpenTofu release this fork is built on, read
+	// from version/VERSION at build time so the landing page cannot drift
+	// from the tree it was generated in.
+	UpstreamVersion string
+}
+
+// upstreamVersion reads version/VERSION and strips the -dev suffix that
+// marks an unreleased upstream tree, the same way the release workflow
+// derives the number it writes into release notes.
+func upstreamVersion(root string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(root, "version", "VERSION"))
+	if err != nil {
+		return "", fmt.Errorf("reading version/VERSION: %w", err)
+	}
+	return strings.TrimSuffix(strings.TrimSpace(string(data)), "-dev"), nil
 }
 
 var md = goldmark.New(
@@ -185,7 +201,11 @@ func run(root, out string) error {
 
 	// Landing page.
 	var landingBody bytes.Buffer
-	if err := landingTmpl.Execute(&landingBody, landingData{Pages: docNavItems()}); err != nil {
+	upstream, err := upstreamVersion(root)
+	if err != nil {
+		return err
+	}
+	if err := landingTmpl.Execute(&landingBody, landingData{Pages: docNavItems(), UpstreamVersion: upstream}); err != nil {
 		return fmt.Errorf("rendering landing content: %w", err)
 	}
 	if err := writePage(out, "index.html", layoutTmpl, layoutData{
