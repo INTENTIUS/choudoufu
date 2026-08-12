@@ -128,6 +128,8 @@ func TestBuildEstate(t *testing.T) {
 		`aws_eip.pool[0]`:                       ReasonNeedsDiscovery,
 		`aws_eip.pool[1]`:                       ReasonNeedsDiscovery,
 		`aws_eip.pool[2]`:                       ReasonNeedsDiscovery,
+		`aws_kms_key.main`:                      ReasonNeedsDiscovery,
+		`aws_route53_zone.main`:                 ReasonNeedsDiscovery,
 		`aws_route.internet_gateway`:            ReasonParentUnavailable,
 		`aws_route_table_association.this["a"]`: ReasonParentUnavailable,
 		`aws_route_table_association.this["b"]`: ReasonParentUnavailable,
@@ -762,6 +764,10 @@ var fakeAttrs = map[string][]string{
 	"aws_ssm_parameter":              {"id", "name", "value", "type"},
 	"aws_dynamodb_table":             {"id", "name", "arn", "billing_mode", "hash_key"},
 	"aws_ecs_cluster":                {"id", "name", "arn"},
+	"aws_kms_key":                    {"id", "key_id", "arn", "description"},
+	// The zone's identity attribute is zone_id rather than id, and both
+	// carry the hosted zone ID; the caricature keeps both for that reason.
+	"aws_route53_zone": {"id", "zone_id", "arn", "name"},
 }
 
 // fakeUntaggable is the caricature's version of a fact about the real

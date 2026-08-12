@@ -13,7 +13,7 @@ a vote.
 
 :::note
 Live resource markers are an experimental, fork-only feature, and AWS only
-at the moment (the 16-type subset listed in The Contract below).
+at the moment (the 18-type subset listed in The Contract below).
 `choudoufu live-plan` and `choudoufu live-mv` are marked EXPERIMENTAL in
 their own `-help` text, and their command surface can still change.
 :::
@@ -135,13 +135,13 @@ live-prefixed command in sight.
 :::warning Important
 Adding a `live` block to a configuration that already manages live
 resources does not bind them automatically, and coverage is partial. Only
-some of the 16 admitted types can be offered for adoption automatically at
+some of the 18 admitted types can be offered for adoption automatically at
 all. A client-named resource (an S3 bucket, an IAM role, a CloudWatch log
 group, an SSM parameter, a DynamoDB table, an ECS cluster, a bucket
-policy) binds immediately if it already
-carries this estate's marker, and is refused, never adopted, never
-destroyed, if it does not. Read the **`[UNOWNED]`** paragraph below before
-you assume "binds immediately" means "binds regardless." A server-ID
+policy) binds immediately if it already carries this estate's marker, and
+is refused, never adopted, never destroyed, if it does not. Read the
+**`[UNOWNED]`** paragraph below before you assume "binds immediately"
+means "binds regardless." A server-ID
 resource (a VPC, a subnet, a security group) has no ownership tag yet, so
 the first plan reads it as new and proposes creating a **duplicate**, right
 alongside the live resource nothing has adopted, unless its content happens
@@ -153,22 +153,25 @@ Adoptable section before you apply anything.
 **What actually binds automatically, and what does not.** The classifier
 that offers a one-line adoption command matches on configuration content
 (`internal/stateless/foreign/classify.go`), and it only knows how to compare
-three types this way. Those are `aws_security_group` (by `name`), `aws_vpc`
-(by `cidr_block`), and `aws_subnet` (by `cidr_block` plus
-`availability_zone`). `aws_route_table` and `aws_internet_gateway` are
-server-ID types too, but nothing in their configuration distinguishes one
-from another (both are "the one attached to this VPC"), so the classifier
-can never offer them. Adopt them by hand, per the tag-write recipe below.
-`aws_eip` is explicitly fungible and bound by slot marker, not content, so a
-pre-existing, never-marked EIP is never a bind candidate either. The first
-apply mints it a fresh slot instead of recognizing the old one. The same is
+four types this way. Those are `aws_security_group` (by `name`), `aws_vpc`
+(by `cidr_block`), `aws_subnet` (by `cidr_block` plus `availability_zone`),
+and `aws_route53_zone` (by `name`). `aws_route_table`,
+`aws_internet_gateway` and `aws_kms_key` are server-ID types too, but
+nothing in their configuration distinguishes one from another (the first
+two are "the one attached to this VPC"; a key's arguments are its
+description, its usage and its policy, none of which names one key rather
+than another), so the classifier can never offer them. Adopt them by hand,
+per the tag-write recipe below. `aws_eip` is explicitly fungible and bound
+by slot marker, not content, so a pre-existing, never-marked EIP is never a
+bind candidate either. The first apply mints it a fresh slot instead of
+recognizing the old one. The same is
 true of every `count` or `for_each` instance of any type. Binding by content
 only considers instances still waiting to be found with *no* index or key,
 so a pre-existing keyed or counted resource cannot be adopted this way.
 Hand-write its markers before the first apply if a specific instance must be
 preserved rather than duplicated.
 
-The loop, for the three content-matchable server-ID types.
+The loop, for the four content-matchable server-ID types.
 
 1. **Add the block.** Put `live { estate = "..." }` in `terraform`,
    remove any `backend`/`cloud` block (they are refused alongside it), and
@@ -198,7 +201,11 @@ The loop, for the three content-matchable server-ID types.
    `for_each` key carrying a space or a bracket survives the paste. There
    is no `choudoufu adopt` command. The marker spec is the whole contract
    (`stateless/MARKERS.md`), so any tool that can write two tags can adopt
-   a resource.
+   a resource. The printed one-liner exists only for the types tagged
+   through `ec2 create-tags`; an `aws_route53_zone` candidate is offered
+   with its marker pair and no command, because a hosted zone is tagged
+   with `route53 change-tags-for-resource` instead. Write the same two tags
+   with that call.
 5. **Plan clean.** Run `choudoufu plan` again. Every adopted resource now
    reads back its own markers and the plan reports no changes for it.
 
@@ -227,7 +234,7 @@ the `Unowned` section entry, run the tag write it names, then plan again.
 tags, so they have nowhere to put a marker. Their identity is a composite of
 their already-admitted parents, and once the parents are adopted these bind
 on the next plan with no separate step. A resource of a type outside the
-16-type admission table (see the Contract, below) has no adoption path at
+18-type admission table (see the Contract, below) has no adoption path at
 all, ever. Hand-stamping markers onto it does not help, because nothing
 sweeps for a type this configuration cannot declare.
 
@@ -279,15 +286,16 @@ outcomes at all. They are named below.
 
 ## The Contract
 
-- **AWS only, 16 resource types, root module only.** The v0 admission table
+- **AWS only, 18 resource types, root module only.** The v0 admission table
   (`internal/stateless/lint/admission.go`) is the whole subset. It holds
   `aws_vpc`, `aws_subnet`, `aws_security_group`, `aws_route_table`,
-  `aws_internet_gateway`, `aws_route`, `aws_route_table_association`,
-  `aws_iam_role_policy_attachment`, `aws_s3_bucket`, `aws_s3_bucket_policy`,
-  `aws_iam_role`, `aws_cloudwatch_log_group`, `aws_ssm_parameter`,
-  `aws_dynamodb_table`, `aws_ecs_cluster`, and
-  `aws_eip`. Nothing else, no other AWS type, no other provider. A
-  `module` block calling into a child module is refused outright. The
+  `aws_internet_gateway`, `aws_kms_key`, `aws_route53_zone`, `aws_route`,
+  `aws_route_table_association`, `aws_iam_role_policy_attachment`,
+  `aws_s3_bucket`, `aws_s3_bucket_policy`, `aws_iam_role`,
+  `aws_cloudwatch_log_group`, `aws_ssm_parameter`, `aws_dynamodb_table`,
+  `aws_ecs_cluster`, and `aws_eip`. Nothing else, no other AWS type, no
+  other provider. A `module` block calling into a child module is refused
+  outright. The
   subset lint rejects every module call with "Child modules are not
   available under live resource markers", pointing at the `module` block itself,
   before anything reads the live system. Only the root module is covered

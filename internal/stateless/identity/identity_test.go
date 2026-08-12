@@ -94,6 +94,13 @@ func TestResolveEstate(t *testing.T) {
 		`aws_eip.pool[0]`:           `NEEDS_DISCOVERY`,
 		`aws_eip.pool[1]`:           `NEEDS_DISCOVERY`,
 		`aws_eip.pool[2]`:           `NEEDS_DISCOVERY`,
+
+		// First slice of the survey's marker cohort (#20): a KMS key whose
+		// UUID nothing in config names, and a hosted zone whose ID Route 53
+		// mints even though the zone's domain name is right there in the
+		// block.
+		`aws_kms_key.main`:      `NEEDS_DISCOVERY`,
+		`aws_route53_zone.main`: `NEEDS_DISCOVERY`,
 	}
 
 	assertClassifications(t, result, want)
@@ -114,7 +121,7 @@ func TestResolveEstateDisabled(t *testing.T) {
 	if _, ok := result.Get(mustAddr(t, `aws_cloudwatch_log_group.optional[0]`)); ok {
 		t.Error("aws_cloudwatch_log_group.optional[0] is present with enabled = false; count = 0 must expand to no instances")
 	}
-	if got, want := result.Len(), 21; got != want {
+	if got, want := result.Len(), 23; got != want {
 		t.Errorf("resolved %d instances, want %d", got, want)
 	}
 	if _, ok := result.Get(mustAddr(t, `aws_cloudwatch_log_group.app`)); !ok {
@@ -145,6 +152,8 @@ func TestEstateNeedsDiscoveryList(t *testing.T) {
 		`aws_eip.pool[1]`,
 		`aws_eip.pool[2]`,
 		`aws_internet_gateway.main`,
+		`aws_kms_key.main`,
+		`aws_route53_zone.main`,
 		`aws_route_table.main`,
 		`aws_security_group.main`,
 		`aws_subnet.this["a"]`,
@@ -379,7 +388,7 @@ func TestTableCoversFixtureTypes(t *testing.T) {
 			t.Errorf("the v0 identity table covers %s, which the fixture does not use", typeName)
 		}
 	}
-	if got, want := len(AdmittedTypes()), 16; got != want {
+	if got, want := len(AdmittedTypes()), 18; got != want {
 		t.Errorf("table covers %d types, want the fixture's %d", got, want)
 	}
 }
