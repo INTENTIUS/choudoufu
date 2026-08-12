@@ -66,7 +66,7 @@ func cacheWith(t *testing.T, schemas map[string]providers.Schema) *providerEntry
 	}
 	p.ConfigureProviderCalled = true
 
-	entry, err := newProviderCache(SingleProvider(awsProvider, p)).get(context.Background(), awsProvider)
+	entry, err := newProviderCache(SingleProvider(awsProvider, p), nil).get(context.Background(), awsProvider)
 	if err != nil {
 		t.Fatalf("reaching the fake provider: %s", err)
 	}
