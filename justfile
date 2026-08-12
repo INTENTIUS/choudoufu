@@ -20,6 +20,10 @@ demo:
 site:
     cd site && go run . -out public/
 
+# Build the docs site and serve it at http://localhost:8000
+site-serve: site
+    python3 -m http.server 8000 --directory site/public
+
 # Lint exactly as upstream CI would (golangci-lint, both GOOS passes)
 lint:
     make golangci-lint
