@@ -101,6 +101,14 @@ func TestLimitationsDocAgainstSurvey(t *testing.T) {
 		t.Errorf("unadmitted-type example %s is now in the admission table; swap the entry and the fixture at stateless/e2e/limits/unadmitted-type/ to a still-unadmitted type", example)
 	}
 
+	// The survey's own `wired` tally is the admission table's size.
+	wired := fmt.Sprintf("| `wired` |")
+	if line, ok := lineContaining(t, filepath.Join(root, surveyMDRel), wired); ok {
+		if want := fmt.Sprintf("| %d |", len(admitted)); !strings.HasSuffix(strings.TrimSpace(line), want) {
+			t.Errorf("%s's `wired` status row does not end %q (the admission table holds %d types): %s", surveyMDRel, want, len(admitted), strings.TrimSpace(line))
+		}
+	}
+
 	// The untaggable entry's roster is a derivation: admitted types whose
 	// survey row says no top-level tags argument.
 	var derived []string
@@ -132,5 +140,71 @@ func TestLimitationsDocAgainstSurvey(t *testing.T) {
 	}
 	for typeName := range docSet {
 		t.Errorf("the untaggable entry names %s, which is not untaggable-and-admitted per %s", typeName, surveyJSONRel)
+	}
+}
+
+// lineContaining returns the first line of the named file containing want.
+func lineContaining(t *testing.T, path, want string) (string, bool) {
+	t.Helper()
+	content, err := os.ReadFile(path) //nolint:gosec // a fixed path in the checkout
+	if err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+	for _, line := range strings.Split(string(content), "\n") {
+		if strings.Contains(line, want) {
+			return line, true
+		}
+	}
+	t.Errorf("%s has no line containing %q", path, want)
+	return "", false
+}
+
+// contractMDXRel is the concept page whose Contract section is the one
+// place that both counts and enumerates the admitted types. Every other
+// doc refers to it rather than restating a number that moves with each
+// wiring batch, so this is the only enumeration drift can hide in.
+const contractMDXRel = "website/docs/language/stateless-mode.mdx"
+
+// TestContractEnumerationMatchesAdmissionTable holds that enumeration to
+// identity.AdmittedTypes, in both directions, plus the count that
+// introduces it. A wiring batch that admits a type has to touch this
+// section, and no other doc, to keep the docs true.
+func TestContractEnumerationMatchesAdmissionTable(t *testing.T) {
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(filepath.Join(root, contractMDXRel)) //nolint:gosec // a fixed path in the checkout
+	if err != nil {
+		t.Fatalf("reading %s: %v", contractMDXRel, err)
+	}
+
+	_, entry, found := strings.Cut(string(content), "## The Contract")
+	if !found {
+		t.Fatalf("%s has no `## The Contract` section", contractMDXRel)
+	}
+	if end := strings.Index(entry, "\n- **"); end >= 0 {
+		if next := strings.Index(entry[end+1:], "\n- **"); next >= 0 {
+			entry = entry[:end+1+next]
+		}
+	}
+
+	admitted := identity.AdmittedTypes()
+	if want := fmt.Sprintf("%d resource types", len(admitted)); !strings.Contains(entry, want) {
+		t.Errorf("%s's Contract does not say %q", contractMDXRel, want)
+	}
+
+	listed := map[string]bool{}
+	for _, m := range regexp.MustCompile("`(aws_[a-z0-9_]+)`").FindAllStringSubmatch(entry, -1) {
+		listed[m[1]] = true
+	}
+	for _, typeName := range admitted {
+		if !listed[typeName] {
+			t.Errorf("%s is in the admission table but not enumerated in %s's Contract", typeName, contractMDXRel)
+		}
+		delete(listed, typeName)
+	}
+	for typeName := range listed {
+		t.Errorf("%s's Contract enumerates %s, which is not in the admission table", contractMDXRel, typeName)
 	}
 }

@@ -78,14 +78,12 @@ duplicates.
 
 ## Can I manage my whole infrastructure with this?
 
-Almost certainly not yet. The admitted subset is AWS only, 18 resource
-types, root module only. In practice the 18 types are core VPC networking
-(VPC, subnet, route table, route, route table association, internet
-gateway, security group, EIP) plus S3 bucket and bucket policy, IAM role
-and role policy attachment, CloudWatch log group, SSM parameter, DynamoDB
-table, ECS cluster, KMS key, and Route 53 hosted zone. That is enough for
-real network scaffolding and the glue around it, with no EC2 instances, no
-RDS, and no Lambda. The gap to the rest of AWS is mechanical rather than
+Almost certainly not yet. The admitted subset is AWS only, root module
+only, and a fixed list of resource types that grows a batch at a time. In
+practice it is core VPC networking plus the glue around it: buckets, IAM
+roles, log groups, parameters, keys, zones and the like, with no EC2
+instances, no RDS, and no Lambda. The concept page's Contract section has
+the current list, and it is the only place that enumerates it. The gap to the rest of AWS is mechanical rather than
 conceptual. The provider survey found 65 of the top 68 AWS types satisfy
 the admission rule, but each type has to be wired into the hardcoded v0
 admission table by hand until provider identity schemas (opentofu#2854)
