@@ -128,7 +128,7 @@
 // # The type table
 //
 // Per-type identity knowledge lives in [DefaultTable], a v0 hardcoded
-// table covering the estate fixture's twenty-four AWS types. See table.go
+// table covering the estate fixture's twenty-three AWS types. See table.go
 // for what it holds and for the note on replacing it with provider-served
 // resource identity schemas.
 //
@@ -150,22 +150,21 @@
 //
 // Against the real AWS provider (6.58.0) the check confirms most of the
 // table's entries, cannot speak to aws_ecs_cluster because the provider
-// serves no identity schema for it, and diverges on three. The archetype is
+// serves no identity schema for it, and diverges on two. The archetype is
 // aws_route_table_association: the provider identifies an association by
 // the rtbassoc- ID it assigns, while the table builds the association's
 // documented import *string* out of subnet and route table. Both are
 // accurate about different things, which is the shape most divergences
 // will have and the reason they are warnings.
 //
-// The other two are the account-derived pair, and they are the same shape
-// once more. The provider says an SQS queue is identified by its url and an
-// SNS topic by its arn, which is true; the table says each is identified by
-// the name in configuration wrapped in the run's region and account, which
-// is also true and is the only one of the two a configuration can act on.
-// Both entries name the provider's attribute in their IdentityAttrs, so the
-// check agrees about what the identity *is* and reports only that the table
-// composes it out of an argument (name) the identity schema does not
-// mention. See [CloudContext].
+// The other is aws_sns_topic, and it is the same shape once more. The
+// provider says a topic is identified by its arn, which is true; the table
+// says it is identified by the name in configuration wrapped in the run's
+// region and account, which is also true and is the only one of the two a
+// configuration can act on. The entry names the provider's attribute in its
+// IdentityAttrs, so the check agrees about what the identity *is* and
+// reports only that the table composes it out of an argument (name) the
+// identity schema does not mention. See [CloudContext].
 //
 // What is still missing before the table can shrink:
 //

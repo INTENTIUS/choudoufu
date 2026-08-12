@@ -168,13 +168,14 @@ var pathExceptions = map[string]pathException{
 	"aws_kms_alias":             {pathClientNamed, pathListContent, "name is Optional+Computed (name_prefix idiom); untaggable, falls to list+content"},
 	"aws_lambda_permission":     {pathClientNamed, pathListContent, "statement_id is Optional+Computed (statement_id_prefix idiom); untaggable, falls to list+content"},
 
-	// --- account-derived import identity (SURVEY.md flags F3-F4) ---
+	// --- account-derived import identity (SURVEY.md flags F1, F3-F4) ---
 	//
-	// F1 (aws_sqs_queue) and F2 (aws_sns_topic) are no longer here: the
-	// identity table now builds both identities out of the name plus the
-	// run's account and region, the classifier reads that assertion, and
-	// both files say account-derived. These two are the ones the mechanism
-	// does not reach.
+	// F2 (aws_sns_topic) is no longer here: the identity table builds the
+	// topic's ARN out of the name plus the run's account and region, the
+	// classifier reads that assertion, and both files say account-derived.
+	// The three below are the ones the mechanism does not carry all the way
+	// to a wired row, each for its own reason.
+	"aws_sqs_queue":             {pathClientNamed, pathMarker, "required import attribute is the queue url (flag F1); the template is exact, but floci reports a queue's URL as its own endpoint and the provider's importer refuses it, so the marker path a context-less run takes cannot complete (choudoufu#26) and it is not wired"},
 	"aws_iam_policy":            {pathClientNamed, pathMarker, "required import attribute is the policy arn (flag F3); the mechanism would build it, but floci's iam:GetPolicy omits Tags so the row cannot be proven live (choudoufu#26) and it is not wired"},
 	"aws_secretsmanager_secret": {pathClientNamed, pathMarker, "required import attribute is the arn with a six-character server-generated suffix (flag F4), which no account/region template reconstructs; deferred to the marker path the classifier already reads off its taggability"},
 

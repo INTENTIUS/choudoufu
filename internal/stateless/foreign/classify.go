@@ -81,11 +81,10 @@ type Request struct {
 // aws_lb_target_group join the table on their name argument: ELBv2 requires
 // a load balancer name to be unique within an account and region, and a
 // target group name likewise, which is the same guarantee a security
-// group's name carries within its VPC. aws_sqs_queue and aws_sns_topic join
-// on name for a stronger reason still - a queue name and a topic name are
-// each unique within an account and region by construction, since the URL
-// and the ARN are built out of them, so a name match there is not a
-// heuristic at all.
+// group's name carries within its VPC. aws_sns_topic joins on name for a
+// stronger reason still - a topic name is unique within an account and
+// region by construction, since the ARN is built out of it, so a name match
+// there is not a heuristic at all.
 //
 // aws_lb_listener and aws_lb_target_group_attachment are refuse-only, and
 // for the route table's reason rather than the KMS key's. A listener's
@@ -112,9 +111,8 @@ var matchTable = map[string][]string{
 	// ELBv2 names, unique per account and region by the API's own rule.
 	"aws_lb":              {"name"},
 	"aws_lb_target_group": {"name"},
-	// Queue and topic names, unique per account and region because the
-	// identity is built out of them.
-	"aws_sqs_queue": {"name"},
+	// A topic name, unique per account and region because the ARN is built
+	// out of it.
 	"aws_sns_topic": {"name"},
 }
 

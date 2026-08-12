@@ -37,7 +37,7 @@ func estateDir(t *testing.T) string {
 
 const estateName = "stateless-e2e"
 
-// The sixteen needs-discovery instances the fixture declares, sorted the way
+// The fifteen needs-discovery instances the fixture declares, sorted the way
 // discovery reports them.
 var allDiscovered = []string{
 	`aws_eip.pool[0]`,
@@ -52,7 +52,6 @@ var allDiscovered = []string{
 	`aws_route_table.main`,
 	`aws_security_group.main`,
 	`aws_sns_topic.alerts`,
-	`aws_sqs_queue.jobs`,
 	`aws_subnet.this["a"]`,
 	`aws_subnet.this["b"]`,
 	`aws_vpc.main`,
@@ -79,7 +78,6 @@ func ownAllDiscovered(cloud *fakeCloud) map[string]string {
 		{"aws_lb", "arn:lb/main", `aws_lb.main`, `aws_lb.main`},
 		{"aws_lb_target_group", "arn:tg/app", `aws_lb_target_group.app`, `aws_lb_target_group.app`},
 		{"aws_lb_listener", "arn:listener/app", `aws_lb_listener.app`, `aws_lb_listener.app`},
-		{"aws_sqs_queue", "https://sqs/jobs", `aws_sqs_queue.jobs`, `aws_sqs_queue.jobs`},
 		{"aws_sns_topic", "arn:sns:alerts", `aws_sns_topic.alerts`, `aws_sns_topic.alerts`},
 	} {
 		cloud.own(spec.typeName, spec.id, spec.marker)
@@ -157,7 +155,7 @@ func TestValidEstateName(t *testing.T) {
 
 // TestDiscoverBindsWholeEstate is the happy path over the real fixture:
 // eleven server-assigned instances, eleven live resources carrying
-// spec-conformant markers, sixteen bindings and nothing else.
+// spec-conformant markers, fifteen bindings and nothing else.
 func TestDiscoverBindsWholeEstate(t *testing.T) {
 	cloud := newFakeCloud()
 	want := ownAllDiscovered(cloud)
@@ -173,14 +171,14 @@ func TestDiscoverBindsWholeEstate(t *testing.T) {
 		t.Errorf("problems:\n%s", res)
 	}
 
-	// The output resolution list is the whole estate: the sixteen discovered
+	// The output resolution list is the whole estate: the fifteen discovered
 	// instances are now concrete, and everything static rides through.
 	byAddr := map[string]identity.Resolution{}
 	for _, r := range res.Resolutions {
 		byAddr[r.Addr.String()] = r
 	}
-	if got := len(res.Resolutions); got != 30 {
-		t.Errorf("Resolutions holds %d entries, want the fixture's 30", got)
+	if got := len(res.Resolutions); got != 29 {
+		t.Errorf("Resolutions holds %d entries, want the fixture's 29", got)
 	}
 	for _, addr := range allDiscovered {
 		r, ok := byAddr[addr]
@@ -831,7 +829,7 @@ func newFakeCloud() *fakeCloud {
 			// #20's ELBv2 slice and the account-derived pair (F1, F2), all
 			// declared by the fixture and so all listed on every pass.
 			"aws_lb", "aws_lb_target_group", "aws_lb_listener",
-			"aws_sqs_queue", "aws_sns_topic",
+			"aws_sns_topic",
 		},
 		// None of these list schemas carries a filter block in the real
 		// provider - a KMS key list takes a region and nothing else, a
@@ -845,7 +843,6 @@ func newFakeCloud() *fakeCloud {
 			"aws_lb":              true,
 			"aws_lb_target_group": true,
 			"aws_lb_listener":     true,
-			"aws_sqs_queue":       true,
 			"aws_sns_topic":       true,
 		},
 		missing:   make(map[string]bool),

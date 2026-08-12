@@ -136,29 +136,30 @@ token per row.
 
 | Status | Meaning | Rows |
 |---|---|---|
-| `wired` | in the fork's admission table (`internal/stateless/lint/admission.go`) and identity table (`internal/stateless/identity/table.go`) today | 24 |
+| `wired` | in the fork's admission table (`internal/stateless/lint/admission.go`) and identity table (`internal/stateless/identity/table.go`) today | 23 |
 | `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 36 |
 | `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components | 0 |
 | `ops` | excluded by the rule, forwarded to the lifecycle layer | 3 |
-| `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 5 |
+| `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 6 |
 | `unknown` | path not determined | 0 |
 
 `needs-account-derived` is empty as of the #20/#21 wiring lane, which built
 the mechanism it was waiting for: `internal/stateless/identity`'s
 `CloudContext` substitutes an account and a region into an identity
 template, and a run with neither classifies the instance as needing
-discovery rather than failing. F1 and F2 are wired on it, F3 is blocked by
-the emulator rather than by the mechanism, and F4 turned out not to be an
-account-derivation problem at all. The token stays in the vocabulary
-because the next provider survey may find rows that need it again.
+discovery rather than failing. F2 is wired on it; F1 and F3 are blocked by
+the emulator rather than by the mechanism, in different places; and F4
+turned out not to be an account-derivation problem at all. The token stays
+in the vocabulary because the next provider survey may find rows that need
+it again.
 
-`blocked-emulator` was empty in the first pass and holds five rows now, all
+`blocked-emulator` was empty in the first pass and holds six rows now, all
 of them found by wiring lanes probing against floci rather than by a survey
 of emulator coverage: `aws_instance`, `aws_db_instance`, the CloudFront
-pair, and `aws_iam_policy`. Each names its gap and its tracking issue in
-the identity column; choudoufu#26 is the umbrella. Nothing about these rows
-is a claim about real AWS, which is the point of keeping the token separate
-from `ready`.
+pair, `aws_iam_policy` and `aws_sqs_queue`. Each names its gap and its
+tracking issue in the identity column; choudoufu#26 is the umbrella.
+Nothing about these rows is a claim about real AWS, which is the point of
+keeping the token separate from `ready`.
 
 `Source` is two tokens, provenance then derivation tier. Provenance is
 `survey note` for the 36 types the original note named, whether as a
@@ -198,7 +199,7 @@ identity argument were derived like every other row's.
 | aws_lambda_permission | client-named | ready | function_name + statement_id, optionally qualifier | survey note; schema |
 | aws_eks_cluster | client-named | ready | name | survey note; schema |
 | aws_route53_record | client-named | ready | zone_id + name + type, plus set_identifier for weighted and latency sets | survey note; schema |
-| aws_sqs_queue | account-derived | wired | name, wrapped in the run's region and account as https://sqs.REGION.amazonaws.com/ACCOUNT/NAME | survey note; schema |
+| aws_sqs_queue | client-named | blocked-emulator | name, and the required import attribute is the queue URL; the account-derived template builds it, but floci reports a queue's URL as its own endpoint and the provider's importer parses only the amazonaws.com form, so the marker path cannot complete (choudoufu#26) | survey note; schema |
 | aws_sns_topic | account-derived | wired | name, wrapped in the run's region and account as arn:aws:sns:REGION:ACCOUNT:NAME | survey note; schema |
 | aws_instance | marker | blocked-emulator | server-assigned instance ID (i-...); floci jumps a new instance straight to `terminated` and the provider's create waits for `running` (lex00/floci#32, choudoufu#26) | survey note; schema |
 | aws_kms_key | marker | wired | server-assigned key ID (a UUID); the alias is a separate resource | survey note; schema |
@@ -271,10 +272,11 @@ all. The row is `blocked-emulator` today (floci needs the Docker socket
 mounted to serve RDS, lex00/floci#28), and when that unblocks it wires
 client-named by `identifier`.
 
-A fourth is the `account-derived` token itself. `aws_sqs_queue` and
-`aws_sns_topic` are client-named in the survey's own classing and stay
-counted that way in the summary, while the table shows them under the path
-the fork implements - the same treatment `aws_eip` gets.
+A fourth is the `account-derived` token itself. `aws_sns_topic` is
+client-named in the survey's own classing and stays counted that way in the
+summary, while the table shows it under the path the fork implements - the
+same treatment `aws_eip` gets. `aws_sqs_queue` is the same shape and keeps
+`client-named`, because the fork implements nothing for it yet.
 
 ### How the roster was reconstructed
 
@@ -283,8 +285,8 @@ roster. Thirty-six rows carry `survey note` provenance: the types the note
 named as examples, plus the fourteen that were wired from it before this
 pass. The other thirty-two are inference to fit the counts, three of which
 (`aws_ecs_cluster`, `aws_lb`, `aws_lb_target_group`) have since been wired,
-which is why twenty-one of the twenty-four `wired` rows are `survey note`
-and three are `roster fit`. In survey
+which is why twenty of the twenty-three `wired` rows are `survey note` and
+three are `roster fit`. In survey
 terms the sourced rows are 15 client-named, 12 marker,
 and complete rosters for parent-derived (5), list-plus-content (1) and
 moves-to-Ops (3), which leaves exactly 21 client-named and 11 marker to
@@ -322,26 +324,39 @@ table above where the failure blocks wiring.
 
 Which component each one needs is recorded on the wiring lanes that picked
 them up: issue #19 for the client-named rows, issues #20 and #21 for the
-rest. Four of the six are settled and the per-type rows above carry the
-outcome, so only the shape of the finding is worth repeating here. The
-account-derived mechanism `internal/stateless/identity`'s `CloudContext`
-provides closed the two rows whose identity is a configured name wrapped in
-an account and a region; it did not close `aws_iam_policy`, which the
-emulator blocks rather than the mechanism, and it was never going to close
-`aws_secretsmanager_secret`, whose ARN carries a suffix minted per secret -
-that row is deferred to the marker path it is already taggable for. The two
-parent-component rows are unchanged: `aws_route53_record` resolves through
-its zone, and `aws_sns_topic_subscription` needs more than parent
-resolution, since the UUID in its ARN has no source in configuration and
-the type takes no tags, which leaves only a list-plus-content match on
-protocol and endpoint.
+rest. Five of the six are settled and the per-type rows above carry the
+outcome, so only the shape of the finding is worth repeating here.
+
+The account-derived mechanism `internal/stateless/identity`'s
+`CloudContext` provides is exact for the two rows whose identity is a
+configured name wrapped in an account and a region, and only one of them is
+wired. `aws_sns_topic` is: its ARN is canonical from every angle. The
+queue's URL is canonical too, and the emulator's is not - floci reports
+`http://localhost:4566/ACCOUNT/NAME`, the AWS provider's importer parses
+only the `amazonaws.com` form, and marker discovery hands the import the
+one string it will refuse. Since no run in this fork can supply a
+`CloudContext` yet, marker discovery is the path a queue actually takes, so
+`aws_sqs_queue` is `blocked-emulator` rather than wired. Real AWS has no
+such gap.
+
+The mechanism did not close `aws_iam_policy` either, and there too the
+emulator is the obstacle rather than the mechanism: the template expresses
+an IAM ARN's empty region segment perfectly well, and floci's
+`iam:GetPolicy` omits `Tags` the way its `iam:GetRole` does. It was never
+going to close `aws_secretsmanager_secret`, whose ARN carries a suffix
+minted per secret; that row is deferred to the marker path it is already
+taggable for. The two parent-component rows are unchanged:
+`aws_route53_record` resolves through its zone, and
+`aws_sns_topic_subscription` needs more than parent resolution, since the
+UUID in its ARN has no source in configuration and the type takes no tags,
+which leaves only a list-plus-content match on protocol and endpoint.
 
 ## The three the rule excludes
 
 Exactly three of the 68 fail the admission rule, and they fail it
 permanently: they are out by the rule itself, not by v0 scoping. This is a
 different kind of "not admitted" than the surveyed types that are merely
-not wired yet (41 of them at the 24 types wired today, the `ready` and
+not wired yet (42 of them at the 23 types wired today, the `ready` and
 `blocked-emulator` rows above), and `stateless/LIMITATIONS.md`'s
 `unadmitted-type` entry draws the same distinction.
 

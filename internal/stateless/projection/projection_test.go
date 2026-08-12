@@ -135,7 +135,6 @@ func TestBuildEstate(t *testing.T) {
 		`aws_lb_listener.app`:       ReasonNeedsDiscovery,
 		// Account-derived with no cloud context: the same omission a marker
 		// type gets, for a different stated reason.
-		`aws_sqs_queue.jobs`:                    ReasonNeedsDiscovery,
 		`aws_sns_topic.alerts`:                  ReasonNeedsDiscovery,
 		`aws_route.internet_gateway`:            ReasonParentUnavailable,
 		`aws_route_table_association.this["a"]`: ReasonParentUnavailable,
@@ -782,9 +781,8 @@ var fakeAttrs = map[string][]string{
 	"aws_lb_target_group":            {"id", "arn", "name", "port", "protocol", "vpc_id", "target_type"},
 	"aws_lb_listener":                {"id", "arn", "load_balancer_arn", "port", "protocol"},
 	"aws_lb_target_group_attachment": {"id", "target_group_arn", "target_id", "port"},
-	// The account-derived pair. A queue's identity attribute is its url and
-	// a topic's is its arn, and id carries the same string in both cases.
-	"aws_sqs_queue": {"id", "url", "arn", "name"},
+	// Account-derived: a topic's identity attribute is its arn, and id
+	// carries the same string.
 	"aws_sns_topic": {"id", "arn", "name"},
 }
 
