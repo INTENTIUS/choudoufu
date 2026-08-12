@@ -432,6 +432,7 @@ func TestAdmissionTableCoversEstate(t *testing.T) {
 		"aws_iam_role_policy",
 		"aws_kms_alias",
 		"aws_route53_record",
+		"aws_cloudwatch_metric_alarm",
 	}
 	for _, resourceType := range estateTypes {
 		if !admitted(resourceType) {

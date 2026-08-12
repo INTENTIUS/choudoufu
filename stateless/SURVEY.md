@@ -113,8 +113,8 @@ token per row.
 
 | Status | Meaning | Rows |
 |---|---|---|
-| `wired` | in the fork's admission table (`internal/stateless/lint/admission.go`) and identity table (`internal/stateless/identity/table.go`) today | 25 |
-| `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 23 |
+| `wired` | in the fork's admission table (`internal/stateless/lint/admission.go`) and identity table (`internal/stateless/identity/table.go`) today | 26 |
+| `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 22 |
 | `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components | 4 |
 | `ops` | excluded by the rule, forwarded to the lifecycle layer | 3 |
 | `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 13 |
@@ -191,7 +191,7 @@ identity argument were derived like every other row's.
 | aws_iam_group | client-named | ready | name; no identity schema shipped, import ID documented as the group name | roster fit; docs |
 | aws_autoscaling_group | client-named | ready | name; tags are `tag` blocks rather than a `tags` argument, so the marker path is not open to it | roster fit; schema |
 | aws_key_pair | client-named | ready | key_name; no identity schema shipped, import ID documented as key_name | roster fit; docs |
-| aws_cloudwatch_metric_alarm | client-named | ready | alarm_name | roster fit; schema |
+| aws_cloudwatch_metric_alarm | client-named | wired | alarm_name | roster fit; schema |
 | aws_cloudwatch_event_rule | client-named | ready | name; import ID is event_bus_name/name, the bus defaulting to `default` when omitted | roster fit; schema |
 | aws_db_subnet_group | client-named | blocked-emulator | name; blocked: floci's rds:ListTagsForResource serves no tags back, so the written marker never reads back (probed 2026-08-12; choudoufu#26) | roster fit; schema |
 | aws_db_parameter_group | client-named | blocked-emulator | name; no identity schema shipped, import ID documented as the group name; blocked: floci's rds:ListTagsForResource serves no tags back (probed 2026-08-12; choudoufu#26) | roster fit; docs |
@@ -296,7 +296,7 @@ the `aws_route53_zone` marker today.
 Exactly three of the 68 fail the admission rule, and they fail it
 permanently: they are out by the rule itself, not by v0 scoping. This is a
 different kind of "not admitted" than the surveyed types that are merely
-not wired yet (40 of them at the 25 types wired today, the `ready`,
+not wired yet (39 of them at the 26 types wired today, the `ready`,
 `needs-account-derived` and `blocked-emulator` rows above), and `stateless/LIMITATIONS.md`'s
 `unadmitted-type` entry draws the same distinction.
 

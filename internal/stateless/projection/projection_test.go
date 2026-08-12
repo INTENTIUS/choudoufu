@@ -127,6 +127,9 @@ func TestBuildEstate(t *testing.T) {
 		"id": "alias/tofu-stateless-e2e-main", "name": "alias/tofu-stateless-e2e-main",
 		"target_key_id": "00000000-0000-0000-0000-000000000000",
 	})
+	cloud.put("aws_cloudwatch_metric_alarm", "tofu-stateless-e2e-cpu", map[string]string{
+		"id": "tofu-stateless-e2e-cpu", "alarm_name": "tofu-stateless-e2e-cpu",
+	})
 
 	res, diags := Build(context.Background(), cfg, resolutions, cloud.providers(t))
 	assertNoErrors(t, diags)
@@ -134,6 +137,7 @@ func TestBuildEstate(t *testing.T) {
 	assertMaterialized(t, res, []string{
 		`aws_cloudwatch_log_group.app`,
 		`aws_cloudwatch_log_group.optional[0]`,
+		`aws_cloudwatch_metric_alarm.cpu`,
 		`aws_dynamodb_table.events`,
 		`aws_ecs_cluster.app`,
 		`aws_iam_role.app`,
@@ -251,7 +255,7 @@ func TestBuildEstateAllAbsent(t *testing.T) {
 	if len(res.Materialized) != 0 {
 		t.Errorf("projection is not empty against an empty cloud: %s", res)
 	}
-	if got, want := len(res.OmittedBecause(ReasonAbsent)), 16; got != want {
+	if got, want := len(res.OmittedBecause(ReasonAbsent)), 17; got != want {
 		t.Errorf("%d instances recorded as absent, want %d:\n%s", got, want, res)
 	}
 	if res.State.HasManagedResourceInstanceObjects() {
@@ -808,6 +812,8 @@ var fakeAttrs = map[string][]string{
 	"aws_iam_role_policy": {"id", "role", "name", "policy"},
 	"aws_kms_alias":       {"id", "name", "target_key_id"},
 	"aws_route53_record":  {"id", "zone_id", "name", "type", "ttl", "records"},
+	"aws_cloudwatch_metric_alarm": {"id", "alarm_name", "comparison_operator", "evaluation_periods",
+		"metric_name", "namespace", "period", "statistic", "threshold"},
 }
 
 // fakeUntaggable is the caricature's version of a fact about the real

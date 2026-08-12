@@ -421,6 +421,7 @@ var (
 		"aws_ecs_cluster",
 		"aws_kms_key",
 		"aws_route53_zone",
+		"aws_cloudwatch_metric_alarm",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -802,6 +803,8 @@ func testSchemas() Schemas {
 		"aws_ecs_cluster":          tagged("id", "name", "arn"),
 		"aws_kms_key":              tagged("id", "key_id", "description"),
 		"aws_route53_zone":         tagged("id", "zone_id", "name"),
+		"aws_cloudwatch_metric_alarm": tagged("id", "alarm_name", "comparison_operator", "evaluation_periods",
+			"metric_name", "namespace", "period", "statistic", "threshold"),
 
 		// Untaggable, likewise.
 		"aws_route":                                          untagged("route_table_id", "destination_cidr_block", "gateway_id"),

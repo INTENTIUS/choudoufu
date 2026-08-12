@@ -247,6 +247,7 @@ func TestDiscoverAgainstFloci(t *testing.T) {
 	want := []string{
 		`aws_cloudwatch_log_group.app`,
 		`aws_cloudwatch_log_group.optional[0]`,
+		`aws_cloudwatch_metric_alarm.cpu`,
 		`aws_dynamodb_table.events`,
 		`aws_ecs_cluster.app`,
 		`aws_eip.pool[0]`,

@@ -70,6 +70,9 @@ func TestResolveEstate(t *testing.T) {
 		`aws_iam_role_policy.app`: `CONCRETE tofu-stateless-e2e-app:tofu-stateless-e2e-app-inline`,
 		`aws_kms_alias.main`:      `CONCRETE alias/tofu-stateless-e2e-main`,
 
+		// Same slice: an alarm named by its alarm_name argument.
+		`aws_cloudwatch_metric_alarm.cpu`: `CONCRETE tofu-stateless-e2e-cpu`,
+
 		// Same slice, via #20's zone: name and type are config data, the
 		// Z-ID is live, and the provider's import syntax joins the three
 		// with underscores.
@@ -139,7 +142,7 @@ func TestResolveEstateDisabled(t *testing.T) {
 	if _, ok := result.Get(mustAddr(t, `aws_cloudwatch_log_group.optional[0]`)); ok {
 		t.Error("aws_cloudwatch_log_group.optional[0] is present with enabled = false; count = 0 must expand to no instances")
 	}
-	if got, want := result.Len(), 30; got != want {
+	if got, want := result.Len(), 31; got != want {
 		t.Errorf("resolved %d instances, want %d", got, want)
 	}
 	if _, ok := result.Get(mustAddr(t, `aws_cloudwatch_log_group.app`)); !ok {
@@ -406,7 +409,7 @@ func TestTableCoversFixtureTypes(t *testing.T) {
 			t.Errorf("the v0 identity table covers %s, which the fixture does not use", typeName)
 		}
 	}
-	if got, want := len(AdmittedTypes()), 25; got != want {
+	if got, want := len(AdmittedTypes()), 26; got != want {
 		t.Errorf("table covers %d types, want the fixture's %d", got, want)
 	}
 }

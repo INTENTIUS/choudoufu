@@ -129,6 +129,7 @@ func TestBuildAgainstFloci(t *testing.T) {
 	assertMaterialized(t, res, []string{
 		`aws_cloudwatch_log_group.app`,
 		`aws_cloudwatch_log_group.optional[0]`,
+		`aws_cloudwatch_metric_alarm.cpu`,
 		`aws_dynamodb_table.events`,
 		`aws_ecs_cluster.app`,
 		`aws_iam_role.app`,
@@ -165,6 +166,7 @@ func TestBuildAgainstFloci(t *testing.T) {
 		{`aws_s3_bucket_lifecycle_configuration.data`, "expire-tmp"},
 		{`aws_iam_role_policy.app`, "AllowListDataBucket"},
 		{`aws_kms_alias.main`, "alias/tofu-stateless-e2e-main"},
+		{`aws_cloudwatch_metric_alarm.cpu`, "tofu-stateless-e2e-cpu"},
 	} {
 		is := res.State.ResourceInstance(mustAddr(t, spec.addr))
 		if is == nil || is.Current == nil {
