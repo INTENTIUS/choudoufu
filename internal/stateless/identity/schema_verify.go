@@ -404,11 +404,14 @@ func (t TypeIdentity) claim() string {
 	}
 	parts := make([]string, 0, len(t.Components))
 	for _, c := range t.Components {
-		if len(c.Attrs) == 0 {
+		switch {
+		case c.Cloud != CloudNone:
+			parts = append(parts, "the run's "+c.Cloud.describe())
+		case len(c.Attrs) == 0:
 			parts = append(parts, fmt.Sprintf("%q", c.Literal))
-			continue
+		default:
+			parts = append(parts, strings.Join(c.Attrs, "|"))
 		}
-		parts = append(parts, strings.Join(c.Attrs, "|"))
 	}
 	return strings.Join(parts, " + ")
 }

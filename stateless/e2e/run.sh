@@ -1008,10 +1008,10 @@ else
   STEP5_T1=$(date +%s)
   [ "$RC" -eq 0 ] || fail "empty-plan-full" "live-plan exited $RC: $OUT"
 
-  # 23 of the fixture's 24 declared instances materialize: the client-named
+  # 28 of the fixture's 29 declared instances materialize: the client-named
   # ones as always, and every server-ID/parent-derived one via P2.3's
   # discovery + P2.4's binding, which close the whole config regardless of
-  # scope. The twenty-fourth is the standing residue's unowned role, and it
+  # scope. The twenty-ninth is the standing residue's unowned role, and it
   # is absent for a stated reason rather than silently — which is what the
   # omissions section is for. assert_full_estate_clean checks that the only
   # omission is that one, that its create is the only create, that the only
@@ -1021,13 +1021,13 @@ else
   # The foreign section (floci's unmarked default-VPC resources) is expected
   # to appear here; its presence is not itself a failure, and its line shapes
   # never collide with the plan-diff patterns the helper checks.
-  MATERIALIZED=$((24 - $(count_lines "$(unowned_omissions "$OUT")")))
+  MATERIALIZED=$((29 - $(count_lines "$(unowned_omissions "$OUT")")))
   assert_full_estate_clean "$OUT" "empty-plan-full"
 
   [ ! -f "$MAIN/terraform.tfstate" ] \
     || fail "empty-plan-full" "terraform.tfstate exists after live-plan — it must never be read or written"
 
-  echo "  empty plan over the full estate ($MATERIALIZED/24 materialized; the rest omitted as unowned, with an adoption hint); $((STEP5_T1 - STEP5_T0))s"
+  echo "  empty plan over the full estate ($MATERIALIZED/29 materialized; the rest omitted as unowned, with an adoption hint); $((STEP5_T1 - STEP5_T0))s"
   record_step "empty-plan-full" pass
 fi
 
