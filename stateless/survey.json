@@ -1046,7 +1046,7 @@
     },
     {
       "type": "aws_sns_topic",
-      "path": "marker",
+      "path": "account-derived",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -1057,7 +1057,7 @@
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region and account-id"
     },
     {
       "type": "aws_sns_topic_subscription",
@@ -1076,7 +1076,7 @@
     },
     {
       "type": "aws_sqs_queue",
-      "path": "marker",
+      "path": "account-derived",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -1087,7 +1087,7 @@
           "url"
         ]
       },
-      "evidence": "identity requires server-assigned url; taggable, so recoverable by tag-filtered list"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region and account-id"
     },
     {
       "type": "aws_ssm_document",
