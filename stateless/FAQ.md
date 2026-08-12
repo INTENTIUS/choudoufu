@@ -65,7 +65,10 @@ migration, but adopting the live resources is deliberate, not automatic.
 Resources that already carry this estate's markers bind immediately.
 Resources that do not are either offered for adoption in the plan's
 Adoptable section (three types the classifier can match on content) or
-refused with an `[UNOWNED]` note that names the exact tags to write. Read
+refused with an `[UNOWNED]` note that names the exact tags to write. The
+refusals also get their own rendered `Unowned` section in the plan, one
+entry per live resource, marked `[ADOPTABLE]` with the tag values to copy
+or `[IN_THE_WAY]` when the resource belongs to another estate. Read
 "Migrating an Existing Estate" on the concept page before you apply
 anything, because applying a plan without reading it can create
 duplicates.

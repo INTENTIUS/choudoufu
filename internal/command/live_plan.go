@@ -30,6 +30,7 @@ import (
 	"github.com/opentofu/opentofu/internal/stateless/foreign"
 	"github.com/opentofu/opentofu/internal/stateless/identity"
 	"github.com/opentofu/opentofu/internal/stateless/lint"
+	"github.com/opentofu/opentofu/internal/stateless/markers"
 	"github.com/opentofu/opentofu/internal/stateless/projection"
 	"github.com/opentofu/opentofu/internal/stateless/stamp"
 	"github.com/opentofu/opentofu/internal/tfdiags"
@@ -288,6 +289,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	}
 
 	statelessView.Omissions(statelessOmissions(projResult))
+	statelessView.Unowned(statelessUnownedReport(projResult, estate))
 
 	if disco != nil {
 		classified, foreignDiags := foreign.Classify(ctx, foreign.Request{
@@ -961,6 +963,33 @@ func providerConfigAddr(rc *configs.Resource) addrs.AbsProviderConfig {
 	}
 }
 
+// statelessUnownedReport converts the projection's refused live resources
+// into the view's wire format. estate is this run's estate name: with one, an
+// unmarked resource is adoptable and the exact tag values to write travel
+// along; without one there is nothing to offer, and the entry renders as in
+// the way with the reason. Like statelessForeignReport, this carries data
+// across and never rendered text.
+func statelessUnownedReport(res *projection.Result, estate string) []views.StatelessUnowned {
+	if res == nil {
+		return nil
+	}
+	items := make([]views.StatelessUnowned, 0, len(res.Unowned))
+	for _, u := range res.Unowned {
+		item := views.StatelessUnowned{
+			Addr:     u.Addr.String(),
+			TypeName: u.TypeName,
+			LiveID:   u.ImportID,
+			HeldBy:   u.Estate,
+		}
+		if u.Estate == "" && estate != "" {
+			item.MarkerEstate = estate
+			item.MarkerAddress = markers.EscapeAddress(u.Addr.String())
+		}
+		items = append(items, item)
+	}
+	return items
+}
+
 // statelessOmissions converts the projection's omissions into the view's
 // wire format, preserving the builder's ordering.
 func statelessOmissions(res *projection.Result) []views.StatelessOmission {
@@ -1234,6 +1263,13 @@ Usage: choudoufu [global options] live-plan [options]
   read from the live system, with a reason for each. Those instances are
   missing from the prior state, which is why the plan proposes to create
   them.
+
+  A live resource found at an identity this configuration declares, carrying
+  no ownership marker for this estate, gets its own Unowned section as well
+  as its [UNOWNED] omission: each entry says whether a deliberate tag write
+  adopts it, with the exact tofu-estate and tofu-address values to write, or
+  whether it belongs elsewhere and is simply in the way of the create the
+  plan proposes.
 
   Every taggable resource that does not already declare the ownership markers
   from stateless/MARKERS.md gets them injected into its planned tags, so the
