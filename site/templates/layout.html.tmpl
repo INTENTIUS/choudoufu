@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Title}} — choudoufu</title>
+<title>{{if eq .Title "choudoufu"}}choudoufu{{else}}{{.Title}} - choudoufu{{end}}</title>
 <link rel="stylesheet" href="{{.AssetPrefix}}style.css">
 </head>
 <body>
@@ -19,9 +19,9 @@
 <footer class="site-footer">
   <p>choudoufu is an independent fork. It is not affiliated with or endorsed
   by OpenTofu or the Linux Foundation. OpenTofu is a registered trademark of
-  the Linux Foundation. Code is licensed MPL-2.0. Source:
+  the Linux Foundation. Code is licensed MPL-2.0. Upstream source lives at
   <a href="https://github.com/opentofu/opentofu">github.com/opentofu/opentofu</a>
-  (upstream) &middot; all stock docs live at
+  and all stock docs at
   <a href="https://opentofu.org/docs/">opentofu.org/docs</a>.</p>
 </footer>
 </body>

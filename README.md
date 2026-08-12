@@ -1,51 +1,53 @@
 # choudoufu
 
-Plenty of state. None of it binding.
-Your config says what should exist, the cloud says what does — no file gets a vote.
+Choudoufu is OpenTofu with live resource markers. There is no state file, no
+backend and no lock. Each resource carries its own ownership record as plain
+tags, and every plan rebuilds prior state by reading those markers off the
+live system. Everything else is stock OpenTofu. The binary is `choudoufu`.
 
-choudoufu is a fork of OpenTofu that adds a stateless mode: no state file, no
-backend, no lock. Ownership of a resource lives on the resource itself, as
-tags, and every plan rebuilds prior state from the live system instead of
-trusting a file. Everything else here is stock OpenTofu. The binary is
-`choudoufu`.
+If you already use OpenTofu, the short version is that `terraform.tfstate`
+stops existing. Adoption is a tag you write. A rename is a tag you rewrite.
+Your config says what should exist and the cloud says what does. No file gets
+a vote.
 
-## See the demo
+New here? Start with the [FAQ](stateless/FAQ.md). It answers the questions an
+OpenTofu user tends to ask in the first five minutes.
 
-Paste this to a coding agent (Claude Code or similar) and let it run the
+## Where this stands
+
+Live markers are experimental, and the scope is deliberately narrow. The mode
+covers AWS only, 14 admitted resource types, and the root module. Configs
+outside that subset are refused up front by a lint pass rather than half
+supported. The full boundary, with the reasoning for each limit, is in
+[`stateless/LIMITATIONS.md`](stateless/LIMITATIONS.md).
+
+There are no published releases yet. To get a binary you build it yourself,
+which takes one command (below).
+
+## See it prove itself
+
+The demo is also the test suite. It stands up a real estate of resources
+against a local AWS emulator, deletes the state file partway through, and
+shows the plans stay exact anyway. It needs Docker and takes about two
+minutes. The exit code is the verdict.
+
+```
+bash stateless/e2e/run.sh --expect 5
+```
+
+Or paste this to a coding agent (Claude Code or similar) and let it run the
 demo end to end.
 
 ```
-Clone https://github.com/INTENTIUS/choudoufu, then:
+Clone https://github.com/INTENTIUS/choudoufu, then do the following.
 
 1. Confirm Docker is running (`docker info` must succeed).
 2. From the repo root, run: bash stateless/e2e/run.sh --expect 5
 3. Report each step's result as the script prints it, and the final exit code.
 
-Exit code 0 means every claim the script makes about stateless mode held.
-Non-zero means one of them didn't — report which step failed.
-
-This takes about two minutes. It stands up a real estate of resources
-against a local AWS emulator, deletes the state file partway through, and
-proves the plans stay exact anyway.
+Exit code 0 means every claim the script makes about live resource markers
+held. Non-zero means one of them did not. Report which step failed.
 ```
-
-Prefer to run it yourself: `bash stateless/e2e/run.sh --expect 5` from the
-repo root, Docker running.
-
-## Docs
-
-The docs unique to this fork:
-
-- [`website/docs/language/stateless-mode.mdx`](website/docs/language/stateless-mode.mdx) — what stateless mode is and how to use it
-- [`stateless/MARKERS.md`](stateless/MARKERS.md) — the ownership tag format, the integration surface for external tooling
-- [`stateless/LIMITATIONS.md`](stateless/LIMITATIONS.md) — every construct stateless mode bounds or rejects
-- [`stateless/RECEIPTS.md`](stateless/RECEIPTS.md) — recording an effect that leaves nothing in the live system to read back
-- [`stateless/e2e/README.md`](stateless/e2e/README.md) — running the demo/test harness, reading its output
-
-These also render as a small docs site at
-https://intentius.io/choudoufu/. All stock OpenTofu documentation
-lives at
-[opentofu.org](https://opentofu.org/docs/).
 
 ## Building and testing
 
@@ -55,6 +57,28 @@ go test ./...
 ```
 
 The integration tier needs Docker and `TF_FLOCI_TEST=1`.
+
+## Docs
+
+The docs unique to this fork, in reading order.
+
+- [`stateless/FAQ.md`](stateless/FAQ.md) covers the questions a first-time
+  reader asks, including what happens to an existing state file.
+- [`website/docs/language/stateless-mode.mdx`](website/docs/language/stateless-mode.mdx)
+  is the concept page. What live resource markers are, the quickstart, the
+  concurrency story, and the full contract.
+- [`stateless/MARKERS.md`](stateless/MARKERS.md) is the marker tag spec, the
+  one integration surface external tooling relies on.
+- [`stateless/LIMITATIONS.md`](stateless/LIMITATIONS.md) lists every
+  construct the mode bounds or rejects, each with its lint rule and fixture.
+- [`stateless/RECEIPTS.md`](stateless/RECEIPTS.md) shows how to record an
+  effect that leaves nothing in the live system to read back.
+- [`stateless/e2e/README.md`](stateless/e2e/README.md) documents the
+  demo/test harness and how to read its output.
+
+These also render as a small docs site at
+https://intentius.io/choudoufu/. All stock OpenTofu documentation lives at
+[opentofu.org](https://opentofu.org/docs/).
 
 ## License
 
