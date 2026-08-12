@@ -215,15 +215,31 @@ table.
 
 **Why bounded.** "The admission rule". A type participates only if its
 identity is recoverable from the live system with no memory, by one of the
-four admission paths. `aws_instance` is in the AWS provider survey (65 of 68
-top types admitted) but is not yet in the hardcoded v0 table
-(`internal/stateless/lint/admission.go`). This is a scoping boundary, not a
-permanent ban.
+four admission paths. `aws_instance` is in the AWS provider survey
+(`stateless/SURVEY.md`, 65 of 68 top types admitted) but is not yet in the
+hardcoded v0 table (`internal/stateless/lint/admission.go`). This is a
+scoping boundary, not a permanent ban.
 
-**Forwarding address.** The provider survey / v0 admission table, which
-grows as later phases add types and, eventually, as provider identity
-schemas (opentofu#2854) make most of the table derivable instead of
-hardcoded.
+Two kinds of type hit this rule, and the error message does not distinguish
+them. Most out-of-table types are like `aws_instance`: the survey admits
+them in principle and they are simply not wired yet, which is the scoping
+boundary described above. Three surveyed types are out by the admission
+rule itself, with no wiring batch ever coming: `aws_iam_access_key` and
+`aws_secretsmanager_secret_version` (credentials, whose identity is born
+server-side alongside a secret that can never be read again; they become a
+lifecycle-layer Op writing to the secret store, referenced by ARN or
+pointer, never by value, the same forwarding `random_password` gets above)
+and `aws_acm_certificate_validation` (a waiter pretending to be a
+resource; it moves to lifecycle sequencing, the same forwarding as
+`time_sleep`). `stateless/SURVEY.md`, "The three the rule excludes", has
+the full account.
+
+**Forwarding address.** For types awaiting wiring: the provider survey
+(`stateless/SURVEY.md`) / v0 admission table, which grows as later phases
+add types and, eventually, as provider identity schemas (opentofu#2854)
+make most of the table derivable instead of hardcoded. For the three types
+the rule excludes: the lifecycle layer, per their entries in
+`stateless/SURVEY.md`.
 
 **Enforcement.** `RuleUnadmittedType`, `internal/stateless/lint/lint.go`
 (`checkManagedResources`). Fixture at `stateless/e2e/limits/unadmitted-type/`.

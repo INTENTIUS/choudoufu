@@ -1,6 +1,7 @@
 // Command site generates the static docs site for choudoufu: a landing
 // page plus rendered pages for the fork-unique docs (the FAQ, live
-// markers, the marker spec, limitations, receipts, the e2e harness). It
+// markers, the marker spec, limitations, the admission survey, receipts,
+// the e2e harness). It
 // is its own Go
 // module so the root module's go.mod/go.sum never change on its account.
 //
@@ -67,6 +68,12 @@ var docPages = []docPage{
 		NavLabel:   "Limitations",
 		Title:      "Limitations",
 		SourcePath: "stateless/LIMITATIONS.md",
+	},
+	{
+		Slug:       "survey",
+		NavLabel:   "Survey",
+		Title:      "AWS Admission Survey",
+		SourcePath: "stateless/SURVEY.md",
 	},
 	{
 		Slug:       "receipts",
