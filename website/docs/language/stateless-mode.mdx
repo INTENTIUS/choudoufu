@@ -12,9 +12,10 @@ Your config says what should exist and the cloud says what does. No file gets
 a vote.
 
 :::note
-Live resource markers are an experimental, fork-only feature. `choudoufu
-live-plan` and `choudoufu live-mv` are marked EXPERIMENTAL in their own
-`-help` text, and their command surface can still change.
+Live resource markers are an experimental, fork-only feature, and AWS only
+at the moment (the 14-type subset listed in The Contract below).
+`choudoufu live-plan` and `choudoufu live-mv` are marked EXPERIMENTAL in
+their own `-help` text, and their command surface can still change.
 :::
 
 ## What It Is
@@ -261,7 +262,7 @@ Serialize applies in CI, which is where the real mutex has always lived.
 | Same server-ID create x2 | Second waits, no-ops | Two created. The last state write wins and the loser's is SILENTLY ORPHANED | Two created. The next plan names BOTH IDs in a marker collision. A human deletes one |
 | Divergent in-place updates | Serialized flip-flop (conflict unsolved) | Last writer wins, plus a stale record | Last writer wins. The next plan reads live truth |
 | Update races destroy | Serialized | Not-found, plus record drift | Not-found. Re-plan converges |
-| Crash mid-apply | A stale lock blocks the team. Created-but-unrecorded resources are orphaned EVEN WITH the lock | Same, plus partial-write corruption and the errored.tfstate dance | Markers rode the create call itself for every taggable type. Discoverable, nothing to unlock or recover. Three narrower classes are not marker-discoverable this way (see the Contract below), not a race outcome |
+| Crash mid-apply | A stale lock blocks the team. Created-but-unrecorded resources are orphaned EVEN WITH the lock | Same, plus partial-write corruption and the errored.tfstate dance | Markers rode the create call itself for every taggable type. Discoverable, nothing to unlock or recover. The untaggable and unadmitted classes named under "Two named orphan cases" in the Contract below are not marker-discoverable this way, as a standing limit rather than a race outcome |
 
 The lock's one clean win is the server-ID duplicate window, and it buys that
 win at the crash row's price. In this taxonomy a marker run never blocks a

@@ -3,7 +3,8 @@
 Choudoufu is OpenTofu with live resource markers. There is no state file, no
 backend and no lock. Each resource carries its own ownership record as plain
 tags, and every plan rebuilds prior state by reading those markers off the
-live system. Everything else is stock OpenTofu. The binary is `choudoufu`.
+live system. It is experimental and AWS only at the moment. Everything else
+is stock OpenTofu. The binary is `choudoufu`.
 
 If you already use OpenTofu, the short version is that `terraform.tfstate`
 stops existing. Adoption is a tag you write. A rename is a tag you rewrite.

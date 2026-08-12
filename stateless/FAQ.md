@@ -9,7 +9,7 @@ of recording what it manages in a state file, it stamps plain tags on each
 resource it creates. On every plan it reads those tags back off the live
 system, rebuilds its picture of the world from them, and throws that
 picture away when the run ends. There is no state file, no backend, and no
-lock.
+lock. It is experimental and AWS only at the moment.
 
 ## Is it a separate tool or a drop-in replacement?
 
@@ -58,9 +58,19 @@ duplicates.
 ## Can I manage my whole infrastructure with this?
 
 Almost certainly not yet. The admitted subset is AWS only, 14 resource
-types, root module only. No child modules, no provisioners, no `random_*`
-or other logical resources, no workspaces, no saved plan files. Each limit
-is documented with its reasoning and its enforcing lint rule in
+types, root module only. In practice the 14 types are core VPC networking
+(VPC, subnet, route table, route, route table association, internet
+gateway, security group, EIP) plus S3 bucket and bucket policy, IAM role
+and role policy attachment, CloudWatch log group, and SSM parameter. That
+is enough for real network scaffolding and the glue around it, with no
+compute, no databases, and no Lambda. The gap to the rest of AWS is
+mechanical rather than conceptual. The provider survey found 65 of the top
+68 AWS types satisfy the admission rule, but each type has to be wired
+into the hardcoded v0 admission table by hand until provider identity
+schemas (opentofu#2854) make the table derivable. Beyond types, there are
+construct limits too. No child modules, no provisioners, no `random_*` or
+other logical resources, no workspaces, no saved plan files. Each limit is
+documented with its reasoning and its enforcing lint rule in
 `stateless/LIMITATIONS.md`, and the lint refuses a config outside the
 subset up front rather than failing halfway through an apply.
 
