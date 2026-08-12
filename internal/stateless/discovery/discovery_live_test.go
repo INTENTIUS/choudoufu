@@ -269,7 +269,6 @@ func TestDiscoverAgainstFloci(t *testing.T) {
 		`aws_s3_bucket_policy.data`,
 		`aws_security_group.main`,
 		`aws_sns_topic.alerts`,
-		`aws_sqs_queue.jobs`,
 		`aws_ssm_parameter.demo_effect`,
 		`aws_ssm_parameter.demo_existence`,
 		`aws_subnet.this["a"]`,

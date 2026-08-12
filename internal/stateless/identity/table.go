@@ -169,7 +169,7 @@ func serverAssigned(typeName, reason, importSyntax string, identityAttrs ...stri
 	}
 }
 
-// DefaultTable is the v0 identity table: the twenty-four AWS resource types
+// DefaultTable is the v0 identity table: the twenty-three AWS resource types
 // the estate fixture (stateless/e2e/estate) uses, which are also the types
 // the P1.1 admission lint admits. A type absent from this table is outside
 // the stateless subset and resolving it is an error.
@@ -298,35 +298,30 @@ var DefaultTable = buildTable(
 
 	// ---- Account-derived identities: client-named in configuration, but
 	// ---- the provider's import identity embeds the account and the region
-	// ---- (stateless/SURVEY.md flags F1 and F2) --------------------------
+	// ---- (stateless/SURVEY.md flag F2) ---------------------------------
 	//
-	// Both of these are the survey's client-named path and both fail the
-	// strict version of it: the configuration holds the name and the
-	// provider wants a URL or an ARN built around it. A [CloudContext] is
-	// what closes the gap, and without one these resolve as
-	// ClassNeedsDiscovery and are found by their tags like any marker type -
-	// which is what happens in this fork's pipeline today, because identity
-	// resolution runs before any provider does. See [CloudContext].
+	// This is the survey's client-named path failing the strict version of
+	// it: the configuration holds the name and the provider wants an ARN
+	// built around it. A [CloudContext] is what closes the gap, and without
+	// one the instance resolves as ClassNeedsDiscovery and is found by its
+	// tags like any marker type - which is what happens in this fork's
+	// pipeline today, because identity resolution runs before any provider
+	// does. See [CloudContext].
 	//
 	// The partition segment is a literal "aws" rather than a third cloud
 	// value; see [CloudValue] for why.
 
-	TypeIdentity{
-		Type: "aws_sqs_queue",
-		Components: []Component{
-			sep("https://sqs."),
-			cloud(CloudRegion),
-			sep(".amazonaws.com/"),
-			cloud(CloudAccountID),
-			sep("/"),
-			attr("name"),
-		},
-		ImportSyntax: "https://sqs.REGION.amazonaws.com/ACCOUNT/QUEUENAME",
-		// The queue's url attribute is the identity the provider's identity
-		// schema requires, and its id is set to the same string, so either
-		// may be handed out as an identity source.
-		IdentityAttrs: []string{"url", "id"},
-	},
+	// aws_sqs_queue is the type this section was designed around and is not
+	// here. Its identity is the same shape as the topic's below -
+	// https://sqs.REGION.amazonaws.com/ACCOUNT/NAME, which floci accepts and
+	// the components express exactly - but the fork cannot supply a
+	// CloudContext yet, so a run reaches a queue through its marker, and the
+	// marker path is where the emulator breaks: floci reports a queue's URL
+	// as its own endpoint (http://localhost:4566/ACCOUNT/NAME), and the AWS
+	// provider's importer parses only the amazonaws.com form, so the import
+	// fails on the very string the list call handed back. Real AWS returns
+	// the canonical URL and has no such gap. Recorded as blocked-emulator in
+	// stateless/SURVEY.md against choudoufu#26.
 	TypeIdentity{
 		Type: "aws_sns_topic",
 		Components: []Component{

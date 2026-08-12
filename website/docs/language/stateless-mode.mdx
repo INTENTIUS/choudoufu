@@ -157,11 +157,11 @@ Adoptable section before you apply anything.
 **What actually binds automatically, and what does not.** The classifier
 that offers a one-line adoption command matches on configuration content
 (`internal/stateless/foreign/classify.go`), and it only knows how to compare
-eight types this way. Those are `aws_security_group` (by `name`), `aws_vpc`
+seven types this way. Those are `aws_security_group` (by `name`), `aws_vpc`
 (by `cidr_block`), `aws_subnet` (by `cidr_block` plus `availability_zone`),
-`aws_route53_zone`, `aws_lb`, `aws_lb_target_group`, `aws_sqs_queue` and
-`aws_sns_topic` (each by `name`, which the API makes unique within an
-account and region). `aws_route_table`, `aws_internet_gateway`,
+`aws_route53_zone`, `aws_lb`, `aws_lb_target_group` and `aws_sns_topic`
+(each by `name`, which the API makes unique within an account and
+region). `aws_route_table`, `aws_internet_gateway`,
 `aws_kms_key` and `aws_lb_listener` are server-ID types too, but
 nothing in their configuration distinguishes one from another (the first
 two are "the one attached to this VPC"; a key's arguments are its
@@ -210,11 +210,11 @@ The loop, for the content-matchable server-ID types.
    (`stateless/MARKERS.md`), so any tool that can write two tags can adopt
    a resource. The printed one-liner exists only for the types tagged
    through `ec2 create-tags`; an `aws_route53_zone`, `aws_lb`,
-   `aws_lb_target_group`, `aws_sqs_queue` or `aws_sns_topic` candidate is
+   `aws_lb_target_group` or `aws_sns_topic` candidate is
    offered with its marker pair and no command, because each of those
    services has its own tagging call (`route53 change-tags-for-resource`,
-   `elbv2 add-tags`, `sqs tag-queue`, `sns tag-resource`). Write the same
-   two tags with the call for that service.
+   `elbv2 add-tags`, `sns tag-resource`). Write the same two tags with the
+   call for that service.
 5. **Plan clean.** Run `choudoufu plan` again. Every adopted resource now
    reads back its own markers and the plan reports no changes for it.
 
@@ -295,7 +295,7 @@ outcomes at all. They are named below.
 
 ## The Contract
 
-- **AWS only, 24 resource types, root module only.** The v0 admission table
+- **AWS only, 23 resource types, root module only.** The v0 admission table
   (`internal/stateless/lint/admission.go`) is the whole subset. It holds
   `aws_vpc`, `aws_subnet`, `aws_security_group`, `aws_route_table`,
   `aws_internet_gateway`, `aws_kms_key`, `aws_route53_zone`, `aws_lb`,
@@ -304,7 +304,7 @@ outcomes at all. They are named below.
   `aws_lb_target_group_attachment`,
   `aws_s3_bucket`, `aws_s3_bucket_policy`, `aws_iam_role`,
   `aws_cloudwatch_log_group`, `aws_ssm_parameter`, `aws_dynamodb_table`,
-  `aws_ecs_cluster`, `aws_sqs_queue`, `aws_sns_topic`, and `aws_eip`.
+  `aws_ecs_cluster`, `aws_sns_topic`, and `aws_eip`.
   Nothing else, no other AWS type, no other provider. A `module` block calling into a child module is refused
   outright. The
   subset lint rejects every module call with "Child modules are not

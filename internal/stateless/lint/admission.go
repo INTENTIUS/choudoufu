@@ -83,13 +83,14 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_dynamodb_table": {},
 	"aws_ecs_cluster":    {},
 	// Client-named with an account-derived import identity (the survey's
-	// flags F1 and F2): the queue's URL and the topic's ARN are built from
-	// the name in configuration plus the account and region of the cloud the
-	// run is against. A run that knows those computes the identity; one that
-	// does not finds these by their tags like any marker type. Either way
-	// the name in the block is what the estate is written around. See
-	// internal/stateless/identity's CloudContext.
-	"aws_sqs_queue": {},
+	// flag F2): the topic's ARN is built from the name in configuration plus
+	// the account and region of the cloud the run is against. A run that
+	// knows those computes the identity; one that does not finds the topic
+	// by its tags like any marker type. Either way the name in the block is
+	// what the estate is written around. See internal/stateless/identity's
+	// CloudContext. aws_sqs_queue is the same shape and is not here: floci
+	// reports a queue URL the AWS provider's own importer will not parse
+	// (choudoufu#26).
 	"aws_sns_topic": {},
 
 	// List plus content match, as a fungible set bound by tofu-slot marker.

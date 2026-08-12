@@ -113,12 +113,11 @@ func TestResolveEstate(t *testing.T) {
 		// joins the three with commas.
 		`aws_lb_target_group_attachment.app`: `PARENT_DERIVED ${aws_lb_target_group.app.arn},10.42.1.55,80`,
 
-		// Account-derived (SURVEY.md flags F1 and F2): both names are right
-		// there in configuration, and both import identities wrap them in an
-		// account and a region this run was not given. Resolve passes no
-		// CloudContext, so they defer to marker discovery rather than
-		// erroring - TestResolveInCloudContext is the other half of this.
-		`aws_sqs_queue.jobs`:   `NEEDS_DISCOVERY`,
+		// Account-derived (SURVEY.md flag F2): the name is right there in
+		// configuration, and the import identity wraps it in an account and a
+		// region this run was not given. Resolve passes no CloudContext, so
+		// it defers to marker discovery rather than erroring -
+		// TestResolveInCloudContext is the other half of this.
 		`aws_sns_topic.alerts`: `NEEDS_DISCOVERY`,
 	}
 
@@ -140,7 +139,7 @@ func TestResolveEstateDisabled(t *testing.T) {
 	if _, ok := result.Get(mustAddr(t, `aws_cloudwatch_log_group.optional[0]`)); ok {
 		t.Error("aws_cloudwatch_log_group.optional[0] is present with enabled = false; count = 0 must expand to no instances")
 	}
-	if got, want := result.Len(), 29; got != want {
+	if got, want := result.Len(), 28; got != want {
 		t.Errorf("resolved %d instances, want %d", got, want)
 	}
 	if _, ok := result.Get(mustAddr(t, `aws_cloudwatch_log_group.app`)); !ok {
@@ -179,7 +178,6 @@ func TestEstateNeedsDiscoveryList(t *testing.T) {
 		`aws_route_table.main`,
 		`aws_security_group.main`,
 		`aws_sns_topic.alerts`,
-		`aws_sqs_queue.jobs`,
 		`aws_subnet.this["a"]`,
 		`aws_subnet.this["b"]`,
 		`aws_vpc.main`,
@@ -284,7 +282,6 @@ func TestResolveInCloudContext(t *testing.T) {
 	assertNoErrors(t, diags)
 
 	want := map[string]string{
-		`aws_sqs_queue.jobs`:   `https://sqs.us-east-1.amazonaws.com/000000000000/tofu-stateless-e2e-jobs`,
 		`aws_sns_topic.alerts`: `arn:aws:sns:us-east-1:000000000000:tofu-stateless-e2e-alerts`,
 	}
 	for addr, wantID := range want {
@@ -320,12 +317,12 @@ func TestResolveInPartialCloudContext(t *testing.T) {
 	result, diags := ResolveIn(context.Background(), cfg, CloudContext{Region: "us-east-1"})
 	assertNoErrors(t, diags)
 
-	res, ok := result.Get(mustAddr(t, `aws_sqs_queue.jobs`))
+	res, ok := result.Get(mustAddr(t, `aws_sns_topic.alerts`))
 	if !ok {
-		t.Fatal("aws_sqs_queue.jobs missing from the result")
+		t.Fatal("aws_sns_topic.alerts missing from the result")
 	}
 	if res.Class != ClassNeedsDiscovery {
-		t.Fatalf("aws_sqs_queue.jobs = %s with no account ID, want NEEDS_DISCOVERY", res.Class)
+		t.Fatalf("aws_sns_topic.alerts = %s with no account ID, want NEEDS_DISCOVERY", res.Class)
 	}
 	if !strings.Contains(res.Reason, "AWS account ID") {
 		t.Errorf("reason does not name the missing value: %q", res.Reason)
@@ -481,7 +478,7 @@ func TestTableCoversFixtureTypes(t *testing.T) {
 			t.Errorf("the v0 identity table covers %s, which the fixture does not use", typeName)
 		}
 	}
-	if got, want := len(AdmittedTypes()), 24; got != want {
+	if got, want := len(AdmittedTypes()), 23; got != want {
 		t.Errorf("table covers %d types, want the fixture's %d", got, want)
 	}
 }

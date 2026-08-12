@@ -22,7 +22,7 @@ a feature under test), no provisioners, no logical resources.
 | Conditional idiom | `aws_cloudwatch_log_group.optional` (`count = var.enabled ? 1 : 0`) | The `enabled`-gated single-instance idiom the roadmap calls out as surviving unchanged. |
 | for_each stable keys | `aws_subnet.this` (`for_each = local.subnets`, keyed `"a"`, `"b"`) | Same block as the marker-path row above — its `tofu-address` carries the full keyed address (`aws_subnet.this:a (escaped per stateless/MARKERS.md)`), which is what phase 3's exact for_each binding keys off. |
 | Attachment composite | `aws_iam_role_policy_attachment.app` | Identity is the (role name, policy ARN) pair, both already client-named in config; the type carries no `tags` argument. |
-| Account-derived | `aws_sqs_queue.jobs`, `aws_sns_topic.alerts` | The name is in config and the provider imports by a URL or an ARN built around it, so the identity needs the run's account and region as well (`stateless/SURVEY.md` flags F1 and F2). With no `CloudContext` supplied — which is every run today — both fall back to the marker path, which is what this fixture exercises live. |
+| Account-derived | `aws_sns_topic.alerts` | The name is in config and the provider imports by an ARN built around it, so the identity needs the run's account and region as well (`stateless/SURVEY.md` flag F2). With no `CloudContext` supplied — which is every run today — both fall back to the marker path, which is what this fixture exercises live. |
 | Receipt, existence flavor (effect memory, default) | `aws_ssm_parameter.demo_existence` | A plain client-named resource whose value is the constant `"done"` — existence is the entire bit for a run-once effect. Proves the receipts pattern's default recommendation (`stateless/RECEIPTS.md`, "Two flavors; prefer the simpler"): deleting the parameter out of band and watching the next plan re-propose exactly its create is the whole demonstration. |
 | Receipt, hash flavor (effect memory, run-on-change) | `aws_ssm_parameter.demo_effect` | A plain client-named resource whose value is `sha256()` over a local of declared inputs — never the inputs themselves. Proves the receipts pattern for effects that must re-run when their inputs change. Both receipts share the leaf rule: no receipt-specific tooling, nothing else in the estate depends on either. |
 
@@ -61,7 +61,7 @@ parent-derived path, not from a marker, so admission doesn't need a tag.
 | `keys.tf` | The KMS key (marker path, #20's first slice). |
 | `dns.tf` | The Route 53 hosted zone (marker path with a `zone_id` identity attribute, same slice). |
 | `balancers.tf` | The ELBv2 chain: load balancer, target group and listener (marker path, #20's second slice), plus the target group attachment (parent-derived, #21). |
-| `messaging.tf` | The SQS queue and the SNS topic (account-derived, #21). |
+| `messaging.tf` | The SNS topic (account-derived, #21). |
 | `receipts.tf` | The receipt demo, both flavors (`aws_ssm_parameter.demo_existence`, `aws_ssm_parameter.demo_effect`). See `stateless/RECEIPTS.md`. |
 
 ## Verifying by hand
