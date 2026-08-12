@@ -76,6 +76,25 @@ type Request struct {
 // and adopting a key by its description is exactly the guess this table
 // exists to refuse. Adoption for a KMS key is refuse-only: it is reported
 // as foreign with the marker pair to stamp, and never offered.
+//
+// The types #20 and #21 add split the same way. aws_lb and
+// aws_lb_target_group join the table on their name argument: ELBv2 requires
+// a load balancer name to be unique within an account and region, and a
+// target group name likewise, which is the same guarantee a security
+// group's name carries within its VPC. aws_sns_topic joins on name for a
+// stronger reason still - a topic name is unique within an account and
+// region by construction, since the ARN is built out of it, so a name match
+// there is not a heuristic at all.
+//
+// aws_lb_listener and aws_lb_target_group_attachment are refuse-only, and
+// for the route table's reason rather than the KMS key's. A listener's
+// arguments are its port, its protocol and its default action, which
+// describe one listener of a load balancer whose identity is a live ARN
+// this package has no configuration value for; two load balancers with an
+// HTTP listener on 80 are indistinguishable here. An attachment is the same
+// shape one level down, and is derived rather than discovered anyway: its
+// identity comes out of its parent's live ARN, so there is never an
+// unclaimed one waiting to be matched.
 var matchTable = map[string][]string{
 	"aws_security_group": {"name"},
 	"aws_vpc":            {"cidr_block"},
@@ -89,15 +108,23 @@ var matchTable = map[string][]string{
 	// with the trailing dot trimmed, so a configuration written
 	// "example.com." reads as a near miss and says so.
 	"aws_route53_zone": {"name"},
+	// ELBv2 names, unique per account and region by the API's own rule.
+	"aws_lb":              {"name"},
+	"aws_lb_target_group": {"name"},
+	// A topic name, unique per account and region because the ARN is built
+	// out of it.
+	"aws_sns_topic": {"name"},
 }
 
 // ec2Types are the types whose adoption command this package can write down.
 // Everything in the v0 subset that carries EC2-style tags is adopted with
 // one create-tags call; a type outside this set still has a marker pair,
-// which is the actual contract, but no one-liner. The two marker types
-// added in #20 are outside it: a KMS key is tagged with kms:TagResource and
-// a hosted zone with route53:ChangeTagsForResource, each with its own flag
-// spelling, and neither is an ec2 create-tags call.
+// which is the actual contract, but no one-liner. Everything #20 and #21
+// added is outside it, and for the same reason each time: a KMS key is
+// tagged with kms:TagResource, a hosted zone with
+// route53:ChangeTagsForResource, an ELBv2 object with elasticloadbalancing:
+// AddTags, a queue with sqs:TagQueue and a topic with sns:TagResource. Each
+// has its own flag spelling and none is an ec2 create-tags call.
 var ec2Types = map[string]bool{
 	"aws_vpc":              true,
 	"aws_subnet":           true,

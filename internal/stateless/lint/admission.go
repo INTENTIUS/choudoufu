@@ -48,12 +48,25 @@ var admittedTypesV0 = map[string]struct{}{
 	// their tags.
 	"aws_kms_key":      {},
 	"aws_route53_zone": {},
+	// The ELBv2 chain, second slice of #20. All three are taggable, all
+	// three are listable, and all three import by an ARN that ELBv2 mints —
+	// the load balancer's and the target group's names are client-chosen and
+	// are not their identities, and a listener has no name at all. The
+	// listener sequences after the load balancer because it is created
+	// against one.
+	"aws_lb":              {},
+	"aws_lb_target_group": {},
+	"aws_lb_listener":     {},
 
 	// Parent-derived: identity is a composite key over already-admitted
 	// parents.
 	"aws_route":                      {},
 	"aws_route_table_association":    {},
 	"aws_iam_role_policy_attachment": {},
+	// #21's parent-derived slice: the attachment's identity is the target
+	// group's live ARN joined with the target and the port. Untaggable, so
+	// it is not swept for removal — see stateless/LIMITATIONS.md.
+	"aws_lb_target_group_attachment": {},
 
 	// Client-assigned identity: the name is already in the configuration.
 	"aws_s3_bucket":            {},
@@ -69,6 +82,16 @@ var admittedTypesV0 = map[string]struct{}{
 	// import grammar and against the floci emulator.
 	"aws_dynamodb_table": {},
 	"aws_ecs_cluster":    {},
+	// Client-named with an account-derived import identity (the survey's
+	// flag F2): the topic's ARN is built from the name in configuration plus
+	// the account and region of the cloud the run is against. A run that
+	// knows those computes the identity; one that does not finds the topic
+	// by its tags like any marker type. Either way the name in the block is
+	// what the estate is written around. See internal/stateless/identity's
+	// CloudContext. aws_sqs_queue is the same shape and is not here: floci
+	// reports a queue URL the AWS provider's own importer will not parse
+	// (choudoufu#26).
+	"aws_sns_topic": {},
 
 	// List plus content match, as a fungible set bound by tofu-slot marker.
 	"aws_eip": {},

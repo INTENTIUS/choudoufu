@@ -12,7 +12,17 @@
 //
 // # The three classes
 //
-// Every managed resource instance lands in exactly one class:
+// Every managed resource instance lands in exactly one class. One input
+// besides the configuration can move an instance between them, and only one:
+// a [CloudContext], the account and region of the cloud the run is against,
+// which [ResolveIn] takes and [Resolve] leaves empty. It exists because a
+// handful of AWS import identities are a configured name wrapped in the
+// account and the region (an SQS queue URL, an SNS topic ARN), and nothing
+// in a configuration says which account it will be applied to. A run that
+// supplies neither value is not an error and is not a guess: those instances
+// classify [ClassNeedsDiscovery], naming the property they lack, and marker
+// discovery finds them. That fallback is what lets this package take the
+// parameter without acquiring a cloud.
 //
 //   - [ClassConcrete]: the import identity is fully computable from
 //     configuration right now, and [Resolution.ImportID] holds it. This is
@@ -118,8 +128,8 @@
 // # The type table
 //
 // Per-type identity knowledge lives in [DefaultTable], a v0 hardcoded
-// table covering the estate fixture's eighteen AWS types. See table.go for
-// what it holds and for the note on replacing it with provider-served
+// table covering the estate fixture's twenty-three AWS types. See table.go
+// for what it holds and for the note on replacing it with provider-served
 // resource identity schemas.
 //
 // # Checking the table against the provider's own schemas
@@ -138,14 +148,23 @@
 // records what is done with each kind of result). The table is still what
 // classification runs on.
 //
-// Against the real AWS provider (6.58.0) the check confirms fourteen of the
-// table's sixteen entries, cannot speak to aws_ecs_cluster because the
-// provider serves no identity schema for it, and diverges on
+// Against the real AWS provider (6.58.0) the check confirms most of the
+// table's entries, cannot speak to aws_ecs_cluster because the provider
+// serves no identity schema for it, and diverges on two. The archetype is
 // aws_route_table_association: the provider identifies an association by
 // the rtbassoc- ID it assigns, while the table builds the association's
 // documented import *string* out of subnet and route table. Both are
 // accurate about different things, which is the shape most divergences
 // will have and the reason they are warnings.
+//
+// The other is aws_sns_topic, and it is the same shape once more. The
+// provider says a topic is identified by its arn, which is true; the table
+// says it is identified by the name in configuration wrapped in the run's
+// region and account, which is also true and is the only one of the two a
+// configuration can act on. The entry names the provider's attribute in its
+// IdentityAttrs, so the check agrees about what the identity *is* and
+// reports only that the table composes it out of an argument (name) the
+// identity schema does not mention. See [CloudContext].
 //
 // What is still missing before the table can shrink:
 //

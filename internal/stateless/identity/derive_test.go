@@ -123,9 +123,12 @@ func TestVerificationCarriesDerivable(t *testing.T) {
 			args:     map[string]string{"name": "req", "id": "optcomp"},
 			identity: map[string]string{"name": "req", "account_id": "opt"},
 		},
-		"aws_sqs_queue": {
-			args:     map[string]string{"name": "req", "id": "optcomp"},
-			identity: map[string]string{"name": "req", "account_id": "opt"},
+		// Deliberately a type the hand table does not cover, so the InTable
+		// split has something on both sides. aws_sqs_queue used to stand
+		// here; it is not in the table, but aws_sns_topic beside it is.
+		"aws_cloudwatch_log_metric_filter": {
+			args:     map[string]string{"name": "req", "log_group_name": "req"},
+			identity: map[string]string{"name": "req", "log_group_name": "req", "account_id": "opt"},
 		},
 	})
 
@@ -139,7 +142,7 @@ func TestVerificationCarriesDerivable(t *testing.T) {
 			newly = append(newly, d.Type)
 		}
 	}
-	if !reflect.DeepEqual(newly, []string{"aws_sqs_queue"}) {
-		t.Errorf("new candidates are %v, want [aws_sqs_queue]", newly)
+	if !reflect.DeepEqual(newly, []string{"aws_cloudwatch_log_metric_filter"}) {
+		t.Errorf("new candidates are %v, want [aws_cloudwatch_log_metric_filter]", newly)
 	}
 }
