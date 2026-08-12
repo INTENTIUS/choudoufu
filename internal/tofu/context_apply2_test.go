@@ -6283,7 +6283,7 @@ output "regular_optional" {
 			},
 			simulatePlanRoundtrip: true,
 			applyOpts:             nil,
-			expectedApplyErrors:   []string{"No value for required variable - Variable \"ephemeral_required\" is configured as ephemeral. This type of variables need to be given a value during `tofu plan` and also during `tofu apply`."},
+			expectedApplyErrors:   []string{"No value for required variable - Variable \"ephemeral_required\" is configured as ephemeral. This type of variables need to be given a value during `choudoufu plan` and also during `choudoufu apply`."},
 		},
 		"mutate plan to be similar with the one loaded from file and apply with opts containing the ephemeral_required": {
 			planSetVariables: map[string]*InputValue{
@@ -6577,7 +6577,7 @@ func TestMergePlanAndApplyVariables(t *testing.T) {
 			[]tfdiags.Description{
 				{
 					Summary: "No value for required variable",
-					Detail:  "Variable \"var1\" is configured as ephemeral. This type of variables need to be given a value during `tofu plan` and also during `tofu apply`.",
+					Detail:  "Variable \"var1\" is configured as ephemeral. This type of variables need to be given a value during `choudoufu plan` and also during `choudoufu apply`.",
 				},
 			},
 		},

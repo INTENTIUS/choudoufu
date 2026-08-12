@@ -342,7 +342,7 @@ func (c *Context) checkConfigDependencies(config *configs.Config) tfdiags.Diagno
 					tfdiags.Error,
 					"Missing required provider",
 					fmt.Sprintf(
-						"This configuration requires provider %s, but that provider isn't available. You may be able to install it automatically by running:\n  tofu init",
+						"This configuration requires provider %s, but that provider isn't available. You may be able to install it automatically by running:\n  choudoufu init",
 						providerAddr,
 					),
 				))

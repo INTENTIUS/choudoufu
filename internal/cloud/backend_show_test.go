@@ -41,7 +41,7 @@ func TestCloud_showMissingRun(t *testing.T) {
 
 	absentRunID := "run-WwwwXxxxYyyyZzzz"
 	_, err := b.ShowPlanForRun(context.Background(), absentRunID, tfeHost, true)
-	if !strings.Contains(err.Error(), "tofu login") {
+	if !strings.Contains(err.Error(), "choudoufu login") {
 		t.Fatalf("expected error message to suggest checking your login status, instead got: %s", err)
 	}
 }

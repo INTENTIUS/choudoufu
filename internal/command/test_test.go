@@ -1129,7 +1129,7 @@ The plan was created with the -target or the -exclude option in effect, so
 some changes requested in the configuration may have been ignored and the
 output values may not be fully updated. Run the following command to verify
 that no other changes are pending:
-    tofu plan
+    choudoufu plan
 	
 Note that the -target and -exclude options are not suitable for routine use,
 and are provided only for exceptional situations such as recovering from
@@ -1161,7 +1161,7 @@ The plan was created with the -target or the -exclude option in effect, so
 some changes requested in the configuration may have been ignored and the
 output values may not be fully updated. Run the following command to verify
 that no other changes are pending:
-    tofu plan
+    choudoufu plan
 	
 Note that the -target and -exclude options are not suitable for routine use,
 and are provided only for exceptional situations such as recovering from

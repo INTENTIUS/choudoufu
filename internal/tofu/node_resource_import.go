@@ -283,7 +283,7 @@ func (n *graphNodeImportStateSub) Execute(ctx context.Context, evalCtx EvalConte
 					"the provider detected that no object exists with the given id or identity. "+
 					"Only pre-existing objects can be imported; check that the id or identity "+
 					"is correct and that it is associated with the provider's "+
-					"configured region or endpoint, or use \"tofu apply\" to "+
+					"configured region or endpoint, or use \"choudoufu apply\" to "+
 					"create a new remote object for this resource.",
 				n.TargetAddr,
 			),

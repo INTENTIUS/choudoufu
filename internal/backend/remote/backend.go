@@ -324,7 +324,7 @@ func (b *Remote) Configure(ctx context.Context, obj cty.Value) tfdiags.Diagnosti
 			fmt.Sprintf(
 				"Run the following command to generate a token for %s:\n    %s",
 				b.hostname,
-				fmt.Sprintf("tofu login %s", b.hostname),
+				fmt.Sprintf("choudoufu login %s", b.hostname),
 			),
 		))
 		return diags
@@ -706,7 +706,7 @@ func (b *Remote) Operation(ctx context.Context, op *backend.Operation) (*backend
 	case backend.OperationTypeRefresh:
 		return nil, fmt.Errorf(
 			"\n\nThe \"refresh\" operation is not supported when using the \"remote\" backend. " +
-				"Use \"tofu apply -refresh-only\" instead.")
+				"Use \"choudoufu apply -refresh-only\" instead.")
 	default:
 		return nil, fmt.Errorf(
 			"\n\nThe \"remote\" backend does not support the %q operation.", op.Type)
