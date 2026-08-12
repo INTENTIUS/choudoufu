@@ -183,20 +183,21 @@ The loop, for the three content-matchable server-ID types.
 4. **Run the printed adoption commands.** For a type the classifier can
    offer, the hint is the tag write itself.
    ```
-   aws ec2 create-tags --resources vpc-0123456789abcdef0 \
-     --tags Key=tofu-estate,Value=my-estate Key=tofu-address,Value=aws_vpc.main
+   aws ec2 create-tags --resources 'vpc-0123456789abcdef0' \
+     --tags 'Key=tofu-estate,Value=my-estate' 'Key=tofu-address,Value=aws_vpc.main' \
+     --region 'us-east-1'
    ```
-   Paste it as printed and add your own `--region`/`--endpoint-url` if
-   you're not using the default AWS CLI profile. The hint does not carry
-   them, unlike `choudoufu live-mv`'s rename command below, which reuses
-   `choudoufu`'s own provider configuration and needs no such flags. Nor
-   does the hint shell-quote its values the way the rename command does. The
-   estate and address values it fills in are safe today (an estate name is
-   lowercase-only, and none of the fixture's addresses contain shell
-   metacharacters), but a `for_each` key containing a space would need
-   manual quoting before you run it. There is no `choudoufu adopt` command.
-   The marker spec is the whole contract (`stateless/MARKERS.md`), so any
-   tool that can write two tags can adopt a resource.
+   Paste it as printed. Like `choudoufu live-mv`'s rename command below, the
+   hint is built from `choudoufu`'s own provider configuration, so it
+   carries `--region` and `--endpoint-url` whenever the provider block or
+   the environment supplies them, and the tag write lands in the same
+   region and on the same endpoint the plan just listed rather than
+   wherever your AWS CLI profile points. Every value it fills in is
+   shell-quoted the same way the rename command quotes its addresses, so a
+   `for_each` key carrying a space or a bracket survives the paste. There
+   is no `choudoufu adopt` command. The marker spec is the whole contract
+   (`stateless/MARKERS.md`), so any tool that can write two tags can adopt
+   a resource.
 5. **Plan clean.** Run `choudoufu plan` again. Every adopted resource now
    reads back its own markers and the plan reports no changes for it.
 

@@ -294,6 +294,11 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 			Estate:    disco.Estate,
 			Config:    config,
 			Discovery: disco,
+			// The adoption hint carries the region and endpoint the
+			// resources were listed through, so that pasting it talks to
+			// the same cloud the plan just read.
+			Region:      provs.region(discoProvider),
+			EndpointURL: provs.endpointURL(discoProvider),
 		})
 		diags = diags.Append(foreignDiags)
 		if foreignDiags.HasErrors() {
@@ -1094,6 +1099,41 @@ func (p *statelessProviders) region(addr addrs.AbsProviderConfig) string {
 		}
 	}
 	for _, name := range []string{"AWS_REGION", "AWS_DEFAULT_REGION"} {
+		if v := os.Getenv(name); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// endpointURL is the custom endpoint one provider configuration reaches EC2
+// through, for the adoption hint's --endpoint-url flag: whatever the provider
+// block's endpoints block sets for ec2, or the endpoint the environment
+// supplies, which is how the estate fixture reaches its emulator. An empty
+// answer means no custom endpoint is in play and the flag is left off.
+func (p *statelessProviders) endpointURL(addr addrs.AbsProviderConfig) string {
+	p.mu.Lock()
+	val, ok := p.configVals[addr.String()]
+	p.mu.Unlock()
+
+	if ok && val != cty.NilVal && !val.IsNull() && val.Type().IsObjectType() && val.Type().HasAttribute("endpoints") {
+		endpoints := val.GetAttr("endpoints")
+		if !endpoints.IsNull() && endpoints.IsWhollyKnown() && endpoints.CanIterateElements() {
+			for it := endpoints.ElementIterator(); it.Next(); {
+				_, ep := it.Element()
+				if ep.IsNull() || !ep.Type().IsObjectType() || !ep.Type().HasAttribute("ec2") {
+					continue
+				}
+				ec2 := ep.GetAttr("ec2")
+				if !ec2.IsNull() && ec2.Type() == cty.String && ec2.AsString() != "" {
+					return ec2.AsString()
+				}
+			}
+		}
+	}
+	// The AWS CLI resolves the service-specific variable ahead of the
+	// general one, so the hint is read from them in the same order.
+	for _, name := range []string{"AWS_ENDPOINT_URL_EC2", "AWS_ENDPOINT_URL"} {
 		if v := os.Getenv(name); v != "" {
 			return v
 		}
