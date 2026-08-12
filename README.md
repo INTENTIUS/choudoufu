@@ -4,6 +4,9 @@
 
 **Ownership on the resource.** <img src="docs/images/choudoufu-inline-64.png" width="32" height="32" alt="">
 
+Latest release: **v0.1.0**, built on **OpenTofu 1.13.0** (fork point
+[`03743ce6e8`](https://github.com/opentofu/opentofu/commit/03743ce6e8)).
+
 Choudoufu is OpenTofu with live resource markers. There is no state file, no
 backend and no lock. Each resource carries its own ownership record as plain
 tags, and every plan rebuilds prior state by reading those markers off the
