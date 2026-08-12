@@ -1,0 +1,1280 @@
+// Copyright (c) The OpenTofu Authors
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2023 HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package command
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"sync"
+
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hcldec"
+	"github.com/zclconf/go-cty/cty"
+
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/backend"
+	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/configs"
+	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/opentofu/opentofu/internal/plugins"
+	"github.com/opentofu/opentofu/internal/providers"
+	"github.com/opentofu/opentofu/internal/stateless/discovery"
+	"github.com/opentofu/opentofu/internal/stateless/foreign"
+	"github.com/opentofu/opentofu/internal/stateless/identity"
+	"github.com/opentofu/opentofu/internal/stateless/lint"
+	"github.com/opentofu/opentofu/internal/stateless/projection"
+	"github.com/opentofu/opentofu/internal/stateless/stamp"
+	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/tofu"
+)
+
+// LivePlanCommand plans a configuration with no authoritative state: no
+// backend, no state file, no lock. Prior state is a projection, rebuilt by
+// reading the live system at the start of the run and discarded when the run
+// ends.
+//
+// The pipeline is lint -> identity -> discovery -> projection -> the ordinary
+// plan engine:
+//
+//  1. The configuration is loaded exactly as the plan command loads it, and
+//     no backend is prepared. There is deliberately no state manager of any
+//     kind, not even an in-memory one, because there is no operation here
+//     that reads or writes a state snapshot: the prior state is passed to
+//     [tofu.Context.Plan] as a value and the resulting plan is rendered and
+//     dropped. Avoiding the backend rather than stubbing it is what makes
+//     "no state was read or written" a structural property instead of a
+//     promise, and it is why this command works in a directory whose backend
+//     was never initialized.
+//  2. [lint.CheckContext] decides whether the configuration is in the stateless
+//     subset at all. Any issue is fatal.
+//  3. [identity.Resolve] classifies every instance. Error diagnostics are
+//     fatal, because a partial identity map plans creates for things that
+//     already exist.
+//  4. The providers the configuration names are launched from the ordinary
+//     plugin library (the providercache that "choudoufu init" populated) and
+//     configured before anything is read, since a projection is built with
+//     provider calls.
+//  5. [discovery.Discover] lists the live resources of every type that has an
+//     instance waiting on marker discovery, binds the ones carrying this
+//     estate's markers, and - because it is asked for unclaimed resources
+//     too - brings back everything of those types that carries no marker at
+//     all. A count block's instances are bound as a set rather than one
+//     address at a time, so the live members past the declared count come
+//     back at the instance addresses above it and the plan below destroys
+//     them the way it destroys any shrunken count's leftovers.
+//  6. [foreign.Classify] sorts those unclaimed resources into foreign, bind
+//     candidate and other-estate, and reports the owned resources sitting at a
+//     for_each key the configuration no longer declares as rename candidates.
+//     All of it goes into one section.
+//     Nothing it finds is ever fed back into the run: an unclaimed resource
+//     has no declared address, so it never enters the prior state, and the
+//     plan engine has nothing to propose destroying. That is the protection
+//     property, and it holds by construction rather than by a filter someone
+//     has to remember to apply.
+//  7. [projection.BuildFrom] materializes the prior state from the merged
+//     resolutions, admitting a live object only when it carries this estate's
+//     ownership marker or discovery already bound it by one. That check is
+//     what keeps a client-named resource - whose identity comes out of the
+//     configuration and which therefore never passes through step 5 or step 6
+//     at all - from being adopted on the strength of a name. Whatever it could
+//     not read, and whatever it refused, is reported in its own section above
+//     the plan, which is the transparency surface for "why does this plan
+//     propose a create".
+//  8. [stamp.Stamp] injects this estate's ownership markers into every
+//     taggable resource whose configuration does not already declare them, by
+//     rewriting the resource bodies before the plan reads them. That is what
+//     makes markers a property of the tool rather than of the author's
+//     discipline: the plan below shows the tags being added, and an apply of
+//     it writes them. A marker the configuration declares and this run
+//     disagrees with is fatal rather than overwritten. Count instances also
+//     get their tofu-slot tag here, from the assignment discovery worked out
+//     in step 5 - which is why stamping runs after discovery and not before.
+//  9. The plan runs with refresh disabled, because the projection was built
+//     from live reads moments earlier and refreshing it would read every
+//     object a second time to learn the same thing.
+type LivePlanCommand struct {
+	Meta
+}
+
+func (c *LivePlanCommand) Run(rawArgs []string) int {
+	ctx := c.CommandContext()
+
+	// Kept for the alias below, which hands the plan command the arguments
+	// exactly as they arrived so that it can parse them itself.
+	originalArgs := rawArgs
+
+	common, rawArgs := arguments.ParseView(rawArgs)
+	c.View.Configure(common)
+
+	// The stock plan flag set plus -estate, so that -target, -var, -var-file
+	// and friends parse and behave identically and this command's own option
+	// parses like any of them. See statelessEstateName for what -estate is
+	// for and what happens when it is absent. Options this command cannot
+	// honor are rejected below rather than silently ignored.
+	args, closer, diags := arguments.ParseLivePlan(rawArgs)
+	defer closer()
+	estateFlag := args.Estate
+
+	c.View.SetShowSensitive(args.ShowSensitive)
+
+	view := views.NewPlan(args.ViewOptions, c.View)
+
+	if diags.HasErrors() {
+		view.Diagnostics(diags)
+		view.HelpPrompt()
+		return 1
+	}
+
+	if moreDiags := livePlanRejectUnsupported(args.Plan); moreDiags.HasErrors() {
+		// Rendered through the base view rather than the plan view: one of
+		// the things rejected here is -json, and reporting "no JSON output"
+		// as JSON would be a strange way to say it.
+		c.View.Diagnostics(moreDiags)
+		return 1
+	}
+
+	var err error
+	if c.pluginPath, err = c.loadPluginPath(); err != nil {
+		diags = diags.Append(err)
+		view.Diagnostics(diags)
+		return 1
+	}
+
+	c.Meta.input = args.ViewOptions.InputEnabled
+	c.Meta.parallelism = args.Operation.Parallelism
+	c.Meta.variableArgs = args.Vars.All()
+
+	// Alias. When the configuration carries a live block, plain
+	// "choudoufu plan" is this pipeline, so this command is that command - down to
+	// the flag set, since delegating means the plan command parses the
+	// original arguments itself. The only difference is -estate, which the
+	// block replaces: accepting it here would let a run name an estate the
+	// configuration disagrees with, which is the ambiguity the block exists
+	// to remove.
+	//
+	// This is as early as the check can happen and no earlier. Reading the
+	// configuration means resolving the root module call, which is cached and
+	// which needs the -var values above; asking before they are set would
+	// answer the rest of the run's questions with the wrong variables.
+	//
+	// Load errors are tolerated rather than reported: a configuration that
+	// will not load is not evidence either way, and the ordinary path below
+	// reports the problem in its own voice.
+	if settings, _ := c.statelessSettings(ctx, true); settings != nil {
+		if estateFlag != "" {
+			// Half of this conflict is the flag and half is the block; the
+			// block is the half with a source range, so it is what the
+			// diagnostic points at.
+			diags = diags.Append(&hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Estate named by both the live block and -estate",
+				Detail:   fmt.Sprintf("This configuration's live block is what names its estate, and -estate=%q would name a second one for this run only. Remove the flag; \"choudoufu plan\" and \"choudoufu apply\" run this pipeline directly.", estateFlag),
+				Subject:  settings.DeclRange.Ptr(),
+			})
+			view.Diagnostics(diags)
+			return 1
+		}
+		plan := &PlanCommand{Meta: c.Meta}
+		return plan.Run(originalArgs)
+	}
+
+	diags = diags.Append(c.providerDevOverrideRuntimeWarnings())
+	diags = diags.Append(c.liveStateFileNote())
+
+	statelessView := views.NewStatelessPlan(c.View)
+
+	code, nextStep, moreDiags := c.livePlan(ctx, args.Plan, estateFlag, view, statelessView)
+	diags = diags.Append(moreDiags)
+	view.Diagnostics(diags)
+	if diags.HasErrors() {
+		return 1
+	}
+	// Ordered as a stock plan orders it: the plan, then the diagnostics
+	// gathered along the way, then the next-step hint.
+	if nextStep {
+		view.Operation().PlanNextStep("", "")
+	}
+	return code
+}
+
+// statelessPlan runs the pipeline and returns the exit code the run earns if
+// no diagnostics turn out to be errors, along with whether the caller should
+// print the next-step hint. Diagnostics accumulated along the way are returned
+// rather than rendered, except for the plan itself, which is rendered here so
+// that it appears before the trailing diagnostics exactly as it does in a
+// stock plan.
+func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, estateFlag string, view views.Plan, statelessView views.StatelessPlan) (int, bool, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+
+	config, cfgDiags := c.loadConfig(ctx, ".")
+	diags = diags.Append(cfgDiags)
+	if cfgDiags.HasErrors() {
+		return 1, false, diags
+	}
+
+	// Subset check first: a configuration outside the stateless subset has
+	// to fail with an explanation rather than as a confusing plan.
+	if issues := lint.CheckContext(ctx, config); len(issues) > 0 {
+		diags = diags.Append(lint.Diagnostics(issues))
+		return 1, false, diags
+	}
+
+	resolutions, idDiags := identity.Resolve(ctx, config)
+	diags = diags.Append(idDiags)
+	if idDiags.HasErrors() {
+		// Fatal on purpose. An identity map with holes in it produces a
+		// projection with holes in it, and the plan would propose creating
+		// objects that already exist.
+		return 1, false, diags
+	}
+
+	enc, encDiags := c.Encryption(ctx)
+	diags = diags.Append(encDiags)
+	if encDiags.HasErrors() {
+		return 1, false, diags
+	}
+
+	coreOpts, err := c.contextOpts(ctx)
+	if err != nil {
+		diags = diags.Append(err)
+		return 1, false, diags
+	}
+	coreOpts.Hooks = view.Hooks()
+	coreOpts.Encryption = enc
+
+	provs := newStatelessProviders(config, coreOpts.Plugins)
+
+	// The estate name, read from the same two sources discovery and stamping
+	// read it from. Their diagnostics about it are raised below, in their own
+	// voices; this call is for the ownership rule the projection needs, which
+	// has to know the estate before anything is materialized.
+	estate, _, _ := statelessEstateFor(ctx, estateFlag, config)
+
+	// Marker discovery, when anything is waiting on it. Its output is a
+	// resolution list with the discovered instances made concrete, plus the
+	// unclaimed live resources the classifier below sorts out.
+	merged := resolutions.All()
+	disco, discoProvider, discoDiags := statelessDiscover(ctx, config, resolutions, estateFlag, provs)
+	diags = diags.Append(discoDiags)
+	if discoDiags.HasErrors() {
+		// A marker problem means the estate's ownership records disagree with
+		// each other, and a projection built on them would act on the wrong
+		// resource. Never proceed past one.
+		diags = diags.Append(provs.close(ctx))
+		return 1, false, diags
+	}
+	if disco != nil {
+		merged = disco.Resolutions
+	}
+
+	projResult, projDiags := projection.BuildWith(ctx, config, merged, provs, projection.Options{
+		UndeclaredProvider: discoProvider,
+		Ownership:          statelessOwnership(estate, disco),
+	})
+	// The provider processes started for the projection have done their job
+	// by this point; the plan below starts its own from the same library.
+	diags = diags.Append(provs.close(ctx))
+	diags = diags.Append(projDiags)
+	if projDiags.HasErrors() {
+		return 1, false, diags
+	}
+
+	statelessView.Omissions(statelessOmissions(projResult))
+
+	if disco != nil {
+		classified, foreignDiags := foreign.Classify(ctx, foreign.Request{
+			Estate:    disco.Estate,
+			Config:    config,
+			Discovery: disco,
+		})
+		diags = diags.Append(foreignDiags)
+		if foreignDiags.HasErrors() {
+			return 1, false, diags
+		}
+		statelessView.Foreign(statelessForeignReport(classified))
+	}
+
+	rawVariables, varDiags := c.collectVariableValues()
+	diags = diags.Append(varDiags)
+	variables, parseDiags := backend.ParseVariableValues(rawVariables, config.Module.Variables)
+	diags = diags.Append(parseDiags)
+	if diags.HasErrors() {
+		return 1, false, diags
+	}
+
+	tfCtx, ctxDiags := tofu.NewContext(coreOpts)
+	diags = diags.Append(ctxDiags)
+	if ctxDiags.HasErrors() {
+		return 1, false, diags
+	}
+
+	// The schemas are read before the plan rather than after it because
+	// stamping needs them: which resource types can carry an ownership marker
+	// is a question only the provider's schema answers. The same object
+	// renders the plan below.
+	schemas, schemaDiags := tfCtx.Schemas(ctx, config, projResult.State)
+	diags = diags.Append(schemaDiags)
+	if schemaDiags.HasErrors() {
+		return 1, false, diags
+	}
+
+	// Marker stamping, before the plan runs, because it works by rewriting
+	// the configuration the plan is about to read. A marker conflict is fatal:
+	// the configuration claims an ownership this run cannot honor, and
+	// planning past it would act on a resource whose owner is in dispute. So
+	// is a resource that only its marker could ever find going unstamped,
+	// which is why the resolutions travel into the pass.
+	_, stampDiags := statelessStamp(ctx, config, estateFlag, schemas, disco.SlotTable(), statelessNeedsDiscovery(resolutions))
+	diags = diags.Append(stampDiags)
+	if stampDiags.HasErrors() {
+		return 1, false, diags
+	}
+
+	plan, planDiags := tfCtx.Plan(ctx, config, projResult.State, &tofu.PlanOpts{
+		Mode: plans.NormalMode,
+		// The projection was built from live reads a moment ago, so a
+		// refresh walk would read every object again to learn what it
+		// already knows.
+		SkipRefresh:  true,
+		SetVariables: variables,
+		Targets:      args.Operation.Targets,
+		Excludes:     args.Operation.Excludes,
+		ForceReplace: args.Operation.ForceReplace,
+	})
+	diags = diags.Append(planDiags)
+	if plan == nil {
+		return 1, false, diags
+	}
+
+	view.Operation().Plan(plan, schemas)
+
+	if diags.HasErrors() {
+		return 1, false, diags
+	}
+	if !plan.CanApply() {
+		return 0, false, diags
+	}
+	if args.DetailedExitCode {
+		return 2, true, diags
+	}
+	return 0, true, diags
+}
+
+// ---------------------------------------------------------------------------
+// Discovery and foreign classification
+// ---------------------------------------------------------------------------
+
+// statelessDiscover runs one marker discovery pass, wide enough to see the
+// resources nobody owns, and returns its result. It returns a nil result
+// with no error diagnostics in the two cases where discovery is not run at
+// all: nothing in the configuration is waiting on it, or the estate's name
+// could not be established (a warning, not an error - see
+// statelessEstateName).
+//
+// [discovery.Request.CollectUnclaimed] is always set here. It trades the
+// server-side estate filter for a wider list, which is the price of being
+// able to say anything at all about resources that carry no marker, and
+// stateless mode's central safety claim is a claim about exactly those.
+// The pass also sweeps: every admitted resource type the configuration does
+// not declare is listed for this estate's markers, which is the only way a
+// resource whose block was deleted can be seen at all. That is why discovery
+// now runs even when nothing is waiting to be found - a configuration of
+// entirely client-named resources still has an estate, and deleting one of
+// those blocks is exactly as much a removal as deleting a marker-discovered
+// one.
+//
+// The provider configuration it listed through is returned along with the
+// result, because a resource found by the sweep has no resource block to read
+// a provider from and must be read back through the one that found it.
+func statelessDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, estateFlag string, provs *statelessProviders) (*discovery.Result, addrs.AbsProviderConfig, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+	var noProvider addrs.AbsProviderConfig
+
+	needs := resolutions.NeedsDiscovery()
+
+	estate, estateDiags := statelessEstateName(ctx, estateFlag, config, needs)
+	diags = diags.Append(estateDiags)
+	if estate == "" {
+		return nil, noProvider, diags
+	}
+
+	providerAddr, providerDiags := statelessDiscoveryProvider(config, needs)
+	diags = diags.Append(providerDiags)
+	if providerDiags.HasErrors() {
+		return nil, noProvider, diags
+	}
+	if providerAddr.Provider.Type == "" {
+		// A configuration with no managed resources at all. Nothing to find
+		// and nothing that could be undeclared.
+		return nil, noProvider, diags
+	}
+
+	provider, err := provs.ConfiguredProvider(ctx, providerAddr)
+	if err != nil {
+		return nil, noProvider, diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"Provider unavailable for marker discovery",
+			fmt.Sprintf("Finding the live resources of this estate needs provider %s, which could not be used: %s.", providerAddr, err),
+		))
+	}
+
+	res, discoDiags := discovery.Discover(ctx, discovery.Request{
+		Estate:           estate,
+		Config:           config,
+		Resolutions:      resolutions.All(),
+		Provider:         provider,
+		Region:           provs.region(providerAddr),
+		CollectUnclaimed: true,
+		Sweep:            true,
+	})
+	diags = diags.Append(discoDiags)
+	if discoDiags.HasErrors() {
+		return nil, noProvider, diags
+	}
+	return res, providerAddr, diags
+}
+
+// statelessEstateName establishes which estate this run is about.
+//
+// Two sources, in order. An explicit -estate=<name> wins and is checked
+// against the marker grammar. Otherwise the name is read out of the
+// configuration itself: every resource that stamps a tofu-estate tag is
+// asked what value it stamps, and if they all agree on one, that is the
+// estate. That derivation is not a guess about ownership - it is reading the
+// same statement the configuration already makes to the cloud on every
+// apply, and requiring the whole configuration to agree is what keeps it
+// from becoming one.
+//
+// When neither source answers, the return is an empty name and a warning:
+// discovery does not run, the instances that needed it stay unresolved, and
+// the omissions section already explains each one. That is the pre-discovery
+// behaviour of this command rather than a new failure mode, and turning it
+// into an error would make a configuration that never used markers
+// unplannable.
+func statelessEstateName(ctx context.Context, flagValue string, config *configs.Config, needs []identity.Resolution) (string, tfdiags.Diagnostics) {
+	name, found, diags := statelessEstateFor(ctx, flagValue, config)
+	if diags.HasErrors() || name != "" {
+		return name, diags
+	}
+
+	switch len(found) {
+	case 1:
+		return "", diags.Append(tfdiags.Sourceless(
+			tfdiags.Warning,
+			"Invalid estate name in configuration",
+			fmt.Sprintf(
+				"The configuration stamps tofu-estate = %q, which does not match the marker grammar in stateless/MARKERS.md, so it cannot be used to find this estate's resources. %s Pass -estate=<name> to name the estate explicitly.",
+				found[0], statelessUndiscoveredNote(needs),
+			),
+		))
+	case 0:
+		return "", diags.Append(tfdiags.Sourceless(
+			tfdiags.Warning,
+			"No estate name to search by",
+			fmt.Sprintf(
+				"%s Finding them means listing live resources and reading their tofu-estate markers, and this run has no estate name to look for: no resource in the configuration stamps a tofu-estate tag with a value that can be read from configuration alone. Pass -estate=<name> to name it. Nothing was read from the live system for those instances, and nothing was classified as foreign - which is not a report that no foreign resources exist.",
+				statelessUndiscoveredNote(needs),
+			),
+		))
+	default:
+		return "", diags.Append(tfdiags.Sourceless(
+			tfdiags.Warning,
+			"Several estates named by the configuration",
+			fmt.Sprintf(
+				"Resources in this configuration stamp tofu-estate with %s. An estate is the unit of ownership and a run covers exactly one, so which of these to search for is not something this command will pick. %s Pass -estate=<name> to say which.",
+				strings.Join(quoteAll(found), " and "), statelessUndiscoveredNote(needs),
+			),
+		))
+	}
+}
+
+// statelessEstateFor resolves the estate name without deciding what a run
+// should do when there is not one.
+//
+// The two sources are the same two [statelessEstateName] documents, and this
+// is where they are actually read: an explicit -estate=<name>, checked against
+// the marker grammar, then the distinct tofu-estate values the configuration
+// stamps. The second return is those values, so that a caller with no answer
+// can say why - "the configuration names no estate" and "the configuration
+// names three" call for different sentences, and only the caller knows what
+// its half of the run gave up.
+func statelessEstateFor(ctx context.Context, flagValue string, config *configs.Config) (string, []string, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+
+	if flagValue != "" {
+		if !discovery.ValidEstateName(flagValue) {
+			return "", nil, diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"Invalid estate name",
+				fmt.Sprintf("-estate=%q does not match the tofu-estate marker grammar in stateless/MARKERS.md: a lowercase letter followed by lowercase letters, digits or hyphens, at most 128 characters.", flagValue),
+			))
+		}
+		return flagValue, nil, diags
+	}
+
+	found, evalDiags := statelessEstateFromConfig(ctx, config)
+	diags = diags.Append(evalDiags)
+
+	if len(found) == 1 && discovery.ValidEstateName(found[0]) {
+		return found[0], found, diags
+	}
+	return "", found, diags
+}
+
+// statelessStamp injects this estate's ownership markers into every taggable
+// resource that does not already declare them, so that the plan below shows
+// the tags being added and an apply of it would write them.
+//
+// It runs after the estate-name derivation and after discovery on purpose:
+// stamping rewrites resource bodies, and the derivation reads tofu-estate
+// values back out of those same bodies. Deriving from a configuration this
+// function had already stamped would be the tool reading its own handwriting
+// and calling it the author's.
+//
+// With no estate name there is nothing to stamp with, and this is a warning
+// rather than an error - the same graceful degradation discovery makes. A
+// configuration that has never used markers still plans; it just does not
+// gain them, and the warning says what to pass.
+// slotTable is the slot each count instance carries, as discovery worked it
+// out from the live set. It is nil when discovery did not run or found no
+// count blocks, which is what tells the stamping pass to write no tofu-slot
+// tags: a slot is a fact about the live estate, and a run that did not read
+// the live estate has no business inventing one.
+//
+// needsDiscovery names the resource blocks whose instances can only be found
+// by their ownership marker. It travels in because the severity of "this
+// resource did not get its markers" depends on it: a bucket named by its own
+// configuration survives being unmarked, and a subnet does not - it becomes a
+// resource no later run can see, and every later plan proposes creating
+// another one. See [stamp.Request.NeedsDiscovery].
+//
+// The pass's result comes back rather than being dropped on the floor: what a
+// run stamped, and what it did not, is the record of whether the estate's
+// ownership is intact after this plan, and a caller that cannot see it cannot
+// check anything about it (audit finding C2).
+func statelessStamp(ctx context.Context, config *configs.Config, estateFlag string, schemas *tofu.Schemas, slotTable map[string]string, needsDiscovery map[string]bool) (*stamp.Result, tfdiags.Diagnostics) {
+	estate, declared, diags := statelessEstateFor(ctx, estateFlag, config)
+	if diags.HasErrors() {
+		return nil, diags
+	}
+
+	if estate == "" {
+		switch {
+		case len(declared) == 0:
+			return nil, diags.Append(tfdiags.Sourceless(
+				tfdiags.Warning,
+				"Ownership markers not stamped",
+				fmt.Sprintf(
+					"This run has no estate name, so the %s and %s tags from stateless/MARKERS.md were not added to the resources that do not already carry them: nothing in the configuration stamps a tofu-estate tag with a value readable from configuration alone, and no -estate=<name> was given. Resources this configuration creates or updates will carry no ownership marker, which means a later run cannot find them by marker and will report them as foreign. Pass -estate=<name> to stamp them.",
+					discovery.TagEstate, discovery.TagAddress,
+				),
+			))
+		case len(declared) == 1:
+			return nil, diags.Append(tfdiags.Sourceless(
+				tfdiags.Warning,
+				"Ownership markers not stamped",
+				fmt.Sprintf(
+					"The configuration stamps %s = %q, which does not match the marker grammar in stateless/MARKERS.md, so this run has no estate name to stamp missing markers with. Pass -estate=<name> to name the estate explicitly.",
+					discovery.TagEstate, declared[0],
+				),
+			))
+		default:
+			return nil, diags.Append(tfdiags.Sourceless(
+				tfdiags.Warning,
+				"Ownership markers not stamped",
+				fmt.Sprintf(
+					"Resources in this configuration stamp %s with %s. An estate is the unit of ownership and a run covers exactly one, so which of these to stamp the unmarked resources with is not something this command will pick. Pass -estate=<name> to say which.",
+					discovery.TagEstate, strings.Join(quoteAll(declared), " and "),
+				),
+			))
+		}
+	}
+
+	res, stampDiags := stamp.Stamp(ctx, stamp.Request{
+		Estate:         estate,
+		Config:         config,
+		Schemas:        schemas,
+		Slots:          slotTable,
+		NeedsDiscovery: needsDiscovery,
+	})
+	diags = diags.Append(stampDiags)
+	return res, diags.Append(statelessStampGaps(res, needsDiscovery))
+}
+
+// statelessStampGaps re-checks the stamping pass's own report against the
+// instances that can only be found by their marker.
+//
+// The pass already refuses to leave one of those unstamped, so this finds
+// nothing in a working build - which is the point of it. The bug this fixes
+// was not a missing rule but a discarded result: nothing downstream ever
+// looked at what stamping did, so a resource silently skipped stayed silently
+// skipped all the way into the cloud (audit finding C2). One reader of the
+// report, checking the one property that matters, is what makes that
+// impossible to reintroduce quietly.
+func statelessStampGaps(res *stamp.Result, needsDiscovery map[string]bool) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if res == nil || len(needsDiscovery) == 0 {
+		return diags
+	}
+	for _, skip := range res.Skipped {
+		if skip.Reason == stamp.SkipAlreadyStamped || !needsDiscovery[skip.Addr.String()] {
+			continue
+		}
+		diags = diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"Unstamped marker-only resource",
+			fmt.Sprintf(
+				"%s has an identity the provider assigns at create time, so its ownership marker is the only handle any later run will have on it, and marker stamping reported %s: %s Applying it in this state would create a resource this configuration can never find again.",
+				skip.Addr, skip.Reason, skip.Detail),
+		))
+	}
+	return diags
+}
+
+// statelessNeedsDiscovery is the set of resource blocks whose instances can
+// only be found by their ownership marker, keyed by block address, taken from
+// identity resolution rather than from what discovery managed to bind: an
+// instance discovery found is still one that nothing but its marker could
+// have found.
+func statelessNeedsDiscovery(resolutions *identity.Result) map[string]bool {
+	if resolutions == nil {
+		return nil
+	}
+	needs := resolutions.NeedsDiscovery()
+	out := make(map[string]bool, len(needs))
+	for _, r := range needs {
+		out[r.Addr.Resource.Resource.String()] = true
+	}
+	return out
+}
+
+// statelessOwnership is the rule the projection admits live objects by: this
+// run's estate, plus whatever marker discovery already proved ownership of.
+// It is never nil, because "this run established no estate" is a verdict
+// about ownership (nothing can be verified) rather than an absence of one.
+func statelessOwnership(estate string, disco *discovery.Result) *projection.Ownership {
+	return &projection.Ownership{
+		Estate:   estate,
+		Verified: disco.MarkerVerified(),
+	}
+}
+
+// statelessUndiscoveredNote names what a run without discovery leaves
+// unresolved, so that every warning above says what it costs.
+func statelessUndiscoveredNote(needs []identity.Resolution) string {
+	addrs := make([]string, 0, len(needs))
+	for _, r := range needs {
+		addrs = append(addrs, r.Addr.String())
+	}
+	sort.Strings(addrs)
+	if len(addrs) > 6 {
+		addrs = append(addrs[:6], fmt.Sprintf("and %d more", len(addrs)-6))
+	}
+	if len(needs) == 0 {
+		return "Nothing in this configuration needs an ownership marker to be found, but the estate-wide sweep does: it is what finds resources this estate owns and no longer declares, and it did not run."
+	}
+	noun := "instances have"
+	if len(needs) == 1 {
+		noun = "instance has"
+	}
+	return fmt.Sprintf(
+		"%d resource %s an identity the provider assigned at create time (%s), which only an ownership marker can recover; the plan below proposes creating them.",
+		len(needs), noun, strings.Join(addrs, ", "))
+}
+
+// statelessEstateFromConfig reads the distinct tofu-estate values the
+// configuration stamps, sorted.
+//
+// Only tag values that evaluate from configuration alone count. A tag built
+// from another resource's attribute is not readable here, and is not treated
+// as a partial answer: it is simply not one of the values, which at worst
+// costs the operator an -estate flag.
+func statelessEstateFromConfig(ctx context.Context, config *configs.Config) ([]string, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+
+	if config == nil || config.Module == nil {
+		return nil, diags
+	}
+	mod := config.Module
+	if mod.StaticEvaluator == nil {
+		return nil, diags
+	}
+
+	seen := make(map[string]bool)
+	for _, name := range sortedResourceKeys(mod.ManagedResources) {
+		rc := mod.ManagedResources[name]
+
+		content, _, contentDiags := rc.Config.PartialContent(&hcl.BodySchema{
+			Attributes: []hcl.AttributeSchema{{Name: "tags"}},
+		})
+		if contentDiags.HasErrors() {
+			continue
+		}
+		attr, ok := content.Attributes["tags"]
+		if !ok {
+			continue
+		}
+		pairs, pairDiags := hcl.ExprMap(attr.Expr)
+		if pairDiags.HasErrors() {
+			// A tags argument that is not written as an object literal - a
+			// merge() call, a variable - cannot be picked apart here.
+			continue
+		}
+		for _, pair := range pairs {
+			key, keyDiags := pair.Key.Value(nil)
+			if keyDiags.HasErrors() || key.IsNull() || key.Type() != cty.String || key.AsString() != discovery.TagEstate {
+				continue
+			}
+			val, valDiags := mod.StaticEvaluator.Evaluate(ctx, pair.Value, configs.StaticIdentifier{
+				Module:    addrs.RootModule,
+				Subject:   fmt.Sprintf("%s.tags", rc.Addr()),
+				DeclRange: attr.Range,
+			})
+			if valDiags.HasErrors() || val.IsNull() || !val.IsWhollyKnown() || val.IsMarked() || val.Type() != cty.String {
+				continue
+			}
+			if s := val.AsString(); s != "" {
+				seen[s] = true
+			}
+		}
+	}
+
+	out := make([]string, 0, len(seen))
+	for s := range seen {
+		out = append(out, s)
+	}
+	sort.Strings(out)
+	return out, diags
+}
+
+// statelessDiscoveryProvider is the provider configuration the discovery
+// pass lists through: the one the needs-discovery resources use. A
+// configuration whose needs-discovery resources span several provider
+// configurations is refused rather than listed through whichever one came
+// first, since a list against the wrong account or region would report an
+// estate as missing.
+func statelessDiscoveryProvider(config *configs.Config, needs []identity.Resolution) (addrs.AbsProviderConfig, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+
+	seen := make(map[string]addrs.AbsProviderConfig)
+	for _, r := range needs {
+		rc, ok := config.Module.ManagedResources[r.Addr.Resource.Resource.String()]
+		if !ok {
+			continue
+		}
+		addr := providerConfigAddr(rc)
+		seen[addr.String()] = addr
+	}
+	if len(seen) == 0 && len(needs) == 0 {
+		// Nothing is waiting to be found, and the pass is running for the
+		// sweep alone. Every managed resource's provider is a candidate then,
+		// and the same one-configuration rule applies for the same reason: a
+		// sweep issued against the wrong account would report an estate as
+		// holding nothing undeclared.
+		for _, rc := range config.Module.ManagedResources {
+			addr := providerConfigAddr(rc)
+			seen[addr.String()] = addr
+		}
+		if len(seen) == 0 {
+			return addrs.AbsProviderConfig{}, diags
+		}
+	}
+
+	switch len(seen) {
+	case 1:
+		for _, addr := range seen {
+			return addr, diags
+		}
+	case 0:
+		return addrs.AbsProviderConfig{}, diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"No provider for marker discovery",
+			"Resource instances are waiting on marker discovery, but none of them could be traced back to a resource block in the configuration. The resolutions and the configuration come from different runs; this is a bug.",
+		))
+	}
+
+	names := make([]string, 0, len(seen))
+	for name := range seen {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return addrs.AbsProviderConfig{}, diags.Append(tfdiags.Sourceless(
+		tfdiags.Error,
+		"Marker discovery across several provider configurations",
+		fmt.Sprintf(
+			"The resources waiting on marker discovery use %s. Stateless mode v0 discovers through one provider configuration per run, because a list issued against the wrong account or region would report an estate as missing rather than as unreachable. Split the configuration, or use -target to plan one provider's resources at a time.",
+			strings.Join(names, " and ")),
+	))
+}
+
+// statelessForeignReport converts the classification into the view's wire
+// format. It carries data across, never rendered text: the wording of the
+// section is the view's business, and this function producing sentences
+// would put half the output in the wrong package.
+func statelessForeignReport(res *foreign.Result) views.StatelessForeign {
+	if res == nil {
+		return views.StatelessForeign{}
+	}
+
+	rep := views.StatelessForeign{
+		Estate:       res.Estate,
+		Swept:        res.Swept,
+		SweepCovered: res.SweepCovered,
+	}
+	for _, rm := range res.Removals {
+		rep.Removals = append(rep.Removals, views.StatelessRemoval{
+			Addr:        rm.Addr.String(),
+			TypeName:    rm.TypeName,
+			LiveID:      rm.LiveID,
+			DisplayName: rm.DisplayName,
+			Marker:      rm.Normalized,
+			BlockGone:   rm.BlockGone,
+			Swept:       rm.Swept,
+			Why:         rm.Why,
+		})
+	}
+	for _, g := range res.SweepGaps {
+		rep.SweepGaps = append(rep.SweepGaps, views.StatelessSweepGap{
+			TypeName: g.TypeName,
+			Reason:   string(g.Reason),
+			Detail:   g.Detail,
+		})
+	}
+	for _, f := range res.Foreign {
+		rep.Items = append(rep.Items, views.StatelessForeignItem{
+			TypeName:    f.TypeName,
+			LiveID:      f.LiveID,
+			DisplayName: f.DisplayName,
+			Tags:        statelessTags(f.Tags),
+			Why:         f.Why,
+		})
+	}
+	for _, c := range res.Candidates {
+		matched := make([]views.StatelessTag, 0, len(c.Matched))
+		for _, m := range c.Matched {
+			matched = append(matched, views.StatelessTag{Key: m.Attr, Value: m.Value})
+		}
+		rep.Candidates = append(rep.Candidates, views.StatelessBindCandidate{
+			Addr:          c.Addr.String(),
+			TypeName:      c.TypeName,
+			LiveID:        c.LiveID,
+			DisplayName:   c.DisplayName,
+			Tags:          statelessTags(c.Tags),
+			Matched:       matched,
+			MarkerEstate:  c.MarkerEstate,
+			MarkerAddress: c.MarkerAddress,
+			Hint:          c.Hint,
+		})
+	}
+	for _, r := range res.Renames {
+		rep.Renames = append(rep.Renames, views.StatelessRename{
+			OldAddr:     r.Old.String(),
+			NewAddr:     r.New.String(),
+			TypeName:    r.TypeName,
+			LiveID:      r.LiveID,
+			DisplayName: r.DisplayName,
+			Command:     r.Command,
+		})
+	}
+	for _, a := range res.Ambiguous {
+		live := make([]string, 0, len(a.Live))
+		for _, l := range a.Live {
+			id := l.LiveID
+			if id == "" {
+				id = "no identity"
+			}
+			if l.DisplayName != "" && l.DisplayName != l.LiveID {
+				id += ", " + l.DisplayName
+			}
+			live = append(live, fmt.Sprintf("%s (%s)", l.Marker, id))
+		}
+		rep.AmbiguousRenames = append(rep.AmbiguousRenames, views.StatelessRenameAmbiguity{
+			Block:    a.Block,
+			Live:     live,
+			Declared: a.Declared,
+			Detail:   a.Detail,
+		})
+	}
+	for _, e := range res.OtherEstates {
+		rep.OtherEstates = append(rep.OtherEstates, views.StatelessEstateCount{
+			Estate: e.Estate,
+			Count:  e.Count,
+			Types:  e.Types,
+		})
+	}
+	for _, u := range res.Unswept {
+		rep.Unswept = append(rep.Unswept, views.StatelessUnsweptType{
+			TypeName: u.TypeName,
+			Reason:   string(u.Reason),
+			Detail:   u.Detail,
+		})
+	}
+	return rep
+}
+
+func statelessTags(tags []foreign.Tag) []views.StatelessTag {
+	out := make([]views.StatelessTag, 0, len(tags))
+	for _, t := range tags {
+		out = append(out, views.StatelessTag{Key: t.Key, Value: t.Value})
+	}
+	return out
+}
+
+func sortedResourceKeys(m map[string]*configs.Resource) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func quoteAll(names []string) []string {
+	out := make([]string, 0, len(names))
+	for _, n := range names {
+		out = append(out, fmt.Sprintf("%q", n))
+	}
+	return out
+}
+
+// providerConfigAddr is the absolute provider configuration a resource block
+// uses. Only the root module exists in stateless mode v0, so the module path
+// is always the root.
+func providerConfigAddr(rc *configs.Resource) addrs.AbsProviderConfig {
+	return addrs.AbsProviderConfig{
+		Module:   addrs.RootModule,
+		Provider: rc.Provider,
+		Alias:    rc.ProviderConfigAddr().Alias,
+	}
+}
+
+// statelessOmissions converts the projection's omissions into the view's
+// wire format, preserving the builder's ordering.
+func statelessOmissions(res *projection.Result) []views.StatelessOmission {
+	if res == nil {
+		return nil
+	}
+	oms := make([]views.StatelessOmission, 0, len(res.Omitted))
+	for _, om := range res.Omitted {
+		oms = append(oms, views.StatelessOmission{
+			Addr:   om.Addr.String(),
+			Reason: string(om.Reason),
+			Detail: om.Detail,
+		})
+	}
+	return oms
+}
+
+// liveStateFileNote reports a state file sitting in the working
+// directory. Stateless mode does not read it, does not write it, and does not
+// care what it says, but silently ignoring a file that every other OpenTofu
+// command treats as authoritative would be a nasty surprise.
+func (c *LivePlanCommand) liveStateFileNote() tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	path := filepath.Join(c.WorkingDir.RootModuleDir(), arguments.DefaultStateFilename)
+	if _, err := os.Stat(path); err != nil {
+		return diags
+	}
+	return diags.Append(tfdiags.Sourceless(
+		tfdiags.Warning,
+		"State file present but not consulted",
+		fmt.Sprintf(
+			"%s exists in this directory and was not read. Stateless mode has no authoritative state: prior state for this plan was built by reading the live system, and nothing was written back. Whatever that file records has no effect on the plan below, and the file itself is left untouched.",
+			path,
+		),
+	))
+}
+
+// livePlanRejectUnsupported turns the plan options this command cannot
+// honor into errors. Everything rejected here is rejected because stateless
+// mode removes the thing the option operates on, or because v0 has not built
+// it yet; nothing is silently ignored.
+func livePlanRejectUnsupported(args *arguments.Plan) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+
+	reject := func(summary, detail string) {
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, summary, detail))
+	}
+
+	if args.ViewOptions.ViewType != arguments.ViewHuman || args.ViewOptions.JSONInto != nil {
+		reject("Machine-readable output is not available in stateless mode yet",
+			"live-plan prints a section describing what it could not read from the live system, and that section has no JSON representation yet. Rerun without -json or -json-into.")
+	}
+	if args.OutPath != "" {
+		reject("Saved plan files are not available in stateless mode",
+			"A saved plan file records the state snapshot the plan was made against so that apply can check the state has not moved since. Stateless mode has no state snapshot to record and no apply command to consume the file yet. Rerun without -out.")
+	}
+	if args.GenerateConfigPath != "" {
+		reject("Config generation is not available in stateless mode yet",
+			"-generate-config-out generates configuration for import blocks, which stateless mode does not process yet. Rerun without -generate-config-out.")
+	}
+	if args.Operation.PlanMode != plans.NormalMode {
+		reject("Only the normal planning mode is available in stateless mode yet",
+			"live-plan v0 produces a normal plan. -destroy needs a stateless apply to consume it (roadmap P2.1), and -refresh-only compares a stored record against the live system, which is the comparison stateless mode does not have a stored side for. Rerun without -destroy and -refresh-only.")
+	}
+	if args.State.StatePath != "" || args.State.StateOutPath != "" || args.State.BackupPath != "" {
+		reject("State file options are not available in stateless mode",
+			"There is no state file to read, write or back up: prior state is a projection built from the live system and discarded when the run ends. Rerun without -state, -state-out and -backup.")
+	}
+
+	return diags
+}
+
+// ---------------------------------------------------------------------------
+// Providers
+// ---------------------------------------------------------------------------
+
+// statelessProviders implements [projection.Providers] over the ordinary
+// plugin library, which is the same library the plan afterwards uses: real
+// plugin executables from the providercache that "choudoufu init" populated, or
+// whatever the test overrides supplied.
+//
+// The projection builder needs providers that are already configured, because
+// it calls ImportResourceState and ReadResource on them. Configuring a
+// provider means evaluating its configuration block, which this type does
+// through the module's static evaluator: constants, variables, locals and
+// functions all work, and anything that would need a full evaluation context
+// (a reference to a resource or a data source in a provider block) fails with
+// the evaluator's own diagnostic. That is the v0 line, and it is where the
+// estate fixture sits: its provider block carries only literal flags, with
+// region, credentials and endpoint reaching the plugin through the process
+// environment, which the plugin inherits.
+//
+// One plugin process is started per provider configuration, on demand, and
+// they are closed as soon as the projection is built. That is a second set of
+// provider processes for a run that will also start the plan's own set; a
+// single set would mean handing configured instances to tofu.Context, which
+// has no seam for that today.
+type statelessProviders struct {
+	config *configs.Config
+	mgr    plugins.ProviderManager
+
+	mu    sync.Mutex
+	cache map[string]providers.Interface
+
+	// configVals holds the value each provider configuration was configured
+	// with, so that discovery can ask what region a list should go to
+	// without evaluating the block a second time.
+	configVals map[string]cty.Value
+}
+
+var _ projection.Providers = (*statelessProviders)(nil)
+
+func newStatelessProviders(config *configs.Config, lib plugins.Library) *statelessProviders {
+	return &statelessProviders{
+		config:     config,
+		mgr:        lib.NewProviderManager(),
+		cache:      make(map[string]providers.Interface),
+		configVals: make(map[string]cty.Value),
+	}
+}
+
+// region is the region a list call for one provider configuration should go
+// to: whatever the provider block sets, or the region the environment
+// supplies, which is how the estate fixture configures itself. An empty
+// answer leaves the list configuration's region unset, and the provider's
+// own resolution stands.
+func (p *statelessProviders) region(addr addrs.AbsProviderConfig) string {
+	p.mu.Lock()
+	val, ok := p.configVals[addr.String()]
+	p.mu.Unlock()
+
+	if ok && val != cty.NilVal && !val.IsNull() && val.Type().IsObjectType() && val.Type().HasAttribute("region") {
+		region := val.GetAttr("region")
+		if !region.IsNull() && region.IsKnown() && region.Type() == cty.String && region.AsString() != "" {
+			return region.AsString()
+		}
+	}
+	for _, name := range []string{"AWS_REGION", "AWS_DEFAULT_REGION"} {
+		if v := os.Getenv(name); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// ConfiguredProvider implements [projection.Providers].
+func (p *statelessProviders) ConfiguredProvider(ctx context.Context, addr addrs.AbsProviderConfig) (providers.Interface, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	key := addr.String()
+	if provider, ok := p.cache[key]; ok {
+		return provider, nil
+	}
+
+	if !addr.Module.IsRoot() {
+		return nil, fmt.Errorf("provider configuration %s is in a child module, which stateless mode v0 does not support", addr)
+	}
+
+	schema, schemaDiags := p.mgr.GetProviderSchema(ctx, addr.Provider)
+	if schemaDiags.HasErrors() {
+		return nil, fmt.Errorf("cannot read the schema of provider %s: %w", addr.Provider, schemaDiags.Err())
+	}
+	if schema.Provider.Block == nil {
+		return nil, fmt.Errorf("provider %s reported no configuration schema", addr.Provider)
+	}
+
+	configVal, cfgDiags := p.providerConfigValue(ctx, addr, schema.Provider.Block.DecoderSpec())
+	if cfgDiags.HasErrors() {
+		return nil, fmt.Errorf("cannot evaluate the configuration of provider %s: %w", addr, cfgDiags.Err())
+	}
+
+	provider, diags := p.mgr.NewConfiguredProvider(ctx, addr.Provider, configVal)
+	if diags.HasErrors() {
+		return nil, fmt.Errorf("cannot configure provider %s: %w", addr, diags.Err())
+	}
+
+	p.cache[key] = provider
+	p.configVals[key] = configVal
+	return provider, nil
+}
+
+// providerConfigValue evaluates the provider block for the given address, or
+// produces the all-null value that an absent provider block implies, which is
+// how a provider that takes everything from the environment is configured.
+func (p *statelessProviders) providerConfigValue(ctx context.Context, addr addrs.AbsProviderConfig, spec hcldec.Spec) (cty.Value, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+
+	mod := p.config.Module
+	key := mod.LocalNameForProvider(addr.Provider)
+	if addr.Alias != "" {
+		key = key + "." + addr.Alias
+	}
+
+	body := hcl.EmptyBody()
+	ident := configs.StaticIdentifier{
+		Module:  addrs.RootModule,
+		Subject: fmt.Sprintf("provider.%s", key),
+	}
+	if pc, ok := mod.ProviderConfigs[key]; ok {
+		body = pc.Config
+		ident.DeclRange = pc.DeclRange
+	}
+
+	val, hclDiags := mod.StaticEvaluator.DecodeBlock(ctx, body, spec, ident)
+	diags = diags.Append(hclDiags)
+	return val, diags
+}
+
+// close shuts down every plugin process this type started.
+func (p *statelessProviders) close(ctx context.Context) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if err := p.mgr.Shutdown(ctx); err != nil {
+		diags = diags.Append(tfdiags.Sourceless(
+			tfdiags.Warning,
+			"Failed to shut down a provider plugin",
+			fmt.Sprintf("The providers used to read the live system could not all be shut down cleanly: %s.", err),
+		))
+	}
+	return diags
+}
+
+func (c *LivePlanCommand) Help() string {
+	helpText := `
+Usage: choudoufu [global options] live-plan [options]
+
+  EXPERIMENTAL. Generates a plan with no authoritative state: no state file,
+  no backend, and no lock. Prior state is a projection, built by reading the
+  live system at the start of the run and discarded at the end.
+
+  A terraform.tfstate in the working directory is never read and never
+  written. The working directory does still need "choudoufu init" to have
+  installed the providers.
+
+  Above the plan, this command prints the resource instances it could not
+  read from the live system, with a reason for each. Those instances are
+  missing from the prior state, which is why the plan proposes to create
+  them.
+
+  Every taggable resource that does not already declare the ownership markers
+  from stateless/MARKERS.md gets them injected into its planned tags, so the
+  plan shows them being added rather than a later run finding the resource
+  unowned. A marker already there and naming another estate or another address
+  is an error: renaming is "choudoufu live-mv", not a side effect of planning.
+
+  Below that it prints the live resources this estate does not own: resources
+  carrying no ownership marker, the ones that exactly match a resource this
+  configuration declares and could be adopted, and which resource types were
+  swept at all. Nothing unowned is ever part of the plan, and no plan this
+  command produces can destroy any of it.
+
+  The same section pairs a changed for_each key with the live resource still
+  marked with the old one: the plan proposes creating the new key either way,
+  and beside it you get the "choudoufu live-mv" command that rewrites the
+  marker instead. Nothing is renamed for you - a pairing this run cannot make
+  one-to-one is reported as ambiguous, with no command.
+
+Options:
+
+  -estate=name            The estate whose ownership markers this run looks
+                          for, matching the tofu-estate tag grammar in
+                          stateless/MARKERS.md. Defaults to the value the
+                          configuration itself stamps in its tofu-estate
+                          tags, when every resource that stamps one agrees.
+                          Without either, resources whose identity is
+                          assigned by the provider are not looked for, the
+                          plan proposes creating them, and no markers are
+                          stamped.
+
+  -target=resource        Limit the planning operation to only the given
+                          module, resource, or resource instance and all of
+                          its dependencies. You can use this option multiple
+                          times to include more than one object.
+
+  -target-file=filename   Similar to -target, but specifies zero or more
+                          resource addresses from a file.
+
+  -exclude=resource       Limit the planning operation to not operate on the
+                          given module, resource, or resource instance and all
+                          of the resources and modules that depend on it.
+
+  -exclude-file=filename  Similar to -exclude, but specifies zero or more
+                          resource addresses from a file.
+
+  -replace=resource       Force replacement of a particular resource instance
+                          using its resource address.
+
+  -var 'foo=bar'          Set a value for one of the input variables in the
+                          root module of the configuration. Use this option
+                          more than once to set more than one variable.
+
+  -var-file=filename      Load variable values from the given file, in
+                          addition to the default files terraform.tfvars and
+                          *.auto.tfvars.
+
+  -detailed-exitcode      Return detailed exit codes when the command exits.
+                          This will change the meaning of exit codes to:
+                          0 - Succeeded, diff is empty (no changes)
+                          1 - Errored
+                          2 - Succeeded, there is a diff
+
+  -compact-warnings       Show warnings in a more compact form.
+
+  -input=true             Ask for input for variables if not directly set.
+
+  -no-color               If specified, output won't contain any color.
+
+  -parallelism=n          Limit the number of concurrent operations. Defaults
+                          to 10.
+
+  The following stock plan options are rejected rather than ignored, because
+  stateless mode removes what they operate on or has not built them yet:
+  -out, -state, -state-out, -backup, -destroy, -refresh-only,
+  -generate-config-out, -json and -json-into. -refresh is accepted and has no
+  effect: the projection is already fresh, so the plan never refreshes.
+`
+	return strings.TrimSpace(helpText)
+}
+
+func (c *LivePlanCommand) Synopsis() string {
+	return "Show changes required by the configuration, with no state file (experimental)"
+}

@@ -1,0 +1,25 @@
+# choudoufu build targets. `just --list` shows everything.
+
+# Build the choudoufu binary into the current directory
+build:
+    go build ./cmd/choudoufu
+
+# Unit tests. Integration tiers skip unless their env vars are set.
+test:
+    go test ./...
+
+# Floci integration tier: needs Docker and the AWS CLI.
+test-floci:
+    make test-floci
+
+# The demo: real estate on a local emulator, state file deleted mid-run, plans stay exact. Needs Docker, ~2 minutes, exit 0 = every claim held.
+demo:
+    bash stateless/e2e/run.sh --expect 5
+
+# Build the docs site into site/public/
+site:
+    cd site && go run . -out public/
+
+# Lint exactly as upstream CI would (golangci-lint, both GOOS passes)
+lint:
+    make golangci-lint

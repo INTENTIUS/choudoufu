@@ -1,0 +1,7 @@
+# Local verification artifacts only — never the fixture itself. P0.2's
+# harness works against a mktemp copy of this directory and never runs here,
+# but keeping this clean stops a stray manual `terraform apply` from leaving
+# a state file behind for the next person.
+.terraform/
+terraform.tfstate
+terraform.tfstate.backup
