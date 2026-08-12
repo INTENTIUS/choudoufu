@@ -101,17 +101,17 @@ resource "implicit_thing" "b" {
 				tfdiags.Sourceless(
 					tfdiags.Error,
 					"Missing required provider",
-					"This configuration requires provider example.com/foo/beep, but that provider isn't available. You may be able to install it automatically by running:\n  tofu init",
+					"This configuration requires provider example.com/foo/beep, but that provider isn't available. You may be able to install it automatically by running:\n  choudoufu init",
 				),
 				tfdiags.Sourceless(
 					tfdiags.Error,
 					"Missing required provider",
-					"This configuration requires provider registry.opentofu.org/hashicorp/implicit, but that provider isn't available. You may be able to install it automatically by running:\n  tofu init",
+					"This configuration requires provider registry.opentofu.org/hashicorp/implicit, but that provider isn't available. You may be able to install it automatically by running:\n  choudoufu init",
 				),
 				tfdiags.Sourceless(
 					tfdiags.Error,
 					"Missing required provider",
-					"This configuration requires provider registry.opentofu.org/hashicorp/implicit2, but that provider isn't available. You may be able to install it automatically by running:\n  tofu init",
+					"This configuration requires provider registry.opentofu.org/hashicorp/implicit2, but that provider isn't available. You may be able to install it automatically by running:\n  choudoufu init",
 				),
 				tfdiags.Sourceless(
 					tfdiags.Error,

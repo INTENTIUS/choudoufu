@@ -88,7 +88,7 @@ func (b *Remote) opApply(ctx context.Context, stopCtx, cancelCtx context.Context
 			"No configuration files found",
 			`Apply requires configuration to be present. Applying without a configuration `+
 				`would mark everything for destruction, which is normally not what is desired. `+
-				`If you would like to destroy everything, please run 'tofu destroy' which `+
+				`If you would like to destroy everything, please run 'choudoufu destroy' which `+
 				`does not require any configuration files.`,
 		))
 	}

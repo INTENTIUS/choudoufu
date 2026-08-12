@@ -197,7 +197,7 @@ To suppress this error for the future 'destroy' runs, you can add the CLI flag "
 			tfdiags.Warning,
 			"Applied changes may be incomplete",
 			`The plan was created with the -target or the -exclude option in effect, so some changes requested in the configuration may have been ignored and the output values may not be fully updated. Run the following command to verify that no other changes are pending:
-    tofu plan
+    choudoufu plan
 	
 Note that the -target and -exclude options are not suitable for routine use, and are provided only for exceptional situations such as recovering from errors or mistakes, or when OpenTofu specifically suggests to use it as part of an error message.`,
 		))
@@ -400,7 +400,7 @@ func (c *Context) mergePlanAndApplyVariables(config *configs.Config, plan *plans
 			diags = diags.Append(&hcl.Diagnostic{
 				Severity: hcl.DiagError,
 				Summary:  `No value for required variable`,
-				Detail:   fmt.Sprintf("Variable %q is configured as ephemeral. This type of variables need to be given a value during `tofu plan` and also during `tofu apply`.", name),
+				Detail:   fmt.Sprintf("Variable %q is configured as ephemeral. This type of variables need to be given a value during `choudoufu plan` and also during `choudoufu apply`.", name),
 				Subject:  cfg.DeclRange.Ptr(),
 			})
 			continue
