@@ -381,7 +381,10 @@ The unadmitted half holds by construction: `internal/stateless/discovery`
 builds the sweep universe from `identity.AdmittedTypes()`.)
 
 **Untaggable types cannot be removed by the sweep.** `aws_route`,
-`aws_route_table_association`, `aws_s3_bucket_policy` and
+`aws_route_table_association`, `aws_s3_bucket_policy`,
+`aws_s3_bucket_versioning`, `aws_s3_bucket_public_access_block`,
+`aws_s3_bucket_server_side_encryption_configuration`,
+`aws_s3_bucket_lifecycle_configuration` and
 `aws_iam_role_policy_attachment` carry no tags, so they can carry no
 ownership marker and the sweep has nothing to search on. Their identity is
 built from their own configuration, which means deleting the resource
