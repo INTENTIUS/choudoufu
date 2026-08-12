@@ -1983,7 +1983,8 @@ backend-block:state-backend
 cloud-block:state-backend
 unadmitted-type:unadmitted-type
 count-index-in-tag:count-index
-foreach-dotted-key:for-each-key"
+foreach-dotted-key:for-each-key
+overlong-address:overlong-address"
 
   # Directories no LINT rule catches. Each still has to be REFUSED — by
   # something — and each is asserted to produce no "Rule:" line, which is
@@ -1991,9 +1992,7 @@ foreach-dotted-key:for-each-key"
   #   duplicate-identity  rejected at identity resolution
   #                       (internal/stateless/identity), not by lint. The
   #                       named error is asserted below.
-  #   overlong-address    MARKERS.md's 256-char cap has no check anywhere
-  #                       yet. Genuinely unenforced; asserted as such.
-  LINT_TODO="duplicate-identity overlong-address"
+  LINT_TODO="duplicate-identity"
 
   # Completeness: every subdirectory of the limits wing appears in exactly
   # one table. Without this a new fixture directory would be silently
