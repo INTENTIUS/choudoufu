@@ -35,9 +35,10 @@ when a configuration opts in.
 
 ## Where do I download it?
 
-Nowhere yet. There are no published releases or packages. Clone the
-repository and run `go build ./cmd/choudoufu` to produce the binary. The
-demo harness builds it the same way.
+From the [releases page](https://github.com/INTENTIUS/choudoufu/releases).
+Each release carries prebuilt binaries for macOS and Linux on amd64 and
+arm64, with checksums. Building from source is still one command, `go build
+./cmd/choudoufu`, which is what the demo harness does.
 
 ## How do I turn markers on?
 
