@@ -112,7 +112,7 @@ var ruleInfo = map[Rule]struct {
 		// No stateless/LIMITATIONS.md entry exists for this rule; cite the
 		// docs page that defines it by title instead.
 		summary: "Nothing may reference a receipt's attributes",
-		docsRef: `stateless/RECEIPTS.md, "Guard 4 — the leaf rule"`,
+		docsRef: `stateless/RECEIPTS.md, "Guard 4. The leaf rule"`,
 	},
 }
 

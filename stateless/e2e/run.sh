@@ -1837,7 +1837,7 @@ else
 fi
 
 # ── 12b. receipt-cycle-existence ─────────────────────────────────────────────
-# RA.6 + RECEIPTS.md, "Two flavors; prefer the simpler": the estate's other
+# RA.6 + RECEIPTS.md, "Two flavors, prefer the simpler": the estate's other
 # receipt (aws_ssm_parameter.demo_existence) is the EXISTENCE flavor, the
 # default recommendation — its value is the constant "done", so existence is
 # the entire bit. Breaking it is a different operation from step 12's hash

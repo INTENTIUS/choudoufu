@@ -16,7 +16,7 @@ import (
 
 // TestReceiptExistenceFlavorAgainstFloci is RA.6's Go-level claim: the
 // EXISTENCE flavor of the receipts pattern (stateless/RECEIPTS.md, "Two
-// flavors; prefer the simpler") re-arms its effect the existence way. A
+// flavors, prefer the simpler") re-arms its effect the existence way. A
 // receipt whose value is a constant carries no information beyond whether
 // it exists at all, so breaking it out of band is a genuine delete, not a
 // value overwrite, and the next plan proposing exactly one create - on
