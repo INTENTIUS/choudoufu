@@ -1,5 +1,7 @@
 # choudoufu
 
+[![Release](https://img.shields.io/github/v/release/INTENTIUS/choudoufu)](https://github.com/INTENTIUS/choudoufu/releases)
+
 Choudoufu is OpenTofu with live resource markers. There is no state file, no
 backend and no lock. Each resource carries its own ownership record as plain
 tags, and every plan rebuilds prior state by reading those markers off the
@@ -22,8 +24,9 @@ outside that subset are refused up front by a lint pass rather than half
 supported. The full boundary, with the reasoning for each limit, is in
 [`stateless/LIMITATIONS.md`](stateless/LIMITATIONS.md).
 
-There are no published releases yet. To get a binary you build it yourself,
-which takes one command (below).
+Prebuilt binaries for macOS and Linux (amd64 and arm64) are on the
+[releases page](https://github.com/INTENTIUS/choudoufu/releases). Building
+from source stays one command (below).
 
 ## See it prove itself
 
