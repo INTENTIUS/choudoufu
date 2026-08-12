@@ -45,3 +45,7 @@ tmp
 
 # Generated docs site output
 site/public/
+
+# choudoufu build artifact and local agent state
+/choudoufu
+/.claude/
