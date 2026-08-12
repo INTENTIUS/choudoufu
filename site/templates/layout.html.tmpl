@@ -4,7 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{if eq .Title "choudoufu"}}choudoufu{{else}}{{.Title}} - choudoufu{{end}}</title>
-<link rel="stylesheet" href="{{.AssetPrefix}}style.css">
+<link rel="stylesheet" href="{{.AssetPrefix}}style.css?v={{.CSSVersion}}">
+<link rel="icon" href="{{.AssetPrefix}}favicon.ico" sizes="48x48 32x32 16x16">
+<link rel="icon" type="image/png" sizes="16x16" href="{{.AssetPrefix}}choudoufu-favicon-16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="{{.AssetPrefix}}choudoufu-favicon-32.png">
+<link rel="icon" type="image/png" sizes="48x48" href="{{.AssetPrefix}}choudoufu-favicon-48.png">
 </head>
 <body>
 <header class="site-header">
@@ -16,6 +20,9 @@
 <main>
 {{.Content}}
 </main>
+<div class="site-hero-image">
+  <img src="{{.AssetPrefix}}choudoufu-hero.png" alt="a plate of choudoufu" width="1024" height="1024">
+</div>
 <footer class="site-footer">
   <p>choudoufu is an independent fork. It is not affiliated with or endorsed
   by OpenTofu or the Linux Foundation. OpenTofu is a registered trademark of
