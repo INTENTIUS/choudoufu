@@ -205,6 +205,7 @@ func TestBuildAgainstFloci(t *testing.T) {
 		`aws_route.internet_gateway`:            ReasonParentUnavailable,
 		`aws_route_table_association.this["a"]`: ReasonParentUnavailable,
 		`aws_route_table_association.this["b"]`: ReasonParentUnavailable,
+		`aws_route53_record.app`:                ReasonParentUnavailable,
 	})
 	for _, addr := range []string{
 		`aws_route.internet_gateway`,
