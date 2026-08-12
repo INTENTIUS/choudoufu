@@ -23,7 +23,8 @@ render as a site at [intentius.io/choudoufu](https://intentius.io/choudoufu/).
 ## Where this stands
 
 Live markers are experimental, and the scope is deliberately narrow. The mode
-covers AWS only, 18 admitted resource types, and the root module. Configs
+covers AWS only, a fixed subset of resource types, and the root module.
+Configs
 outside that subset are refused up front by a lint pass rather than half
 supported. The full boundary, with the reasoning for each limit, is in
 [`stateless/LIMITATIONS.md`](stateless/LIMITATIONS.md).
