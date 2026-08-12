@@ -40,6 +40,14 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_security_group":   {},
 	"aws_route_table":      {},
 	"aws_internet_gateway": {},
+	// First slice of the survey's marker cohort (#20). Both are taggable,
+	// both have a native list resource in the provider, and both round-trip
+	// their tags through that list against the floci emulator, which is what
+	// the marker path actually needs — an import ID constructible from
+	// configuration is not required here, because discovery finds these by
+	// their tags.
+	"aws_kms_key":      {},
+	"aws_route53_zone": {},
 
 	// Parent-derived: identity is a composite key over already-admitted
 	// parents.
