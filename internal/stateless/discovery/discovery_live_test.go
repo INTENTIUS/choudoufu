@@ -188,9 +188,23 @@ func TestDiscoverAgainstFloci(t *testing.T) {
 
 	// Server-side filtering per type, and the fallback for the one type
 	// whose list schema offers no filter argument.
+	//
+	// The account-ID check is asked only of the types whose identity schema
+	// declares an account_id attribute at all, which the provider is asked
+	// for rather than assumed. Every EC2 type in the subset declares one and
+	// an empty value there is the real failure the check exists for - the
+	// provider resolved no account, so the owner-id filter it appends to a
+	// filtered list goes out empty (stateless/e2e/estate/versions.tf). The
+	// ELBv2 and SNS types declare no such attribute: their identity is an
+	// ARN and nothing else, so there is nothing for a scan to record and an
+	// empty AccountID says nothing about the provider.
+	withAccountID := typesWithIdentityAttr(ctx, t, provider, "account_id")
 	for _, s := range res.Scans {
 		t.Logf("SCAN %s", s)
-		if s.AccountID == "" {
+		switch {
+		case !withAccountID[s.TypeName]:
+			t.Logf("  (no account ID expected: %s's identity schema declares no account_id attribute)", s.TypeName)
+		case s.AccountID == "":
 			t.Errorf("%s listed identities with no account ID: the provider resolved no account, so its owner-id filter went out empty (see stateless/e2e/estate/versions.tf)", s.TypeName)
 		}
 	}
@@ -259,6 +273,10 @@ func TestDiscoverAgainstFloci(t *testing.T) {
 		`aws_internet_gateway.main`,
 		`aws_kms_alias.main`,
 		`aws_kms_key.main`,
+		`aws_lb.main`,
+		`aws_lb_listener.app`,
+		`aws_lb_target_group.app`,
+		`aws_lb_target_group_attachment.app`,
 		`aws_route.internet_gateway`,
 		`aws_route53_record.app`,
 		`aws_route53_zone.main`,
@@ -272,6 +290,7 @@ func TestDiscoverAgainstFloci(t *testing.T) {
 		`aws_s3_bucket_server_side_encryption_configuration.data`,
 		`aws_s3_bucket_versioning.data`,
 		`aws_security_group.main`,
+		`aws_sns_topic.alerts`,
 		`aws_ssm_parameter.demo_effect`,
 		`aws_ssm_parameter.demo_existence`,
 		`aws_subnet.this["a"]`,
@@ -316,6 +335,30 @@ func TestDiscoverAgainstFloci(t *testing.T) {
 // logMarkerAccessPaths lists one of each needs-discovery type and reports
 // where its markers were found, which is the per-type knowledge the tag
 // reader depends on.
+// typesWithIdentityAttr is the set of listable types whose resource identity
+// schema declares the named attribute, read off the provider rather than
+// listed by hand so that adding a type to the subset does not silently
+// change what a check over the scans is asserting.
+func typesWithIdentityAttr(ctx context.Context, t *testing.T, provider any, attr string) map[string]bool {
+	t.Helper()
+
+	schemas, diags := listclient.ListSchemas(ctx, provider)
+	if diags.HasErrors() {
+		t.Fatalf("reading the provider's list schemas: %s", diags.Err())
+	}
+	out := map[string]bool{}
+	for _, name := range schemas.Types() {
+		ts, _ := schemas.Get(name)
+		if ts.Identity == nil {
+			continue
+		}
+		if _, ok := ts.Identity.Attributes[attr]; ok {
+			out[name] = true
+		}
+	}
+	return out
+}
+
 func logMarkerAccessPaths(ctx context.Context, t *testing.T, provider any) {
 	t.Helper()
 
