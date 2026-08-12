@@ -421,12 +421,18 @@ var (
 		"aws_ecs_cluster",
 		"aws_kms_key",
 		"aws_route53_zone",
+		"aws_lb",
+		"aws_lb_target_group",
+		"aws_lb_listener",
+		"aws_sqs_queue",
+		"aws_sns_topic",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
 		"aws_route_table_association",
 		"aws_s3_bucket_policy",
 		"aws_iam_role_policy_attachment",
+		"aws_lb_target_group_attachment",
 	}
 )
 
@@ -795,12 +801,18 @@ func testSchemas() Schemas {
 		"aws_ecs_cluster":          tagged("id", "name", "arn"),
 		"aws_kms_key":              tagged("id", "key_id", "description"),
 		"aws_route53_zone":         tagged("id", "zone_id", "name"),
+		"aws_lb":                   tagged("id", "arn", "name", "internal"),
+		"aws_lb_target_group":      tagged("id", "arn", "name", "port", "protocol", "vpc_id"),
+		"aws_lb_listener":          tagged("id", "arn", "load_balancer_arn", "port", "protocol"),
+		"aws_sqs_queue":            tagged("id", "url", "arn", "name"),
+		"aws_sns_topic":            tagged("id", "arn", "name"),
 
 		// Untaggable, likewise.
 		"aws_route":                      untagged("route_table_id", "destination_cidr_block", "gateway_id"),
 		"aws_route_table_association":    untagged("subnet_id", "route_table_id"),
 		"aws_s3_bucket_policy":           untagged("bucket", "policy"),
 		"aws_iam_role_policy_attachment": untagged("role", "policy_arn"),
+		"aws_lb_target_group_attachment": untagged("id", "target_group_arn", "target_id", "port"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.

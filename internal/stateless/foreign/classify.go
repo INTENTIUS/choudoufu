@@ -76,6 +76,26 @@ type Request struct {
 // and adopting a key by its description is exactly the guess this table
 // exists to refuse. Adoption for a KMS key is refuse-only: it is reported
 // as foreign with the marker pair to stamp, and never offered.
+//
+// The types #20 and #21 add split the same way. aws_lb and
+// aws_lb_target_group join the table on their name argument: ELBv2 requires
+// a load balancer name to be unique within an account and region, and a
+// target group name likewise, which is the same guarantee a security
+// group's name carries within its VPC. aws_sqs_queue and aws_sns_topic join
+// on name for a stronger reason still - a queue name and a topic name are
+// each unique within an account and region by construction, since the URL
+// and the ARN are built out of them, so a name match there is not a
+// heuristic at all.
+//
+// aws_lb_listener and aws_lb_target_group_attachment are refuse-only, and
+// for the route table's reason rather than the KMS key's. A listener's
+// arguments are its port, its protocol and its default action, which
+// describe one listener of a load balancer whose identity is a live ARN
+// this package has no configuration value for; two load balancers with an
+// HTTP listener on 80 are indistinguishable here. An attachment is the same
+// shape one level down, and is derived rather than discovered anyway: its
+// identity comes out of its parent's live ARN, so there is never an
+// unclaimed one waiting to be matched.
 var matchTable = map[string][]string{
 	"aws_security_group": {"name"},
 	"aws_vpc":            {"cidr_block"},
@@ -89,6 +109,13 @@ var matchTable = map[string][]string{
 	// with the trailing dot trimmed, so a configuration written
 	// "example.com." reads as a near miss and says so.
 	"aws_route53_zone": {"name"},
+	// ELBv2 names, unique per account and region by the API's own rule.
+	"aws_lb":              {"name"},
+	"aws_lb_target_group": {"name"},
+	// Queue and topic names, unique per account and region because the
+	// identity is built out of them.
+	"aws_sqs_queue": {"name"},
+	"aws_sns_topic": {"name"},
 }
 
 // ec2Types are the types whose adoption command this package can write down.
