@@ -51,13 +51,13 @@ func TestStatelessLifecycleAgainstFloci(t *testing.T) {
 	flocitest.RequireBinary(t, "aws")
 	flocitest.RequireBinary(t, "go")
 
-	flocitest.StartFloci(t, "tofu-stateless-p41", flociPort)
+	flociPort = flocitest.StartFloci(t, "cdf-p41")
 
 	t.Setenv("AWS_ENDPOINT_URL", "http://localhost:"+flociPort)
 	t.Setenv("AWS_ACCESS_KEY_ID", "test")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
 	t.Setenv("AWS_REGION", awsRegion)
-	t.Setenv("TF_PLUGIN_CACHE_DIR", t.TempDir())
+	flocitest.PluginCacheDir(t)
 
 	tofuBin := flocitest.BuildTofu(t)
 	dir := t.TempDir()
@@ -279,10 +279,12 @@ func TestStatelessLifecycleAgainstFloci(t *testing.T) {
 // The fixture
 // ---------------------------------------------------------------------------
 
+// flociPort is this run's emulator port, chosen by the kernel when P4.1's
+// test starts its container. The aws* helpers below read it after that test
+// assigns it; no other test in this package touches them.
+var flociPort string
+
 const (
-	// flociPort is this task's port: 4601 is the e2e harness's and 4603-4608
-	// belong to neighbouring suites, so P4.1 uses 4615.
-	flociPort = "4615"
 	awsRegion = "us-east-1"
 
 	estate     = "p41-lifecycle"

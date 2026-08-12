@@ -49,10 +49,11 @@ import (
 // It is gated because it needs Docker, terraform, the AWS CLI and a few
 // minutes.
 
+// flociPort is this run's emulator port, chosen by the kernel when the test
+// starts the container. Helpers below read it after the test assigns it.
+var flociPort string
+
 const (
-	// flociPort is this task's port. 4601 is the e2e harness's and 4603-4608
-	// belong to neighbouring suites, so P3.3 uses 4610.
-	flociPort = "4610"
 	awsRegion = "us-east-1"
 
 	// estateName is the estate the P0.1 fixture stamps on everything.
@@ -132,14 +133,14 @@ func TestMvAgainstFloci(t *testing.T) {
 	flocitest.RequireBinary(t, "go")
 	flocitest.RequireBinary(t, terraformBin)
 
-	flocitest.StartFloci(t, "tofu-stateless-p33", flociPort)
+	flociPort = flocitest.StartFloci(t, "cdf-p33")
 
 	t.Setenv("AWS_ENDPOINT_URL", "http://localhost:"+flociPort)
 	t.Setenv("AWS_ACCESS_KEY_ID", "test")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
 	t.Setenv("AWS_REGION", awsRegion)
-	// One provider download for the whole run, shared by terraform and tofu.
-	t.Setenv("TF_PLUGIN_CACHE_DIR", t.TempDir())
+	// One provider unpack for the whole machine, shared by terraform and tofu.
+	flocitest.PluginCacheDir(t)
 
 	tofuBin := flocitest.BuildTofu(t)
 	dir := flocitest.CopyEstate(t)

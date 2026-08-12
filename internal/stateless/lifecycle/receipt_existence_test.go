@@ -37,13 +37,13 @@ func TestReceiptExistenceFlavorAgainstFloci(t *testing.T) {
 	flocitest.RequireBinary(t, "aws")
 	flocitest.RequireBinary(t, "go")
 
-	flocitest.StartFloci(t, "tofu-ra6-floci", ra6Port)
+	ra6Port = flocitest.StartFloci(t, "cdf-ra6")
 
 	t.Setenv("AWS_ENDPOINT_URL", "http://localhost:"+ra6Port)
 	t.Setenv("AWS_ACCESS_KEY_ID", "test")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
 	t.Setenv("AWS_REGION", "us-east-1")
-	t.Setenv("TF_PLUGIN_CACHE_DIR", t.TempDir())
+	flocitest.PluginCacheDir(t)
 
 	tofuBin := flocitest.BuildTofu(t)
 	dir := t.TempDir()
@@ -133,11 +133,11 @@ func TestReceiptExistenceFlavorAgainstFloci(t *testing.T) {
 // Fixture
 // ---------------------------------------------------------------------------
 
-const (
-	// ra6Port is this test's own port, in the 4630+ band no suite claims;
-	// 4631 belongs to internal/stateless/stamp/ownership_test.go.
-	ra6Port = "4632"
+// ra6Port is this run's emulator port, chosen by the kernel when RA.6's test
+// starts its container. ra6AWS reads it after that test assigns it.
+var ra6Port string
 
+const (
 	ra6Estate = "ra6-existence"
 	ra6Effect = "ra6-demo"
 	ra6Param  = "/tofu-receipts/" + ra6Estate + "/" + ra6Effect
