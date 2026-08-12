@@ -330,8 +330,11 @@ outcomes at all. They are named below.
   refuses outright if the target already holds bytes that parse as an
   OpenTofu state file (`internal/configs/live.go`'s `validateSnapshotPath`,
   `internal/stateless/projection/snapshot.go`'s `writeSnapshot`). The file
-  is written 0644, deliberately, since by the guarantees above it never
-  holds anything a stricter mode would need. It exists for offline diff
+  is written 0600, readable by its owner only. Even after redaction it
+  still names each resource's identity, import ID, and marker values, and
+  on a shared build host that metadata is more than some teams want other
+  users to read. Widen the mode with chmod on your side if your tooling
+  needs it. It exists for offline diff
   and audit by external tooling. Staleness is in its contract. A plan
   never writes or consults it, deleting it changes nothing, and a failed
   write is a warning, never an error. Treat `writtenAt` as a staleness
