@@ -121,10 +121,12 @@ var matchTable = map[string][]string{
 // ec2Types are the types whose adoption command this package can write down.
 // Everything in the v0 subset that carries EC2-style tags is adopted with
 // one create-tags call; a type outside this set still has a marker pair,
-// which is the actual contract, but no one-liner. The two marker types
-// added in #20 are outside it: a KMS key is tagged with kms:TagResource and
-// a hosted zone with route53:ChangeTagsForResource, each with its own flag
-// spelling, and neither is an ec2 create-tags call.
+// which is the actual contract, but no one-liner. Everything #20 and #21
+// added is outside it, and for the same reason each time: a KMS key is
+// tagged with kms:TagResource, a hosted zone with
+// route53:ChangeTagsForResource, an ELBv2 object with elasticloadbalancing:
+// AddTags, a queue with sqs:TagQueue and a topic with sns:TagResource. Each
+// has its own flag spelling and none is an ec2 create-tags call.
 var ec2Types = map[string]bool{
 	"aws_vpc":              true,
 	"aws_subnet":           true,
