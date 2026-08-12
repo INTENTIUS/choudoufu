@@ -93,8 +93,8 @@ func TestManager_snapshotWritten(t *testing.T) {
 		t.Fatalf("stat: %s", err)
 	}
 	if runtime.GOOS != "windows" {
-		if got := info.Mode().Perm(); got != 0o644 {
-			t.Errorf("snapshot mode is %o, want 0644", got)
+		if got := info.Mode().Perm(); got != 0o600 {
+			t.Errorf("snapshot mode is %o, want 0600", got)
 		}
 	}
 

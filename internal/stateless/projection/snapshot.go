@@ -673,10 +673,14 @@ func (s sensitivity) scrubAny(v any) any {
 // therefore never sees a partial file - it sees either the previous
 // snapshot or the new one, never a truncated one.
 //
-// Parent directories are created as needed. The final file is 0644; the
-// temp file is written 0600 (os.CreateTemp's default) and chmod'd up before
-// the rename, so no reader ever observes the wider mode racing the narrower
-// one - only the reverse, which is not a permissions weakening.
+// Parent directories are created as needed. The final file is 0600: even
+// after the redaction pass, the snapshot still carries resource identities,
+// import IDs, and marker values, which is more than some users want
+// world-readable on a shared build host (see stateless/RECEIPTS.md on what a
+// scrub does and does not remove). Owner-only is the conservative default,
+// and an operator who wants the file wider can chmod it afterwards.
+// os.CreateTemp already creates the temp file at 0600, so the mode is right
+// from the first byte and no chmod happens at any point.
 //
 // Before any of that, it refuses to write over a file that parses as an
 // OpenTofu state file. The configuration decoder already rejects the paths
@@ -726,9 +730,6 @@ func writeSnapshot(path string, snap *snapshot) error {
 	}
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("closing the observational snapshot's temp file: %w", err)
-	}
-	if err := os.Chmod(tmpPath, 0o644); err != nil {
-		return fmt.Errorf("setting permissions on the observational snapshot: %w", err)
 	}
 	if err := os.Rename(tmpPath, path); err != nil {
 		return fmt.Errorf("renaming the observational snapshot into place: %w", err)
