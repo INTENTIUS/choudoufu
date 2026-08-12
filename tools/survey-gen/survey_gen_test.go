@@ -17,7 +17,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/flocitest"
 )
 
-// TestSurveyJSONMatchesProviderSchemas regenerates stateless/survey.json
+// TestSurveyJSONMatchesProviderSchemas regenerates live/survey.json
 // from the pinned provider's live schemas and diffs it against the
 // committed artifact. A mismatch means either the committed file is stale
 // (rerun `go run ./tools/survey-gen` and review the diff) or the provider
@@ -217,7 +217,7 @@ var (
 var headlineRe = regexp.MustCompile(
 	`On the (\d+) curated types: (\d+) are taggable, (\d+) have native list resources, (\d+)\s+have provider identity schemas`)
 
-// TestSurveyJSONAgainstHandTable diffs the committed stateless/survey.json
+// TestSurveyJSONAgainstHandTable diffs the committed live/survey.json
 // against SURVEY.md's hand-written per-type table: same roster, per-type
 // path classification modulo the documented exception list, per-type
 // identity-schema signal against the Source column's schema/docs tier, and

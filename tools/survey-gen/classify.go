@@ -42,7 +42,7 @@ var opsExcluded = map[string]string{
 	"aws_acm_certificate_validation":    "waiter: records only that DNS validation finished; waiting belongs to the lifecycle layer",
 }
 
-// Survey is the committed artifact: stateless/survey.json.
+// Survey is the committed artifact: live/survey.json.
 type Survey struct {
 	// Provider and ProviderVersion pin the release every row was derived
 	// from. No timestamp on purpose: regeneration against the same release
