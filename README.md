@@ -14,7 +14,8 @@ If you already use OpenTofu, the short version is that `terraform.tfstate`
 stops existing. Adoption is a tag you write. A rename is a tag you rewrite.
 
 New here? Start with the [FAQ](stateless/FAQ.md). It answers the questions an
-OpenTofu user tends to ask in the first five minutes.
+OpenTofu user tends to ask in the first five minutes. The fork's docs also
+render as a site at [intentius.io/choudoufu](https://intentius.io/choudoufu/).
 
 ## Where this stands
 
