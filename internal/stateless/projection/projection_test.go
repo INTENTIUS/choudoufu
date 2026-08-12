@@ -90,6 +90,17 @@ func TestBuildEstate(t *testing.T) {
 		"id": "/tofu-receipts/stateless-e2e/demo-existence", "name": "/tofu-receipts/stateless-e2e/demo-existence",
 		"type": "String",
 	})
+	cloud.put("aws_dynamodb_table", "tofu-stateless-e2e-events", map[string]string{
+		"id": "tofu-stateless-e2e-events", "name": "tofu-stateless-e2e-events",
+		"arn": "arn:aws:dynamodb:us-east-1:000000000000:table/tofu-stateless-e2e-events",
+	})
+	// The cluster is keyed by its import ID (the name), while its id
+	// attribute carries the ARN — the split the identity table records.
+	cloud.put("aws_ecs_cluster", "tofu-stateless-e2e-cluster", map[string]string{
+		"id":   "arn:aws:ecs:us-east-1:000000000000:cluster/tofu-stateless-e2e-cluster",
+		"name": "tofu-stateless-e2e-cluster",
+		"arn":  "arn:aws:ecs:us-east-1:000000000000:cluster/tofu-stateless-e2e-cluster",
+	})
 
 	res, diags := Build(context.Background(), cfg, resolutions, cloud.providers(t))
 	assertNoErrors(t, diags)
@@ -97,6 +108,8 @@ func TestBuildEstate(t *testing.T) {
 	assertMaterialized(t, res, []string{
 		`aws_cloudwatch_log_group.app`,
 		`aws_cloudwatch_log_group.optional[0]`,
+		`aws_dynamodb_table.events`,
+		`aws_ecs_cluster.app`,
 		`aws_iam_role.app`,
 		`aws_iam_role_policy_attachment.app`,
 		`aws_s3_bucket.data`,
@@ -203,7 +216,7 @@ func TestBuildEstateAllAbsent(t *testing.T) {
 	if len(res.Materialized) != 0 {
 		t.Errorf("projection is not empty against an empty cloud: %s", res)
 	}
-	if got, want := len(res.OmittedBecause(ReasonAbsent)), 8; got != want {
+	if got, want := len(res.OmittedBecause(ReasonAbsent)), 10; got != want {
 		t.Errorf("%d instances recorded as absent, want %d:\n%s", got, want, res)
 	}
 	if res.State.HasManagedResourceInstanceObjects() {
@@ -747,6 +760,8 @@ var fakeAttrs = map[string][]string{
 	"aws_route_table_association":    {"id", "subnet_id", "route_table_id"},
 	"aws_eip":                        {"id", "domain", "allocation_id"},
 	"aws_ssm_parameter":              {"id", "name", "value", "type"},
+	"aws_dynamodb_table":             {"id", "name", "arn", "billing_mode", "hash_key"},
+	"aws_ecs_cluster":                {"id", "name", "arn"},
 }
 
 // fakeUntaggable is the caricature's version of a fact about the real

@@ -417,6 +417,8 @@ var (
 		"aws_iam_role",
 		"aws_cloudwatch_log_group",
 		"aws_ssm_parameter",
+		"aws_dynamodb_table",
+		"aws_ecs_cluster",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -787,6 +789,8 @@ func testSchemas() Schemas {
 		"aws_iam_role":             tagged("id", "name", "assume_role_policy"),
 		"aws_cloudwatch_log_group": tagged("id", "name", "retention_in_days"),
 		"aws_ssm_parameter":        tagged("id", "name", "type", "value"),
+		"aws_dynamodb_table":       tagged("id", "name", "billing_mode", "hash_key"),
+		"aws_ecs_cluster":          tagged("id", "name", "arn"),
 
 		// Untaggable, likewise.
 		"aws_route":                      untagged("route_table_id", "destination_cidr_block", "gateway_id"),

@@ -122,6 +122,8 @@ func TestBuildAgainstFloci(t *testing.T) {
 	assertMaterialized(t, res, []string{
 		`aws_cloudwatch_log_group.app`,
 		`aws_cloudwatch_log_group.optional[0]`,
+		`aws_dynamodb_table.events`,
+		`aws_ecs_cluster.app`,
 		`aws_iam_role.app`,
 		`aws_iam_role_policy_attachment.app`,
 		`aws_s3_bucket.data`,
@@ -139,6 +141,8 @@ func TestBuildAgainstFloci(t *testing.T) {
 		{`aws_cloudwatch_log_group.app`, "/stateless-e2e/app"},
 		{`aws_s3_bucket_policy.data`, "AllowAppRoleReadWrite"},
 		{`aws_iam_role_policy_attachment.app`, "ReadOnlyAccess"},
+		{`aws_dynamodb_table.events`, "tofu-stateless-e2e-events"},
+		{`aws_ecs_cluster.app`, "tofu-stateless-e2e-cluster"},
 	} {
 		is := res.State.ResourceInstance(mustAddr(t, spec.addr))
 		if is == nil || is.Current == nil {
