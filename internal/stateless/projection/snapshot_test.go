@@ -783,7 +783,9 @@ func TestSnapshot_noReader(t *testing.T) {
 		}
 		if d.IsDir() {
 			switch d.Name() {
-			case ".git", "vendor", "node_modules":
+			// .claude holds agent worktrees: full checkouts of this repo
+			// whose own snapshot.go copies are not readers of this one.
+			case ".git", "vendor", "node_modules", ".claude":
 				return filepath.SkipDir
 			}
 			return nil
