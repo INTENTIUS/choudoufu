@@ -62,7 +62,7 @@ func Resolve(ctx context.Context, cfg *configs.Config) (*Result, tfdiags.Diagnos
 			Severity: hcl.DiagError,
 			Summary:  "Configuration with child modules reached identity resolution",
 			Detail: fmt.Sprintf(
-				"Stateless mode v0 covers the root module only, and this configuration calls %s. Lint rejects module calls before this point, so this is a bug in the stateless pipeline.",
+				"Live resource markers v0 cover the root module only, and this configuration calls %s. Lint rejects module calls before this point, so this is a bug in the live-markers pipeline.",
 				strings.Join(quoteAll(names), ", "),
 			),
 		})
@@ -143,7 +143,7 @@ func (r *resolver) checkCollisions(result *Result) {
 			rng = rc.DeclRange
 		}
 		r.errorf(rng, "Two resources with the same identity",
-			"%s and %s both resolve to the identity %q. Both would bind to the same live resource, so one of them has to change: an identity is what tells a stateless run which cloud object a configuration block owns.",
+			"%s and %s both resolve to the identity %q. Both would bind to the same live resource, so one of them has to change: an identity is what tells a live-markers run which cloud object a configuration block owns.",
 			first.String(), res.Addr.String(), ident)
 	}
 }
@@ -221,8 +221,8 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 
 	entry, ok := LookupType(resAddr.Type)
 	if !ok {
-		r.errorf(rng, "Resource type outside the stateless subset",
-			"There is no identity knowledge for resource type %q, so %s cannot be admitted to a stateless projection. "+
+		r.errorf(rng, "Resource type outside the live-markers subset",
+			"There is no identity knowledge for resource type %q, so %s cannot be admitted to a live-markers projection. "+
 				"The v0 identity table covers: %s. See the roadmap's \"The admission rule\".",
 			resAddr.Type, addr.String(), strings.Join(AdmittedTypes(), ", "))
 		return Resolution{}, false
@@ -428,7 +428,7 @@ func (r *resolver) resolveTraversal(trav hcl.Traversal, scope instScope, ident c
 	}
 	if instAddr.Resource.Mode != addrs.ManagedResourceMode {
 		r.errorf(rng, "Identity not resolvable from configuration",
-			"%s refers to %s. Data sources are read at plan time and are not part of the stateless identity model.",
+			"%s refers to %s. Data sources are read at plan time and are not part of the live-markers identity model.",
 			ident.Subject, instAddr.String())
 		return nil, false
 	}

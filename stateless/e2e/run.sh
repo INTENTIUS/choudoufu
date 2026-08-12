@@ -1687,7 +1687,7 @@ else
   OUT_REJECT_RC=$?
   set -e
   [ "$OUT_REJECT_RC" -ne 0 ] || fail "plain-plan-works" "choudoufu plan -out=x should have been rejected, exited 0: $OUT_REJECT"
-  echo "$OUT_REJECT" | grep -q "Saved plan files are not available in stateless mode" \
+  echo "$OUT_REJECT" | grep -q "Saved plan files are not available under live resource markers" \
     || fail "plain-plan-works" "choudoufu plan -out=x did not name the expected error: $OUT_REJECT"
   [ ! -e "$WORK11/x" ] || fail "plain-plan-works" "choudoufu plan -out=x wrote a plan file despite being rejected"
 
@@ -1696,7 +1696,7 @@ else
   REFRESH_REJECT_RC=$?
   set -e
   [ "$REFRESH_REJECT_RC" -ne 0 ] || fail "plain-plan-works" "choudoufu refresh should have been rejected, exited 0: $REFRESH_REJECT"
-  echo "$REFRESH_REJECT" | grep -q "Refresh is not available in stateless mode" \
+  echo "$REFRESH_REJECT" | grep -q "Refresh is not available under live resource markers" \
     || fail "plain-plan-works" "choudoufu refresh did not name the expected error: $REFRESH_REJECT"
   echo "  rejected-flag spot check: plan -out and refresh both refused with their named errors"
 

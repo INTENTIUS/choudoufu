@@ -32,7 +32,7 @@ func TestStatelessWorkspaceGuard_workspaceCommandsRefused(t *testing.T) {
 	}{
 		{
 			name:        "workspace new",
-			summary:     "Command not available in stateless mode",
+			summary:     "Command not available under live resource markers",
 			names:       `"choudoufu workspace new" is not available here`,
 			replacement: "the directory would be left unable to do anything",
 			run: func(m Meta) int {
@@ -42,7 +42,7 @@ func TestStatelessWorkspaceGuard_workspaceCommandsRefused(t *testing.T) {
 		},
 		{
 			name:        "workspace select",
-			summary:     "Command not available in stateless mode",
+			summary:     "Command not available under live resource markers",
 			names:       `"choudoufu workspace select" is not available here`,
 			replacement: `"choudoufu workspace select default"`,
 			run: func(m Meta) int {
@@ -94,7 +94,7 @@ func TestStatelessWorkspaceGuard_workspaceSelectDefaultAllowed(t *testing.T) {
 	c.Run([]string{"-no-color", "default"})
 	output := done(t)
 
-	if got := output.Stderr() + output.Stdout(); strings.Contains(got, "Command not available in stateless mode") {
+	if got := output.Stderr() + output.Stdout(); strings.Contains(got, "Command not available under live resource markers") {
 		t.Errorf("selecting the default workspace was refused, which would strand a directory rather than unstrand it:\n%s", got)
 	}
 }
@@ -125,7 +125,7 @@ func TestStatelessWorkspaceGuard_workspaceCommandsUnguarded(t *testing.T) {
 			tc.run(liveBlockMeta(view, newStatelessTestCloud()))
 			output := done(t)
 
-			if strings.Contains(output.Stderr()+output.Stdout(), "stateless mode") {
+			if strings.Contains(output.Stderr()+output.Stdout(), "live resource markers") {
 				t.Errorf("a configuration with no live block was refused:\nstderr:\n%s\nstdout:\n%s", output.Stderr(), output.Stdout())
 			}
 		})

@@ -305,10 +305,10 @@ func TestStatelessMode_applyRejections(t *testing.T) {
 		args []string
 		want string
 	}{
-		{"planfile", []string{"saved.tfplan"}, "Applying a saved plan file is not available in stateless mode"},
-		{"destroy", []string{"-destroy", "-auto-approve"}, "Only the normal planning mode is available in stateless mode"},
-		{"state-out", []string{"-auto-approve", "-state-out=other.tfstate"}, "State file options are not available in stateless mode"},
-		{"json", []string{"-auto-approve", "-json"}, "Machine-readable output is not available in stateless mode yet"},
+		{"planfile", []string{"saved.tfplan"}, "Applying a saved plan file is not available under live resource markers"},
+		{"destroy", []string{"-destroy", "-auto-approve"}, "Only the normal planning mode is available under live resource markers"},
+		{"state-out", []string{"-auto-approve", "-state-out=other.tfstate"}, "State file options are not available under live resource markers"},
+		{"json", []string{"-auto-approve", "-json"}, "Machine-readable output is not available under live resource markers yet"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			td := t.TempDir()
@@ -340,10 +340,10 @@ func TestStatelessMode_planRejections(t *testing.T) {
 		args []string
 		want string
 	}{
-		{"out", []string{"-out=tfplan"}, "Saved plan files are not available in stateless mode"},
-		{"state", []string{"-state=other.tfstate"}, "State file options are not available in stateless mode"},
-		{"refresh-only", []string{"-refresh-only"}, "Only the normal planning mode is available in stateless mode"},
-		{"json", []string{"-json"}, "Machine-readable output is not available in stateless mode yet"},
+		{"out", []string{"-out=tfplan"}, "Saved plan files are not available under live resource markers"},
+		{"state", []string{"-state=other.tfstate"}, "State file options are not available under live resource markers"},
+		{"refresh-only", []string{"-refresh-only"}, "Only the normal planning mode is available under live resource markers"},
+		{"json", []string{"-json"}, "Machine-readable output is not available under live resource markers yet"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			td := t.TempDir()
@@ -381,7 +381,7 @@ func TestStatelessMode_refreshRefused(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("exit code %d, want 1\nstdout:\n%s", code, output.Stdout())
 	}
-	if !strings.Contains(output.Stderr(), "Refresh is not available in stateless mode") {
+	if !strings.Contains(output.Stderr(), "Refresh is not available under live resource markers") {
 		t.Errorf("wrong diagnostic:\n%s", output.Stderr())
 	}
 	assertNoStateArtifacts(t, td)

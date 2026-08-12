@@ -137,8 +137,8 @@ func statelessBegin(
 	if opReq.Workspace != backend.DefaultStateName {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
-			"Workspaces are not available in stateless mode",
-			fmt.Sprintf("This run selected workspace %q. A workspace is a second state file under a different name, and stateless mode has no first one: an estate is the unit of ownership instead, named by the live block. Select the default workspace, or give each estate its own configuration.", opReq.Workspace),
+			"Workspaces are not available under live resource markers",
+			fmt.Sprintf("This run selected workspace %q. A workspace is a second state file under a different name, and a live-markers run has no first one: an estate is the unit of ownership instead, named by the live block. Select the default workspace, or give each estate its own configuration.", opReq.Workspace),
 		))
 	}
 
@@ -148,8 +148,8 @@ func statelessBegin(
 		// configuration, so it is the half the diagnostic can point at.
 		diags = diags.Append(&hcl.Diagnostic{
 			Severity: hcl.DiagError,
-			Summary:  "Stateless mode requires local operations",
-			Detail:   "The live block puts this configuration into stateless mode, which runs plan and apply in this process against a projection of the live system. The backend selected for this run performs its operations elsewhere, so there is nothing here to make stateless.",
+			Summary:  "Live resource markers require local operations",
+			Detail:   "The live block puts this configuration under live resource markers, which run plan and apply in this process against a projection of the live system. The backend selected for this run performs its operations elsewhere, out of the live block's reach.",
 			Subject:  settings.DeclRange.Ptr(),
 		})
 	}
@@ -218,26 +218,26 @@ func statelessRejections(op *arguments.Operation, state *arguments.State, viewOp
 	}
 
 	if viewOpts.ViewType != arguments.ViewHuman || viewOpts.JSONInto != nil {
-		reject("Machine-readable output is not available in stateless mode yet",
-			"A stateless run prints sections describing what it could not read from the live system and what it found that nobody owns, and those sections have no JSON representation yet. Rerun without -json or -json-into.")
+		reject("Machine-readable output is not available under live resource markers yet",
+			"A live-markers run prints sections describing what it could not read from the live system and what it found that nobody owns, and those sections have no JSON representation yet. Rerun without -json or -json-into.")
 	}
 	if planOut != "" {
-		reject("Saved plan files are not available in stateless mode",
-			"A saved plan file records the state snapshot the plan was made against, and a stateless run has no state snapshot: its prior state is rebuilt from the live system every time. Rerun without -out, and apply directly - a stateless apply plans against the live system at the moment it runs.")
+		reject("Saved plan files are not available under live resource markers",
+			"A saved plan file records the state snapshot the plan was made against, and a live-markers run has no state snapshot: its prior state is rebuilt from the live system every time. Rerun without -out, and apply directly - a live-markers apply plans against the live system at the moment it runs.")
 	}
 	if planFile != "" {
 		diags = diags.Append(statelessRejectPlanFile(planFile))
 	}
 	if generateConfigOut != "" {
-		reject("Config generation is not available in stateless mode yet",
-			"-generate-config-out generates configuration for import blocks, which stateless mode does not process yet. Rerun without -generate-config-out.")
+		reject("Config generation is not available under live resource markers yet",
+			"-generate-config-out generates configuration for import blocks, which a live-markers run does not process yet. Rerun without -generate-config-out.")
 	}
 	if op != nil && op.PlanMode != plans.NormalMode {
-		reject("Only the normal planning mode is available in stateless mode",
-			"Stateless mode v0 produces and applies normal plans. -refresh-only compares a stored record against the live system, which is the comparison stateless mode has no stored side for; -destroy is not verified against a stateless apply yet, and removing a resource from the configuration is the tested way to have it destroyed. Rerun without -destroy and -refresh-only.")
+		reject("Only the normal planning mode is available under live resource markers",
+			"Live resource markers v0 produce and apply normal plans. -refresh-only compares a stored record against the live system, which is the comparison a live-markers run has no stored side for; -destroy is not verified against a live-markers apply yet, and removing a resource from the configuration is the tested way to have it destroyed. Rerun without -destroy and -refresh-only.")
 	}
 	if state != nil && (state.StatePath != "" || state.StateOutPath != "" || state.BackupPath != "") {
-		reject("State file options are not available in stateless mode",
+		reject("State file options are not available under live resource markers",
 			"There is no state file to read, write or back up: prior state is a projection built from the live system and discarded when the run ends. Rerun without -state, -state-out and -backup.")
 	}
 
@@ -253,7 +253,7 @@ func statelessRejectPlanFile(path string) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	return diags.Append(tfdiags.Sourceless(
 		tfdiags.Error,
-		"Applying a saved plan file is not available in stateless mode",
+		"Applying a saved plan file is not available under live resource markers",
 		fmt.Sprintf("This configuration has a live block, so an apply builds its prior state by reading the live system, stamps ownership markers, and plans against what it finds. Applying %q would instead act on a record of how things were when the plan was made. Run \"choudoufu apply\" with no plan file.", path),
 	))
 }
@@ -432,7 +432,7 @@ func (r *statelessRunner) estateName(ctx context.Context, config *configs.Config
 			Severity: hcl.DiagError,
 			Summary:  "No estate named by the live block",
 			Detail: fmt.Sprintf(
-				"Stateless mode recovers what it owns from ownership markers on the live resources, so every run needs the estate name those markers carry. Nothing in this configuration stamps a %s tag with a value readable from configuration alone. Name it in the block:\n\n  terraform {\n    live {\n      estate = \"my-estate\"\n    }\n  }",
+				"A live-markers run recovers what it owns from the ownership markers on the live resources, so every run needs the estate name those markers carry. Nothing in this configuration stamps a %s tag with a value readable from configuration alone. Name it in the block:\n\n  terraform {\n    live {\n      estate = \"my-estate\"\n    }\n  }",
 				discovery.TagEstate,
 			),
 			Subject: subject,

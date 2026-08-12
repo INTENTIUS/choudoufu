@@ -357,7 +357,7 @@ func (m *Module) appendFile(file *File) hcl.Diagnostics {
 			diags = append(diags, &hcl.Diagnostic{
 				Severity: hcl.DiagError,
 				Summary:  "Duplicate live configuration",
-				Detail:   fmt.Sprintf("A module may have only one 'live' block. Stateless mode was previously configured at %s.", m.Live.DeclRange),
+				Detail:   fmt.Sprintf("A module may have only one 'live' block. Live resource markers were previously configured at %s.", m.Live.DeclRange),
 				Subject:  &s.DeclRange,
 			})
 			continue
@@ -374,7 +374,7 @@ func (m *Module) appendFile(file *File) hcl.Diagnostics {
 		diags = append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Both a backend and a live configuration are present",
-			Detail:   fmt.Sprintf("A module may declare either one 'live' block, which removes state entirely, OR one 'backend' block configuring where state is stored. Stateless mode is configured at %s; a backend is configured at %s. Remove one of them.", m.Live.DeclRange, m.Backend.DeclRange),
+			Detail:   fmt.Sprintf("A module may declare either one 'live' block, which removes state entirely, OR one 'backend' block configuring where state is stored. Live resource markers are configured at %s; a backend is configured at %s. Remove one of them.", m.Live.DeclRange, m.Backend.DeclRange),
 			Subject:  &m.Backend.DeclRange,
 		})
 	}
@@ -382,7 +382,7 @@ func (m *Module) appendFile(file *File) hcl.Diagnostics {
 		diags = append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Both a cloud and a live configuration are present",
-			Detail:   fmt.Sprintf("A module may declare either one 'live' block, which removes state entirely, OR one 'cloud' block configuring a cloud backend. Stateless mode is configured at %s; a cloud backend is configured at %s. Remove one of them.", m.Live.DeclRange, m.CloudConfig.DeclRange),
+			Detail:   fmt.Sprintf("A module may declare either one 'live' block, which removes state entirely, OR one 'cloud' block configuring a cloud backend. Live resource markers are configured at %s; a cloud backend is configured at %s. Remove one of them.", m.Live.DeclRange, m.CloudConfig.DeclRange),
 			Subject:  &m.CloudConfig.DeclRange,
 		})
 	}

@@ -225,7 +225,7 @@ type StatelessPlanHuman struct {
 
 var _ StatelessPlan = (*StatelessPlanHuman)(nil)
 
-const statelessOmissionsIntro = `Stateless mode builds prior state by reading the live system. It could not read the following resource instances, so they are absent from the prior state and the plan below proposes to create them. This is not a claim that they do not exist: each line says why the instance could not be read.`
+const statelessOmissionsIntro = `A live-markers run builds prior state by reading the live system. It could not read the following resource instances, so they are absent from the prior state and the plan below proposes to create them. This is not a claim that they do not exist: each line says why the instance could not be read.`
 
 func (v *StatelessPlanHuman) Omissions(oms []StatelessOmission) {
 	if len(oms) == 0 {
@@ -256,7 +256,7 @@ func (v *StatelessPlanHuman) Omissions(oms []StatelessOmission) {
 	v.view.outputHorizRule()
 }
 
-const statelessForeignIntro = `These live resources carry no ownership marker for this estate. Stateless mode reports them and does nothing else: nothing unowned is in the prior state this plan ran against, so no plan can propose destroying any of them. Adopting one means stamping its markers deliberately.`
+const statelessForeignIntro = `These live resources carry no ownership marker for this estate. This run reports them and does nothing else: nothing unowned is in the prior state this plan ran against, so no plan can propose destroying any of them. Adopting one means stamping its markers deliberately.`
 
 const statelessAdoptIntro = `Each of these matches a declared resource that discovery could not find, exactly, on the arguments that identify that resource type. None of them was bound: ownership is the tofu-estate and tofu-address tag pair and nothing else, so claiming one is a tag write you make on purpose.`
 

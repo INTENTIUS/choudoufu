@@ -192,7 +192,7 @@ func (m *Manager) PersistState(_ context.Context, schemas *tofu.Schemas) error {
 	if writeErr != nil {
 		m.snapshotWarning = tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(
 			tfdiags.Warning,
-			"Could not write the stateless snapshot",
+			"Could not write the observational snapshot",
 			fmt.Sprintf(
 				"Writing the observational snapshot to %q failed: %s. This snapshot is a cache for offline diff and audit; it is never read by any operation, so the run is unaffected.",
 				path, writeErr,
