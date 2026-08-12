@@ -68,6 +68,18 @@ const (
 	// recognizable as a receipt (stateless/RECEIPTS.md's naming
 	// convention). See receipt_leaf.go.
 	RuleReceiptLeaf Rule = "receipt-leaf"
+
+	// RuleReceiptValue covers a statically recognizable receipt declared
+	// with a literal type = "SecureString", or whose value expression is
+	// not visibly one of the two documented flavors: a hash call over the
+	// effect's declared inputs, or a constant literal. See
+	// receipt_value.go.
+	RuleReceiptValue Rule = "receipt-value"
+
+	// RuleReceiptSecret covers a statically recognizable receipt whose
+	// value expression directly references an input variable declared
+	// sensitive. See receipt_secret.go.
+	RuleReceiptSecret Rule = "receipt-secret"
 )
 
 // ruleInfo is the fixed part of every issue a rule produces: the one-line
@@ -123,6 +135,18 @@ var ruleInfo = map[Rule]struct {
 		// docs page that defines it by title instead.
 		summary: "Nothing may reference a receipt's attributes",
 		docsRef: `stateless/RECEIPTS.md, "Guard 4. The leaf rule"`,
+	},
+	RuleReceiptValue: {
+		// No stateless/LIMITATIONS.md entry exists for this rule; cite the
+		// docs page that defines it by title instead.
+		summary: "A receipt's value is a hash or a constant, and its type is never SecureString",
+		docsRef: `stateless/RECEIPTS.md, "Guard 2. Hash-only values, and never SecureString"`,
+	},
+	RuleReceiptSecret: {
+		// No stateless/LIMITATIONS.md entry exists for this rule; cite the
+		// docs page that defines it by title instead.
+		summary: "Receipt inputs reference secrets by pointer, never by value",
+		docsRef: `stateless/RECEIPTS.md, "Secrets discipline"`,
 	},
 }
 
