@@ -48,4 +48,5 @@ site/public/
 
 # choudoufu build artifact and local agent state
 /choudoufu
+/survey-gen
 /.claude/
