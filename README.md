@@ -2,7 +2,7 @@
 
 [![Release](https://img.shields.io/github/v/release/INTENTIUS/choudoufu)](https://github.com/INTENTIUS/choudoufu/releases)
 
-**Keep your OpenTofu, gain self-identifying resources.** <img src="docs/images/choudoufu-inline-64.png" width="32" height="32" alt="">
+**Ownership on the resource.** <img src="docs/images/choudoufu-inline-64.png" width="32" height="32" alt="">
 
 Choudoufu is OpenTofu with live resource markers. There is no state file, no
 backend and no lock. Each resource carries its own ownership record as plain
