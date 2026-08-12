@@ -38,6 +38,21 @@ type Request struct {
 	// nothing to classify - and the scan rows will say so, which is what
 	// [Result.Unswept] reports.
 	Discovery *discovery.Result
+
+	// Region is the region the discovery pass listed in, as the provider
+	// configuration knows it - the same value handed to
+	// [discovery.Request.Region]. It travels into the adoption hint as a
+	// --region flag, so that the printed command talks to the same region
+	// the resource was found in rather than whatever the operator's CLI
+	// profile defaults to. Empty leaves the flag off the hint.
+	Region string
+
+	// EndpointURL is the custom endpoint the provider configuration reaches
+	// the cloud through, when one is configured - a LocalStack-style
+	// emulator, a VPC endpoint. It travels into the adoption hint as an
+	// --endpoint-url flag for the same reason Region does. Empty leaves the
+	// flag off the hint.
+	EndpointURL string
 }
 
 // matchTable is the per-type list of identity-bearing arguments a content
@@ -377,7 +392,7 @@ func (c *classifier) finish() {
 				Matched:       p.on,
 				MarkerEstate:  c.req.Estate,
 				MarkerAddress: discovery.EscapeAddress(p.slot.addr.String()),
-				Hint:          adoptionHint(c.req.Estate, u, p.slot.addr),
+				Hint:          adoptionHint(c.req, u, p.slot.addr),
 			}
 		case len(ps) == 1:
 			var other []string
@@ -653,16 +668,30 @@ func staticString(ctx context.Context, mod *configs.Module, rc *configs.Resource
 // the two marker tags on it. There is no adopt subcommand to point at - the
 // marker spec is deliberately the whole contract, so the hint is the tag
 // write itself, which any tool honoring stateless/MARKERS.md can perform.
-func adoptionHint(estate string, u *discovery.UnclaimedResource, addr addrs.AbsResourceInstance) string {
+//
+// The hint is built to be pasted verbatim, the same standard renameCommand
+// holds itself to: every interpolated value goes through shellQuote (a
+// for_each key can carry a space or a bracket), and the region and endpoint
+// the provider configuration listed through ride along as --region and
+// --endpoint-url, so the command lands where the resource actually is
+// rather than wherever the operator's CLI profile points.
+func adoptionHint(req Request, u *discovery.UnclaimedResource, addr addrs.AbsResourceInstance) string {
 	if !ec2Types[u.TypeName] || u.ImportID == "" {
 		return ""
 	}
-	return fmt.Sprintf(
-		"aws ec2 create-tags --resources %s --tags Key=%s,Value=%s Key=%s,Value=%s",
-		u.ImportID,
-		discovery.TagEstate, estate,
-		discovery.TagAddress, discovery.EscapeAddress(addr.String()),
+	cmd := fmt.Sprintf(
+		"aws ec2 create-tags --resources %s --tags %s %s",
+		shellQuote(u.ImportID),
+		shellQuote(fmt.Sprintf("Key=%s,Value=%s", discovery.TagEstate, req.Estate)),
+		shellQuote(fmt.Sprintf("Key=%s,Value=%s", discovery.TagAddress, discovery.EscapeAddress(addr.String()))),
 	)
+	if req.Region != "" {
+		cmd += " --region " + shellQuote(req.Region)
+	}
+	if req.EndpointURL != "" {
+		cmd += " --endpoint-url " + shellQuote(req.EndpointURL)
+	}
+	return cmd
 }
 
 func liveKey(u *discovery.UnclaimedResource) string {

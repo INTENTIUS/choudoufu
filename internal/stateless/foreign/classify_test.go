@@ -161,6 +161,64 @@ func TestClassifyBindCandidate(t *testing.T) {
 	}
 }
 
+// TestClassifyAdoptionHintIsPasteable pins the hint's exact shape: every
+// interpolated value shell-quoted, and the region and endpoint the request
+// carries riding along as flags - the same standard the rename command holds
+// itself to. When the request carries neither, neither flag appears.
+func TestClassifyAdoptionHintIsPasteable(t *testing.T) {
+	disco := func() *discovery.Result {
+		return &discovery.Result{
+			Scans:   []discovery.TypeScan{scan("aws_security_group", 1)},
+			Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")},
+			Unclaimed: []discovery.UnclaimedResource{
+				live("aws_security_group", "sg-0abc", "stateless-e2e-main",
+					nil, map[string]string{"name": "stateless-e2e-main"}),
+			},
+		}
+	}
+
+	t.Run("with a region and an endpoint", func(t *testing.T) {
+		res, diags := Classify(context.Background(), Request{
+			Estate:      estateName,
+			Config:      loadConfig(t, estateDir(t)),
+			Discovery:   disco(),
+			Region:      "eu-west-1",
+			EndpointURL: "http://localhost:4600",
+		})
+		if diags.HasErrors() {
+			t.Fatalf("classification failed:\n%s", renderDiags(diags))
+		}
+		if len(res.Candidates) != 1 {
+			t.Fatalf("want exactly one bind candidate, got:\n%s", res)
+		}
+		want := "aws ec2 create-tags --resources 'sg-0abc'" +
+			" --tags 'Key=tofu-estate,Value=stateless-e2e' 'Key=tofu-address,Value=aws_security_group.main'" +
+			" --region 'eu-west-1' --endpoint-url 'http://localhost:4600'"
+		if got := res.Candidates[0].Hint; got != want {
+			t.Errorf("adoption hint is\n  %q\nwant\n  %q", got, want)
+		}
+	})
+
+	t.Run("with neither", func(t *testing.T) {
+		res, diags := Classify(context.Background(), Request{
+			Estate:    estateName,
+			Config:    loadConfig(t, estateDir(t)),
+			Discovery: disco(),
+		})
+		if diags.HasErrors() {
+			t.Fatalf("classification failed:\n%s", renderDiags(diags))
+		}
+		if len(res.Candidates) != 1 {
+			t.Fatalf("want exactly one bind candidate, got:\n%s", res)
+		}
+		want := "aws ec2 create-tags --resources 'sg-0abc'" +
+			" --tags 'Key=tofu-estate,Value=stateless-e2e' 'Key=tofu-address,Value=aws_security_group.main'"
+		if got := res.Candidates[0].Hint; got != want {
+			t.Errorf("adoption hint is\n  %q\nwant\n  %q", got, want)
+		}
+	})
+}
+
 // TestClassifyVPCBindCandidate matches on a literal CIDR rather than a name,
 // which is the other shape of identity-bearing argument in the table.
 func TestClassifyVPCBindCandidate(t *testing.T) {
