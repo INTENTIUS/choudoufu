@@ -20,9 +20,9 @@ Two kinds of entry appear below.
 
 - **Enforced today.** Lint (`internal/stateless/lint`) rejects the
   construct now, with the named rule constant.
-- **Documented, not yet enforced.** The roadmap bans or bounds the
-  construct, but no check exists yet (or the check exists in a different
-  package, at a different phase, than lint). The fixture directory loads
+- **Documented, not yet enforced.** The mode bans or bounds the construct,
+  but no lint check exists yet (or the check lives in a different package,
+  at a later phase of the run, than lint). The fixture directory loads
   clean today, and the test asserts zero issues on purpose, so that the day
   enforcement lands, the test fails loudly instead of the gap staying quiet.
   Only new enforcement is allowed to move an entry from this section to the
@@ -149,8 +149,8 @@ across explicitly as variables or module outputs.
 **Why banned.** It rewrites which state entry belongs to which address, and
 there is no state entry to rewrite. Named explicitly in "Banned, and why".
 
-**Forwarding address.** `choudoufu live-mv <old-address> <new-address>`
-(P3.3), the marker rewrite that plays the same role by editing the live
+**Forwarding address.** `choudoufu live-mv <old-address> <new-address>`,
+the marker rewrite that plays the same role by editing the live
 resource's `tofu-address` tag directly (`stateless/MARKERS.md`, "The rename
 rule").
 

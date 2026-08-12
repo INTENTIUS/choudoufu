@@ -60,7 +60,7 @@ var docPages = []docPage{
 	},
 	{
 		Slug:       "markers",
-		NavLabel:   "Markers",
+		NavLabel:   "Spec",
 		Title:      "Marker Spec",
 		SourcePath: "stateless/MARKERS.md",
 	},
