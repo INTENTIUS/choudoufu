@@ -111,7 +111,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		return res, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Configuration with child modules reached discovery",
-			"Stateless mode v0 covers the root module only. Lint rejects module calls before this point, so this is a bug in the stateless pipeline.",
+			"Live resource markers v0 cover the root module only. Lint rejects module calls before this point, so this is a bug in the live-markers pipeline.",
 		))
 	case req.Provider == nil:
 		return res, diags.Append(tfdiags.Sourceless(
@@ -499,7 +499,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			Kind:     ProblemTypeNotListable,
 			TypeName: typeName,
 			Detail: fmt.Sprintf(
-				"The provider cannot list %s, so the %d declared instance(s) of it cannot be discovered by marker. Reporting them as absent would propose creating resources that may already exist; the provider needs list support for this type before stateless mode can manage it.",
+				"The provider cannot list %s, so the %d declared instance(s) of it cannot be discovered by marker. Reporting them as absent would propose creating resources that may already exist; the provider needs list support for this type before live resource markers can manage it.",
 				typeName, scan.Declared),
 		}))
 	}
@@ -549,7 +549,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				TypeName: typeName,
 				Reason:   SweepGapConfigFailed,
 				Detail: fmt.Sprintf(
-					"The list configuration for %s could not be built from the provider's schema, so the sweep could not look for undeclared resources of that type. This is a bug in the provider's list schema or in stateless mode, not a fact about the estate.",
+					"The list configuration for %s could not be built from the provider's schema, so the sweep could not look for undeclared resources of that type. This is a bug in the provider's list schema or in the live-markers pipeline, not a fact about the estate.",
 					typeName),
 			}))
 		}
@@ -782,7 +782,7 @@ func markerTypeOf(escaped string) string {
 // type or the "module" keyword.
 func markerTypeLabel(markerType string) string {
 	if markerType == "module" {
-		return "resource inside a child module, which stateless mode v0 does not manage,"
+		return "resource inside a child module, which live resource markers v0 do not manage,"
 	}
 	return markerType
 }
@@ -896,7 +896,7 @@ func classifyOrphans(req Request, res *Result) tfdiags.Diagnostics {
 				Addr:     o.Addr,
 				Marker:   o.Normalized,
 				Detail: fmt.Sprintf(
-					"A live %s carrying this estate's marker for %s came back from the list call with no usable identity, so there is nothing to read it with and no destroy can be planned for it. The provider must serve an identity for a type stateless mode discovers by marker.",
+					"A live %s carrying this estate's marker for %s came back from the list call with no usable identity, so there is nothing to read it with and no destroy can be planned for it. The provider must serve an identity for a type discovered by marker.",
 					o.TypeName, o.Addr),
 			}))
 			o.Withheld = "the provider served no identity for it, so it cannot be read or destroyed"
@@ -1103,7 +1103,7 @@ func bind(req Request, decl *declared, res *Result) tfdiags.Diagnostics {
 						Addr:     entry.res.Addr,
 						Marker:   escaped,
 						Detail: fmt.Sprintf(
-							"The live %s carrying the marker for %s came back from the list call with no usable identity, so there is no import ID to build a projection from. The provider must serve an identity for a type stateless mode discovers by marker.",
+							"The live %s carrying the marker for %s came back from the list call with no usable identity, so there is no import ID to build a projection from. The provider must serve an identity for a type discovered by marker.",
 							typeName, entry.res.Addr),
 					}))
 					continue

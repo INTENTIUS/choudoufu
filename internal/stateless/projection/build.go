@@ -143,7 +143,7 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Configuration with child modules reached the projection",
-			"Stateless mode v0 covers the root module only. Lint rejects module calls before this point, so this is a bug in the stateless pipeline.",
+			"Live resource markers v0 cover the root module only. Lint rejects module calls before this point, so this is a bug in the live-markers pipeline.",
 		))
 		return empty, diags
 	}

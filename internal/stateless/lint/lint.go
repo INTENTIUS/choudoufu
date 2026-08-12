@@ -86,7 +86,7 @@ func checkStateBackends(mod *configs.Module, path addrs.Module, issues *[]Issue)
 			Construct: fmt.Sprintf("backend %q", backend.Type),
 			Module:    path,
 			Detail: "a backend configures where authoritative state is stored and locked. " +
-				"Stateless mode has no state file to store: prior state is a projection, " +
+				"A live-markers run has no state file to store: prior state is a projection, " +
 				"rebuilt from the live system at the start of every operation and discarded " +
 				"at the end. Remove the backend block",
 			Subject: backend.DeclRange,
@@ -99,7 +99,7 @@ func checkStateBackends(mod *configs.Module, path addrs.Module, issues *[]Issue)
 			Construct: "cloud block",
 			Module:    path,
 			Detail: "a cloud block is a remote state backend under another name, with " +
-				"remote locking attached. Stateless mode has neither. Remove the cloud block",
+				"remote locking attached. A live-markers run has neither. Remove the cloud block",
 			Subject: cloud.DeclRange,
 		})
 	}
@@ -144,8 +144,8 @@ func checkManagedResources(mod *configs.Module, path addrs.Module, issues *[]Iss
 				Module:    path,
 				Detail: fmt.Sprintf(
 					"%q is a logical resource (%s*): it has no existence outside the record "+
-						"that OpenTofu keeps of it, so that record is the store stateless mode "+
-						"removes. Nothing can recover its value from the live system, because "+
+						"that OpenTofu keeps of it, so that record is the store live resource "+
+						"markers remove. Nothing can recover its value from the live system, because "+
 						"there is no live system holding it. Pass the value in as a variable or "+
 						"a local, or read it from a resource that really exists",
 					resource.Type, prefix,
@@ -164,7 +164,7 @@ func checkManagedResources(mod *configs.Module, path addrs.Module, issues *[]Iss
 				Construct: addr,
 				Module:    path,
 				Detail: fmt.Sprintf(
-					"resource type %q is not in the stateless v0 admission table. A type "+
+					"resource type %q is not in the live-markers v0 admission table. A type "+
 						"participates only if its identity is recoverable from the live system "+
 						"with no memory, by one of the four admission paths: client-assigned "+
 						"identity, marker, parent-derived, or list plus content match. The v0 "+
@@ -194,7 +194,7 @@ func checkProvisioners(resource *configs.Resource, addr string, path addrs.Modul
 			Module:    path,
 			Detail: "a provisioner runs an effect, not a resource. Whether it has already run " +
 				"is knowable only from a stored record of the run, which is exactly the " +
-				"authority stateless mode gives up: the live system can say what exists, " +
+				"authority live resource markers give up: the live system can say what exists, " +
 				"never what happened to it. Remove the provisioner",
 			Subject: provisioner.DeclRange,
 		})
@@ -209,7 +209,7 @@ func checkProvisioners(resource *configs.Resource, addr string, path addrs.Modul
 			Construct: fmt.Sprintf("connection block on %s", addr),
 			Module:    path,
 			Detail: "a connection block configures how provisioners reach the resource, and " +
-				"provisioners are not available in stateless mode. Remove the connection block",
+				"provisioners are not available under live resource markers. Remove the connection block",
 			Subject: conn.DeclRange,
 		})
 	}
@@ -225,7 +225,7 @@ func checkDataResources(mod *configs.Module, path addrs.Module, issues *[]Issue)
 			Rule:      RuleRemoteState,
 			Construct: resource.Addr().String(),
 			Module:    path,
-			Detail: "this data source reads a state file, and stateless mode has no state to " +
+			Detail: "this data source reads a state file, and a live-markers run has no state to " +
 				"read. Pass the values across explicitly, as variables or outputs of a " +
 				"module call, or read the live resource with a data source of its own type",
 			Subject: resource.DeclRange,

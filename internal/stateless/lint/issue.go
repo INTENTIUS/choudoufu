@@ -79,27 +79,27 @@ var ruleInfo = map[Rule]struct {
 	docsRef string
 }{
 	RuleProvisioner: {
-		summary: "Provisioners are not available in stateless mode",
+		summary: "Provisioners are not available under live resource markers",
 		docsRef: `stateless/LIMITATIONS.md, "local-exec" / "remote-exec"`,
 	},
 	RuleRemoteState: {
-		summary: "terraform_remote_state is not available in stateless mode",
+		summary: "terraform_remote_state is not available under live resource markers",
 		docsRef: `stateless/LIMITATIONS.md, "remote-state"`,
 	},
 	RuleMovedBlock: {
-		summary: "moved blocks are not available in stateless mode",
+		summary: "moved blocks are not available under live resource markers",
 		docsRef: `stateless/LIMITATIONS.md, "moved-block"`,
 	},
 	RuleLogicalResource: {
-		summary: "Logical resources are not available in stateless mode",
+		summary: "Logical resources are not available under live resource markers",
 		docsRef: `stateless/LIMITATIONS.md, "null-resource" / "local-file" / "random-password" / "time-sleep"`,
 	},
 	RuleUnadmittedType: {
-		summary: "Resource type is outside the stateless subset",
+		summary: "Resource type is outside the live-markers subset",
 		docsRef: `stateless/LIMITATIONS.md, "unadmitted-type"`,
 	},
 	RuleStateBackend: {
-		summary: "State backends are not available in stateless mode",
+		summary: "State backends are not available under live resource markers",
 		docsRef: `stateless/LIMITATIONS.md, "backend-block" / "cloud-block"`,
 	},
 	RuleCountIndex: {
@@ -111,7 +111,7 @@ var ruleInfo = map[Rule]struct {
 		docsRef: `stateless/LIMITATIONS.md, "foreach-dotted-key"`,
 	},
 	RuleChildModule: {
-		summary: "Child modules are not available in stateless mode",
+		summary: "Child modules are not available under live resource markers",
 		docsRef: `stateless/LIMITATIONS.md, "child-module"`,
 	},
 	RuleOverlongAddress: {
@@ -132,7 +132,7 @@ func (r Rule) Summary() string {
 	if info, ok := ruleInfo[r]; ok {
 		return info.summary
 	}
-	return fmt.Sprintf("Stateless-mode rule %q", string(r))
+	return fmt.Sprintf("Live-markers rule %q", string(r))
 }
 
 // DocsRef names the shipped doc — almost always a stateless/LIMITATIONS.md

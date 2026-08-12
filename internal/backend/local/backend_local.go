@@ -262,8 +262,8 @@ func (b *Local) localRunDirect(ctx context.Context, stopCtx context.Context, op 
 			var panicDiags tfdiags.Diagnostics
 			panicDiags = panicDiags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
-				"Graph traversal panic during a stateless apply",
-				"No state was written, because a stateless run has no state file. Any object created before the panic carries this estate's ownership markers, so run \"choudoufu plan\" again to see what exists now.",
+				"Graph traversal panic during a live-markers apply",
+				"No state was written, because a live-markers run has no state file. Any object created before the panic carries this estate's ownership markers, so run \"choudoufu plan\" again to see what exists now.",
 			))
 			op.View.Diagnostics(panicDiags)
 		}

@@ -696,7 +696,7 @@ func writeSnapshot(path string, snap *snapshot) error {
 
 	data, err := json.MarshalIndent(snap, "", "  ")
 	if err != nil {
-		return fmt.Errorf("encoding the stateless snapshot: %w", err)
+		return fmt.Errorf("encoding the observational snapshot: %w", err)
 	}
 
 	dir := filepath.Dir(path)
@@ -708,7 +708,7 @@ func writeSnapshot(path string, snap *snapshot) error {
 
 	tmp, err := os.CreateTemp(dir, ".tofu-live-snapshot-*.tmp")
 	if err != nil {
-		return fmt.Errorf("creating a temp file for the stateless snapshot: %w", err)
+		return fmt.Errorf("creating a temp file for the observational snapshot: %w", err)
 	}
 	tmpPath := tmp.Name()
 	// Cleaned up unless the rename below succeeds; renaming removes it from
@@ -722,16 +722,16 @@ func writeSnapshot(path string, snap *snapshot) error {
 
 	if _, err := tmp.Write(data); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("writing the stateless snapshot: %w", err)
+		return fmt.Errorf("writing the observational snapshot: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("closing the stateless snapshot's temp file: %w", err)
+		return fmt.Errorf("closing the observational snapshot's temp file: %w", err)
 	}
 	if err := os.Chmod(tmpPath, 0o644); err != nil {
-		return fmt.Errorf("setting permissions on the stateless snapshot: %w", err)
+		return fmt.Errorf("setting permissions on the observational snapshot: %w", err)
 	}
 	if err := os.Rename(tmpPath, path); err != nil {
-		return fmt.Errorf("renaming the stateless snapshot into place: %w", err)
+		return fmt.Errorf("renaming the observational snapshot into place: %w", err)
 	}
 	committed = true
 	return nil

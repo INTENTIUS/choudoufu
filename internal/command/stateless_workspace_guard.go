@@ -58,7 +58,7 @@ func (m *Meta) statelessWorkspaceGuard(ctx context.Context, subcommand string, w
 	// [Meta.statelessStateGuard] for why.
 	return diags.Append(tfdiags.Sourceless(
 		tfdiags.Error,
-		"Command not available in stateless mode",
+		"Command not available under live resource markers",
 		statelessWorkspaceDetail(subcommand),
 	))
 }
@@ -66,7 +66,7 @@ func (m *Meta) statelessWorkspaceGuard(ctx context.Context, subcommand string, w
 func statelessWorkspaceDetail(subcommand string) string {
 	shared := fmt.Sprintf("\"choudoufu workspace %s\" is not available here. ", subcommand) +
 		"A workspace is a second state file under a different name, and this configuration's live block says there is no first one. " +
-		"The unit of ownership in stateless mode is the estate, named by the live block and recorded on the resources themselves as the tofu-estate marker (stateless/MARKERS.md). " +
+		"The unit of ownership under live resource markers is the estate, named by the live block and recorded on the resources themselves as the tofu-estate marker (stateless/MARKERS.md). " +
 		"Give each environment its own configuration directory with its own estate name, which is the separation workspaces were standing in for. "
 
 	switch subcommand {

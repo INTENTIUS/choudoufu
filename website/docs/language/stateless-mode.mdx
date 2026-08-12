@@ -282,7 +282,7 @@ outcomes at all. They are named below.
   `aws_eip`. Nothing else, no other AWS type, no other provider. A
   `module` block calling into a child module is refused outright. The
   subset lint rejects every module call with "Child modules are not
-  available in stateless mode", pointing at the `module` block itself,
+  available under live resource markers", pointing at the `module` block itself,
   before anything reads the live system. Only the root module is covered
   today.
 - **Two named orphan cases.** Deleting a resource block whose type carries

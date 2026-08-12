@@ -92,7 +92,7 @@ func checkCountIndex(resource *configs.Resource, addr string, path addrs.Module,
 				"%s's configuration reads count.index: the lexical index of a count instance is "+
 					"not stable across scale-up, scale-down, or reordering, so a property built from "+
 					"it cannot be recovered from the live system with no memory, and the instances it "+
-					"names stop being fungible. count survives in stateless mode only as cardinality "+
+					"names stop being fungible. count survives under live resource markers only as cardinality "+
 					"over a fungible set bound by stable slot markers, not by position (stateless/LIMITATIONS.md, "+
 					`"count-index-in-tag"). Replace count with for_each keyed by a stable identifier`,
 				addr,

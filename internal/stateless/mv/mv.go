@@ -166,7 +166,7 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		return res, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Configuration with child modules reached the rename",
-			"Stateless mode v0 covers the root module only. Lint rejects module calls before this point, so this is a bug in the stateless pipeline.",
+			"Live resource markers v0 cover the root module only. Lint rejects module calls before this point, so this is a bug in the live-markers pipeline.",
 		))
 	case req.Providers == nil:
 		return res, diags.Append(tfdiags.Sourceless(
@@ -191,7 +191,7 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	if _, admitted := identity.LookupType(res.TypeName); !admitted {
 		return res, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
-			"Resource type outside the stateless subset",
+			"Resource type outside the live-markers subset",
 			fmt.Sprintf(
 				"There is no identity knowledge for resource type %q, so a live resource of that type cannot be found, read or rewritten. The v0 identity table covers: %s.",
 				res.TypeName, strings.Join(identity.AdmittedTypes(), ", ")),
@@ -286,8 +286,8 @@ func checkAddresses(req Request) tfdiags.Diagnostics {
 		// so lint cannot have caught it and it stays a full explanation.
 		return diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
-			"Child modules are not available in stateless mode",
-			fmt.Sprintf("%s or %s is inside a module, and stateless mode v0 covers the root module only. See stateless/LIMITATIONS.md, \"child-module\".", req.Old, req.New),
+			"Child modules are not available under live resource markers",
+			fmt.Sprintf("%s or %s is inside a module, and live resource markers v0 cover the root module only. See stateless/LIMITATIONS.md, \"child-module\".", req.Old, req.New),
 		))
 	}
 	return diags
@@ -469,7 +469,7 @@ func (m *mover) find(ctx context.Context) (*states.ResourceInstanceObject, tfdia
 				tfdiags.Error,
 				"No marker search path for this resource type",
 				fmt.Sprintf(
-					"The identity of a %s is assigned by the provider at create time (%s), so the only way to find the live resource carrying %q is to list the type and read the markers - and this provider cannot list %s. Nothing was searched and nothing was written; this is not a report that no such resource exists. The provider needs list support for this type before stateless mode can rename it.",
+					"The identity of a %s is assigned by the provider at create time (%s), so the only way to find the live resource carrying %q is to list the type and read the markers - and this provider cannot list %s. Nothing was searched and nothing was written; this is not a report that no such resource exists. The provider needs list support for this type before live-mv can rename it.",
 					m.res.TypeName, discoveryReason(resolution), m.res.OldMarker, m.res.TypeName),
 			))
 		}

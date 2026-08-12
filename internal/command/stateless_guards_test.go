@@ -35,7 +35,7 @@ func TestStatelessGuards_escapeHatchesRefused(t *testing.T) {
 	}{
 		{
 			name:        "import",
-			summary:     "Import is not available in stateless mode",
+			summary:     "Import is not available under live resource markers",
 			names:       `"choudoufu import"`,
 			replacement: "stateless/MARKERS.md",
 			run: func(m Meta) int {
@@ -45,7 +45,7 @@ func TestStatelessGuards_escapeHatchesRefused(t *testing.T) {
 		},
 		{
 			name:        "taint",
-			summary:     "Taint is not available in stateless mode",
+			summary:     "Taint is not available under live resource markers",
 			names:       `"choudoufu taint"`,
 			replacement: `"choudoufu plan -replace=ADDRESS"`,
 			run: func(m Meta) int {
@@ -55,9 +55,9 @@ func TestStatelessGuards_escapeHatchesRefused(t *testing.T) {
 		},
 		{
 			name:        "untaint",
-			summary:     "Untaint is not available in stateless mode",
+			summary:     "Untaint is not available under live resource markers",
 			names:       `"choudoufu untaint"`,
-			replacement: "nothing in a stateless run can leave an object tainted",
+			replacement: "nothing in a live-markers run can leave an object tainted",
 			run: func(m Meta) int {
 				c := &UntaintCommand{Meta: m}
 				return c.Run([]string{"-no-color", "aws_s3_bucket.data"})
@@ -65,7 +65,7 @@ func TestStatelessGuards_escapeHatchesRefused(t *testing.T) {
 		},
 		{
 			name:        "state list",
-			summary:     "Command not available in stateless mode",
+			summary:     "Command not available under live resource markers",
 			names:       `"choudoufu state list"`,
 			replacement: "builds the projection from the live system",
 			run: func(m Meta) int {
@@ -75,7 +75,7 @@ func TestStatelessGuards_escapeHatchesRefused(t *testing.T) {
 		},
 		{
 			name:        "state show",
-			summary:     "Command not available in stateless mode",
+			summary:     "Command not available under live resource markers",
 			names:       `"choudoufu state show"`,
 			replacement: "builds the projection from the live system",
 			run: func(m Meta) int {
@@ -85,7 +85,7 @@ func TestStatelessGuards_escapeHatchesRefused(t *testing.T) {
 		},
 		{
 			name:        "state mv",
-			summary:     "Command not available in stateless mode",
+			summary:     "Command not available under live resource markers",
 			names:       `"choudoufu state mv"`,
 			replacement: `"choudoufu live-mv OLD NEW"`,
 			run: func(m Meta) int {
@@ -95,7 +95,7 @@ func TestStatelessGuards_escapeHatchesRefused(t *testing.T) {
 		},
 		{
 			name:        "state rm",
-			summary:     "Command not available in stateless mode",
+			summary:     "Command not available under live resource markers",
 			names:       `"choudoufu state rm"`,
 			replacement: "remove its tofu-estate and tofu-address tags",
 			run: func(m Meta) int {
@@ -105,7 +105,7 @@ func TestStatelessGuards_escapeHatchesRefused(t *testing.T) {
 		},
 		{
 			name:        "state pull",
-			summary:     "Command not available in stateless mode",
+			summary:     "Command not available under live resource markers",
 			names:       `"choudoufu state pull"`,
 			replacement: "There is no state to pull",
 			run: func(m Meta) int {
@@ -115,9 +115,9 @@ func TestStatelessGuards_escapeHatchesRefused(t *testing.T) {
 		},
 		{
 			name:        "state push",
-			summary:     "Command not available in stateless mode",
+			summary:     "Command not available under live resource markers",
 			names:       `"choudoufu state push"`,
-			replacement: "the record it would install is exactly the authority stateless mode removes",
+			replacement: "the record it would install is exactly the authority live resource markers remove",
 			run: func(m Meta) int {
 				c := &StatePushCommand{Meta: m}
 				// The source file does not exist: the refusal has to come
@@ -127,7 +127,7 @@ func TestStatelessGuards_escapeHatchesRefused(t *testing.T) {
 		},
 		{
 			name:        "state replace-provider",
-			summary:     "Command not available in stateless mode",
+			summary:     "Command not available under live resource markers",
 			names:       `"choudoufu state replace-provider"`,
 			replacement: "derives each resource's provider from the configuration on every run",
 			run: func(m Meta) int {
@@ -198,7 +198,7 @@ func TestStatelessGuards_escapeHatchesUnguarded(t *testing.T) {
 			tc.run(liveBlockMeta(view, newStatelessTestCloud()))
 			output := done(t)
 
-			if strings.Contains(output.Stderr()+output.Stdout(), "stateless mode") {
+			if strings.Contains(output.Stderr()+output.Stdout(), "live resource markers") {
 				t.Errorf("a configuration with no live block was refused:\nstderr:\n%s\nstdout:\n%s", output.Stderr(), output.Stdout())
 			}
 		})

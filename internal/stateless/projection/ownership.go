@@ -143,7 +143,7 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 	switch {
 	case own.Estate == "":
 		detail = fmt.Sprintf(
-			"A live %s exists with identity %q, and this run has no estate name, so there is nothing to check its ownership marker against. Adopting it on the strength of the configuration naming it is what stateless mode does not do: the record of ownership is on the resource, not in the configuration that would like to own it. Pass -estate=<name>, or name the estate in the live block, and re-run.",
+			"A live %s exists with identity %q, and this run has no estate name, so there is nothing to check its ownership marker against. Adopting it on the strength of the configuration naming it is what a live-markers run never does: the record of ownership is on the resource, not in the configuration that would like to own it. Pass -estate=<name>, or name the estate in the live block, and re-run.",
 			typeName, importID)
 	case estate == "":
 		detail = fmt.Sprintf(

@@ -815,7 +815,7 @@ func statelessDiscoveryProvider(config *configs.Config, needs []identity.Resolut
 		tfdiags.Error,
 		"Marker discovery across several provider configurations",
 		fmt.Sprintf(
-			"The resources waiting on marker discovery use %s. Stateless mode v0 discovers through one provider configuration per run, because a list issued against the wrong account or region would report an estate as missing rather than as unreachable. Split the configuration, or use -target to plan one provider's resources at a time.",
+			"The resources waiting on marker discovery use %s. Marker discovery v0 goes through one provider configuration per run, because a list issued against the wrong account or region would report an estate as missing rather than as unreachable. Split the configuration, or use -target to plan one provider's resources at a time.",
 			strings.Join(names, " and ")),
 	))
 }
@@ -992,7 +992,7 @@ func (c *LivePlanCommand) liveStateFileNote() tfdiags.Diagnostics {
 		tfdiags.Warning,
 		"State file present but not consulted",
 		fmt.Sprintf(
-			"%s exists in this directory and was not read. Stateless mode has no authoritative state: prior state for this plan was built by reading the live system, and nothing was written back. Whatever that file records has no effect on the plan below, and the file itself is left untouched.",
+			"%s exists in this directory and was not read. A live-markers run has no authoritative state: prior state for this plan was built by reading the live system, and nothing was written back. Whatever that file records has no effect on the plan below, and the file itself is left untouched.",
 			path,
 		),
 	))
@@ -1010,23 +1010,23 @@ func livePlanRejectUnsupported(args *arguments.Plan) tfdiags.Diagnostics {
 	}
 
 	if args.ViewOptions.ViewType != arguments.ViewHuman || args.ViewOptions.JSONInto != nil {
-		reject("Machine-readable output is not available in stateless mode yet",
+		reject("Machine-readable output is not available under live resource markers yet",
 			"live-plan prints a section describing what it could not read from the live system, and that section has no JSON representation yet. Rerun without -json or -json-into.")
 	}
 	if args.OutPath != "" {
-		reject("Saved plan files are not available in stateless mode",
-			"A saved plan file records the state snapshot the plan was made against so that apply can check the state has not moved since. Stateless mode has no state snapshot to record and no apply command to consume the file yet. Rerun without -out.")
+		reject("Saved plan files are not available under live resource markers",
+			"A saved plan file records the state snapshot the plan was made against so that apply can check the state has not moved since. A live-markers run has no state snapshot to record and no apply command to consume the file yet. Rerun without -out.")
 	}
 	if args.GenerateConfigPath != "" {
-		reject("Config generation is not available in stateless mode yet",
-			"-generate-config-out generates configuration for import blocks, which stateless mode does not process yet. Rerun without -generate-config-out.")
+		reject("Config generation is not available under live resource markers yet",
+			"-generate-config-out generates configuration for import blocks, which a live-markers run does not process yet. Rerun without -generate-config-out.")
 	}
 	if args.Operation.PlanMode != plans.NormalMode {
-		reject("Only the normal planning mode is available in stateless mode yet",
-			"live-plan v0 produces a normal plan. -destroy needs a stateless apply to consume it (roadmap P2.1), and -refresh-only compares a stored record against the live system, which is the comparison stateless mode does not have a stored side for. Rerun without -destroy and -refresh-only.")
+		reject("Only the normal planning mode is available under live resource markers yet",
+			"live-plan v0 produces a normal plan. -destroy needs a live-markers apply to consume it (roadmap P2.1), and -refresh-only compares a stored record against the live system, which is the comparison a live-markers run does not have a stored side for. Rerun without -destroy and -refresh-only.")
 	}
 	if args.State.StatePath != "" || args.State.StateOutPath != "" || args.State.BackupPath != "" {
-		reject("State file options are not available in stateless mode",
+		reject("State file options are not available under live resource markers",
 			"There is no state file to read, write or back up: prior state is a projection built from the live system and discarded when the run ends. Rerun without -state, -state-out and -backup.")
 	}
 
@@ -1152,7 +1152,7 @@ func (p *statelessProviders) ConfiguredProvider(ctx context.Context, addr addrs.
 	}
 
 	if !addr.Module.IsRoot() {
-		return nil, fmt.Errorf("provider configuration %s is in a child module, which stateless mode v0 does not support", addr)
+		return nil, fmt.Errorf("provider configuration %s is in a child module, which live resource markers v0 do not support", addr)
 	}
 
 	schema, schemaDiags := p.mgr.GetProviderSchema(ctx, addr.Provider)
@@ -1307,7 +1307,7 @@ Options:
                           to 10.
 
   The following stock plan options are rejected rather than ignored, because
-  stateless mode removes what they operate on or has not built them yet:
+  live resource markers remove what they operate on or have not built them yet:
   -out, -state, -state-out, -backup, -destroy, -refresh-only,
   -generate-config-out, -json and -json-into. -refresh is accepted and has no
   effect: the projection is already fresh, so the plan never refreshes.

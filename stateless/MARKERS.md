@@ -73,7 +73,7 @@ below describe the address format in full generality, because a marker
 written under this spec has to remain readable by whatever eventually reads
 module-qualified addresses. Nothing in the fork writes one yet. The subset
 lint refuses every module call outright, with "Child modules are not
-available in stateless mode", before anything reads the live system
+available under live resource markers", before anything reads the live system
 (`RuleChildModule`, `internal/stateless/lint/child_module.go`). Identity
 resolution, projection, discovery, stamping and the rename each still
 refuse a configuration with children, but as an internal invariant. Lint
