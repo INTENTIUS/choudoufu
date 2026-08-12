@@ -74,7 +74,7 @@ func serverAssigned(typeName, reason, importSyntax string, identityAttrs ...stri
 	}
 }
 
-// DefaultTable is the v0 identity table: the fourteen AWS resource types
+// DefaultTable is the v0 identity table: the sixteen AWS resource types
 // the estate fixture (stateless/e2e/estate) uses, which are also the types
 // the P1.1 admission lint admits. A type absent from this table is outside
 // the stateless subset and resolving it is an error.
@@ -152,6 +152,25 @@ var DefaultTable = buildTable(
 		Components:    []Component{attr("name")},
 		ImportSyntax:  "PARAMETERNAME",
 		IdentityAttrs: []string{"id", "name"},
+	},
+	TypeIdentity{
+		// First slice of the survey's client-named cohort (#19). The
+		// provider's documented import ID is the table name, and its id
+		// attribute is set to that same name.
+		Type:          "aws_dynamodb_table",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "TABLENAME",
+		IdentityAttrs: []string{"id", "name"},
+	},
+	TypeIdentity{
+		// Same slice (#19). Imports by the cluster name, but the provider
+		// sets id to the cluster ARN, not the name, so id must not be
+		// handed out as an identity source; only name carries the import
+		// ID. Same standard of care as aws_route's synthesized id.
+		Type:          "aws_ecs_cluster",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "CLUSTERNAME",
+		IdentityAttrs: []string{"name"},
 	},
 
 	// ---- Composed identities: concrete or parent-derived depending on

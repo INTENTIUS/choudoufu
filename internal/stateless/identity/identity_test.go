@@ -67,6 +67,12 @@ func TestResolveEstate(t *testing.T) {
 		`aws_ssm_parameter.demo_effect`:    `CONCRETE /tofu-receipts/stateless-e2e/demo-effect`,
 		`aws_ssm_parameter.demo_existence`: `CONCRETE /tofu-receipts/stateless-e2e/demo-existence`,
 
+		// First slice of the survey's client-named cohort (#19): a table
+		// named by its name argument, and a cluster whose import ID is the
+		// name even though the provider's id attribute is the ARN.
+		`aws_dynamodb_table.events`: `CONCRETE tofu-stateless-e2e-events`,
+		`aws_ecs_cluster.app`:       `CONCRETE tofu-stateless-e2e-cluster`,
+
 		// Parent-derived: the route table ID is live, the destination is
 		// config data, and the provider's import syntax joins them with an
 		// underscore.
@@ -108,7 +114,7 @@ func TestResolveEstateDisabled(t *testing.T) {
 	if _, ok := result.Get(mustAddr(t, `aws_cloudwatch_log_group.optional[0]`)); ok {
 		t.Error("aws_cloudwatch_log_group.optional[0] is present with enabled = false; count = 0 must expand to no instances")
 	}
-	if got, want := result.Len(), 19; got != want {
+	if got, want := result.Len(), 21; got != want {
 		t.Errorf("resolved %d instances, want %d", got, want)
 	}
 	if _, ok := result.Get(mustAddr(t, `aws_cloudwatch_log_group.app`)); !ok {
@@ -373,7 +379,7 @@ func TestTableCoversFixtureTypes(t *testing.T) {
 			t.Errorf("the v0 identity table covers %s, which the fixture does not use", typeName)
 		}
 	}
-	if got, want := len(AdmittedTypes()), 14; got != want {
+	if got, want := len(AdmittedTypes()), 16; got != want {
 		t.Errorf("table covers %d types, want the fixture's %d", got, want)
 	}
 }
