@@ -290,14 +290,19 @@ outcomes at all. They are named below.
 
 ## The Contract
 
-- **AWS only, 18 resource types, root module only.** The v0 admission table
+- **AWS only, 26 resource types, root module only.** The v0 admission table
   (`internal/stateless/lint/admission.go`) is the whole subset. It holds
   `aws_vpc`, `aws_subnet`, `aws_security_group`, `aws_route_table`,
-  `aws_internet_gateway`, `aws_kms_key`, `aws_route53_zone`, `aws_route`,
+  `aws_internet_gateway`, `aws_kms_key`, `aws_kms_alias`,
+  `aws_route53_zone`, `aws_route53_record`, `aws_route`,
   `aws_route_table_association`, `aws_iam_role_policy_attachment`,
-  `aws_s3_bucket`, `aws_s3_bucket_policy`, `aws_iam_role`,
-  `aws_cloudwatch_log_group`, `aws_ssm_parameter`, `aws_dynamodb_table`,
-  `aws_ecs_cluster`, and `aws_eip`. Nothing else, no other AWS type, no
+  `aws_iam_role_policy`, `aws_s3_bucket`, `aws_s3_bucket_policy`,
+  `aws_s3_bucket_versioning`, `aws_s3_bucket_public_access_block`,
+  `aws_s3_bucket_server_side_encryption_configuration`,
+  `aws_s3_bucket_lifecycle_configuration`, `aws_iam_role`,
+  `aws_cloudwatch_log_group`, `aws_cloudwatch_metric_alarm`,
+  `aws_ssm_parameter`, `aws_dynamodb_table`, `aws_ecs_cluster`, and
+  `aws_eip`. Nothing else, no other AWS type, no
   other provider. A `module` block calling into a child module is refused
   outright. The
   subset lint rejects every module call with "Child modules are not
@@ -306,7 +311,12 @@ outcomes at all. They are named below.
   today.
 - **Two named orphan cases.** Deleting a resource block whose type carries
   no tags at all (`aws_route`, `aws_route_table_association`,
-  `aws_s3_bucket_policy`, `aws_iam_role_policy_attachment`) removes the
+  `aws_s3_bucket_policy`, `aws_s3_bucket_versioning`,
+  `aws_s3_bucket_public_access_block`,
+  `aws_s3_bucket_server_side_encryption_configuration`,
+  `aws_s3_bucket_lifecycle_configuration`, `aws_iam_role_policy`,
+  `aws_kms_alias`, `aws_route53_record`,
+  `aws_iam_role_policy_attachment`) removes the
   only record of which live resource that block was. Destroy the resource
   before removing its block, or delete it out of band. This set is
   determined at runtime from each type's provider schema, not a fixed list
