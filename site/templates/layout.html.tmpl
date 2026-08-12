@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} — choudoufu</title>
+<link rel="stylesheet" href="{{.AssetPrefix}}style.css">
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="{{.AssetPrefix}}index.html">choudoufu</a>
+  <nav>
+    {{range .Nav}}<a href="{{$.AssetPrefix}}{{.Href}}"{{if .Active}} class="active"{{end}}>{{.Label}}</a>{{end}}
+  </nav>
+</header>
+<main>
+{{.Content}}
+</main>
+<footer class="site-footer">
+  <p>choudoufu is an independent fork. It is not affiliated with or endorsed
+  by OpenTofu or the Linux Foundation. OpenTofu is a registered trademark of
+  the Linux Foundation. Code is licensed MPL-2.0. Source:
+  <a href="https://github.com/opentofu/opentofu">github.com/opentofu/opentofu</a>
+  (upstream) &middot; all stock docs live at
+  <a href="https://opentofu.org/docs/">opentofu.org/docs</a>.</p>
+</footer>
+</body>
+</html>
