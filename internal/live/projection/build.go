@@ -229,15 +229,85 @@ func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
 	}
 
 	for _, r := range concrete {
-		b.materialize(ctx, r.Addr, r.ImportID, r.Undeclared)
+		b.materialize(ctx, wanted{
+			addr:       r.Addr,
+			importID:   r.ImportID,
+			identity:   r.Identity,
+			undeclared: r.Undeclared,
+		})
 	}
 	for _, r := range derived {
 		id, ok := b.renderFormula(r)
 		if !ok {
 			continue
 		}
-		b.materialize(ctx, r.Addr, id, r.Undeclared)
+		b.materialize(ctx, wanted{
+			addr:       r.Addr,
+			importID:   id,
+			identity:   r.Identity,
+			undeclared: r.Undeclared,
+		})
 	}
+}
+
+// wanted is one instance's identity in every form this run holds it, which is
+// the input [builder.materialize] works from.
+//
+// The two forms are not alternatives to choose between up front. The string
+// is what every operator-facing line prints and what a marker rewrite
+// records, so it is always carried; the identity object is what the import
+// itself should use when there is one, and whether there is one is a question
+// about the provider's schema, which is not known until a plugin is on the
+// line. So both travel here and [importTarget] decides per resource, once the
+// schema has arrived.
+type wanted struct {
+	addr addrs.AbsResourceInstance
+
+	// importID is the provider's import-ID string. Always populated.
+	importID string
+
+	// identity is the provider's own resource identity object, when
+	// something served one: a marker sweep's list results carry it. Null
+	// otherwise.
+	identity cty.Value
+
+	undeclared bool
+}
+
+// importTarget picks the form this instance's import is asked in.
+//
+// The identity object wins whenever there is one and the provider serves a
+// schema it fits, because it is the provider's own account of what names this
+// resource - read off the list call that found it - rather than one attribute
+// of that account flattened into a string. The string is the fallback, and it
+// is not a lesser one: it is the only form available for a type with no
+// identity schema, and the only form a configuration can produce.
+//
+// The two are exclusive on the wire: [providers.ImportTarget.IsIdentityBased]
+// decides, and both plugin protocols error rather than falling back when they
+// are handed an identity for a type with no identity schema. So the choice is
+// made here, where the schema is in hand, and exactly one field is set.
+func importTarget(w wanted, schema providers.Schema) providers.ImportTarget {
+	byID := providers.ImportTarget{ID: w.importID}
+
+	if schema.IdentitySchema == nil {
+		return byID
+	}
+	if w.identity == cty.NilVal || w.identity.IsNull() {
+		return byID
+	}
+	want := schema.IdentitySchema.ImpliedType()
+	val, err := convert.Convert(w.identity, want)
+	if err != nil || val.IsNull() || !val.IsWhollyKnown() {
+		// The provider served an identity this provider's own schema does
+		// not describe, which is a provider bug rather than anything this
+		// run can act on. The import ID came off the same list result, so
+		// there is a working answer and no reason to fail.
+		log.Printf("[WARN] projection: %s came back with an identity that does not fit %s's identity schema (%v); importing by ID %q instead",
+			w.addr, w.addr.Resource.Resource.Type, err, w.importID)
+		return byID
+	}
+	return providers.ImportTarget{Identity: val}
 }
 
 // orderWork splits the resolutions into the work lists Build runs, in the
@@ -394,11 +464,13 @@ func (b *builder) causeFor(parent addrs.AbsResourceInstance) string {
 // resource block and a dependency set read off its arguments; see
 // [Options.UndeclaredProvider] for the first, and [builder.dependencies] for
 // why the second is empty rather than guessed.
-func (b *builder) materialize(ctx context.Context, addr addrs.AbsResourceInstance, importID string, undeclared bool) {
+func (b *builder) materialize(ctx context.Context, w wanted) {
+	addr := w.addr
+	importID := w.importID
 	typeName := addr.Resource.Resource.Type
 
 	rc, ok := b.cfg.Module.ManagedResources[addr.Resource.Resource.String()]
-	if !ok && !undeclared {
+	if !ok && !w.undeclared {
 		detail := fmt.Sprintf(
 			"Identity resolution produced %s, but that resource block is not in the configuration the projection was given. The configuration and the resolutions do not match.",
 			addr,
@@ -435,7 +507,7 @@ func (b *builder) materialize(ctx context.Context, addr addrs.AbsResourceInstanc
 		return
 	}
 
-	obj, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importID)
+	obj, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), importID)
 	b.diags = b.diags.Append(matDiags)
 
 	switch status {
@@ -498,29 +570,35 @@ const (
 
 // importAndRead is the whole provider conversation for one instance, and
 // is the reason this package exists rather than calling into a graph walk:
-// ImportResourceState to turn an identity string into a stub object, then
+// ImportResourceState to turn an identity into a stub object, then
 // ReadResource to fill that stub in from the live system.
+//
+// target is the form the import is asked in - an identity object or an
+// import-ID string, never both, see [importTarget]. importID is carried
+// alongside whichever form was chosen because it is what every sentence here
+// names the resource by: an operator reading "no aws_subnet exists with
+// identity …" needs the string whether or not the wire carried it.
 //
 // It mirrors graphNodeImportState/graphNodeImportStateSub and
 // NodeAbstractResourceInstance.refresh in internal/tofu, minus hooks, the
 // evaluation context, and the already-in-state check, and with one
 // deliberate semantic difference: where import treats a nonexistent remote
 // object as a hard error, a projection treats it as an ordinary absence.
-func importAndRead(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName, importID string) (*states.ResourceInstanceObject, materializeStatus, tfdiags.Diagnostics) {
+func importAndRead(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName string, target providers.ImportTarget, importID string) (*states.ResourceInstanceObject, materializeStatus, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
-	if importID == "" {
+	if !target.IsIdentityBased() && !target.IsIDBased() {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Empty import identity",
-			fmt.Sprintf("An empty string was computed as the import identity for a %s. Identity resolution should never produce one.", typeName),
+			fmt.Sprintf("Nothing was computed as the import identity for a %s: no identity object and an empty import ID. Identity resolution should never produce one.", typeName),
 		))
 		return nil, statusFailed, diags
 	}
 
 	importResp := provider.ImportResourceState(ctx, providers.ImportResourceStateRequest{
 		TypeName: typeName,
-		Target:   providers.ImportTarget{ID: importID},
+		Target:   target,
 	})
 	if importResp.Diagnostics.HasErrors() {
 		// The provider could not answer the question. That is different

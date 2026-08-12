@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/zclconf/go-cty/cty"
+
 	"github.com/intentius/choudoufu/internal/addrs"
 )
 
@@ -50,6 +52,21 @@ type Resolution struct {
 	// ImportID is the provider's import identity string, populated only
 	// for ClassConcrete. It is ready to hand to the import path as-is.
 	ImportID string
+
+	// Identity is the provider's own resource identity object for this
+	// instance, when something already had one: a marker sweep's list result
+	// carries the identity the provider attached to it, and handing that back
+	// unchanged is strictly better than handing back a string read out of one
+	// of its attributes. Null (the zero value) whenever nothing served one,
+	// which is every resolution [Resolve] produces - a configuration carries
+	// arguments, not identity objects.
+	//
+	// It never replaces ImportID. The string is what every operator-facing
+	// line prints, what a marker rewrite records, and what the import path
+	// falls back to for a type the provider serves no identity schema for.
+	// Both travel together and the projection builder picks per resource; see
+	// internal/live/projection/build.go.
+	Identity cty.Value
 
 	// Formula is the symbolic identity, populated only for
 	// ClassParentDerived. Render it with the parents' live IDs to get an

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zclconf/go-cty/cty"
+
 	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
@@ -130,6 +132,9 @@ func TestSweepFindsDeletedBlock(t *testing.T) {
 		}
 		if !r.Undeclared {
 			t.Error("resolution for a deleted block is not marked Undeclared")
+		}
+		if r.Identity == cty.NilVal || r.Identity.IsNull() {
+			t.Error("the removal's resolution dropped the identity object the sweep served with it")
 		}
 	}
 	if !found {
