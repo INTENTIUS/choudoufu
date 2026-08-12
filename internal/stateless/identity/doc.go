@@ -166,6 +166,43 @@
 // reports only that the table composes it out of an argument (name) the
 // identity schema does not mention. See [CloudContext].
 //
+// # The Optional+Computed cohort, and what decides it
+//
+// An identity schema alone admits only types whose identity attributes are
+// *required* arguments - 162 of the AWS provider's 468 identity-schema
+// types - because Optional+Computed is ambiguous and that ambiguity is
+// exactly where the interesting types live. The AWS provider's legacy-SDK
+// schemas mark aws_s3_bucket's bucket argument Optional+Computed and mark
+// aws_vpc's id attribute Optional+Computed too. Read from the schemas
+// alone the two are the same shape, and they are opposite answers: bucket
+// is the archetypal client-assigned name, id is the archetypal
+// server-assigned one.
+//
+// A configuration separates them, per instance and without inference. A
+// block that writes bucket = "…" is naming the object it owns; a block that
+// writes bucket_prefix, or writes bucket = var.name with the variable
+// defaulting to null, or writes nothing - which is every aws_vpc block ever
+// written - is letting the cloud name it. [ConfigSignal] is that reading,
+// collected on [Resolve]'s own walk (and by [ScanConfig] where there is no
+// resolution to piggyback on), and [DerivableWith] is [Derivable] with it
+// folded in. A type is admitted this way only when every instance of it in
+// the configuration sets every attribute the provider requires for import;
+// disagreement between two blocks of one type is reported as disagreement,
+// because a row that half the configuration contradicts would import the
+// wrong object for the other half.
+//
+// The signal is a claim, not a proof: it says the configuration asserts a
+// name, which is the assertion an import has to act on either way. It costs
+// nothing beyond a walk that was already happening, it reaches types the
+// table has never heard of, and it never leaves this package's constraints -
+// no provider, no process, no cloud read.
+//
+// [Report] is the machine-readable form, for the generator that would
+// otherwise be hand-writing rows: which types the schemas admit, which ones
+// this configuration admits, and - for a survey with no configuration in
+// front of it - which ones are waiting on a configuration and exactly which
+// arguments it would have to set.
+//
 // What is still missing before the table can shrink:
 //
 //   - The inference layer has no schema behind it. An identity schema names
@@ -175,23 +212,19 @@
 //     route_table_id argument) and no hop at all for the types whose
 //     identity attribute is the id the provider assigns. Nothing in the
 //     protocol closes that gap, so the table's Components survive it.
-//   - Optional+Computed is ambiguous, and that ambiguity is exactly where
-//     the interesting types live. The AWS provider's legacy-SDK schemas
-//     mark aws_s3_bucket's bucket argument Optional+Computed and mark
-//     aws_vpc's id attribute Optional+Computed too. Read from the schemas
-//     alone the two are the same shape, and they are opposite answers:
-//     bucket is the archetypal client-assigned name, id is the archetypal
-//     server-assigned one. [Derivable] therefore admits only types whose
-//     identity attributes are *required* arguments - 162 of the AWS
-//     provider's 468 identity-schema types, 157 of them outside the table -
-//     and leaves the Optional+Computed cohort to the hand table. Closing
-//     that would take either a config-side signal (which of bucket and
-//     bucket_prefix this instance sets, which [Resolve] already knows per
-//     instance) or better provider metadata.
 //   - Import by identity is not wired. Once a projection imports by
 //     identity object rather than by import-ID string, the separator
 //     characters in Components stop mattering and half of what the table
-//     asserts goes away on its own.
+//     asserts goes away on its own. Everything below this package is
+//     already there - providers.ImportTarget carries an Identity cty.Value,
+//     both plugin protocols marshal it, and internal/tofu's own import path
+//     uses it - so the remaining work is entirely in this package and the
+//     projection: [Resolution] would have to carry named identity
+//     attributes rather than one concatenated string, which means
+//     [Component] gaining the identity attribute each one supplies, and
+//     [Formula] and its rendering becoming per-attribute. That is the
+//     inference layer above, written down in the one place it can be
+//     checked, rather than a way of avoiding it.
 //
 // # Output
 //
