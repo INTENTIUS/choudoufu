@@ -12,7 +12,8 @@ a feature under test), no provisioners, no logical resources.
 
 | Coverage row | Resource block(s) | Why it lands there |
 |---|---|---|
-| Marker path (server IDs) | `aws_vpc.main`, `aws_subnet.this`, `aws_security_group.main` | Identity is a server-assigned ID (`vpc-…`, `subnet-…`, `sg-…`) not derivable from config; recovered only by the `tofu-address` tag. |
+| Marker path (server IDs) | `aws_vpc.main`, `aws_subnet.this`, `aws_security_group.main`, `aws_kms_key.main` | Identity is a server-assigned ID (`vpc-…`, `subnet-…`, `sg-…`, a KMS key UUID) not derivable from config; recovered only by the `tofu-address` tag. |
+| Marker path, non-`id` identity attribute | `aws_route53_zone.main` | Same path, but the provider's identity schema for the type names `zone_id` rather than `id`, so the identity table has to say which attribute carries the import ID. |
 | Client-named path | `aws_s3_bucket.data`, `aws_iam_role.app`, `aws_cloudwatch_log_group.app`, `aws_dynamodb_table.events` | Identity is a name already in config (bucket name, role name, log group name, table name) — nothing to recover. |
 | Client-named path, ARN-shaped id | `aws_ecs_cluster.app` | The documented import ID is the cluster name, already in config, but the provider sets `id` to the cluster ARN — so only the `name` attribute may hand out the identity, the same care `aws_route`'s synthesized id gets. |
 | Named singleton child | `aws_s3_bucket_policy.data` | Exactly one policy per bucket; its own identity is the parent bucket's name, so it needs no marker of its own (and the type carries no `tags` argument to put one on). |
@@ -55,6 +56,8 @@ parent-derived path, not from a marker, so admission doesn't need a tag.
 | `compute.tf` | The three-EIP fungible-count pool. |
 | `database.tf` | The DynamoDB table (client-named, #19's first slice). |
 | `containers.tf` | The ECS cluster (client-named with an ARN-shaped `id`, same slice). |
+| `keys.tf` | The KMS key (marker path, #20's first slice). |
+| `dns.tf` | The Route 53 hosted zone (marker path with a `zone_id` identity attribute, same slice). |
 | `receipts.tf` | The receipt demo, both flavors (`aws_ssm_parameter.demo_existence`, `aws_ssm_parameter.demo_effect`). See `stateless/RECEIPTS.md`. |
 
 ## Verifying by hand

@@ -118,7 +118,7 @@
 // # The type table
 //
 // Per-type identity knowledge lives in [DefaultTable], a v0 hardcoded
-// table covering the estate fixture's sixteen AWS types. See table.go for
+// table covering the estate fixture's eighteen AWS types. See table.go for
 // what it holds and for the note on replacing it with provider-served
 // resource identity schemas.
 //

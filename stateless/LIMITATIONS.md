@@ -391,3 +391,15 @@ the same resource followed by the same drift prints the identical line. It
 is cosmetic (the attribute is only consulted on delete) and not
 recoverable at OpenTofu's layer, because provider defaults live in the SDK
 and not in the schema OpenTofu is served.
+
+The same gap stops being cosmetic when the configuration *does* set such
+an argument. Then the projection holds the null the read returned, the
+configuration holds the written value, and every plan proposes the same
+in-place update forever — a standing non-empty plan rather than a stray
+line beside a real change. `aws_kms_key`'s `deletion_window_in_days` and
+`aws_route53_zone`'s `force_destroy` are the two in the v0 subset: KMS and
+Route 53 never return either one, and both are consulted only on destroy.
+The estate fixture leaves both at their defaults for exactly this reason
+(`stateless/e2e/estate/keys.tf`, `dns.tf`). If you need a non-default
+value for one of these, a marker run will re-propose it on every plan;
+that is the cost, and it is visible rather than silent.

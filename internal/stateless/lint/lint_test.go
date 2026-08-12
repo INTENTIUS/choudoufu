@@ -423,6 +423,8 @@ func TestAdmissionTableCoversEstate(t *testing.T) {
 		"aws_ssm_parameter",
 		"aws_dynamodb_table",
 		"aws_ecs_cluster",
+		"aws_kms_key",
+		"aws_route53_zone",
 	}
 	for _, resourceType := range estateTypes {
 		if !admitted(resourceType) {

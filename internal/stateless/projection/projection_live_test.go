@@ -187,6 +187,8 @@ func TestBuildAgainstFloci(t *testing.T) {
 		`aws_eip.pool[0]`:                       ReasonNeedsDiscovery,
 		`aws_eip.pool[1]`:                       ReasonNeedsDiscovery,
 		`aws_eip.pool[2]`:                       ReasonNeedsDiscovery,
+		`aws_kms_key.main`:                      ReasonNeedsDiscovery,
+		`aws_route53_zone.main`:                 ReasonNeedsDiscovery,
 		`aws_route.internet_gateway`:            ReasonParentUnavailable,
 		`aws_route_table_association.this["a"]`: ReasonParentUnavailable,
 		`aws_route_table_association.this["b"]`: ReasonParentUnavailable,
