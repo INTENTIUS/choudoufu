@@ -171,7 +171,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 // type outside the table, so every resource an estate acquired through
 // stateless mode is of an admitted type. Sweeping the admission table is
 // therefore complete over everything this tool can have created, and it
-// costs a bounded, small number of list calls (twenty-five types today) rather
+// costs a bounded, small number of list calls (twenty-six types today) rather
 // than the ~180 a whole-provider sweep would take.
 //
 // What it does not cover is a resource of an unadmitted type that somebody

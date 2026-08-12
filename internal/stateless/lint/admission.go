@@ -95,6 +95,11 @@ var admittedTypesV0 = map[string]struct{}{
 	// against the provider's identity schemas and against floci.
 	"aws_iam_role_policy": {},
 	"aws_kms_alias":       {},
+	// Same slice (#19): a metric alarm imports by its alarm_name argument
+	// alone, verified against the provider's identity schema (required
+	// import attribute: alarm_name) and against floci, whose monitoring
+	// surface round-trips the marker tags through create/read/list.
+	"aws_cloudwatch_metric_alarm": {},
 
 	// List plus content match, as a fungible set bound by tofu-slot marker.
 	"aws_eip": {},

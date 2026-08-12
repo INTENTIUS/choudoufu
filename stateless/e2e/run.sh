@@ -954,6 +954,7 @@ else
     aws_kms_alias.main
     aws_cloudwatch_log_group.app
     aws_cloudwatch_log_group.optional
+    aws_cloudwatch_metric_alarm.cpu
     aws_dynamodb_table.events
     aws_ecs_cluster.app
   )
