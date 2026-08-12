@@ -9,7 +9,7 @@ This file is the durable artifact for the survey the other docs cite:
 `internal/live/lint/admission.go`. The raw signals and the mechanical
 path classification behind the per-type table are regenerated from the
 provider's own schemas by `go run ./tools/survey-gen`, which writes
-`stateless/survey.json`.
+`live/survey.json`.
 
 ## Method
 
@@ -136,11 +136,11 @@ token per row.
 
 | Status | Meaning | Rows |
 |---|---|---|
-| `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | 31 |
-| `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 16 |
+| `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | 38 |
+| `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 8 |
 | `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components | 0 |
 | `ops` | excluded by the rule, forwarded to the lifecycle layer | 3 |
-| `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 18 |
+| `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 19 |
 | `unknown` | path not determined | 0 |
 
 The `blocked-emulator` rows were found by the #19 and #20 wiring lanes, by
@@ -161,13 +161,16 @@ turned out not to be an account-derivation problem at all. The token stays
 in the vocabulary because the next provider survey may find rows that need
 it again.
 
-`blocked-emulator` was empty in the first pass and holds six rows now, all
-of them found by wiring lanes probing against floci rather than by a survey
-of emulator coverage: `aws_instance`, `aws_db_instance`, the CloudFront
-pair, `aws_iam_policy` and `aws_sqs_queue`. Each names its gap and its
-tracking issue in the identity column; choudoufu#26 is the umbrella.
-Nothing about these rows is a claim about real AWS, which is the point of
-keeping the token separate from `ready`.
+`blocked-emulator` was empty in the first pass and holds nineteen rows now,
+all of them found by wiring lanes probing against floci rather than by a
+survey of emulator coverage. Each names its gap and its tracking issue in
+the identity column; choudoufu#26 is the umbrella. Five of the gaps
+(Lambda, EKS, RDS, EC2 run-instances, SQS queue URLs) were fixed upstream
+on 2026-08-12 — lex00/floci#26, #27, #28, #32 and #34 all closed that
+evening — but no pullable harness image carries the fixes yet, so their
+rows stay blocked until the republished image lands and a probe proves them
+live. Nothing about these rows is a claim about real AWS, which is the
+point of keeping the token separate from `ready`.
 
 `Source` is two tokens, provenance then derivation tier. Provenance is
 `survey note` for the 36 types the original note named, whether as a
@@ -210,7 +213,7 @@ identity argument were derived like every other row's.
 | aws_iam_policy | client-named | blocked-emulator | name + path, but the required import attribute is the policy ARN; the account-derived mechanism builds it, and floci's iam:GetPolicy omits Tags so the row cannot be proven live (choudoufu#26) | survey note; schema |
 | aws_sqs_queue | client-named | blocked-emulator | name, and the required import attribute is the queue URL; the account-derived template builds it, but floci reports a queue's URL as its own endpoint and the provider's importer parses only the amazonaws.com form, so the marker path cannot complete (choudoufu#26) | survey note; schema |
 | aws_sns_topic | account-derived | wired | name, wrapped in the run's region and account as arn:aws:sns:REGION:ACCOUNT:NAME | survey note; schema |
-| aws_instance | marker | blocked-emulator | server-assigned instance ID (i-...); floci jumps a new instance straight to `terminated` and the provider's create waits for `running` (lex00/floci#32, choudoufu#26) | survey note; schema |
+| aws_instance | marker | blocked-emulator | server-assigned instance ID (i-...); floci jumps a new instance straight to `terminated` and the provider's create waits for `running` (lex00/floci#32, closed 2026-08-12; blocked until a pullable harness image carries the fix — reprobed the same evening, the published image still terminates; choudoufu#26) | survey note; schema |
 | aws_cloudfront_distribution | marker | blocked-emulator | server-assigned distribution ID; floci serves no usable CloudFront distribution lifecycle (choudoufu#26) | survey note; schema |
 | aws_db_instance | marker | blocked-emulator | taggable, but v6.58.0 ships neither an identity schema nor a list resource for it, and `identifier` is the documented import ID, so it wires client-named when unblocked (see the wrinkles below); RDS needs the Docker socket mounted into the emulator (lex00/floci#28, choudoufu#26) | survey note; docs |
 | aws_route53_zone | marker | wired | server-assigned hosted zone ID (Z...); the identity schema names zone_id rather than id | survey note; schema |
@@ -242,17 +245,17 @@ identity argument were derived like every other row's.
 | aws_ecr_lifecycle_policy | client-named | blocked-emulator | repository (one policy per repository); blocked: needs a live parent repository, which floci cannot create (choudoufu#26) | roster fit; schema |
 | aws_eks_node_group | client-named | blocked-emulator | cluster_name + node_group_name; blocked: needs a live parent cluster, which floci cannot create (lex00/floci#27) | roster fit; schema |
 | aws_ssm_document | client-named | blocked-emulator | name; blocked: floci answers ssm:CreateDocument with UnsupportedOperation (probed 2026-08-12; choudoufu#26) | roster fit; schema |
-| aws_vpc_security_group_ingress_rule | marker | ready | server-assigned rule ID (sgr-...), taggable, one resource per rule | roster fit; schema |
-| aws_vpc_security_group_egress_rule | marker | ready | server-assigned rule ID (sgr-...), taggable | roster fit; schema |
-| aws_launch_template | marker | ready | server-assigned template ID (lt-...); `name` is client-chosen but the identity schema requires the ID | roster fit; schema |
-| aws_nat_gateway | marker | ready | server-assigned gateway ID (nat-...) | roster fit; schema |
+| aws_vpc_security_group_ingress_rule | marker | wired | server-assigned rule ID (sgr-...), taggable, one resource per rule | roster fit; schema |
+| aws_vpc_security_group_egress_rule | marker | wired | server-assigned rule ID (sgr-...), taggable | roster fit; schema |
+| aws_launch_template | marker | wired | server-assigned template ID (lt-...); `name` is client-chosen but the identity schema requires the ID | roster fit; schema |
+| aws_nat_gateway | marker | wired | server-assigned gateway ID (nat-...) | roster fit; schema |
 | aws_lb | marker | wired | server-assigned load balancer ARN | roster fit; schema |
 | aws_lb_target_group | marker | wired | server-assigned target group ARN | roster fit; schema |
-| aws_acm_certificate | marker | ready | server-assigned certificate ARN | roster fit; schema |
-| aws_api_gateway_rest_api | marker | ready | server-assigned REST API ID | roster fit; schema |
-| aws_sfn_state_machine | marker | ready | server-assigned state machine ARN | roster fit; schema |
-| aws_efs_file_system | marker | ready | server-assigned file system ID (fs-...); no identity schema shipped, `creation_token` is client-chosen but is not the import ID | roster fit; docs |
-| aws_ebs_volume | marker | ready | server-assigned volume ID (vol-...) | roster fit; schema |
+| aws_acm_certificate | marker | wired | server-assigned certificate ARN | roster fit; schema |
+| aws_api_gateway_rest_api | marker | blocked-emulator | server-assigned REST API ID; blocked: floci serves no status for a created REST API, so the provider's availability waiter dies waiting for AVAILABLE (probed 2026-08-12; choudoufu#26) | roster fit; schema |
+| aws_sfn_state_machine | marker | wired | server-assigned state machine ARN | roster fit; schema |
+| aws_efs_file_system | marker | ready | server-assigned file system ID (fs-...); no identity schema shipped, `creation_token` is client-chosen but is not the import ID; v6.58.0 also ships no list resource for it, so the marker path cannot enumerate it until the provider adds one (the aws_db_instance wrinkle's shape, found by the #20 third-slice lane) | roster fit; docs |
+| aws_ebs_volume | marker | wired | server-assigned volume ID (vol-...) | roster fit; schema |
 
 Classification wrinkles between the survey and the wired code, recorded
 rather than smoothed over. The survey's five parent-derived types are
@@ -295,10 +298,10 @@ same treatment `aws_eip` gets. `aws_sqs_queue` is the same shape and keeps
 The survey note kept per-path counts and per-path examples, not the 68-row
 roster. Thirty-six rows carry `survey note` provenance: the types the note
 named as examples, plus the fourteen that were wired from it before this
-pass. The other thirty-two are inference to fit the counts, three of which
-(`aws_ecs_cluster`, `aws_lb`, `aws_lb_target_group`) have since been wired,
-which is why twenty of the twenty-three `wired` rows are `survey note` and
-three are `roster fit`. In survey
+pass. The other thirty-two are inference to fit the counts, seventeen of which
+have since been wired by the #19, #20 and #21 lanes, which is why
+twenty-one of the thirty-eight `wired` rows are `survey note` and seventeen
+are `roster fit`. In survey
 terms the sourced rows are 15 client-named, 12 marker,
 and complete rosters for parent-derived (5), list-plus-content (1) and
 moves-to-Ops (3), which leaves exactly 21 client-named and 11 marker to
@@ -376,7 +379,7 @@ which leaves only a list-plus-content match on protocol and endpoint.
 Exactly three of the 68 fail the admission rule, and they fail it
 permanently: they are out by the rule itself, not by v0 scoping. This is a
 different kind of "not admitted" than the surveyed types that are merely
-not wired yet (34 of them at the 31 types wired today, the `ready` and
+not wired yet (27 of them at the 38 types wired today, the `ready` and
 `blocked-emulator` rows above), and `live/LIMITATIONS.md`'s
 `unadmitted-type` entry draws the same distinction.
 

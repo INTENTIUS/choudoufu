@@ -95,6 +95,23 @@ type Request struct {
 // shape one level down, and is derived rather than discovered anyway: its
 // identity comes out of its parent's live ARN, so there is never an
 // unclaimed one waiting to be matched.
+//
+// The third marker slice (#20) splits the same way again. aws_launch_template
+// joins on its name argument — EC2 requires launch template names to be
+// unique within an account and region, the ELBv2 guarantee. aws_sfn_state_machine
+// joins on name for the topic's stronger reason: the state machine's ARN is
+// built out of the name, so a name match is not a heuristic.
+// aws_acm_certificate joins on domain_name with the hosted zone's caveat
+// spelled out: ACM permits several certificates for one domain, and two live
+// certificates matching one declared block is the ambiguity the one-to-one
+// rule refuses rather than resolves. The per-rule security group resources
+// are refuse-only for the listener's reason — a port range, a protocol and a
+// CIDR describe one rule of a group whose identity is a live sg- ID this
+// package has no configuration value for. aws_nat_gateway is the route
+// table's shape (it is "the one in this subnet", and subnet_id is a live
+// ID), and aws_ebs_volume is the EIP's: a size and an availability zone
+// distinguish nothing, and adopting one of several identical volumes would
+// be a guess.
 var matchTable = map[string][]string{
 	"aws_security_group": {"name"},
 	"aws_vpc":            {"cidr_block"},
@@ -114,6 +131,14 @@ var matchTable = map[string][]string{
 	// A topic name, unique per account and region because the ARN is built
 	// out of it.
 	"aws_sns_topic": {"name"},
+	// #20's third slice. A launch template name is unique per account and
+	// region by EC2's own rule; a state machine name is unique because its
+	// ARN is built out of it, the topic's reason; a certificate's domain
+	// name is what a declared block means, with duplicates refused by the
+	// one-to-one rule, the hosted zone's treatment.
+	"aws_launch_template":   {"name"},
+	"aws_sfn_state_machine": {"name"},
+	"aws_acm_certificate":   {"domain_name"},
 }
 
 // ec2Types are the types whose adoption command this package can write down.
@@ -124,14 +149,22 @@ var matchTable = map[string][]string{
 // tagged with kms:TagResource, a hosted zone with
 // route53:ChangeTagsForResource, an ELBv2 object with elasticloadbalancing:
 // AddTags, a queue with sqs:TagQueue and a topic with sns:TagResource. Each
-// has its own flag spelling and none is an ec2 create-tags call.
+// has its own flag spelling and none is an ec2 create-tags call. The third
+// marker slice (#20) put five more EC2 types in the subset, and all five
+// take the same create-tags call the VPC does; ACM and Step Functions tag
+// with acm:AddTagsToCertificate and states:TagResource and stay out.
 var ec2Types = map[string]bool{
-	"aws_vpc":              true,
-	"aws_subnet":           true,
-	"aws_security_group":   true,
-	"aws_route_table":      true,
-	"aws_internet_gateway": true,
-	"aws_eip":              true,
+	"aws_vpc":                             true,
+	"aws_subnet":                          true,
+	"aws_security_group":                  true,
+	"aws_route_table":                     true,
+	"aws_internet_gateway":                true,
+	"aws_eip":                             true,
+	"aws_vpc_security_group_ingress_rule": true,
+	"aws_vpc_security_group_egress_rule":  true,
+	"aws_launch_template":                 true,
+	"aws_nat_gateway":                     true,
+	"aws_ebs_volume":                      true,
 }
 
 // Classify sorts every unclaimed live resource discovery found into foreign,

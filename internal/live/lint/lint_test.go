@@ -438,6 +438,13 @@ func TestAdmissionTableCoversEstate(t *testing.T) {
 		"aws_lb_listener",
 		"aws_lb_target_group_attachment",
 		"aws_sns_topic",
+		"aws_vpc_security_group_ingress_rule",
+		"aws_vpc_security_group_egress_rule",
+		"aws_launch_template",
+		"aws_nat_gateway",
+		"aws_acm_certificate",
+		"aws_sfn_state_machine",
+		"aws_ebs_volume",
 	}
 	for _, resourceType := range estateTypes {
 		if !admitted(resourceType) {

@@ -37,24 +37,31 @@ func estateDir(t *testing.T) string {
 
 const estateName = "stateless-e2e"
 
-// The fifteen needs-discovery instances the fixture declares, sorted the way
-// discovery reports them.
+// The twenty-two needs-discovery instances the fixture declares, sorted the
+// way discovery reports them.
 var allDiscovered = []string{
+	`aws_acm_certificate.app`,
+	`aws_ebs_volume.data`,
 	`aws_eip.pool[0]`,
 	`aws_eip.pool[1]`,
 	`aws_eip.pool[2]`,
 	`aws_internet_gateway.main`,
 	`aws_kms_key.main`,
+	`aws_launch_template.app`,
 	`aws_lb.main`,
 	`aws_lb_listener.app`,
 	`aws_lb_target_group.app`,
+	`aws_nat_gateway.main`,
 	`aws_route53_zone.main`,
 	`aws_route_table.main`,
 	`aws_security_group.main`,
+	`aws_sfn_state_machine.pipeline`,
 	`aws_sns_topic.alerts`,
 	`aws_subnet.this["a"]`,
 	`aws_subnet.this["b"]`,
 	`aws_vpc.main`,
+	`aws_vpc_security_group_egress_rule.all`,
+	`aws_vpc_security_group_ingress_rule.https`,
 }
 
 // ownAllDiscovered puts one marked live resource in the fake cloud for every
@@ -79,6 +86,13 @@ func ownAllDiscovered(cloud *fakeCloud) map[string]string {
 		{"aws_lb_target_group", "arn:tg/app", `aws_lb_target_group.app`, `aws_lb_target_group.app`},
 		{"aws_lb_listener", "arn:listener/app", `aws_lb_listener.app`, `aws_lb_listener.app`},
 		{"aws_sns_topic", "arn:sns:alerts", `aws_sns_topic.alerts`, `aws_sns_topic.alerts`},
+		{"aws_vpc_security_group_ingress_rule", "sgr-in-1", `aws_vpc_security_group_ingress_rule.https`, `aws_vpc_security_group_ingress_rule.https`},
+		{"aws_vpc_security_group_egress_rule", "sgr-out-1", `aws_vpc_security_group_egress_rule.all`, `aws_vpc_security_group_egress_rule.all`},
+		{"aws_launch_template", "lt-1", `aws_launch_template.app`, `aws_launch_template.app`},
+		{"aws_nat_gateway", "nat-1", `aws_nat_gateway.main`, `aws_nat_gateway.main`},
+		{"aws_acm_certificate", "arn:acm:app", `aws_acm_certificate.app`, `aws_acm_certificate.app`},
+		{"aws_sfn_state_machine", "arn:sfn:pipeline", `aws_sfn_state_machine.pipeline`, `aws_sfn_state_machine.pipeline`},
+		{"aws_ebs_volume", "vol-1", `aws_ebs_volume.data`, `aws_ebs_volume.data`},
 	} {
 		cloud.own(spec.typeName, spec.id, spec.marker)
 		want[spec.addr] = spec.id
@@ -154,8 +168,9 @@ func TestValidEstateName(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // TestDiscoverBindsWholeEstate is the happy path over the real fixture:
-// eleven server-assigned instances, eleven live resources carrying
-// spec-conformant markers, fifteen bindings and nothing else.
+// every needs-discovery instance the estate declares, one live resource per
+// instance carrying spec-conformant markers, twenty-two bindings and
+// nothing else.
 func TestDiscoverBindsWholeEstate(t *testing.T) {
 	cloud := newFakeCloud()
 	want := ownAllDiscovered(cloud)
@@ -171,14 +186,15 @@ func TestDiscoverBindsWholeEstate(t *testing.T) {
 		t.Errorf("problems:\n%s", res)
 	}
 
-	// The output resolution list is the whole estate: the fifteen discovered
-	// instances are now concrete, and everything static rides through.
+	// The output resolution list is the whole estate: the twenty-two
+	// discovered instances are now concrete, and everything static rides
+	// through.
 	byAddr := map[string]identity.Resolution{}
 	for _, r := range res.Resolutions {
 		byAddr[r.Addr.String()] = r
 	}
-	if got := len(res.Resolutions); got != 37 {
-		t.Errorf("Resolutions holds %d entries, want the fixture's 37", got)
+	if got := len(res.Resolutions); got != 44 {
+		t.Errorf("Resolutions holds %d entries, want the fixture's 44", got)
 	}
 	for _, addr := range allDiscovered {
 		r, ok := byAddr[addr]
@@ -830,6 +846,12 @@ func newFakeCloud() *fakeCloud {
 			// declared by the fixture and so all listed on every pass.
 			"aws_lb", "aws_lb_target_group", "aws_lb_listener",
 			"aws_sns_topic",
+			// #20's third slice: four more EC2 types with the real filter
+			// block, plus the ACM/Step Functions pair without one.
+			"aws_vpc_security_group_ingress_rule",
+			"aws_vpc_security_group_egress_rule",
+			"aws_launch_template", "aws_nat_gateway", "aws_ebs_volume",
+			"aws_acm_certificate", "aws_sfn_state_machine",
 		},
 		// None of these list schemas carries a filter block in the real
 		// provider - a KMS key list takes a region and nothing else, a
@@ -844,6 +866,15 @@ func newFakeCloud() *fakeCloud {
 			"aws_lb_target_group": true,
 			"aws_lb_listener":     true,
 			"aws_sns_topic":       true,
+			// #20's third slice: an ACM list takes a region and some status
+			// filters, a Step Functions list a region alone — no tag filter
+			// in either, so both fall back client-side like the rows above.
+			// The slice's four EC2 types are deliberately NOT here: their
+			// real list schemas carry the filter block, and a test that
+			// expects server-side filtering for them fails if the filter
+			// never leaves this package.
+			"aws_acm_certificate":   true,
+			"aws_sfn_state_machine": true,
 		},
 		missing:   make(map[string]bool),
 		untagged:  make(map[string]bool),

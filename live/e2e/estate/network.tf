@@ -75,3 +75,47 @@ resource "aws_route_table_association" "this" {
   subnet_id      = each.value.id
   route_table_id = aws_route_table.main.id
 }
+
+# Coverage: marker path, one resource per rule
+# (aws_vpc_security_group_ingress_rule / _egress_rule — EC2 mints an sgr- ID
+# per rule, and the per-rule resource types exist precisely so each rule has
+# its own identity and its own tags, unlike aws_security_group's inline
+# blocks). Third slice of the survey's marker cohort (#20).
+
+resource "aws_vpc_security_group_ingress_rule" "https" {
+  security_group_id = aws_security_group.main.id
+  cidr_ipv4         = "10.42.0.0/16"
+  from_port         = 443
+  to_port           = 443
+  ip_protocol       = "tcp"
+
+  tags = {
+    tofu-estate  = local.estate_tag
+    tofu-address = "aws_vpc_security_group_ingress_rule.https"
+  }
+}
+
+resource "aws_vpc_security_group_egress_rule" "all" {
+  security_group_id = aws_security_group.main.id
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "-1"
+
+  tags = {
+    tofu-estate  = local.estate_tag
+    tofu-address = "aws_vpc_security_group_egress_rule.all"
+  }
+}
+
+# Coverage: marker path (aws_nat_gateway — EC2 mints the nat- ID; nothing in
+# the block names it). Same slice (#20). connectivity_type is "private" so
+# the gateway needs no EIP allocation — a public NAT gateway would couple
+# this row to the fungible EIP pool for no coverage gain.
+resource "aws_nat_gateway" "main" {
+  subnet_id         = aws_subnet.this["a"].id
+  connectivity_type = "private"
+
+  tags = {
+    tofu-estate  = local.estate_tag
+    tofu-address = "aws_nat_gateway.main"
+  }
+}

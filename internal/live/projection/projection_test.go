@@ -169,6 +169,14 @@ func TestBuildEstate(t *testing.T) {
 		`aws_lb.main`:               ReasonNeedsDiscovery,
 		`aws_lb_target_group.app`:   ReasonNeedsDiscovery,
 		`aws_lb_listener.app`:       ReasonNeedsDiscovery,
+		// #20's third slice: all marker path, all waiting on discovery.
+		`aws_vpc_security_group_ingress_rule.https`: ReasonNeedsDiscovery,
+		`aws_vpc_security_group_egress_rule.all`:    ReasonNeedsDiscovery,
+		`aws_launch_template.app`:                   ReasonNeedsDiscovery,
+		`aws_nat_gateway.main`:                      ReasonNeedsDiscovery,
+		`aws_acm_certificate.app`:                   ReasonNeedsDiscovery,
+		`aws_sfn_state_machine.pipeline`:            ReasonNeedsDiscovery,
+		`aws_ebs_volume.data`:                       ReasonNeedsDiscovery,
 		// Account-derived with no cloud context: the same omission a marker
 		// type gets, for a different stated reason.
 		`aws_sns_topic.alerts`:                  ReasonNeedsDiscovery,
@@ -830,6 +838,17 @@ var fakeAttrs = map[string][]string{
 	// Account-derived: a topic's identity attribute is its arn, and id
 	// carries the same string.
 	"aws_sns_topic": {"id", "arn", "name"},
+	// #20's third slice. The per-rule types carry the rule ID under both id
+	// and security_group_rule_id, the way the zone carries zone_id; the
+	// certificate and the state machine identify by arn with id set to the
+	// same string, the ELBv2 shape.
+	"aws_vpc_security_group_ingress_rule": {"id", "arn", "security_group_rule_id", "security_group_id", "cidr_ipv4", "from_port", "to_port", "ip_protocol"},
+	"aws_vpc_security_group_egress_rule":  {"id", "arn", "security_group_rule_id", "security_group_id", "cidr_ipv4", "ip_protocol"},
+	"aws_launch_template":                 {"id", "arn", "name", "image_id", "instance_type"},
+	"aws_nat_gateway":                     {"id", "subnet_id", "connectivity_type"},
+	"aws_acm_certificate":                 {"id", "arn", "domain_name", "validation_method"},
+	"aws_sfn_state_machine":               {"id", "arn", "name", "role_arn", "definition"},
+	"aws_ebs_volume":                      {"id", "arn", "availability_zone", "size"},
 }
 
 // fakeUntaggable is the caricature's version of a fact about the real

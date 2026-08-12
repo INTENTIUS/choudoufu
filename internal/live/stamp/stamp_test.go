@@ -426,6 +426,13 @@ var (
 		"aws_lb_target_group",
 		"aws_lb_listener",
 		"aws_sns_topic",
+		"aws_vpc_security_group_ingress_rule",
+		"aws_vpc_security_group_egress_rule",
+		"aws_launch_template",
+		"aws_nat_gateway",
+		"aws_acm_certificate",
+		"aws_sfn_state_machine",
+		"aws_ebs_volume",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -827,6 +834,13 @@ func testSchemas() Schemas {
 		"aws_lb_target_group":                                tagged("id", "arn", "name", "port", "protocol", "vpc_id"),
 		"aws_lb_listener":                                    tagged("id", "arn", "load_balancer_arn", "port", "protocol"),
 		"aws_sns_topic":                                      tagged("id", "arn", "name"),
+		"aws_vpc_security_group_ingress_rule":                tagged("id", "arn", "security_group_rule_id", "security_group_id", "cidr_ipv4", "from_port", "to_port", "ip_protocol"),
+		"aws_vpc_security_group_egress_rule":                 tagged("id", "arn", "security_group_rule_id", "security_group_id", "cidr_ipv4", "ip_protocol"),
+		"aws_launch_template":                                tagged("id", "arn", "name", "image_id", "instance_type"),
+		"aws_nat_gateway":                                    tagged("id", "subnet_id", "connectivity_type"),
+		"aws_acm_certificate":                                tagged("id", "arn", "domain_name", "validation_method"),
+		"aws_sfn_state_machine":                              tagged("id", "arn", "name", "role_arn", "definition"),
+		"aws_ebs_volume":                                     tagged("id", "arn", "availability_zone", "size"),
 
 		"aws_lb_target_group_attachment": untagged("id", "target_group_arn", "target_id", "port"),
 

@@ -129,6 +129,18 @@ func TestResolveEstate(t *testing.T) {
 		`aws_lb_target_group.app`: `NEEDS_DISCOVERY`,
 		`aws_lb_listener.app`:     `NEEDS_DISCOVERY`,
 
+		// Third slice of the marker cohort (#20): per-rule security group
+		// resources, a launch template, a private NAT gateway, an EBS
+		// volume (all EC2-minted IDs), plus an ACM certificate and a Step
+		// Functions state machine (ARN-identified, like the ELBv2 chain).
+		`aws_vpc_security_group_ingress_rule.https`: `NEEDS_DISCOVERY`,
+		`aws_vpc_security_group_egress_rule.all`:    `NEEDS_DISCOVERY`,
+		`aws_launch_template.app`:                   `NEEDS_DISCOVERY`,
+		`aws_nat_gateway.main`:                      `NEEDS_DISCOVERY`,
+		`aws_acm_certificate.app`:                   `NEEDS_DISCOVERY`,
+		`aws_sfn_state_machine.pipeline`:            `NEEDS_DISCOVERY`,
+		`aws_ebs_volume.data`:                       `NEEDS_DISCOVERY`,
+
 		// #21's parent-derived slice: the target group's ARN is live, the
 		// target and port are config data, and the provider's import ID
 		// joins the three with commas.
@@ -160,7 +172,7 @@ func TestResolveEstateDisabled(t *testing.T) {
 	if _, ok := result.Get(mustAddr(t, `aws_cloudwatch_log_group.optional[0]`)); ok {
 		t.Error("aws_cloudwatch_log_group.optional[0] is present with enabled = false; count = 0 must expand to no instances")
 	}
-	if got, want := result.Len(), 36; got != want {
+	if got, want := result.Len(), 43; got != want {
 		t.Errorf("resolved %d instances, want %d", got, want)
 	}
 	if _, ok := result.Get(mustAddr(t, `aws_cloudwatch_log_group.app`)); !ok {
@@ -187,21 +199,28 @@ func TestEstateNeedsDiscoveryList(t *testing.T) {
 	}
 
 	want := []string{
+		`aws_acm_certificate.app`,
+		`aws_ebs_volume.data`,
 		`aws_eip.pool[0]`,
 		`aws_eip.pool[1]`,
 		`aws_eip.pool[2]`,
 		`aws_internet_gateway.main`,
 		`aws_kms_key.main`,
+		`aws_launch_template.app`,
 		`aws_lb.main`,
 		`aws_lb_listener.app`,
 		`aws_lb_target_group.app`,
+		`aws_nat_gateway.main`,
 		`aws_route53_zone.main`,
 		`aws_route_table.main`,
 		`aws_security_group.main`,
+		`aws_sfn_state_machine.pipeline`,
 		`aws_sns_topic.alerts`,
 		`aws_subnet.this["a"]`,
 		`aws_subnet.this["b"]`,
 		`aws_vpc.main`,
+		`aws_vpc_security_group_egress_rule.all`,
+		`aws_vpc_security_group_ingress_rule.https`,
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Errorf("needs-discovery list mismatch\ngot:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -499,7 +518,7 @@ func TestTableCoversFixtureTypes(t *testing.T) {
 			t.Errorf("the v0 identity table covers %s, which the fixture does not use", typeName)
 		}
 	}
-	if got, want := len(AdmittedTypes()), 31; got != want {
+	if got, want := len(AdmittedTypes()), 38; got != want {
 		t.Errorf("table covers %d types, want the fixture's %d", got, want)
 	}
 }

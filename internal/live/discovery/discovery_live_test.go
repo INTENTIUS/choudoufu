@@ -259,10 +259,12 @@ func TestDiscoverAgainstFloci(t *testing.T) {
 	// bound, the marker path and every parent-derived chain that bottomed
 	// out in it complete as well.
 	want := []string{
+		`aws_acm_certificate.app`,
 		`aws_cloudwatch_log_group.app`,
 		`aws_cloudwatch_log_group.optional[0]`,
 		`aws_cloudwatch_metric_alarm.cpu`,
 		`aws_dynamodb_table.events`,
+		`aws_ebs_volume.data`,
 		`aws_ecs_cluster.app`,
 		`aws_eip.pool[0]`,
 		`aws_eip.pool[1]`,
@@ -273,10 +275,12 @@ func TestDiscoverAgainstFloci(t *testing.T) {
 		`aws_internet_gateway.main`,
 		`aws_kms_alias.main`,
 		`aws_kms_key.main`,
+		`aws_launch_template.app`,
 		`aws_lb.main`,
 		`aws_lb_listener.app`,
 		`aws_lb_target_group.app`,
 		`aws_lb_target_group_attachment.app`,
+		`aws_nat_gateway.main`,
 		`aws_route.internet_gateway`,
 		`aws_route53_record.app`,
 		`aws_route53_zone.main`,
@@ -290,12 +294,15 @@ func TestDiscoverAgainstFloci(t *testing.T) {
 		`aws_s3_bucket_server_side_encryption_configuration.data`,
 		`aws_s3_bucket_versioning.data`,
 		`aws_security_group.main`,
+		`aws_sfn_state_machine.pipeline`,
 		`aws_sns_topic.alerts`,
 		`aws_ssm_parameter.demo_effect`,
 		`aws_ssm_parameter.demo_existence`,
 		`aws_subnet.this["a"]`,
 		`aws_subnet.this["b"]`,
 		`aws_vpc.main`,
+		`aws_vpc_security_group_egress_rule.all`,
+		`aws_vpc_security_group_ingress_rule.https`,
 	}
 	var got []string
 	for _, addr := range proj.Materialized {
