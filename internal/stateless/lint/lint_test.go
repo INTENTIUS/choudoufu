@@ -421,6 +421,8 @@ func TestAdmissionTableCoversEstate(t *testing.T) {
 		"aws_cloudwatch_log_group",
 		"aws_eip",
 		"aws_ssm_parameter",
+		"aws_dynamodb_table",
+		"aws_ecs_cluster",
 	}
 	for _, resourceType := range estateTypes {
 		if !admitted(resourceType) {

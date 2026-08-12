@@ -18,7 +18,7 @@ UPGRADE NOTES:
 
 EXPERIMENTS:
 
-- **Stateless mode** — fork-only, experimental: no state file, backend, or lock; prior state is rebuilt from the live system each run via ownership tags (tofu-estate/tofu-address/tofu-slot). Opt in with a `live` block; new `choudoufu live-plan` and `choudoufu live-mv` commands, EXPERIMENTAL in their help. v0: AWS only, 14 types, root module only. See the Stateless Mode docs page, `stateless/MARKERS.md`, `stateless/LIMITATIONS.md`.
+- **Stateless mode** — fork-only, experimental: no state file, backend, or lock; prior state is rebuilt from the live system each run via ownership tags (tofu-estate/tofu-address/tofu-slot). Opt in with a `live` block; new `choudoufu live-plan` and `choudoufu live-mv` commands, EXPERIMENTAL in their help. v0: AWS only, 16 types, root module only. See the Stateless Mode docs page, `stateless/MARKERS.md`, `stateless/LIMITATIONS.md`.
 
 ENHANCEMENTS:
 
