@@ -336,10 +336,7 @@ mistake AWS-only enforcement for cross-cloud enforcement.
 
 Generalizing is a table, not a redesign. One recognition row per provider
 (resource type, name attribute, path convention) in the lint rule, plus a
-recommended-type entry here. Candidates when that work lands are
-`azurerm_app_configuration_key` on Azure (plain key-value, client-named),
-and on GCP, which has no plain parameter store,
-`google_compute_project_metadata_item` or a GCS object, chosen
-deliberately, because Secret Manager is the WRONG home. Hashes are not
-secrets, and parking receipts in a secret store inverts guard 2's
+recommended-type entry here. Whatever type another cloud's row names, it
+should be a plain key-value store rather than a secret store: hashes are
+not secrets, and parking receipts in a secret store inverts guard 2's
 reasoning.
