@@ -177,15 +177,28 @@ blockquote {
   margin-bottom: 0.3rem;
 }
 
+.hero-icon {
+  vertical-align: -0.15em;
+  margin-left: 0.15em;
+}
+
+.site-hero-image {
+  text-align: center;
+  /* the graphic carries its own whitespace: stink lines at the top,
+     empty canvas below the plate — negative margins cancel that plus
+     main's bottom padding so it sits snug between content and footer */
+  margin: -7rem 0 -4.5rem;
+}
+
+.site-hero-image img {
+  width: min(400px, 80%);
+  height: auto;
+}
+
 .tagline {
   font-size: 1.25rem;
   font-weight: 600;
   margin: 0.2rem 0;
-}
-
-.tagline-sub {
-  color: var(--muted);
-  margin: 0.2rem 0 0;
 }
 
 section {
