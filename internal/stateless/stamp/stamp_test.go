@@ -424,7 +424,6 @@ var (
 		"aws_lb",
 		"aws_lb_target_group",
 		"aws_lb_listener",
-		"aws_sqs_queue",
 		"aws_sns_topic",
 	}
 	untaggableAdmittedTypes = []string{
@@ -804,7 +803,6 @@ func testSchemas() Schemas {
 		"aws_lb":                   tagged("id", "arn", "name", "internal"),
 		"aws_lb_target_group":      tagged("id", "arn", "name", "port", "protocol", "vpc_id"),
 		"aws_lb_listener":          tagged("id", "arn", "load_balancer_arn", "port", "protocol"),
-		"aws_sqs_queue":            tagged("id", "url", "arn", "name"),
 		"aws_sns_topic":            tagged("id", "arn", "name"),
 
 		// Untaggable, likewise.

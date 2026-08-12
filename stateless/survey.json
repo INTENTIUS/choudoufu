@@ -1076,7 +1076,7 @@
     },
     {
       "type": "aws_sqs_queue",
-      "path": "account-derived",
+      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -1087,7 +1087,7 @@
           "url"
         ]
       },
-      "evidence": "the identity table builds this type's import identity from configuration plus the run's region and account-id"
+      "evidence": "identity requires server-assigned url; taggable, so recoverable by tag-filtered list"
     },
     {
       "type": "aws_ssm_document",

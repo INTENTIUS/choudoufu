@@ -188,7 +188,6 @@ func TestBuildAgainstFloci(t *testing.T) {
 		`aws_lb.main`:                           ReasonNeedsDiscovery,
 		`aws_lb_target_group.app`:               ReasonNeedsDiscovery,
 		`aws_lb_listener.app`:                   ReasonNeedsDiscovery,
-		`aws_sqs_queue.jobs`:                    ReasonNeedsDiscovery,
 		`aws_sns_topic.alerts`:                  ReasonNeedsDiscovery,
 		`aws_route.internet_gateway`:            ReasonParentUnavailable,
 		`aws_route_table_association.this["a"]`: ReasonParentUnavailable,
