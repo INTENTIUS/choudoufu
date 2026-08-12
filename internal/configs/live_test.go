@@ -42,6 +42,78 @@ func TestModule_liveSnapshotPath(t *testing.T) {
 	}
 }
 
+// TestModule_liveSnapshots: the branch carrier is opt-in through its own
+// literal-bool argument. Alone it means "orphan branch in the enclosing
+// repository"; combined with snapshot_path it means "branch first, file as
+// the fallback", and both decode side by side rather than excluding each
+// other.
+func TestModule_liveSnapshots(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/live-snapshot-branch")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	if mod.Live == nil {
+		t.Fatal("no live block was decoded")
+	}
+	if !mod.Live.Snapshots {
+		t.Error("Snapshots is false for a block that set snapshots = true")
+	}
+	if mod.Live.SnapshotPath != "" {
+		t.Errorf("SnapshotPath is %q for a block that set none, want empty", mod.Live.SnapshotPath)
+	}
+
+	both, diags := testModuleFromDir("testdata/valid-modules/live-snapshot-both")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics for the combined block: %s", diags.Error())
+	}
+	if !both.Live.Snapshots {
+		t.Error("Snapshots is false for the combined block")
+	}
+	if got, want := both.Live.SnapshotPath, "snapshots/my-estate.json"; got != want {
+		t.Errorf("SnapshotPath is %q, want %q", got, want)
+	}
+}
+
+// TestModule_liveSnapshotsAbsent: no attribute means false, which must mean
+// the branch carrier is never touched - the same "no attribute -> nothing
+// written, ever" rule snapshot_path follows.
+func TestModule_liveSnapshotsAbsent(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/live")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	if mod.Live == nil {
+		t.Fatal("no live block was decoded")
+	}
+	if mod.Live.Snapshots {
+		t.Error("Snapshots is true for a block that set no snapshots argument")
+	}
+}
+
+// TestModule_liveSnapshotsRefused: like estate and snapshot_path, the
+// argument must be a literal, and it must be a bool. Both refusals arrive
+// from the decoder, and neither leaves Snapshots set.
+func TestModule_liveSnapshotsRefused(t *testing.T) {
+	for _, tc := range []struct {
+		file string
+		want string
+	}{
+		{"testdata/invalid-files/live-non-literal-snapshots.tf", "Variables not allowed"},
+		{"testdata/invalid-files/live-invalid-snapshots.tf", "literal true or false"},
+	} {
+		t.Run(tc.file, func(t *testing.T) {
+			parser := NewParser(nil)
+			_, diags := parser.LoadConfigFile(tc.file)
+			if !diags.HasErrors() {
+				t.Fatal("the configuration loaded with no errors")
+			}
+			if !strings.Contains(diags.Error(), tc.want) {
+				t.Errorf("wrong diagnostic:\n%s", diags.Error())
+			}
+		})
+	}
+}
+
 // TestModule_liveSnapshotPathAbsent: no attribute means an empty
 // SnapshotPath, which is the switch that must mean no snapshot is ever
 // written - the same "no attribute -> no file, ever" rule as the block
