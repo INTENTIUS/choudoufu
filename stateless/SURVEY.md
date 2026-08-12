@@ -115,7 +115,7 @@ token per row.
 |---|---|---|
 | `wired` | in the fork's admission table (`internal/stateless/lint/admission.go`) and identity table (`internal/stateless/identity/table.go`) today | 18 |
 | `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 43 |
-| `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components (see the flag table) | 4 |
+| `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components | 4 |
 | `ops` | excluded by the rule, forwarded to the lifecycle layer | 3 |
 | `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 0 |
 | `unknown` | path not determined | 0 |
@@ -158,13 +158,13 @@ identity argument were derived like every other row's.
 | aws_dynamodb_table | client-named | wired | name | survey note; schema |
 | aws_ecs_cluster | client-named | wired | name; the provider sets id to the cluster ARN, so only name carries the import ID | roster fit; docs |
 | aws_iam_user | client-named | ready | name | survey note; schema |
-| aws_iam_policy | client-named | needs-account-derived | name + path, but the required import attribute is the policy ARN (see flag F3) | survey note; schema |
+| aws_iam_policy | client-named | needs-account-derived | name + path, but the required import attribute is the policy ARN | survey note; schema |
 | aws_lambda_function | client-named | ready | function_name | survey note; schema |
 | aws_lambda_permission | client-named | ready | function_name + statement_id, optionally qualifier | survey note; schema |
 | aws_eks_cluster | client-named | ready | name | survey note; schema |
-| aws_route53_record | client-named | ready | zone_id + name + type, plus set_identifier for weighted and latency sets (see flag F5) | survey note; schema |
-| aws_sqs_queue | client-named | needs-account-derived | name, but the required import attribute is the queue URL (see flag F1) | survey note; schema |
-| aws_sns_topic | client-named | needs-account-derived | name, but the required import attribute is the topic ARN (see flag F2) | survey note; schema |
+| aws_route53_record | client-named | ready | zone_id + name + type, plus set_identifier for weighted and latency sets | survey note; schema |
+| aws_sqs_queue | client-named | needs-account-derived | name, but the required import attribute is the queue URL | survey note; schema |
+| aws_sns_topic | client-named | needs-account-derived | name, but the required import attribute is the topic ARN | survey note; schema |
 | aws_instance | marker | ready | server-assigned instance ID (i-...) | survey note; schema |
 | aws_kms_key | marker | wired | server-assigned key ID (a UUID); the alias is a separate resource | survey note; schema |
 | aws_cloudfront_distribution | marker | ready | server-assigned distribution ID | survey note; schema |
@@ -172,7 +172,7 @@ identity argument were derived like every other row's.
 | aws_route53_zone | marker | wired | server-assigned hosted zone ID (Z...); the identity schema names zone_id rather than id | survey note; schema |
 | aws_lb_listener | marker | ready | server-assigned listener ARN | survey note; schema |
 | aws_lb_target_group_attachment | parent-derived | ready | target_group_arn + target_id, optionally port and availability_zone | survey note; schema |
-| aws_sns_topic_subscription | parent-derived | ready | subscription ARN: the parent topic ARN plus a server-assigned UUID suffix (see flag F6) | survey note; schema |
+| aws_sns_topic_subscription | parent-derived | ready | subscription ARN: the parent topic ARN plus a server-assigned UUID suffix | survey note; schema |
 | aws_ecs_task_definition | parent-derived | ready | family + revision, the revision assigned server-side per registration | survey note; schema |
 | aws_cloudfront_origin_access_control | list + content match | ready | server-assigned OAC ID; no identity schema shipped | survey note; docs |
 | aws_iam_access_key | moves to Ops | ops | server-assigned access key ID (AKIA...), and the secret half is unreadable after create | survey note; schema |
@@ -197,7 +197,7 @@ identity argument were derived like every other row's.
 | aws_ecr_lifecycle_policy | client-named | ready | repository (one policy per repository) | roster fit; schema |
 | aws_eks_node_group | client-named | ready | cluster_name + node_group_name | roster fit; schema |
 | aws_ssm_document | client-named | ready | name | roster fit; schema |
-| aws_secretsmanager_secret | client-named | needs-account-derived | name in config, but the required import attribute is the secret ARN, which carries a server-generated suffix (see flag F4) | roster fit; schema |
+| aws_secretsmanager_secret | client-named | needs-account-derived | name in config, but the required import attribute is the secret ARN, which carries a server-generated suffix | roster fit; schema |
 | aws_vpc_security_group_ingress_rule | marker | ready | server-assigned rule ID (sgr-...), taggable, one resource per rule | roster fit; schema |
 | aws_vpc_security_group_egress_rule | marker | ready | server-assigned rule ID (sgr-...), taggable | roster fit; schema |
 | aws_launch_template | marker | ready | server-assigned template ID (lt-...); `name` is client-chosen but the identity schema requires the ID | roster fit; schema |
@@ -264,39 +264,20 @@ unnamed ones. Types that would close it, if a later pass wants them, are
 identity schemas; they were passed over only because the hinted collectives
 had the stronger claim on the slots.
 
-### Strict client-named test: six flags
+### Strict client-named test
 
-The re-run applied a stricter test than the original survey to every
-client-named and parent-derived row: can the import identity be built from
-config arguments alone, with no call to AWS and no knowledge of the
+The 2026-08-12 re-run applied a stricter test than the original survey to
+every client-named and parent-derived row: can the import identity be built
+from config arguments alone, with no call to AWS and no knowledge of the
 account? Six rows fail it. They keep their survey path, because the summary
 counts are the survey's result and not something this file should quietly
-restyle, but the wiring lanes need to see them before they pick up those
-types.
+restyle, and they carry status `needs-account-derived` in the per-type
+table above where the failure blocks wiring.
 
-F1 through F4 need an account-derived component mechanism, some
-account/region pair the identity builder can substitute into a template,
-and carry status `needs-account-derived` in the table. F5 and F6 need
-parent resolution instead, which the fork already has, so they stay
-`ready`; they are listed here because the parent component is easy to miss
-when a row's identity reads like a plain name.
-
-| Flag | Type | Status | What breaks | What wiring needs |
-|---|---|---|---|---|
-| F1 | aws_sqs_queue | needs-account-derived | required import attribute is `url`, `https://sqs.REGION.amazonaws.com/ACCOUNT/NAME` | account and region components |
-| F2 | aws_sns_topic | needs-account-derived | required import attribute is `arn`, `arn:aws:sns:REGION:ACCOUNT:NAME` | account and region components |
-| F3 | aws_iam_policy | needs-account-derived | required import attribute is `arn`, `arn:aws:iam::ACCOUNT:policy/PATH+NAME` | account component; region is empty for IAM |
-| F4 | aws_secretsmanager_secret | needs-account-derived | required import attribute is `arn`, and Secrets Manager appends a six-character server-generated suffix to the name | account and region are not enough; this one needs a name-to-ARN lookup at admission, or a marker |
-| F5 | aws_route53_record | ready | identity is `zone_id` + `name` + `type`; `zone_id` is the parent zone's server-assigned Z-ID | parent resolution through the aws_route53_zone marker |
-| F6 | aws_sns_topic_subscription | ready | identity is the subscription ARN, the parent topic ARN plus a server-assigned UUID | parent resolution plus a list-and-match on protocol and endpoint |
-
-F1 and F2 were found by the #19 wiring slice and are recorded here so the
-next slice does not rediscover them; F3 through F6 are new in the
-2026-08-12 re-run. F4 is the one worth arguing about: an account-derived
-component will not build that ARN, so `aws_secretsmanager_secret` is either
-a marker (it is taggable) or a client-named type that needs a lookup, and
-the choice should be made deliberately rather than inherited from this
-table.
+Which component each one needs, and the open question about
+`aws_secretsmanager_secret`, are recorded on the wiring lanes that will
+pick them up: issue #19 for the client-named rows, issue #21 for
+`aws_sns_topic_subscription`.
 
 ## The three the rule excludes
 
