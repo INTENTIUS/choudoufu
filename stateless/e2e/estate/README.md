@@ -21,10 +21,16 @@ a feature under test), no provisioners, no logical resources.
 | Composite through a marker parent | `aws_route53_record.app` | The import ID is `ZONEID_NAME_TYPE`: name and type are client-named, the Z-ID is the parent zone's server-assigned identity (SURVEY.md flag F5), so the record binds once the zone's marker is discovered. No `tags` argument. #19's second slice. |
 | Concrete composite, `:`-joined | `aws_iam_role_policy.app` | The import ID is `ROLENAME:POLICYNAME`, both halves client-chosen strings already in config — the same shape as the attachment row with a different separator and a client-named second half. No `tags` argument. #19's second slice. |
 | Client-named handle on a marker parent | `aws_kms_alias.main` | The alias imports by its full `alias/…` name argument, already in config, while the key it points at is marker-discovered. No `tags` argument. #19's second slice. |
+| Marker path, non-`id` identity attribute | `aws_route53_zone.main`, `aws_lb.main`, `aws_lb_target_group.app`, `aws_lb_listener.app` | Same path, but the identity is not the `id` attribute: the zone's identity schema names `zone_id`, and every ELBv2 object's names `arn`. The identity table has to say which attribute carries the import ID, and a list result only ever carries that one. |
+| Client-named path | `aws_s3_bucket.data`, `aws_iam_role.app`, `aws_cloudwatch_log_group.app`, `aws_dynamodb_table.events` | Identity is a name already in config (bucket name, role name, log group name, table name) — nothing to recover. |
+| Client-named path, ARN-shaped id | `aws_ecs_cluster.app` | The documented import ID is the cluster name, already in config, but the provider sets `id` to the cluster ARN — so only the `name` attribute may hand out the identity, the same care `aws_route`'s synthesized id gets. |
+| Named singleton child | `aws_s3_bucket_policy.data` | Exactly one policy per bucket; its own identity is the parent bucket's name, so it needs no marker of its own (and the type carries no `tags` argument to put one on). |
+| Parent-derived | `aws_route.internet_gateway`, `aws_route_table_association.this`, `aws_lb_target_group_attachment.app` | Identity is a composite of admitted parents: a route is (route table, destination CIDR); an association is (subnet, route table); an attachment is (target group ARN, target, port). None of the three accepts a `tags` argument. |
 | Fungible count | `aws_eip.pool` (`count = 3`) | Three interchangeable elastic IPs; no identity-bearing property distinguishes one slot from another, which is the shape phase 3's slot-marker matcher is built for. |
 | Conditional idiom | `aws_cloudwatch_log_group.optional` (`count = var.enabled ? 1 : 0`) | The `enabled`-gated single-instance idiom the roadmap calls out as surviving unchanged. |
 | for_each stable keys | `aws_subnet.this` (`for_each = local.subnets`, keyed `"a"`, `"b"`) | Same block as the marker-path row above — its `tofu-address` carries the full keyed address (`aws_subnet.this:a (escaped per stateless/MARKERS.md)`), which is what phase 3's exact for_each binding keys off. |
 | Attachment composite | `aws_iam_role_policy_attachment.app` | Identity is the (role name, policy ARN) pair, both already client-named in config; the type carries no `tags` argument. |
+| Account-derived | `aws_sns_topic.alerts` | The name is in config and the provider imports by an ARN built around it, so the identity needs the run's account and region as well (`stateless/SURVEY.md` flag F2). With no `CloudContext` supplied — which is every run today — both fall back to the marker path, which is what this fixture exercises live. |
 | Receipt, existence flavor (effect memory, default) | `aws_ssm_parameter.demo_existence` | A plain client-named resource whose value is the constant `"done"` — existence is the entire bit for a run-once effect. Proves the receipts pattern's default recommendation (`stateless/RECEIPTS.md`, "Two flavors; prefer the simpler"): deleting the parameter out of band and watching the next plan re-propose exactly its create is the whole demonstration. |
 | Receipt, hash flavor (effect memory, run-on-change) | `aws_ssm_parameter.demo_effect` | A plain client-named resource whose value is `sha256()` over a local of declared inputs — never the inputs themselves. Proves the receipts pattern for effects that must re-run when their inputs change. Both receipts share the leaf rule: no receipt-specific tooling, nothing else in the estate depends on either. |
 
@@ -46,6 +52,9 @@ provider: `aws_s3_bucket_policy`, `aws_s3_bucket_versioning`,
 `aws_s3_bucket_lifecycle_configuration`, `aws_route`,
 `aws_route_table_association`, `aws_iam_role_policy_attachment`,
 `aws_iam_role_policy`, `aws_kms_alias`, `aws_route53_record`. Each is
+Five types in the table above carry no `tags` argument in the AWS provider:
+`aws_s3_bucket_policy`, `aws_route`, `aws_route_table_association`,
+`aws_iam_role_policy_attachment`, `aws_lb_target_group_attachment`. Each is
 commented in its resource block.
 This is expected, not a gap — their identity comes from the client-named or
 parent-derived path, not from a marker, so admission doesn't need a tag.
@@ -67,6 +76,10 @@ parent-derived path, not from a marker, so admission doesn't need a tag.
 | `keys.tf` | The KMS key (marker path, #20's first slice) and its alias (client-named, #19's second slice). |
 | `dns.tf` | The Route 53 hosted zone (marker path with a `zone_id` identity attribute, same slice) and a record set in it (composite through the zone's marker, #19's second slice). |
 | `monitoring.tf` | The CloudWatch metric alarm (client-named, #19's second slice). |
+| `keys.tf` | The KMS key (marker path, #20's first slice). |
+| `dns.tf` | The Route 53 hosted zone (marker path with a `zone_id` identity attribute, same slice). |
+| `balancers.tf` | The ELBv2 chain: load balancer, target group and listener (marker path, #20's second slice), plus the target group attachment (parent-derived, #21). |
+| `messaging.tf` | The SNS topic (account-derived, #21). |
 | `receipts.tf` | The receipt demo, both flavors (`aws_ssm_parameter.demo_existence`, `aws_ssm_parameter.demo_effect`). See `stateless/RECEIPTS.md`. |
 
 ## Verifying by hand

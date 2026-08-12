@@ -95,6 +95,24 @@ const (
 	// LIMITATIONS.md documents, showing up live.
 	flociPolicyChild = "aws_s3_bucket_policy.data"
 
+	// flociBucketChildren is flociPolicyChild's boundary generalized: the
+	// #19 slice hung four more untaggable children off the data bucket,
+	// and across the bucket rename every one of them re-plans the same
+	// way the policy does, because its bucket reference goes unknown when
+	// the S3 tag gap plans the parent as a create. Same tolerance, same
+	// limits: change or replace only, never a bare destroy.
+)
+
+var flociBucketChildren = map[string]bool{
+	flociPolicyChild:                                          true,
+	"aws_s3_bucket_versioning.data":                           true,
+	"aws_s3_bucket_public_access_block.data":                  true,
+	"aws_s3_bucket_server_side_encryption_configuration.data": true,
+	"aws_s3_bucket_lifecycle_configuration.data":              true,
+}
+
+const (
+
 	// flociS3TagGap is a second emulator gap, found by this task. The AWS
 	// provider updates aws_s3_bucket tags through the S3 Control TagResource
 	// API, sending only the tags whose values changed - which is correct
@@ -413,40 +431,40 @@ func assertCleanPlan(t *testing.T, when, output string, unownedGaps ...string) {
 				t.Errorf("%s: %s is planned as a create but is not reported as an unowned omission:\n%s", when, addr, output)
 			}
 		case strings.Contains(block, "must be replaced"):
-			if addr != flociPolicyChild {
+			if !flociBucketChildren[addr] {
 				t.Errorf("%s: the plan proposes replacing %s, which a rename must not produce:\n%s", when, addr, block)
 			} else {
 				t.Logf("%s: %s replaces - its bucket and the unowned role's ARN are both unknown (untaggable-child boundary)", when, addr)
 			}
 		case strings.Contains(block, "will be destroyed"):
 			t.Errorf("%s: the plan proposes destroying %s:\n%s", when, addr, block)
-		case addr == flociPolicyChild:
-			t.Logf("%s: %s re-plans - it interpolates the unowned role's ARN (untaggable-child boundary)", when, addr)
+		case flociBucketChildren[addr]:
+			t.Logf("%s: %s re-plans - it references an unowned resource (untaggable-child boundary)", when, addr)
 		default:
 			t.Errorf("%s: the plan proposes a change to %s, which a rename must not produce:\n%s", when, addr, block)
 		}
 	}
 
 	// The summary and the headers must agree: exactly as many creates as
-	// there are unowned omissions, plus the policy child's replacement half
-	// when it replaces, and no destroy that is not that same replacement.
+	// there are unowned omissions, plus a replacement half for each bucket
+	// child that replaces, and no destroy that is not one of those same
+	// replacements.
 	if add, change, destroy, ok := flocitest.PlanSummary(output); ok {
 		t.Logf("%s: %d to add, %d to change, %d to destroy", when, add, change, destroy)
 		wantAdd := len(unownedInstances(output))
-		policyReplaced := strings.Contains(output, "# "+flociPolicyChild+" must be replaced")
-		if policyReplaced {
-			wantAdd++
+		childrenReplaced := 0
+		for addr := range flociBucketChildren {
+			if strings.Contains(output, "# "+addr+" must be replaced") {
+				childrenReplaced++
+			}
 		}
+		wantAdd += childrenReplaced
 		if add != wantAdd {
 			t.Errorf("%s: the plan adds %d resource(s) but only %d are accounted for by unowned omissions%s:\n%s",
-				when, add, wantAdd, map[bool]string{true: " and the policy child's replacement"}[policyReplaced], output)
+				when, add, wantAdd, map[bool]string{true: " and the bucket children's replacements"}[childrenReplaced > 0], output)
 		}
-		wantDestroy := 0
-		if policyReplaced {
-			wantDestroy = 1
-		}
-		if destroy != wantDestroy {
-			t.Errorf("%s: expected %d destroy(s), got %d:\n%s", when, wantDestroy, destroy, output)
+		if destroy != childrenReplaced {
+			t.Errorf("%s: expected %d destroy(s), got %d:\n%s", when, childrenReplaced, destroy, output)
 		}
 	}
 }

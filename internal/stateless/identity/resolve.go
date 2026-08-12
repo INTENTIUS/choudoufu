@@ -38,6 +38,21 @@ import (
 // call, i.e. whatever the caller passed to the loader, falling back to
 // declared defaults.
 func Resolve(ctx context.Context, cfg *configs.Config) (*Result, tfdiags.Diagnostics) {
+	return ResolveIn(ctx, cfg, CloudContext{})
+}
+
+// ResolveIn is [Resolve] told which cloud the run is against, so that the
+// types whose import identity embeds the account or the region can be
+// computed rather than deferred. See [CloudContext] for what those values
+// are and where a caller gets them.
+//
+// A caller that does not have them passes the zero value, which is exactly
+// what [Resolve] does: every type needing a value the context does not carry
+// classifies [ClassNeedsDiscovery], naming the missing property, and marker
+// discovery finds it instead. That fallback is the reason this parameter can
+// exist at all without making the package need a provider - nothing here
+// ever fetches a cloud property, and nothing here fails for want of one.
+func ResolveIn(ctx context.Context, cfg *configs.Config, cloud CloudContext) (*Result, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	if cfg == nil || cfg.Module == nil {
@@ -78,8 +93,9 @@ func Resolve(ctx context.Context, cfg *configs.Config) (*Result, tfdiags.Diagnos
 	}
 
 	r := &resolver{
-		ctx: ctx,
-		mod: cfg.Module,
+		ctx:   ctx,
+		mod:   cfg.Module,
+		cloud: cloud,
 		// Pure on purpose: an identity is a claim about which cloud object a
 		// block owns, and a function that answers differently every time it
 		// is called cannot make that claim. See impure.go.
@@ -152,6 +168,7 @@ type resolver struct {
 	ctx   context.Context
 	mod   *configs.Module
 	eval  *configs.StaticEvaluator
+	cloud CloudContext
 	diags tfdiags.Diagnostics
 
 	// Expansion memo, keyed by resource address (no instance key).
@@ -236,6 +253,18 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		}, true
 	}
 
+	// Cloud properties are checked before anything is read from the resource
+	// body, so that a type this run cannot name gets the one honest answer -
+	// "the account is not known here" - rather than an error about some
+	// argument that would have been fine had the account been known.
+	if missing, ok := r.missingCloudValue(entry); ok {
+		return Resolution{
+			Addr:   addr,
+			Class:  ClassNeedsDiscovery,
+			Reason: cloudReason(entry, missing),
+		}, true
+	}
+
 	attrs, ok := r.identityArgs(rc, entry)
 	if !ok {
 		return Resolution{}, false
@@ -244,6 +273,12 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	scope := exp.scope(addr.Resource.Key)
 	var parts []Part
 	for _, comp := range entry.Components {
+		if comp.Cloud != CloudNone {
+			// Present: missingCloudValue already refused the alternative.
+			v, _ := r.cloud.value(comp.Cloud)
+			parts = append(parts, Part{Literal: v})
+			continue
+		}
 		if len(comp.Attrs) == 0 {
 			parts = append(parts, Part{Literal: comp.Literal})
 			continue
@@ -306,6 +341,31 @@ func classify(addr addrs.AbsResourceInstance, parts []Part) Resolution {
 			Parents: parents,
 		},
 	}
+}
+
+// missingCloudValue reports the first cloud property this entry's identity
+// needs that the run was not given, in component order.
+func (r *resolver) missingCloudValue(entry TypeIdentity) (CloudValue, bool) {
+	for _, comp := range entry.Components {
+		if comp.Cloud == CloudNone {
+			continue
+		}
+		if _, ok := r.cloud.value(comp.Cloud); !ok {
+			return comp.Cloud, true
+		}
+	}
+	return CloudNone, false
+}
+
+// cloudReason is the needs-discovery explanation for an identity that embeds
+// a property of the cloud rather than of the configuration. It has to read
+// as an operator-facing sentence, because it is printed as one: the
+// projection's omission section quotes it verbatim.
+func cloudReason(entry TypeIdentity, missing CloudValue) string {
+	return fmt.Sprintf(
+		"an %s imports by %s, which embeds the %s, and that is a property of the cloud this run is pointed at rather than of the configuration; nothing has told this run what it is, so the identity cannot be built here.",
+		entry.Type, entry.ImportSyntax, missing.describe(),
+	)
 }
 
 // identityArgs pulls just the arguments the type's identity needs out of

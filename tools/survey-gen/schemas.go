@@ -89,17 +89,22 @@ func acquireSchemas(initBin, workdir string, log io.Writer) (providers.GetProvid
 
 // findProviderBinary locates the plugin executable init unpacked under the
 // work directory, exactly as the projection floci test does.
+//
+// The walk follows directory symlinks, which matters for one case worth
+// stating: with TF_PLUGIN_CACHE_DIR set - the ordinary way to keep the
+// provider download off a run's critical path - terraform does not unpack
+// anything here at all. It links the version directory to the shared cache,
+// and filepath.WalkDir does not descend through a symlink, so a plain walk
+// reports "init left no AWS provider plugin" on a working directory that has
+// one.
 func findProviderBinary(dir string) (string, error) {
 	var found []string
 	root := filepath.Join(dir, ".terraform", "providers")
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() || !strings.HasPrefix(d.Name(), "terraform-provider-aws") {
+	err := walkFollowingLinks(root, func(path string, d fs.DirEntry) error {
+		if !strings.HasPrefix(d.Name(), "terraform-provider-aws") {
 			return nil
 		}
-		info, err := d.Info()
+		info, err := os.Stat(path)
 		if err != nil {
 			return err
 		}
@@ -117,6 +122,50 @@ func findProviderBinary(dir string) (string, error) {
 	}
 	sort.Strings(found)
 	return found[0], nil
+}
+
+// walkFollowingLinks walks root depth-first, descending through symlinked
+// directories, and calls visit for every non-directory entry. Cycles are cut
+// by refusing to revisit a resolved path, which a provider cache cannot
+// produce but a hand-made link farm can.
+func walkFollowingLinks(root string, visit func(path string, d fs.DirEntry) error) error {
+	seen := map[string]bool{}
+
+	var walk func(dir string) error
+	walk = func(dir string) error {
+		real, err := filepath.EvalSymlinks(dir)
+		if err != nil {
+			return err
+		}
+		if seen[real] {
+			return nil
+		}
+		seen[real] = true
+
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return err
+		}
+		for _, e := range entries {
+			path := filepath.Join(dir, e.Name())
+			info, err := os.Stat(path)
+			if err != nil {
+				// A broken link is not this walk's problem to report.
+				continue
+			}
+			if info.IsDir() {
+				if err := walk(path); err != nil {
+					return err
+				}
+				continue
+			}
+			if err := visit(path, e); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return walk(root)
 }
 
 // pluginFactory is internal/command's providerFactory minus the
