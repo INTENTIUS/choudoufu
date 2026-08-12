@@ -57,7 +57,8 @@ The grammar is `[a-z][a-z0-9-]{0,127}`. A lowercase ASCII letter, then
 lowercase letters, digits, or hyphens, 1 to 128 characters in total. This is
 narrower than the AWS-allowed character set on purpose. An estate name is
 meant to be typed, grepped, and read aloud, not to carry arbitrary content.
-An example is `stateless-e2e` (the P0.1 fixture's estate).
+An example is `stateless-e2e`, the demo estate's name
+(`stateless/e2e/estate/`).
 
 ## `tofu-address`
 
@@ -191,8 +192,8 @@ are carried as strings in a tag. `"9"` is a lower slot than `"10"` even
 though it sorts after it as a string. Any tool implementing the scale-down
 rule ("surplus deletes the highest slots") must parse before comparing.
 
-`tofu-slot` is independent of `tofu-address`. A plain rename (P3.3) that
-does not change cardinality leaves slot assignments untouched. Only a
+`tofu-slot` is independent of `tofu-address`. A plain rename that does not
+change cardinality leaves slot assignments untouched. Only a
 change in the number of live instances mints or retires slots.
 
 ## Ownership semantics
@@ -202,7 +203,7 @@ change in the number of live instances mints or retires slots.
   check.
 - A resource carrying neither `tofu-estate` nor `tofu-address` is foreign.
   It sits outside every estate's ownership and is reported, protected, and
-  never auto-deleted (see the roadmap's foreign rule).
+  never auto-deleted.
 - A resource carrying `tofu-estate` but missing or carrying an unparseable
   `tofu-address` is malformed, not foreign and not owned. This is a named
   error surfaced to the operator, the same way a binding ambiguity is (two
@@ -225,8 +226,7 @@ tag write *is* the move operation. There is no state to surgically edit, no
 address is simply gone from the tag the instant the new one is written,
 because a single tag value cannot hold both.
 
-`choudoufu live-mv <old-address> <new-address>` (P3.3) performs exactly
-this. It escapes both addresses, finds the live resource whose
+`choudoufu live-mv <old-address> <new-address>` performs exactly this. It escapes both addresses, finds the live resource whose
 `tofu-address` equals the old escaped value within the target estate, and
 overwrites it with the new escaped value in one tag-update call. After it
 runs, a plan against the old address finds nothing (it was never a delete,
