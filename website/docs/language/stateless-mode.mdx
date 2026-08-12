@@ -213,9 +213,14 @@ live resource at a declared client name that does not carry this estate's
 reject while the unmarked one holds the name), and the refusal is printed as
 an omission tagged `[UNOWNED]`, naming the live identity and the exact
 `tofu-estate`/`tofu-address` values to write
-(`internal/stateless/projection/ownership.go`). Adoption here is the same
-deliberate tag write as the server-ID path. Read the `[UNOWNED]` line, run
-the tag write it names, then plan again.
+(`internal/stateless/projection/ownership.go`). The plan also gathers every
+such refusal into a rendered `Unowned` section of its own, one entry per
+live resource. An entry marked `[ADOPTABLE]` shows the two tag values that
+claim it for this estate, ready to copy. An entry marked `[IN_THE_WAY]`
+belongs to another estate or cannot be checked, so it only blocks the
+create the plan proposes. Adoption here is the same
+deliberate tag write as the server-ID path. Read the `[UNOWNED]` line or
+the `Unowned` section entry, run the tag write it names, then plan again.
 
 **What the classifier cannot offer at all.** `aws_route`,
 `aws_route_table_association`, and `aws_iam_role_policy_attachment` carry no

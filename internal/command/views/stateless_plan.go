@@ -195,6 +195,33 @@ type StatelessTag struct {
 	Value string
 }
 
+// StatelessUnowned is one live resource the projection refused to admit: it
+// sits at the identity a declared resource names and carries no ownership
+// marker for this estate. The fields correspond to projection.Unowned, plus
+// the two tag values that would adopt it, worked out by the caller.
+type StatelessUnowned struct {
+	// Addr is the declared instance whose identity found it.
+	Addr string
+
+	// TypeName is the resource type and LiveID the identity the live
+	// resource was read with, which is the handle a human needs to go look
+	// at it.
+	TypeName string
+	LiveID   string
+
+	// HeldBy is the tofu-estate marker the live resource carries, empty when
+	// it carries none. A non-empty value means the resource is owned, just
+	// not by this run.
+	HeldBy string
+
+	// MarkerEstate and MarkerAddress are the tofu-estate and tofu-address
+	// values that would adopt the resource, both empty when adoption is not
+	// this run's to offer: the resource belongs to another estate, or this
+	// run has no estate name to write.
+	MarkerEstate  string
+	MarkerAddress string
+}
+
 // StatelessPlan renders the parts of live-plan's output that have no
 // equivalent in a stock plan. The plan itself is rendered by the ordinary
 // [Plan] view, so that live-plan and plan produce identical output for
@@ -203,6 +230,11 @@ type StatelessPlan interface {
 	// Omissions reports the instances that are missing from the projection,
 	// which is why the plan that follows proposes to create them.
 	Omissions(oms []StatelessOmission)
+
+	// Unowned reports the live resources found at declared identities
+	// without this estate's marker: which of them a tag write adopts, and
+	// which are simply in the way of the create the plan proposes.
+	Unowned(items []StatelessUnowned)
 
 	// Foreign reports the live resources the estate does not own: what was
 	// found, what could be adopted, and which types the sweep covered.
@@ -250,6 +282,72 @@ func (v *StatelessPlanHuman) Omissions(oms []StatelessOmission) {
 		)))
 		for _, line := range strings.Split(strings.TrimRight(format.WordWrap(om.Detail, cols-6), "\n"), "\n") {
 			v.view.streams.Print("      " + line + "\n")
+		}
+	}
+
+	v.view.outputHorizRule()
+}
+
+const statelessUnownedIntro = `Each of these is a live resource sitting at the identity a declared resource names, without this estate's ownership marker on it. They are the plan's [UNOWNED] omissions, gathered here by what resolves each one. None of them is in the prior state this plan ran against, so nothing in the plan changes or destroys them, and the plan proposes creating what the configuration declares - a create the cloud will refuse while the live resource holds the identity. An [ADOPTABLE] entry becomes this estate's by writing the two tags shown, on purpose; an [IN_THE_WAY] entry is not this run's to claim.`
+
+// Unowned renders the projection's refusals as their own section, between the
+// omissions and the foreign report, so that "this needs adopting" and
+// "something else is in the way of this address" read at a glance instead of
+// out of the omission prose. Nothing renders when there is nothing to say:
+// unlike the sweep behind the foreign section, this check runs on every
+// instance the projection reads, so an empty list is not a coverage question.
+func (v *StatelessPlanHuman) Unowned(items []StatelessUnowned) {
+	if len(items) == 0 {
+		return
+	}
+
+	cols := v.view.outputColumns()
+
+	out := func(s string) { v.view.streams.Print(s) }
+	colored := func(f string, args ...any) {
+		v.view.streams.Print(v.view.colorize.Color(fmt.Sprintf(f, args...)))
+	}
+	wrapped := func(s string, indent int) {
+		for _, line := range strings.Split(strings.TrimRight(format.WordWrap(s, cols-indent), "\n"), "\n") {
+			out(strings.Repeat(" ", indent) + line + "\n")
+		}
+	}
+
+	adoptable := 0
+	for _, u := range items {
+		if u.MarkerEstate != "" {
+			adoptable++
+		}
+	}
+	var parts []string
+	if adoptable > 0 {
+		parts = append(parts, fmt.Sprintf("%d adoptable", adoptable))
+	}
+	if n := len(items) - adoptable; n > 0 {
+		parts = append(parts, fmt.Sprintf("%d in the way", n))
+	}
+
+	colored("\n[reset][bold]Unowned: %d live %s this configuration declares (%s)[reset]\n\n",
+		len(items),
+		noun(len(items), "resource holds an identity", "resources hold identities"),
+		strings.Join(parts, ", "))
+	wrapped(statelessUnownedIntro, 0)
+	out("\n")
+
+	for _, u := range items {
+		switch {
+		case u.MarkerEstate != "":
+			colored("  [bold]%s[reset] [ADOPTABLE] <- %s %s\n", u.Addr, u.TypeName, liveIDOrNone(u.LiveID))
+			// Deliberately not word-wrapped, like the adoption hint in the
+			// foreign section: this line exists to be copied.
+			out("      adopt by writing: tofu-estate=" + u.MarkerEstate + " tofu-address=" + u.MarkerAddress + "\n")
+			wrapped("Write both tags with any tool that honors stateless/MARKERS.md, then re-run; the next plan binds it instead of proposing a duplicate.", 6)
+		case u.HeldBy != "":
+			colored("  [bold]%s[reset] [IN_THE_WAY] <- %s %s\n", u.Addr, u.TypeName, liveIDOrNone(u.LiveID))
+			wrapped(fmt.Sprintf("held by estate %q. Moving a resource between estates is a deliberate retag by its owner, never a side effect of this estate planning. Otherwise, point the declared resource at an identity nobody is using.", u.HeldBy), 6)
+		default:
+			colored("  [bold]%s[reset] [IN_THE_WAY] <- %s %s\n", u.Addr, u.TypeName, liveIDOrNone(u.LiveID))
+			wrapped("Whether this estate owns it cannot be checked, because this run has no estate name. Pass -estate=<name>, or name the estate in the live block, and re-run.", 6)
 		}
 	}
 

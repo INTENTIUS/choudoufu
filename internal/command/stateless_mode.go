@@ -364,6 +364,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	}
 
 	r.view.Omissions(statelessOmissions(projResult))
+	r.view.Unowned(statelessUnownedReport(projResult, estate))
 
 	if disco != nil {
 		classified, foreignDiags := foreign.Classify(ctx, foreign.Request{
