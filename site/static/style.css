@@ -201,11 +201,6 @@ blockquote {
   margin: 0.2rem 0;
 }
 
-.tagline-sub {
-  color: var(--muted);
-  margin: 0.2rem 0 0;
-}
-
 section {
   margin-bottom: 2.4rem;
 }
