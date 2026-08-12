@@ -201,6 +201,12 @@ blockquote {
   margin: 0.2rem 0;
 }
 
+.versions {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0.6rem 0 0;
+}
+
 section {
   margin-bottom: 2.4rem;
 }

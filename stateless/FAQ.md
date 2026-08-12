@@ -97,6 +97,17 @@ documented with its reasoning and its enforcing lint rule in
 `stateless/LIMITATIONS.md`, and the lint refuses a config outside the
 subset up front rather than failing halfway through an apply.
 
+## Does it really keep no record at all?
+
+No record it ever reads. An apply can leave an observational snapshot
+behind when the configuration asks for one — a JSON record of what the run
+saw, written to a `snapshot_path` file or as commits on a
+`tofu-snapshots/<estate>` git branch. Nothing in the fork reads a snapshot
+back (a test, `TestSnapshot_noReader`, pins that), so deleting one changes
+nothing about any run. It exists for humans: drift over time becomes `git
+log` and `git diff` on the branch. The concept page's `snapshots` reference
+has the details.
+
 ## With no lock, what stops two people from applying at once?
 
 Nothing, the same as when a backend lock fails, except the failure modes
