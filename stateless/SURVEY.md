@@ -114,16 +114,20 @@ token per row.
 | Status | Meaning | Rows |
 |---|---|---|
 | `wired` | in the fork's admission table (`internal/stateless/lint/admission.go`) and identity table (`internal/stateless/identity/table.go`) today | 18 |
-| `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 43 |
+| `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 30 |
 | `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components | 4 |
 | `ops` | excluded by the rule, forwarded to the lifecycle layer | 3 |
-| `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 0 |
+| `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 13 |
 | `unknown` | path not determined | 0 |
 
-No row carries `blocked-emulator` in this pass. Per-type emulator coverage
-was not surveyed here; the token exists so that a wiring lane hitting a gap
-like floci-gaps #10 (`stateless/e2e/README.md`) has somewhere to record it
-without inventing a vocabulary.
+The `blocked-emulator` rows were found by the #19 and #20 wiring lanes, by
+probing each candidate end to end through the provider against the harness's
+`floci/floci:latest` image before wiring (CLI round-trips are not enough;
+`aws_instance`'s probe looked fine from the CLI and still died in the
+provider's create waiter). Each such row names what failed in its identity
+column, with the issue tracking the gap. Issue choudoufu#26 is the
+collection point: when the harness adopts an image carrying the floci fixes,
+these rows rejoin their wiring lanes.
 
 `Source` is two tokens, provenance then derivation tier. Provenance is
 `survey note` for the 36 types the original note named, whether as a
@@ -157,18 +161,18 @@ identity argument were derived like every other row's.
 | aws_ssm_parameter | client-named | wired | name | survey note; schema |
 | aws_dynamodb_table | client-named | wired | name | survey note; schema |
 | aws_ecs_cluster | client-named | wired | name; the provider sets id to the cluster ARN, so only name carries the import ID | roster fit; docs |
-| aws_iam_user | client-named | ready | name | survey note; schema |
+| aws_iam_user | client-named | blocked-emulator | name; blocked: floci's iam:GetUser omits Tags, the GetRole gap family, so ownership can never read back (choudoufu#26) | survey note; schema |
 | aws_iam_policy | client-named | needs-account-derived | name + path, but the required import attribute is the policy ARN | survey note; schema |
-| aws_lambda_function | client-named | ready | function_name | survey note; schema |
-| aws_lambda_permission | client-named | ready | function_name + statement_id, optionally qualifier | survey note; schema |
-| aws_eks_cluster | client-named | ready | name | survey note; schema |
+| aws_lambda_function | client-named | blocked-emulator | function_name; blocked: floci cannot create Lambda functions (lex00/floci#26) | survey note; schema |
+| aws_lambda_permission | client-named | blocked-emulator | function_name + statement_id, optionally qualifier; blocked: needs a live parent function, which floci cannot create (lex00/floci#26) | survey note; schema |
+| aws_eks_cluster | client-named | blocked-emulator | name; blocked: floci cannot create EKS clusters (lex00/floci#27) | survey note; schema |
 | aws_route53_record | client-named | ready | zone_id + name + type, plus set_identifier for weighted and latency sets | survey note; schema |
 | aws_sqs_queue | client-named | needs-account-derived | name, but the required import attribute is the queue URL | survey note; schema |
 | aws_sns_topic | client-named | needs-account-derived | name, but the required import attribute is the topic ARN | survey note; schema |
 | aws_instance | marker | ready | server-assigned instance ID (i-...) | survey note; schema |
 | aws_kms_key | marker | wired | server-assigned key ID (a UUID); the alias is a separate resource | survey note; schema |
 | aws_cloudfront_distribution | marker | ready | server-assigned distribution ID | survey note; schema |
-| aws_db_instance | marker | ready | taggable, recovered by tag-filtered list; no identity schema shipped, and `identifier` is also the documented import ID (see the wrinkles below) | survey note; docs |
+| aws_db_instance | marker | blocked-emulator | taggable, recovered by tag-filtered list; no identity schema shipped, and `identifier` is also the documented import ID (see the wrinkles below); blocked: floci serves RDS instances only with the Docker socket mounted into the emulator container, which the harness does not do (lex00/floci#28, choudoufu#26) | survey note; docs |
 | aws_route53_zone | marker | wired | server-assigned hosted zone ID (Z...); the identity schema names zone_id rather than id | survey note; schema |
 | aws_lb_listener | marker | ready | server-assigned listener ARN | survey note; schema |
 | aws_lb_target_group_attachment | parent-derived | ready | target_group_arn + target_id, optionally port and availability_zone | survey note; schema |
@@ -182,21 +186,21 @@ identity argument were derived like every other row's.
 | aws_s3_bucket_public_access_block | client-named | ready | bucket | roster fit; schema |
 | aws_s3_bucket_server_side_encryption_configuration | client-named | ready | bucket | roster fit; schema |
 | aws_s3_bucket_lifecycle_configuration | client-named | ready | bucket | roster fit; schema |
-| aws_iam_instance_profile | client-named | ready | name | roster fit; schema |
+| aws_iam_instance_profile | client-named | blocked-emulator | name; blocked: floci's iam:GetInstanceProfile omits Tags, the GetRole gap family, so the marker never reads back (probed 2026-08-12; choudoufu#26) | roster fit; schema |
 | aws_iam_role_policy | client-named | ready | role + name, both client-named, so concrete wherever the role is | roster fit; schema |
 | aws_iam_group | client-named | ready | name; no identity schema shipped, import ID documented as the group name | roster fit; docs |
 | aws_autoscaling_group | client-named | ready | name; tags are `tag` blocks rather than a `tags` argument, so the marker path is not open to it | roster fit; schema |
 | aws_key_pair | client-named | ready | key_name; no identity schema shipped, import ID documented as key_name | roster fit; docs |
 | aws_cloudwatch_metric_alarm | client-named | ready | alarm_name | roster fit; schema |
 | aws_cloudwatch_event_rule | client-named | ready | name; import ID is event_bus_name/name, the bus defaulting to `default` when omitted | roster fit; schema |
-| aws_db_subnet_group | client-named | ready | name | roster fit; schema |
-| aws_db_parameter_group | client-named | ready | name; no identity schema shipped, import ID documented as the group name | roster fit; docs |
+| aws_db_subnet_group | client-named | blocked-emulator | name; blocked: floci's rds:ListTagsForResource serves no tags back, so the written marker never reads back (probed 2026-08-12; choudoufu#26) | roster fit; schema |
+| aws_db_parameter_group | client-named | blocked-emulator | name; no identity schema shipped, import ID documented as the group name; blocked: floci's rds:ListTagsForResource serves no tags back (probed 2026-08-12; choudoufu#26) | roster fit; docs |
 | aws_kms_alias | client-named | ready | name, the full `alias/...` string | roster fit; schema |
-| aws_ecs_service | client-named | ready | cluster + name, the cluster itself client-named | roster fit; schema |
-| aws_ecr_repository | client-named | ready | name | roster fit; schema |
-| aws_ecr_lifecycle_policy | client-named | ready | repository (one policy per repository) | roster fit; schema |
-| aws_eks_node_group | client-named | ready | cluster_name + node_group_name | roster fit; schema |
-| aws_ssm_document | client-named | ready | name | roster fit; schema |
+| aws_ecs_service | client-named | blocked-emulator | cluster + name, the cluster itself client-named; blocked: floci's ecs:CreateService demands a task definition even for an EXTERNAL deployment controller, which real ECS does not (probed 2026-08-12; choudoufu#26) | roster fit; schema |
+| aws_ecr_repository | client-named | blocked-emulator | name; blocked: floci's ecr:CreateRepository dies starting the backing registry container (choudoufu#26) | roster fit; schema |
+| aws_ecr_lifecycle_policy | client-named | blocked-emulator | repository (one policy per repository); blocked: needs a live parent repository, which floci cannot create (choudoufu#26) | roster fit; schema |
+| aws_eks_node_group | client-named | blocked-emulator | cluster_name + node_group_name; blocked: needs a live parent cluster, which floci cannot create (lex00/floci#27) | roster fit; schema |
+| aws_ssm_document | client-named | blocked-emulator | name; blocked: floci answers ssm:CreateDocument with UnsupportedOperation (probed 2026-08-12; choudoufu#26) | roster fit; schema |
 | aws_secretsmanager_secret | client-named | needs-account-derived | name in config, but the required import attribute is the secret ARN, which carries a server-generated suffix | roster fit; schema |
 | aws_vpc_security_group_ingress_rule | marker | ready | server-assigned rule ID (sgr-...), taggable, one resource per rule | roster fit; schema |
 | aws_vpc_security_group_egress_rule | marker | ready | server-assigned rule ID (sgr-...), taggable | roster fit; schema |
@@ -284,8 +288,8 @@ pick them up: issue #19 for the client-named rows, issue #21 for
 Exactly three of the 68 fail the admission rule, and they fail it
 permanently: they are out by the rule itself, not by v0 scoping. This is a
 different kind of "not admitted" than the surveyed types that are merely
-not wired yet (49 of them at the 16 types wired today, the `ready` and
-`needs-account-derived` rows above), and `stateless/LIMITATIONS.md`'s
+not wired yet (47 of them at the 18 types wired today, the `ready`,
+`needs-account-derived` and `blocked-emulator` rows above), and `stateless/LIMITATIONS.md`'s
 `unadmitted-type` entry draws the same distinction.
 
 `aws_iam_access_key` and `aws_secretsmanager_secret_version` are
