@@ -370,6 +370,11 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 			Estate:    disco.Estate,
 			Config:    config,
 			Discovery: disco,
+			// The adoption hint carries the region and endpoint the
+			// resources were listed through, so that pasting it talks to
+			// the same cloud the plan just read.
+			Region:      provs.region(discoProvider),
+			EndpointURL: provs.endpointURL(discoProvider),
 		})
 		diags = diags.Append(foreignDiags)
 		if foreignDiags.HasErrors() {

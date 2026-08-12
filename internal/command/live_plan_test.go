@@ -479,9 +479,15 @@ func TestLivePlan_bindCandidateIsOfferedNotTaken(t *testing.T) {
 	if !strings.Contains(stdout, "matched on: cidr_block=10.42.0.0/16") {
 		t.Errorf("the adoption offer does not show what it matched on:\n%s", stdout)
 	}
-	if !strings.Contains(stdout, "aws ec2 create-tags --resources vpc-unmarked") ||
-		!strings.Contains(stdout, "Key=tofu-address,Value=aws_vpc.main") {
-		t.Errorf("the adoption hint does not stamp the markers:\n%s", stdout)
+	if !strings.Contains(stdout, "aws ec2 create-tags --resources 'vpc-unmarked'") ||
+		!strings.Contains(stdout, "'Key=tofu-address,Value=aws_vpc.main'") {
+		t.Errorf("the adoption hint does not stamp the markers, shell-quoted:\n%s", stdout)
+	}
+	// The hint is built to be pasted verbatim, so it carries the region the
+	// provider block configures rather than leaving the CLI profile to pick
+	// one.
+	if !strings.Contains(stdout, "--region 'us-east-1'") {
+		t.Errorf("the adoption hint does not carry the provider's region:\n%s", stdout)
 	}
 
 	// Not taken: the declared instance is still unbound, so it is omitted
