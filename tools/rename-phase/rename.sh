@@ -144,7 +144,7 @@ MODULE_GUARD='(^|[^/])github\.com/opentofu/opentofu'
 rewrite "module path: go.mod" "$MODULE_GUARD" "$MODULE_EXPR" go.mod
 rewrite "module path: .go files" "$MODULE_GUARD" "$MODULE_EXPR" "${GO_SPEC[@]}"
 rewrite "module path: build plumbing" "$MODULE_GUARD" "$MODULE_EXPR" \
-	.tfdev .goreleaser.yaml scripts/build.sh scripts/debug-opentofu Makefile
+	.tfdev .goreleaser.yaml scripts/build.sh scripts/debug-opentofu Makefile .github/workflows/release.yml
 
 # ---------------------------------------------------------------------------
 # 3. path references
