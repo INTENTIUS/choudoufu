@@ -499,7 +499,7 @@ func (s *stamper) unstampableAt(rc *configs.Resource, rng hcl.Range, summary, de
 // marker-discovered resource an error rather than a warning.
 func unmarkedDiscoveryDetail(addr addrs.Resource) string {
 	return fmt.Sprintf(
-		"%s has an identity the provider assigns at create time, so the ownership marker is the only thing any later run can find it by. Applying it unmarked would create a resource this configuration can never see again: the next plan would find nothing, propose creating another one, and every run after that would do the same. That is why this is an error where a resource named by its own configuration would only get a warning.",
+		"%s has an identity the provider assigns at create time, so the ownership marker is the only thing any later run can find it by. Applying it unmarked would create a resource this configuration can never see again, and every later plan would propose creating another one.",
 		addr)
 }
 
@@ -581,11 +581,11 @@ func (s *stamper) verifyValue(rc *configs.Resource, m marker, got string) (verdi
 	if m.perInstance {
 		if m.key == TagSlot {
 			return verifyConflict, fmt.Sprintf(
-				"%s has %s, so each of its instances is a distinct member of a fungible set, but its %s tag is the constant %q. Every instance would claim the same slot and nothing would say which live resource is which member. A slot is not something configuration assigns: remove the tag and let this run stamp the assignment it worked out from the live set (%s).",
+				"%s has %s, so its instances are a fungible set, but its %s tag is the constant %q and every instance would claim the same slot. Remove the tag and let this run stamp the assignment it worked out from the live set (%s).",
 				addr, instanceKeyword(rc), TagSlot, got, m.want)
 		}
 		return verifyConflict, fmt.Sprintf(
-			"%s has %s, so each instance owns a different address, but its %s tag is the constant %q. Every instance would claim one address and the estate's ownership records would collide. Write it as %q, or remove the tag and let this run stamp it.",
+			"%s has %s, so each instance owns a different address, but its %s tag is the constant %q. Write it as %q, or remove the tag and let this run stamp it.",
 			addr, instanceKeyword(rc), TagAddress, got, m.want)
 	}
 
@@ -596,11 +596,11 @@ func (s *stamper) verifyValue(rc *configs.Resource, m marker, got string) (verdi
 	switch m.key {
 	case TagEstate:
 		return verifyConflict, fmt.Sprintf(
-			"%s declares %s = %q and this run is stamping the estate %q. A marker naming another estate is not something a plan will overwrite: it is either the wrong estate for this run (pass -estate=%s, or drop the flag and let the configuration's own value stand) or a transfer of ownership between estates, which adoption owns rather than a plan.",
+			"%s declares %s = %q and this run is stamping the estate %q. A plan never overwrites a marker naming another estate: pass -estate=%s if that is the estate this run is for, or drop the flag and let the configuration's own value stand.",
 			addr, TagEstate, got, m.want, got)
 	default:
 		return verifyConflict, fmt.Sprintf(
-			"%s declares %s = %q, but its address in this configuration is %q. A marker naming another address is a rename, and a rename is `choudoufu live-mv %s %s` rewriting the tag on the live resource - never a plan silently changing which resource a marker points at. Fix the tag, or move the resource.",
+			"%s declares %s = %q, but its address in this configuration is %q. A marker naming another address is a rename: run `choudoufu live-mv %s %s`, or fix the tag. See stateless/MARKERS.md, \"The rename rule\".",
 			addr, TagAddress, got, m.want, got, m.want)
 	}
 }
