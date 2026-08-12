@@ -13,7 +13,7 @@ a vote.
 
 :::note
 Live resource markers are an experimental, fork-only feature, and AWS only
-at the moment (the 18-type subset listed in The Contract below).
+at the moment (the resource-type subset listed in The Contract below).
 `choudoufu live-plan` and `choudoufu live-mv` are marked EXPERIMENTAL in
 their own `-help` text, and their command surface can still change.
 :::
@@ -139,7 +139,7 @@ live-prefixed command in sight.
 :::warning Important
 Adding a `live` block to a configuration that already manages live
 resources does not bind them automatically, and coverage is partial. Only
-some of the 18 admitted types can be offered for adoption automatically at
+some of the admitted types can be offered for adoption automatically at
 all. A client-named resource (an S3 bucket, an IAM role, a CloudWatch log
 group, an SSM parameter, a DynamoDB table, an ECS cluster, a bucket
 policy) binds immediately if it already carries this estate's marker, and
@@ -238,7 +238,7 @@ the `Unowned` section entry, run the tag write it names, then plan again.
 tags, so they have nowhere to put a marker. Their identity is a composite of
 their already-admitted parents, and once the parents are adopted these bind
 on the next plan with no separate step. A resource of a type outside the
-18-type admission table (see the Contract, below) has no adoption path at
+admission table (see the Contract, below) has no adoption path at
 all, ever. Hand-stamping markers onto it does not help, because nothing
 sweeps for a type this configuration cannot declare.
 
