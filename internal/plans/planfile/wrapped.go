@@ -9,8 +9,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/opentofu/opentofu/internal/cloud/cloudplan"
-	"github.com/opentofu/opentofu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/cloud/cloudplan"
+	"github.com/intentius/choudoufu/internal/encryption"
 )
 
 // WrappedPlanFile is a sum type that represents a saved plan, loaded from a

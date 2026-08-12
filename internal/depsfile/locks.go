@@ -11,8 +11,8 @@ import (
 
 	svchost "github.com/opentofu/svchost"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/getproviders"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/getproviders"
 )
 
 // Locks is the top-level type representing the information retained in a

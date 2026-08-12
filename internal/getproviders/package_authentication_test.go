@@ -22,8 +22,8 @@ import (
 	openpgpErrors "github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/collections"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/collections"
 )
 
 func TestPackageAuthenticationResult(t *testing.T) {

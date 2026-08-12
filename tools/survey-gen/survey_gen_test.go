@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/opentofu/opentofu/internal/stateless/flocitest"
+	"github.com/intentius/choudoufu/internal/live/flocitest"
 )
 
 // TestSurveyJSONMatchesProviderSchemas regenerates stateless/survey.json
@@ -137,7 +137,7 @@ type pathException struct {
 //     because a *_prefix alternative exists, and the strict client-named
 //     rule deliberately stops at required arguments - accepting
 //     Optional+Computed would admit aws_vpc by its id
-//     (internal/stateless/identity/doc.go). The hand row knows the value
+//     (internal/live/identity/doc.go). The hand row knows the value
 //     is client-chosen; the schema cannot prove it.
 //   - account-derived import identity (SURVEY.md flags F1-F4): the
 //     provider's required import attribute is an arn or url that embeds

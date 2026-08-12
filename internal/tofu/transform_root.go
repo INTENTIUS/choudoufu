@@ -8,8 +8,8 @@ package tofu
 import (
 	"context"
 
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/dag"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/dag"
 )
 
 const rootNodeName = "root"

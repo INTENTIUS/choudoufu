@@ -18,7 +18,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/opentofu/opentofu/internal/provisioners"
+	"github.com/intentius/choudoufu/internal/provisioners"
 )
 
 func TestResourceProvider_Apply(t *testing.T) {

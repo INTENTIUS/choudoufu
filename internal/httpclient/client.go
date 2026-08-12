@@ -12,8 +12,8 @@ import (
 	cleanhttp "github.com/hashicorp/go-cleanhttp"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
-	"github.com/opentofu/opentofu/internal/tracing"
-	"github.com/opentofu/opentofu/version"
+	"github.com/intentius/choudoufu/internal/tracing"
+	"github.com/intentius/choudoufu/version"
 )
 
 // New returns the DefaultPooledClient from the cleanhttp

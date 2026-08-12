@@ -12,11 +12,11 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/opentofu/opentofu/internal/modsdir"
+	"github.com/intentius/choudoufu/internal/modsdir"
 	"github.com/spf13/afero"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/configs"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
 )
 
 // Loader represents all the exposed logic that it's needed by the various places of the system.

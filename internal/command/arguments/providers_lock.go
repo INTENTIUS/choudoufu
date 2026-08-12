@@ -8,8 +8,8 @@ package arguments
 import (
 	"fmt"
 
-	"github.com/opentofu/opentofu/internal/command/flags"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/command/flags"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/opentofu/svchost/uritemplates"
 )
 

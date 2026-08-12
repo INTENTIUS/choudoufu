@@ -15,8 +15,8 @@ import (
 
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/legacy/hcl2shim"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/legacy/hcl2shim"
 )
 
 // String returns a rather-odd string representation of the entire state.

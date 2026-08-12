@@ -11,7 +11,7 @@ import (
 
 	"github.com/opentofu/svchost"
 
-	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/addrs"
 )
 
 func TestMissingProviderSuggestion(t *testing.T) {

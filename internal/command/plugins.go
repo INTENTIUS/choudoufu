@@ -16,13 +16,13 @@ import (
 	plugin "github.com/hashicorp/go-plugin"
 	"github.com/kardianos/osext"
 
-	fileprovisioner "github.com/opentofu/opentofu/internal/builtin/provisioners/file"
-	localexec "github.com/opentofu/opentofu/internal/builtin/provisioners/local-exec"
-	remoteexec "github.com/opentofu/opentofu/internal/builtin/provisioners/remote-exec"
-	"github.com/opentofu/opentofu/internal/logging"
-	tfplugin "github.com/opentofu/opentofu/internal/plugin"
-	"github.com/opentofu/opentofu/internal/plugin/discovery"
-	"github.com/opentofu/opentofu/internal/provisioners"
+	fileprovisioner "github.com/intentius/choudoufu/internal/builtin/provisioners/file"
+	localexec "github.com/intentius/choudoufu/internal/builtin/provisioners/local-exec"
+	remoteexec "github.com/intentius/choudoufu/internal/builtin/provisioners/remote-exec"
+	"github.com/intentius/choudoufu/internal/logging"
+	tfplugin "github.com/intentius/choudoufu/internal/plugin"
+	"github.com/intentius/choudoufu/internal/plugin/discovery"
+	"github.com/intentius/choudoufu/internal/provisioners"
 )
 
 // NOTE WELL: The logic in this file is primarily about plugin types OTHER THAN

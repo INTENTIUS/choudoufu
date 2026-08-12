@@ -1,6 +1,6 @@
 # choudoufu
 
-[![Release](https://img.shields.io/github/v/release/INTENTIUS/choudoufu)](https://github.com/INTENTIUS/choudoufu/releases)
+[![Go Reference](https://pkg.go.dev/badge/github.com/intentius/choudoufu.svg)](https://pkg.go.dev/github.com/intentius/choudoufu)
 
 **Ownership on the resource.** <img src="docs/images/choudoufu-inline-64.png" width="32" height="32" alt="">
 
@@ -16,7 +16,7 @@ is stock OpenTofu. The binary is `choudoufu`.
 If you already use OpenTofu, the short version is that `terraform.tfstate`
 stops existing. Adoption is a tag you write. A rename is a tag you rewrite.
 
-New here? Start with the [FAQ](stateless/FAQ.md). It answers the questions an
+New here? Start with the [FAQ](live/FAQ.md). It answers the questions an
 OpenTofu user tends to ask in the first five minutes. The fork's docs also
 render as a site at [intentius.io/choudoufu](https://intentius.io/choudoufu/).
 
@@ -27,7 +27,7 @@ covers AWS only, a fixed subset of resource types, and the root module.
 Configs
 outside that subset are refused up front by a lint pass rather than half
 supported. The full boundary, with the reasoning for each limit, is in
-[`stateless/LIMITATIONS.md`](stateless/LIMITATIONS.md).
+[`live/LIMITATIONS.md`](live/LIMITATIONS.md).
 
 ## Install
 
@@ -60,7 +60,7 @@ its markers are on it.
    exact tags that claim it.
 3. Write those tags, using the command the plan prints or your own tooling.
    There is no `adopt` command; two tags is the whole contract
-   ([`stateless/MARKERS.md`](stateless/MARKERS.md)).
+   ([`live/MARKERS.md`](live/MARKERS.md)).
 4. Plan again. Adopted resources read back their own markers and report no
    changes.
 5. Apply once the plan is what you expect.
@@ -69,7 +69,7 @@ Applying at step 2 rather than reading is how you get duplicates: an
 unmarked resource is not yours yet, so the plan proposes creating a second
 one beside it. Which types can be offered automatically, which need a
 hand-written tag, and which have no adoption path at all are covered in
-["Migrating an Existing Estate"](website/docs/language/stateless-mode.mdx).
+["Migrating an Existing Estate"](website/docs/language/live-markers.mdx).
 
 ## See it prove itself
 
@@ -79,7 +79,7 @@ shows the plans stay exact anyway. It needs Docker and takes about two
 minutes. The exit code is the verdict.
 
 ```
-bash stateless/e2e/run.sh --expect 5
+bash live/e2e/run.sh --expect 5
 ```
 
 Or paste this to a coding agent (Claude Code or similar) and let it run the
@@ -93,7 +93,7 @@ Clone https://github.com/INTENTIUS/choudoufu, then do the following.
    release tarball for this platform from
    https://github.com/INTENTIUS/choudoufu/releases, extract it, and
    export TOFU_BIN=<absolute path to the extracted choudoufu binary>.
-3. From the repo root, run: bash stateless/e2e/run.sh --expect 5
+3. From the repo root, run: bash live/e2e/run.sh --expect 5
 4. Report each step's result as the script prints it, and the final exit code.
 
 Exit code 0 means every claim the script makes about live resource markers
@@ -113,18 +113,18 @@ The integration tier needs Docker and `TF_FLOCI_TEST=1`.
 
 The docs unique to this fork, in reading order.
 
-- [`stateless/FAQ.md`](stateless/FAQ.md) covers the questions a first-time
+- [`live/FAQ.md`](live/FAQ.md) covers the questions a first-time
   reader asks, including what happens to an existing state file.
-- [`website/docs/language/stateless-mode.mdx`](website/docs/language/stateless-mode.mdx)
+- [`website/docs/language/live-markers.mdx`](website/docs/language/live-markers.mdx)
   is the concept page. What live resource markers are, the quickstart, the
   concurrency story, and the full contract.
-- [`stateless/MARKERS.md`](stateless/MARKERS.md) is the marker tag spec, the
+- [`live/MARKERS.md`](live/MARKERS.md) is the marker tag spec, the
   one integration surface external tooling relies on.
-- [`stateless/LIMITATIONS.md`](stateless/LIMITATIONS.md) lists every
+- [`live/LIMITATIONS.md`](live/LIMITATIONS.md) lists every
   construct the mode bounds or rejects, each with its lint rule and fixture.
-- [`stateless/RECEIPTS.md`](stateless/RECEIPTS.md) shows how to record an
+- [`live/RECEIPTS.md`](live/RECEIPTS.md) shows how to record an
   effect that leaves nothing in the live system to read back.
-- [`stateless/e2e/README.md`](stateless/e2e/README.md) documents the
+- [`live/e2e/README.md`](live/e2e/README.md) documents the
   demo/test harness and how to read its output.
 
 These also render as a small docs site at

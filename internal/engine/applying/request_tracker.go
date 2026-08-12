@@ -12,9 +12,9 @@ import (
 	"sync"
 
 	"github.com/apparentlymart/go-workgraph/workgraph"
-	"github.com/opentofu/opentofu/internal/engine/internal/execgraph"
-	"github.com/opentofu/opentofu/internal/lang/eval"
-	"github.com/opentofu/opentofu/internal/lang/grapheval"
+	"github.com/intentius/choudoufu/internal/engine/internal/execgraph"
+	"github.com/intentius/choudoufu/internal/lang/eval"
+	"github.com/intentius/choudoufu/internal/lang/grapheval"
 )
 
 // execRequestTracker is our implementation of [grapheval.RequestTracker] for

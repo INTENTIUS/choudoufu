@@ -13,8 +13,8 @@ import (
 
 	"github.com/hashicorp/go-getter"
 
-	"github.com/opentofu/opentofu/internal/tracing"
-	"github.com/opentofu/opentofu/internal/tracing/traceattrs"
+	"github.com/intentius/choudoufu/internal/tracing"
+	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
 )
 
 // We borrow the "unpack a zip file into a target directory" logic from

@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/opentofu/opentofu/internal/e2e"
+	"github.com/intentius/choudoufu/internal/e2e"
 )
 
 func TestJsonIntoStream(t *testing.T) {

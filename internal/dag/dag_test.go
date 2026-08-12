@@ -15,9 +15,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 
-	_ "github.com/opentofu/opentofu/internal/logging"
+	_ "github.com/intentius/choudoufu/internal/logging"
 )
 
 func TestMain(m *testing.M) {

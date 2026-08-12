@@ -12,11 +12,11 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
-	"github.com/opentofu/opentofu/internal/backend"
-	"github.com/opentofu/opentofu/internal/backend/remote-state/azure/auth"
-	"github.com/opentofu/opentofu/internal/encryption"
-	"github.com/opentofu/opentofu/internal/legacy/helper/acctest"
-	"github.com/opentofu/opentofu/internal/states/remote"
+	"github.com/intentius/choudoufu/internal/backend"
+	"github.com/intentius/choudoufu/internal/backend/remote-state/azure/auth"
+	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/legacy/helper/acctest"
+	"github.com/intentius/choudoufu/internal/states/remote"
 )
 
 func TestRemoteClient_impl(t *testing.T) {

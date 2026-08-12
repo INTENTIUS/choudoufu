@@ -16,12 +16,12 @@ import (
 	"strings"
 
 	"github.com/apparentlymart/go-shquot/shquot"
+	"github.com/intentius/choudoufu/internal/communicator"
+	"github.com/intentius/choudoufu/internal/communicator/remote"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/provisioners"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/mitchellh/go-linereader"
-	"github.com/opentofu/opentofu/internal/communicator"
-	"github.com/opentofu/opentofu/internal/communicator/remote"
-	"github.com/opentofu/opentofu/internal/configs/configschema"
-	"github.com/opentofu/opentofu/internal/provisioners"
-	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/zclconf/go-cty/cty"
 )
 

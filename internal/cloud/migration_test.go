@@ -8,8 +8,8 @@ package cloud
 import (
 	"testing"
 
-	"github.com/opentofu/opentofu/internal/command/clistate"
-	"github.com/opentofu/opentofu/internal/configs"
+	"github.com/intentius/choudoufu/internal/command/clistate"
+	"github.com/intentius/choudoufu/internal/configs"
 )
 
 func TestDetectConfigChangeType(t *testing.T) {

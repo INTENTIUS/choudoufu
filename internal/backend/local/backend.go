@@ -15,14 +15,14 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/opentofu/opentofu/internal/backend"
-	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/configs/configschema"
-	"github.com/opentofu/opentofu/internal/encryption"
-	"github.com/opentofu/opentofu/internal/logging"
-	"github.com/opentofu/opentofu/internal/states/statemgr"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
+	"github.com/intentius/choudoufu/internal/backend"
+	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/logging"
+	"github.com/intentius/choudoufu/internal/states/statemgr"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tofu"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -90,7 +90,7 @@ type Local struct {
 
 	// Stateless, if non-nil, puts this backend into the fork's stateless
 	// mode: the state manager persists nothing and the prior state is a
-	// projection of the live system. See stateless.go. Nil - the case for
+	// projection of the live system. See live.go. Nil - the case for
 	// every configuration without a "live" block - leaves every code
 	// path below exactly as it was.
 	Stateless StatelessRun

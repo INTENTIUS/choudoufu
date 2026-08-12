@@ -11,7 +11,7 @@ package configload
 
 import (
 	"github.com/hashicorp/hcl/v2"
-	"github.com/opentofu/opentofu/internal/configs"
+	"github.com/intentius/choudoufu/internal/configs"
 )
 
 // LoadConfigDirUneval implements Loader

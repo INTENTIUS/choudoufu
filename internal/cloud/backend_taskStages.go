@@ -12,7 +12,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	tfe "github.com/hashicorp/go-tfe"
-	"github.com/opentofu/opentofu/internal/tofu"
+	"github.com/intentius/choudoufu/internal/tofu"
 )
 
 type taskStages map[tfe.Stage]*tfe.TaskStage

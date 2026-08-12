@@ -14,8 +14,8 @@ import (
 	"github.com/opentofu/svchost"
 	disco "github.com/opentofu/svchost/disco"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/httpclient"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/httpclient"
 )
 
 // RegistrySource is a Source that knows how to find and install providers from

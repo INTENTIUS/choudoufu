@@ -17,10 +17,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/opentofu/opentofu/internal/plugin/convert"
-	"github.com/opentofu/opentofu/internal/providers"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	proto "github.com/opentofu/opentofu/internal/tfplugin5"
+	"github.com/intentius/choudoufu/internal/plugin/convert"
+	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	proto "github.com/intentius/choudoufu/internal/tfplugin5"
 )
 
 // This file implements the core-side client for the provider list protocol
@@ -31,7 +31,7 @@ import (
 // implementation of that interface in the tree (mocks, test doubles, the
 // unmanaged-provider shims) has no business growing a list method it cannot
 // serve. Callers that want to list should type-assert for the methods they
-// need; internal/stateless/listclient does exactly that.
+// need; internal/live/listclient does exactly that.
 
 // ListResource enumerates the live instances of one managed resource type,
 // buffering the whole stream. Use ListResourceStream instead when the result

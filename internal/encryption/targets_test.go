@@ -13,16 +13,16 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/encryption/config"
-	"github.com/opentofu/opentofu/internal/encryption/keyprovider"
-	"github.com/opentofu/opentofu/internal/encryption/keyprovider/static"
-	"github.com/opentofu/opentofu/internal/encryption/method"
-	"github.com/opentofu/opentofu/internal/encryption/method/aesgcm"
-	"github.com/opentofu/opentofu/internal/encryption/method/unencrypted"
-	"github.com/opentofu/opentofu/internal/encryption/registry"
-	"github.com/opentofu/opentofu/internal/encryption/registry/lockingencryptionregistry"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/encryption/config"
+	"github.com/intentius/choudoufu/internal/encryption/keyprovider"
+	"github.com/intentius/choudoufu/internal/encryption/keyprovider/static"
+	"github.com/intentius/choudoufu/internal/encryption/method"
+	"github.com/intentius/choudoufu/internal/encryption/method/aesgcm"
+	"github.com/intentius/choudoufu/internal/encryption/method/unencrypted"
+	"github.com/intentius/choudoufu/internal/encryption/registry"
+	"github.com/intentius/choudoufu/internal/encryption/registry/lockingencryptionregistry"
 )
 
 func TestBaseEncryption_methodConfigsFromTargetAndSetup(t *testing.T) {

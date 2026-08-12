@@ -8,8 +8,8 @@ package statemgr
 import (
 	"context"
 
-	"github.com/opentofu/opentofu/internal/states"
-	"github.com/opentofu/opentofu/internal/tofu"
+	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/tofu"
 )
 
 // LockDisabled implements State and Locker but disables state locking.

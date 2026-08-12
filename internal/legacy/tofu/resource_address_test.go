@@ -10,8 +10,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/configs"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
 )
 
 func TestParseResourceAddressInternal(t *testing.T) {

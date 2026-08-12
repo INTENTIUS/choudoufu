@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opentofu/opentofu/internal/encryption/keyprovider"
+	"github.com/intentius/choudoufu/internal/encryption/keyprovider"
 )
 
 type keyProvider struct {

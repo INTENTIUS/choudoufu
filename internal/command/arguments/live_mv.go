@@ -8,7 +8,7 @@ package arguments
 import (
 	"fmt"
 
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // LiveMv represents the command-line arguments for the live-mv command.

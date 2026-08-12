@@ -1,0 +1,475 @@
+---
+description: >-
+  Live resource markers run OpenTofu with no state file, no backend and no
+  lock. Prior state is rebuilt from the live system on every plan and apply.
+---
+
+# Live Resource Markers
+
+Plenty of state. None of it binding.
+
+Your config says what should exist and the cloud says what does. No file gets
+a vote.
+
+:::note
+Live resource markers are an experimental, fork-only feature, and AWS only
+at the moment (the resource-type subset listed in The Contract below).
+`choudoufu live-plan` and `choudoufu live-mv` are marked EXPERIMENTAL in
+their own `-help` text, and their command surface can still change.
+:::
+
+## What It Is
+
+Live resource markers remove the one authoritative record OpenTofu normally
+keeps, which is the state file, its backend, and the lock that protects it. A
+record is authoritative when believing it over the live system would make
+OpenTofu do the wrong thing to your infrastructure. It is merely
+observational when being wrong only costs time. Prior state under markers is
+a projection. It is rebuilt from the live system on every run, by reading
+ownership tags already on your resources, and discarded the moment the run
+ends.
+
+## Quickstart
+
+Prebuilt `choudoufu` binaries for macOS and Linux (amd64 and arm64) are on
+the [releases page](https://github.com/INTENTIUS/choudoufu/releases);
+`go build ./cmd/choudoufu` from a checkout also works.
+
+The mode is declared with one word, `live`. Add a `live` block inside
+`terraform` and nothing else. Declaring it is a statement about ownership.
+You control this estate, not OpenTofu. The record of what is yours lives on
+your resources, in your own account, readable and writable with your own
+cloud tools. Adoption is a tag you write, a rename is a tag you rewrite, and
+OpenTofu reads ownership there instead of keeping a ledger.
+
+```hcl
+terraform {
+  required_version = ">= 1.5.0"
+
+  live {
+    estate = "stateless-e2e-block"
+  }
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.58.0"
+    }
+  }
+}
+
+provider "aws" {
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  s3_use_path_style           = true
+}
+```
+
+Two of the fixture's resources, one from each admission path this mode
+resolves identity through.
+
+```hcl
+# A marker-path resource. AWS assigns the ID, so ownership can only be
+# recovered from a tag, not from anything in this block.
+resource "aws_vpc" "main" {
+  cidr_block = "10.99.0.0/16"
+}
+
+# A client-named resource. The bucket name in config is already the
+# identity, so no discovery pass is needed to find it.
+resource "aws_s3_bucket" "data" {
+  bucket = "tofu-stateless-e2e-block-data"
+}
+```
+
+The full example, a subnet, a security group, a CloudWatch log group, and a
+two-instance `count` block, seven resources in all, lives in
+`live/e2e/estate-block/` (see its `README.md` for why each one is kept).
+Run it as it stands.
+
+```
+$ choudoufu init
+$ choudoufu apply
+```
+
+The plan shown before you confirm carries something a plain OpenTofu plan
+never does. Alongside each resource's own arguments, the diff adds the
+ownership markers about to be stamped.
+
+```
+  # aws_vpc.main will be created
+  + resource "aws_vpc" "main" {
+      + cidr_block = "10.99.0.0/16"
+      + tags       = {
+          + "tofu-address" = "aws_vpc.main"
+          + "tofu-estate"  = "stateless-e2e-block"
+        }
+      ...
+    }
+```
+
+Apply finishes with `Apply complete! Resources: 7 added, 0 changed, 0
+destroyed.` Then look for the file that always follows an apply.
+
+```
+$ ls terraform.tfstate
+ls: terraform.tfstate: No such file or directory
+```
+
+Nothing wrote it, because nothing needed to. The next `choudoufu plan` in
+this directory rebuilds prior state by reading the `tofu-estate` and
+`tofu-address` tags back off the live VPC, subnet, security group, bucket,
+log group, and two EIPs, and reports an empty plan.
+
+## Watch It Work
+
+:::note
+`bash live/e2e/run.sh` takes about four minutes and needs Docker.
+
+It stands up a real estate against a local AWS emulator, deletes the state
+file it just wrote in front of you, and then proves eleven claims live.
+Empty plans against markers alone, exact drift detection, foreign-resource
+protection, exact removal, count scale-down with no churn, rename with no
+churn, and a plain `choudoufu plan`/`apply` against a `live` block with no
+live-prefixed command in sight.
+:::
+
+## Migrating an Existing Estate
+
+:::warning Important
+Adding a `live` block to a configuration that already manages live
+resources does not bind them automatically, and coverage is partial. Only
+some of the admitted types can be offered for adoption automatically at
+all. A client-named resource (an S3 bucket, an IAM role, a CloudWatch log
+group, an SSM parameter, a DynamoDB table, an ECS cluster, a bucket
+policy) binds immediately if it already carries this estate's marker, and
+is refused, never adopted, never destroyed, if it does not. Read the
+**`[UNOWNED]`** paragraph below before you assume "binds immediately"
+means "binds regardless." A server-ID
+resource (a VPC, a subnet, a security group) has no ownership tag yet, so
+the first plan reads it as new and proposes creating a **duplicate**, right
+alongside the live resource nothing has adopted, unless its content happens
+to match a declared block closely enough for the classifier to offer it.
+Applying that plan does not fail. It creates the duplicate. Read the plan's
+Adoptable section before you apply anything.
+:::
+
+**What actually binds automatically, and what does not.** The classifier
+that offers a one-line adoption command matches on configuration content
+(`internal/live/foreign/classify.go`), and it only knows how to compare
+seven types this way. Those are `aws_security_group` (by `name`), `aws_vpc`
+(by `cidr_block`), `aws_subnet` (by `cidr_block` plus `availability_zone`),
+`aws_route53_zone`, `aws_lb`, `aws_lb_target_group` and `aws_sns_topic`
+(each by `name`, which the API makes unique within an account and
+region). `aws_route_table`, `aws_internet_gateway`,
+`aws_kms_key` and `aws_lb_listener` are server-ID types too, but
+nothing in their configuration distinguishes one from another (the first
+two are "the one attached to this VPC"; a key's arguments are its
+description, its usage and its policy; a listener's are a port and a
+protocol on a load balancer named only by a live ARN), so the classifier
+can never offer them. Adopt them by hand,
+per the tag-write recipe below. `aws_eip` is explicitly fungible and bound
+by slot marker, not content, so a pre-existing, never-marked EIP is never a
+bind candidate either. The first apply mints it a fresh slot instead of
+recognizing the old one. The same is
+true of every `count` or `for_each` instance of any type. Binding by content
+only considers instances still waiting to be found with *no* index or key,
+so a pre-existing keyed or counted resource cannot be adopted this way.
+Hand-write its markers before the first apply if a specific instance must be
+preserved rather than duplicated.
+
+The loop, for the content-matchable server-ID types.
+
+1. **Add the block.** Put `live { estate = "..." }` in `terraform`,
+   remove any `backend`/`cloud` block (they are refused alongside it), and
+   delete the state file.
+2. **Plan.** `choudoufu plan` runs discovery and prints an `Adoptable`
+   section above the ordinary plan, one entry per live resource that matches
+   a declared block on everything discovery can compare but carries no
+   marker yet.
+3. **Read Adoptable before you apply.** Each entry names the live resource,
+   what it matched on, and a ready-to-run adoption command. This is the step
+   the warning above exists for. Applying without reading it plans and
+   creates duplicates for every unmarked, matchable server-ID resource.
+4. **Run the printed adoption commands.** For a type the classifier can
+   offer, the hint is the tag write itself.
+   ```
+   aws ec2 create-tags --resources 'vpc-0123456789abcdef0' \
+     --tags 'Key=tofu-estate,Value=my-estate' 'Key=tofu-address,Value=aws_vpc.main' \
+     --region 'us-east-1'
+   ```
+   Paste it as printed. Like `choudoufu live-mv`'s rename command below, the
+   hint is built from `choudoufu`'s own provider configuration, so it
+   carries `--region` and `--endpoint-url` whenever the provider block or
+   the environment supplies them, and the tag write lands in the same
+   region and on the same endpoint the plan just listed rather than
+   wherever your AWS CLI profile points. Every value it fills in is
+   shell-quoted the same way the rename command quotes its addresses, so a
+   `for_each` key carrying a space or a bracket survives the paste. There
+   is no `choudoufu adopt` command. The marker spec is the whole contract
+   (`live/MARKERS.md`), so any tool that can write two tags can adopt
+   a resource. The printed one-liner exists only for the types tagged
+   through `ec2 create-tags`; an `aws_route53_zone`, `aws_lb`,
+   `aws_lb_target_group` or `aws_sns_topic` candidate is
+   offered with its marker pair and no command, because each of those
+   services has its own tagging call (`route53 change-tags-for-resource`,
+   `elbv2 add-tags`, `sns tag-resource`). Write the same two tags with the
+   call for that service.
+5. **Plan clean.** Run `choudoufu plan` again. Every adopted resource now
+   reads back its own markers and the plan reports no changes for it.
+
+**Client-named resources get `[UNOWNED]`, not silent adoption.** A
+client-named type's identity is already in configuration, so there is no
+discovery step to skip. That used to mean an S3 bucket, IAM role, or log
+group already sitting at your declared name got treated as this estate's the
+moment its name matched, with no marker check at all. It no longer does. A
+live resource at a declared client name that does not carry this estate's
+`tofu-estate` marker is refused from entering prior state, the plan proposes
+*creating* the resource the configuration declares (which the cloud will
+reject while the unmarked one holds the name), and the refusal is printed as
+an omission tagged `[UNOWNED]`, naming the live identity and the exact
+`tofu-estate`/`tofu-address` values to write
+(`internal/live/projection/ownership.go`). The plan also gathers every
+such refusal into a rendered `Unowned` section of its own, one entry per
+live resource. An entry marked `[ADOPTABLE]` shows the two tag values that
+claim it for this estate, ready to copy. An entry marked `[IN_THE_WAY]`
+belongs to another estate or cannot be checked, so it only blocks the
+create the plan proposes. Adoption here is the same
+deliberate tag write as the server-ID path. Read the `[UNOWNED]` line or
+the `Unowned` section entry, run the tag write it names, then plan again.
+
+**What the classifier cannot offer at all.** `aws_route`,
+`aws_route_table_association`, and `aws_iam_role_policy_attachment` carry no
+tags, so they have nowhere to put a marker. Their identity is a composite of
+their already-admitted parents, and once the parents are adopted these bind
+on the next plan with no separate step. A resource of a type outside the
+admission table (see the Contract, below) has no adoption path at
+all, ever. Hand-stamping markers onto it does not help, because nothing
+sweeps for a type this configuration cannot declare.
+
+Renaming an already-adopted resource is a separate, narrower operation.
+`choudoufu live-mv <old-address> <new-address>` rewrites the `tofu-address`
+tag in place. It does not touch resources that were never adopted.
+
+## Concurrency
+
+The cloud serializes API calls, not workflows. Two simultaneous applies
+against the same estate race into one of four outcomes, depending on how the
+resource they touch gets its identity.
+
+1. **Client-named resources.** The cloud's own uniqueness constraint is the
+   lock. The loser's create is rejected by the API itself. It re-plans,
+   binds to the winner's resource, and comes back clean.
+2. **Server-ID resources.** A race can create a duplicate for a window. The
+   next plan detects it as a marker collision naming both live IDs, refused
+   rather than guessed at. The failure is loud and deterministic, and a
+   human deletes one. Contrast that with a state backend whose lock fails.
+   Last writer wins on the file, and the loser's resource is silently
+   orphaned from every future plan. Detection with bounded damage beats
+   prevention that fails silently.
+3. **In-place updates.** Last writer wins at the API, which the lock never
+   actually protected either. It serialized file writes, not the logical
+   conflict between two applies changing the same argument.
+4. **Destroy races.** The loser gets not-found, re-plans, and converges.
+
+No *race* ever orphans a resource silently. Every case above is either a
+clean re-plan or a loud, named marker collision. Two narrower cases are
+named absolutes rather than race outcomes, and they are stated on the page
+rather than discovered after the fact. See "Two named orphan cases" in the
+Contract below. The advice on races is the same as ordinary practice.
+Serialize applies in CI, which is where the real mutex has always lived.
+
+| Race | Backend, lock holds | Backend, lock fails/absent | Live markers |
+|---|---|---|---|
+| Same client-named create x2 | Second waits, no-ops | Cloud rejects the 2nd. The loser's state write can clobber the winner's, an orphan risk | Cloud rejects the 2nd (uniqueness IS the lock). The loser re-plans clean |
+| Same server-ID create x2 | Second waits, no-ops | Two created. The last state write wins and the loser's is SILENTLY ORPHANED | Two created. The next plan names BOTH IDs in a marker collision. A human deletes one |
+| Divergent in-place updates | Serialized flip-flop (conflict unsolved) | Last writer wins, plus a stale record | Last writer wins. The next plan reads live truth |
+| Update races destroy | Serialized | Not-found, plus record drift | Not-found. Re-plan converges |
+| Crash mid-apply | A stale lock blocks the team. Created-but-unrecorded resources are orphaned EVEN WITH the lock | Same, plus partial-write corruption and the errored.tfstate dance | Markers rode the create call itself for every taggable type. Discoverable, nothing to unlock or recover. The untaggable and unadmitted classes named under "Two named orphan cases" in the Contract below are not marker-discoverable this way, as a standing limit rather than a race outcome |
+
+The lock's one clean win is the server-ID duplicate window, and it buys that
+win at the crash row's price. In this taxonomy a marker run never blocks a
+team, never orphans a resource *because of a race*, and its one weakness
+fails loud, naming both IDs. The two orphan cases that exist are not race
+outcomes at all. They are named below.
+
+## The Contract
+
+- **AWS only, 31 resource types, root module only.** The v0 admission table
+  (`internal/live/lint/admission.go`) is the whole subset. It holds
+  `aws_vpc`, `aws_subnet`, `aws_security_group`, `aws_route_table`,
+  `aws_internet_gateway`, `aws_kms_key`, `aws_kms_alias`,
+  `aws_route53_zone`, `aws_route53_record`, `aws_lb`,
+  `aws_lb_target_group`, `aws_lb_listener`,
+  `aws_lb_target_group_attachment`, `aws_route`,
+  `aws_route_table_association`, `aws_iam_role_policy_attachment`,
+  `aws_iam_role_policy`, `aws_s3_bucket`, `aws_s3_bucket_policy`,
+  `aws_s3_bucket_versioning`, `aws_s3_bucket_public_access_block`,
+  `aws_s3_bucket_server_side_encryption_configuration`,
+  `aws_s3_bucket_lifecycle_configuration`, `aws_iam_role`,
+  `aws_cloudwatch_log_group`, `aws_cloudwatch_metric_alarm`,
+  `aws_ssm_parameter`, `aws_dynamodb_table`, `aws_ecs_cluster`,
+  `aws_sns_topic`, and `aws_eip`. Nothing else, no other AWS type, no
+  other provider. A `module` block calling into a child module is refused
+  outright. The
+  subset lint rejects every module call with "Child modules are not
+  available under live resource markers", pointing at the `module` block itself,
+  before anything reads the live system. Only the root module is covered
+  today.
+- **Two named orphan cases.** Deleting a resource block whose type carries
+  no tags at all (`aws_route`, `aws_route_table_association`,
+  `aws_s3_bucket_policy`, `aws_s3_bucket_versioning`,
+  `aws_s3_bucket_public_access_block`,
+  `aws_s3_bucket_server_side_encryption_configuration`,
+  `aws_s3_bucket_lifecycle_configuration`, `aws_iam_role_policy`,
+  `aws_kms_alias`, `aws_route53_record`,
+  `aws_lb_target_group_attachment`,
+  `aws_iam_role_policy_attachment`) removes the
+  only record of which live resource that block was. Destroy the resource
+  before removing its block, or delete it out of band. This set is
+  determined at runtime from each type's provider schema, not a fixed list
+  (`markerCapable`, `internal/live/discovery/discovery.go:784-789`).
+  The plan names these types under "Not swept for removal" every time, so
+  this is never discovered after the fact. A live resource carrying this
+  estate's markers at a type outside the admission table above is invisible
+  to the estate-wide removal sweep the same way. The markers are the
+  contract, the admission table is what the contract is defined over, and a
+  type outside it is not swept. Full detail lives in
+  `live/LIMITATIONS.md` under "Behavioral limits."
+- **No lock.** There is no state file for [a lock](state/locking.mdx) to
+  protect, so the mode installs a no-op locker rather than asking a
+  nonexistent backend for one. Concurrent applies are not prevented (see
+  Concurrency above), so serialize them in CI the way you would anyway.
+- **`-out`/planfile rejected.** A saved plan is an authoritative record of
+  the state snapshot it was made against, and a marker run has none to
+  snapshot. Apply always plans against the live system at the moment it
+  runs. `choudoufu plan -out=x` and `choudoufu apply x` both refuse to run.
+- **`choudoufu refresh` rejected.** Refresh updates a stored state file to
+  match the live system, and there is no stored file to update. `choudoufu
+  plan` already reads the live system on every run, which is the comparison
+  refresh exists to make possible elsewhere.
+- **[Workspaces](state/workspaces.mdx) rejected in v0.** A workspace is a
+  second state file under a different name, and a marker run has no first
+  one. Select the default workspace, or give each estate its own
+  configuration and its own `live` block. The guard covers exactly the two
+  commands that change which workspace is selected. `workspace new` is
+  refused outright, and `workspace select` is refused for anything but
+  default, because selecting a non-default workspace in a directory with
+  no state file leaves every later plan erroring with no obvious way back.
+  `workspace list`, `workspace show`, and `workspace delete` run as stock.
+  Delete stays unguarded on purpose, since it removes a workspace that
+  already exists, cannot run against the selected workspace anyway, and is
+  cleanup rather than stranding.
+- **`snapshots` and `snapshot_path` (optional).** An apply under live
+  resource markers can leave an observational snapshot behind, in one of
+  two carriers, and both are strictly opt-in. Nothing is written unless
+  the configuration asks. The snapshot is a JSON record (format
+  `tofu-live-snapshot-v1`) holding each resource's address, identity,
+  markers, and a SHA-256 hash of its full attribute set, never the
+  attribute values themselves. The identity, import ID, and marker values
+  that do appear as plain metadata are each checked against the provider's
+  schema first, and redacted to `(sensitive value)` if the provider marks
+  that field sensitive, the same substitution the plan renderer already
+  makes (`internal/live/projection/snapshot.go`). The format and the
+  redaction pass are identical in both carriers.
+  Setting `snapshots = true` carries the snapshot as commits on one orphan
+  git branch per estate, named `tofu-snapshots/<estate>`, in the git
+  repository that encloses the module directory. Each apply adds one
+  commit whose tree holds the record as `snapshot.json`, parented on the
+  branch's previous tip, so drift over time is `git log` and `git diff` on
+  the branch rather than a single overwritten file. The write uses git
+  plumbing only (`hash-object`, `mktree`, `commit-tree`, and a
+  compare-and-swap `update-ref`, in
+  `internal/live/projection/snapshot_git.go`). It never pushes, never
+  checks anything out, and never touches the worktree, the index, or HEAD.
+  The branch's first commit has no parent, so its history never joins the
+  repository's own, and access control rides the repository's permissions
+  rather than a file mode on a shared host. Deleting the branch changes
+  nothing about any run.
+  Setting `snapshot_path` carries the snapshot as a file at that path
+  instead. The path is validated before anything is written. It must be a
+  relative path inside the module directory, must not name anything that
+  looks like a state file or a path inside `.terraform`, and a write
+  refuses outright if the target already holds bytes that parse as an
+  OpenTofu state file (`internal/configs/live.go`'s `validateSnapshotPath`,
+  `internal/live/projection/snapshot.go`'s `writeSnapshot`). The file
+  is written 0600, readable by its owner only. Even after redaction it
+  still names each resource's identity, import ID, and marker values, and
+  on a shared build host that metadata is more than some teams want other
+  users to read. Widen the mode with chmod on your side if your tooling
+  needs it.
+  When both arguments are set, the branch is the carrier and the file is
+  the fallback, written only when the branch cannot be (no enclosing git
+  repository, no git on PATH, or a refused ref update). A directory
+  outside any git repository with only `snapshots = true` writes nothing
+  and warns, because every snapshot file must be a path the operator
+  named. `snapshot_path` alone keeps the file behavior above even inside a
+  git repository.
+  The snapshot exists for offline diff and audit by external tooling, and
+  staleness is in its contract whichever carrier holds it. A plan never
+  writes or consults it, deleting the file or the branch changes nothing,
+  and a failed write is a warning, never an error. Treat `writtenAt` as a
+  staleness bound, not a promise of currency.
+  No code path in this fork reads the snapshot back from either carrier,
+  and that guarantee is enforced two different ways for two different
+  kinds of reader. The snapshot's types and its format constant are
+  unexported, so the compiler blocks any *typed* reader outside the
+  writer's own package, and a repository-wide test
+  (`TestSnapshot_noReader`) forbids the format string literal and a
+  redeclared copy of the struct shape from appearing anywhere else in the
+  tree. Neither catches an *untyped* reader that opens the path and
+  decodes into `map[string]any` without naming either. That residue is a
+  convention, not something enforced, and this line states that honestly
+  rather than papering over it.
+
+## Reference
+
+### The `live` block
+
+```hcl
+terraform {
+  live {
+    estate = "my-estate"
+  }
+}
+```
+
+| Argument | Required | Description |
+|---|---|---|
+| `estate` | No | The estate name this configuration owns, matching the `tofu-estate` marker grammar (a lowercase letter, then lowercase letters, digits or hyphens, 1 to 128 characters). Must be a literal string, since an estate name assembled from a variable would make ownership depend on how a run was invoked. When omitted, the name is derived from the `tofu-estate` tags the configuration already stamps. A configuration that stamps none, or several, is told to set this explicitly. |
+
+A `live` block and a [`backend`](settings/backends/configuration.mdx)/
+`cloud` block in the same `terraform` block are mutually exclusive. The
+decoder refuses the combination before any command reaches for a state
+manager.
+
+### `choudoufu live-mv`
+
+```
+choudoufu live-mv [options] <old-address> <new-address>
+```
+
+Renames a resource by rewriting the `tofu-address` tag on the live resource
+that carries the old address. This is the entire replacement for `moved`
+blocks and state surgery, since there is no state to edit. Rename the
+resource block in configuration first, then run this. A destination address
+absent from configuration is refused unless you pass `-allow-missing-config`.
+Also accepts `-estate`, `-dry-run`, `-no-color`, and `-compact-warnings`.
+Full usage is in `choudoufu live-mv -help`.
+
+### Normative specs
+
+The Go internals (the projection builder, the lint rules, identity
+resolution) are not a contract for anything outside this fork. These three
+files, in the repository's `live/` directory, are.
+
+- `live/MARKERS.md` defines the marker tag format. The `tofu-estate`,
+  `tofu-address` and `tofu-slot` keys, the escaping rule, and ownership
+  semantics. It is the only integration surface external tooling needs, and
+  the one chant reads and writes to interoperate with this fork.
+- `live/LIMITATIONS.md` lists every construct the mode bounds or
+  rejects (provisioners, logical resources, `moved` blocks, `backend` and
+  `cloud` blocks, and more), each with its enforcing lint rule and fixture.
+- `live/RECEIPTS.md` covers recording an effect that leaves nothing in
+  the live system to read back, a migration or a cache purge, without
+  reintroducing state.

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/opentofu/opentofu/internal/command/workdir"
+	"github.com/intentius/choudoufu/internal/command/workdir"
 )
 
 func TestStatePull(t *testing.T) {

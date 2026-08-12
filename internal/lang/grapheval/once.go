@@ -11,7 +11,7 @@ import (
 
 	"github.com/apparentlymart/go-workgraph/workgraph"
 
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // Once is a similar principle to the Go standard library's [sync.Once], but

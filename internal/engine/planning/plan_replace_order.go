@@ -8,8 +8,8 @@ package planning
 import (
 	"fmt"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/plans"
 )
 
 // findEffectiveReplaceOrders analyzes the given graph of resource instance

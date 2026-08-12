@@ -17,11 +17,11 @@ import (
 	"github.com/apparentlymart/go-versions/versions"
 	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/opentofu/opentofu/internal/httpclient"
+	"github.com/intentius/choudoufu/internal/httpclient"
 	"github.com/opentofu/svchost"
 	"github.com/opentofu/svchost/svcauth"
 
-	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/addrs"
 )
 
 func TestHTTPMirrorSource(t *testing.T) {

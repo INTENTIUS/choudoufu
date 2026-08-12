@@ -10,7 +10,7 @@ import (
 	"os"
 	"testing"
 
-	_ "github.com/opentofu/opentofu/internal/logging"
+	_ "github.com/intentius/choudoufu/internal/logging"
 )
 
 func TestMain(m *testing.M) {

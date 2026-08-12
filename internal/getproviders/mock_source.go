@@ -14,7 +14,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/addrs"
 )
 
 // MockSource is an in-memory-only, statically-configured source intended for

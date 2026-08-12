@@ -17,15 +17,15 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/command/workdir"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/configs/configschema"
-	"github.com/opentofu/opentofu/internal/providers"
-	"github.com/opentofu/opentofu/internal/stateless/identity"
-	"github.com/opentofu/opentofu/internal/terminal"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/command/workdir"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/terminal"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tofu"
 )
 
 // The live-plan tests drive the whole pipeline (lint, identity
@@ -563,7 +563,7 @@ func TestLivePlan_estateName(t *testing.T) {
 		// The P0.1 estate fixture, which stamps tofu-estate on every taggable
 		// resource, is the case the harness runs: no flag, and the name comes
 		// out of the configuration.
-		cfg := statelessTestLoadConfig(t, "../../stateless/e2e/estate")
+		cfg := statelessTestLoadConfig(t, "../../live/e2e/estate")
 		resolutions, diags := identity.Resolve(t.Context(), cfg)
 		if diags.HasErrors() {
 			t.Fatalf("resolving the estate fixture: %s", diags.Err())
@@ -579,7 +579,7 @@ func TestLivePlan_estateName(t *testing.T) {
 	})
 
 	t.Run("an explicit flag wins over the configuration", func(t *testing.T) {
-		cfg := statelessTestLoadConfig(t, "../../stateless/e2e/estate")
+		cfg := statelessTestLoadConfig(t, "../../live/e2e/estate")
 		got, diags := statelessEstateName(t.Context(), "other-estate", cfg, nil)
 		if diags.HasErrors() {
 			t.Fatalf("unexpected diagnostics: %s", diags.Err())

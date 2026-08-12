@@ -9,8 +9,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/opentofu/opentofu/internal/providers"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // fakeProviderClient is an implementation of [providers.Interface] that just

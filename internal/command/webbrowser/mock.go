@@ -13,7 +13,7 @@ import (
 	"net/url"
 	"sync"
 
-	"github.com/opentofu/opentofu/internal/httpclient"
+	"github.com/intentius/choudoufu/internal/httpclient"
 )
 
 // NewMockLauncher creates and returns a mock implementation of Launcher,

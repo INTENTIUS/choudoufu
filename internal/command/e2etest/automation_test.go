@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/opentofu/opentofu/internal/e2e"
-	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/intentius/choudoufu/internal/e2e"
+	"github.com/intentius/choudoufu/internal/plans"
 )
 
 // TestPlanApplyInAutomation runs through the "main case" of init, plan, apply
@@ -243,4 +243,3 @@ func TestPlanOnlyInAutomation(t *testing.T) {
 		t.Error("plan file was created, but was not expected")
 	}
 }
-

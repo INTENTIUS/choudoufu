@@ -13,17 +13,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opentofu/opentofu/internal/command/workdir"
-	"github.com/opentofu/opentofu/internal/terminal"
+	"github.com/intentius/choudoufu/internal/command/workdir"
+	"github.com/intentius/choudoufu/internal/terminal"
 	"github.com/opentofu/svchost"
 	"github.com/opentofu/svchost/disco"
 
-	"github.com/opentofu/opentofu/internal/command/cliconfig"
-	"github.com/opentofu/opentofu/internal/command/cliconfig/svcauthconfig"
-	oauthserver "github.com/opentofu/opentofu/internal/command/testdata/login-oauth-server"
-	tfeserver "github.com/opentofu/opentofu/internal/command/testdata/login-tfe-server"
-	"github.com/opentofu/opentofu/internal/command/webbrowser"
-	"github.com/opentofu/opentofu/internal/httpclient"
+	"github.com/intentius/choudoufu/internal/command/cliconfig"
+	"github.com/intentius/choudoufu/internal/command/cliconfig/svcauthconfig"
+	oauthserver "github.com/intentius/choudoufu/internal/command/testdata/login-oauth-server"
+	tfeserver "github.com/intentius/choudoufu/internal/command/testdata/login-tfe-server"
+	"github.com/intentius/choudoufu/internal/command/webbrowser"
+	"github.com/intentius/choudoufu/internal/httpclient"
 )
 
 func TestLogin(t *testing.T) {
