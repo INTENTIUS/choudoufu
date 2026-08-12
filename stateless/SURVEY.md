@@ -6,12 +6,10 @@ read via `terraform providers schema -json` under Terraform 1.15.8.
 This file is the durable artifact for the survey the other docs cite:
 `stateless/FAQ.md`'s "65 of the top 68", `stateless/LIMITATIONS.md`'s
 `unadmitted-type` entry, and the comment on
-`internal/stateless/lint/admission.go`. Until it was committed, the survey
-lived in a maintainer-side research note, and the pre-publication ledger
-warned that its figures should be treated as an unverified estimate "until a
-survey artifact is committed somewhere durable." The Azure and GCP companion
-tables were session scratchpad artifacts and are already lost (see the
-cross-cloud section at the end). That loss is why this file exists.
+`internal/stateless/lint/admission.go`. The raw signals and the mechanical
+path classification behind the per-type table are regenerated from the
+provider's own schemas by `go run ./tools/survey-gen`, which writes
+`stateless/survey.json`.
 
 ## Method
 
@@ -332,41 +330,3 @@ has in `stateless/LIMITATIONS.md`.
 That the excluded set is exactly credentials plus a waiter, with the
 residue row at zero, is the survey's main result: after four admission
 paths and credentials-to-Ops, nothing in the AWS top set needs a store.
-
-## Cross-cloud survey (azurerm 4.81, google 7.44, surveyed 2026-08-11)
-
-Same method, run the same day against the other two majors. Headline: both
-need markers less than AWS, for opposite reasons.
-
-| Metric | AWS | Azure | GCP |
-|---|---|---|---|
-| Total types | 1,691 | 1,141 | 1,342 |
-| Taggable/labelable | 49% | 35% | 22% |
-| Native identity schema | 27% | 15% | 68% |
-| Structurally client-derivable | n/a | ~80% | ~75% |
-| Curated top set admitted | 65/68 (96%) | 30/30 (100%) | 29/30 (97%) |
-
-Azure: ARM resource IDs are deterministic name-paths
-(`/subscriptions/.../resourceGroups/NAME/...`), so about 80% of all types
-are client-derivable from name plus resource group plus parent, five times
-what the provider's identity-schema metadata advertises. The rollout is a
-documentation lag, not a capability gap; a small ARM-path decomposer
-recovers it. GCP: names are client-chosen and the provider's native
-identity metadata (68%) already tracks the structural ceiling, no parsing
-fallback needed. GCP's split-identity idiom (client short ID plus computed
-fully-qualified name) is the ARM trick spread across two fields.
-
-The residue pattern held exactly on all three clouds: credentials and
-waiters, nothing else. `google_service_account_key` is architecturally
-`aws_iam_access_key` (server-assigned ID, content-identical siblings,
-external holder); `google_secret_manager_secret_version` mirrors its AWS
-twin; Azure's analog is `container_registry_token_password`. All go to Ops
-with the secret store, per the design.
-
-A caution that is also this file's origin story: the Azure and GCP
-per-type tables were session artifacts in a scratchpad that no longer
-exists. The headline numbers above are everything that survives of them.
-Treat the Azure/GCP figures as unverified estimates until someone re-runs
-the method against those providers and commits the result beside this one.
-The AWS survey was a research-note citation away from the same fate, which
-is why it now lives here.

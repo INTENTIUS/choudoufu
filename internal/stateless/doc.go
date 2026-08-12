@@ -81,6 +81,6 @@
 //     tracks the shape of opentofu#3787 to stay mergeable with upstream.
 //
 // This package holds the model. Concrete implementations live in its
-// subpackages as they land: lint, identity, projection, and the rest of
-// the roadmap in stateless/.
+// subpackages: lint, identity, discovery, stamp, projection, and the rest.
+// The operator-facing specs are in stateless/.
 package stateless
