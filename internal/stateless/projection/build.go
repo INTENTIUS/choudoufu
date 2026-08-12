@@ -148,10 +148,17 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 		return empty, diags
 	}
 
+	// The config-side naming signal, for the identity check the provider
+	// cache runs when the schemas arrive (schema_check.go). Its diagnostics
+	// are dropped on purpose: a configuration whose expansion this cannot
+	// enumerate is a resolution failure the caller has already seen, and a
+	// second copy of it here would fail a projection over a report.
+	signal, _ := identity.ScanConfig(ctx, cfg)
+
 	b := &builder{
 		cfg:        cfg,
 		opts:       opts,
-		providers:  newProviderCache(provs),
+		providers:  newProviderCache(provs, signal),
 		state:      states.NewState(),
 		live:       make(map[string]cty.Value),
 		omitted:    make(map[string]Omission),
