@@ -367,15 +367,36 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 
 	scope := exp.scope(addr.Resource.Key)
 	var parts []Part
+	// The same pieces again, split by the identity attribute each component
+	// supplies. It is what makes an import ask the provider for
+	// {"role": …, "policy_arn": …} rather than for the two joined by a "/"
+	// that only this table knows about. Attributes are kept in component
+	// order so that a rendered formula reads the way the import syntax does.
+	byAttr := make(map[string][]Part)
+	var attrOrder []string
+	addTo := func(name string, got []Part) {
+		if name == "" {
+			return
+		}
+		if _, seen := byAttr[name]; !seen {
+			attrOrder = append(attrOrder, name)
+		}
+		byAttr[name] = append(byAttr[name], got...)
+	}
+
 	for _, comp := range entry.Components {
 		if comp.Cloud != CloudNone {
 			// Present: missingCloudValue already refused the alternative.
 			v, _ := r.cloud.value(comp.Cloud)
-			parts = append(parts, Part{Literal: v})
+			got := []Part{{Literal: v}}
+			parts = append(parts, got...)
+			addTo(comp.identityAttrFor(""), got)
 			continue
 		}
 		if len(comp.Attrs) == 0 {
-			parts = append(parts, Part{Literal: comp.Literal})
+			got := []Part{{Literal: comp.Literal}}
+			parts = append(parts, got...)
+			addTo(comp.identityAttrFor(""), got)
 			continue
 		}
 		attr := firstPresent(attrs, comp.Attrs)
@@ -391,15 +412,29 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			return Resolution{}, false
 		}
 		parts = append(parts, got...)
+		addTo(comp.identityAttrFor(attr.Name), got)
 	}
 
-	parts = coalesce(parts)
-	return classify(addr, parts), true
+	return classify(addr, coalesce(parts), attrFormulas(byAttr, attrOrder)), true
+}
+
+// attrFormulas turns the per-attribute part lists into the ordered form a
+// [Formula] carries, each one coalesced the way the whole import ID is.
+func attrFormulas(byAttr map[string][]Part, order []string) []AttrFormula {
+	if len(order) == 0 {
+		return nil
+	}
+	out := make([]AttrFormula, 0, len(order))
+	for _, name := range order {
+		out = append(out, AttrFormula{Name: name, Parts: coalesce(byAttr[name])})
+	}
+	return out
 }
 
 // classify turns a resolved part list into a Resolution: concrete if every
-// part is a literal, parent-derived if any part waits on a live value.
-func classify(addr addrs.AbsResourceInstance, parts []Part) Resolution {
+// part is a literal, parent-derived if any part waits on a live value. The
+// per-attribute split follows the same fork, since it is the same parts.
+func classify(addr addrs.AbsResourceInstance, parts []Part, attrs []AttrFormula) Resolution {
 	var parents []addrs.AbsResourceInstance
 	seen := make(map[string]bool)
 	for _, p := range parts {
@@ -418,10 +453,22 @@ func classify(addr addrs.AbsResourceInstance, parts []Part) Resolution {
 		for _, p := range parts {
 			buf.WriteString(p.Literal)
 		}
+		var values map[string]string
+		if len(attrs) > 0 {
+			values = make(map[string]string, len(attrs))
+			for _, a := range attrs {
+				var v strings.Builder
+				for _, p := range a.Parts {
+					v.WriteString(p.Literal)
+				}
+				values[a.Name] = v.String()
+			}
+		}
 		return Resolution{
-			Addr:     addr,
-			Class:    ClassConcrete,
-			ImportID: buf.String(),
+			Addr:           addr,
+			Class:          ClassConcrete,
+			ImportID:       buf.String(),
+			IdentityValues: values,
 		}
 	}
 
@@ -433,6 +480,7 @@ func classify(addr addrs.AbsResourceInstance, parts []Part) Resolution {
 		Class: ClassParentDerived,
 		Formula: &Formula{
 			Parts:   parts,
+			Attrs:   attrs,
 			Parents: parents,
 		},
 	}

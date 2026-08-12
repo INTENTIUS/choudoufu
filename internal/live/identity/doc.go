@@ -211,28 +211,48 @@
 // front of it - which ones are waiting on a configuration and exactly which
 // arguments it would have to set.
 //
-// What is still missing before the table can shrink:
+// # Identity as an object rather than a string
 //
-//   - The inference layer has no schema behind it. An identity schema names
-//     the attributes that identify a type; it does not say which
-//     configuration argument supplies each one. That is one hop for
-//     aws_route (identity attribute route_table_id, read from the
-//     route_table_id argument) and no hop at all for the types whose
-//     identity attribute is the id the provider assigns. Nothing in the
-//     protocol closes that gap, so the table's Components survive it.
-//   - Import by identity is not wired. Once a projection imports by
-//     identity object rather than by import-ID string, the separator
-//     characters in Components stop mattering and half of what the table
-//     asserts goes away on its own. Everything below this package is
-//     already there - providers.ImportTarget carries an Identity cty.Value,
-//     both plugin protocols marshal it, and internal/tofu's own import path
-//     uses it - so the remaining work is entirely in this package and the
-//     projection: [Resolution] would have to carry named identity
-//     attributes rather than one concatenated string, which means
-//     [Component] gaining the identity attribute each one supplies, and
-//     [Formula] and its rendering becoming per-attribute. That is the
-//     inference layer above, written down in the one place it can be
-//     checked, rather than a way of avoiding it.
+// An import used to be one string, and the AWS provider's grammars for that
+// string - "ROUTETABLEID_DESTINATION", "ROLENAME/POLICYARN" - were the part
+// of this package nothing could check. No schema carries a separator
+// character. The provider now accepts an identity *object* instead
+// (providers.ImportTarget.Identity), so those characters need not be known
+// for the types it serves an identity schema for.
+//
+// So an identity travels in every form the run has it, and the projection
+// picks per resource once a schema is on the line:
+//
+//   - [Resolution.Identity]: the provider's own identity object, when a
+//     marker sweep's list call served one. Nothing beats the provider's
+//     account of what names its resource.
+//   - [Resolution.IdentityValues], and [Formula.Attrs] for the parent-derived
+//     half: the identity the configuration supplies, one string per identity
+//     attribute. It is [Resolution.ImportID] unjoined, and what is missing
+//     from it are exactly the separators.
+//   - [Resolution.ImportID]: the string. Always populated, because it is what
+//     every operator-facing line prints, what a marker rewrite records, and
+//     the only form for a type with no identity schema or one whose identity
+//     the configuration does not hold at all (aws_route_table_association).
+//
+// [Component.IdentityAttr] is where a component says which identity
+// attribute it supplies, and it is the inference layer above written down in
+// the one place it can be checked rather than a way of avoiding it: the
+// schemas say what identifies a type, this says where the value is read
+// from, and [VerifyTable] puts the two claims side by side. The projection
+// checks it again against the real schema before acting on it, and drops to
+// the string when the two disagree - a stale row costs a less precise import,
+// never a wrong one.
+//
+// What still has no schema behind it, and will not:
+//
+//   - Which configuration argument supplies each identity attribute. One hop
+//     for aws_route, no hop for the types whose identity attribute is the id
+//     the provider assigns, and a whole ARN template for an SNS topic.
+//     Nothing in the protocol closes that gap, so [Component] survives it -
+//     but only for the composites. A type whose identity is one attribute
+//     named after its own argument needs no row at all now; see
+//     [SynthesizeTypeIdentity].
 //
 // # Output
 //

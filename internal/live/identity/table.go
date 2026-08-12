@@ -89,16 +89,26 @@ type Component struct {
 	// by a route_table_id, not that the route_table_id argument is where
 	// that value is written.
 	//
-	// Several components may name one attribute, in which case their
-	// rendered strings concatenate in order to form it - which is how an SNS
-	// topic's single "arn" identity attribute is built out of a literal
-	// prefix, the region, the account and the topic's name. A component with
-	// no IdentityAttr contributes to the concatenated import-ID string and
-	// to no identity attribute: that is what the separator between two
-	// identity attributes is, and it is exactly the character that stops
-	// mattering once a run imports by identity object instead.
+	// Three values, and the helpers below spell all three:
 	//
-	// An entry whose components do not name every attribute the provider
+	//   - [SameNameIdentity], what [attr] sets, is the ordinary case: the
+	//     identity attribute is whichever argument supplied the value, under
+	//     its own name. It is a rule rather than a name because the argument
+	//     is chosen per instance - aws_route reads whichever of three
+	//     destination arguments the route uses, and the provider's identity
+	//     schema names all three.
+	//   - An explicit attribute name, what [inAttr] sets, for the case where
+	//     the two differ. Several components may name one attribute, and
+	//     their rendered strings then concatenate in order to form it, which
+	//     is how an SNS topic's single "arn" is built out of a literal
+	//     prefix, the region, the account and the topic's name.
+	//   - Empty: this component supplies no identity attribute at all. That
+	//     is every separator between two identity attributes - exactly the
+	//     character that stops mattering once a run imports by identity
+	//     object - and it is what [idlessAttr] says about an argument whose
+	//     value is part of the import string and part of no identity.
+	//
+	// An entry whose components do not supply every attribute the provider
 	// requires for import cannot be imported by identity, and its import-ID
 	// string is used instead. aws_route_table_association is the archetype:
 	// the provider identifies an association by the rtbassoc- ID it assigns,
@@ -107,6 +117,13 @@ type Component struct {
 	// only one of them is an identity object.
 	IdentityAttr string
 }
+
+// SameNameIdentity is [Component.IdentityAttr] for the ordinary case: the
+// identity attribute is the argument that supplied the value, under its own
+// name. It is not an attribute name and no schema has one - the character is
+// not legal in an identifier - because it stands for a rule that is applied
+// per instance, once the argument is chosen.
+const SameNameIdentity = "*"
 
 // CloudValue names one property of the cloud a run is against, for a
 // [Component] whose value the configuration does not carry.
@@ -190,9 +207,35 @@ func (c CloudContext) value(which CloudValue) (string, bool) {
 	return v, v != ""
 }
 
-func attr(names ...string) Component { return Component{Attrs: names} }
-func sep(s string) Component         { return Component{Literal: s} }
-func cloud(v CloudValue) Component   { return Component{Cloud: v} }
+// attr reads the first of these arguments the configuration sets, and
+// supplies the identity attribute of that same name. That is the whole of the
+// inference for all but three of the entries below.
+func attr(names ...string) Component {
+	return Component{Attrs: names, IdentityAttr: SameNameIdentity}
+}
+
+// idlessAttr reads an argument that is part of the import-ID string and part
+// of no identity attribute, which makes its type importable by string only.
+// Used where the provider identifies a resource by something the
+// configuration does not hold at all; the entry says so rather than mapping
+// the argument onto an attribute that means something else.
+func idlessAttr(names ...string) Component { return Component{Attrs: names} }
+
+// sep is a fixed fragment of the import ID between two identity attributes.
+// It supplies no identity attribute, which is the point: it is the character
+// that stops existing once a run imports by identity object.
+func sep(s string) Component { return Component{Literal: s} }
+
+// cloud is a property of the cloud the run is against. See [CloudValue].
+func cloud(v CloudValue) Component { return Component{Cloud: v} }
+
+// inAttr says a component supplies one named identity attribute rather than
+// the one its own name implies. Several components wrapped in the same name
+// concatenate into it, in order.
+func inAttr(identityAttr string, c Component) Component {
+	c.IdentityAttr = identityAttr
+	return c
+}
 
 func serverAssigned(typeName, reason, importSyntax string, identityAttrs ...string) TypeIdentity {
 	return TypeIdentity{
@@ -214,24 +257,34 @@ func serverAssigned(typeName, reason, importSyntax string, identityAttrs ...stri
 // each type's "Import" section in the provider docs); the identity
 // attributes are the attributes the provider sets to that same value.
 //
-// Replacing this table: OpenTofu now carries provider-served resource
-// identity schemas (opentofu#2854 plumbing:
-// providers.ResourceIdentitySchema and the per-resource
-// providers.Schema.IdentitySchema returned by GetProviderSchema), and those
-// schemas are the eventual source of the first two columns here: they name
-// each type's identity attributes and their types, which is exactly what
-// Components enumerates by hand below, and import-by-identity removes the
-// need to know a separator character at all. They are not usable here yet
-// for one practical reason and one design reason. The practical one:
-// GetProviderSchema requires a running provider plugin process, and this
-// package is deliberately cloud-free and process-free so that identity
-// resolution can be unit-tested and can run before any provider is
-// launched. The design one: an identity schema says what the identity's
-// attributes are, not which *configuration argument* supplies each one.
-// aws_route's identity attribute is a route table ID, and knowing to read
-// it from the route_table_id argument is still an inference. When P1.3
-// wires up a real provider it should feed the schemas in and keep this
-// table as the fallback for the pre-provider phase, not delete it.
+// What is left of this table, now that the schemas are plumbed
+// (opentofu#2854: providers.ResourceIdentitySchema and the per-resource
+// providers.Schema.IdentitySchema returned by GetProviderSchema):
+//
+// A type whose identity is one attribute named after the argument that
+// supplies it no longer needs a row at all. [SynthesizeTypeIdentity] builds
+// one from the schema whenever the caller had schemas to hand, so the rows
+// below that say only "one argument, same name" are now a pre-provider
+// fallback rather than the only way in - which is what the first paragraph of
+// this comment used to say could not be done, because GetProviderSchema needs
+// a plugin process and this package is deliberately process-free. It still
+// is: the schemas arrive as a parameter, from a caller that has them.
+//
+// What survives is the inference no schema carries, and it is now written
+// down attribute by attribute rather than as a string grammar. An identity
+// schema says a route is identified by a route_table_id; that the
+// route_table_id *argument* is where the value is written is this table's
+// claim, and [Component.IdentityAttr] is where it is made. So is the
+// composition of an SNS topic's single arn out of four fragments, and so is
+// the refusal of aws_route_table_association, whose identity is a value no
+// configuration holds.
+//
+// The separator characters below are on their way out. Every type whose
+// components supply the whole of what the provider requires for import is
+// asked for by identity object now, and for those the "_" and "/" and "," are
+// dead weight kept for the operator-facing string and for the types with no
+// identity schema at all. See [VerifyTable] and
+// internal/live/projection/build.go.
 var DefaultTable = buildTable(
 	// ---- Server-assigned identities (admission path 2: markers) ----------
 
@@ -379,13 +432,18 @@ var DefaultTable = buildTable(
 	// live/SURVEY.md against choudoufu#26.
 	TypeIdentity{
 		Type: "aws_sns_topic",
+		// Every component feeds one identity attribute, the arn, which the
+		// provider's identity schema is the only thing that requires. The
+		// colons here are inside a value rather than between two of them,
+		// so unlike every other separator in this table they survive
+		// import-by-identity.
 		Components: []Component{
-			sep("arn:aws:sns:"),
-			cloud(CloudRegion),
-			sep(":"),
-			cloud(CloudAccountID),
-			sep(":"),
-			attr("name"),
+			inAttr("arn", sep("arn:aws:sns:")),
+			inAttr("arn", cloud(CloudRegion)),
+			inAttr("arn", sep(":")),
+			inAttr("arn", cloud(CloudAccountID)),
+			inAttr("arn", sep(":")),
+			inAttr("arn", attr("name")),
 		},
 		ImportSyntax:  "arn:aws:sns:REGION:ACCOUNT:TOPICNAME",
 		IdentityAttrs: []string{"arn", "id"},
@@ -508,10 +566,15 @@ var DefaultTable = buildTable(
 		// attach a subnet or a gateway to the table, hence the preference
 		// list.
 		Type: "aws_route_table_association",
+		// Neither half is an identity attribute: the provider identifies an
+		// association by the rtbassoc- ID it assigns, and this entry builds
+		// the documented import *string* instead. Saying so is what keeps
+		// this type importing by that string while everything around it
+		// moves to identity objects.
 		Components: []Component{
-			attr("subnet_id", "gateway_id"),
+			idlessAttr("subnet_id", "gateway_id"),
 			sep("/"),
-			attr("route_table_id"),
+			idlessAttr("route_table_id"),
 		},
 		ImportSyntax: "SUBNETID/ROUTETABLEID",
 		// The association's id is a server-assigned rtbassoc-… value,
@@ -558,6 +621,69 @@ func buildTable(entries ...TypeIdentity) map[string]TypeIdentity {
 func LookupType(typeName string) (TypeIdentity, bool) {
 	e, ok := DefaultTable[typeName]
 	return e, ok
+}
+
+// identityAttrFor is the identity attribute one component supplies for one
+// instance, given which of its alternative arguments the configuration
+// actually set. The empty string means it supplies none.
+func (c Component) identityAttrFor(argName string) string {
+	if c.IdentityAttr != SameNameIdentity {
+		return c.IdentityAttr
+	}
+	// The rule only means anything for a component that read an argument;
+	// a literal or a cloud value has no name of its own to take.
+	return argName
+}
+
+// SuppliesIdentityAttr reports whether some component of this entry can
+// supply the named identity attribute, taking the same-name rule over each
+// component's whole alternative list.
+//
+// It is the type-level question, so it is answered over every alternative:
+// aws_route can supply destination_cidr_block or destination_ipv6_cidr_block
+// or destination_prefix_list_id, and which one a given route supplies is a
+// per-instance answer [Resolve] makes.
+func (t TypeIdentity) SuppliesIdentityAttr(name string) bool {
+	for _, c := range t.Components {
+		if c.IdentityAttr == "" {
+			continue
+		}
+		if c.IdentityAttr != SameNameIdentity {
+			if c.IdentityAttr == name {
+				return true
+			}
+			continue
+		}
+		for _, a := range c.Attrs {
+			if a == name {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// ComposesIdentity reports whether this entry can build a whole identity
+// object: every attribute the provider requires for import is supplied by
+// some component.
+//
+// This is the bar for importing by identity rather than by string. It is
+// deliberately about the *required* attributes only - the optional ones are
+// context the provider fills in itself (account_id, region) or alternatives
+// it needs no particular one of - and it is deliberately checked against a
+// real identity schema rather than asserted here, because the whole point of
+// the exercise is that the provider is the authority on what identifies its
+// own resources.
+func (t TypeIdentity) ComposesIdentity(required []string) bool {
+	if t.ServerAssigned || len(required) == 0 {
+		return false
+	}
+	for _, name := range required {
+		if !t.SuppliesIdentityAttr(name) {
+			return false
+		}
+	}
+	return true
 }
 
 // AdmittedTypes lists every resource type the v0 table covers, sorted.

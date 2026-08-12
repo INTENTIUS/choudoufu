@@ -14,6 +14,7 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -278,6 +279,157 @@ func TestImportsByIDWhenTheProviderServesNoIdentitySchema(t *testing.T) {
 	assertMaterialized(t, res, []string{logs.String()})
 	if !equalLines(cloud.asked, []string{"aws_cloudwatch_log_group id /ours/logs"}) {
 		t.Errorf("imports were asked as %v, want the ID form for a type with no identity schema", cloud.asked)
+	}
+}
+
+// TestImportsByIdentityBuiltFromConfiguration is piece 3's claim: nothing
+// served an identity object, the configuration did, and the import asks by it
+// rather than by the separator-joined string the same components build.
+func TestImportsByIdentityBuiltFromConfiguration(t *testing.T) {
+	cfg := loadConfig(t, "testdata/named")
+
+	cloud := newIdentityCloud()
+	cloud.put("aws_cloudwatch_log_group", "/ours/logs", map[string]string{
+		"id": "/ours/logs", "name": "/ours/logs",
+	})
+
+	logs := mustAddr(t, `aws_cloudwatch_log_group.app`)
+	res, diags := BuildFrom(context.Background(), cfg, []identity.Resolution{{
+		Addr:           logs,
+		Class:          identity.ClassConcrete,
+		ImportID:       "/ours/logs",
+		IdentityValues: map[string]string{"name": "/ours/logs"},
+	}}, cloud.providers(t))
+	assertNoErrors(t, diags)
+
+	assertMaterialized(t, res, []string{logs.String()})
+	// account_id and region are optional for import and the configuration
+	// says nothing about them, so they go null: filling them in from here
+	// would be this package deciding which account a run is against.
+	want := []string{"aws_cloudwatch_log_group identity name=/ours/logs"}
+	if !equalLines(cloud.asked, want) {
+		t.Errorf("imports were asked as\n %v\nwant\n %v", cloud.asked, want)
+	}
+}
+
+// TestImportsByIDWhenTheConfigurationCoversOnlyPartOfTheIdentity: an identity
+// object missing an attribute the provider requires names nothing, so the
+// string it also produced is what gets used.
+func TestImportsByIDWhenTheConfigurationCoversOnlyPartOfTheIdentity(t *testing.T) {
+	cfg := loadConfig(t, "testdata/named")
+
+	cloud := newIdentityCloud()
+	// The provider now wants two attributes to name a log group and the
+	// configuration supplies one, which is the shape of a table entry that
+	// has fallen behind its provider.
+	cloud.identityAttrs["aws_cloudwatch_log_group"] = []string{"name", "log_group_class"}
+	cloud.put("aws_cloudwatch_log_group", "/ours/logs", map[string]string{
+		"id": "/ours/logs", "name": "/ours/logs",
+	})
+
+	logs := mustAddr(t, `aws_cloudwatch_log_group.app`)
+	res, diags := BuildFrom(context.Background(), cfg, []identity.Resolution{{
+		Addr:           logs,
+		Class:          identity.ClassConcrete,
+		ImportID:       "/ours/logs",
+		IdentityValues: map[string]string{"name": "/ours/logs"},
+	}}, cloud.providers(t))
+	assertNoErrors(t, diags)
+
+	assertMaterialized(t, res, []string{logs.String()})
+	if !equalLines(cloud.asked, []string{"aws_cloudwatch_log_group id /ours/logs"}) {
+		t.Errorf("imports were asked as %v, want the ID form for a half-covered identity", cloud.asked)
+	}
+}
+
+// TestImportsByIDWhenTheTableNamesAnAttributeTheSchemaLacks: the other
+// direction. A table entry that maps an argument onto an attribute this
+// provider version does not carry is a stale inference, and the import ID the
+// same components produced is the safe reading of it.
+func TestImportsByIDWhenTheTableNamesAnAttributeTheSchemaLacks(t *testing.T) {
+	cfg := loadConfig(t, "testdata/named")
+
+	cloud := newIdentityCloud()
+	cloud.put("aws_cloudwatch_log_group", "/ours/logs", map[string]string{
+		"id": "/ours/logs", "name": "/ours/logs",
+	})
+
+	logs := mustAddr(t, `aws_cloudwatch_log_group.app`)
+	res, diags := BuildFrom(context.Background(), cfg, []identity.Resolution{{
+		Addr:     logs,
+		Class:    identity.ClassConcrete,
+		ImportID: "/ours/logs",
+		IdentityValues: map[string]string{
+			"name":   "/ours/logs",
+			"handle": "/ours/logs",
+		},
+	}}, cloud.providers(t))
+	assertNoErrors(t, diags)
+
+	assertMaterialized(t, res, []string{logs.String()})
+	if !equalLines(cloud.asked, []string{"aws_cloudwatch_log_group id /ours/logs"}) {
+		t.Errorf("imports were asked as %v, want the ID form when the table names an attribute the schema lacks", cloud.asked)
+	}
+}
+
+// TestImportsByIdentityRenderedFromAFormula: the parent-derived path builds
+// the identity object out of the parents' live values, the same way it builds
+// the string.
+func TestImportsByIdentityRenderedFromAFormula(t *testing.T) {
+	cfg := loadConfig(t, "testdata/derived")
+
+	cloud := newIdentityCloud()
+	cloud.identityAttrs["aws_route_table"] = []string{"id"}
+	cloud.identityAttrs["aws_route"] = []string{"route_table_id", "destination_cidr_block"}
+	cloud.put("aws_route_table", "rtb-imported", map[string]string{
+		"id": "rtb-live", "vpc_id": "vpc-fixed",
+	})
+	cloud.put("aws_route", "rtb-live/0.0.0.0/0", map[string]string{
+		"id": "r-rtb-live1080289494", "route_table_id": "rtb-live",
+		"destination_cidr_block": "0.0.0.0/0",
+	})
+
+	rtb := mustAddr(t, `aws_route_table.main`)
+	route := mustAddr(t, `aws_route.internet_gateway`)
+
+	res, diags := BuildFrom(context.Background(), cfg, []identity.Resolution{
+		{
+			Addr:           rtb,
+			Class:          identity.ClassConcrete,
+			ImportID:       "rtb-imported",
+			IdentityValues: map[string]string{"id": "rtb-imported"},
+		},
+		{
+			Addr:  route,
+			Class: identity.ClassParentDerived,
+			Formula: &identity.Formula{
+				Parts: []identity.Part{
+					{Parent: &identity.ParentRef{Instance: rtb, Attr: "id"}},
+					{Literal: "_0.0.0.0/0"},
+				},
+				Attrs: []identity.AttrFormula{
+					{Name: "route_table_id", Parts: []identity.Part{
+						{Parent: &identity.ParentRef{Instance: rtb, Attr: "id"}},
+					}},
+					{Name: "destination_cidr_block", Parts: []identity.Part{
+						{Literal: "0.0.0.0/0"},
+					}},
+				},
+				Parents: []addrs.AbsResourceInstance{rtb},
+			},
+		},
+	}, cloud.providers(t))
+	assertNoErrors(t, diags)
+
+	assertMaterialized(t, res, []string{route.String(), rtb.String()})
+	want := []string{
+		"aws_route_table identity id=rtb-imported",
+		// Rendered from the route table's *live* id, not from the identity
+		// it was looked up with, exactly as the string form is.
+		"aws_route identity destination_cidr_block=0.0.0.0/0,route_table_id=rtb-live",
+	}
+	if !equalLines(cloud.asked, want) {
+		t.Errorf("imports were asked as\n %v\nwant\n %v", cloud.asked, want)
 	}
 }
 
