@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- shadow under plate -->
+  <ellipse cx="256" cy="384" rx="168" ry="38" fill="#000000" opacity="0.08"/>
+
+  <!-- plate -->
+  <ellipse cx="256" cy="370" rx="162" ry="48" fill="#d8d3c8"/>
+  <ellipse cx="256" cy="365" rx="162" ry="48" fill="#efeae0"/>
+  <ellipse cx="256" cy="367" rx="122" ry="35" fill="#e0dacd"/>
+
+  <!-- odor waves -->
+  <g fill="none" stroke="#93a06b" stroke-width="9" stroke-linecap="round" opacity="0.75">
+    <path d="M 202 254 C 186 232 218 212 204 190 C 190 168 218 148 208 128"/>
+    <path d="M 258 244 C 240 220 276 200 260 176 C 246 154 274 134 262 110"/>
+    <path d="M 314 256 C 300 234 330 214 316 192 C 304 172 330 152 320 132"/>
+  </g>
+
+  <!-- back-left cube -->
+  <g>
+    <path d="M 176 302 L 216 284 L 256 302 L 216 320 Z" fill="#38362f"/>
+    <path d="M 176 302 L 216 320 L 216 364 L 176 346 Z" fill="#242320"/>
+    <path d="M 256 302 L 216 320 L 216 364 L 256 346 Z" fill="#171614"/>
+    <circle cx="208" cy="300" r="3" fill="#221f1a"/>
+    <circle cx="228" cy="306" r="2.4" fill="#221f1a"/>
+    <circle cx="216" cy="293" r="2" fill="#221f1a"/>
+  </g>
+
+  <!-- back-right cube -->
+  <g>
+    <path d="M 258 306 L 298 288 L 338 306 L 298 324 Z" fill="#38362f"/>
+    <path d="M 258 306 L 298 324 L 298 368 L 258 350 Z" fill="#242320"/>
+    <path d="M 338 306 L 298 324 L 298 368 L 338 350 Z" fill="#171614"/>
+    <circle cx="292" cy="304" r="3" fill="#221f1a"/>
+    <circle cx="312" cy="309" r="2.2" fill="#221f1a"/>
+  </g>
+
+  <!-- front cube -->
+  <g>
+    <path d="M 216 338 L 256 320 L 296 338 L 256 356 Z" fill="#3e3b33"/>
+    <path d="M 216 338 L 256 356 L 256 400 L 216 382 Z" fill="#282622"/>
+    <path d="M 296 338 L 256 356 L 256 400 L 296 382 Z" fill="#1a1917"/>
+    <circle cx="248" cy="336" r="3" fill="#25221c"/>
+    <circle cx="268" cy="342" r="2.4" fill="#25221c"/>
+    <circle cx="257" cy="328" r="2" fill="#25221c"/>
+  </g>
+</svg>

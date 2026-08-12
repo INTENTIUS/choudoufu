@@ -2,6 +2,8 @@
 
 [![Release](https://img.shields.io/github/v/release/INTENTIUS/choudoufu)](https://github.com/INTENTIUS/choudoufu/releases)
 
+**Keep your OpenTofu, gain self-identifying resources.** <img src="docs/images/choudoufu-inline-64.png" width="32" height="32" alt="">
+
 Choudoufu is OpenTofu with live resource markers. There is no state file, no
 backend and no lock. Each resource carries its own ownership record as plain
 tags, and every plan rebuilds prior state by reading those markers off the
@@ -10,11 +12,10 @@ is stock OpenTofu. The binary is `choudoufu`.
 
 If you already use OpenTofu, the short version is that `terraform.tfstate`
 stops existing. Adoption is a tag you write. A rename is a tag you rewrite.
-Your config says what should exist and the cloud says what does. No file gets
-a vote.
 
 New here? Start with the [FAQ](stateless/FAQ.md). It answers the questions an
-OpenTofu user tends to ask in the first five minutes.
+OpenTofu user tends to ask in the first five minutes. The fork's docs also
+render as a site at [intentius.io/choudoufu](https://intentius.io/choudoufu/).
 
 ## Where this stands
 
@@ -83,6 +84,10 @@ The docs unique to this fork, in reading order.
 These also render as a small docs site at
 https://intentius.io/choudoufu/. All stock OpenTofu documentation lives at
 [opentofu.org](https://opentofu.org/docs/).
+
+<p align="center">
+  <img src="docs/images/choudoufu-hero.png" width="400" alt="a plate of choudoufu">
+</p>
 
 ## License
 
