@@ -43,7 +43,7 @@ The docs unique to this fork:
 - [`stateless/e2e/README.md`](stateless/e2e/README.md) — running the demo/test harness, reading its output
 
 These also render as a small docs site at
-https://intentius.github.io/choudoufu/. All stock OpenTofu documentation
+https://intentius.io/choudoufu/. All stock OpenTofu documentation
 lives at
 [opentofu.org](https://opentofu.org/docs/).
 
