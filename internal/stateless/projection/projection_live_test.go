@@ -134,7 +134,11 @@ func TestBuildAgainstFloci(t *testing.T) {
 		`aws_iam_role.app`,
 		`aws_iam_role_policy_attachment.app`,
 		`aws_s3_bucket.data`,
+		`aws_s3_bucket_lifecycle_configuration.data`,
 		`aws_s3_bucket_policy.data`,
+		`aws_s3_bucket_public_access_block.data`,
+		`aws_s3_bucket_server_side_encryption_configuration.data`,
+		`aws_s3_bucket_versioning.data`,
 		`aws_ssm_parameter.demo_effect`,
 		`aws_ssm_parameter.demo_existence`,
 	})
@@ -150,6 +154,13 @@ func TestBuildAgainstFloci(t *testing.T) {
 		{`aws_iam_role_policy_attachment.app`, "ReadOnlyAccess"},
 		{`aws_dynamodb_table.events`, "tofu-stateless-e2e-events"},
 		{`aws_ecs_cluster.app`, "tofu-stateless-e2e-cluster"},
+		// #19's second slice: the four S3 bucket children, each read back
+		// with a real attribute so the singleton-child import is proven to
+		// return the configured object, not an empty husk.
+		{`aws_s3_bucket_versioning.data`, "Enabled"},
+		{`aws_s3_bucket_public_access_block.data`, "tofu-stateless-e2e-data"},
+		{`aws_s3_bucket_server_side_encryption_configuration.data`, "AES256"},
+		{`aws_s3_bucket_lifecycle_configuration.data`, "expire-tmp"},
 	} {
 		is := res.State.ResourceInstance(mustAddr(t, spec.addr))
 		if is == nil || is.Current == nil {

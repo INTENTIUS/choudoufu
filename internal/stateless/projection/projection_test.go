@@ -101,6 +101,20 @@ func TestBuildEstate(t *testing.T) {
 		"name": "tofu-stateless-e2e-cluster",
 		"arn":  "arn:aws:ecs:us-east-1:000000000000:cluster/tofu-stateless-e2e-cluster",
 	})
+	// The four S3 bucket children (#19's second slice): each keyed by the
+	// parent bucket's name, which is its whole import ID.
+	cloud.put("aws_s3_bucket_versioning", "tofu-stateless-e2e-data", map[string]string{
+		"id": "tofu-stateless-e2e-data", "bucket": "tofu-stateless-e2e-data",
+	})
+	cloud.put("aws_s3_bucket_public_access_block", "tofu-stateless-e2e-data", map[string]string{
+		"id": "tofu-stateless-e2e-data", "bucket": "tofu-stateless-e2e-data",
+	})
+	cloud.put("aws_s3_bucket_server_side_encryption_configuration", "tofu-stateless-e2e-data", map[string]string{
+		"id": "tofu-stateless-e2e-data", "bucket": "tofu-stateless-e2e-data",
+	})
+	cloud.put("aws_s3_bucket_lifecycle_configuration", "tofu-stateless-e2e-data", map[string]string{
+		"id": "tofu-stateless-e2e-data", "bucket": "tofu-stateless-e2e-data",
+	})
 
 	res, diags := Build(context.Background(), cfg, resolutions, cloud.providers(t))
 	assertNoErrors(t, diags)
@@ -113,7 +127,11 @@ func TestBuildEstate(t *testing.T) {
 		`aws_iam_role.app`,
 		`aws_iam_role_policy_attachment.app`,
 		`aws_s3_bucket.data`,
+		`aws_s3_bucket_lifecycle_configuration.data`,
 		`aws_s3_bucket_policy.data`,
+		`aws_s3_bucket_public_access_block.data`,
+		`aws_s3_bucket_server_side_encryption_configuration.data`,
+		`aws_s3_bucket_versioning.data`,
 		`aws_ssm_parameter.demo_effect`,
 		`aws_ssm_parameter.demo_existence`,
 	})
@@ -218,7 +236,7 @@ func TestBuildEstateAllAbsent(t *testing.T) {
 	if len(res.Materialized) != 0 {
 		t.Errorf("projection is not empty against an empty cloud: %s", res)
 	}
-	if got, want := len(res.OmittedBecause(ReasonAbsent)), 10; got != want {
+	if got, want := len(res.OmittedBecause(ReasonAbsent)), 14; got != want {
 		t.Errorf("%d instances recorded as absent, want %d:\n%s", got, want, res)
 	}
 	if res.State.HasManagedResourceInstanceObjects() {
@@ -748,23 +766,27 @@ func (c *fakeCloud) provider(t *testing.T) providers.Interface {
 // the fixtures' bodies to decode (which is what dependency extraction
 // needs) and no more.
 var fakeAttrs = map[string][]string{
-	"aws_s3_bucket":                  {"id", "bucket", "arn"},
-	"aws_s3_bucket_policy":           {"id", "bucket", "policy"},
-	"aws_iam_role":                   {"id", "name", "arn", "assume_role_policy"},
-	"aws_iam_role_policy_attachment": {"id", "role", "policy_arn"},
-	"aws_cloudwatch_log_group":       {"id", "name", "arn"},
-	"aws_vpc":                        {"id", "cidr_block"},
-	"aws_subnet":                     {"id", "vpc_id", "cidr_block", "availability_zone"},
-	"aws_security_group":             {"id", "name", "description", "vpc_id"},
-	"aws_route_table":                {"id", "vpc_id"},
-	"aws_internet_gateway":           {"id", "vpc_id"},
-	"aws_route":                      {"id", "route_table_id", "destination_cidr_block", "gateway_id"},
-	"aws_route_table_association":    {"id", "subnet_id", "route_table_id"},
-	"aws_eip":                        {"id", "domain", "allocation_id"},
-	"aws_ssm_parameter":              {"id", "name", "value", "type"},
-	"aws_dynamodb_table":             {"id", "name", "arn", "billing_mode", "hash_key"},
-	"aws_ecs_cluster":                {"id", "name", "arn"},
-	"aws_kms_key":                    {"id", "key_id", "arn", "description"},
+	"aws_s3_bucket":                                      {"id", "bucket", "arn"},
+	"aws_s3_bucket_policy":                               {"id", "bucket", "policy"},
+	"aws_s3_bucket_versioning":                           {"id", "bucket"},
+	"aws_s3_bucket_public_access_block":                  {"id", "bucket", "block_public_acls", "block_public_policy", "ignore_public_acls", "restrict_public_buckets"},
+	"aws_s3_bucket_server_side_encryption_configuration": {"id", "bucket"},
+	"aws_s3_bucket_lifecycle_configuration":              {"id", "bucket"},
+	"aws_iam_role":                                       {"id", "name", "arn", "assume_role_policy"},
+	"aws_iam_role_policy_attachment":                     {"id", "role", "policy_arn"},
+	"aws_cloudwatch_log_group":                           {"id", "name", "arn"},
+	"aws_vpc":                                            {"id", "cidr_block"},
+	"aws_subnet":                                         {"id", "vpc_id", "cidr_block", "availability_zone"},
+	"aws_security_group":                                 {"id", "name", "description", "vpc_id"},
+	"aws_route_table":                                    {"id", "vpc_id"},
+	"aws_internet_gateway":                               {"id", "vpc_id"},
+	"aws_route":                                          {"id", "route_table_id", "destination_cidr_block", "gateway_id"},
+	"aws_route_table_association":                        {"id", "subnet_id", "route_table_id"},
+	"aws_eip":                                            {"id", "domain", "allocation_id"},
+	"aws_ssm_parameter":                                  {"id", "name", "value", "type"},
+	"aws_dynamodb_table":                                 {"id", "name", "arn", "billing_mode", "hash_key"},
+	"aws_ecs_cluster":                                    {"id", "name", "arn"},
+	"aws_kms_key":                                        {"id", "key_id", "arn", "description"},
 	// The zone's identity attribute is zone_id rather than id, and both
 	// carry the hosted zone ID; the caricature keeps both for that reason.
 	"aws_route53_zone": {"id", "zone_id", "arn", "name"},

@@ -57,6 +57,13 @@ func TestResolveEstate(t *testing.T) {
 		// to a literal instead of becoming a formula.
 		`aws_s3_bucket_policy.data`: `CONCRETE tofu-stateless-e2e-data`,
 
+		// The four S3 bucket children (#19's second slice): the same
+		// named-singleton-child collapse as the bucket policy above.
+		`aws_s3_bucket_versioning.data`:                           `CONCRETE tofu-stateless-e2e-data`,
+		`aws_s3_bucket_public_access_block.data`:                  `CONCRETE tofu-stateless-e2e-data`,
+		`aws_s3_bucket_server_side_encryption_configuration.data`: `CONCRETE tofu-stateless-e2e-data`,
+		`aws_s3_bucket_lifecycle_configuration.data`:              `CONCRETE tofu-stateless-e2e-data`,
+
 		// Attachment composite: role name comes from the concrete role,
 		// policy ARN is a literal, so the whole composite is concrete.
 		`aws_iam_role_policy_attachment.app`: `CONCRETE tofu-stateless-e2e-app/arn:aws:iam::aws:policy/ReadOnlyAccess`,
@@ -121,7 +128,7 @@ func TestResolveEstateDisabled(t *testing.T) {
 	if _, ok := result.Get(mustAddr(t, `aws_cloudwatch_log_group.optional[0]`)); ok {
 		t.Error("aws_cloudwatch_log_group.optional[0] is present with enabled = false; count = 0 must expand to no instances")
 	}
-	if got, want := result.Len(), 23; got != want {
+	if got, want := result.Len(), 27; got != want {
 		t.Errorf("resolved %d instances, want %d", got, want)
 	}
 	if _, ok := result.Get(mustAddr(t, `aws_cloudwatch_log_group.app`)); !ok {
@@ -388,7 +395,7 @@ func TestTableCoversFixtureTypes(t *testing.T) {
 			t.Errorf("the v0 identity table covers %s, which the fixture does not use", typeName)
 		}
 	}
-	if got, want := len(AdmittedTypes()), 18; got != want {
+	if got, want := len(AdmittedTypes()), 22; got != want {
 		t.Errorf("table covers %d types, want the fixture's %d", got, want)
 	}
 }
