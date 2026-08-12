@@ -196,7 +196,7 @@ func staticForEachKeys(ctx context.Context, mod *configs.Module, expr hcl.Expres
 		}
 	}
 
-	val, ok := evalForEach(ctx, mod.StaticEvaluator, expr)
+	val, ok := evalStatic(ctx, mod.StaticEvaluator, expr, "for_each")
 	if !ok || val == cty.NilVal || val.IsNull() || !val.IsWhollyKnown() || val.IsMarked() {
 		return nil, false
 	}
@@ -233,18 +233,21 @@ func staticForEachKeys(ctx context.Context, mod *configs.Module, expr hcl.Expres
 	return keys, true
 }
 
-// evalForEach evaluates a for_each expression through the module's static
-// evaluator, degrading to "cannot check" instead of failing the run.
+// evalStatic evaluates an expression through the module's static evaluator,
+// degrading to "cannot check" instead of failing the run. subject names the
+// position being evaluated ("for_each", "count") in the identifier the
+// evaluator is handed; the diagnostics that would render it are dropped, so
+// it matters only in a debugger.
 //
-// Both halves of that are deliberate. Diagnostics are dropped because a
-// for_each this rule cannot evaluate is not this rule's finding to report —
+// Both halves of the degrade are deliberate. Diagnostics are dropped because
+// an expression this pass cannot evaluate is not its finding to report —
 // identity resolution evaluates the same expression in a richer scope and
 // reports what it finds there. The recover is because the static scope's
 // data source panics rather than erroring for the reference classes it does
-// not serve; the traversal pre-filter in [staticForEachKeys] keeps those
-// out, and this is the second line so that a lint pass can never be the
-// thing that crashes a run.
-func evalForEach(ctx context.Context, eval *configs.StaticEvaluator, expr hcl.Expression) (val cty.Value, ok bool) {
+// not serve; the traversal pre-filters in [staticForEachKeys] and
+// [staticCount] keep those out, and this is the second line so that a lint
+// pass can never be the thing that crashes a run.
+func evalStatic(ctx context.Context, eval *configs.StaticEvaluator, expr hcl.Expression, subject string) (val cty.Value, ok bool) {
 	defer func() {
 		if recover() != nil {
 			val, ok = cty.NilVal, false
@@ -253,7 +256,7 @@ func evalForEach(ctx context.Context, eval *configs.StaticEvaluator, expr hcl.Ex
 
 	ident := configs.StaticIdentifier{
 		Module:    addrs.RootModule,
-		Subject:   "for_each",
+		Subject:   subject,
 		DeclRange: expr.Range(),
 	}
 	v, diags := eval.Evaluate(ctx, expr, ident)
