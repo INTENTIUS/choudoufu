@@ -66,21 +66,38 @@ type Request struct {
 // deliberately absent - matching on a Name tag is how a tool ends up
 // adopting the wrong resource.
 //
-// The three types missing from this table are missing on purpose:
+// The marker-path types missing from this table are missing on purpose:
 // aws_route_table and aws_internet_gateway have nothing in configuration
 // that distinguishes one from another (both are "the one attached to this
-// VPC", and vpc_id is a live ID rather than a configuration value), and
-// aws_eip instances are explicitly fungible.
+// VPC", and vpc_id is a live ID rather than a configuration value),
+// aws_eip instances are explicitly fungible, and aws_kms_key is the same
+// shape as the route table - a key's arguments are its description, its
+// usage and its policy, none of which names one key rather than another,
+// and adopting a key by its description is exactly the guess this table
+// exists to refuse. Adoption for a KMS key is refuse-only: it is reported
+// as foreign with the marker pair to stamp, and never offered.
 var matchTable = map[string][]string{
 	"aws_security_group": {"name"},
 	"aws_vpc":            {"cidr_block"},
 	"aws_subnet":         {"cidr_block", "availability_zone"},
+	// A hosted zone's domain name is what makes it that zone, the same way
+	// a security group's name is. Route 53 does permit two zones with the
+	// same name, which is why the identity table says the name is not the
+	// zone's identity - but two live zones matching one declared block is
+	// the ambiguity the one-to-one rule below already refuses rather than
+	// resolves, so matching on it is safe. The provider stores the name
+	// with the trailing dot trimmed, so a configuration written
+	// "example.com." reads as a near miss and says so.
+	"aws_route53_zone": {"name"},
 }
 
 // ec2Types are the types whose adoption command this package can write down.
 // Everything in the v0 subset that carries EC2-style tags is adopted with
 // one create-tags call; a type outside this set still has a marker pair,
-// which is the actual contract, but no one-liner.
+// which is the actual contract, but no one-liner. The two marker types
+// added in #20 are outside it: a KMS key is tagged with kms:TagResource and
+// a hosted zone with route53:ChangeTagsForResource, each with its own flag
+// spelling, and neither is an ec2 create-tags call.
 var ec2Types = map[string]bool{
 	"aws_vpc":              true,
 	"aws_subnet":           true,

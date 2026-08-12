@@ -74,7 +74,7 @@ func serverAssigned(typeName, reason, importSyntax string, identityAttrs ...stri
 	}
 }
 
-// DefaultTable is the v0 identity table: the sixteen AWS resource types
+// DefaultTable is the v0 identity table: the eighteen AWS resource types
 // the estate fixture (stateless/e2e/estate) uses, which are also the types
 // the P1.1 admission lint admits. A type absent from this table is outside
 // the stateless subset and resolving it is an error.
@@ -119,6 +119,19 @@ var DefaultTable = buildTable(
 	serverAssigned("aws_internet_gateway",
 		"EC2 assigns the internet gateway ID (igw-…) at create time.",
 		"igw-ID", "id"),
+	// First slice of the survey's marker cohort (#20). Neither type's
+	// import ID can be built from configuration, which is the whole reason
+	// they are here rather than in the client-named section: discovery
+	// finds them by their tags and reads the identity off the list result.
+	serverAssigned("aws_kms_key",
+		"KMS assigns the key ID (a UUID) at create time; a key has no name argument, and its description names nothing the API accepts as an identity.",
+		"KEYID", "id", "key_id"),
+	serverAssigned("aws_route53_zone",
+		"Route 53 assigns the hosted zone ID (Z…) at create time; the zone's domain name is not its import identity, and two zones may carry the same name.",
+		// The provider's identity schema for this type names zone_id, not
+		// id, so both are listed: the resource's own id attribute equals
+		// the zone ID, and zone_id is what a list result carries.
+		"ZONEID", "id", "zone_id"),
 	serverAssigned("aws_eip",
 		"EC2 assigns the allocation ID (eipalloc-…) at create time; count instances are fungible and no argument distinguishes them.",
 		"eipalloc-ID", "id", "allocation_id"),

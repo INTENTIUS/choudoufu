@@ -65,7 +65,7 @@ state file. For an existing project, deleting the state file is the
 migration, but adopting the live resources is deliberate, not automatic.
 Resources that already carry this estate's markers bind immediately.
 Resources that do not are either offered for adoption in the plan's
-Adoptable section (three types the classifier can match on content) or
+Adoptable section (four types the classifier can match on content) or
 refused with an `[UNOWNED]` note that names the exact tags to write. The
 refusals also get their own rendered `Unowned` section in the plan, one
 entry per live resource, marked `[ADOPTABLE]` with the tag values to copy
@@ -76,19 +76,19 @@ duplicates.
 
 ## Can I manage my whole infrastructure with this?
 
-Almost certainly not yet. The admitted subset is AWS only, 16 resource
-types, root module only. In practice the 16 types are core VPC networking
+Almost certainly not yet. The admitted subset is AWS only, 18 resource
+types, root module only. In practice the 18 types are core VPC networking
 (VPC, subnet, route table, route, route table association, internet
 gateway, security group, EIP) plus S3 bucket and bucket policy, IAM role
 and role policy attachment, CloudWatch log group, SSM parameter, DynamoDB
-table, and ECS cluster. That is enough for real network scaffolding and
-the glue around it, with no EC2 instances, no RDS, and no Lambda. The gap to the rest of AWS is
-mechanical rather than conceptual. The provider survey found 65 of the top
-68 AWS types satisfy the admission rule, but each type has to be wired
-into the hardcoded v0 admission table by hand until provider identity
-schemas (opentofu#2854) make the table derivable. The survey itself, its
-method, and its per-type table are committed in `stateless/SURVEY.md`.
-Beyond types, there are
+table, ECS cluster, KMS key, and Route 53 hosted zone. That is enough for
+real network scaffolding and the glue around it, with no EC2 instances, no
+RDS, and no Lambda. The gap to the rest of AWS is mechanical rather than
+conceptual. The provider survey found 65 of the top 68 AWS types satisfy
+the admission rule, but each type has to be wired into the hardcoded v0
+admission table by hand until provider identity schemas (opentofu#2854)
+make the table derivable. The survey itself, its method, and its per-type
+table are committed in `stateless/SURVEY.md`. Beyond types, there are
 construct limits too. No child modules, no provisioners, no `random_*` or
 other logical resources, no workspaces, no saved plan files. Each limit is
 documented with its reasoning and its enforcing lint rule in

@@ -115,8 +115,8 @@ token per row.
 
 | Status | Meaning | Rows |
 |---|---|---|
-| `wired` | in the fork's admission table (`internal/stateless/lint/admission.go`) and identity table (`internal/stateless/identity/table.go`) today | 16 |
-| `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 45 |
+| `wired` | in the fork's admission table (`internal/stateless/lint/admission.go`) and identity table (`internal/stateless/identity/table.go`) today | 18 |
+| `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 43 |
 | `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components (see the flag table) | 4 |
 | `ops` | excluded by the rule, forwarded to the lifecycle layer | 3 |
 | `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 0 |
@@ -168,10 +168,10 @@ identity argument were derived like every other row's.
 | aws_sqs_queue | client-named | needs-account-derived | name, but the required import attribute is the queue URL (see flag F1) | survey note; schema |
 | aws_sns_topic | client-named | needs-account-derived | name, but the required import attribute is the topic ARN (see flag F2) | survey note; schema |
 | aws_instance | marker | ready | server-assigned instance ID (i-...) | survey note; schema |
-| aws_kms_key | marker | ready | server-assigned key ID (a UUID); the alias is a separate resource | survey note; schema |
+| aws_kms_key | marker | wired | server-assigned key ID (a UUID); the alias is a separate resource | survey note; schema |
 | aws_cloudfront_distribution | marker | ready | server-assigned distribution ID | survey note; schema |
 | aws_db_instance | marker | ready | taggable, recovered by tag-filtered list; no identity schema shipped, and `identifier` is also the documented import ID (see the wrinkles below) | survey note; docs |
-| aws_route53_zone | marker | ready | server-assigned hosted zone ID (Z...) | survey note; schema |
+| aws_route53_zone | marker | wired | server-assigned hosted zone ID (Z...); the identity schema names zone_id rather than id | survey note; schema |
 | aws_lb_listener | marker | ready | server-assigned listener ARN | survey note; schema |
 | aws_lb_target_group_attachment | parent-derived | ready | target_group_arn + target_id, optionally port and availability_zone | survey note; schema |
 | aws_sns_topic_subscription | parent-derived | ready | subscription ARN: the parent topic ARN plus a server-assigned UUID suffix (see flag F6) | survey note; schema |
@@ -239,8 +239,8 @@ The survey note kept per-path counts and per-path examples, not the 68-row
 roster. Thirty-six rows carry `survey note` provenance: the types the note
 named as examples, plus the fourteen that were wired from it before this
 pass. The other thirty-two are inference to fit the counts, one of which
-(`aws_ecs_cluster`) has since been wired, which is why fifteen of the
-sixteen `wired` rows are `survey note` and one is `roster fit`. In survey
+(`aws_ecs_cluster`) has since been wired, which is why seventeen of the
+eighteen `wired` rows are `survey note` and one is `roster fit`. In survey
 terms the sourced rows are 15 client-named, 12 marker,
 and complete rosters for parent-derived (5), list-plus-content (1) and
 moves-to-Ops (3), which leaves exactly 21 client-named and 11 marker to
