@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  fast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # gofmt is checked on the fork-owned packages only. A handful of
+      # upstream OpenTofu files are gofmt-dirty as inherited, and
+      # reformatting them would add permanent merge friction for no gain.
+      - name: gofmt (fork-owned packages)
+        run: |
+          out="$(gofmt -l internal/stateless cmd site)"
+          if [ -n "$out" ]; then
+            echo "gofmt needed on:"
+            echo "$out"
+            exit 1
+          fi
+      - name: Build
+        run: go build ./cmd/choudoufu
+      - name: Fast test tier
+        run: go test ./internal/stateless/...
+      - name: Docs site build
+        working-directory: site
+        run: go run . -out public/

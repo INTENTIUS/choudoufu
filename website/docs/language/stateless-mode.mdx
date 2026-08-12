@@ -316,7 +316,15 @@ outcomes at all. They are named below.
 - **[Workspaces](state/workspaces.mdx) rejected in v0.** A workspace is a
   second state file under a different name, and a marker run has no first
   one. Select the default workspace, or give each estate its own
-  configuration and its own `live` block.
+  configuration and its own `live` block. The guard covers exactly the two
+  commands that change which workspace is selected. `workspace new` is
+  refused outright, and `workspace select` is refused for anything but
+  default, because selecting a non-default workspace in a directory with
+  no state file leaves every later plan erroring with no obvious way back.
+  `workspace list`, `workspace show`, and `workspace delete` run as stock.
+  Delete stays unguarded on purpose, since it removes a workspace that
+  already exists, cannot run against the selected workspace anyway, and is
+  cleanup rather than stranding.
 - **`snapshot_path` (optional).** When set, `choudoufu apply` writes an
   observational snapshot to this path after the run. It is a JSON record
   (format `tofu-live-snapshot-v1`) holding each resource's address,
