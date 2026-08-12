@@ -330,16 +330,34 @@ outcomes at all. They are named below.
   Delete stays unguarded on purpose, since it removes a workspace that
   already exists, cannot run against the selected workspace anyway, and is
   cleanup rather than stranding.
-- **`snapshot_path` (optional).** When set, `choudoufu apply` writes an
-  observational snapshot to this path after the run. It is a JSON record
-  (format `tofu-live-snapshot-v1`) holding each resource's address,
-  identity, markers, and a SHA-256 hash of its full attribute set, never
-  the attribute values themselves. The identity, import ID, and marker
-  values that do appear as plain metadata are each checked against the
-  provider's schema first, and redacted to `(sensitive value)` if the
-  provider marks that field sensitive, the same substitution the plan
-  renderer already makes (`internal/stateless/projection/snapshot.go`).
-  The path itself is validated before anything is written. It must be a
+- **`snapshots` and `snapshot_path` (optional).** An apply under live
+  resource markers can leave an observational snapshot behind, in one of
+  two carriers, and both are strictly opt-in. Nothing is written unless
+  the configuration asks. The snapshot is a JSON record (format
+  `tofu-live-snapshot-v1`) holding each resource's address, identity,
+  markers, and a SHA-256 hash of its full attribute set, never the
+  attribute values themselves. The identity, import ID, and marker values
+  that do appear as plain metadata are each checked against the provider's
+  schema first, and redacted to `(sensitive value)` if the provider marks
+  that field sensitive, the same substitution the plan renderer already
+  makes (`internal/stateless/projection/snapshot.go`). The format and the
+  redaction pass are identical in both carriers.
+  Setting `snapshots = true` carries the snapshot as commits on one orphan
+  git branch per estate, named `tofu-snapshots/<estate>`, in the git
+  repository that encloses the module directory. Each apply adds one
+  commit whose tree holds the record as `snapshot.json`, parented on the
+  branch's previous tip, so drift over time is `git log` and `git diff` on
+  the branch rather than a single overwritten file. The write uses git
+  plumbing only (`hash-object`, `mktree`, `commit-tree`, and a
+  compare-and-swap `update-ref`, in
+  `internal/stateless/projection/snapshot_git.go`). It never pushes, never
+  checks anything out, and never touches the worktree, the index, or HEAD.
+  The branch's first commit has no parent, so its history never joins the
+  repository's own, and access control rides the repository's permissions
+  rather than a file mode on a shared host. Deleting the branch changes
+  nothing about any run.
+  Setting `snapshot_path` carries the snapshot as a file at that path
+  instead. The path is validated before anything is written. It must be a
   relative path inside the module directory, must not name anything that
   looks like a state file or a path inside `.terraform`, and a write
   refuses outright if the target already holds bytes that parse as an
@@ -349,21 +367,30 @@ outcomes at all. They are named below.
   still names each resource's identity, import ID, and marker values, and
   on a shared build host that metadata is more than some teams want other
   users to read. Widen the mode with chmod on your side if your tooling
-  needs it. It exists for offline diff
-  and audit by external tooling. Staleness is in its contract. A plan
-  never writes or consults it, deleting it changes nothing, and a failed
-  write is a warning, never an error. Treat `writtenAt` as a staleness
-  bound, not a promise of currency.
-  No code path in this fork reads the file back, and that guarantee is
-  enforced two different ways for two different kinds of reader. The
-  snapshot's types and its format constant are unexported, so the compiler
-  blocks any *typed* reader outside the writer's own package, and a
-  repository-wide test (`TestSnapshot_noReader`) forbids the format
-  string literal and a redeclared copy of the struct shape from appearing
-  anywhere else in the tree. Neither catches an *untyped* reader that opens
-  the path and decodes into `map[string]any` without naming either. That
-  residue is a convention, not something enforced, and this line states
-  that honestly rather than papering over it.
+  needs it.
+  When both arguments are set, the branch is the carrier and the file is
+  the fallback, written only when the branch cannot be (no enclosing git
+  repository, no git on PATH, or a refused ref update). A directory
+  outside any git repository with only `snapshots = true` writes nothing
+  and warns, because every snapshot file must be a path the operator
+  named. `snapshot_path` alone keeps the file behavior above even inside a
+  git repository.
+  The snapshot exists for offline diff and audit by external tooling, and
+  staleness is in its contract whichever carrier holds it. A plan never
+  writes or consults it, deleting the file or the branch changes nothing,
+  and a failed write is a warning, never an error. Treat `writtenAt` as a
+  staleness bound, not a promise of currency.
+  No code path in this fork reads the snapshot back from either carrier,
+  and that guarantee is enforced two different ways for two different
+  kinds of reader. The snapshot's types and its format constant are
+  unexported, so the compiler blocks any *typed* reader outside the
+  writer's own package, and a repository-wide test
+  (`TestSnapshot_noReader`) forbids the format string literal and a
+  redeclared copy of the struct shape from appearing anywhere else in the
+  tree. Neither catches an *untyped* reader that opens the path and
+  decodes into `map[string]any` without naming either. That residue is a
+  convention, not something enforced, and this line states that honestly
+  rather than papering over it.
 
 ## Reference
 

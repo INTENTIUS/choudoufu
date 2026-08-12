@@ -7,6 +7,7 @@ package projection
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -51,11 +52,14 @@ import (
 //
 // PersistState is also the single place the optional observational
 // snapshot hangs off of: a scrubbed, metadata-only JSON
-// cache of the manager's current in-memory state, written to a path the
-// "live" block's snapshot_path argument names. [Manager.EnableSnapshot]
-// turns it on; a Manager nobody calls that on writes nothing, ever, which is
-// the "no attribute -> no file" contract living at this layer rather than
-// only in the config decoder.
+// cache of the manager's current in-memory state, carried either as a file
+// at the path the "live" block's snapshot_path argument names
+// ([Manager.EnableSnapshot]) or as a commit on an orphan git branch when the
+// block sets snapshots = true ([Manager.EnableSnapshotBranch]); the routing
+// between the two, including the file's role as the branch's fallback, lives
+// in writeSnapshotCarriers. A Manager nobody calls either method on writes
+// nothing, ever, which is the "no attribute -> nothing written" contract
+// living at this layer rather than only in the config decoder.
 //
 // PersistState is called from two places in internal/backend/local: the
 // apply's state hook calls it periodically while the graph walk is in
@@ -101,10 +105,20 @@ type Manager struct {
 	current  *states.State
 	persists int
 
-	// snapshotPath is where the optional observational snapshot is written,
-	// or "" to disable it entirely - the default, and the only state a
-	// Manager nobody called EnableSnapshot on is ever in.
-	snapshotPath   string
+	// snapshotPath is where the optional observational snapshot's file
+	// carrier writes, or "" to disable the file entirely - the default, and
+	// half of the only state a Manager nobody called EnableSnapshot or
+	// EnableSnapshotBranch on is ever in. When snapshotBranchDir is also
+	// set, the path is the fallback carrier rather than the primary one;
+	// see PersistState.
+	snapshotPath string
+
+	// snapshotBranchDir is the module directory whose enclosing git
+	// repository receives the snapshot's branch carrier (one commit per
+	// persist on refs/heads/tofu-snapshots/<estate>), or "" to disable the
+	// branch entirely - the other half of the default.
+	snapshotBranchDir string
+
 	snapshotEstate string
 	clock          func() time.Time
 
@@ -169,7 +183,8 @@ func (m *Manager) PersistState(_ context.Context, schemas *tofu.Schemas) error {
 	m.mu.Lock()
 	m.persists++
 	path := m.snapshotPath
-	if path == "" {
+	branchDir := m.snapshotBranchDir
+	if path == "" && branchDir == "" {
 		m.mu.Unlock()
 		return nil
 	}
@@ -185,24 +200,82 @@ func (m *Manager) PersistState(_ context.Context, schemas *tofu.Schemas) error {
 	m.mu.Unlock()
 
 	snap := buildSnapshot(state, estate, clock(), schemas)
-	writeErr := writeSnapshot(path, snap)
+	warning := m.writeSnapshotCarriers(path, branchDir, estate, snap)
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if writeErr != nil {
-		m.snapshotWarning = tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(
-			tfdiags.Warning,
-			"Could not write the observational snapshot",
-			fmt.Sprintf(
-				"Writing the observational snapshot to %q failed: %s. This snapshot is a cache for offline diff and audit; it is never read by any operation, so the run is unaffected.",
-				path, writeErr,
-			),
-		))
-		log.Printf("[WARN] stateless snapshot: writing %s: %s", path, writeErr)
-	} else {
-		m.snapshotWarning = nil
-	}
+	m.snapshotWarning = warning
 	return nil
+}
+
+// writeSnapshotCarriers routes one built snapshot to the enabled carrier or
+// carriers and returns the warning diagnostics the attempt earned, nil for a
+// clean write. The rules, which are the config surface's fallback contract:
+//
+//   - File only: exactly the pre-branch behavior, a failed write warns.
+//   - Branch only: the branch is written; when it cannot be, the warning says
+//     why and nothing else is written, because no operator named a file.
+//   - Both: the branch is the carrier and the file is the fallback. A module
+//     directory with no enclosing repository (or no git on PATH) falls back
+//     to the file silently - that is the fallback working as designed, not a
+//     failure. A branch that exists but could not be written falls back too,
+//     and still warns, because the operator asked for the branch and should
+//     hear that it is not accumulating history.
+//
+// Every failure stays a warning and never an error, the same rule 5 the file
+// carrier has always had: a cache that can fail an apply is a record.
+func (m *Manager) writeSnapshotCarriers(path, branchDir, estate string, snap *snapshot) tfdiags.Diagnostics {
+	if branchDir == "" {
+		if err := writeSnapshot(path, snap); err != nil {
+			return snapshotWriteWarning(fmt.Sprintf(
+				"Writing the observational snapshot to %q failed: %s.", path, err,
+			), path, err)
+		}
+		return nil
+	}
+
+	branchErr := writeSnapshotBranch(branchDir, estate, snap)
+	if branchErr == nil {
+		return nil
+	}
+
+	if path == "" {
+		return snapshotWriteWarning(fmt.Sprintf(
+			"Writing the observational snapshot to the tofu-snapshots/%s branch failed: %s. No snapshot_path is configured to fall back to, so nothing was written.",
+			estate, branchErr,
+		), "the snapshot branch", branchErr)
+	}
+
+	fileErr := writeSnapshot(path, snap)
+	switch {
+	case fileErr != nil:
+		return snapshotWriteWarning(fmt.Sprintf(
+			"Writing the observational snapshot to the tofu-snapshots/%s branch failed: %s. Writing the snapshot_path fallback at %q failed too: %s.",
+			estate, branchErr, path, fileErr,
+		), path, fileErr)
+	case errors.Is(branchErr, errSnapshotBranchUnavailable):
+		// The designed fallback: no repository (or no git) here, and the
+		// operator named the file for exactly this case.
+		return nil
+	default:
+		return snapshotWriteWarning(fmt.Sprintf(
+			"Writing the observational snapshot to the tofu-snapshots/%s branch failed: %s. The snapshot was written to the snapshot_path fallback at %q instead, so this run is recorded, but the branch is not accumulating history.",
+			estate, branchErr, path,
+		), path, branchErr)
+	}
+}
+
+// snapshotWriteWarning wraps one carrier-routing outcome in the sourceless
+// warning shape every snapshot failure has always used, and logs it. detail
+// already tells the whole story; the closing sentence is the contract
+// reminder that the run itself is unaffected.
+func snapshotWriteWarning(detail, target string, err error) tfdiags.Diagnostics {
+	log.Printf("[WARN] stateless snapshot: writing %s: %s", target, err)
+	return tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(
+		tfdiags.Warning,
+		"Could not write the observational snapshot",
+		detail+" This snapshot is a cache for offline diff and audit; it is never read by any operation, so the run is unaffected.",
+	))
 }
 
 // Persists is the number of times PersistState has been called. Every call
@@ -232,14 +305,31 @@ func (m *Manager) EnableSnapshot(path, estate string, clock func() time.Time) {
 	m.clock = clock
 }
 
+// EnableSnapshotBranch turns on the observational snapshot's branch carrier:
+// from the next PersistState call onward, a [snapshot] is committed to the
+// refs/heads/tofu-snapshots/<estate> branch of the git repository enclosing
+// moduleDir (see writeSnapshotBranch for the mechanics and what is never
+// touched). It may be combined with EnableSnapshot, in which case the path
+// becomes the fallback carrier; see PersistState for the routing rules.
+//
+// Not calling this method is the branch's half of "no attribute in the live
+// block -> nothing written, ever", exactly as EnableSnapshot is the file's.
+func (m *Manager) EnableSnapshotBranch(moduleDir, estate string, clock func() time.Time) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.snapshotBranchDir = moduleDir
+	m.snapshotEstate = estate
+	m.clock = clock
+}
+
 // SetSnapshotEstate updates the estate name the snapshot records. It is
 // separate from EnableSnapshot because the estate name a stateless run
 // settles on - possibly derived from the configuration's own tofu-estate
 // tags rather than the live block's estate argument - is not known
 // until later in the run's pipeline than where the manager is constructed.
-// Calling it before EnableSnapshot, or when the snapshot is disabled, is
-// harmless: the value is only ever read from inside PersistState, and only
-// once snapshotPath is non-empty.
+// Calling it before EnableSnapshot or EnableSnapshotBranch, or when the
+// snapshot is disabled, is harmless: the value is only ever read from inside
+// PersistState, and only once a carrier is enabled.
 func (m *Manager) SetSnapshotEstate(estate string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

@@ -168,6 +168,15 @@ func statelessBegin(
 		// this" is what "no snapshot_path attribute" has to mean.
 		mgr.EnableSnapshot(settings.SnapshotPath, settings.Estate, time.Now)
 	}
+	if settings.Snapshots {
+		// The branch carrier: one commit per apply on the repository
+		// enclosing the module directory, which is this process's working
+		// directory - the same "." every command's config load reads from.
+		// When snapshot_path is set too, the manager treats the file as the
+		// fallback for a directory with no enclosing repository; see
+		// [projection.Manager.EnableSnapshotBranch].
+		mgr.EnableSnapshotBranch(".", settings.Estate, time.Now)
+	}
 
 	runner := &statelessRunner{
 		settings: settings,
