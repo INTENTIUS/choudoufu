@@ -1,0 +1,1207 @@
+{
+  "provider": "hashicorp/aws",
+  "provider_version": "6.58.0",
+  "generated_by": "tools/survey-gen (go run ./tools/survey-gen)",
+  "counts": {
+    "types": 68,
+    "taggable": 47,
+    "list_resource": 58,
+    "identity_schema": 61
+  },
+  "types": [
+    {
+      "type": "aws_acm_certificate",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "arn"
+        ]
+      },
+      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_acm_certificate_validation",
+      "path": "moves to Ops",
+      "signals": {
+        "taggable": false,
+        "list_resource": false,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "certificate_arn"
+        ]
+      },
+      "evidence": "excluded by hand per SURVEY.md's rule - waiter: records only that DNS validation finished; waiting belongs to the lifecycle layer"
+    },
+    {
+      "type": "aws_api_gateway_rest_api",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "id"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_autoscaling_group",
+      "path": "list + content match",
+      "signals": {
+        "taggable": false,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "name"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, native list resource exists"
+    },
+    {
+      "type": "aws_cloudfront_distribution",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "id"
+        ],
+        "optional_for_import": [
+          "account_id"
+        ]
+      },
+      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_cloudfront_origin_access_control",
+      "path": "moves to Ops",
+      "signals": {
+        "taggable": false,
+        "list_resource": false,
+        "identity_schema": false
+      },
+      "evidence": "no identity schema in v6.58.0; untaggable and no native list resource, so no admission path recovers it"
+    },
+    {
+      "type": "aws_cloudwatch_event_rule",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "name"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_cloudwatch_log_group",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "name"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_cloudwatch_metric_alarm",
+      "path": "client-named",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "alarm_name"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "every required-for-import identity attribute is a required argument: alarm_name"
+    },
+    {
+      "type": "aws_db_instance",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": false,
+        "identity_schema": false
+      },
+      "evidence": "no identity schema in v6.58.0; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_db_parameter_group",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": false,
+        "identity_schema": false
+      },
+      "evidence": "no identity schema in v6.58.0; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_db_subnet_group",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "name"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_dynamodb_table",
+      "path": "client-named",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "name"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "every required-for-import identity attribute is a required argument: name"
+    },
+    {
+      "type": "aws_ebs_volume",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "id"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_ecr_lifecycle_policy",
+      "path": "client-named",
+      "signals": {
+        "taggable": false,
+        "list_resource": false,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "repository"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "every required-for-import identity attribute is a required argument: repository"
+    },
+    {
+      "type": "aws_ecr_repository",
+      "path": "client-named",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "name"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "every required-for-import identity attribute is a required argument: name"
+    },
+    {
+      "type": "aws_ecs_cluster",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": false,
+        "identity_schema": false
+      },
+      "evidence": "no identity schema in v6.58.0; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_ecs_service",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "cluster",
+          "name"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity attrs (cluster, name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_ecs_task_definition",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "family",
+          "revision"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity requires server-assigned revision; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_efs_file_system",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": false,
+        "identity_schema": false
+      },
+      "evidence": "no identity schema in v6.58.0; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_eip",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "id"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_eks_cluster",
+      "path": "client-named",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "name"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "every required-for-import identity attribute is a required argument: name"
+    },
+    {
+      "type": "aws_eks_node_group",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "cluster_name",
+          "node_group_name"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity attrs (cluster_name, node_group_name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_iam_access_key",
+      "path": "moves to Ops",
+      "signals": {
+        "taggable": false,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "id"
+        ],
+        "optional_for_import": [
+          "account_id"
+        ]
+      },
+      "evidence": "excluded by hand per SURVEY.md's rule - credential: the secret half is unreadable after create, and an external holder makes set semantics inapplicable"
+    },
+    {
+      "type": "aws_iam_group",
+      "path": "moves to Ops",
+      "signals": {
+        "taggable": false,
+        "list_resource": false,
+        "identity_schema": false
+      },
+      "evidence": "no identity schema in v6.58.0; untaggable and no native list resource, so no admission path recovers it"
+    },
+    {
+      "type": "aws_iam_instance_profile",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": false,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "name"
+        ],
+        "optional_for_import": [
+          "account_id"
+        ]
+      },
+      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_iam_policy",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "arn"
+        ]
+      },
+      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_iam_role",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "name"
+        ],
+        "optional_for_import": [
+          "account_id"
+        ]
+      },
+      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_iam_role_policy",
+      "path": "list + content match",
+      "signals": {
+        "taggable": false,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "name",
+          "role"
+        ],
+        "optional_for_import": [
+          "account_id"
+        ]
+      },
+      "evidence": "identity attrs (name, role) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, native list resource exists"
+    },
+    {
+      "type": "aws_iam_role_policy_attachment",
+      "path": "parent-derived",
+      "signals": {
+        "taggable": false,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "policy_arn",
+          "role"
+        ],
+        "optional_for_import": [
+          "account_id"
+        ]
+      },
+      "evidence": "identity fully client-assigned (policy_arn, role), composed over other types' identities: policy_arn (-> aws_fms_policy)"
+    },
+    {
+      "type": "aws_iam_user",
+      "path": "client-named",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "name"
+        ],
+        "optional_for_import": [
+          "account_id"
+        ]
+      },
+      "evidence": "every required-for-import identity attribute is a required argument: name"
+    },
+    {
+      "type": "aws_instance",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "id"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_internet_gateway",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "id"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_key_pair",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": false,
+        "identity_schema": false
+      },
+      "evidence": "no identity schema in v6.58.0; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_kms_alias",
+      "path": "list + content match",
+      "signals": {
+        "taggable": false,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "name"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, native list resource exists"
+    },
+    {
+      "type": "aws_kms_key",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "id"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_lambda_function",
+      "path": "client-named",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "function_name"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "every required-for-import identity attribute is a required argument: function_name"
+    },
+    {
+      "type": "aws_lambda_permission",
+      "path": "list + content match",
+      "signals": {
+        "taggable": false,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "function_name",
+          "statement_id"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "qualifier",
+          "region"
+        ]
+      },
+      "evidence": "identity attrs (function_name, statement_id) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, native list resource exists"
+    },
+    {
+      "type": "aws_launch_template",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "id"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_lb",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "arn"
+        ]
+      },
+      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_lb_listener",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "arn"
+        ]
+      },
+      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_lb_target_group",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "arn"
+        ]
+      },
+      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_lb_target_group_attachment",
+      "path": "parent-derived",
+      "signals": {
+        "taggable": false,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "target_group_arn",
+          "target_id"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "availability_zone",
+          "port",
+          "quic_server_id",
+          "region"
+        ]
+      },
+      "evidence": "identity fully client-assigned (target_group_arn, target_id), composed over other types' identities: target_group_arn (-> aws_lb_target_group), target_id (-> aws_db_proxy_target)"
+    },
+    {
+      "type": "aws_nat_gateway",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "id"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_route",
+      "path": "parent-derived",
+      "signals": {
+        "taggable": false,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "route_table_id"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "destination_cidr_block",
+          "destination_ipv6_cidr_block",
+          "destination_prefix_list_id",
+          "region"
+        ]
+      },
+      "evidence": "identity fully client-assigned (route_table_id), composed over other types' identities: route_table_id (-> aws_route_table)"
+    },
+    {
+      "type": "aws_route53_record",
+      "path": "parent-derived",
+      "signals": {
+        "taggable": false,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "name",
+          "type",
+          "zone_id"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "set_identifier"
+        ]
+      },
+      "evidence": "identity fully client-assigned (name, type, zone_id), composed over other types' identities: zone_id (-> aws_route53_zone)"
+    },
+    {
+      "type": "aws_route53_zone",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "zone_id"
+        ],
+        "optional_for_import": [
+          "account_id"
+        ]
+      },
+      "evidence": "identity requires server-assigned zone_id; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_route_table",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "id"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_route_table_association",
+      "path": "list + content match",
+      "signals": {
+        "taggable": false,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "id"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity requires server-assigned id; untaggable, native list resource exists"
+    },
+    {
+      "type": "aws_s3_bucket",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "bucket"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity attrs (bucket) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_s3_bucket_lifecycle_configuration",
+      "path": "client-named",
+      "signals": {
+        "taggable": false,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "bucket"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "every required-for-import identity attribute is a required argument: bucket"
+    },
+    {
+      "type": "aws_s3_bucket_policy",
+      "path": "client-named",
+      "signals": {
+        "taggable": false,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "bucket"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "every required-for-import identity attribute is a required argument: bucket"
+    },
+    {
+      "type": "aws_s3_bucket_public_access_block",
+      "path": "client-named",
+      "signals": {
+        "taggable": false,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "bucket"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "every required-for-import identity attribute is a required argument: bucket"
+    },
+    {
+      "type": "aws_s3_bucket_server_side_encryption_configuration",
+      "path": "client-named",
+      "signals": {
+        "taggable": false,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "bucket"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "every required-for-import identity attribute is a required argument: bucket"
+    },
+    {
+      "type": "aws_s3_bucket_versioning",
+      "path": "client-named",
+      "signals": {
+        "taggable": false,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "bucket"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "every required-for-import identity attribute is a required argument: bucket"
+    },
+    {
+      "type": "aws_secretsmanager_secret",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "arn"
+        ]
+      },
+      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_secretsmanager_secret_version",
+      "path": "moves to Ops",
+      "signals": {
+        "taggable": false,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "secret_id",
+          "version_id"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "excluded by hand per SURVEY.md's rule - credential: secret_id plus a server-assigned version UUID, the secret unreadable after create"
+    },
+    {
+      "type": "aws_security_group",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "id"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_sfn_state_machine",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "arn"
+        ]
+      },
+      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_sns_topic",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "arn"
+        ]
+      },
+      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_sns_topic_subscription",
+      "path": "list + content match",
+      "signals": {
+        "taggable": false,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "arn"
+        ]
+      },
+      "evidence": "identity requires server-assigned arn; untaggable, native list resource exists"
+    },
+    {
+      "type": "aws_sqs_queue",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "url"
+        ]
+      },
+      "evidence": "identity requires server-assigned url; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_ssm_document",
+      "path": "client-named",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "name"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "every required-for-import identity attribute is a required argument: name"
+    },
+    {
+      "type": "aws_ssm_parameter",
+      "path": "client-named",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "name"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "every required-for-import identity attribute is a required argument: name"
+    },
+    {
+      "type": "aws_subnet",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "id"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_vpc",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "id"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_vpc_security_group_egress_rule",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "id"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+    },
+    {
+      "type": "aws_vpc_security_group_ingress_rule",
+      "path": "marker",
+      "signals": {
+        "taggable": true,
+        "list_resource": true,
+        "identity_schema": true
+      },
+      "identity": {
+        "required_for_import": [
+          "id"
+        ],
+        "optional_for_import": [
+          "account_id",
+          "region"
+        ]
+      },
+      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+    }
+  ]
+}
