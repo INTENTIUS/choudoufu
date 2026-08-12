@@ -45,6 +45,32 @@ tar xzf choudoufu_*_"${os}"_"${arch}".tar.gz   # unpacks ./choudoufu
 
 Building from source stays one command (below).
 
+## Moving an existing estate over
+
+A greenfield estate is two steps: declare a `live` block and apply. An
+estate that already has live resources is not, and the difference matters
+before you try this on anything you care about. Adoption is a deliberate
+tag write, and nothing binds a live resource to your configuration until
+its markers are on it.
+
+1. Add `live { estate = "..." }` to your `terraform` block, remove any
+   `backend` or `cloud` block, and delete the state file.
+2. Run `choudoufu plan` and read it. Live resources carrying no markers
+   appear in the plan's `Adoptable` and `Unowned` sections, each naming the
+   exact tags that claim it.
+3. Write those tags, using the command the plan prints or your own tooling.
+   There is no `adopt` command; two tags is the whole contract
+   ([`stateless/MARKERS.md`](stateless/MARKERS.md)).
+4. Plan again. Adopted resources read back their own markers and report no
+   changes.
+5. Apply once the plan is what you expect.
+
+Applying at step 2 rather than reading is how you get duplicates: an
+unmarked resource is not yours yet, so the plan proposes creating a second
+one beside it. Which types can be offered automatically, which need a
+hand-written tag, and which have no adoption path at all are covered in
+["Migrating an Existing Estate"](website/docs/language/stateless-mode.mdx).
+
 ## See it prove itself
 
 The demo is also the test suite. It stands up a real estate of resources
