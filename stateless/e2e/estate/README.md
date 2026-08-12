@@ -13,7 +13,8 @@ a feature under test), no provisioners, no logical resources.
 | Coverage row | Resource block(s) | Why it lands there |
 |---|---|---|
 | Marker path (server IDs) | `aws_vpc.main`, `aws_subnet.this`, `aws_security_group.main` | Identity is a server-assigned ID (`vpc-…`, `subnet-…`, `sg-…`) not derivable from config; recovered only by the `tofu-address` tag. |
-| Client-named path | `aws_s3_bucket.data`, `aws_iam_role.app`, `aws_cloudwatch_log_group.app` | Identity is a name already in config (bucket name, role name, log group name) — nothing to recover. |
+| Client-named path | `aws_s3_bucket.data`, `aws_iam_role.app`, `aws_cloudwatch_log_group.app`, `aws_dynamodb_table.events` | Identity is a name already in config (bucket name, role name, log group name, table name) — nothing to recover. |
+| Client-named path, ARN-shaped id | `aws_ecs_cluster.app` | The documented import ID is the cluster name, already in config, but the provider sets `id` to the cluster ARN — so only the `name` attribute may hand out the identity, the same care `aws_route`'s synthesized id gets. |
 | Named singleton child | `aws_s3_bucket_policy.data` | Exactly one policy per bucket; its own identity is the parent bucket's name, so it needs no marker of its own (and the type carries no `tags` argument to put one on). |
 | Parent-derived | `aws_route.internet_gateway`, `aws_route_table_association.this` | Identity is a composite of admitted parents: a route is (route table, destination CIDR); an association is (subnet, route table). Neither type accepts a `tags` argument. |
 | Fungible count | `aws_eip.pool` (`count = 3`) | Three interchangeable elastic IPs; no identity-bearing property distinguishes one slot from another, which is the shape phase 3's slot-marker matcher is built for. |
@@ -52,6 +53,8 @@ parent-derived path, not from a marker, so admission doesn't need a tag.
 | `iam.tf` | IAM role and its policy attachment. |
 | `logs.tf` | The two CloudWatch log groups (client-named, conditional). |
 | `compute.tf` | The three-EIP fungible-count pool. |
+| `database.tf` | The DynamoDB table (client-named, #19's first slice). |
+| `containers.tf` | The ECS cluster (client-named with an ARN-shaped `id`, same slice). |
 | `receipts.tf` | The receipt demo, both flavors (`aws_ssm_parameter.demo_existence`, `aws_ssm_parameter.demo_effect`). See `stateless/RECEIPTS.md`. |
 
 ## Verifying by hand

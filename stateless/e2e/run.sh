@@ -929,6 +929,8 @@ else
     aws_iam_role_policy_attachment.app
     aws_cloudwatch_log_group.app
     aws_cloudwatch_log_group.optional
+    aws_dynamodb_table.events
+    aws_ecs_cluster.app
   )
   TARGET_ARGS=()
   for addr in "${CONCRETE_TARGETS[@]}"; do

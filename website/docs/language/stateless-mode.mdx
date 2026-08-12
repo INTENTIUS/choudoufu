@@ -13,7 +13,7 @@ a vote.
 
 :::note
 Live resource markers are an experimental, fork-only feature, and AWS only
-at the moment (the 14-type subset listed in The Contract below).
+at the moment (the 16-type subset listed in The Contract below).
 `choudoufu live-plan` and `choudoufu live-mv` are marked EXPERIMENTAL in
 their own `-help` text, and their command surface can still change.
 :::
@@ -135,9 +135,10 @@ live-prefixed command in sight.
 :::warning Important
 Adding a `live` block to a configuration that already manages live
 resources does not bind them automatically, and coverage is partial. Only
-some of the 14 admitted types can be offered for adoption automatically at
+some of the 16 admitted types can be offered for adoption automatically at
 all. A client-named resource (an S3 bucket, an IAM role, a CloudWatch log
-group, an SSM parameter, a bucket policy) binds immediately if it already
+group, an SSM parameter, a DynamoDB table, an ECS cluster, a bucket
+policy) binds immediately if it already
 carries this estate's marker, and is refused, never adopted, never
 destroyed, if it does not. Read the **`[UNOWNED]`** paragraph below before
 you assume "binds immediately" means "binds regardless." A server-ID
@@ -221,7 +222,7 @@ the tag write it names, then plan again.
 tags, so they have nowhere to put a marker. Their identity is a composite of
 their already-admitted parents, and once the parents are adopted these bind
 on the next plan with no separate step. A resource of a type outside the
-14-type admission table (see the Contract, below) has no adoption path at
+16-type admission table (see the Contract, below) has no adoption path at
 all, ever. Hand-stamping markers onto it does not help, because nothing
 sweeps for a type this configuration cannot declare.
 
@@ -273,12 +274,13 @@ outcomes at all. They are named below.
 
 ## The Contract
 
-- **AWS only, 14 resource types, root module only.** The v0 admission table
+- **AWS only, 16 resource types, root module only.** The v0 admission table
   (`internal/stateless/lint/admission.go`) is the whole subset. It holds
   `aws_vpc`, `aws_subnet`, `aws_security_group`, `aws_route_table`,
   `aws_internet_gateway`, `aws_route`, `aws_route_table_association`,
   `aws_iam_role_policy_attachment`, `aws_s3_bucket`, `aws_s3_bucket_policy`,
-  `aws_iam_role`, `aws_cloudwatch_log_group`, `aws_ssm_parameter`, and
+  `aws_iam_role`, `aws_cloudwatch_log_group`, `aws_ssm_parameter`,
+  `aws_dynamodb_table`, `aws_ecs_cluster`, and
   `aws_eip`. Nothing else, no other AWS type, no other provider. A
   `module` block calling into a child module is refused outright. The
   subset lint rejects every module call with "Child modules are not
