@@ -65,6 +65,8 @@ func checkConfig(ctx context.Context, cfg *configs.Config, issues *[]Issue) {
 	checkOverlongAddresses(ctx, mod, path, issues)
 	checkDataResources(mod, path, issues)
 	checkReceiptLeafRule(mod, path, issues)
+	checkReceiptValueRule(mod, path, issues)
+	checkReceiptSecretRule(mod, path, issues)
 
 	names := make([]string, 0, len(cfg.Children))
 	for name := range cfg.Children {
