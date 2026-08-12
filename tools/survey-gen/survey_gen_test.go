@@ -168,11 +168,15 @@ var pathExceptions = map[string]pathException{
 	"aws_kms_alias":             {pathClientNamed, pathListContent, "name is Optional+Computed (name_prefix idiom); untaggable, falls to list+content"},
 	"aws_lambda_permission":     {pathClientNamed, pathListContent, "statement_id is Optional+Computed (statement_id_prefix idiom); untaggable, falls to list+content"},
 
-	// --- account-derived import identity (SURVEY.md flags F1-F4) ---
-	"aws_sqs_queue":             {pathClientNamed, pathMarker, "required import attribute is the queue url embedding account and region (flag F1); the schema calls that server-assigned"},
-	"aws_sns_topic":             {pathClientNamed, pathMarker, "required import attribute is the topic arn (flag F2); the schema calls that server-assigned"},
-	"aws_iam_policy":            {pathClientNamed, pathMarker, "required import attribute is the policy arn (flag F3); the schema calls that server-assigned"},
-	"aws_secretsmanager_secret": {pathClientNamed, pathMarker, "required import attribute is the arn with a server-generated suffix (flag F4, which itself argues marker); the schema calls that server-assigned"},
+	// --- account-derived import identity (SURVEY.md flags F3-F4) ---
+	//
+	// F1 (aws_sqs_queue) and F2 (aws_sns_topic) are no longer here: the
+	// identity table now builds both identities out of the name plus the
+	// run's account and region, the classifier reads that assertion, and
+	// both files say account-derived. These two are the ones the mechanism
+	// does not reach.
+	"aws_iam_policy":            {pathClientNamed, pathMarker, "required import attribute is the policy arn (flag F3); the mechanism would build it, but floci's iam:GetPolicy omits Tags so the row cannot be proven live (choudoufu#26) and it is not wired"},
+	"aws_secretsmanager_secret": {pathClientNamed, pathMarker, "required import attribute is the arn with a six-character server-generated suffix (flag F4), which no account/region template reconstructs; deferred to the marker path the classifier already reads off its taggability"},
 
 	// --- docs tier: no identity schema in v6.58.0 ---
 	"aws_ecs_cluster":                      {pathClientNamed, pathMarker, "no identity schema; hand row read the documented import grammar (name), classifier falls back to taggability"},
@@ -194,16 +198,17 @@ var pathExceptions = map[string]pathException{
 // The raw-signal headline figures, both sides pinned so drift in either
 // file is a failure that names the numbers.
 //
-// SURVEY.md's "Raw signals" section hand-records 49/61/64 for the original
+// SURVEY.md's "Raw signals" section hand-recorded 49/61/64 for the original
 // roster. Its own reconstruction footnote concedes the committed 68-row
 // roster yields 47 taggable and 61 with identity schemas, and the
 // 2026-08-12 re-run could not recheck the list signal at all (the schema
 // JSON dump has no list-resource section). The schemas, read in-process,
 // settle it: 47 taggable, 58 with native list resources, 61 with identity
-// schemas. The 58 is this generator's one new finding against the hand
-// figures; the other two deltas SURVEY.md already documents.
+// schemas. The list figure was the generator's one new finding, and
+// SURVEY.md now carries the corrected 58, so only the taggable and
+// identity-schema figures still differ - both deltas the file documents.
 var (
-	handHeadlineCounts = Counts{Types: 68, Taggable: 49, ListResource: 61, IdentitySchema: 64}
+	handHeadlineCounts = Counts{Types: 68, Taggable: 49, ListResource: 58, IdentitySchema: 64}
 	generatedCounts    = Counts{Types: 68, Taggable: 47, ListResource: 58, IdentitySchema: 61}
 )
 
