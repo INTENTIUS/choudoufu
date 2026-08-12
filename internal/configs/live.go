@@ -74,7 +74,41 @@ type Live struct {
 	// module directory that does not name a state file - see
 	// validateSnapshotPath for the rules and why a cache gets so little
 	// reach.
+	//
+	// When Snapshots is also true, this path is the fallback carrier rather
+	// than the primary one: the snapshot goes to the orphan branch, and the
+	// file is written only when the branch cannot be. Set alone, it keeps
+	// exactly the file behavior described above.
 	SnapshotPath string
+
+	// Snapshots, when true, turns on the same optional observational
+	// snapshot as SnapshotPath but carried as an orphan git branch
+	// (tofu-snapshots/<estate>) in the repository enclosing the module
+	// directory, one commit per apply, so drift over time is git log on the
+	// branch rather than a single overwritten file. The branch is written
+	// with git plumbing through a temporary object graph: no push, no
+	// checkout, and the worktree, the index and HEAD are never touched. See
+	// internal/stateless/projection's writeSnapshotBranch for the mechanics.
+	//
+	// It composes with SnapshotPath rather than excluding it, and the branch
+	// wins: when both are set, the branch is the carrier and the file is the
+	// fallback, written only when the branch cannot be (no enclosing git
+	// repository, no git on PATH, or a failed ref update). Snapshots set
+	// alone in a directory with no enclosing repository writes nothing and
+	// warns, because inventing a default file path would break the rule that
+	// every snapshot file was named by the operator. False is the same as
+	// absent; the attribute exists so a team can turn the branch carrier on
+	// in the reviewed configuration, the same reasoning as the block itself.
+	//
+	// The value must be a literal bool, for the reason Estate and
+	// SnapshotPath must be literal strings: whether an apply leaves an
+	// observational record behind must not depend on how the run was
+	// invoked.
+	Snapshots bool
+
+	// SnapshotsRange is where the "snapshots" argument was written, the zero
+	// value when the block does not set it. Same purpose as EstateRange.
+	SnapshotsRange hcl.Range
 
 	// SnapshotPathRange is where the "snapshot_path" argument was written,
 	// the zero value when the block does not set it. Same purpose as
@@ -99,6 +133,7 @@ type Live struct {
 var liveBlockSchema = &hcl.BodySchema{
 	Attributes: []hcl.AttributeSchema{
 		{Name: "estate"},
+		{Name: "snapshots"},
 		{Name: "snapshot_path"},
 	},
 }
@@ -136,6 +171,26 @@ func decodeLiveBlock(block *hcl.Block) (*Live, hcl.Diagnostics) {
 		default:
 			s.Estate = val.AsString()
 			s.EstateSet = true
+		}
+	}
+
+	if attr, exists := content.Attributes["snapshots"]; exists {
+		s.SnapshotsRange = attr.Range
+		val, valDiags := attr.Expr.Value(nil)
+		diags = append(diags, valDiags...)
+		switch {
+		case valDiags.HasErrors():
+			// Same rule as estate: attr.Expr.Value(nil) already names the
+			// variable or function that makes this non-literal.
+		case val.IsNull() || !val.IsWhollyKnown() || val.Type() != cty.Bool:
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Invalid snapshots argument",
+				Detail:   "The \"snapshots\" argument turns on the observational snapshot branch and must be a literal true or false.",
+				Subject:  attr.Expr.Range().Ptr(),
+			})
+		default:
+			s.Snapshots = val.True()
 		}
 	}
 
