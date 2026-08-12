@@ -10,6 +10,10 @@
   resource itself, as tags, and every plan rebuilds prior state from the
   live system instead of trusting a file. It is experimental and AWS only
   at the moment.</p>
+  <p>Choudoufu state is allowed to be stale. OpenTofu state is not. A
+  record here is rebuilt from the live system on demand, so a stale or
+  missing record costs one re-read, never a wrong plan, and there is
+  nothing to store, lock, back up, or repair.</p>
   <p>Everything else in this fork is stock OpenTofu, unmodified. New here?
   Start with the <a href="faq.html">FAQ</a>.</p>
 </section>

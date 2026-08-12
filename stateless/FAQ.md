@@ -2,6 +2,21 @@
 
 Answers for an OpenTofu user seeing this repository for the first time.
 
+## Why would I want this?
+
+The one-line version is that choudoufu state is allowed to be stale and
+OpenTofu state is not. OpenTofu's state file is authoritative. When it is
+wrong, lost, or locked, the tool does wrong things or stops, which is why
+it has to be stored, locked, backed up, and repaired with dedicated
+commands. Choudoufu keeps no record it believes over the world. Every plan
+re-reads the live system, so a stale or missing record costs one re-read,
+never a wrong plan. In practice that removes the backend, the lock and its
+infrastructure, state surgery (`state rm`, `moved` blocks, import
+ceremony), and the file that quietly accumulates secrets. A crash
+mid-apply leaves nothing to unlock or recover, because ownership markers
+ride the create calls themselves. Two applies racing fail loud, with both
+IDs named, instead of silently orphaning a resource.
+
 ## What is this?
 
 Choudoufu is a fork of OpenTofu that adds live resource markers. Instead
