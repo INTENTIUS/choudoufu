@@ -48,9 +48,9 @@ type TypeIdentity struct {
 	IdentityAttrs []string
 }
 
-// Component is one piece of an import identity: either a fixed separator
-// (Literal, with Attrs empty) or a resource argument (Attrs, first present
-// wins).
+// Component is one piece of an import identity: a fixed separator (Literal,
+// with Attrs empty and Cloud unset), a resource argument (Attrs, first
+// present wins), or a property of the cloud the run is against (Cloud).
 type Component struct {
 	// Literal is a fixed fragment of the import ID, used for separators.
 	Literal string
@@ -59,10 +59,105 @@ type Component struct {
 	// first one present in configuration supplies the value; if none is
 	// present, resolution fails naming all of them.
 	Attrs []string
+
+	// Cloud names a value that comes from the cloud the run is pointed at
+	// rather than from the configuration: the AWS account ID, the region.
+	// [CloudNone] - the zero value - means this component is a literal or an
+	// argument.
+	//
+	// A component like this is why [CloudContext] exists. Nothing in a
+	// configuration says which account it will be applied to, so an identity
+	// that embeds the account is not computable from configuration alone,
+	// and this package will not read it from anywhere: it is handed the
+	// values or it says it does not have them. See [ResolveIn].
+	Cloud CloudValue
+}
+
+// CloudValue names one property of the cloud a run is against, for a
+// [Component] whose value the configuration does not carry.
+//
+// The set is deliberately tiny and closed. It covers the two substitutions
+// the AWS provider's account-embedded import identities need - an SQS queue
+// URL (https://sqs.REGION.amazonaws.com/ACCOUNT/NAME) and an SNS topic ARN
+// (arn:aws:sns:REGION:ACCOUNT:NAME) - and nothing else. A third kind is a
+// decision to make deliberately, not a slot to fill: the partition ("aws",
+// "aws-cn", "aws-us-gov") is written as a literal in the templates below
+// because every one of those identities is partition-specific in more places
+// than the partition segment, and a run against a non-commercial partition
+// needs a review rather than a substitution.
+type CloudValue string
+
+const (
+	// CloudNone is the zero value: this component reads no cloud property.
+	CloudNone CloudValue = ""
+
+	// CloudAccountID is the AWS account ID the run is against, twelve
+	// digits, no hyphens.
+	CloudAccountID CloudValue = "account-id"
+
+	// CloudRegion is the region the run is against, e.g. "us-east-1".
+	CloudRegion CloudValue = "region"
+)
+
+// describe renders a cloud value for an operator-facing sentence.
+func (c CloudValue) describe() string {
+	switch c {
+	case CloudAccountID:
+		return "AWS account ID"
+	case CloudRegion:
+		return "region"
+	default:
+		return string(c)
+	}
+}
+
+// CloudContext is the set of cloud properties a caller can supply so that
+// identities embedding them become computable. Both fields are optional; an
+// empty one means "not known", never "empty string".
+//
+// This is the whole of the escape hatch, and its shape is what keeps this
+// package cloud-free and process-free (see the package documentation).
+// Nothing here is discovered: the values arrive from a caller that already
+// has them, and a caller that has none passes the zero value and gets
+// [ClassNeedsDiscovery] for the types that need them rather than an error.
+//
+// Where the values come from in this fork, when they come from anywhere:
+// the region is the provider configuration's own, which
+// [internal/stateless/discovery.Request.Region] already carries and which
+// every signed request the list clients make must have. The account ID first
+// becomes knowable one phase later still - the AWS provider puts an
+// account_id attribute in the resource identity objects it attaches to list
+// results, which [internal/stateless/discovery.TypeScan.AccountID] records
+// as the scan runs. Both are therefore behind the provider, and identity
+// resolution runs in front of it, which is why the pipeline as it stands
+// passes the zero value and the two account-derived types below reach their
+// live resources through their markers instead.
+type CloudContext struct {
+	// AccountID is the AWS account ID the run is against.
+	AccountID string
+
+	// Region is the region the run is against.
+	Region string
+}
+
+// value returns the context's value for one cloud property, and whether the
+// caller supplied it.
+func (c CloudContext) value(which CloudValue) (string, bool) {
+	var v string
+	switch which {
+	case CloudAccountID:
+		v = c.AccountID
+	case CloudRegion:
+		v = c.Region
+	default:
+		return "", false
+	}
+	return v, v != ""
 }
 
 func attr(names ...string) Component { return Component{Attrs: names} }
 func sep(s string) Component         { return Component{Literal: s} }
+func cloud(v CloudValue) Component   { return Component{Cloud: v} }
 
 func serverAssigned(typeName, reason, importSyntax string, identityAttrs ...string) TypeIdentity {
 	return TypeIdentity{
@@ -74,7 +169,7 @@ func serverAssigned(typeName, reason, importSyntax string, identityAttrs ...stri
 	}
 }
 
-// DefaultTable is the v0 identity table: the eighteen AWS resource types
+// DefaultTable is the v0 identity table: the twenty-three AWS resource types
 // the estate fixture (stateless/e2e/estate) uses, which are also the types
 // the P1.1 admission lint admits. A type absent from this table is outside
 // the stateless subset and resolving it is an error.
@@ -135,6 +230,21 @@ var DefaultTable = buildTable(
 	serverAssigned("aws_eip",
 		"EC2 assigns the allocation ID (eipalloc-…) at create time; count instances are fungible and no argument distinguishes them.",
 		"eipalloc-ID", "id", "allocation_id"),
+	// The ELBv2 chain (#20). All three are named in configuration and none
+	// of those names is the identity: ELBv2 mints an ARN per object, the
+	// provider's identity schema for each of them requires exactly that ARN,
+	// and the resource's own id attribute is set to the same string. "arn"
+	// comes first in each list because a list result carries the identity
+	// object, which holds arn and not id.
+	serverAssigned("aws_lb",
+		"ELBv2 assigns the load balancer ARN at create time; the name argument is client-chosen but the API accepts only the ARN as an identity, and a deleted-and-recreated load balancer of the same name has a different one.",
+		"LOADBALANCERARN", "arn", "id"),
+	serverAssigned("aws_lb_target_group",
+		"ELBv2 assigns the target group ARN at create time; as with the load balancer, the name argument names the group but does not identify it.",
+		"TARGETGROUPARN", "arn", "id"),
+	serverAssigned("aws_lb_listener",
+		"ELBv2 assigns the listener ARN at create time; a listener has no name argument at all, only a port and a protocol, which do not identify it either.",
+		"LISTENERARN", "arn", "id"),
 
 	// ---- Client-named identities (admission path 1) ----------------------
 
@@ -184,6 +294,46 @@ var DefaultTable = buildTable(
 		Components:    []Component{attr("name")},
 		ImportSyntax:  "CLUSTERNAME",
 		IdentityAttrs: []string{"name"},
+	},
+
+	// ---- Account-derived identities: client-named in configuration, but
+	// ---- the provider's import identity embeds the account and the region
+	// ---- (stateless/SURVEY.md flag F2) ---------------------------------
+	//
+	// This is the survey's client-named path failing the strict version of
+	// it: the configuration holds the name and the provider wants an ARN
+	// built around it. A [CloudContext] is what closes the gap, and without
+	// one the instance resolves as ClassNeedsDiscovery and is found by its
+	// tags like any marker type - which is what happens in this fork's
+	// pipeline today, because identity resolution runs before any provider
+	// does. See [CloudContext].
+	//
+	// The partition segment is a literal "aws" rather than a third cloud
+	// value; see [CloudValue] for why.
+
+	// aws_sqs_queue is the type this section was designed around and is not
+	// here. Its identity is the same shape as the topic's below -
+	// https://sqs.REGION.amazonaws.com/ACCOUNT/NAME, which floci accepts and
+	// the components express exactly - but the fork cannot supply a
+	// CloudContext yet, so a run reaches a queue through its marker, and the
+	// marker path is where the emulator breaks: floci reports a queue's URL
+	// as its own endpoint (http://localhost:4566/ACCOUNT/NAME), and the AWS
+	// provider's importer parses only the amazonaws.com form, so the import
+	// fails on the very string the list call handed back. Real AWS returns
+	// the canonical URL and has no such gap. Recorded as blocked-emulator in
+	// stateless/SURVEY.md against choudoufu#26.
+	TypeIdentity{
+		Type: "aws_sns_topic",
+		Components: []Component{
+			sep("arn:aws:sns:"),
+			cloud(CloudRegion),
+			sep(":"),
+			cloud(CloudAccountID),
+			sep(":"),
+			attr("name"),
+		},
+		ImportSyntax:  "arn:aws:sns:REGION:ACCOUNT:TOPICNAME",
+		IdentityAttrs: []string{"arn", "id"},
 	},
 
 	// ---- Composed identities: concrete or parent-derived depending on
@@ -241,6 +391,30 @@ var DefaultTable = buildTable(
 		// The association's id is a server-assigned rtbassoc-… value,
 		// which is deliberately *not* its import ID; listing it as an
 		// identity attribute would hand out the wrong string.
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// Parent-derived (#21): the target group's ARN is live, and the
+		// target and port come from configuration. The provider's identity
+		// schema requires target_group_arn and target_id and treats port as
+		// optional context, but the import *string* is all three joined by
+		// commas, and an attachment that sets no port cannot have one built
+		// - which is what the "identity argument not set" error says, rather
+		// than an import ID that silently addresses a different attachment.
+		Type: "aws_lb_target_group_attachment",
+		Components: []Component{
+			attr("target_group_arn"),
+			sep(","),
+			attr("target_id"),
+			sep(","),
+			attr("port"),
+		},
+		ImportSyntax: "TARGETGROUPARN,TARGETID,PORT",
+		// The attachment's id is the comma-joined composite the provider
+		// synthesizes, not a value ELBv2 ever minted, and nothing refers to
+		// an attachment anyway. Same standard of care as aws_route's
+		// synthesized id: hand out nothing rather than something that
+		// happens to look right.
 		IdentityAttrs: nil,
 	},
 )
