@@ -9,7 +9,7 @@ This file is the durable artifact for the survey the other docs cite:
 `internal/live/lint/admission.go`. The raw signals and the mechanical
 path classification behind the per-type table are regenerated from the
 provider's own schemas by `go run ./tools/survey-gen`, which writes
-`stateless/survey.json`.
+`live/survey.json`.
 
 ## Method
 

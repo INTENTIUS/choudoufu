@@ -82,5 +82,5 @@
 //
 // This package holds the model. Concrete implementations live in its
 // subpackages: lint, identity, discovery, stamp, projection, and the rest.
-// The operator-facing specs are in stateless/.
+// The operator-facing specs are in live/.
 package live
