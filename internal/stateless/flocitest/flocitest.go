@@ -12,18 +12,21 @@
 // set, the same shape the backend integration tests use (see
 // internal/backend/remote-state/s3/backend_test.go's testACC).
 //
-// Every one of those tests starts its own emulator on its own fixed port, and
-// a run that dies without running its cleanup - a panic, a test timeout, a
-// ctrl-C - leaves the container up and the port bound. The next run then fails
-// in about a fifth of a second on a port bind, which looks nothing at all like
-// whatever actually broke, and the real failure is a day's confusion away.
-// StartFloci sweeps the port's own leftovers before it binds it.
+// Every one of those tests starts its own emulator on a port the kernel picks
+// for it, under a container name that no other process - not even another
+// checkout running this same tier at the same time - can collide with.
+// Cleanup removes exactly the containers this process created; leftovers from
+// a run that died without its cleanup are swept only once they are old enough
+// that no live run can still own them.
 package flocitest
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -96,8 +99,12 @@ func fixtureDir(t *testing.T, rel string) string {
 }
 
 // CopyEstate makes a scratch copy of the estate fixture's .tf files and
-// returns its directory, so that terraform's own artifacts - .terraform, the
-// lock file, state - and any edit a test makes never touch the checkout.
+// returns its directory, so that terraform's own artifacts - .terraform,
+// state - and any edit a test makes never touch the checkout.
+//
+// The fixture's .terraform.lock.hcl comes along too: it is what lets an init
+// against the shared plugin cache trust the cached package instead of
+// re-downloading it over a copy some other process is executing.
 func CopyEstate(t *testing.T) string {
 	t.Helper()
 
@@ -108,7 +115,7 @@ func CopyEstate(t *testing.T) string {
 		t.Fatalf("reading the estate fixture: %v", err)
 	}
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".tf") {
+		if e.IsDir() || (!strings.HasSuffix(e.Name(), ".tf") && e.Name() != ".terraform.lock.hcl") {
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(src, e.Name())) //nolint:gosec // a fixed path in the checkout
@@ -122,29 +129,79 @@ func CopyEstate(t *testing.T) string {
 	return dst
 }
 
-// StartFloci runs the emulator on hostPort, waits for it to report healthy,
-// and removes it when the test finishes.
+// FreePort asks the kernel for a free TCP port on 127.0.0.1 and returns it.
 //
-// prefix names the container: the running process's PID is appended, so two
-// packages tested in parallel never collide on a name. Each test in this tier
-// owns a distinct prefix and a distinct hostPort.
-func StartFloci(t *testing.T, prefix, hostPort string) {
+// The port is only guaranteed free at the moment the probe listener closes,
+// not at the moment the container binds it. StartFloci accepts that gap and
+// retries once on a fresh port if docker loses the race.
+func FreePort(t *testing.T) string {
 	t.Helper()
 
-	name := fmt.Sprintf("%s-%d", prefix, os.Getpid())
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("probing for a free port: %v", err)
+	}
+	port := strconv.Itoa(l.Addr().(*net.TCPAddr).Port)
+	if err := l.Close(); err != nil {
+		t.Fatalf("releasing the port probe on %s: %v", port, err)
+	}
+	return port
+}
 
-	// A leftover from a crashed run holds the port, and would answer our
-	// requests with somebody else's estate.
-	RemoveStale(t, prefix)
+// StartFloci runs the emulator on a host port of the kernel's choosing, waits
+// for it to report healthy, and removes it when the test finishes. It returns
+// the port, which the test threads to AWS_ENDPOINT_URL the same way run.sh
+// threads FLOCI_PORT.
+//
+// prefix names the container: the running process's PID and a random suffix
+// are appended, so no other run - not another package in this process's test
+// sweep, and not another checkout running the tier at the same time - can
+// collide with it or mistake it for its own. Cleanup removes exactly the
+// container this call created, never a neighbour's.
+func StartFloci(t *testing.T, prefix string) string {
+	t.Helper()
+
+	// A run that died without its cleanup - a panic, a kill -9, a test
+	// timeout - leaks its container. It no longer holds a port anybody wants,
+	// but it does hold memory, so sweep the ones old enough that no live run
+	// can still own them. Recent ones may belong to a parallel session and
+	// are not ours to touch.
+	removeAged(t, prefix)
+
+	port, err := startFlociOnce(t, prefix)
+	if err != nil {
+		// Most likely the free-port race: the port FreePort probed was taken
+		// again by the time docker tried to bind it. One fresh port, one
+		// more try.
+		t.Logf("starting floci: %v\nretrying once on a fresh port", err)
+		if port, err = startFlociOnce(t, prefix); err != nil {
+			t.Fatalf("starting floci: %v", err)
+		}
+	}
+	return port
+}
+
+// startFlociOnce makes one attempt: pick a port, start the container, wait
+// for health. A docker run failure comes back as an error so the caller can
+// retry it; a container that starts but never turns healthy fails the test
+// here, because a second port would not cure it.
+func startFlociOnce(t *testing.T, prefix string) (string, error) {
+	t.Helper()
+
+	hostPort := FreePort(t)
+	name := fmt.Sprintf("%s-%d-%s", prefix, os.Getpid(), randomSuffix(t))
 
 	out, err := exec.Command("docker", "run", "-d", "--rm",
-		"-p", hostPort+":4566", "--name", name, image).CombinedOutput()
+		"-p", "127.0.0.1:"+hostPort+":4566", "--name", name, image).CombinedOutput()
 	if err != nil {
-		t.Fatalf("starting floci: %v\n%s", err, out)
+		// A failed docker run can still leave a Created container holding
+		// the name. Ours to remove, by exact name.
+		_ = exec.Command("docker", "rm", "-f", name).Run()
+		return "", fmt.Errorf("docker run --name %s -p %s: %w\n%s", name, hostPort, err, out)
 	}
 	t.Cleanup(func() {
 		if out, err := exec.Command("docker", "rm", "-f", name).CombinedOutput(); err != nil {
-			t.Logf("removing the floci container: %v\n%s", err, out)
+			t.Logf("removing the floci container %s: %v\n%s", name, err, out)
 		}
 	})
 
@@ -156,7 +213,7 @@ func StartFloci(t *testing.T, prefix, hostPort string) {
 			_, _ = io.Copy(io.Discard, resp.Body)
 			_ = resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
-				return
+				return hostPort, nil
 			}
 		}
 		if time.Now().After(deadline) {
@@ -167,31 +224,65 @@ func StartFloci(t *testing.T, prefix, hostPort string) {
 	}
 }
 
-// RemoveStale kills and removes every container whose name begins with
-// prefix, whatever process started it. StartFloci calls it; call it directly
-// only for a container this package did not start.
-//
-// Each test's own pre-run "docker rm -f <name>" never helped, because the name
-// carries the running process's PID and the leaked container is always some
-// other process's.
-//
-// Errors are logged, not fatal: docker being unreachable is the caller's next
-// problem anyway, and it reports it far better than this can.
-func RemoveStale(t *testing.T, prefix string) {
+// randomSuffix is the part of a container name that separates two containers
+// started by the same PID, and two processes that happen to share a PID
+// across host/container boundaries.
+func randomSuffix(t *testing.T) string {
 	t.Helper()
 
-	// The ^ anchors the filter to the start of the name, so a prefix of
-	// "tofu-stateless-p21" cannot reach a neighbouring suite's container.
-	out, err := exec.Command("docker", "ps", "-aq", "--filter", "name=^"+prefix).Output()
+	var b [4]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		t.Fatalf("generating a container name suffix: %v", err)
+	}
+	return hex.EncodeToString(b[:])
+}
+
+// leftoverAge is how old a container under a known prefix must be before the
+// sweep may call it leaked. Every test in this tier lives for minutes; a
+// parallel session's container is by definition younger than this.
+const leftoverAge = time.Hour
+
+// removeAged removes leftover containers whose names begin with prefix and
+// whose age says no live run can still own them.
+//
+// Errors are logged, not fatal: docker being unreachable is the caller's next
+// problem anyway, and it reports it far better than this can. A container
+// whose age cannot be read is left alone - when in doubt, it is somebody
+// else's.
+func removeAged(t *testing.T, prefix string) {
+	t.Helper()
+
+	// The ^ anchors the filter to the start of the name and the trailing -
+	// stops "tofu-stateless-p2" from reaching "tofu-stateless-p21"'s
+	// containers.
+	out, err := exec.Command("docker", "ps", "-a", "--filter", "name=^"+prefix+"-",
+		"--format", "{{.ID}}\t{{.Names}}\t{{.CreatedAt}}").Output()
 	if err != nil {
-		t.Logf("listing stale %s* containers: %v", prefix, err)
+		t.Logf("listing leftover %s-* containers: %v", prefix, err)
 		return
 	}
-	for _, id := range strings.Fields(string(out)) {
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		id, name, createdAt := parts[0], parts[1], parts[2]
+		created, err := time.Parse("2006-01-02 15:04:05 -0700 MST", createdAt)
+		if err != nil {
+			t.Logf("cannot read the age of container %s (%q); leaving it alone", name, createdAt)
+			continue
+		}
+		if time.Since(created) < leftoverAge {
+			// Young enough to be a parallel session's live emulator.
+			continue
+		}
 		if rm, err := exec.Command("docker", "rm", "-f", id).CombinedOutput(); err != nil {
-			t.Logf("removing stale container %s: %v\n%s", id, err, rm)
+			t.Logf("removing leftover container %s: %v\n%s", name, err, rm)
 		} else {
-			t.Logf("removed a leaked %s* container (%s) before starting a fresh one", prefix, id)
+			t.Logf("removed %s, a leftover older than %s", name, leftoverAge)
 		}
 	}
 }
@@ -215,10 +306,101 @@ func BuildTofu(t *testing.T) string {
 	return bin
 }
 
+// PluginCacheDir points TF_PLUGIN_CACHE_DIR at a stable per-user directory,
+// so the provider release the estate fixture pins unpacks once per machine
+// rather than once per test package. An environment that already chose a
+// cache keeps it; an environment where no per-user cache location exists
+// falls back to a per-test directory, which is what every test did before
+// the cache was shared.
+func PluginCacheDir(t *testing.T) {
+	t.Helper()
+
+	if os.Getenv("TF_PLUGIN_CACHE_DIR") != "" {
+		return
+	}
+	base, err := os.UserCacheDir()
+	if err != nil {
+		t.Logf("no user cache directory (%v); using a per-test plugin cache", err)
+		t.Setenv("TF_PLUGIN_CACHE_DIR", t.TempDir())
+		return
+	}
+	dir := filepath.Join(base, "choudoufu-test-plugins")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Logf("cannot create %s (%v); using a per-test plugin cache", dir, err)
+		t.Setenv("TF_PLUGIN_CACHE_DIR", t.TempDir())
+		return
+	}
+	t.Setenv("TF_PLUGIN_CACHE_DIR", dir)
+	// Without this, an init whose workdir lock file has no entry for the
+	// provider - every tofu init here, since the fixture's lock file records
+	// registry.terraform.io and tofu resolves registry.opentofu.org -
+	// re-downloads the release and rewrites the cache entry in place, under
+	// a binary some other package's process is executing. With it, a cache
+	// hit is trusted and only the first, lock-serialized init writes.
+	t.Setenv("TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE", "1")
+}
+
+// lockPluginCache serializes provider installation across every process that
+// shares TF_PLUGIN_CACHE_DIR, and returns the unlock. The cache directory is
+// not safe for concurrent writers - two inits unpacking the same release into
+// it can hand each other half-written files - and this tier runs its packages
+// as parallel test processes, possibly next to a second checkout's run.
+//
+// The lock is a plain O_EXCL lockfile inside the cache directory, so it works
+// across processes on every platform. A lockfile older than lockStaleAfter is
+// a crashed holder's and is broken; a healthy holder only keeps it for one
+// init, which a warm cache finishes in seconds.
+func lockPluginCache(t *testing.T) (unlock func()) {
+	t.Helper()
+
+	cache := os.Getenv("TF_PLUGIN_CACHE_DIR")
+	if cache == "" {
+		return func() {}
+	}
+	lock := filepath.Join(cache, ".choudoufu-init.lock")
+	deadline := time.Now().Add(15 * time.Minute)
+	for {
+		f, err := os.OpenFile(lock, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644) //nolint:gosec // path derives from the env var the caller set
+		if err == nil {
+			_, _ = fmt.Fprintf(f, "%d\n", os.Getpid())
+			_ = f.Close()
+			return func() {
+				if err := os.Remove(lock); err != nil && !errors.Is(err, os.ErrNotExist) {
+					t.Logf("releasing the plugin cache lock: %v", err)
+				}
+			}
+		}
+		if !errors.Is(err, os.ErrExist) {
+			t.Logf("cannot take the plugin cache lock at %s (%v); proceeding without it", lock, err)
+			return func() {}
+		}
+		if info, statErr := os.Stat(lock); statErr == nil && time.Since(info.ModTime()) > lockStaleAfter {
+			t.Logf("breaking a stale plugin cache lock at %s (held since %s)", lock, info.ModTime().Format(time.RFC3339))
+			_ = os.Remove(lock)
+			continue
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the plugin cache lock at %s has been held for 15m; remove it if its owner is gone", lock)
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+}
+
+// lockStaleAfter is how long a plugin cache lockfile may sit before a waiter
+// calls its holder dead. A cold-cache init downloads one provider release,
+// which is minutes at the worst; ten of them is a crash.
+const lockStaleAfter = 10 * time.Minute
+
 // Run runs a command in dir and fails the test if it does not succeed.
+//
+// An init is run under the shared plugin cache's cross-process lock, because
+// that is the one command in this tier that writes to the cache.
 func Run(t *testing.T, dir, name string, args ...string) {
 	t.Helper()
 
+	if len(args) > 0 && args[0] == "init" {
+		defer lockPluginCache(t)()
+	}
 	cmd := exec.Command(name, args...) //nolint:gosec // fixed binaries, test-only
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()

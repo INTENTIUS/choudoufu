@@ -38,7 +38,6 @@ import (
 // install the provider) and about a minute.
 
 const (
-	flociPort = "4604"
 	awsRegion = "us-east-1"
 	// terraform, not tofu: the fixture is installed with the same tool the
 	// harness uses, and this repo's own binary is what is under test.
@@ -52,6 +51,7 @@ func TestIntegrationListAWSVPCs(t *testing.T) {
 	flocitest.SkipWithoutBinary(t, awsBin)
 	flocitest.SkipWithoutBinary(t, "docker")
 
+	flociPort := flocitest.StartFloci(t, "cdf-listclient")
 	endpoint := "http://localhost:" + flociPort
 	awsEnv := []string{
 		"AWS_ENDPOINT_URL=" + endpoint,
@@ -78,8 +78,8 @@ func TestIntegrationListAWSVPCs(t *testing.T) {
 	// string is not how you say "no profile" to any of these.
 	unsetEnv(t, "AWS_PROFILE", "AWS_SESSION_TOKEN", "AWS_SHARED_CREDENTIALS_FILE", "AWS_CONFIG_FILE")
 
-	flocitest.StartFloci(t, "listclient-floci", flociPort)
-	providerExe := installAWSProvider(t, awsEnv)
+	flocitest.PluginCacheDir(t)
+	providerExe := installAWSProvider(t)
 
 	// Two VPCs with distinct tags, created out of band so that nothing
 	// about this test depends on OpenTofu's own apply path working.
@@ -251,8 +251,9 @@ func unsetEnv(t *testing.T, names ...string) {
 // installAWSProvider copies the estate fixture somewhere scratch, runs
 // terraform init in it, and returns the path of the installed provider
 // binary. Going through init is what pins the version to the fixture's
-// rather than to whatever this test would otherwise guess.
-func installAWSProvider(t *testing.T, awsEnv []string) string {
+// rather than to whatever this test would otherwise guess. The AWS
+// environment it needs is already on the process: the caller t.Setenv'd it.
+func installAWSProvider(t *testing.T) string {
 	t.Helper()
 
 	estate, err := filepath.Abs(filepath.Join("..", "..", "..", "stateless", "e2e", "estate"))
@@ -268,12 +269,7 @@ func installAWSProvider(t *testing.T, awsEnv []string) string {
 		t.Fatalf("copying the estate fixture: %v: %s", err, out)
 	}
 
-	cmd := exec.Command(terraformBin, "init", "-no-color", "-input=false")
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), awsEnv...)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("terraform init: %v\n%s", err, out)
-	}
+	flocitest.Run(t, dir, terraformBin, "init", "-no-color", "-input=false")
 
 	matches, err := filepath.Glob(filepath.Join(dir, ".terraform", "providers", "*", "hashicorp", "aws", "*", "*", "terraform-provider-aws*"))
 	if err != nil {

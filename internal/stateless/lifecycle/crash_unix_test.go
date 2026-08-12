@@ -64,13 +64,13 @@ func TestStatelessCrashMidApplyAgainstFloci(t *testing.T) {
 	flocitest.RequireBinary(t, "aws")
 	flocitest.RequireBinary(t, "go")
 
-	flocitest.StartFloci(t, "tofu-stateless-ra4-crash", crashPort)
+	crashPort = flocitest.StartFloci(t, "cdf-ra4-crash")
 
 	t.Setenv("AWS_ENDPOINT_URL", "http://localhost:"+crashPort)
 	t.Setenv("AWS_ACCESS_KEY_ID", "test")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
 	t.Setenv("AWS_REGION", awsRegion)
-	t.Setenv("TF_PLUGIN_CACHE_DIR", t.TempDir())
+	flocitest.PluginCacheDir(t)
 
 	tofuBin := flocitest.BuildTofu(t)
 	dir := t.TempDir()
@@ -385,12 +385,11 @@ func crashAWS(args ...string) (string, error) {
 // The fixture
 // ---------------------------------------------------------------------------
 
-const (
-	// crashPort is this test's own floci port. 4601 is the harness's,
-	// 4603-4610 belong to neighbouring suites, 4615 is P4.1's, 4618 the
-	// snapshot test's and 4620 the exactness test's; RA.4 takes 4621.
-	crashPort = "4621"
+// crashPort is this run's emulator port, chosen by the kernel when RA.4's
+// test starts its container. crashAWS reads it after that test assigns it.
+var crashPort string
 
+const (
 	crashEstate     = "ra4-crash"
 	crashCIDRPrefix = "10.81."
 	// crashVPCCount is large enough that a serialized apply (-parallelism=1,
