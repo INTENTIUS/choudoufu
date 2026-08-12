@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/opentofu/opentofu/internal/backend/remote-state/azure/auth"
+	"github.com/intentius/choudoufu/internal/backend/remote-state/azure/auth"
 )
 
 func getParsedConfig(c **auth.Config) authMethodGetter {

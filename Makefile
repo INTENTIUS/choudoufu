@@ -184,7 +184,7 @@ define infoTestConsul
 
 endef
 
-GO_VER := `go tool github.com/opentofu/opentofu/tools/selected-go-version`
+GO_VER := `go tool github.com/intentius/choudoufu/tools/selected-go-version`
 
 test-consul: ## Runs tests using in docker container using Consul as the backend.
 	@ $(info $(infoTestConsul))
@@ -251,7 +251,7 @@ endef
 
 test-floci: ## Runs the stateless-mode tests against the floci AWS emulator.
 	@ $(info $(infoTestFloci))
-	@ TF_FLOCI_TEST=1 go test -count=1 -timeout 60m ./internal/stateless/...
+	@ TF_FLOCI_TEST=1 go test -count=1 -timeout 60m ./internal/live/...
 
 test-floci-clean: ## Removes floci containers left behind by `test-floci`.
 	@ docker ps -aq --filter ancestor=$(FLOCI_IMAGE) | while read -r id; do docker rm -f $$id > /dev/null; done

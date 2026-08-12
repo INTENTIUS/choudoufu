@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/opentofu/opentofu/internal/e2e"
+	"github.com/intentius/choudoufu/internal/e2e"
 )
 
 // The tests in this file are for the following sequence:

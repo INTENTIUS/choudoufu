@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/opentofu/opentofu/internal/e2e"
+	"github.com/intentius/choudoufu/internal/e2e"
 )
 
 type tofuResult struct {

@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // survey-gen generates stateless/survey.json, the machine-derived companion
-// to stateless/SURVEY.md's hand-written per-type table (issue #25,
+// to live/SURVEY.md's hand-written per-type table (issue #25,
 // increments 1 and 2).
 //
 // It boots the pinned AWS provider release the same way the gated test tier
@@ -47,11 +47,11 @@ const (
 
 	// surveyMDRel is the hand-written survey whose per-type table names the
 	// roster this tool derives signals and paths for.
-	surveyMDRel = "stateless/SURVEY.md"
+	surveyMDRel = "live/SURVEY.md"
 
 	// providerSource and providerVersion pin the provider release surveyed,
 	// the same release the estate fixture pins
-	// (stateless/e2e/estate/versions.tf).
+	// (live/e2e/estate/versions.tf).
 	providerSource  = "hashicorp/aws"
 	providerVersion = "6.58.0"
 

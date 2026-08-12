@@ -15,7 +15,7 @@ import (
 
 	getter "github.com/hashicorp/go-getter"
 
-	"github.com/opentofu/opentofu/internal/copy"
+	"github.com/intentius/choudoufu/internal/copy"
 )
 
 // We configure our own go-getter detector and getter sets here, because

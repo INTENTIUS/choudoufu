@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/opentofu/opentofu/internal/command/cliconfig/ociauthconfig"
-	"github.com/opentofu/opentofu/internal/command/e2etest/fakeocireg"
+	"github.com/intentius/choudoufu/internal/command/cliconfig/ociauthconfig"
+	"github.com/intentius/choudoufu/internal/command/e2etest/fakeocireg"
 	orasRemote "oras.land/oras-go/v2/registry/remote"
 )
 

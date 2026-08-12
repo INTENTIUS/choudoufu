@@ -17,8 +17,8 @@ import (
 
 	expect "github.com/Netflix/go-expect"
 	tfe "github.com/hashicorp/go-tfe"
-	"github.com/opentofu/opentofu/internal/e2e"
-	tfversion "github.com/opentofu/opentofu/version"
+	"github.com/intentius/choudoufu/internal/e2e"
+	tfversion "github.com/intentius/choudoufu/version"
 )
 
 var tofuBin string
@@ -220,7 +220,7 @@ func setupBinary() func() {
 		"go",
 		"build",
 		"-o", tmpTerraformBinaryDir,
-		"-ldflags", fmt.Sprintf("-X \"github.com/opentofu/opentofu/version.Prerelease=%s\"", tfversion.Prerelease),
+		"-ldflags", fmt.Sprintf("-X \"github.com/intentius/choudoufu/version.Prerelease=%s\"", tfversion.Prerelease),
 		"./cmd/choudoufu",
 	)
 	err = cmd.Run()

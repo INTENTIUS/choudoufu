@@ -8,7 +8,7 @@ package views
 import (
 	"fmt"
 
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 type Backend interface {

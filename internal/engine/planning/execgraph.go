@@ -6,8 +6,8 @@
 package planning
 
 import (
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/engine/internal/execgraph"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/engine/internal/execgraph"
 )
 
 // execGraphBuilder is a legacy leftover of an earlier version of this component

@@ -21,8 +21,8 @@ import (
 	orasContent "oras.land/oras-go/v2/content"
 	orasMemoryStore "oras.land/oras-go/v2/content/memory"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/collections"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/collections"
 )
 
 func TestPackageOCIBlobArchive(t *testing.T) {

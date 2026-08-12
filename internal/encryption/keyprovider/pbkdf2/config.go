@@ -11,7 +11,7 @@ import (
 	"io"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/opentofu/opentofu/internal/encryption/keyprovider"
+	"github.com/intentius/choudoufu/internal/encryption/keyprovider"
 )
 
 // HashFunction is a provider of a hash.Hash.

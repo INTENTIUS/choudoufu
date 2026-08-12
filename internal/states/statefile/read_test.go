@@ -11,8 +11,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/opentofu/opentofu/internal/encryption"
-	"github.com/opentofu/opentofu/internal/encryption/enctest"
+	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/encryption/enctest"
 )
 
 func TestReadErrNoState_emptyFile(t *testing.T) {

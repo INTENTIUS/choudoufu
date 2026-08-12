@@ -22,8 +22,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/sas"
-	"github.com/opentofu/opentofu/internal/backend/remote-state/azure/auth"
-	"github.com/opentofu/opentofu/internal/httpclient"
+	"github.com/intentius/choudoufu/internal/backend/remote-state/azure/auth"
+	"github.com/intentius/choudoufu/internal/httpclient"
 )
 
 // verify that we are doing ACC tests or the Azure tests specifically

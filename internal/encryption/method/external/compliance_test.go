@@ -13,9 +13,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/opentofu/opentofu/internal/encryption/keyprovider"
-	"github.com/opentofu/opentofu/internal/encryption/method/compliancetest"
-	"github.com/opentofu/opentofu/internal/encryption/method/external/testmethod"
+	"github.com/intentius/choudoufu/internal/encryption/keyprovider"
+	"github.com/intentius/choudoufu/internal/encryption/method/compliancetest"
+	"github.com/intentius/choudoufu/internal/encryption/method/external/testmethod"
 )
 
 func TestComplianceBinary(t *testing.T) {

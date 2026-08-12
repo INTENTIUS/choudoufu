@@ -8,7 +8,7 @@ package tofu
 import (
 	"testing"
 
-	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/addrs"
 )
 
 func TestProvisionerUIOutput_impl(t *testing.T) {

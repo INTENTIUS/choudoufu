@@ -23,7 +23,7 @@ builds:
 
     ldflags:
       - "-s -w"
-      - "-X 'github.com/opentofu/opentofu/version.dev=no'"
+      - "-X 'github.com/intentius/choudoufu/version.dev=no'"
 
     goos:
       - linux

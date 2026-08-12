@@ -11,9 +11,9 @@ import (
 
 	"github.com/apparentlymart/go-workgraph/workgraph"
 
-	"github.com/opentofu/opentofu/internal/lang/eval/internal/evalglue"
-	"github.com/opentofu/opentofu/internal/lang/grapheval"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/lang/eval/internal/evalglue"
+	"github.com/intentius/choudoufu/internal/lang/grapheval"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // checkAll walks the configuration tree starting at the given root module

@@ -8,7 +8,7 @@ package tofu
 import (
 	"context"
 
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // GraphNodeExecutable is the interface that graph nodes must implement to

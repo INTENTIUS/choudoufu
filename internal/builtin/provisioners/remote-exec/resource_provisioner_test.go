@@ -16,10 +16,10 @@ import (
 
 	"strings"
 
+	"github.com/intentius/choudoufu/internal/communicator"
+	"github.com/intentius/choudoufu/internal/communicator/remote"
+	"github.com/intentius/choudoufu/internal/provisioners"
 	"github.com/mitchellh/cli"
-	"github.com/opentofu/opentofu/internal/communicator"
-	"github.com/opentofu/opentofu/internal/communicator/remote"
-	"github.com/opentofu/opentofu/internal/provisioners"
 	"github.com/zclconf/go-cty/cty"
 )
 

@@ -12,9 +12,9 @@ import (
 	ctymsgpack "github.com/zclconf/go-cty/cty/msgpack"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/engine/internal/execgraph/execgraphproto"
-	"github.com/opentofu/opentofu/internal/states"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/engine/internal/execgraph/execgraphproto"
+	"github.com/intentius/choudoufu/internal/states"
 )
 
 // Marshal produces an opaque byte slice representing the given graph,

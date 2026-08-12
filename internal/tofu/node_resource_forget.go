@@ -10,9 +10,9 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 
-	"github.com/opentofu/opentofu/internal/states"
+	"github.com/intentius/choudoufu/internal/states"
 )
 
 // NodeForgetResourceInstance represents a resource instance that is to be

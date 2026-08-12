@@ -8,12 +8,12 @@ package differ
 import (
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/command/jsonformat/collections"
-	"github.com/opentofu/opentofu/internal/command/jsonformat/computed"
-	"github.com/opentofu/opentofu/internal/command/jsonformat/computed/renderers"
-	"github.com/opentofu/opentofu/internal/command/jsonformat/structured"
-	"github.com/opentofu/opentofu/internal/command/jsonprovider"
-	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/intentius/choudoufu/internal/command/jsonformat/collections"
+	"github.com/intentius/choudoufu/internal/command/jsonformat/computed"
+	"github.com/intentius/choudoufu/internal/command/jsonformat/computed/renderers"
+	"github.com/intentius/choudoufu/internal/command/jsonformat/structured"
+	"github.com/intentius/choudoufu/internal/command/jsonprovider"
+	"github.com/intentius/choudoufu/internal/plans"
 )
 
 func computeAttributeDiffAsMap(change structured.Change, elementType cty.Type) computed.Diff {

@@ -9,8 +9,8 @@ import (
 	"encoding/base64"
 	"fmt"
 
+	"github.com/intentius/choudoufu/internal/encryption/keyprovider"
 	openbao "github.com/openbao/openbao/api/v2"
-	"github.com/opentofu/opentofu/internal/encryption/keyprovider"
 )
 
 type Config struct {

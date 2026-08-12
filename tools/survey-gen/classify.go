@@ -14,9 +14,9 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/configs/configschema"
-	"github.com/opentofu/opentofu/internal/providers"
-	"github.com/opentofu/opentofu/internal/stateless/identity"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // The path vocabulary is SURVEY.md's, verbatim: its per-type table promises
@@ -94,7 +94,7 @@ type Row struct {
 	// This is the column the admission table shrinks along, so it is worth
 	// separating from Path: Path says how a live resource is recovered,
 	// Admission says who has to write the row that recovers it. See
-	// internal/stateless/identity's Report.
+	// internal/live/identity's Report.
 	Admission string `json:"admission,omitempty"`
 
 	// Evidence is one sentence saying what the classifier saw.
@@ -105,7 +105,7 @@ type Row struct {
 // GetProviderSchema response.
 type Signals struct {
 	// Taggable: a top-level settable tags map, the same predicate the
-	// marker path applies (internal/stateless/stamp's taggable).
+	// marker path applies (internal/live/stamp's taggable).
 	Taggable bool `json:"taggable"`
 
 	// ListResource: the provider serves a native list resource for the
@@ -132,7 +132,7 @@ func buildSurvey(schema providers.GetProviderSchemaResponse, roster []string) Su
 	// tool's: it is the one classifier that already knows the
 	// Optional+Computed trap (aws_s3_bucket.bucket and aws_vpc.id are the
 	// same shape in a legacy-SDK schema and opposite answers; see
-	// internal/stateless/identity/doc.go).
+	// internal/live/identity/doc.go).
 	derivable := map[string]identity.DerivableType{}
 	for _, d := range identity.Derivable(schema.ResourceTypes) {
 		derivable[d.Type] = d
@@ -240,7 +240,7 @@ func classify(typeName string, schema providers.GetProviderSchemaResponse, deriv
 	// component (a Secrets Manager secret's six-character suffix), and the
 	// difference is exactly whether a template built from the account and
 	// the region reconstructs the identity. That judgment is asserted, once,
-	// in internal/stateless/identity's table, as a component naming a cloud
+	// in internal/live/identity's table, as a component naming a cloud
 	// value - so this reads the assertion instead of guessing at it, the
 	// same way the client-named judgment defers to identity.Derivable.
 	if cloud := cloudValuesOf(typeName); len(cloud) > 0 {
@@ -387,7 +387,7 @@ func parentRef(attr, self string, allTypes []string) (string, bool) {
 	return best, best != ""
 }
 
-// taggable mirrors internal/stateless/stamp's predicate of the same name (a
+// taggable mirrors internal/live/stamp's predicate of the same name (a
 // top-level settable tags map of strings), which is also what
 // TestTaggableSetAgainstRealSchemas pins against the real provider.
 func taggable(block *configschema.Block) bool {

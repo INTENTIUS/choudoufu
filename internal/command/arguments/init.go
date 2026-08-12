@@ -6,8 +6,8 @@
 package arguments
 
 import (
-	"github.com/opentofu/opentofu/internal/command/flags"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/command/flags"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // Init represents the command-line arguments for the init command.

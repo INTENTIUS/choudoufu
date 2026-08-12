@@ -6,7 +6,7 @@
 package views
 
 import (
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // ProvidersSchema is the interface for the providers schema view.

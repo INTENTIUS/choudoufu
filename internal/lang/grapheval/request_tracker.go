@@ -9,7 +9,7 @@ import (
 	"iter"
 
 	"github.com/apparentlymart/go-workgraph/workgraph"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // RequestTracker is implemented by types that know how to provide user-friendly

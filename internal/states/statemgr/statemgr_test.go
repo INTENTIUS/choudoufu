@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/opentofu/opentofu/internal/logging"
+	_ "github.com/intentius/choudoufu/internal/logging"
 )
 
 func TestNewLockInfo(t *testing.T) {

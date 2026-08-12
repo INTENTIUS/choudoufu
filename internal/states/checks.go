@@ -6,8 +6,8 @@
 package states
 
 import (
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/checks"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/checks"
 )
 
 // CheckResults represents a summary snapshot of the status of a set of checks

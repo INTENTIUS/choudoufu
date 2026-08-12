@@ -28,9 +28,9 @@ import (
 	"sync"
 
 	"github.com/go-viper/mapstructure/v2"
+	"github.com/intentius/choudoufu/internal/legacy/hcl2shim"
+	"github.com/intentius/choudoufu/internal/legacy/tofu"
 	"github.com/mitchellh/copystructure"
-	"github.com/opentofu/opentofu/internal/legacy/hcl2shim"
-	"github.com/opentofu/opentofu/internal/legacy/tofu"
 )
 
 // Name of ENV variable which (if not empty) prefers panic over error

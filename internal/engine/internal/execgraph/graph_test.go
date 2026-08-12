@@ -16,9 +16,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/engine/internal/exec"
-	"github.com/opentofu/opentofu/internal/engine/internal/execgraph/execgraphproto"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/engine/internal/exec"
+	"github.com/intentius/choudoufu/internal/engine/internal/execgraph/execgraphproto"
 )
 
 func TestGraphMarshalUnmarshalValid(t *testing.T) {

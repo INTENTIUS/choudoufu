@@ -30,10 +30,10 @@ jobs:
         run: |
           mkdir -p dist
           # MODULE-PATH-RENAME: the -X flags below embed the Go module path
-          # github.com/opentofu/opentofu; update them when the module is
+          # github.com/intentius/choudoufu; update them when the module is
           # renamed to github.com/intentius/choudoufu.
           go build -trimpath \
-            -ldflags "-X 'github.com/opentofu/opentofu/version.Fork=${GITHUB_REF_NAME}' -X 'github.com/opentofu/opentofu/version.dev=no'" \
+            -ldflags "-X 'github.com/intentius/choudoufu/version.Fork=${GITHUB_REF_NAME}' -X 'github.com/intentius/choudoufu/version.dev=no'" \
             -o dist/choudoufu ./cmd/choudoufu
           tar -C dist -czf "choudoufu_${GITHUB_REF_NAME}_${GOOS}_${GOARCH}.tar.gz" choudoufu
       - name: Verify reported version

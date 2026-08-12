@@ -11,13 +11,13 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/opentofu/opentofu/internal/legacy/hcl2shim"
-	"github.com/opentofu/opentofu/internal/provisioners"
-	proto "github.com/opentofu/opentofu/internal/tfplugin5"
+	"github.com/intentius/choudoufu/internal/legacy/hcl2shim"
+	"github.com/intentius/choudoufu/internal/provisioners"
+	proto "github.com/intentius/choudoufu/internal/tfplugin5"
 	"github.com/zclconf/go-cty/cty"
 	"go.uber.org/mock/gomock"
 
-	mockproto "github.com/opentofu/opentofu/internal/plugin/mock_proto"
+	mockproto "github.com/intentius/choudoufu/internal/plugin/mock_proto"
 )
 
 var _ provisioners.Interface = (*GRPCProvisioner)(nil)

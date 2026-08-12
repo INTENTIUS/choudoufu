@@ -11,7 +11,7 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
 )
 
 // ConnectionBlockSupersetSchema is a schema representing the superset of all

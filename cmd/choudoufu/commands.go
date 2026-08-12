@@ -12,20 +12,20 @@ import (
 
 	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/go-retryablehttp"
+	"github.com/intentius/choudoufu/internal/command/system"
+	"github.com/intentius/choudoufu/internal/command/workdir"
 	"github.com/mitchellh/cli"
-	"github.com/opentofu/opentofu/internal/command/system"
-	"github.com/opentofu/opentofu/internal/command/workdir"
 	"github.com/opentofu/svchost"
 	"github.com/opentofu/svchost/disco"
 	"github.com/opentofu/svchost/svcauth"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/command"
-	"github.com/opentofu/opentofu/internal/command/cliconfig"
-	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/getmodules"
-	"github.com/opentofu/opentofu/internal/getproviders"
-	pluginDiscovery "github.com/opentofu/opentofu/internal/plugin/discovery"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/command"
+	"github.com/intentius/choudoufu/internal/command/cliconfig"
+	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/getmodules"
+	"github.com/intentius/choudoufu/internal/getproviders"
+	pluginDiscovery "github.com/intentius/choudoufu/internal/plugin/discovery"
 )
 
 // runningInAutomationEnvName gives the name of an environment variable that

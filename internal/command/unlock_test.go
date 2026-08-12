@@ -9,12 +9,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/intentius/choudoufu/internal/backend/remote-state/inmem"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/workdir"
+	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/states/statefile"
 	"github.com/mitchellh/cli"
-	"github.com/opentofu/opentofu/internal/backend/remote-state/inmem"
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/workdir"
-	"github.com/opentofu/opentofu/internal/states"
-	"github.com/opentofu/opentofu/internal/states/statefile"
 )
 
 // Since we can't unlock a local state file, just test that calling unlock

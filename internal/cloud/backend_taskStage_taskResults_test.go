@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/go-tfe"
-	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/command/views"
 )
 
 type testIntegrationOutput struct {

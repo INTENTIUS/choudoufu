@@ -23,21 +23,21 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
-	"github.com/opentofu/opentofu/internal/backend"
-	"github.com/opentofu/opentofu/internal/cloud"
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/clistate"
-	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/encryption"
-	"github.com/opentofu/opentofu/internal/plans"
-	"github.com/opentofu/opentofu/internal/states/statemgr"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
-	"github.com/opentofu/opentofu/internal/tracing"
+	"github.com/intentius/choudoufu/internal/backend"
+	"github.com/intentius/choudoufu/internal/cloud"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/clistate"
+	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/states/statemgr"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tofu"
+	"github.com/intentius/choudoufu/internal/tracing"
 
-	backendInit "github.com/opentofu/opentofu/internal/backend/init"
-	backendLocal "github.com/opentofu/opentofu/internal/backend/local"
+	backendInit "github.com/intentius/choudoufu/internal/backend/init"
+	backendLocal "github.com/intentius/choudoufu/internal/backend/local"
 )
 
 // BackendOpts are the options used to initialize a backend.Backend.
@@ -832,7 +832,7 @@ func (m *Meta) liveBackendGuard(ctx context.Context, prev *clistate.BackendState
 		"Backend migration is not available under live resource markers",
 		fmt.Sprintf(
 			"This configuration has a live block, so it has no backend and no state file, and %s cannot move state into it: there is nowhere for the state to land. %s was asked for, which would have written %s's state into this directory as a real state file - the one artifact this configuration exists to not have.\n\n"+
-				"Nothing has been migrated and nothing has been deleted. To convert an existing project, leave the old backend's state where it is and adopt the live resources by their ownership markers - see stateless/MARKERS.md - then run \"choudoufu init\" with no migration flags.",
+				"Nothing has been migrated and nothing has been deleted. To convert an existing project, leave the old backend's state where it is and adopt the live resources by their ownership markers - see live/MARKERS.md - then run \"choudoufu init\" with no migration flags.",
 			flag, flag, from,
 		),
 	))

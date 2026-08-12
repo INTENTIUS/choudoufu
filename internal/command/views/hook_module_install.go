@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/go-version"
-	"github.com/opentofu/opentofu/internal/initwd"
+	"github.com/intentius/choudoufu/internal/initwd"
 )
 
 // moduleInstallationHookHuman is the implementation of [initwd.ModuleInstallHooks] that prints the modules

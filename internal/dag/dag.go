@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 
 	"github.com/hashicorp/go-multierror"
 )

@@ -1,4 +1,4 @@
-module github.com/opentofu/opentofu
+module github.com/intentius/choudoufu
 
 go 1.26.5
 
@@ -278,12 +278,12 @@ replace github.com/hashicorp/hcl/v2 v2.20.1 => github.com/opentofu/hcl/v2 v2.20.
 
 tool (
 	github.com/mitchellh/gox
-	github.com/opentofu/opentofu/cmd/choudoufu
-	github.com/opentofu/opentofu/tools/find-dep-upgrades
-	github.com/opentofu/opentofu/tools/find-pkg-importer
-	github.com/opentofu/opentofu/tools/loggraphdiff
-	github.com/opentofu/opentofu/tools/protobuf-compile
-	github.com/opentofu/opentofu/tools/selected-go-version
+	github.com/intentius/choudoufu/cmd/choudoufu
+	github.com/intentius/choudoufu/tools/find-dep-upgrades
+	github.com/intentius/choudoufu/tools/find-pkg-importer
+	github.com/intentius/choudoufu/tools/loggraphdiff
+	github.com/intentius/choudoufu/tools/protobuf-compile
+	github.com/intentius/choudoufu/tools/selected-go-version
 	go.uber.org/mock/mockgen
 	golang.org/x/tools/cmd/stringer
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc

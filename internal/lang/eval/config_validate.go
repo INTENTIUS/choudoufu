@@ -8,8 +8,8 @@ package eval
 import (
 	"context"
 
-	"github.com/opentofu/opentofu/internal/lang/grapheval"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/lang/grapheval"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // Validate checks whether the configuration instance is valid when called

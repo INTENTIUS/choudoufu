@@ -18,20 +18,20 @@ import (
 
 	goPlugin "github.com/hashicorp/go-plugin"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/logging"
-	tfplugin "github.com/opentofu/opentofu/internal/plugin"
-	tfplugin6 "github.com/opentofu/opentofu/internal/plugin6"
-	"github.com/opentofu/opentofu/internal/plugins"
-	"github.com/opentofu/opentofu/internal/providers"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/logging"
+	tfplugin "github.com/intentius/choudoufu/internal/plugin"
+	tfplugin6 "github.com/intentius/choudoufu/internal/plugin6"
+	"github.com/intentius/choudoufu/internal/plugins"
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // acquireSchemas downloads the pinned provider into workdir and reads its
 // full GetProviderSchema response by launching the plugin in-process.
 //
 // This is the same two-step the gated test tier uses (see
-// internal/stateless/stamp's TestTaggableSetAgainstRealSchemas for the init
-// half and internal/stateless/projection's floci test for the go-plugin
+// internal/live/stamp's TestTaggableSetAgainstRealSchemas for the init
+// half and internal/live/projection's floci test for the go-plugin
 // half): `terraform init` in a directory that requires the pinned release,
 // then go-plugin launches the executable init unpacked. Going in-process
 // rather than shelling out to `providers schema -json` is deliberate - the

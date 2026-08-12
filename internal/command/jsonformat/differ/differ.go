@@ -6,9 +6,9 @@
 package differ
 
 import (
-	"github.com/opentofu/opentofu/internal/command/jsonformat/computed"
-	"github.com/opentofu/opentofu/internal/command/jsonformat/structured"
-	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/intentius/choudoufu/internal/command/jsonformat/computed"
+	"github.com/intentius/choudoufu/internal/command/jsonformat/structured"
+	"github.com/intentius/choudoufu/internal/plans"
 )
 
 // asDiff is a helper function to abstract away some simple and common

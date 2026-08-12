@@ -15,14 +15,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/opentofu/opentofu/internal/stateless/identity"
+	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
 // limitationsMDRel is the doc whose mechanical claims this file holds to
 // the committed survey artifact and the admission table. Prose reasoning
 // stays hand-written; the numbers, rosters, and example types below are
 // derivable, so drift in them is a test failure, not an editing chore.
-const limitationsMDRel = "stateless/LIMITATIONS.md"
+const limitationsMDRel = "live/LIMITATIONS.md"
 
 // TestLimitationsDocAgainstSurvey is the LIMITATIONS.md sibling of
 // TestSurveyJSONAgainstHandTable: ungated, no provider, two committed files
@@ -87,7 +87,7 @@ func TestLimitationsDocAgainstSurvey(t *testing.T) {
 	// The entry's example construct must stay surveyed-but-unadmitted.
 	// Issue #20 admits more marker-path types over time; when the example
 	// type is wired in, the entry and the fixture at
-	// stateless/e2e/limits/unadmitted-type/ must move to another type
+	// live/e2e/limits/unadmitted-type/ must move to another type
 	// together.
 	construct := regexp.MustCompile("\\*\\*Construct\\.\\*\\* `(aws_[a-z0-9_]+)`").FindStringSubmatch(entry)
 	if construct == nil {
@@ -98,7 +98,7 @@ func TestLimitationsDocAgainstSurvey(t *testing.T) {
 		t.Errorf("unadmitted-type example %s is not in %s's roster", example, surveyJSONRel)
 	}
 	if admitted[example] {
-		t.Errorf("unadmitted-type example %s is now in the admission table; swap the entry and the fixture at stateless/e2e/limits/unadmitted-type/ to a still-unadmitted type", example)
+		t.Errorf("unadmitted-type example %s is now in the admission table; swap the entry and the fixture at live/e2e/limits/unadmitted-type/ to a still-unadmitted type", example)
 	}
 
 	// The survey's own `wired` tally is the admission table's size.
@@ -163,7 +163,7 @@ func lineContaining(t *testing.T, path, want string) (string, bool) {
 // place that both counts and enumerates the admitted types. Every other
 // doc refers to it rather than restating a number that moves with each
 // wiring batch, so this is the only enumeration drift can hide in.
-const contractMDXRel = "website/docs/language/stateless-mode.mdx"
+const contractMDXRel = "website/docs/language/live-markers.mdx"
 
 // TestContractEnumerationMatchesAdmissionTable holds that enumeration to
 // identity.AdmittedTypes, in both directions, plus the count that

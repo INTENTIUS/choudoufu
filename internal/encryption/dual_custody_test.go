@@ -8,13 +8,13 @@ package encryption
 import (
 	"testing"
 
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/encryption/config"
-	"github.com/opentofu/opentofu/internal/encryption/keyprovider/pbkdf2"
-	"github.com/opentofu/opentofu/internal/encryption/keyprovider/xor"
-	"github.com/opentofu/opentofu/internal/encryption/method/aesgcm"
-	"github.com/opentofu/opentofu/internal/encryption/method/unencrypted"
-	"github.com/opentofu/opentofu/internal/encryption/registry/lockingencryptionregistry"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/encryption/config"
+	"github.com/intentius/choudoufu/internal/encryption/keyprovider/pbkdf2"
+	"github.com/intentius/choudoufu/internal/encryption/keyprovider/xor"
+	"github.com/intentius/choudoufu/internal/encryption/method/aesgcm"
+	"github.com/intentius/choudoufu/internal/encryption/method/unencrypted"
+	"github.com/intentius/choudoufu/internal/encryption/registry/lockingencryptionregistry"
 )
 
 func TestDualCustody(t *testing.T) {

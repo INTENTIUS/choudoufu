@@ -5,7 +5,7 @@
 
 package states
 
-import "github.com/opentofu/opentofu/internal/addrs"
+import "github.com/intentius/choudoufu/internal/addrs"
 
 // Generation is used to represent multiple objects in a succession of objects
 // represented by a single resource instance address. A resource instance can

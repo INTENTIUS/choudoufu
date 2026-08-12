@@ -14,8 +14,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/intentius/choudoufu/internal/encryption/keyprovider/compliancetest"
 	openbao "github.com/openbao/openbao/api/v2"
-	"github.com/opentofu/opentofu/internal/encryption/keyprovider/compliancetest"
 )
 
 // By default the tests in here behave like unit tests, running against a

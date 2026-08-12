@@ -8,7 +8,7 @@ package exprs
 import (
 	"github.com/hashicorp/hcl/v2"
 
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // SymbolTable is an interface implemented by types that have an associated

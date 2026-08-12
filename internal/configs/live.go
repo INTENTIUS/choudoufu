@@ -32,7 +32,7 @@ import (
 // stateless code ran.
 type Live struct {
 	// Estate is the name of the estate this configuration owns, as it appears
-	// in the tofu-estate marker described by stateless/MARKERS.md. It is
+	// in the tofu-estate marker described by live/MARKERS.md. It is
 	// optional: when it is not set, the estate name is derived from the
 	// tofu-estate tags the configuration already stamps, and a configuration
 	// that stamps none (or several) is told to name one here.
@@ -88,7 +88,7 @@ type Live struct {
 	// branch rather than a single overwritten file. The branch is written
 	// with git plumbing through a temporary object graph: no push, no
 	// checkout, and the worktree, the index and HEAD are never touched. See
-	// internal/stateless/projection's writeSnapshotBranch for the mechanics.
+	// internal/live/projection's writeSnapshotBranch for the mechanics.
 	//
 	// It composes with SnapshotPath rather than excluding it, and the branch
 	// wins: when both are set, the branch is the carrier and the file is the
@@ -249,7 +249,7 @@ func decodeLiveBlock(block *hcl.Block) (*Live, hcl.Diagnostics) {
 // something destructive is refused when it is read rather than when it is
 // run. The complementary check that cannot be lexical - "the file already
 // there parses as a state file, whatever it is called" - lives at the write
-// itself, in internal/stateless/projection.
+// itself, in internal/live/projection.
 func validateSnapshotPath(raw string) string {
 	// Windows separators are normalized so that one set of rules covers both
 	// spellings; a configuration is meant to be portable, and "..\\victim" is

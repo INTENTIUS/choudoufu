@@ -8,7 +8,7 @@ package arguments
 import (
 	"flag"
 
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // LivePlan represents the command-line arguments for the live-plan command,

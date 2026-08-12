@@ -9,8 +9,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/intentius/choudoufu/internal/command/workdir"
 	"github.com/mitchellh/cli"
-	"github.com/opentofu/opentofu/internal/command/workdir"
 )
 
 func TestMetadataFunctions_error(t *testing.T) {
