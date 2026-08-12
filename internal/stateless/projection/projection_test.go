@@ -155,21 +155,28 @@ func TestBuildEstate(t *testing.T) {
 	})
 
 	assertOmitted(t, res, map[string]Reason{
-		`aws_vpc.main`:                          ReasonNeedsDiscovery,
-		`aws_subnet.this["a"]`:                  ReasonNeedsDiscovery,
-		`aws_subnet.this["b"]`:                  ReasonNeedsDiscovery,
-		`aws_security_group.main`:               ReasonNeedsDiscovery,
-		`aws_route_table.main`:                  ReasonNeedsDiscovery,
-		`aws_internet_gateway.main`:             ReasonNeedsDiscovery,
-		`aws_eip.pool[0]`:                       ReasonNeedsDiscovery,
-		`aws_eip.pool[1]`:                       ReasonNeedsDiscovery,
-		`aws_eip.pool[2]`:                       ReasonNeedsDiscovery,
-		`aws_kms_key.main`:                      ReasonNeedsDiscovery,
-		`aws_route53_zone.main`:                 ReasonNeedsDiscovery,
+		`aws_vpc.main`:              ReasonNeedsDiscovery,
+		`aws_subnet.this["a"]`:      ReasonNeedsDiscovery,
+		`aws_subnet.this["b"]`:      ReasonNeedsDiscovery,
+		`aws_security_group.main`:   ReasonNeedsDiscovery,
+		`aws_route_table.main`:      ReasonNeedsDiscovery,
+		`aws_internet_gateway.main`: ReasonNeedsDiscovery,
+		`aws_eip.pool[0]`:           ReasonNeedsDiscovery,
+		`aws_eip.pool[1]`:           ReasonNeedsDiscovery,
+		`aws_eip.pool[2]`:           ReasonNeedsDiscovery,
+		`aws_kms_key.main`:          ReasonNeedsDiscovery,
+		`aws_route53_zone.main`:     ReasonNeedsDiscovery,
+		`aws_lb.main`:               ReasonNeedsDiscovery,
+		`aws_lb_target_group.app`:   ReasonNeedsDiscovery,
+		`aws_lb_listener.app`:       ReasonNeedsDiscovery,
+		// Account-derived with no cloud context: the same omission a marker
+		// type gets, for a different stated reason.
+		`aws_sns_topic.alerts`:                  ReasonNeedsDiscovery,
 		`aws_route.internet_gateway`:            ReasonParentUnavailable,
 		`aws_route_table_association.this["a"]`: ReasonParentUnavailable,
 		`aws_route_table_association.this["b"]`: ReasonParentUnavailable,
 		`aws_route53_record.app`:                ReasonParentUnavailable,
+		`aws_lb_target_group_attachment.app`:    ReasonParentUnavailable,
 	})
 
 	// The reason for a parent-derived omission has to name the parent that
@@ -814,6 +821,15 @@ var fakeAttrs = map[string][]string{
 	"aws_route53_record":  {"id", "zone_id", "name", "type", "ttl", "records"},
 	"aws_cloudwatch_metric_alarm": {"id", "alarm_name", "comparison_operator", "evaluation_periods",
 		"metric_name", "namespace", "period", "statistic", "threshold"},
+	// The ELBv2 chain: every one of these identifies by an ARN, and the
+	// provider sets id to that same ARN, so the caricature carries both.
+	"aws_lb":                         {"id", "arn", "name", "internal", "load_balancer_type"},
+	"aws_lb_target_group":            {"id", "arn", "name", "port", "protocol", "vpc_id", "target_type"},
+	"aws_lb_listener":                {"id", "arn", "load_balancer_arn", "port", "protocol"},
+	"aws_lb_target_group_attachment": {"id", "target_group_arn", "target_id", "port"},
+	// Account-derived: a topic's identity attribute is its arn, and id
+	// carries the same string.
+	"aws_sns_topic": {"id", "arn", "name"},
 }
 
 // fakeUntaggable is the caricature's version of a fact about the real
@@ -827,6 +843,7 @@ var fakeUntaggable = map[string]bool{
 	"aws_iam_role_policy_attachment": true,
 	"aws_route":                      true,
 	"aws_route_table_association":    true,
+	"aws_lb_target_group_attachment": true,
 }
 
 func fakeSchemas() map[string]providers.Schema {

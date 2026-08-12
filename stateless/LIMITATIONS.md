@@ -385,8 +385,9 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_s3_bucket_versioning`, `aws_s3_bucket_public_access_block`,
 `aws_s3_bucket_server_side_encryption_configuration`,
 `aws_s3_bucket_lifecycle_configuration`, `aws_iam_role_policy`,
-`aws_kms_alias`, `aws_route53_record` and
-`aws_iam_role_policy_attachment` carry no tags, so they can carry no
+`aws_kms_alias`, `aws_route53_record`,
+`aws_iam_role_policy_attachment` and
+`aws_lb_target_group_attachment` carry no tags, so they can carry no
 ownership marker and the sweep has nothing to search on. Their identity is
 built from their own configuration, which means deleting the resource
 block deletes the only record of which resource it was. Destroy the

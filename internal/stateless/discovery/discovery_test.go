@@ -37,7 +37,7 @@ func estateDir(t *testing.T) string {
 
 const estateName = "stateless-e2e"
 
-// The eleven needs-discovery instances the fixture declares, sorted the way
+// The fifteen needs-discovery instances the fixture declares, sorted the way
 // discovery reports them.
 var allDiscovered = []string{
 	`aws_eip.pool[0]`,
@@ -45,12 +45,45 @@ var allDiscovered = []string{
 	`aws_eip.pool[2]`,
 	`aws_internet_gateway.main`,
 	`aws_kms_key.main`,
+	`aws_lb.main`,
+	`aws_lb_listener.app`,
+	`aws_lb_target_group.app`,
 	`aws_route53_zone.main`,
 	`aws_route_table.main`,
 	`aws_security_group.main`,
+	`aws_sns_topic.alerts`,
 	`aws_subnet.this["a"]`,
 	`aws_subnet.this["b"]`,
 	`aws_vpc.main`,
+}
+
+// ownAllDiscovered puts one marked live resource in the fake cloud for every
+// address in allDiscovered, and returns the address-to-identity map the
+// binding assertions want. Written once because eight tests need the whole
+// estate present and only care about one corner of it each.
+func ownAllDiscovered(cloud *fakeCloud) map[string]string {
+	want := map[string]string{}
+	for _, spec := range []struct{ typeName, id, marker, addr string }{
+		{"aws_vpc", "vpc-1", `aws_vpc.main`, `aws_vpc.main`},
+		{"aws_subnet", "subnet-a", `aws_subnet.this:a`, `aws_subnet.this["a"]`},
+		{"aws_subnet", "subnet-b", `aws_subnet.this:b`, `aws_subnet.this["b"]`},
+		{"aws_security_group", "sg-1", `aws_security_group.main`, `aws_security_group.main`},
+		{"aws_route_table", "rtb-1", `aws_route_table.main`, `aws_route_table.main`},
+		{"aws_internet_gateway", "igw-1", `aws_internet_gateway.main`, `aws_internet_gateway.main`},
+		{"aws_eip", "eipalloc-0", `aws_eip.pool:0`, `aws_eip.pool[0]`},
+		{"aws_eip", "eipalloc-1", `aws_eip.pool:1`, `aws_eip.pool[1]`},
+		{"aws_eip", "eipalloc-2", `aws_eip.pool:2`, `aws_eip.pool[2]`},
+		{"aws_kms_key", "8b0e2a2c-key", `aws_kms_key.main`, `aws_kms_key.main`},
+		{"aws_route53_zone", "Z0E2E", `aws_route53_zone.main`, `aws_route53_zone.main`},
+		{"aws_lb", "arn:lb/main", `aws_lb.main`, `aws_lb.main`},
+		{"aws_lb_target_group", "arn:tg/app", `aws_lb_target_group.app`, `aws_lb_target_group.app`},
+		{"aws_lb_listener", "arn:listener/app", `aws_lb_listener.app`, `aws_lb_listener.app`},
+		{"aws_sns_topic", "arn:sns:alerts", `aws_sns_topic.alerts`, `aws_sns_topic.alerts`},
+	} {
+		cloud.own(spec.typeName, spec.id, spec.marker)
+		want[spec.addr] = spec.id
+	}
+	return want
 }
 
 // ---------------------------------------------------------------------------
@@ -122,37 +155,15 @@ func TestValidEstateName(t *testing.T) {
 
 // TestDiscoverBindsWholeEstate is the happy path over the real fixture:
 // eleven server-assigned instances, eleven live resources carrying
-// spec-conformant markers, eleven bindings and nothing else.
+// spec-conformant markers, fifteen bindings and nothing else.
 func TestDiscoverBindsWholeEstate(t *testing.T) {
 	cloud := newFakeCloud()
-	cloud.own("aws_vpc", "vpc-1", `aws_vpc.main`)
-	cloud.own("aws_subnet", "subnet-a", `aws_subnet.this:a`)
-	cloud.own("aws_subnet", "subnet-b", `aws_subnet.this:b`)
-	cloud.own("aws_security_group", "sg-1", `aws_security_group.main`)
-	cloud.own("aws_route_table", "rtb-1", `aws_route_table.main`)
-	cloud.own("aws_internet_gateway", "igw-1", `aws_internet_gateway.main`)
-	cloud.own("aws_eip", "eipalloc-0", `aws_eip.pool:0`)
-	cloud.own("aws_eip", "eipalloc-1", `aws_eip.pool:1`)
-	cloud.own("aws_eip", "eipalloc-2", `aws_eip.pool:2`)
-	cloud.own("aws_kms_key", "8b0e2a2c-key", `aws_kms_key.main`)
-	cloud.own("aws_route53_zone", "Z0E2E", `aws_route53_zone.main`)
+	want := ownAllDiscovered(cloud)
 
 	res, diags := discoverFixture(t, cloud, Request{})
 	assertNoErrors(t, diags)
 
-	assertBound(t, res, map[string]string{
-		`aws_vpc.main`:              "vpc-1",
-		`aws_subnet.this["a"]`:      "subnet-a",
-		`aws_subnet.this["b"]`:      "subnet-b",
-		`aws_security_group.main`:   "sg-1",
-		`aws_route_table.main`:      "rtb-1",
-		`aws_internet_gateway.main`: "igw-1",
-		`aws_eip.pool[0]`:           "eipalloc-0",
-		`aws_eip.pool[1]`:           "eipalloc-1",
-		`aws_eip.pool[2]`:           "eipalloc-2",
-		`aws_kms_key.main`:          "8b0e2a2c-key",
-		`aws_route53_zone.main`:     "Z0E2E",
-	})
+	assertBound(t, res, want)
 	if len(res.Unbound) != 0 {
 		t.Errorf("unbound instances: %v", res.Unbound)
 	}
@@ -160,14 +171,14 @@ func TestDiscoverBindsWholeEstate(t *testing.T) {
 		t.Errorf("problems:\n%s", res)
 	}
 
-	// The output resolution list is the whole estate: the eleven discovered
+	// The output resolution list is the whole estate: the fifteen discovered
 	// instances are now concrete, and everything static rides through.
 	byAddr := map[string]identity.Resolution{}
 	for _, r := range res.Resolutions {
 		byAddr[r.Addr.String()] = r
 	}
-	if got := len(res.Resolutions); got != 32 {
-		t.Errorf("Resolutions holds %d entries, want the fixture's 32", got)
+	if got := len(res.Resolutions); got != 37 {
+		t.Errorf("Resolutions holds %d entries, want the fixture's 37", got)
 	}
 	for _, addr := range allDiscovered {
 		r, ok := byAddr[addr]
@@ -812,18 +823,27 @@ func newFakeCloud() *fakeCloud {
 		types: []string{
 			"aws_vpc", "aws_subnet", "aws_security_group", "aws_route_table",
 			"aws_internet_gateway", "aws_eip",
-			// #20's marker slice. The estate fixture declares both, so
+			// #20's first marker slice. The estate fixture declares both, so
 			// every discovery pass over that fixture lists them.
 			"aws_kms_key", "aws_route53_zone",
+			// #20's ELBv2 slice and the account-derived pair (F1, F2), all
+			// declared by the fixture and so all listed on every pass.
+			"aws_lb", "aws_lb_target_group", "aws_lb_listener",
+			"aws_sns_topic",
 		},
-		// Neither of #20's list schemas carries a filter block in the real
+		// None of these list schemas carries a filter block in the real
 		// provider - a KMS key list takes a region and nothing else, a
-		// hosted zone list takes private_zone - so both fall back to the
-		// client-side filter, and the fake says so rather than offering a
-		// filter the provider does not have.
+		// hosted zone list takes private_zone, and every ELBv2, SQS and SNS
+		// list takes a region plus at most a parent ARN - so all of them
+		// fall back to the client-side filter, and the fake says so rather
+		// than offering a filter the provider does not have.
 		unfilter: map[string]bool{
-			"aws_kms_key":      true,
-			"aws_route53_zone": true,
+			"aws_kms_key":         true,
+			"aws_route53_zone":    true,
+			"aws_lb":              true,
+			"aws_lb_target_group": true,
+			"aws_lb_listener":     true,
+			"aws_sns_topic":       true,
 		},
 		missing:   make(map[string]bool),
 		untagged:  make(map[string]bool),

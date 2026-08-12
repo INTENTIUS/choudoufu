@@ -23,11 +23,12 @@ import (
 // that nothing outside these tokens appears in the Path column, so the
 // generated artifact speaks the same tokens.
 const (
-	pathClientNamed   = "client-named"
-	pathMarker        = "marker"
-	pathParentDerived = "parent-derived"
-	pathListContent   = "list + content match"
-	pathOps           = "moves to Ops"
+	pathClientNamed    = "client-named"
+	pathMarker         = "marker"
+	pathParentDerived  = "parent-derived"
+	pathListContent    = "list + content match"
+	pathAccountDerived = "account-derived"
+	pathOps            = "moves to Ops"
 )
 
 // opsExcluded is the one hand-written input to the classifier, per issue
@@ -165,15 +166,18 @@ func buildSurvey(schema providers.GetProviderSchemaResponse, roster []string) Su
 //
 //  1. The hand-curated Ops exclusion (credentials and waiters) wins
 //     outright; no schema carries that judgment.
-//  2. identity.Derivable proves the identity fully client-assigned. Within
+//  2. The fork's identity table builds the identity from configuration plus
+//     the run's account or region, which is account-derived. Also not a
+//     schema judgment - see cloudValuesOf.
+//  3. identity.Derivable proves the identity fully client-assigned. Within
 //     that set, a required identity attribute that names another managed
 //     type's identity (an *_id or *_arn whose base names a resource type)
 //     makes the path parent-derived; otherwise client-named.
-//  3. An identity schema the strict rule cannot prove client-assigned falls
+//  4. An identity schema the strict rule cannot prove client-assigned falls
 //     through to the discovery paths: marker when the type is taggable,
 //     list plus content match when a native list resource exists, moves to
 //     Ops when neither.
-//  4. No identity schema at all: the same discovery fallback, with the
+//  5. No identity schema at all: the same discovery fallback, with the
 //     evidence saying the identity side is unreadable from schemas.
 func classify(typeName string, schema providers.GetProviderSchemaResponse, derivable map[string]identity.DerivableType, allTypes []string) Row {
 	rs := schema.ResourceTypes[typeName]
@@ -201,6 +205,24 @@ func classify(typeName string, schema providers.GetProviderSchemaResponse, deriv
 	if reason, ok := opsExcluded[typeName]; ok {
 		row.Path = pathOps
 		row.Evidence = "excluded by hand per SURVEY.md's rule - " + reason
+		return row
+	}
+
+	// The account-derived path, and the one place this classifier reads the
+	// fork's identity table rather than the provider's schemas. It has to:
+	// the schemas cannot tell an arn or url that wraps a client-chosen name
+	// (an SQS queue, an SNS topic) from one that carries a server-generated
+	// component (a Secrets Manager secret's six-character suffix), and the
+	// difference is exactly whether a template built from the account and
+	// the region reconstructs the identity. That judgment is asserted, once,
+	// in internal/stateless/identity's table, as a component naming a cloud
+	// value - so this reads the assertion instead of guessing at it, the
+	// same way the client-named judgment defers to identity.Derivable.
+	if cloud := cloudValuesOf(typeName); len(cloud) > 0 {
+		row.Path = pathAccountDerived
+		row.Evidence = fmt.Sprintf(
+			"the identity table builds this type's import identity from configuration plus the run's %s",
+			strings.Join(cloud, " and "))
 		return row
 	}
 
@@ -257,6 +279,27 @@ func classify(typeName string, schema providers.GetProviderSchemaResponse, deriv
 		row.Evidence = identityNote + "; untaggable and no native list resource, so no admission path recovers it"
 	}
 	return row
+}
+
+// cloudValuesOf returns the cloud properties the fork's identity table
+// substitutes into this type's import identity, in component order and
+// deduplicated, or nothing when the table has no entry for the type or the
+// entry names none. See the account-derived branch in classify.
+func cloudValuesOf(typeName string) []string {
+	entry, ok := identity.LookupType(typeName)
+	if !ok {
+		return nil
+	}
+	var out []string
+	seen := map[identity.CloudValue]bool{}
+	for _, c := range entry.Components {
+		if c.Cloud == identity.CloudNone || seen[c.Cloud] {
+			continue
+		}
+		seen[c.Cloud] = true
+		out = append(out, string(c.Cloud))
+	}
+	return out
 }
 
 // serverAssigned returns the required-for-import identity attributes the

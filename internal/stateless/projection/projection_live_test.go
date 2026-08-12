@@ -202,10 +202,15 @@ func TestBuildAgainstFloci(t *testing.T) {
 		`aws_eip.pool[2]`:                       ReasonNeedsDiscovery,
 		`aws_kms_key.main`:                      ReasonNeedsDiscovery,
 		`aws_route53_zone.main`:                 ReasonNeedsDiscovery,
+		`aws_lb.main`:                           ReasonNeedsDiscovery,
+		`aws_lb_target_group.app`:               ReasonNeedsDiscovery,
+		`aws_lb_listener.app`:                   ReasonNeedsDiscovery,
+		`aws_sns_topic.alerts`:                  ReasonNeedsDiscovery,
 		`aws_route.internet_gateway`:            ReasonParentUnavailable,
 		`aws_route_table_association.this["a"]`: ReasonParentUnavailable,
 		`aws_route_table_association.this["b"]`: ReasonParentUnavailable,
 		`aws_route53_record.app`:                ReasonParentUnavailable,
+		`aws_lb_target_group_attachment.app`:    ReasonParentUnavailable,
 	})
 	for _, addr := range []string{
 		`aws_route.internet_gateway`,
