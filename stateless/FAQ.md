@@ -119,5 +119,4 @@ the Linux Foundation.
 ## Why is it called choudoufu?
 
 Chou doufu is stinky tofu, the fermented street-food cousin of regular
-tofu. This is OpenTofu with a stronger flavor. If the name reads as a
-warning label, that is about right for an experimental fork.
+tofu. This is OpenTofu with a stronger flavor.
