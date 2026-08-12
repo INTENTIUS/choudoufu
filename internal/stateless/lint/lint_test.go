@@ -288,6 +288,42 @@ func TestCheck(t *testing.T) {
 			dir:  "testdata/receipt-leaf-dynamic-name",
 			want: nil,
 		},
+		{
+			name: "receipt value rule: SecureString, raw input, and local indirection; both flavors clean",
+			dir:  "testdata/receipt-value",
+			want: []wantIssue{
+				{
+					rule:      RuleReceiptValue,
+					construct: "receipt aws_ssm_parameter.secure declares type SecureString",
+					file:      "testdata/receipt-value/main.tf",
+					line:      18,
+				},
+				{
+					rule:      RuleReceiptValue,
+					construct: "receipt aws_ssm_parameter.raw_input value is not visibly a hash or a constant",
+					file:      "testdata/receipt-value/main.tf",
+					line:      25,
+				},
+				{
+					rule:      RuleReceiptValue,
+					construct: "receipt aws_ssm_parameter.hash_via_local value is not visibly a hash or a constant",
+					file:      "testdata/receipt-value/main.tf",
+					line:      35,
+				},
+			},
+		},
+		{
+			name: "receipt secret rule: sensitive variable in value flagged, pointer variable clean",
+			dir:  "testdata/receipt-secret",
+			want: []wantIssue{
+				{
+					rule:      RuleReceiptSecret,
+					construct: "receipt aws_ssm_parameter.hashes_the_secret value reads sensitive variable var.db_password",
+					file:      "testdata/receipt-secret/main.tf",
+					line:      23,
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {

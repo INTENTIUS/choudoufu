@@ -79,12 +79,19 @@ inverted back to them. Marking it `SecureString` would buy no
 confidentiality and would cost real complexity. `SecureString` parameters
 are encrypted through KMS, which drags key custody, key policy, and
 decrypt permissions into a mechanism whose entire purpose was to be a
-plain, cheap, readable comparison point. Convention enforces this today. A
-lint heuristic is the natural next step (flagging a `String`-typed receipt
-whose value expression is not visibly a hash function, or an
-`aws_ssm_parameter` matching the receipt naming convention below declared
-with `type = "SecureString"`), but is not implemented as part of this
-task.
+plain, cheap, readable comparison point.
+
+Lint enforces this guard. `RuleReceiptValue` in `internal/stateless/lint`
+rejects a statically recognizable receipt declared with a literal
+`type = "SecureString"`, and flags a receipt whose value expression is not
+visibly one of the two documented flavors, meaning a hash function as the
+outermost call (the hash flavor) or a constant literal such as `"done"`
+(the existence flavor). The check reads the expression on the page and
+never traces value flow, so a hash computed in a `local` and referenced
+from the receipt is flagged until the hash call is inlined where the
+receipt declares it, and a `type` argument built from a variable rather
+than a literal is not judged at all. See "Lint enforcement" below for the
+recognition boundary this shares with the leaf rule.
 
 ## Guard 3. The executor never runs the effect
 
@@ -211,11 +218,20 @@ already load-bearing elsewhere.
 
 ## Lint enforcement
 
-Implemented as a rule in `internal/stateless/lint` (`RuleReceiptLeaf`).
-Any managed resource argument or output expression that contains a direct
-traversal into an `aws_ssm_parameter` resource whose `name` argument is a
-literal string starting with `/tofu-receipts/` is rejected, citing this
-file's leaf rule.
+Implemented as rules in `internal/stateless/lint`. The leaf rule is
+`RuleReceiptLeaf`. Any managed resource argument or output expression that
+contains a direct traversal into an `aws_ssm_parameter` resource whose
+`name` argument is a literal string starting with `/tofu-receipts/` is
+rejected, citing this file's leaf rule.
+
+Guard 2 and the secrets discipline are enforced from the same package, by
+`RuleReceiptValue` and `RuleReceiptSecret` (described in their own
+sections). All three rules recognize a receipt the same way, through the
+literal `/tofu-receipts/` name, and all three read one expression at a
+time within the boundary stated next. A parameter whose name is built from
+a variable or an interpolation is recognized by none of them. The rules
+never guess at receipt-ness, only confirm it when it is evident on the
+page.
 
 The boundary, stated precisely so it is not mistaken for full data-flow
 analysis. The rule catches *direct* traversals only, meaning an expression
@@ -271,8 +287,17 @@ and version identifier, never by value. A hash over low-entropy secret
 material (a password) is offline-guessable by anyone holding the receipt
 and knowing the input shape. A hash over the secret's version-id leaks
 nothing and answers the actual question ("did it rotate?") from metadata.
-A future lint heuristic can flag sensitive-marked values flowing into a
-receipt's value expression. Until then this is a review rule.
+Lint enforces the directly visible case. `RuleReceiptSecret` in
+`internal/stateless/lint` flags a receipt whose value expression contains
+a direct reference to an input variable declared `sensitive = true` in the
+same module, whether or not the reference sits inside a hash call, since
+hashing does not launder a guessable secret. The boundary is the same
+direct-traversal boundary the leaf rule states under "Lint enforcement". A
+sensitive value routed through a `local`, arriving from another module, or
+read from a resource attribute that a provider schema marks sensitive is
+not caught, because each of those needs data-flow analysis or provider
+schema knowledge the lint pass deliberately does not have. Those cases
+remain a review rule.
 
 ## Why SSM, and the Dynamo comparison
 
