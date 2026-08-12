@@ -419,6 +419,8 @@ var (
 		"aws_ssm_parameter",
 		"aws_dynamodb_table",
 		"aws_ecs_cluster",
+		"aws_kms_key",
+		"aws_route53_zone",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -791,6 +793,8 @@ func testSchemas() Schemas {
 		"aws_ssm_parameter":        tagged("id", "name", "type", "value"),
 		"aws_dynamodb_table":       tagged("id", "name", "billing_mode", "hash_key"),
 		"aws_ecs_cluster":          tagged("id", "name", "arn"),
+		"aws_kms_key":              tagged("id", "key_id", "description"),
+		"aws_route53_zone":         tagged("id", "zone_id", "name"),
 
 		// Untaggable, likewise.
 		"aws_route":                      untagged("route_table_id", "destination_cidr_block", "gateway_id"),
