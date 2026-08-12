@@ -28,6 +28,12 @@ var rawVersion string
 // linker flags when building binaries for release.
 var dev string = "yes"
 
+// Fork is the choudoufu release version (the release tag, e.g. "v0.2.0").
+// Like dev above, it is expected to be set using linker flags when building
+// release binaries. It stays empty for development builds, which report only
+// the upstream base version.
+var Fork string
+
 // The main version number that is being run at the moment, populated from the raw version.
 var Version string
 
