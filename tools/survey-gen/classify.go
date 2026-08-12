@@ -84,6 +84,19 @@ type Row struct {
 	// resource identity schema, absent when the provider ships none.
 	Identity *IdentityAttrs `json:"identity,omitempty"`
 
+	// Admission is what would let the fork's identity table carry this type
+	// with no hand-written row: "schema" when the provider's schemas settle
+	// that the configuration names the resource, "needs-config-signal" when
+	// they leave that to whether a configuration sets the identity
+	// attributes above (the Optional+Computed cohort, which is most of the
+	// name-prefix idiom's exceptions below). Absent when neither admits it.
+	//
+	// This is the column the admission table shrinks along, so it is worth
+	// separating from Path: Path says how a live resource is recovered,
+	// Admission says who has to write the row that recovers it. See
+	// internal/stateless/identity's Report.
+	Admission string `json:"admission,omitempty"`
+
 	// Evidence is one sentence saying what the classifier saw.
 	Evidence string `json:"evidence"`
 }
@@ -125,6 +138,15 @@ func buildSurvey(schema providers.GetProviderSchemaResponse, roster []string) Su
 		derivable[d.Type] = d
 	}
 
+	// The derivability report over the same schemas, with no configuration
+	// to read: this tool surveys a provider release, not an estate, so the
+	// cohort the schemas cannot settle comes back "needs-config-signal"
+	// naming the arguments a configuration would have to set. That is the
+	// useful thing to record here - it says what each unadmitted type is
+	// waiting for - and it is the one column a later batch can act on
+	// without reading anything by hand.
+	report := identity.Report(schema.ResourceTypes, nil)
+
 	// Sorted type names for the deterministic parent-reference scan.
 	allTypes := make([]string, 0, len(schema.ResourceTypes))
 	for name := range schema.ResourceTypes {
@@ -142,6 +164,9 @@ func buildSurvey(schema providers.GetProviderSchemaResponse, roster []string) Su
 	sort.Strings(sorted)
 	for _, typeName := range sorted {
 		row := classify(typeName, schema, derivable, allTypes)
+		if c, ok := report.Admits(typeName); ok {
+			row.Admission = string(c.Admits)
+		}
 		s.Counts.Types++
 		if row.Signals.Taggable {
 			s.Counts.Taggable++

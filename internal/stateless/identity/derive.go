@@ -52,6 +52,20 @@ type DerivableType struct {
 	// caller can tell "the schemas back a row we already wrote by hand"
 	// from "the schemas offer a row nobody has written".
 	InTable bool
+
+	// Admits says what backs the admission: [AdmitSchema] when the strict
+	// rule settled it from the schemas alone, [AdmitConfigSignal] when the
+	// schemas left it open and a configuration answered. The two are not
+	// interchangeable - one is a property of the type and the other is a
+	// reading of one configuration - so the evidence travels with the
+	// verdict rather than being reconstructed by whoever reports it.
+	Admits Admission
+
+	// Naming is the per-instance evidence behind an [AdmitConfigSignal]
+	// verdict, sorted by address, and empty for [AdmitSchema]. It is what
+	// lets a report name the block that decided rather than asserting the
+	// type.
+	Naming []InstanceNaming
 }
 
 // Derivable reports every resource type in a provider's schemas whose
@@ -70,9 +84,16 @@ type DerivableType struct {
 // Optional+Computed arguments would therefore admit aws_vpc as
 // client-named, which is exactly wrong: EC2 assigns that ID and no
 // configuration argument determines it. The two cases are indistinguishable
-// in the schema, so the strict rule stops at the ones that are provable and
-// leaves the rest to the hand table's inference. That is the boundary
-// between what the schemas can settle and what still has to be asserted.
+// in the schema, so the strict rule stops at the ones that are provable.
+// That is the boundary between what the schemas can settle on their own and
+// what needs something else.
+//
+// The something else is a configuration, and [DerivableWith] is this
+// function with it folded in: no aws_vpc block sets id and every
+// aws_s3_bucket block that names a bucket sets bucket, which separates the
+// two cases the schemas cannot. Use this function when there is no
+// configuration to read - a survey of a provider's whole type set - and
+// [DerivableWith] when there is one.
 func Derivable(resourceTypes map[string]providers.Schema) []DerivableType {
 	out := make([]DerivableType, 0, len(resourceTypes))
 	for typeName, schema := range resourceTypes {
@@ -125,5 +146,6 @@ func derivable(typeName string, schema providers.Schema) (DerivableType, bool) {
 		IdentityAttrs: required,
 		Context:       context,
 		InTable:       inTable,
+		Admits:        AdmitSchema,
 	}, true
 }
