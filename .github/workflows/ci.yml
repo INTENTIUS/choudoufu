@@ -30,7 +30,7 @@ jobs:
       - name: Build
         run: go build ./cmd/choudoufu
       - name: Fast test tier
-        run: go test ./internal/stateless/...
+        run: go test ./internal/stateless/... ./tools/survey-gen/
       - name: Docs site build
         working-directory: site
         run: go run . -out public/

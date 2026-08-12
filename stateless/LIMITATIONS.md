@@ -11,6 +11,11 @@ table drifts from the directory tree, and `TestLimitsEnforced` /
 `TestLimitsNotYetEnforced` fail if the lint rule that actually fires stops
 matching what is written below. Nothing here is asserted from memory.
 
+One enforced family is indexed elsewhere: the receipt-shape rules
+(`RuleReceiptLeaf`, `RuleReceiptValue`, `RuleReceiptSecret`) are specified
+alongside the pattern they guard in `stateless/RECEIPTS.md`, and have no
+fixture directory here.
+
 Two kinds of entry appear below.
 
 - **Enforced today.** Lint (`internal/stateless/lint`) rejects the
@@ -71,7 +76,7 @@ attached to it. That record is the store. Logical-resource family, per
 **Forwarding address.** The receipts pattern. A declared, leaf resource
 whose value is a hash of inputs, read back to decide whether an effect needs
 to re-run, without any of `null_resource`'s implicit re-trigger machinery.
-Documented in `stateless/RECEIPTS.md` (forthcoming, PE.3).
+Documented in `stateless/RECEIPTS.md`.
 
 **Enforcement.** `RuleLogicalResource` (prefix `null_`),
 `internal/stateless/lint/admission.go` (`logicalType`). Fixture at
@@ -217,8 +222,9 @@ table.
 identity is recoverable from the live system with no memory, by one of the
 four admission paths. `aws_instance` is in the AWS provider survey
 (`stateless/SURVEY.md`, 65 of 68 top types admitted) but is not yet in the
-hardcoded v0 table (`internal/stateless/lint/admission.go`). This is a
-scoping boundary, not a permanent ban.
+hardcoded v0 table (`internal/stateless/lint/admission.go`, mirrored by
+`internal/stateless/identity`'s `DefaultTable`, the copy the sweep and
+identity resolution read). This is a scoping boundary, not a permanent ban.
 
 Two kinds of type hit this rule, and the error message does not distinguish
 them. Most out-of-table types are like `aws_instance`: the survey admits
@@ -298,9 +304,10 @@ rejected, since an escaped address cannot end in a bare separator either.
 (`checkForEachKeys`). For every `for_each` expression it can evaluate
 statically, it rejects any key outside Unicode letters, Unicode digits,
 space, and `+ - = _ / @`, including the empty string. The same bound is
-enforced a second time in `internal/stateless/identity` (`ValidForEachKey`),
-so a configuration that reaches identity resolution without passing lint
-still cannot mint a marker nothing can read back. Fixture at
+enforced a second time in `internal/stateless/identity`
+(`checkedForEachKeys` in `foreach_key.go`, which delegates the rune check
+back to lint), so a configuration that reaches identity resolution without
+passing lint still cannot mint a marker nothing can read back. Fixture at
 `stateless/e2e/limits/foreach-dotted-key/`.
 
 ### overlong-address
@@ -368,8 +375,10 @@ resource carrying this estate's markers at a type *outside* the admission
 table is not swept and its deletion is not planned. Adoption is a tag
 write, so this is reachable by hand-stamping markers onto an unadmitted
 type. The markers are the contract, and the admission table is the list of
-types the contract is defined over. (Asserted in
-internal/stateless/lifecycle/exactness_test.go.)
+types the contract is defined over. (The sweep half, a deleted block planned
+as a destroy, is asserted in `internal/stateless/lifecycle/exactness_test.go`.
+The unadmitted half holds by construction: `internal/stateless/discovery`
+builds the sweep universe from `identity.AdmittedTypes()`.)
 
 **Untaggable types cannot be removed by the sweep.** `aws_route`,
 `aws_route_table_association`, `aws_s3_bucket_policy` and
