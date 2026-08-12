@@ -32,6 +32,7 @@ import (
 	"github.com/opentofu/opentofu/internal/providers"
 
 	"github.com/opentofu/opentofu/internal/stateless/flocitest"
+	"github.com/opentofu/opentofu/internal/stateless/identity"
 )
 
 // This file holds the one integration test for the projection builder: a
@@ -98,6 +99,16 @@ func TestBuildAgainstFloci(t *testing.T) {
 	_ = os.Remove(stateFile + ".backup")
 
 	provider, providerSchema := launchAWSProvider(t, dir)
+
+	// With a real provider on the line, the identity table stops being an
+	// unfalsifiable assertion: the provider's own resource identity schemas
+	// say what identifies each of these types. Divergences are logged
+	// rather than failed - the table's inference layer is something no
+	// schema carries, so the two are allowed to describe one identity
+	// differently - but a table entry naming an argument or an attribute
+	// the real provider does not have is a bug in the table, and this is
+	// the test that can see it.
+	verifyIdentityTable(t, providerSchema)
 
 	cfg := loadConfig(t, dir)
 	resolutions := resolveOrFail(t, cfg)
@@ -205,6 +216,48 @@ func TestBuildAgainstFloci(t *testing.T) {
 // ---------------------------------------------------------------------------
 // The real provider plugin
 // ---------------------------------------------------------------------------
+
+// verifyIdentityTable checks the identity package's hand-maintained table
+// against the identity schemas the real AWS provider serves, and logs the
+// whole report: what the schemas confirm, what they cannot speak to, where
+// the two disagree, and which types the schemas would admit with no table
+// entry at all. Only a breaking finding fails the test. See
+// schema_check.go for why the other findings are reports rather than
+// failures.
+func verifyIdentityTable(t *testing.T, schema providers.GetProviderSchemaResponse) {
+	t.Helper()
+
+	v := identity.VerifyTable(schema.ResourceTypes)
+	t.Logf("identity table against the real provider: %s", v.Summary())
+	for _, typeName := range v.Agreed {
+		t.Logf("  CONFIRMED    %s", typeName)
+	}
+	for _, s := range v.Skipped {
+		t.Logf("  UNVERIFIED   %s: %s", s.Type, s.Reason)
+	}
+	for _, f := range v.Findings {
+		if f.Breaking {
+			t.Errorf("the identity table names something the provider does not have: %s", f.Detail)
+			continue
+		}
+		t.Logf("  DIVERGES     %s (%s): table says %s, provider says %s", f.Type, f.Kind, f.TableSide, f.SchemaSide)
+	}
+
+	var candidates []string
+	for _, d := range v.Derivable {
+		if !d.InTable {
+			candidates = append(candidates, d.Type)
+		}
+	}
+	t.Logf("  DERIVABLE    %d types the provider's identity schemas admit on their own, %d of them not in the table", len(v.Derivable), len(candidates))
+	if len(candidates) > 0 {
+		shown := candidates
+		if len(shown) > 10 {
+			shown = shown[:10]
+		}
+		t.Logf("               first candidates: %s", strings.Join(shown, ", "))
+	}
+}
 
 // launchAWSProvider starts the AWS provider plugin that terraform init
 // downloaded into the work directory and configures it the way the

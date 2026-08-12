@@ -11,6 +11,7 @@ import (
 
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/providers"
+	"github.com/opentofu/opentofu/internal/stateless/identity"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
@@ -67,6 +68,11 @@ type providerEntry struct {
 	provider providers.Interface
 	schema   providers.GetProviderSchemaResponse
 	err      error
+
+	// verification is what the provider's own resource identity schemas
+	// say about the identity package's hand-maintained type table, checked
+	// once when the schemas arrive. See schema_check.go.
+	verification identity.Verification
 }
 
 func newProviderCache(source Providers) *providerCache {
@@ -106,6 +112,10 @@ func (c *providerCache) get(ctx context.Context, addr addrs.AbsProviderConfig) (
 	}
 	e.schema = schema
 
+	// The schemas are here, so the identity table's claims about these
+	// types can be checked against the provider's own account of them.
+	e.verification = verifySchemas(addr, schema.ResourceTypes)
+
 	return e, nil
 }
 
@@ -125,6 +135,14 @@ func (e *providerEntry) resourceSchema(addr addrs.AbsProviderConfig, typeName st
 			),
 		))
 		return providers.Schema{}, diags
+	}
+	// An entry in the identity table that builds this type's identity out
+	// of arguments the type does not have can produce no identity at all,
+	// and this is the point where that is known: the table is asserted
+	// cloud-free, the schema arrives with a running provider. See
+	// schema_check.go.
+	if fatal := e.fatalDiags(typeName); fatal.HasErrors() {
+		return providers.Schema{}, diags.Append(fatal)
 	}
 	return schema, diags
 }
