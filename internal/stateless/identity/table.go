@@ -74,7 +74,7 @@ func serverAssigned(typeName, reason, importSyntax string, identityAttrs ...stri
 	}
 }
 
-// DefaultTable is the v0 identity table: the twenty-two AWS resource types
+// DefaultTable is the v0 identity table: the twenty-five AWS resource types
 // the estate fixture (stateless/e2e/estate) uses, which are also the types
 // the P1.1 admission lint admits. A type absent from this table is outside
 // the stateless subset and resolving it is an error.
@@ -185,6 +185,17 @@ var DefaultTable = buildTable(
 		ImportSyntax:  "CLUSTERNAME",
 		IdentityAttrs: []string{"name"},
 	},
+	TypeIdentity{
+		// #19's second slice. A KMS alias imports by its name argument,
+		// the full alias/... string, and its id attribute equals it. The
+		// alias is the client-named handle on a key whose own identity is
+		// marker-discovered; target_key_id plays no part in the alias's
+		// identity.
+		Type:          "aws_kms_alias",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "alias/ALIASNAME",
+		IdentityAttrs: []string{"id", "name"},
+	},
 
 	// ---- Composed identities: concrete or parent-derived depending on
 	// ---- whether the parents they name are themselves concrete ----------
@@ -242,6 +253,45 @@ var DefaultTable = buildTable(
 		ImportSyntax: "ROLENAME/POLICYARN",
 		// The attachment's own id is provider-internal and is not the
 		// import ID, so nothing may derive an identity from it.
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// #19's second slice. An inline role policy is the same
+		// concrete-composite shape as the attachment above: both halves of
+		// ROLENAME:POLICYNAME are client-chosen strings, so this resolves
+		// concrete in any realistic config. Unlike the attachment, its id
+		// attribute is exactly the import ID (role:name), so id may be
+		// handed out as an identity source.
+		Type: "aws_iam_role_policy",
+		Components: []Component{
+			attr("role"),
+			sep(":"),
+			attr("name"),
+		},
+		ImportSyntax:  "ROLENAME:POLICYNAME",
+		IdentityAttrs: []string{"id"},
+	},
+	TypeIdentity{
+		// #19's second slice, via #20: the survey classes a record set as
+		// client-named (name and type are), but the provider's import
+		// grammar joins them to the parent zone's server-assigned Z-ID, so
+		// this is wired as a composite through the aws_route53_zone marker
+		// (flag F5 in stateless/SURVEY.md). The record's id equals the
+		// import ID for plain records, but carries a _SETIDENTIFIER suffix
+		// for weighted/latency sets, which these components deliberately do
+		// not build — so nothing may derive an identity from id, the
+		// aws_route standard of care. A record with set_identifier resolves
+		// to an identity missing that suffix and fails visibly at import
+		// rather than binding some other record.
+		Type: "aws_route53_record",
+		Components: []Component{
+			attr("zone_id"),
+			sep("_"),
+			attr("name"),
+			sep("_"),
+			attr("type"),
+		},
+		ImportSyntax:  "ZONEID_NAME_TYPE",
 		IdentityAttrs: nil,
 	},
 	TypeIdentity{

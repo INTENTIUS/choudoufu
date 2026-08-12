@@ -64,6 +64,17 @@ func TestResolveEstate(t *testing.T) {
 		`aws_s3_bucket_server_side_encryption_configuration.data`: `CONCRETE tofu-stateless-e2e-data`,
 		`aws_s3_bucket_lifecycle_configuration.data`:              `CONCRETE tofu-stateless-e2e-data`,
 
+		// Same slice: a concrete composite (both halves client-chosen,
+		// joined by the provider's documented colon) and a client-named
+		// alias whose name argument is the whole import ID.
+		`aws_iam_role_policy.app`: `CONCRETE tofu-stateless-e2e-app:tofu-stateless-e2e-app-inline`,
+		`aws_kms_alias.main`:      `CONCRETE alias/tofu-stateless-e2e-main`,
+
+		// Same slice, via #20's zone: name and type are config data, the
+		// Z-ID is live, and the provider's import syntax joins the three
+		// with underscores.
+		`aws_route53_record.app`: `PARENT_DERIVED ${aws_route53_zone.main.zone_id}_app.stateless-e2e.example.com_A`,
+
 		// Attachment composite: role name comes from the concrete role,
 		// policy ARN is a literal, so the whole composite is concrete.
 		`aws_iam_role_policy_attachment.app`: `CONCRETE tofu-stateless-e2e-app/arn:aws:iam::aws:policy/ReadOnlyAccess`,
@@ -128,7 +139,7 @@ func TestResolveEstateDisabled(t *testing.T) {
 	if _, ok := result.Get(mustAddr(t, `aws_cloudwatch_log_group.optional[0]`)); ok {
 		t.Error("aws_cloudwatch_log_group.optional[0] is present with enabled = false; count = 0 must expand to no instances")
 	}
-	if got, want := result.Len(), 27; got != want {
+	if got, want := result.Len(), 30; got != want {
 		t.Errorf("resolved %d instances, want %d", got, want)
 	}
 	if _, ok := result.Get(mustAddr(t, `aws_cloudwatch_log_group.app`)); !ok {
@@ -395,7 +406,7 @@ func TestTableCoversFixtureTypes(t *testing.T) {
 			t.Errorf("the v0 identity table covers %s, which the fixture does not use", typeName)
 		}
 	}
-	if got, want := len(AdmittedTypes()), 22; got != want {
+	if got, want := len(AdmittedTypes()), 25; got != want {
 		t.Errorf("table covers %d types, want the fixture's %d", got, want)
 	}
 }

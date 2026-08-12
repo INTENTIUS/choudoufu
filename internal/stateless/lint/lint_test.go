@@ -429,6 +429,9 @@ func TestAdmissionTableCoversEstate(t *testing.T) {
 		"aws_s3_bucket_public_access_block",
 		"aws_s3_bucket_server_side_encryption_configuration",
 		"aws_s3_bucket_lifecycle_configuration",
+		"aws_iam_role_policy",
+		"aws_kms_alias",
+		"aws_route53_record",
 	}
 	for _, resourceType := range estateTypes {
 		if !admitted(resourceType) {

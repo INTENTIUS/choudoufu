@@ -18,6 +18,9 @@ a feature under test), no provisioners, no logical resources.
 | Client-named path, ARN-shaped id | `aws_ecs_cluster.app` | The documented import ID is the cluster name, already in config, but the provider sets `id` to the cluster ARN — so only the `name` attribute may hand out the identity, the same care `aws_route`'s synthesized id gets. |
 | Named singleton child | `aws_s3_bucket_policy.data`, `aws_s3_bucket_versioning.data`, `aws_s3_bucket_public_access_block.data`, `aws_s3_bucket_server_side_encryption_configuration.data`, `aws_s3_bucket_lifecycle_configuration.data` | At most one per bucket; each one's identity is the parent bucket's name, so it needs no marker of its own (and none of the five types carries a `tags` argument to put one on). The four bucket children beyond the policy are #19's second slice. |
 | Parent-derived | `aws_route.internet_gateway`, `aws_route_table_association.this` | Identity is a composite of admitted parents: a route is (route table, destination CIDR); an association is (subnet, route table). Neither type accepts a `tags` argument. |
+| Composite through a marker parent | `aws_route53_record.app` | The import ID is `ZONEID_NAME_TYPE`: name and type are client-named, the Z-ID is the parent zone's server-assigned identity (SURVEY.md flag F5), so the record binds once the zone's marker is discovered. No `tags` argument. #19's second slice. |
+| Concrete composite, `:`-joined | `aws_iam_role_policy.app` | The import ID is `ROLENAME:POLICYNAME`, both halves client-chosen strings already in config — the same shape as the attachment row with a different separator and a client-named second half. No `tags` argument. #19's second slice. |
+| Client-named handle on a marker parent | `aws_kms_alias.main` | The alias imports by its full `alias/…` name argument, already in config, while the key it points at is marker-discovered. No `tags` argument. #19's second slice. |
 | Fungible count | `aws_eip.pool` (`count = 3`) | Three interchangeable elastic IPs; no identity-bearing property distinguishes one slot from another, which is the shape phase 3's slot-marker matcher is built for. |
 | Conditional idiom | `aws_cloudwatch_log_group.optional` (`count = var.enabled ? 1 : 0`) | The `enabled`-gated single-instance idiom the roadmap calls out as surviving unchanged. |
 | for_each stable keys | `aws_subnet.this` (`for_each = local.subnets`, keyed `"a"`, `"b"`) | Same block as the marker-path row above — its `tofu-address` carries the full keyed address (`aws_subnet.this:a (escaped per stateless/MARKERS.md)`), which is what phase 3's exact for_each binding keys off. |
@@ -36,12 +39,13 @@ here — they'd be admitted the same way `aws_vpc` is, incidentally.
 
 ## Untaggable types
 
-Eight types in the table above carry no `tags` argument in the AWS provider:
-`aws_s3_bucket_policy`, `aws_s3_bucket_versioning`,
+Eleven types in the table above carry no `tags` argument in the AWS
+provider: `aws_s3_bucket_policy`, `aws_s3_bucket_versioning`,
 `aws_s3_bucket_public_access_block`,
 `aws_s3_bucket_server_side_encryption_configuration`,
 `aws_s3_bucket_lifecycle_configuration`, `aws_route`,
-`aws_route_table_association`, `aws_iam_role_policy_attachment`. Each is
+`aws_route_table_association`, `aws_iam_role_policy_attachment`,
+`aws_iam_role_policy`, `aws_kms_alias`, `aws_route53_record`. Each is
 commented in its resource block.
 This is expected, not a gap — their identity comes from the client-named or
 parent-derived path, not from a marker, so admission doesn't need a tag.
@@ -55,13 +59,13 @@ parent-derived path, not from a marker, so admission doesn't need a tag.
 | `locals.tf` | `estate_tag` (the marker's estate value) and the `subnets` map the for_each keys off. |
 | `network.tf` | VPC, subnets, security group, route table, internet gateway, route, route table associations. |
 | `storage.tf` | S3 bucket, bucket policy, and the four bucket children (versioning, public access block, SSE configuration, lifecycle configuration — named singleton children, #19's second slice). |
-| `iam.tf` | IAM role and its policy attachment. |
+| `iam.tf` | IAM role, its policy attachment, and its inline role policy (#19's second slice). |
 | `logs.tf` | The two CloudWatch log groups (client-named, conditional). |
 | `compute.tf` | The three-EIP fungible-count pool. |
 | `database.tf` | The DynamoDB table (client-named, #19's first slice). |
 | `containers.tf` | The ECS cluster (client-named with an ARN-shaped `id`, same slice). |
-| `keys.tf` | The KMS key (marker path, #20's first slice). |
-| `dns.tf` | The Route 53 hosted zone (marker path with a `zone_id` identity attribute, same slice). |
+| `keys.tf` | The KMS key (marker path, #20's first slice) and its alias (client-named, #19's second slice). |
+| `dns.tf` | The Route 53 hosted zone (marker path with a `zone_id` identity attribute, same slice) and a record set in it (composite through the zone's marker, #19's second slice). |
 | `receipts.tf` | The receipt demo, both flavors (`aws_ssm_parameter.demo_existence`, `aws_ssm_parameter.demo_effect`). See `stateless/RECEIPTS.md`. |
 
 ## Verifying by hand

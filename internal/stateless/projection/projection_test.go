@@ -115,6 +115,18 @@ func TestBuildEstate(t *testing.T) {
 	cloud.put("aws_s3_bucket_lifecycle_configuration", "tofu-stateless-e2e-data", map[string]string{
 		"id": "tofu-stateless-e2e-data", "bucket": "tofu-stateless-e2e-data",
 	})
+	// Same slice: the inline role policy is keyed by its role:name import
+	// ID (which is also its id attribute), the alias by its full alias/...
+	// name.
+	cloud.put("aws_iam_role_policy", "tofu-stateless-e2e-app:tofu-stateless-e2e-app-inline", map[string]string{
+		"id":   "tofu-stateless-e2e-app:tofu-stateless-e2e-app-inline",
+		"role": "tofu-stateless-e2e-app", "name": "tofu-stateless-e2e-app-inline",
+		"policy": `{"Version":"2012-10-17"}`,
+	})
+	cloud.put("aws_kms_alias", "alias/tofu-stateless-e2e-main", map[string]string{
+		"id": "alias/tofu-stateless-e2e-main", "name": "alias/tofu-stateless-e2e-main",
+		"target_key_id": "00000000-0000-0000-0000-000000000000",
+	})
 
 	res, diags := Build(context.Background(), cfg, resolutions, cloud.providers(t))
 	assertNoErrors(t, diags)
@@ -125,7 +137,9 @@ func TestBuildEstate(t *testing.T) {
 		`aws_dynamodb_table.events`,
 		`aws_ecs_cluster.app`,
 		`aws_iam_role.app`,
+		`aws_iam_role_policy.app`,
 		`aws_iam_role_policy_attachment.app`,
+		`aws_kms_alias.main`,
 		`aws_s3_bucket.data`,
 		`aws_s3_bucket_lifecycle_configuration.data`,
 		`aws_s3_bucket_policy.data`,
@@ -151,6 +165,7 @@ func TestBuildEstate(t *testing.T) {
 		`aws_route.internet_gateway`:            ReasonParentUnavailable,
 		`aws_route_table_association.this["a"]`: ReasonParentUnavailable,
 		`aws_route_table_association.this["b"]`: ReasonParentUnavailable,
+		`aws_route53_record.app`:                ReasonParentUnavailable,
 	})
 
 	// The reason for a parent-derived omission has to name the parent that
@@ -236,7 +251,7 @@ func TestBuildEstateAllAbsent(t *testing.T) {
 	if len(res.Materialized) != 0 {
 		t.Errorf("projection is not empty against an empty cloud: %s", res)
 	}
-	if got, want := len(res.OmittedBecause(ReasonAbsent)), 14; got != want {
+	if got, want := len(res.OmittedBecause(ReasonAbsent)), 16; got != want {
 		t.Errorf("%d instances recorded as absent, want %d:\n%s", got, want, res)
 	}
 	if res.State.HasManagedResourceInstanceObjects() {
@@ -789,7 +804,10 @@ var fakeAttrs = map[string][]string{
 	"aws_kms_key":                                        {"id", "key_id", "arn", "description"},
 	// The zone's identity attribute is zone_id rather than id, and both
 	// carry the hosted zone ID; the caricature keeps both for that reason.
-	"aws_route53_zone": {"id", "zone_id", "arn", "name"},
+	"aws_route53_zone":    {"id", "zone_id", "arn", "name"},
+	"aws_iam_role_policy": {"id", "role", "name", "policy"},
+	"aws_kms_alias":       {"id", "name", "target_key_id"},
+	"aws_route53_record":  {"id", "zone_id", "name", "type", "ttl", "records"},
 }
 
 // fakeUntaggable is the caricature's version of a fact about the real
