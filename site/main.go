@@ -12,6 +12,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"embed"
 	"flag"
 	"fmt"
@@ -100,8 +101,20 @@ type navItem struct {
 type layoutData struct {
 	Title       string
 	AssetPrefix string // always "" — every output file lives directly under -out
+	CSSVersion  string // content hash of style.css, busts browser caches
 	Nav         []navItem
 	Content     template.HTML
+}
+
+// cssVersion returns a short content hash of the embedded stylesheet so the
+// layout can append it as a query string and browsers refetch on change.
+func cssVersion() string {
+	data, err := staticFS.ReadFile("static/style.css")
+	if err != nil {
+		return "0"
+	}
+	sum := sha256.Sum256(data)
+	return fmt.Sprintf("%x", sum[:4])
 }
 
 // landingData is what templates/landing.html.tmpl renders, then gets
@@ -168,15 +181,18 @@ func run(root, out string) error {
 		return fmt.Errorf("parsing landing template: %w", err)
 	}
 
+	cssVer := cssVersion()
+
 	// Landing page.
 	var landingBody bytes.Buffer
 	if err := landingTmpl.Execute(&landingBody, landingData{Pages: docNavItems()}); err != nil {
 		return fmt.Errorf("rendering landing content: %w", err)
 	}
 	if err := writePage(out, "index.html", layoutTmpl, layoutData{
-		Title:   "choudoufu",
-		Nav:     buildNav("index.html"),
-		Content: template.HTML(landingBody.String()), //nolint:gosec // fixed, locally-authored template
+		Title:      "choudoufu",
+		CSSVersion: cssVer,
+		Nav:        buildNav("index.html"),
+		Content:    template.HTML(landingBody.String()), //nolint:gosec // fixed, locally-authored template
 	}); err != nil {
 		return err
 	}
@@ -200,9 +216,10 @@ func run(root, out string) error {
 		}
 
 		if err := writePage(out, p.Slug+".html", layoutTmpl, layoutData{
-			Title:   p.Title,
-			Nav:     buildNav(p.Slug + ".html"),
-			Content: template.HTML(htmlOut), //nolint:gosec // rendered from repo-local trusted markdown
+			Title:      p.Title,
+			CSSVersion: cssVer,
+			Nav:        buildNav(p.Slug + ".html"),
+			Content:    template.HTML(htmlOut), //nolint:gosec // rendered from repo-local trusted markdown
 		}); err != nil {
 			return err
 		}

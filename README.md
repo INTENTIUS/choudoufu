@@ -10,8 +10,7 @@ is stock OpenTofu. The binary is `choudoufu`.
 
 If you already use OpenTofu, the short version is that `terraform.tfstate`
 stops existing. Adoption is a tag you write. A rename is a tag you rewrite.
-Your config says what should exist and the cloud says what does. No file gets
-a vote.
+Keep your OpenTofu, gain self-identifying resources.
 
 New here? Start with the [FAQ](stateless/FAQ.md). It answers the questions an
 OpenTofu user tends to ask in the first five minutes.
