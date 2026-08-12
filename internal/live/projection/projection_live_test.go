@@ -264,6 +264,40 @@ func verifyIdentityTable(t *testing.T, schema providers.GetProviderSchemaRespons
 		t.Logf("  DIVERGES     %s (%s): table says %s, provider says %s", f.Type, f.Kind, f.TableSide, f.SchemaSide)
 	}
 
+	// The types this run asks the provider for by identity object rather
+	// than by a separator-joined string. Asserted rather than logged,
+	// because it is the claim import-by-identity rests on: the real
+	// provider's identity schema for each of these requires exactly the
+	// attributes the table's components supply, so the "_" and "/" and ":"
+	// in those entries are no longer load-bearing for them.
+	t.Logf("  BY IDENTITY  %d types imported by identity object: %s", len(v.IdentityImportable), strings.Join(v.IdentityImportable, ", "))
+	importable := map[string]bool{}
+	for _, typeName := range v.IdentityImportable {
+		importable[typeName] = true
+	}
+	for _, typeName := range []string{
+		// One attribute, read from the argument of the same name.
+		"aws_s3_bucket", "aws_iam_role", "aws_cloudwatch_log_group",
+		"aws_ssm_parameter", "aws_dynamodb_table", "aws_cloudwatch_metric_alarm",
+		"aws_kms_alias", "aws_s3_bucket_policy", "aws_s3_bucket_versioning",
+		"aws_s3_bucket_public_access_block",
+		"aws_s3_bucket_server_side_encryption_configuration",
+		"aws_s3_bucket_lifecycle_configuration",
+		// Composites whose halves are each an identity attribute: the
+		// separator between them is what stops mattering.
+		"aws_iam_role_policy", "aws_iam_role_policy_attachment",
+		"aws_route53_record", "aws_route", "aws_lb_target_group_attachment",
+	} {
+		if !importable[typeName] {
+			t.Errorf("%s is not importable by identity object against the real provider, so its import still depends on a separator character no schema carries", typeName)
+		}
+	}
+	// And the one that must not be: an association is identified by the
+	// rtbassoc- ID the provider assigns, which no configuration holds.
+	if importable["aws_route_table_association"] {
+		t.Error("aws_route_table_association was counted importable by identity; the provider identifies one by an ID the configuration does not carry")
+	}
+
 	var candidates []string
 	for _, d := range v.Derivable {
 		if !d.InTable {

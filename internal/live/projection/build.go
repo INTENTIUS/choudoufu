@@ -255,13 +255,12 @@ func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
 // wanted is one instance's identity in every form this run holds it, which is
 // the input [builder.materialize] works from.
 //
-// The two forms are not alternatives to choose between up front. The string
-// is what every operator-facing line prints and what a marker rewrite
-// records, so it is always carried; the identity object is what the import
-// itself should use when there is one, and whether there is one is a question
-// about the provider's schema, which is not known until a plugin is on the
-// line. So both travel here and [importTarget] decides per resource, once the
-// schema has arrived.
+// The forms are not alternatives to choose between up front. The string is
+// what every operator-facing line prints and what a marker rewrite records,
+// so it is always carried; whether either identity form can be used at all is
+// a question about the provider's schema, which is not known until a plugin
+// is on the line. So all of them travel here and [importTarget] decides per
+// resource, once the schema has arrived.
 type wanted struct {
 	addr addrs.AbsResourceInstance
 
@@ -354,6 +353,15 @@ func identityFromValues(w wanted, schema providers.Schema) (cty.Value, bool) {
 
 	vals := make(map[string]cty.Value, len(body.Attributes))
 	for name, at := range body.Attributes {
+		if at.NestedType != nil {
+			// No AWS identity schema has one, and a string per attribute is
+			// the only shape the identity table can express, so an identity
+			// with structure in it is one this cannot build rather than one
+			// to approximate.
+			log.Printf("[TRACE] projection: %s's identity attribute %q has a nested type, which an identity built from configuration cannot fill; importing by ID %q",
+				w.addr.Resource.Resource.Type, name, w.importID)
+			return cty.NilVal, false
+		}
 		raw, supplied := w.values[name]
 		if !supplied {
 			if at.Required {

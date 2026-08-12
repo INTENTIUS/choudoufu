@@ -55,6 +55,12 @@ import (
 //     client-assigned, so the schemas admit them with no hand inference -
 //     is logged as the candidate list a wiring batch should draw from.
 //     See [identity.Derivable].
+//   - The identity-importable set - types whose components supply every
+//     attribute the provider requires for import, so a run asks for them by
+//     identity object rather than by a separator-joined string - is logged
+//     because it is the measure of how much of the table has stopped
+//     mattering. See [identity.Verification.IdentityImportable] and
+//     [importTarget].
 //
 // The check is given one thing besides the schemas: what the configuration
 // under projection says about who names each of its resources
@@ -88,6 +94,10 @@ func verifySchemas(addr addrs.AbsProviderConfig, resourceTypes map[string]provid
 				addr, f.Type, f.Kind, f.TableSide, f.SchemaSide,
 			)
 		}
+	}
+
+	if len(v.IdentityImportable) > 0 {
+		log.Printf("[TRACE] projection: asking %s for these types by identity object rather than by import ID: %v", addr, v.IdentityImportable)
 	}
 
 	for _, d := range v.Derivable {
