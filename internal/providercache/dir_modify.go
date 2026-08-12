@@ -14,9 +14,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/flock"
-	"github.com/opentofu/opentofu/internal/getproviders"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/flock"
+	"github.com/intentius/choudoufu/internal/getproviders"
 )
 
 // InstallPackage takes a metadata object describing a package available for

@@ -9,9 +9,9 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/mitchellh/cli"
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/views"
 )
 
 // WorkspaceCommand is a Command Implementation that manipulates workspaces,

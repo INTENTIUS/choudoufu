@@ -12,9 +12,9 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/opentofu/opentofu/internal/command/flags"
+	"github.com/intentius/choudoufu/internal/command/flags"
 
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 func TestParseTest_Vars(t *testing.T) {

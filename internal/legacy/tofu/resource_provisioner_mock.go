@@ -8,7 +8,7 @@ package tofu
 import (
 	"sync"
 
-	"github.com/opentofu/opentofu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
 )
 
 // MockResourceProvisioner implements ResourceProvisioner but mocks out all the

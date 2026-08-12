@@ -13,15 +13,15 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/mitchellh/cli"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/stateless/discovery"
-	"github.com/opentofu/opentofu/internal/stateless/identity"
-	"github.com/opentofu/opentofu/internal/stateless/lint"
-	"github.com/opentofu/opentofu/internal/stateless/mv"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/discovery"
+	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/lint"
+	"github.com/intentius/choudoufu/internal/live/mv"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // LiveMvCommand renames a resource in a stateless estate: it rewrites the
@@ -31,7 +31,7 @@ import (
 // This is the whole replacement for `moved` blocks and state surgery. There is
 // no record to edit, because there is no record - a resource's address lives in
 // one tag value on the resource itself, and overwriting that value is the move
-// (stateless/MARKERS.md, "The rename rule"). Nothing about the old address
+// (live/MARKERS.md, "The rename rule"). Nothing about the old address
 // survives the write, because a single tag value cannot hold two addresses.
 //
 // The order of operations is config first, marker second: rename the resource
@@ -207,7 +207,7 @@ func (c *LiveMvCommand) liveMvEstate(ctx context.Context, flagValue string, conf
 				return "", diags.Append(&hcl.Diagnostic{
 					Severity: hcl.DiagError,
 					Summary:  "Invalid estate name",
-					Detail:   fmt.Sprintf("The live block names estate %q, which does not match the tofu-estate marker grammar in stateless/MARKERS.md: a lowercase letter followed by lowercase letters, digits or hyphens, at most 128 characters.", estate),
+					Detail:   fmt.Sprintf("The live block names estate %q, which does not match the tofu-estate marker grammar in live/MARKERS.md: a lowercase letter followed by lowercase letters, digits or hyphens, at most 128 characters.", estate),
 					Subject:  settings.EstateRange.Ptr(),
 				})
 			}
@@ -227,7 +227,7 @@ func (c *LiveMvCommand) liveMvEstate(ctx context.Context, flagValue string, conf
 			tfdiags.Error,
 			"Invalid estate name in configuration",
 			fmt.Sprintf(
-				"The configuration stamps tofu-estate = %q, which does not match the marker grammar in stateless/MARKERS.md, so it cannot be used to find this estate's resources. Pass -estate=<name>.",
+				"The configuration stamps tofu-estate = %q, which does not match the marker grammar in live/MARKERS.md, so it cannot be used to find this estate's resources. Pass -estate=<name>.",
 				found[0]),
 		))
 	default:
@@ -324,7 +324,7 @@ Usage: choudoufu [global options] live-mv [options] <old-address> <new-address>
 Options:
 
   -estate=name            The estate that owns the resource, matching the
-                          tofu-estate tag grammar in stateless/MARKERS.md.
+                          tofu-estate tag grammar in live/MARKERS.md.
                           Defaults to the value the configuration itself
                           stamps in its tofu-estate tags, when every resource
                           that stamps one agrees. Unlike live-plan, this

@@ -18,23 +18,23 @@ import (
 	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/backend"
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/plans"
-	"github.com/opentofu/opentofu/internal/plugins"
-	"github.com/opentofu/opentofu/internal/providers"
-	"github.com/opentofu/opentofu/internal/stateless/discovery"
-	"github.com/opentofu/opentofu/internal/stateless/foreign"
-	"github.com/opentofu/opentofu/internal/stateless/identity"
-	"github.com/opentofu/opentofu/internal/stateless/lint"
-	"github.com/opentofu/opentofu/internal/stateless/markers"
-	"github.com/opentofu/opentofu/internal/stateless/projection"
-	"github.com/opentofu/opentofu/internal/stateless/stamp"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/backend"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/discovery"
+	"github.com/intentius/choudoufu/internal/live/foreign"
+	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/lint"
+	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/stamp"
+	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/plugins"
+	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tofu"
 )
 
 // LivePlanCommand plans a configuration with no authoritative state: no
@@ -478,7 +478,7 @@ func statelessEstateName(ctx context.Context, flagValue string, config *configs.
 			tfdiags.Warning,
 			"Invalid estate name in configuration",
 			fmt.Sprintf(
-				"The configuration stamps tofu-estate = %q, which does not match the marker grammar in stateless/MARKERS.md, so it cannot be used to find this estate's resources. %s Pass -estate=<name> to name the estate explicitly.",
+				"The configuration stamps tofu-estate = %q, which does not match the marker grammar in live/MARKERS.md, so it cannot be used to find this estate's resources. %s Pass -estate=<name> to name the estate explicitly.",
 				found[0], statelessUndiscoveredNote(needs),
 			),
 		))
@@ -521,7 +521,7 @@ func statelessEstateFor(ctx context.Context, flagValue string, config *configs.C
 			return "", nil, diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
 				"Invalid estate name",
-				fmt.Sprintf("-estate=%q does not match the tofu-estate marker grammar in stateless/MARKERS.md: a lowercase letter followed by lowercase letters, digits or hyphens, at most 128 characters.", flagValue),
+				fmt.Sprintf("-estate=%q does not match the tofu-estate marker grammar in live/MARKERS.md: a lowercase letter followed by lowercase letters, digits or hyphens, at most 128 characters.", flagValue),
 			))
 		}
 		return flagValue, nil, diags
@@ -580,7 +580,7 @@ func statelessStamp(ctx context.Context, config *configs.Config, estateFlag stri
 				tfdiags.Warning,
 				"Ownership markers not stamped",
 				fmt.Sprintf(
-					"This run has no estate name, so the %s and %s tags from stateless/MARKERS.md were not added to the resources that do not already carry them: nothing in the configuration stamps a tofu-estate tag with a value readable from configuration alone, and no -estate=<name> was given. Resources this configuration creates or updates will carry no ownership marker, which means a later run cannot find them by marker and will report them as foreign. Pass -estate=<name> to stamp them.",
+					"This run has no estate name, so the %s and %s tags from live/MARKERS.md were not added to the resources that do not already carry them: nothing in the configuration stamps a tofu-estate tag with a value readable from configuration alone, and no -estate=<name> was given. Resources this configuration creates or updates will carry no ownership marker, which means a later run cannot find them by marker and will report them as foreign. Pass -estate=<name> to stamp them.",
 					discovery.TagEstate, discovery.TagAddress,
 				),
 			))
@@ -589,7 +589,7 @@ func statelessStamp(ctx context.Context, config *configs.Config, estateFlag stri
 				tfdiags.Warning,
 				"Ownership markers not stamped",
 				fmt.Sprintf(
-					"The configuration stamps %s = %q, which does not match the marker grammar in stateless/MARKERS.md, so this run has no estate name to stamp missing markers with. Pass -estate=<name> to name the estate explicitly.",
+					"The configuration stamps %s = %q, which does not match the marker grammar in live/MARKERS.md, so this run has no estate name to stamp missing markers with. Pass -estate=<name> to name the estate explicitly.",
 					discovery.TagEstate, declared[0],
 				),
 			))
@@ -1272,7 +1272,7 @@ Usage: choudoufu [global options] live-plan [options]
   plan proposes.
 
   Every taggable resource that does not already declare the ownership markers
-  from stateless/MARKERS.md gets them injected into its planned tags, so the
+  from live/MARKERS.md gets them injected into its planned tags, so the
   plan shows them being added rather than a later run finding the resource
   unowned. A marker already there and naming another estate or another address
   is an error: renaming is "choudoufu live-mv", not a side effect of planning.
@@ -1293,7 +1293,7 @@ Options:
 
   -estate=name            The estate whose ownership markers this run looks
                           for, matching the tofu-estate tag grammar in
-                          stateless/MARKERS.md. Defaults to the value the
+                          live/MARKERS.md. Defaults to the value the
                           configuration itself stamps in its tofu-estate
                           tags, when every resource that stamps one agrees.
                           Without either, resources whose identity is

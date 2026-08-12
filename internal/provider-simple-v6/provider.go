@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opentofu/opentofu/internal/configs/configschema"
-	"github.com/opentofu/opentofu/internal/providers"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
@@ -111,7 +111,6 @@ func Provider() providers.Interface {
 func (s simple) GetProviderSchema(_ context.Context) providers.GetProviderSchemaResponse {
 	return s.schema
 }
-
 
 func (s simple) ValidateProviderConfig(_ context.Context, req providers.ValidateProviderConfigRequest) (resp providers.ValidateProviderConfigResponse) {
 	return resp

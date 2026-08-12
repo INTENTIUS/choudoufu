@@ -9,10 +9,10 @@ import (
 	"context"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/encryption/config"
-	"github.com/opentofu/opentofu/internal/encryption/method/unencrypted"
-	"github.com/opentofu/opentofu/internal/encryption/registry"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/encryption/config"
+	"github.com/intentius/choudoufu/internal/encryption/method/unencrypted"
+	"github.com/intentius/choudoufu/internal/encryption/registry"
 )
 
 // Encryption contains the methods for obtaining a StateEncryption or PlanEncryption correctly configured for a specific

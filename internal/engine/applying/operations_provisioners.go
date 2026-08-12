@@ -11,9 +11,9 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/lang/eval"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/lang/eval"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 func (ops *execOperations) runProvisioner(ctx context.Context, objAddr addrs.AbsResourceInstanceObject, prov *eval.ResourceProvisioner, selfVal cty.Value) (bool, tfdiags.Diagnostics) {

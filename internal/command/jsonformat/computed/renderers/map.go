@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/opentofu/opentofu/internal/command/jsonformat/computed"
-	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/intentius/choudoufu/internal/command/jsonformat/computed"
+	"github.com/intentius/choudoufu/internal/plans"
 )
 
 var _ computed.DiffRenderer = (*mapRenderer)(nil)

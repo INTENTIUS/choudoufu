@@ -6,9 +6,9 @@
 package command
 
 import (
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/mitchellh/cli"
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/views"
 )
 
 // MetadataFunctionsCommand is a Command implementation that prints out information

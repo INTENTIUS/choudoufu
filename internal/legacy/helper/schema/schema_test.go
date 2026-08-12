@@ -15,9 +15,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/opentofu/opentofu/internal/legacy/hcl2shim"
-	"github.com/opentofu/opentofu/internal/legacy/helper/hashcode"
-	"github.com/opentofu/opentofu/internal/legacy/tofu"
+	"github.com/intentius/choudoufu/internal/legacy/hcl2shim"
+	"github.com/intentius/choudoufu/internal/legacy/helper/hashcode"
+	"github.com/intentius/choudoufu/internal/legacy/tofu"
 )
 
 func TestEnvDefaultFunc(t *testing.T) {

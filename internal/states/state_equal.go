@@ -8,7 +8,7 @@ package states
 import (
 	"reflect"
 
-	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/addrs"
 )
 
 // Equal returns true if the receiver is functionally equivalent to other,

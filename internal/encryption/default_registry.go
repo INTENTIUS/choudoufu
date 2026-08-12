@@ -6,16 +6,16 @@
 package encryption
 
 import (
-	"github.com/opentofu/opentofu/internal/encryption/keyprovider/aws_kms"
-	"github.com/opentofu/opentofu/internal/encryption/keyprovider/azure_vault"
-	externalKeyProvider "github.com/opentofu/opentofu/internal/encryption/keyprovider/external"
-	"github.com/opentofu/opentofu/internal/encryption/keyprovider/gcp_kms"
-	"github.com/opentofu/opentofu/internal/encryption/keyprovider/openbao"
-	"github.com/opentofu/opentofu/internal/encryption/keyprovider/pbkdf2"
-	"github.com/opentofu/opentofu/internal/encryption/method/aesgcm"
-	externalMethod "github.com/opentofu/opentofu/internal/encryption/method/external"
-	"github.com/opentofu/opentofu/internal/encryption/method/unencrypted"
-	"github.com/opentofu/opentofu/internal/encryption/registry/lockingencryptionregistry"
+	"github.com/intentius/choudoufu/internal/encryption/keyprovider/aws_kms"
+	"github.com/intentius/choudoufu/internal/encryption/keyprovider/azure_vault"
+	externalKeyProvider "github.com/intentius/choudoufu/internal/encryption/keyprovider/external"
+	"github.com/intentius/choudoufu/internal/encryption/keyprovider/gcp_kms"
+	"github.com/intentius/choudoufu/internal/encryption/keyprovider/openbao"
+	"github.com/intentius/choudoufu/internal/encryption/keyprovider/pbkdf2"
+	"github.com/intentius/choudoufu/internal/encryption/method/aesgcm"
+	externalMethod "github.com/intentius/choudoufu/internal/encryption/method/external"
+	"github.com/intentius/choudoufu/internal/encryption/method/unencrypted"
+	"github.com/intentius/choudoufu/internal/encryption/registry/lockingencryptionregistry"
 )
 
 var DefaultRegistry = lockingencryptionregistry.New()

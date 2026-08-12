@@ -12,20 +12,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opentofu/opentofu/internal/lang/marks"
+	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/command/jsonchecks"
-	"github.com/opentofu/opentofu/internal/command/jsonconfig"
-	"github.com/opentofu/opentofu/internal/command/jsonstate"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/plans"
-	"github.com/opentofu/opentofu/internal/states"
-	"github.com/opentofu/opentofu/internal/states/statefile"
-	"github.com/opentofu/opentofu/internal/tofu"
-	"github.com/opentofu/opentofu/version"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/command/jsonchecks"
+	"github.com/intentius/choudoufu/internal/command/jsonconfig"
+	"github.com/intentius/choudoufu/internal/command/jsonstate"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/states/statefile"
+	"github.com/intentius/choudoufu/internal/tofu"
+	"github.com/intentius/choudoufu/version"
 )
 
 // FormatVersion represents the version of the json format and will be

@@ -19,10 +19,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	mockproto "github.com/opentofu/opentofu/internal/plugin6/mock_proto"
-	"github.com/opentofu/opentofu/internal/providers"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	proto "github.com/opentofu/opentofu/internal/tfplugin6"
+	mockproto "github.com/intentius/choudoufu/internal/plugin6/mock_proto"
+	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	proto "github.com/intentius/choudoufu/internal/tfplugin6"
 )
 
 // fakeListStream is a canned ListResource stream: it hands back events in

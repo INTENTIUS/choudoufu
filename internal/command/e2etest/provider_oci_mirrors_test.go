@@ -15,11 +15,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/command/e2etest/fakeocireg"
-	"github.com/opentofu/opentofu/internal/e2e"
-	"github.com/opentofu/opentofu/internal/getproviders"
-	"github.com/opentofu/opentofu/internal/providercache"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/command/e2etest/fakeocireg"
+	"github.com/intentius/choudoufu/internal/e2e"
+	"github.com/intentius/choudoufu/internal/getproviders"
+	"github.com/intentius/choudoufu/internal/providercache"
 )
 
 // This file contains a small amount of end-to-end testing that's primarily intended

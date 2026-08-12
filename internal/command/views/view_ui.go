@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/mitchellh/cli"
-	"github.com/opentofu/opentofu/internal/command/arguments"
 )
 
 var ErrorInputDisabled = fmt.Errorf("in this view cannot ask user input")

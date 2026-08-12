@@ -9,8 +9,8 @@ import (
 	"fmt"
 
 	version "github.com/hashicorp/go-version"
+	"github.com/intentius/choudoufu/internal/initwd"
 	"github.com/mitchellh/cli"
-	"github.com/opentofu/opentofu/internal/initwd"
 )
 
 type uiModuleInstallHooks struct {

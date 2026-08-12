@@ -11,7 +11,7 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/addrs"
 )
 
 // expansion is an internal interface used to represent the different

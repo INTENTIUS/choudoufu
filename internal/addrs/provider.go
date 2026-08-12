@@ -10,7 +10,7 @@ import (
 	regaddr "github.com/opentofu/registry-address/v2"
 	"github.com/opentofu/svchost"
 
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // Provider encapsulates a single provider type. In the future this will be

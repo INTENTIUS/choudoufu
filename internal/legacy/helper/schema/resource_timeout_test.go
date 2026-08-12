@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opentofu/opentofu/internal/legacy/tofu"
+	"github.com/intentius/choudoufu/internal/legacy/tofu"
 )
 
 func TestResourceTimeout_ConfigDecode_badkey(t *testing.T) {

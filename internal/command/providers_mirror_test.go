@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/intentius/choudoufu/internal/command/workdir"
 	"github.com/mitchellh/cli"
-	"github.com/opentofu/opentofu/internal/command/workdir"
 )
 
 // More thorough tests for providers mirror can be found in the e2etest

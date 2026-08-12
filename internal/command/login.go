@@ -22,21 +22,21 @@ import (
 	"sync"
 
 	tfe "github.com/hashicorp/go-tfe"
+	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/tracing"
 	"github.com/mitchellh/cli"
-	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/tracing"
 	"github.com/opentofu/svchost"
 	"github.com/opentofu/svchost/disco"
 	"github.com/opentofu/svchost/svcauth"
 
-	"github.com/opentofu/opentofu/internal/command/cliconfig"
-	"github.com/opentofu/opentofu/internal/command/format"
-	"github.com/opentofu/opentofu/internal/httpclient"
-	"github.com/opentofu/opentofu/internal/logging"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
-	"github.com/opentofu/opentofu/version"
+	"github.com/intentius/choudoufu/internal/command/cliconfig"
+	"github.com/intentius/choudoufu/internal/command/format"
+	"github.com/intentius/choudoufu/internal/httpclient"
+	"github.com/intentius/choudoufu/internal/logging"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tofu"
+	"github.com/intentius/choudoufu/version"
 
 	uuid "github.com/hashicorp/go-uuid"
 	"golang.org/x/oauth2"
@@ -517,9 +517,9 @@ func (c *LoginCommand) interactiveGetTokenByCode(ctx context.Context, hostname s
 				"Current command was aborted by the calling code.",
 			),
 		)
-    if err := server.Shutdown(ctx); err != nil {
-		log.Printf("[WARN] login: callback server shutdown failed: %s", err)
-	}
+		if err := server.Shutdown(ctx); err != nil {
+			log.Printf("[WARN] login: callback server shutdown failed: %s", err)
+		}
 		wg.Wait()
 		close(codeCh)
 		return nil, diags

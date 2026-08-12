@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/opentofu/opentofu/internal/e2e"
-	"github.com/opentofu/opentofu/version"
+	"github.com/intentius/choudoufu/internal/e2e"
+	"github.com/intentius/choudoufu/version"
 )
 
 func TestVersion(t *testing.T) {

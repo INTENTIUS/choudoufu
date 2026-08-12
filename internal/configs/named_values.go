@@ -18,10 +18,10 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/didyoumean"
-	"github.com/opentofu/opentofu/internal/lang/lint"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/didyoumean"
+	"github.com/intentius/choudoufu/internal/lang/lint"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // A consistent detail message for all "not a valid identifier" diagnostics.

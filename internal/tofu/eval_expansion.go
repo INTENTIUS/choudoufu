@@ -11,9 +11,9 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/lang/evalchecks"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/lang/evalchecks"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 func evalContextScope(ctx context.Context, evalCtx EvalContext) evalchecks.ContextFunc {

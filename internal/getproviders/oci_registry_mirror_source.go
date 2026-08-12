@@ -19,9 +19,9 @@ import (
 	orasErrors "oras.land/oras-go/v2/errdef"
 	orasRegistryErrors "oras.land/oras-go/v2/registry/remote/errcode"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/tracing"
-	"github.com/opentofu/opentofu/internal/tracing/traceattrs"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/tracing"
+	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
 )
 
 // ociIndexManifestArtifactType is the artifact type we expect for the top-level

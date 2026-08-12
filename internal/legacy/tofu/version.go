@@ -6,7 +6,7 @@
 package tofu
 
 import (
-	"github.com/opentofu/opentofu/version"
+	"github.com/intentius/choudoufu/version"
 )
 
 // Deprecated: Providers should use schema.Provider.TerraformVersion instead

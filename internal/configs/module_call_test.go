@@ -20,7 +20,7 @@ import (
 	"github.com/zclconf/go-cty-debug/ctydebug"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/addrs"
 )
 
 func TestLoadModuleCall(t *testing.T) {

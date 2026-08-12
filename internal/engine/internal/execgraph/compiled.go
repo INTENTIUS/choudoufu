@@ -13,9 +13,9 @@ import (
 	"github.com/apparentlymart/go-workgraph/workgraph"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/lang/grapheval"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/lang/grapheval"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 type ResourceInstanceDependencyMissingMark struct {

@@ -6,8 +6,8 @@
 package arguments
 
 import (
-	"github.com/opentofu/opentofu/internal/command/workdir"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/command/workdir"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // Import represents the command-line arguments for the import command.

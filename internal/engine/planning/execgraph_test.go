@@ -11,8 +11,8 @@ import (
 	"math"
 	"strings"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/engine/internal/execgraph"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/engine/internal/execgraph"
 )
 
 func newExecGraphBuilderForTesting() *execGraphBuilder {

@@ -8,9 +8,9 @@ package planning
 import (
 	"fmt"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/engine/internal/execgraph"
-	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/engine/internal/execgraph"
+	"github.com/intentius/choudoufu/internal/plans"
 )
 
 ////////////////////////////////////////////////////////////////////////////////

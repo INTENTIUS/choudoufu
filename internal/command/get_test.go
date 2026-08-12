@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/intentius/choudoufu/internal/getmodules"
 	"github.com/mitchellh/cli"
-	"github.com/opentofu/opentofu/internal/getmodules"
 )
 
 func TestGet(t *testing.T) {

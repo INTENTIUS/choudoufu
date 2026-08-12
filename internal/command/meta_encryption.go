@@ -11,10 +11,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/encryption"
-	"github.com/opentofu/opentofu/internal/encryption/config"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/encryption/config"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 const encryptionConfigEnvName = "TF_ENCRYPTION"

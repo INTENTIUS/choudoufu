@@ -14,12 +14,12 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/intentius/choudoufu/internal/addrs"
 	homedir "github.com/mitchellh/go-homedir"
-	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/experiments"
-	"github.com/opentofu/opentofu/internal/lang/marks"
+	"github.com/intentius/choudoufu/internal/experiments"
+	"github.com/intentius/choudoufu/internal/lang/marks"
 )
 
 // TestFunctions tests that functions are callable through the functionality

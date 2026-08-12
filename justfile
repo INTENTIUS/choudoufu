@@ -14,7 +14,7 @@ test-floci:
 
 # The demo: real estate on a local emulator, state file deleted mid-run, plans stay exact. Needs Docker, ~2 minutes, exit 0 = every claim held.
 demo:
-    bash stateless/e2e/run.sh --expect 5
+    bash live/e2e/run.sh --expect 5
 
 # Build the docs site into site/public/
 site:

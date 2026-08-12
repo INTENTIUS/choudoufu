@@ -11,8 +11,8 @@ import (
 	"github.com/apparentlymart/go-versions/versions"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // ModuleCallInstanceGlue describes a callback API that [ModuleCallInstance]

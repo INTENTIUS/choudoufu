@@ -13,12 +13,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/intentius/choudoufu/internal/command/workdir"
 	"github.com/mitchellh/cli"
-	"github.com/opentofu/opentofu/internal/command/workdir"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/depsfile"
-	"github.com/opentofu/opentofu/internal/getproviders"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/depsfile"
+	"github.com/intentius/choudoufu/internal/getproviders"
 )
 
 func TestProvidersLock(t *testing.T) {

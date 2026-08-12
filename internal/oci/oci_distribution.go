@@ -19,12 +19,12 @@ import (
 	orasCreds "oras.land/oras-go/v2/registry/remote/credentials"
 	orasCredsTrace "oras.land/oras-go/v2/registry/remote/credentials/trace"
 
-	"github.com/opentofu/opentofu/internal/command/cliconfig/ociauthconfig"
-	"github.com/opentofu/opentofu/internal/getmodules"
-	"github.com/opentofu/opentofu/internal/getproviders"
-	"github.com/opentofu/opentofu/internal/httpclient"
-	"github.com/opentofu/opentofu/internal/tracing"
-	"github.com/opentofu/opentofu/internal/tracing/traceattrs"
+	"github.com/intentius/choudoufu/internal/command/cliconfig/ociauthconfig"
+	"github.com/intentius/choudoufu/internal/getmodules"
+	"github.com/intentius/choudoufu/internal/getproviders"
+	"github.com/intentius/choudoufu/internal/httpclient"
+	"github.com/intentius/choudoufu/internal/tracing"
+	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
 )
 
 // OCICredsPolicyBuilder is the type of a callback function that the [providerSource]

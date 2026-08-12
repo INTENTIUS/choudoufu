@@ -11,8 +11,8 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/opentofu/opentofu/internal/command/e2etest/fakeocireg"
-	"github.com/opentofu/opentofu/internal/e2e"
+	"github.com/intentius/choudoufu/internal/command/e2etest/fakeocireg"
+	"github.com/intentius/choudoufu/internal/e2e"
 )
 
 // This file contains a small amount of end-to-end testing that's primarily intended

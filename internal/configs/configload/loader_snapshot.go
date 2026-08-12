@@ -18,8 +18,8 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/spf13/afero"
 
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/modsdir"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/modsdir"
 )
 
 // LoadConfigWithSnapshot is a variant of LoadConfig that also simultaneously

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/zclconf/go-cty/cty"
 )
 

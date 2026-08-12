@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/opentofu/opentofu/internal/encryption/keyprovider"
-	"github.com/opentofu/opentofu/internal/encryption/method/compliancetest"
+	"github.com/intentius/choudoufu/internal/encryption/keyprovider"
+	"github.com/intentius/choudoufu/internal/encryption/method/compliancetest"
 )
 
 func TestCompliance(t *testing.T) {

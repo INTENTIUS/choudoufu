@@ -8,11 +8,11 @@ package hcl2shim
 import (
 	"testing"
 
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/zclconf/go-cty-debug/ctydebug"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
 )
 
 // TestComposeMockValueBySchema ensures different configschema.Block values

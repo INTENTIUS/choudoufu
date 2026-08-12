@@ -7,7 +7,7 @@ package plugin
 
 import (
 	"github.com/hashicorp/go-plugin"
-	proto "github.com/opentofu/opentofu/internal/tfplugin5"
+	proto "github.com/intentius/choudoufu/internal/tfplugin5"
 )
 
 const (

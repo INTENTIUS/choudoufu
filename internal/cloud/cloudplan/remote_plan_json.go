@@ -6,7 +6,7 @@
 package cloudplan
 
 import (
-	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/intentius/choudoufu/internal/plans"
 )
 
 // RemotePlanJSON is a wrapper struct that associates a pre-baked JSON plan with

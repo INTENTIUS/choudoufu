@@ -20,10 +20,10 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
-	"github.com/opentofu/opentofu/internal/command/cliconfig/svcauthconfig"
-	"github.com/opentofu/opentofu/internal/legacy/hcl2shim"
-	pluginDiscovery "github.com/opentofu/opentofu/internal/plugin/discovery"
-	"github.com/opentofu/opentofu/internal/replacefile"
+	"github.com/intentius/choudoufu/internal/command/cliconfig/svcauthconfig"
+	"github.com/intentius/choudoufu/internal/legacy/hcl2shim"
+	pluginDiscovery "github.com/intentius/choudoufu/internal/plugin/discovery"
+	"github.com/intentius/choudoufu/internal/replacefile"
 )
 
 // credentialsConfigFile returns the path for the special configuration file

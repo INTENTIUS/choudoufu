@@ -9,8 +9,8 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
-	"github.com/opentofu/opentofu/internal/encryption/keyprovider"
-	"github.com/opentofu/opentofu/internal/encryption/method"
+	"github.com/intentius/choudoufu/internal/encryption/keyprovider"
+	"github.com/intentius/choudoufu/internal/encryption/method"
 )
 
 // New creates a new descriptor for the AES-GCM encryption method, which requires a 32-byte key.

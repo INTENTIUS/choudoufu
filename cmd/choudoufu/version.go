@@ -10,8 +10,8 @@ import (
 	"runtime/metrics"
 	"strings"
 
-	"github.com/opentofu/opentofu/internal/logging"
-	"github.com/opentofu/opentofu/version"
+	"github.com/intentius/choudoufu/internal/logging"
+	"github.com/intentius/choudoufu/version"
 )
 
 var Version = version.Version

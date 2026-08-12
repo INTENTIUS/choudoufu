@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opentofu/opentofu/internal/legacy/tofu"
+	"github.com/intentius/choudoufu/internal/legacy/tofu"
 )
 
 func TestProvisioner_impl(t *testing.T) {

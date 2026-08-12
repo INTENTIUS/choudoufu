@@ -13,9 +13,9 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/encryption"
-	"github.com/opentofu/opentofu/internal/providers"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // Provider is an implementation of providers.Interface
@@ -50,7 +50,6 @@ func (p *Provider) GetProviderSchema(_ context.Context) providers.GetProviderSch
 		Functions: p.getFunctionSpecs(),
 	}
 }
-
 
 // ValidateProviderConfig is used to validate the configuration values.
 func (p *Provider) ValidateProviderConfig(_ context.Context, req providers.ValidateProviderConfigRequest) providers.ValidateProviderConfigResponse {

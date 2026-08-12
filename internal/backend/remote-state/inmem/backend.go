@@ -13,12 +13,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opentofu/opentofu/internal/backend"
-	"github.com/opentofu/opentofu/internal/encryption"
-	"github.com/opentofu/opentofu/internal/legacy/helper/schema"
-	statespkg "github.com/opentofu/opentofu/internal/states"
-	"github.com/opentofu/opentofu/internal/states/remote"
-	"github.com/opentofu/opentofu/internal/states/statemgr"
+	"github.com/intentius/choudoufu/internal/backend"
+	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/legacy/helper/schema"
+	statespkg "github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/states/remote"
+	"github.com/intentius/choudoufu/internal/states/statemgr"
 )
 
 // we keep the states and locks in package-level variables, so that they can be

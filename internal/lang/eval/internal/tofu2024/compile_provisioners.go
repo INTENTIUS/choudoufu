@@ -9,13 +9,13 @@ import (
 	"context"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/opentofu/opentofu/internal/addrs"
-	commShared "github.com/opentofu/opentofu/internal/communicator/shared"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/lang/eval/internal/configgraph"
-	"github.com/opentofu/opentofu/internal/lang/eval/internal/evalglue"
-	"github.com/opentofu/opentofu/internal/lang/exprs"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/addrs"
+	commShared "github.com/intentius/choudoufu/internal/communicator/shared"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/lang/eval/internal/configgraph"
+	"github.com/intentius/choudoufu/internal/lang/eval/internal/evalglue"
+	"github.com/intentius/choudoufu/internal/lang/exprs"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/zclconf/go-cty/cty"
 )
 

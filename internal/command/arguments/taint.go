@@ -8,8 +8,8 @@ package arguments
 import (
 	"fmt"
 
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // Taint represents the command-line arguments for the taint and untaint commands.

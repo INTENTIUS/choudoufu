@@ -12,10 +12,10 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 
-	"github.com/opentofu/opentofu/internal/command/jsonentities"
-	"github.com/opentofu/opentofu/internal/command/views/json"
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	tfversion "github.com/opentofu/opentofu/version"
+	"github.com/intentius/choudoufu/internal/command/jsonentities"
+	"github.com/intentius/choudoufu/internal/command/views/json"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	tfversion "github.com/intentius/choudoufu/version"
 )
 
 // This version describes the schema of JSON UI messages. This version must be

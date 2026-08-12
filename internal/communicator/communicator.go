@@ -16,10 +16,10 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/opentofu/opentofu/internal/communicator/remote"
-	"github.com/opentofu/opentofu/internal/communicator/shared"
-	"github.com/opentofu/opentofu/internal/communicator/ssh"
-	"github.com/opentofu/opentofu/internal/provisioners"
+	"github.com/intentius/choudoufu/internal/communicator/remote"
+	"github.com/intentius/choudoufu/internal/communicator/shared"
+	"github.com/intentius/choudoufu/internal/communicator/ssh"
+	"github.com/intentius/choudoufu/internal/provisioners"
 )
 
 // Communicator is an interface that must be implemented by all communicators

@@ -6,7 +6,7 @@
 package arguments
 
 import (
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // MetadataFunctions represents the command-line arguments for the "metadata functions" command.
@@ -51,6 +51,6 @@ func ParseMetadataFunctions(args []string) (*MetadataFunctions, func(), tfdiags.
 		))
 	}
 	arguments.ViewOptions.ViewType = ViewHuman
-	
+
 	return arguments, closer, diags
 }

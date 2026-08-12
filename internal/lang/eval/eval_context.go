@@ -6,12 +6,12 @@
 package eval
 
 import (
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/configs/configschema"
-	"github.com/opentofu/opentofu/internal/lang/eval/internal/evalglue"
-	"github.com/opentofu/opentofu/internal/lang/eval/internal/tofu2024"
-	"github.com/opentofu/opentofu/internal/providers"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/lang/eval/internal/evalglue"
+	"github.com/intentius/choudoufu/internal/lang/eval/internal/tofu2024"
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // The symbols aliased in this file are defined in [evalglue] really just to

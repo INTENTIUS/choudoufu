@@ -12,7 +12,7 @@ import (
 
 	"cloud.google.com/go/kms/apiv1/kmspb"
 	"github.com/googleapis/gax-go/v2"
-	"github.com/opentofu/opentofu/internal/encryption/keyprovider"
+	"github.com/intentius/choudoufu/internal/encryption/keyprovider"
 )
 
 type keyMeta struct {

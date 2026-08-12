@@ -17,8 +17,8 @@ import (
 	"time"
 
 	multierror "github.com/hashicorp/go-multierror"
-	"github.com/opentofu/opentofu/internal/flock"
-	"github.com/opentofu/opentofu/internal/states/statemgr"
+	"github.com/intentius/choudoufu/internal/flock"
+	"github.com/intentius/choudoufu/internal/states/statemgr"
 )
 
 // LocalState manages a state storage that is local to the filesystem.

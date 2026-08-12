@@ -7,7 +7,7 @@ package addrs
 
 import (
 	"github.com/hashicorp/hcl/v2"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // RemoveEndpoint is to ConfigRemovable what Target is to Targetable:

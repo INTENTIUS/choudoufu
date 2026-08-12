@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/opentofu/opentofu/internal/encryption/keyprovider"
-	"github.com/opentofu/opentofu/internal/encryption/keyprovider/compliancetest"
-	"github.com/opentofu/opentofu/internal/encryption/keyprovider/external/testprovider"
+	"github.com/intentius/choudoufu/internal/encryption/keyprovider"
+	"github.com/intentius/choudoufu/internal/encryption/keyprovider/compliancetest"
+	"github.com/intentius/choudoufu/internal/encryption/keyprovider/external/testprovider"
 )
 
 func TestComplianceBinary(t *testing.T) {

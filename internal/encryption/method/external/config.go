@@ -6,8 +6,8 @@
 package external
 
 import (
-	"github.com/opentofu/opentofu/internal/encryption/keyprovider"
-	"github.com/opentofu/opentofu/internal/encryption/method"
+	"github.com/intentius/choudoufu/internal/encryption/keyprovider"
+	"github.com/intentius/choudoufu/internal/encryption/method"
 )
 
 // Config is the configuration for the AES-GCM method.

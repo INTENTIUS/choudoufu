@@ -6,8 +6,8 @@
 package convert
 
 import (
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	proto "github.com/opentofu/opentofu/internal/tfplugin6"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+	proto "github.com/intentius/choudoufu/internal/tfplugin6"
 	"github.com/zclconf/go-cty/cty"
 )
 

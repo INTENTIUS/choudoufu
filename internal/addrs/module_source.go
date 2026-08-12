@@ -10,7 +10,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/opentofu/opentofu/internal/getmodules"
+	"github.com/intentius/choudoufu/internal/getmodules"
 	regaddr "github.com/opentofu/registry-address/v2"
 )
 

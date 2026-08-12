@@ -6,7 +6,7 @@
 package cloud
 
 import (
-	"github.com/opentofu/opentofu/internal/backend"
+	"github.com/intentius/choudoufu/internal/backend"
 )
 
 // CLIInit implements backend.CLI

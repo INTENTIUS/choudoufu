@@ -6,9 +6,9 @@
 package jsonconfig
 
 import (
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/configs/configschema"
-	"github.com/opentofu/opentofu/internal/tofu"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/tofu"
 )
 
 // MarshalSingleModule is a variant of [Marshal] that describes only a single

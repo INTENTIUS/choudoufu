@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/opentofu/opentofu/internal/e2e"
+	"github.com/intentius/choudoufu/internal/e2e"
 )
 
 func TestInitModuleArchive(t *testing.T) {

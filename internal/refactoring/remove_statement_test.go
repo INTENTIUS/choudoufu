@@ -11,9 +11,9 @@ import (
 	"path/filepath"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/refactoring"
-	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/refactoring"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 func TestGetEndpointsToRemove(t *testing.T) {

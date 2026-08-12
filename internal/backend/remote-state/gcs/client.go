@@ -15,8 +15,8 @@ import (
 
 	"cloud.google.com/go/storage"
 	multierror "github.com/hashicorp/go-multierror"
-	"github.com/opentofu/opentofu/internal/states/remote"
-	"github.com/opentofu/opentofu/internal/states/statemgr"
+	"github.com/intentius/choudoufu/internal/states/remote"
+	"github.com/intentius/choudoufu/internal/states/statemgr"
 )
 
 // remoteClient is used by "state/remote".State to read and write

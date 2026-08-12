@@ -49,44 +49,44 @@ var docPages = []docPage{
 		Slug:       "faq",
 		NavLabel:   "FAQ",
 		Title:      "FAQ",
-		SourcePath: "stateless/FAQ.md",
+		SourcePath: "live/FAQ.md",
 	},
 	{
 		Slug:       "live-markers",
 		NavLabel:   "Live Markers",
 		Title:      "Live Resource Markers",
-		SourcePath: "website/docs/language/stateless-mode.mdx",
+		SourcePath: "website/docs/language/live-markers.mdx",
 		IsMDX:      true,
 	},
 	{
 		Slug:       "markers",
 		NavLabel:   "Spec",
 		Title:      "Marker Spec",
-		SourcePath: "stateless/MARKERS.md",
+		SourcePath: "live/MARKERS.md",
 	},
 	{
 		Slug:       "limitations",
 		NavLabel:   "Limitations",
 		Title:      "Limitations",
-		SourcePath: "stateless/LIMITATIONS.md",
+		SourcePath: "live/LIMITATIONS.md",
 	},
 	{
 		Slug:       "survey",
 		NavLabel:   "Survey",
 		Title:      "AWS Admission Survey",
-		SourcePath: "stateless/SURVEY.md",
+		SourcePath: "live/SURVEY.md",
 	},
 	{
 		Slug:       "receipts",
 		NavLabel:   "Receipts",
 		Title:      "Receipts",
-		SourcePath: "stateless/RECEIPTS.md",
+		SourcePath: "live/RECEIPTS.md",
 	},
 	{
 		Slug:       "e2e",
 		NavLabel:   "E2E Harness",
 		Title:      "The e2e harness",
-		SourcePath: "stateless/e2e/README.md",
+		SourcePath: "live/e2e/README.md",
 	},
 }
 
@@ -144,7 +144,7 @@ var frontmatterRE = regexp.MustCompile(`(?s)\A---\n.*?\n---\n`)
 var admonitionRE = regexp.MustCompile(`(?s):::(note|warning)( [^\n]*)?\n(.*?)\n:::`)
 
 // mdxLinkRewrites maps relative links to stock OpenTofu docs pages (used
-// only inside stateless-mode.mdx) to their absolute opentofu.org URLs,
+// only inside live-markers.mdx) to their absolute opentofu.org URLs,
 // since this site does not render the stock docs tree those links point
 // into.
 var mdxLinkRewrites = map[string]string{

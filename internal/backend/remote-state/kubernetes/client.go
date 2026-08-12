@@ -26,8 +26,8 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth" // Import to initialize client auth plugins.
 	"k8s.io/utils/ptr"
 
-	"github.com/opentofu/opentofu/internal/states/remote"
-	"github.com/opentofu/opentofu/internal/states/statemgr"
+	"github.com/intentius/choudoufu/internal/states/remote"
+	"github.com/intentius/choudoufu/internal/states/statemgr"
 )
 
 const (
