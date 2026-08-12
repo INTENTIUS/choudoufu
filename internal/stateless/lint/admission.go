@@ -56,6 +56,11 @@ var admittedTypesV0 = map[string]struct{}{
 	// name argument is client-named the same way a bucket's or a role's is,
 	// so it admits through path 1 like the rest of this section.
 	"aws_ssm_parameter": {},
+	// First slice of the survey's client-named cohort (#19): both import by
+	// the name argument alone, verified against the provider's documented
+	// import grammar and against the floci emulator.
+	"aws_dynamodb_table": {},
+	"aws_ecs_cluster":    {},
 
 	// List plus content match, as a fungible set bound by tofu-slot marker.
 	"aws_eip": {},
