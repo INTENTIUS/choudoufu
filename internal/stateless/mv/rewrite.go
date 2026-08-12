@@ -117,7 +117,7 @@ func (m *mover) rewrite(ctx context.Context, prior *states.ResourceInstanceObjec
 			tfdiags.Error,
 			"Failed marker rewrite",
 			fmt.Sprintf(
-				"The provider failed while writing the tag change to the %s at %s. This is the one failure here that does not mean nothing happened: the write may have partly landed. Read the resource's tofu-address tag before deciding what to do next - if it already names %s, the rename is done.",
+				"The provider failed while writing the tag change to the %s at %s. The write may have partly landed: read the resource's tofu-address tag before deciding what to do next - if it already names %s, the rename is done.",
 				m.res.TypeName, m.res.LiveID, m.res.New),
 		)))
 	}
@@ -216,7 +216,7 @@ func (m *mover) verify(newState cty.Value) tfdiags.Diagnostics {
 		tfdiags.Warning,
 		"Unreadable marker after the rewrite",
 		fmt.Sprintf(
-			"The tag write on the %s at %s reported no error, but the object the provider returned afterwards carries %s = %q rather than %q. Providers whose read does not serve tags for a type produce exactly this, and the write is still done; check the resource's tags with the cloud's own API before rerunning.",
+			"The tag write on the %s at %s reported no error, but the object the provider returned afterwards carries %s = %q rather than %q. Some providers do not serve tags back on a read; check the resource's tags with the cloud's own API before rerunning.",
 			m.res.TypeName, m.res.LiveID, discovery.TagAddress, tags[discovery.TagAddress], m.res.NewMarker),
 	))
 }
