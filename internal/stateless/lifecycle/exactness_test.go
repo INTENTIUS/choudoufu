@@ -44,13 +44,13 @@ func TestStatelessExactnessAgainstFloci(t *testing.T) {
 	flocitest.RequireBinary(t, "aws")
 	flocitest.RequireBinary(t, "go")
 
-	flocitest.StartFloci(t, "tofu-stateless-p51", exactnessPort)
+	exactnessPort = flocitest.StartFloci(t, "cdf-p51")
 
 	t.Setenv("AWS_ENDPOINT_URL", "http://localhost:"+exactnessPort)
 	t.Setenv("AWS_ACCESS_KEY_ID", "test")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
 	t.Setenv("AWS_REGION", awsRegion)
-	t.Setenv("TF_PLUGIN_CACHE_DIR", t.TempDir())
+	flocitest.PluginCacheDir(t)
 
 	tofuBin := flocitest.BuildTofu(t)
 	dir := t.TempDir()
@@ -315,12 +315,12 @@ func TestStatelessExactnessAgainstFloci(t *testing.T) {
 // The fixture
 // ---------------------------------------------------------------------------
 
-const (
-	// exactnessPort is this test's own floci port. 4601 is the e2e harness's,
-	// 4603-4608 belong to neighbouring suites, 4615 is P4.1's and 4618 the
-	// snapshot test's; P5.1 takes 4620.
-	exactnessPort = "4620"
+// exactnessPort is this run's emulator port, chosen by the kernel when
+// P5.1's test starts its container. The exAWS* helpers read it after that
+// test assigns it.
+var exactnessPort string
 
+const (
 	exEstate     = "p51-exactness"
 	exVPCCIDR    = "10.71.0.0/16"
 	exBucket     = "p51-exactness-data"

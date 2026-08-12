@@ -45,7 +45,7 @@ func TestProbeOwnerIDFilter(t *testing.T) {
 	flocitest.RequireBinary(t, "docker")
 	flocitest.RequireBinary(t, terraformBin)
 
-	flocitest.StartFloci(t, "tofu-stateless-p23", flociPort)
+	flociPort := flocitest.StartFloci(t, "cdf-p23")
 	endpoint := flocitest.Endpoint(flociPort)
 
 	t.Setenv("AWS_ENDPOINT_URL", endpoint)
@@ -54,6 +54,7 @@ func TestProbeOwnerIDFilter(t *testing.T) {
 	t.Setenv("AWS_REGION", awsRegion)
 
 	dir := flocitest.CopyEstate(t)
+	flocitest.PluginCacheDir(t)
 	flocitest.Run(t, dir, terraformBin, "init", "-input=false", "-no-color")
 	flocitest.Run(t, dir, terraformBin, "apply", "-auto-approve", "-input=false", "-no-color")
 

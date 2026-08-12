@@ -8,7 +8,6 @@ package discovery
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -46,9 +45,6 @@ import (
 // minute.
 
 const (
-	// flociPort is this task's port. 4601 is the e2e harness's and
-	// 4603/4604/4605 belong to neighbouring suites, so P2.3 uses 4606.
-	flociPort = "4606"
 	awsRegion = "us-east-1"
 
 	// terraformBin stands the estate up. Stock terraform on purpose:
@@ -62,9 +58,8 @@ func TestDiscoverAgainstFloci(t *testing.T) {
 	flocitest.RequireBinary(t, terraformBin)
 
 	ctx := context.Background()
+	flociPort := flocitest.StartFloci(t, "cdf-p23")
 	endpoint := "http://localhost:" + flociPort
-
-	flocitest.StartFloci(t, "tofu-stateless-p23", flociPort)
 
 	t.Setenv("AWS_ENDPOINT_URL", endpoint)
 	t.Setenv("AWS_ACCESS_KEY_ID", "test")
@@ -72,6 +67,7 @@ func TestDiscoverAgainstFloci(t *testing.T) {
 	t.Setenv("AWS_REGION", awsRegion)
 
 	dir := flocitest.CopyEstate(t)
+	flocitest.PluginCacheDir(t)
 	flocitest.Run(t, dir, terraformBin, "init", "-input=false", "-no-color")
 	flocitest.Run(t, dir, terraformBin, "apply", "-auto-approve", "-input=false", "-no-color")
 
@@ -422,25 +418,22 @@ func findProviderBinary(t *testing.T, dir string) string {
 
 	var found []string
 	root := filepath.Join(dir, ".terraform", "providers")
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() || !strings.HasPrefix(d.Name(), "terraform-provider-aws") {
-			return nil
-		}
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-		if info.Mode()&0o111 == 0 {
-			return nil
-		}
-		found = append(found, path)
-		return nil
-	})
+	// Glob, not WalkDir: with TF_PLUGIN_CACHE_DIR set, init links the
+	// hostname/namespace/type/version/platform package directory into the
+	// cache as a symlink, which a walk does not descend into but a glob's
+	// directory reads follow. The five stars are those five levels.
+	matches, err := filepath.Glob(filepath.Join(root, "*", "*", "*", "*", "*", "terraform-provider-aws*"))
 	if err != nil {
 		t.Fatalf("looking for the provider plugin under %s: %v", root, err)
+	}
+	for _, path := range matches {
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("looking for the provider plugin under %s: %v", root, err)
+		}
+		if info.Mode().IsRegular() && info.Mode()&0o111 != 0 {
+			found = append(found, path)
+		}
 	}
 	if len(found) == 0 {
 		t.Fatalf("terraform init left no AWS provider plugin under %s", root)
