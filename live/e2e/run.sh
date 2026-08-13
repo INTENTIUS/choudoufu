@@ -42,6 +42,11 @@ set -euo pipefail
 #   FLOCI_PORT   emulator port (default 4601; change it if that port is
 #                taken on your machine)
 #   FLOCI_NAME   container name (default includes $$ for uniqueness)
+#   FLOCI_IMAGE  the emulator image (default ghcr.io/lex00/floci@sha256:
+#                4753246c0260a22af1056c65993f4d73b0a907729a9580b9baba5d628b6dad34,
+#                lex00/floci's `latest` as of 2026-08-12, commit b2548a0 —
+#                see the note above `docker run` in step 1 for why this fork
+#                replaced upstream floci/floci:latest)
 #   TOFU_BIN     path to a prebuilt choudoufu binary; skips the `go build`
 #   LIVE_E2E_EXACTNESS  gates the drift-exact/removal-exact/receipt-cycle/
 #                receipt-cycle-existence steps (6, 8, 12, 12b) on top of their
@@ -76,6 +81,9 @@ ESTATE_SRC="$ROOT/live/e2e/estate"
 BLOCK_SRC="$ROOT/live/e2e/estate-block"
 FLOCI_PORT="${FLOCI_PORT:-4601}"
 FLOCI_NAME="${FLOCI_NAME:-tofu-stateless-e2e-$$}"
+# See the note above docker run in step 1 for why this is lex00/floci, not
+# upstream floci/floci, and why it is pinned by digest.
+FLOCI_IMAGE="${FLOCI_IMAGE:-ghcr.io/lex00/floci@sha256:4753246c0260a22af1056c65993f4d73b0a907729a9580b9baba5d628b6dad34}"
 ENDPOINT="http://localhost:${FLOCI_PORT}"
 
 # ── CLI flags: --json / --expect <phase> (task PE.2) ────────────────────────
@@ -366,44 +374,38 @@ plan_block() {
   '
 }
 
-# ── The standing residue: what "clean" means against this fixture ──────────
+# ── The standing residue, retired ───────────────────────────────────────────
 #
-# A full-estate live-plan here is never literally empty on floci, and the
-# whole reason is one emulator read gap plus one thing downstream of it.
-# Both are named once, so every step measures "clean" the same way instead of
-# re-deriving a tolerance and getting it slightly wrong.
+# Through #26, a full-estate live-plan here was never literally empty on
+# floci, and the whole reason was one emulator read gap plus one thing
+# downstream of it, tolerated under the names RESIDUE_UNOWNED and
+# RESIDUE_CHANGED below (see git history for the full account):
 #
-# RESIDUE_UNOWNED — aws_iam_role.app. floci's iam:GetRole omits Tags
-# (chant/test/floci-gaps.md #5), so the role reads back carrying no
-# tofu-estate marker. An unverifiable marker means the resource is not this
-# estate's: it stays out of the prior state, the plan reports it as an
-# [UNOWNED] omission with an adoption hint, and proposes creating the role
-# the configuration declares. Nothing touches the live one. That is the
-# corrected behaviour, not a tolerance for a bug — before ownership was
-# verified this same gap rendered as a quiet tags-only in-place update, which
-# is exactly the adopt-what-you-do-not-own shape the audit found. On real AWS
-# the role binds and this residue is empty.
+#   RESIDUE_UNOWNED="aws_iam_role.app" — upstream floci's iam:GetRole omitted
+#   Tags (chant/test/floci-gaps.md #5), so the role read back carrying no
+#   tofu-estate marker: unverifiable ownership, so it stayed out of the prior
+#   state, reported as an [UNOWNED] omission with an adoption hint, planned
+#   as a create. Fixed by lex00/floci#24 (iam:GetRole/GetUser/GetPolicy now
+#   return Tags).
 #
-# The role's twin gap, the SSM receipt (#10, PutParameter drops inline tags),
-# used to sit here too. It does not any more: floci's
-# ssm:AddTagsToResource works and its ListTagsForResource returns what was
-# written, so step 3d adopts the receipt with two AWS CLI calls and the
-# receipt is genuinely owned for every step after it. One fewer tolerance is
-# worth two lines of harness. The role cannot be adopted the same way —
-# writing tags it will never read back changes nothing.
+#   RESIDUE_CHANGED="aws_s3_bucket_policy.data" — a bucket policy carries no
+#   tags of its own; it is admitted as a named singleton child of its
+#   bucket, and its document interpolates aws_iam_role.app's ARN. With the
+#   role unowned and planned as a create, that ARN was unknown until apply,
+#   so the policy re-planned too. Downstream of the role gap, and it
+#   disappeared with it — no separate fix needed.
 #
-# RESIDUE_CHANGED — aws_s3_bucket_policy.data. A bucket policy carries no
-# tags, so it has no marker and no ownership of its own; it is admitted as a
-# named singleton child of its bucket. Its document interpolates
-# aws_iam_role.app's ARN, and an unowned role is planned as a create, so that
-# ARN is unknown until apply and the policy re-plans. This is the
-# untaggable-child boundary live/LIMITATIONS.md documents, showing up
-# live, and it is downstream of the role gap — it disappears with it.
-RESIDUE_UNOWNED="aws_iam_role.app"
-RESIDUE_CHANGED="aws_s3_bucket_policy.data"
-# The policy's document is the only thing that may move. bucket and id ride
-# along when the reference itself becomes unknown.
-RESIDUE_CHANGED_ATTRS='^(policy|bucket|id)$'
+# Both retired in the same change that moved FLOCI_IMAGE from upstream
+# floci/floci:latest to lex00/floci's fork build carrying #24 (and #25, the
+# unrelated ECR fix this harness does not directly exercise). A full-estate
+# plan against this fixture is now expected to be genuinely empty — assert_
+# estate_plan below tolerates no standing omission or in-place update at all
+# any more, only a step's own declared expect_absent/extra_changes.
+#
+# Not fixed by this switch: floci's ssm:PutParameter still drops the inline
+# tag set a parameter is created with (chant/test/floci-gaps.md #10,
+# unrelated to #24/#25), which is why step 3d below still adopts both SSM
+# receipts by hand before any plan assertion runs — that workaround stays.
 
 # plan_addrs echoes, one per line, the addresses in live-plan output $1 whose
 # diff header ends with $2 — the literal tail of the header line, e.g.
@@ -439,20 +441,12 @@ omitted_instances() {
   omission_section "$1" | sed -n 's/^ *\([^ ][^ ]*\) \[\([A-Z_]*\)\] *$/\1 \2/p'
 }
 
-# unowned_omissions echoes just the addresses reported [UNOWNED].
+# unowned_omissions echoes just the addresses reported [UNOWNED]. #26
+# retired this fixture's standing unowned residue, so this is expected to
+# echo nothing on every step now; still used by empty-plan-full (step 5) to
+# compute how many declared instances materialized.
 unowned_omissions() {
   omitted_instances "$1" | sed -n 's/ UNOWNED$//p'
-}
-
-# unowned_section is the "Unowned:" block — the rendered section that gathers
-# the [UNOWNED] omissions by disposition ([ADOPTABLE] or [IN_THE_WAY]) —
-# header to the horizontal rule that ends it.
-unowned_section() {
-  printf '%s\n' "$1" | awk '
-    /^Unowned:/ { on = 1 }
-    on && /^─────/ { exit }
-    on { print }
-  '
 }
 
 # assert_estate_plan is the single definition of "this full-estate plan is
@@ -461,32 +455,30 @@ unowned_section() {
 #
 #   $1  live-plan output
 #   $2  step name, for fail()
-#   $3  addresses this step legitimately expects to be CHANGED beyond the
-#       standing residue, space separated, may be empty. Their own diff
-#       blocks are the caller's business; this function only accepts that
-#       they appear.
+#   $3  addresses this step legitimately expects to be CHANGED, space
+#       separated, may be empty. Their own diff blocks are the caller's
+#       business; this function only accepts that they appear.
 #   $4  addresses this step legitimately expects to be DESTROYED, space
 #       separated, may be empty.
 #   $5  a label for messages.
 #   $6  addresses this step legitimately expects to be reported [ABSENT] —
 #       genuinely gone from the live system, as opposed to unreadable-but-
 #       present (RA.6: a receipt deleted out of band to re-arm its effect) —
-#       space separated, may be empty. An ABSENT address's create is
-#       accepted the same way an UNOWNED one's is; every other address still
-#       must not be ABSENT, exactly as before.
+#       space separated, may be empty. An ABSENT address is the only
+#       omission any step may still declare; its create is accepted the
+#       same way.
 #
 # What it checks:
 #
-#  1. Every omitted instance is either [UNOWNED] naming a documented read gap
-#     with an adoption hint, or [ABSENT] naming one of $6. Any other omission
-#     reason, or an [ABSENT] not in $6, is a real gap in reading the live
-#     system, not a tolerated one.
-#  2. Every create header names an address the plan also reports as unowned
-#     or as one of $6's expected-absent addresses. A create with no omission
-#     behind it means something is being minted for a resource nobody
-#     explained — the shape finding C1 named.
-#  3. Every in-place update names the standing residue or one of $3, and the
-#     residue's own block touches only its allowed attributes.
+#  1. Every omitted instance is [ABSENT] naming one of $6. Any other omission
+#     — including [UNOWNED], now that #26 retired this fixture's standing
+#     unowned residue — is a real gap in reading the live system, not a
+#     tolerated one.
+#  2. Every create header names an address the plan also reports as an
+#     expected-absent omission (from $6). A create with no omission behind
+#     it means something is being minted for a resource nobody explained —
+#     the shape finding C1 named.
+#  3. Every in-place update names one of $3. Nothing else may move.
 #  4. Every destroy names one of $4, and a REPLACEMENT fails everywhere,
 #     always. A replacement prints "must be replaced", which neither the
 #     "will be created" nor the "will be destroyed" pattern matches — which
@@ -499,44 +491,32 @@ unowned_section() {
 #     is what F8 found missing everywhere except assert_full_estate_clean.
 assert_estate_plan() {
   local out="$1" step="$2" extra_changes="$3" expect_destroys="$4" label="$5" expect_absent="${6:-}"
-  local creates changes destroys replaces unowned omitted
-  local addr reason block bad n_create n_change n_destroy
+  local creates changes destroys replaces omitted
+  local addr reason n_create n_change n_destroy
 
   [ -n "$out" ] || fail "$step" "$label: live-plan produced no output at all"
   echo "$out" | grep -qE '^(Plan:|No changes\.)' \
     || fail "$step" "$label: plan output carries neither a 'Plan:' line nor 'No changes.' — refusing to trust any assertion against it: $out"
 
-  # 1. Omissions.
+  # 1. Omissions. #26 retired this fixture's standing unowned residue (the
+  # image switch to lex00/floci fixed the iam:GetRole tags gap), so an
+  # [ABSENT] naming one of $6 is the only omission any step may still see.
   omitted="$(omitted_instances "$out")"
   while IFS=' ' read -r addr reason; do
     [ -n "$addr" ] || continue
     if [ "$reason" = "ABSENT" ] && in_list "$addr" "$expect_absent"; then
       continue
     fi
-    [ "$reason" = "UNOWNED" ] \
-      || fail "$step" "$label: $addr could not be read from the live system ([$reason]); only the documented unowned read gaps (and this step's own expected-absent addresses, $expect_absent) are tolerated: $(omission_section "$out")"
-    in_list "$addr" "$RESIDUE_UNOWNED" \
-      || fail "$step" "$label: $addr is reported [UNOWNED], which is not one of this fixture's documented emulator read gaps ($RESIDUE_UNOWNED): $(omission_section "$out")"
-    echo "$out" | grep -qF "tofu-address=\"$addr\"" \
-      || fail "$step" "$label: $addr's [UNOWNED] omission carries no adoption hint naming it: $(omission_section "$out")"
-    # The rendered Unowned section gathers the same refusals by disposition.
-    # An unmarked resource at a declared identity, with the estate known, is
-    # the adoptable case, and the section must carry the ready-to-run tag
-    # values alongside the omission's prose.
-    unowned_section "$out" | grep -qF "  $addr [ADOPTABLE] <- " \
-      || fail "$step" "$label: $addr is reported [UNOWNED] but the Unowned section does not offer it as [ADOPTABLE]: $(unowned_section "$out")"
-    unowned_section "$out" | grep -qF "adopt by writing: tofu-estate=stateless-e2e tofu-address=$addr" \
-      || fail "$step" "$label: the Unowned section entry for $addr does not carry the exact tag values to write: $(unowned_section "$out")"
+    fail "$step" "$label: $addr could not be read from the live system ([$reason]); this fixture carries no standing unowned residue any more (retired by #26's image switch), so only this step's own expected-absent addresses ($expect_absent) are tolerated: $(omission_section "$out")"
   done <<< "$omitted"
-  unowned="$(unowned_omissions "$out")"
 
   # 2. Creates.
   creates="$(plan_addrs "$out" 'will be created')"
   for addr in $creates; do
-    if in_list "$addr" "$unowned" || in_list "$addr" "$expect_absent"; then
+    if in_list "$addr" "$expect_absent"; then
       continue
     fi
-    fail "$step" "$label: the plan proposes creating $addr, which it does not report as an unowned or expected-absent omission — nothing may be minted without the ownership check having said why: $out"
+    fail "$step" "$label: the plan proposes creating $addr, which it does not report as an expected-absent omission — nothing may be minted without the ownership check having said why: $out"
   done
   # Symmetric with the destroy check below: an address this step claims is
   # expected-absent must actually show up that way, both as the omission and
@@ -548,21 +528,13 @@ assert_estate_plan() {
       || fail "$step" "$label: this step expects $addr to be [ABSENT] and proposed as a create, and the plan proposes no such create: $out"
   done
 
-  # 3. In-place updates.
+  # 3. In-place updates. #26 retired this fixture's standing changed residue
+  # (the bucket policy downstream of the unowned role), so only this step's
+  # own declared $extra_changes may move.
   changes="$(plan_addrs "$out" 'will be updated in-place')"
   for addr in $changes; do
-    if in_list "$addr" "$extra_changes"; then
-      continue
-    fi
-    in_list "$addr" "$RESIDUE_CHANGED" \
-      || fail "$step" "$label: the plan proposes changing $addr, which is neither this step's own expected change ($extra_changes) nor the standing residue ($RESIDUE_CHANGED): $(plan_block "$out" "$addr")"
-    block="$(plan_block "$out" "$addr")"
-    [ -n "$block" ] || fail "$step" "$label: could not extract $addr's diff block (mechanism failure): $out"
-    bad="$(echo "$block" | grep -E '^ {6}[~+-] [A-Za-z0-9_]+' \
-      | sed -E 's/^ {6}[~+-] ([A-Za-z0-9_]+).*/\1/' | grep -vE "$RESIDUE_CHANGED_ATTRS")" || true
-    [ -z "$bad" ] \
-      || fail "$step" "$label: $addr's residue diff touches attribute(s) beyond $RESIDUE_CHANGED_ATTRS: $bad
-$block"
+    in_list "$addr" "$extra_changes" \
+      || fail "$step" "$label: the plan proposes changing $addr, which is not this step's own expected change ($extra_changes) — this fixture carries no standing residue any more (retired by #26's image switch): $(plan_block "$out" "$addr")"
   done
 
   # 4. Destroys, and replacements.
@@ -592,17 +564,20 @@ $block"
   fi
 }
 
-# assert_full_estate_clean: no step-specific change, no destroy at all. The
-# standing residue is the only thing left standing.
+# assert_full_estate_clean: no step-specific change, no create, no destroy
+# at all. #26 retired the standing residue that used to make "clean" mean
+# "empty modulo one tolerated create and one tolerated change", so a clean
+# plan against this fixture is now a genuinely empty one.
 assert_full_estate_clean() {
-  local out="$1" step="$2" n_res
+  local out="$1" step="$2"
   assert_estate_plan "$out" "$step" "" "" "full-estate plan"
-  n_res="$(count_lines "$(plan_addrs "$out" 'will be created')")"
-  if echo "$out" | grep -qE '^No changes\. Your infrastructure matches the configuration\.$'; then
-    echo "  fully empty plan (the documented emulator read gap was not observed)"
-  else
-    echo "  empty plan modulo the standing residue only ($n_res unowned create(s), the bucket policy downstream of them)"
-  fi
+  # assert_estate_plan above already required every create/change/destroy to
+  # be one of this call's (empty) tolerances, so reaching a non-"No changes."
+  # plan here would mean it accepted a diff it should not have — a mechanism
+  # failure in assert_estate_plan itself, not a residue to describe.
+  echo "$out" | grep -qE '^No changes\. Your infrastructure matches the configuration\.$' \
+    || fail "$step" "full-estate plan: assert_estate_plan accepted a non-empty plan with no residue to explain it (mechanism failure): $out"
+  echo "  fully empty plan"
 }
 
 # assert_drift_case is the shared body of every case in step 6's drift
@@ -610,13 +585,11 @@ assert_full_estate_clean() {
 # and a full-estate live-plan must show exactly that resource changed — its
 # own diff limited to the mutated attribute (or the tags maps, for a tag
 # mutation) plus any of that type's own documented unserved attributes — and
-# nothing else besides the standing residue. Never a create that is not an
-# unowned one, never a destroy, never a replacement. Mirrors
+# nothing else. Never a create, never a destroy, never a replacement. Mirrors
 # lifecycle/exactness_test.go's per-case assertions
 # (internal/live/lifecycle), which prove the same claim directly against
 # the package underneath this harness's built binary, on a smaller fixture
-# that carries neither the read gap this one has to tolerate nor its
-# downstream child.
+# that never carried the read gap #26 retired here.
 #
 # args: plan output, step, address, mutated attribute, nontags (0/1, whether
 # the attribute is a top-level argument rather than a tag key), unserved
@@ -712,8 +685,14 @@ echo "  live block (plain plan/apply, P4.1): $([ "$HAVE_LIVE_BLOCK" -eq 1 ] && e
 echo "  LIVE_E2E_EXACTNESS: $LIVE_E2E_EXACTNESS"
 
 # ── 1. Floci ─────────────────────────────────────────────────────────────────
-echo "=== 1. Floci on :$FLOCI_PORT ==="
-docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" floci/floci:latest >/dev/null \
+# lex00/floci, not upstream floci/floci: the fork carries #24 (iam:GetRole/
+# GetUser/GetPolicy return Tags — what retired this fixture's standing
+# unowned residue below) and #25 (ecr:CreateRepository no longer needs a
+# Docker daemon), neither merged upstream yet. Pinned by digest rather than
+# `:latest` so a later push to the fork's main cannot silently change what
+# this harness runs against; FLOCI_IMAGE overrides it (see the header).
+echo "=== 1. Floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
+docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "floci" "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null | grep -q '"ec2"' && break
@@ -851,9 +830,11 @@ fi
 # about an in-place value change on an owned resource, and an unowned receipt
 # would render the same break as part of a create.
 #
-# The IAM role's identical-looking gap (#5) cannot be closed the same way:
-# iam:GetRole omits Tags on the READ side, so writing them changes nothing
-# any run can see. That one stays as the standing residue.
+# The IAM role's identical-looking gap (#5) used to be closeable only by
+# writing tags that iam:GetRole then still would not read back — the
+# standing residue #26 retired instead, by switching FLOCI_IMAGE to a fork
+# build carrying lex00/floci#24. #10 (this step's SSM gap) is unrelated and
+# still open, which is why the by-hand adoption below stays.
 RECEIPT_PARAM="/tofu-receipts/stateless-e2e/demo-effect"
 EXISTENCE_PARAM="/tofu-receipts/stateless-e2e/demo-existence"
 
@@ -985,26 +966,20 @@ else
   # "Route and associations correctly propose create until phase 2." Now
   # that P2.3/P2.4 are merged, identity.Resolve's needs-discovery list for
   # the whole config is closed by discovery+binding on every run, regardless
-  # of -target — so the only instance still omitted is the standing residue's
-  # unowned role, and only because the emulator will not serve its tags.
-  # Everything else materializes.
+  # of -target — so, with #26's image switch retiring the standing unowned
+  # role residue, every instance materializes.
   #
-  # assert_estate_plan owns the whole shape: the omission is [UNOWNED] and
-  # names the role, the one create is that same role, the one change is the
-  # policy downstream of it, nothing is destroyed or replaced, and the Plan:
-  # line agrees with the headers. Deliberately the SAME assertion as the
-  # full-estate steps use, rather than a hand-rolled second copy of it — this
-  # step's own subject is the -target scope, not a different idea of clean.
+  # assert_estate_plan owns the whole shape: no omission, no create, no
+  # change, nothing destroyed or replaced, and the Plan: line agrees with
+  # the headers. Deliberately the SAME assertion as the full-estate steps
+  # use, rather than a hand-rolled second copy of it — this step's own
+  # subject is the -target scope, not a different idea of clean.
   assert_estate_plan "$OUT" "empty-plan-named" "" "" "the CONCRETE targeted set"
 
   [ ! -f "$MAIN/terraform.tfstate" ] \
     || fail "empty-plan-named" "terraform.tfstate exists after live-plan — it must never be read or written"
 
-  if echo "$OUT" | grep -qE '^No changes\. Your infrastructure matches the configuration\.$'; then
-    echo "  fully empty plan over the CONCRETE targeted set (the documented read gap was not observed)"
-  else
-    echo "  empty plan over the CONCRETE targeted set, modulo the standing residue only"
-  fi
+  echo "  fully empty plan over the CONCRETE targeted set"
   record_step "empty-plan-named" pass
 fi
 
@@ -1024,16 +999,14 @@ else
   STEP5_T1=$(date +%s)
   [ "$RC" -eq 0 ] || fail "empty-plan-full" "live-plan exited $RC: $OUT"
 
-  # All but one of DECLARED_INSTANCES (read off the fixture's own state at
-  # standup, #48 — not a hardcoded literal) materialize: the client-named
+  # Every one of DECLARED_INSTANCES (read off the fixture's own state at
+  # standup, #48 — not a hardcoded literal) materializes: the client-named
   # ones as always, and every server-ID/parent-derived one via P2.3's
   # discovery + P2.4's binding, which close the whole config regardless of
-  # scope. The one exception is the standing residue's unowned role, and it
-  # is absent for a stated reason rather than silently — which is what the
-  # omissions section is for. assert_full_estate_clean checks that the only
-  # omission is that one, that its create is the only create, that the only
-  # change is the policy downstream of it, that nothing is destroyed or
-  # replaced, and that the Plan: line agrees with all of it.
+  # scope. #26's image switch retired the standing residue that used to
+  # leave the role omitted here, so assert_full_estate_clean now requires a
+  # genuinely empty plan: no omission, no create, no change, nothing
+  # destroyed or replaced.
   #
   # The foreign section (floci's unmarked default-VPC resources) is expected
   # to appear here; its presence is not itself a failure, and its line shapes
@@ -1044,7 +1017,7 @@ else
   [ ! -f "$MAIN/terraform.tfstate" ] \
     || fail "empty-plan-full" "terraform.tfstate exists after live-plan — it must never be read or written"
 
-  echo "  empty plan over the full estate ($MATERIALIZED/$DECLARED_INSTANCES materialized; the rest omitted as unowned, with an adoption hint); $((STEP5_T1 - STEP5_T0))s"
+  echo "  empty plan over the full estate ($MATERIALIZED/$DECLARED_INSTANCES materialized); $((STEP5_T1 - STEP5_T0))s"
   record_step "empty-plan-full" pass
 fi
 
@@ -1285,12 +1258,10 @@ fi
 # aws_security_group.main.id, and EC2 deletes a group's rules with the
 # group), and a removal step's whole point is ONE destroy. The volume is the
 # same shape the SG was chosen for - taggable, marker path, no known-gap
-# interference of its own, and nothing else references it. The estate's
-# standing gap (aws_iam_role.app, RESIDUE_UNOWNED - both SSM-parameter
-# receipts were adopted in step 3d and no longer ride along) rides regardless
-# of which block is removed, so the full-estate plan here is
-# "1 to add, 0-1 to change, 1 to destroy", not the bare single-resource
-# result the test's own smaller fixture gets.
+# interference of its own, and nothing else references it. With #26's image
+# switch retiring the estate's standing role residue (and the SSM-parameter
+# receipts already adopted by hand in step 3d), the full-estate plan here is
+# the bare single-resource result: "1 to destroy" and nothing else.
 echo "=== 8. removal-exact — deleting one whole block destroys exactly its live resource ==="
 if [ "$HAVE_LIVE_ESTATE" -eq 0 ] || [ "$HAVE_LIVE_MV" -eq 0 ] || [ "$LIVE_E2E_EXACTNESS" != "1" ]; then
   not_implemented "removal-exact" 5 "removal exactness is P5.1, gated on -estate + live-mv existing and LIVE_E2E_EXACTNESS=1 (P5.2 flips the default to 1)"
@@ -1314,11 +1285,10 @@ else
   [ "$RC" -eq 0 ] || fail "removal-exact" "live-plan failed after removing the EBS volume's block: $OUT"
 
   # 1. The whole plan shape in one assertion: exactly one destroy and it is
-  # the deleted block, every create is an unowned one with an omission
-  # behind it, every change is the standing residue, nothing is replaced,
-  # and the Plan: line agrees with all of that. The destroy is passed in as
-  # this step's own expectation, so a SECOND destroy - the thing a removal
-  # step exists to rule out - fails on the address rather than on a count.
+  # the deleted block, no create, no change, nothing is replaced, and the
+  # Plan: line agrees with all of that. The destroy is passed in as this
+  # step's own expectation, so a SECOND destroy - the thing a removal step
+  # exists to rule out - fails on the address rather than on a count.
   assert_estate_plan "$OUT" "removal-exact" "" "aws_ebs_volume.data" "the removal plan"
 
   # 2. "Owned and undeclared" names the removal and the live ID - the
@@ -1352,8 +1322,7 @@ else
   [ "$R_VPC_ID_AFTER" = "$R_VPC_ID" ] \
     || fail "removal-exact" "the removal disturbed the rest of the estate: VPC $R_VPC_ID -> $R_VPC_ID_AFTER"
 
-  # 6. Re-plan: clean modulo the standing residue, nothing left to propose
-  # destroying.
+  # 6. Re-plan: genuinely clean, nothing left to propose destroying.
   run_tf "$COPY" live-plan -input=false -no-color
   CONVERGED="$TF_OUT"
   RC="$TF_RC"
@@ -1477,17 +1446,16 @@ else
       && fail "count-scale-down" "survivor $SID appears on a removal line: $REMOVAL_LINES"
   done
 
-  # 5. A scale-down never creates an EIP. The plan does carry the standing
-  # residue's unowned create (assert_estate_plan above already required
-  # every create to be an unowned omission), so the check that belongs here
-  # is the one specific to this step: no member of the pool is minted.
+  # 5. A scale-down never creates an EIP. assert_estate_plan above already
+  # required every create to be one this step declared (none), so this is
+  # the check specific to this step: no member of the pool is minted.
   echo "$OUT" | grep -qE '^  # aws_eip\.pool(\[[0-9]+\])? will be created$' \
     && fail "count-scale-down" "scale-down proposes creating an EIP: $OUT"
 
   echo "  3 -> 2 EIPs: exactly one delete ($SLOT2_ID, slot 2), zero churn on the survivors ($SLOT0_ID slot 0, $SLOT1_ID slot 1)"
 
   # 6. Convergence: release the destroyed allocation, as an apply would, and
-  # re-plan. The estate should settle clean, modulo the standing residue.
+  # re-plan. The estate should settle genuinely clean.
   awsl ec2 release-address --allocation-id "$SLOT2_ID" >/dev/null \
     || fail "count-scale-down" "could not release $SLOT2_ID to converge the scale-down"
   run_tf "$COPY" live-plan -input=false -no-color
@@ -1525,10 +1493,13 @@ fi
 
 # ── 10. rename-no-churn ──────────────────────────────────────────────────────
 # P3.3's recipe: aws_cloudwatch_log_group.app, the client-named path, not the
-# IAM role (floci-gaps #5 — iam:GetRole omits Tags, so the role's marker is
-# unreadable through the read path a rename would use to confirm it) and not
-# the bucket (floci-gaps #9 — S3 Control TagResource replaces the tag set
-# instead of merging, so a tags-only rewrite drops every other tag).
+# bucket (floci-gaps #9 — S3 Control TagResource replaces the tag set
+# instead of merging, so a tags-only rewrite drops every other tag). The IAM
+# role was excluded here too before #26's image switch, for the same reason
+# it carried the standing residue — iam:GetRole omitted Tags, so its marker
+# was unreadable through the path a rename would use to confirm it; #24
+# fixed the read, but this step was not re-scoped to use the role instead,
+# so the log group stays the fixture.
 echo "=== 10. rename-no-churn — rename an address, live-mv, empty plan ==="
 if [ "$HAVE_LIVE_MV" -eq 0 ]; then
   not_implemented "rename-no-churn" 3 "needs live-plan (P1.4) and live-mv marker rewrite (P3.3); harness step wired green together with count-scale-down in P3.5 (gated on live-mv existing)"
@@ -1693,11 +1664,12 @@ else
   [ -n "$BLOCK_EIP_SLOT0" ] || fail "plain-plan-works" "no live EIP for estate-block carrying tofu-slot=0: $BLOCK_EIPS"
   echo "  live markers confirmed via aws CLI: VPC $BLOCK_VPC_ID (tofu-address=aws_vpc.main), EIP slot 0 -> $BLOCK_EIP_SLOT0"
 
-  # 3. Plain "choudoufu plan": a genuinely empty plan. No residue to allow for --
-  # this fixture deliberately excludes the IAM role (floci-gaps #5), the one
-  # resource whose tags the emulator will not serve back, and with it the
-  # bucket policy that would re-plan downstream of an unowned role
-  # (README.md, "Subset chosen").
+  # 3. Plain "choudoufu plan": a genuinely empty plan. This fixture (separate
+  # from $ESTATE_SRC) has excluded the IAM role since before #26's image
+  # switch, back when floci-gaps #5 made its tags unreadable and left it and
+  # its downstream bucket policy as the standing residue elsewhere in this
+  # harness (README.md, "Subset chosen"); it was not re-scoped to include
+  # the role once #24 fixed the read.
   set +e
   PLAN_OUT="$(cd "$WORK11" && "$TOFU" plan -input=false -no-color 2>&1)"
   PLAN_RC=$?
@@ -1873,7 +1845,7 @@ else
     | sed -E 's/^ {6}[~+-] ([A-Za-z0-9_]+).*/\1/' | grep -vE '^(tags(_all)?|value|value_wo|version)$')" || true
   [ -z "$RECEIPT_BAD" ] \
     || fail "receipt-cycle" "the receipt's diff touches attribute(s) beyond value/version/tags: $RECEIPT_BAD"
-  echo "  broken receipt re-armed: aws_ssm_parameter.demo_effect changed in place (value present), nothing else beyond the standing residue"
+  echo "  broken receipt re-armed: aws_ssm_parameter.demo_effect changed in place (value present), nothing else"
 
   # 4. Corrective write, played by the AWS CLI for the same reason step 2's
   # break was: write back the value the config itself computes.
@@ -1944,12 +1916,12 @@ else
     || fail "receipt-cycle-existence" "could not delete the existence receipt out of band"
 
   # 3. The plan re-arms the effect: the receipt no longer exists at all, so
-  # the projection reports it [ABSENT] — genuinely gone, unlike an [UNOWNED]
-  # read gap — and proposes creating it again. assert_estate_plan's sixth
-  # argument is exactly this: one address this step expects [ABSENT],
-  # accepted as a create the same way an [UNOWNED] one is, without loosening
-  # the check for anything else in the estate (the standing role residue
-  # still has to be the only other create, same as every other step).
+  # the projection reports it [ABSENT] — genuinely gone, as opposed to an
+  # unreadable-but-present resource — and proposes creating it again.
+  # assert_estate_plan's sixth argument is exactly this: one address this
+  # step expects [ABSENT], accepted as a create, without loosening the check
+  # for anything else in the estate (still no other create, change, destroy
+  # or replacement tolerated, same as every other step).
   live_plan "$MAIN" "receipt-cycle-existence"
   ARMED="$TF_OUT"
   assert_estate_plan "$ARMED" "receipt-cycle-existence" "" "" "the deleted-receipt plan" "$EXISTENCE_ADDR"
@@ -1964,7 +1936,7 @@ else
   [ -n "$EXISTENCE_BLOCK" ] || fail "receipt-cycle-existence" "could not extract the existence receipt's diff block"
   echo "$EXISTENCE_BLOCK" | grep -qE '(value|value_wo)' \
     || fail "receipt-cycle-existence" "the existence receipt's create diff does not mention its value at all: $EXISTENCE_BLOCK"
-  echo "  deleted receipt re-armed: $EXISTENCE_ADDR proposed as a create, nothing else beyond the standing residue"
+  echo "  deleted receipt re-armed: $EXISTENCE_ADDR proposed as a create, nothing else"
 
   # 4. Corrective write, played by the AWS CLI the way step 3d's initial
   # adoption was: put-parameter recreates it (the layer above playing the

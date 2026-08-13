@@ -257,30 +257,31 @@ func TestStampEstateFixtureAgainstFloci(t *testing.T) {
 	// exceptions, both the emulator's rather than this task's, and both of a
 	// shape RA.1 changed:
 	//
-	//	aws_iam_role.app                  floci-gaps #5   iam:GetRole omits Tags
 	//	aws_ssm_parameter.demo_effect     floci-gaps #10  PutParameter drops
 	//	                                                  the inline tag set
 	//	aws_ssm_parameter.demo_existence  floci-gaps #10  same gap, the RA.6
 	//	                                                  existence-flavor fixture
 	//
-	// All three read back untagged. Before RA.1 that made them tags-only
-	// in-place diffs re-adding the markers the fixture itself declares, and
-	// this test tolerated exactly that shape for the role alone - which is
-	// why PE.3's receipt turned it red the moment a second resource joined
-	// the same gap, and why RA.6's second receipt is folded into the same
-	// tolerance rather than opening a new one. Under RA.1 an unreadable
-	// marker means unowned, so none of the three enters the prior state at
-	// all: each is omitted as [UNOWNED] with an adoption hint and planned as
-	// a create, and the markers in that create's diff are the
+	// aws_iam_role.app used to be a third exception here (floci-gaps #5,
+	// iam:GetRole omitting Tags), until #26 switched this harness's floci
+	// image to a fork build carrying lex00/floci#24, which fixed the read.
+	//
+	// Both remaining addresses read back untagged. Before RA.1 that made
+	// them tags-only in-place diffs re-adding the markers the fixture
+	// itself declares, and this test tolerated exactly that shape for the
+	// role alone - which is why PE.3's receipt turned it red the moment a
+	// second resource joined the same gap, and why RA.6's second receipt is
+	// folded into the same tolerance rather than opening a new one. Under
+	// RA.1 an unreadable marker means unowned, so neither enters the prior
+	// state at all: each is omitted as [UNOWNED] with an adoption hint and
+	// planned as a create, and the markers in that create's diff are the
 	// configuration's own, printed because the whole resource is being
 	// printed - not because stamping proposed anything.
 	//
 	// So the assertion is now: a marker addition on any resource that is not
-	// one of the three documented unowned gaps is a stamping failure, and
-	// the gaps themselves must be omitted-and-created, never quietly
-	// updated.
+	// one of the two documented unowned gaps is a stamping failure, and the
+	// gaps themselves must be omitted-and-created, never quietly updated.
 	gapAddrs := map[string]string{
-		"aws_iam_role.app":                 "floci-gaps #5 (iam:GetRole omits Tags)",
 		"aws_ssm_parameter.demo_effect":    "floci-gaps #10 (PutParameter drops inline tags)",
 		"aws_ssm_parameter.demo_existence": "floci-gaps #10 (PutParameter drops inline tags)",
 	}
