@@ -317,6 +317,19 @@ type statelessRunner struct {
 	recordStore     staterecord.Store
 	recordKeyPrefix string
 	recordVersions  []projection.RecordVersion
+
+	// priorStateCalls counts how many times PriorState has run for this
+	// runner. GitHub issue #80's pin: one runner serves one operation (see
+	// this type's own doc comment), and backend_local.go's localRunDirect
+	// calls PriorState exactly once per operation - one CLI invocation of
+	// plain "choudoufu plan" or "choudoufu apply" must cost exactly one
+	// PriorState cycle, never two, or the estate sweep and per-resource read
+	// cost it pays are paid twice. Read only by tests, through
+	// PriorStateCalls; not reset between calls, since a runner never outlives
+	// the one operation that constructed it. Plain int, not atomic: PriorState
+	// runs on the single goroutine backend_local.go's localRunDirect calls it
+	// from, never concurrently with itself.
+	priorStateCalls int
 }
 
 var _ backendLocal.StatelessRun = (*statelessRunner)(nil)
@@ -324,6 +337,13 @@ var _ backendLocal.StatelessRun = (*statelessRunner)(nil)
 // StateMgr implements [backendLocal.StatelessRun].
 func (r *statelessRunner) StateMgr() statemgr.Full {
 	return r.mgr
+}
+
+// PriorStateCalls returns how many times PriorState has run on this runner.
+// Exists for the GitHub issue #80 regression pin (see priorStateCalls):
+// a passing plan or apply must report exactly one.
+func (r *statelessRunner) PriorStateCalls() int {
+	return r.priorStateCalls
 }
 
 // PriorState implements [backendLocal.StatelessRun]: it runs the whole
@@ -342,6 +362,8 @@ func (r *statelessRunner) StateMgr() statemgr.Full {
 // plans (and applies) with it.
 func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config, core *tofu.Context) (*states.State, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
+
+	r.priorStateCalls++
 
 	estate, estateDiags := r.estateName(ctx, config)
 	diags = diags.Append(estateDiags)

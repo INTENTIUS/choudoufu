@@ -307,6 +307,39 @@ func TestStatelessMode_plainApply(t *testing.T) {
 	if n := captured.mgr.Persists(); n == 0 {
 		t.Error("PersistState was never called, so the no-persistence claim was not exercised")
 	}
+	if n := captured.PriorStateCalls(); n != 1 {
+		t.Errorf("PriorState ran %d times for one apply, want exactly 1 (GitHub issue #80: the estate sweep and per-resource read cost must be paid once per invocation, not twice)", n)
+	}
+}
+
+// TestStatelessMode_priorStateRunsOncePlan is the plan half of the same
+// pin: "choudoufu plan" reaches PriorState through opPlan rather than
+// opApply (internal/backend/local/backend_plan.go), a different call site
+// with its own chance to double-invoke, so it earns its own assertion
+// rather than riding on the apply test alone.
+func TestStatelessMode_priorStateRunsOncePlan(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-block"), td)
+	t.Chdir(td)
+
+	cloud := liveBlockCloud()
+	c, done := newLiveBlockPlanCommand(t, cloud)
+
+	var captured *statelessRunner
+	defer statelessRunnerTestHook(func(r *statelessRunner) { captured = r })()
+
+	code := c.Run([]string{"-no-color"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+
+	if captured == nil {
+		t.Fatal("no stateless runner was installed, so this plan was not stateless")
+	}
+	if n := captured.PriorStateCalls(); n != 1 {
+		t.Errorf("PriorState ran %d times for one plan, want exactly 1 (GitHub issue #80)", n)
+	}
 }
 
 // TestStatelessMode_plainApplySnapshot is the wiring proof for P4.2's
