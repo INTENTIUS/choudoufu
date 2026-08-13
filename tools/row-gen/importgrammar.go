@@ -14,12 +14,17 @@ import (
 // importGrammarRow is the slice of live/import-grammar.json's per-type shape
 // (tools/importdocs-gen, issue #52/#55) this tool reads: whether the
 // provider's own Import documentation shows the ID built from configuration
-// arguments, and the literal example that showed it.
+// arguments, the literal example that showed it, and the argument names the
+// ID's segments matched against Argument Reference (Arguments) - the source
+// resolveArgName consults ahead of the carve seed (issue #52's second half:
+// retiring tools/mapping-gen/carve-seed.json in the import-grammar rows it
+// makes redundant).
 type importGrammarRow struct {
-	TFType              string  `json:"tf_type"`
-	ImportIDExample     string  `json:"import_id_example"`
-	ComposedOfArguments *bool   `json:"composed_of_arguments"`
-	Separator           *string `json:"separator"`
+	TFType              string   `json:"tf_type"`
+	ImportIDExample     string   `json:"import_id_example"`
+	ComposedOfArguments *bool    `json:"composed_of_arguments"`
+	Separator           *string  `json:"separator"`
+	Arguments           []string `json:"arguments"`
 }
 
 type importGrammarArtifact struct {

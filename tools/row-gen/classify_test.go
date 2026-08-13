@@ -20,7 +20,7 @@ func TestClassifyMapped_ServerAssigned(t *testing.T) {
 	}
 	e.Handlers.List = true
 
-	p := classifyMapped("aws_eip", "AWS::EC2::EIP", e, nil, nil)
+	p := classifyMapped("aws_eip", "AWS::EC2::EIP", e, nil, nil, nil)
 	if p.Bucket != bucketServerAssigned {
 		t.Fatalf("bucket = %s, want %s", p.Bucket, bucketServerAssigned)
 	}
@@ -43,7 +43,7 @@ func TestClassifyMapped_ClientNamed(t *testing.T) {
 		}{RequiredForImport: []string{"name"}}},
 	}
 
-	p := classifyMapped("aws_dynamodb_table", "AWS::DynamoDB::Table", e, survey, nil)
+	p := classifyMapped("aws_dynamodb_table", "AWS::DynamoDB::Table", e, survey, nil, nil)
 	if p.Bucket != bucketClientNamed {
 		t.Fatalf("bucket = %s, want %s", p.Bucket, bucketClientNamed)
 	}
@@ -66,12 +66,41 @@ func TestClassifyMapped_ClientNamed_CarveSeedFallback(t *testing.T) {
 	}
 	e.Handlers.List = true
 
-	p := classifyMapped("aws_ecs_cluster", "AWS::ECS::Cluster", e, nil, map[string]string{"aws_ecs_cluster": "name"})
+	p := classifyMapped("aws_ecs_cluster", "AWS::ECS::Cluster", e, nil, nil, map[string]string{"aws_ecs_cluster": "name"})
 	if p.Bucket != bucketClientNamed {
 		t.Fatalf("bucket = %s, want %s", p.Bucket, bucketClientNamed)
 	}
 	if p.ArgName != "name" || p.ArgSource != argSourceCarveSeed {
 		t.Errorf("got ArgName=%q ArgSource=%q, want name/%q", p.ArgName, p.ArgSource, argSourceCarveSeed)
+	}
+}
+
+// TestClassifyMapped_ClientNamed_ImportGrammarFallback pins the reordered
+// preference issue #52's second half asks for: no survey identity schema,
+// but live/import-grammar.json names exactly one argument and says the ID
+// is composed of configuration arguments - which must win over the carve
+// seed even when the carve seed also has an entry for this type.
+func TestClassifyMapped_ClientNamed_ImportGrammarFallback(t *testing.T) {
+	e := registryEntry{
+		TypeName:             "AWS::ECS::Cluster",
+		PrimaryIdentifier:    []string{"ClusterName"},
+		ReadOnlyProperties:   []string{"Arn"},
+		CreateOnlyProperties: []string{"ClusterName"},
+	}
+	e.Handlers.List = true
+
+	composed := true
+	importGrammar := map[string]importGrammarRow{
+		"aws_ecs_cluster": {ComposedOfArguments: &composed, Arguments: []string{"name"}},
+	}
+	carveSeed := map[string]string{"aws_ecs_cluster": "carve_name"}
+
+	p := classifyMapped("aws_ecs_cluster", "AWS::ECS::Cluster", e, nil, importGrammar, carveSeed)
+	if p.Bucket != bucketClientNamed {
+		t.Fatalf("bucket = %s, want %s", p.Bucket, bucketClientNamed)
+	}
+	if p.ArgName != "name" || p.ArgSource != argSourceImportGrammar {
+		t.Errorf("got ArgName=%q ArgSource=%q, want name/%q (import-grammar must outrank the carve seed)", p.ArgName, p.ArgSource, argSourceImportGrammar)
 	}
 }
 
@@ -87,7 +116,7 @@ func TestClassifyMapped_GuessedIsEvidenceOnly(t *testing.T) {
 	}
 	e.Handlers.List = true
 
-	p := classifyMapped("aws_foo_bar", "AWS::Foo::Bar", e, nil, nil)
+	p := classifyMapped("aws_foo_bar", "AWS::Foo::Bar", e, nil, nil, nil)
 	if p.Bucket != bucketEvidenceOnly {
 		t.Fatalf("bucket = %s, want %s (GUESSED rows are evidence-only)", p.Bucket, bucketEvidenceOnly)
 	}
@@ -113,7 +142,7 @@ func TestClassifyMapped_AWSRouteNeedsHandSeparator(t *testing.T) {
 	e.Handlers.List = true
 	e.Handlers.ListRequiredInput = []string{"RouteTableId"}
 
-	p := classifyMapped("aws_route", "AWS::EC2::Route", e, nil, nil)
+	p := classifyMapped("aws_route", "AWS::EC2::Route", e, nil, nil, nil)
 	if p.Bucket != bucketNeedsHandSeparator {
 		t.Fatalf("aws_route bucket = %s, want %s (the #39 trap)", p.Bucket, bucketNeedsHandSeparator)
 	}
@@ -128,7 +157,7 @@ func TestClassifyMapped_AmbiguousShape(t *testing.T) {
 		ReadOnlyProperties:   nil,
 		CreateOnlyProperties: nil,
 	}
-	p := classifyMapped("aws_foo_mutable", "AWS::Foo::Mutable", e, nil, nil)
+	p := classifyMapped("aws_foo_mutable", "AWS::Foo::Mutable", e, nil, nil, nil)
 	if p.Bucket != bucketEvidenceOnly {
 		t.Fatalf("bucket = %s, want %s", p.Bucket, bucketEvidenceOnly)
 	}

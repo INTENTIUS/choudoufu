@@ -19,6 +19,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	residue "github.com/intentius/choudoufu/live"
 )
 
 // Request is one classification pass.
@@ -137,31 +138,6 @@ var matchTable = map[string][]string{
 	"aws_launch_template":   {"name"},
 	"aws_sfn_state_machine": {"name"},
 	"aws_acm_certificate":   {"domain_name"},
-}
-
-// ec2Types are the types whose adoption command this package can write down.
-// Everything in the v0 subset that carries EC2-style tags is adopted with
-// one create-tags call; a type outside this set still has a marker pair,
-// which is the actual contract, but no one-liner. Everything #20 and #21
-// added is outside it, and for the same reason each time: a KMS key is
-// tagged with kms:TagResource, a hosted zone with
-// route53:ChangeTagsForResource, an ELBv2 object with elasticloadbalancing:
-// AddTags, a queue with sqs:TagQueue and a topic with sns:TagResource. Each
-// has its own flag spelling and none is an ec2 create-tags call. The third
-// marker slice (#20) put four more EC2 types in the subset, and all four
-// take the same create-tags call the VPC does; ACM and Step Functions tag
-// with acm:AddTagsToCertificate and states:TagResource and stay out.
-var ec2Types = map[string]bool{
-	"aws_vpc":                             true,
-	"aws_subnet":                          true,
-	"aws_security_group":                  true,
-	"aws_route_table":                     true,
-	"aws_internet_gateway":                true,
-	"aws_eip":                             true,
-	"aws_vpc_security_group_ingress_rule": true,
-	"aws_vpc_security_group_egress_rule":  true,
-	"aws_launch_template":                 true,
-	"aws_ebs_volume":                      true,
 }
 
 // Classify sorts every unclaimed live resource discovery found into foreign,
@@ -743,6 +719,17 @@ func staticString(ctx context.Context, mod *configs.Module, rc *configs.Resource
 // marker spec is deliberately the whole contract, so the hint is the tag
 // write itself, which any tool honoring live/MARKERS.md can perform.
 //
+// Which command, and how to spell it, used to be a ten-row hand table
+// (ec2Types, issue #38's era) naming only the EC2-family types this package
+// knew an `aws ec2 create-tags` call for. It is now
+// [residue.TagVerbForType]: live/tag-verbs.json's botocore-derived join of
+// u.TypeName's CFN service to that service's own tagging operation (issue
+// #52). A type whose service the artifact never resolved a single
+// composable verb for - ambiguous (IAM, ACM, CloudWatch Logs), none (S3),
+// a two-part identity no generic join can fill in (Route53, SSM), or a
+// service the artifact has no row for at all - gets no hint, same as every
+// non-EC2 type got before this replaced the hand table.
+//
 // The hint is built to be pasted verbatim, the same standard renameCommand
 // holds itself to: every interpolated value goes through shellQuote (a
 // for_each key can carry a space or a bracket), and the region and endpoint
@@ -750,14 +737,26 @@ func staticString(ctx context.Context, mod *configs.Module, rc *configs.Resource
 // --endpoint-url, so the command lands where the resource actually is
 // rather than wherever the operator's CLI profile points.
 func adoptionHint(req Request, u *discovery.UnclaimedResource, addr addrs.AbsResourceInstance) string {
-	if !ec2Types[u.TypeName] || u.ImportID == "" {
+	if u.ImportID == "" {
 		return ""
 	}
-	cmd := fmt.Sprintf(
-		"aws ec2 create-tags --resources %s --tags %s %s",
+	tv, ok := residue.TagVerbForType(u.TypeName)
+	if !ok || !tv.Known || !tv.Composable {
+		return ""
+	}
+
+	tagsPart, ok := tagPairs(tv, req, addr)
+	if !ok {
+		return ""
+	}
+
+	cmd := fmt.Sprintf("aws %s %s --%s %s --%s %s",
+		tv.CLIService,
+		residue.XformName(tv.Operation),
+		residue.XformName(tv.ResourceArg),
 		shellQuote(u.ImportID),
-		shellQuote(fmt.Sprintf("Key=%s,Value=%s", discovery.TagEstate, req.Estate)),
-		shellQuote(fmt.Sprintf("Key=%s,Value=%s", discovery.TagAddress, discovery.EscapeAddress(addr.String()))),
+		residue.XformName(tv.TagsArg),
+		tagsPart,
 	)
 	if req.Region != "" {
 		cmd += " --region " + shellQuote(req.Region)
@@ -766,6 +765,31 @@ func adoptionHint(req Request, u *discovery.UnclaimedResource, addr addrs.AbsRes
 		cmd += " --endpoint-url " + shellQuote(req.EndpointURL)
 	}
 	return cmd
+}
+
+// tagPairs renders the two marker tags (tofu-estate, tofu-address) in
+// whichever shape tv.TagsShape names: "list" is a space-separated run of
+// individually shell-quoted "<KeyField>=<key>,<ValueField>=<value>" tokens
+// - EC2's own "Key=...,Value=..." pairs are this shape with
+// KeyField/ValueField "Key"/"Value", which is what keeps this generic
+// composer byte-for-byte compatible with the hand-written ec2Types hint it
+// replaces - and "map" is one shell-quoted "<key>=<value>,<key>=<value>"
+// token, the flat-map shorthand Lambda's and SQS's tagging calls take.
+// Anything else reports ok=false rather than guess at a rendering.
+func tagPairs(tv residue.TagVerb, req Request, addr addrs.AbsResourceInstance) (string, bool) {
+	escapedAddr := discovery.EscapeAddress(addr.String())
+	switch tv.TagsShape {
+	case "list":
+		pairs := []string{
+			shellQuote(fmt.Sprintf("%s=%s,%s=%s", tv.TagKeyField, discovery.TagEstate, tv.TagValueField, req.Estate)),
+			shellQuote(fmt.Sprintf("%s=%s,%s=%s", tv.TagKeyField, discovery.TagAddress, tv.TagValueField, escapedAddr)),
+		}
+		return strings.Join(pairs, " "), true
+	case "map":
+		return shellQuote(fmt.Sprintf("%s=%s,%s=%s", discovery.TagEstate, req.Estate, discovery.TagAddress, escapedAddr)), true
+	default:
+		return "", false
+	}
 }
 
 func liveKey(u *discovery.UnclaimedResource) string {

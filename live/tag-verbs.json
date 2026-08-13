@@ -1,0 +1,2875 @@
+{
+  "source": "github.com/boto/botocore",
+  "source_version": "1.43.70",
+  "generated_by": "tools/tagverbs-gen (go run ./tools/tagverbs-gen)",
+  "accepted": "2026-08-13",
+  "counts": {
+    "services": 192,
+    "directory_found": 183,
+    "no_directory": 9,
+    "single": 155,
+    "ambiguous": 10,
+    "none": 18,
+    "composable": 147
+  },
+  "rows": [
+    {
+      "service": "ACMPCA",
+      "botocore_directory": "acm-pca",
+      "botocore_version": "2017-08-22",
+      "directory_found": true,
+      "operation": "TagCertificateAuthority",
+      "ambiguous": false,
+      "candidates": [
+        "TagCertificateAuthority"
+      ],
+      "resource_arg": "CertificateAuthorityArn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "APS",
+      "directory_found": false,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no botocore data directory normalizes (or is aliased) to this CFN service segment"
+    },
+    {
+      "service": "ARCRegionSwitch",
+      "botocore_directory": "arc-region-switch",
+      "botocore_version": "2022-07-26",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "arn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "ARCZonalShift",
+      "botocore_directory": "arc-zonal-shift",
+      "botocore_version": "2022-10-30",
+      "directory_found": true,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no operation in this service's model looks like a tagging write (a tag-ish, non-removal name whose input carries both a resource identifier and a *tags-suffixed member)"
+    },
+    {
+      "service": "AccessAnalyzer",
+      "botocore_directory": "accessanalyzer",
+      "botocore_version": "2019-11-01",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "Amplify",
+      "botocore_directory": "amplify",
+      "botocore_version": "2017-07-25",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "ApiGateway",
+      "botocore_directory": "apigateway",
+      "botocore_version": "2015-07-09",
+      "directory_found": true,
+      "ambiguous": true,
+      "candidates": [
+        "CreateStage",
+        "TagResource"
+      ],
+      "composable": false,
+      "reason": "more than one operation looks tag-ish with no way to pick one: CreateStage, TagResource"
+    },
+    {
+      "service": "ApiGatewayV2",
+      "botocore_directory": "apigatewayv2",
+      "botocore_version": "2018-11-29",
+      "directory_found": true,
+      "ambiguous": true,
+      "candidates": [
+        "CreateStage",
+        "TagResource"
+      ],
+      "composable": false,
+      "reason": "more than one operation looks tag-ish with no way to pick one: CreateStage, TagResource"
+    },
+    {
+      "service": "AppConfig",
+      "botocore_directory": "appconfig",
+      "botocore_version": "2019-10-09",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "AppFlow",
+      "botocore_directory": "appflow",
+      "botocore_version": "2020-08-23",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "AppIntegrations",
+      "botocore_directory": "appintegrations",
+      "botocore_version": "2020-07-29",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "AppMesh",
+      "botocore_directory": "appmesh",
+      "botocore_version": "2019-01-25",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "list",
+      "tag_key_field": "key",
+      "tag_value_field": "value",
+      "composable": true
+    },
+    {
+      "service": "AppRunner",
+      "botocore_directory": "apprunner",
+      "botocore_version": "2020-05-15",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "AppStream",
+      "botocore_directory": "appstream",
+      "botocore_version": "2016-12-01",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "AppSync",
+      "botocore_directory": "appsync",
+      "botocore_version": "2017-07-25",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "ApplicationInsights",
+      "botocore_directory": "application-insights",
+      "botocore_version": "2018-11-25",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceARN",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "Athena",
+      "botocore_directory": "athena",
+      "botocore_version": "2017-05-18",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceARN",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "AuditManager",
+      "botocore_directory": "auditmanager",
+      "botocore_version": "2017-07-25",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "AutoScaling",
+      "botocore_directory": "autoscaling",
+      "botocore_version": "2011-01-01",
+      "directory_found": true,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no operation in this service's model looks like a tagging write (a tag-ish, non-removal name whose input carries both a resource identifier and a *tags-suffixed member)"
+    },
+    {
+      "service": "AutoScalingPlans",
+      "botocore_directory": "autoscaling-plans",
+      "botocore_version": "2018-01-06",
+      "directory_found": true,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no operation in this service's model looks like a tagging write (a tag-ish, non-removal name whose input carries both a resource identifier and a *tags-suffixed member)"
+    },
+    {
+      "service": "BCMDataExports",
+      "botocore_directory": "bcm-data-exports",
+      "botocore_version": "2023-11-26",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "ResourceTags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "Backup",
+      "botocore_directory": "backup",
+      "botocore_version": "2018-11-15",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "Batch",
+      "botocore_directory": "batch",
+      "botocore_version": "2016-08-10",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "Bedrock",
+      "botocore_directory": "bedrock",
+      "botocore_version": "2023-04-20",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceARN",
+      "tags_arg": "tags",
+      "tags_shape": "list",
+      "tag_key_field": "key",
+      "tag_value_field": "value",
+      "composable": true
+    },
+    {
+      "service": "BedrockAgentCore",
+      "botocore_directory": "bedrock-agentcore",
+      "botocore_version": "2024-02-28",
+      "directory_found": true,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no operation in this service's model looks like a tagging write (a tag-ish, non-removal name whose input carries both a resource identifier and a *tags-suffixed member)"
+    },
+    {
+      "service": "Billing",
+      "botocore_directory": "billing",
+      "botocore_version": "2023-09-07",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "resourceTags",
+      "tags_shape": "list",
+      "tag_key_field": "key",
+      "tag_value_field": "value",
+      "composable": true
+    },
+    {
+      "service": "Budgets",
+      "botocore_directory": "budgets",
+      "botocore_version": "2016-10-20",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceARN",
+      "tags_arg": "ResourceTags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "CE",
+      "botocore_directory": "ce",
+      "botocore_version": "2017-10-25",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "ResourceTags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "CUR",
+      "botocore_directory": "cur",
+      "botocore_version": "2017-01-06",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ReportName",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "CertificateManager",
+      "botocore_directory": "acm",
+      "botocore_version": "2015-12-08",
+      "directory_found": true,
+      "ambiguous": true,
+      "candidates": [
+        "AddTagsToCertificate",
+        "TagResource"
+      ],
+      "composable": false,
+      "reason": "more than one operation looks tag-ish with no way to pick one: AddTagsToCertificate, TagResource"
+    },
+    {
+      "service": "Chatbot",
+      "botocore_directory": "chatbot",
+      "botocore_version": "2017-10-11",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceARN",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "TagKey",
+      "tag_value_field": "TagValue",
+      "composable": true
+    },
+    {
+      "service": "CleanRooms",
+      "botocore_directory": "cleanrooms",
+      "botocore_version": "2022-02-17",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "Cloud9",
+      "botocore_directory": "cloud9",
+      "botocore_version": "2017-09-23",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceARN",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "CloudFormation",
+      "botocore_directory": "cloudformation",
+      "botocore_version": "2010-05-15",
+      "directory_found": true,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no operation in this service's model looks like a tagging write (a tag-ish, non-removal name whose input carries both a resource identifier and a *tags-suffixed member)"
+    },
+    {
+      "service": "CloudFront",
+      "botocore_directory": "cloudfront",
+      "botocore_version": "2020-05-31",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "Resource",
+      "tags_arg": "Tags",
+      "composable": false,
+      "reason": "Tags's own shape is neither a two-field list nor a flat map this tool knows how to render"
+    },
+    {
+      "service": "CloudTrail",
+      "botocore_directory": "cloudtrail",
+      "botocore_version": "2013-11-01",
+      "directory_found": true,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no operation in this service's model looks like a tagging write (a tag-ish, non-removal name whose input carries both a resource identifier and a *tags-suffixed member)"
+    },
+    {
+      "service": "CloudWatch",
+      "botocore_directory": "cloudwatch",
+      "botocore_version": "2010-08-01",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceARN",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "CodeArtifact",
+      "botocore_directory": "codeartifact",
+      "botocore_version": "2018-09-22",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "list",
+      "tag_key_field": "key",
+      "tag_value_field": "value",
+      "composable": true
+    },
+    {
+      "service": "CodeBuild",
+      "botocore_directory": "codebuild",
+      "botocore_version": "2016-10-06",
+      "directory_found": true,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no operation in this service's model looks like a tagging write (a tag-ish, non-removal name whose input carries both a resource identifier and a *tags-suffixed member)"
+    },
+    {
+      "service": "CodeCommit",
+      "botocore_directory": "codecommit",
+      "botocore_version": "2015-04-13",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "CodeConnections",
+      "botocore_directory": "codeconnections",
+      "botocore_version": "2023-12-01",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "CodeDeploy",
+      "botocore_directory": "codedeploy",
+      "botocore_version": "2014-10-06",
+      "directory_found": true,
+      "ambiguous": true,
+      "candidates": [
+        "AddTagsToOnPremisesInstances",
+        "TagResource"
+      ],
+      "composable": false,
+      "reason": "more than one operation looks tag-ish with no way to pick one: AddTagsToOnPremisesInstances, TagResource"
+    },
+    {
+      "service": "CodeGuruProfiler",
+      "botocore_directory": "codeguruprofiler",
+      "botocore_version": "2019-07-18",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "CodeGuruReviewer",
+      "botocore_directory": "codeguru-reviewer",
+      "botocore_version": "2019-09-19",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "CodePipeline",
+      "botocore_directory": "codepipeline",
+      "botocore_version": "2015-07-09",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "list",
+      "tag_key_field": "key",
+      "tag_value_field": "value",
+      "composable": true
+    },
+    {
+      "service": "CodeStarConnections",
+      "botocore_directory": "codestar-connections",
+      "botocore_version": "2019-12-01",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "CodeStarNotifications",
+      "botocore_directory": "codestar-notifications",
+      "botocore_version": "2019-10-15",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "Arn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "Cognito",
+      "directory_found": false,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no botocore data directory normalizes (or is aliased) to this CFN service segment"
+    },
+    {
+      "service": "Comprehend",
+      "botocore_directory": "comprehend",
+      "botocore_version": "2017-11-27",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "Config",
+      "botocore_directory": "config",
+      "botocore_version": "2014-11-12",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "Connect",
+      "botocore_directory": "connect",
+      "botocore_version": "2017-08-08",
+      "directory_found": true,
+      "ambiguous": true,
+      "candidates": [
+        "TagContact",
+        "TagResource"
+      ],
+      "composable": false,
+      "reason": "more than one operation looks tag-ish with no way to pick one: TagContact, TagResource"
+    },
+    {
+      "service": "ControlTower",
+      "botocore_directory": "controltower",
+      "botocore_version": "2018-05-10",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "CustomerProfiles",
+      "botocore_directory": "customer-profiles",
+      "botocore_version": "2020-08-15",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "DAX",
+      "botocore_directory": "dax",
+      "botocore_version": "2017-04-19",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceName",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "DLM",
+      "botocore_directory": "dlm",
+      "botocore_version": "2018-01-12",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "DMS",
+      "botocore_directory": "dms",
+      "botocore_version": "2016-01-01",
+      "directory_found": true,
+      "operation": "AddTagsToResource",
+      "ambiguous": false,
+      "candidates": [
+        "AddTagsToResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "composable": false,
+      "reason": "Tags's own shape is neither a two-field list nor a flat map this tool knows how to render"
+    },
+    {
+      "service": "DSQL",
+      "botocore_directory": "dsql",
+      "botocore_version": "2018-05-10",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "DataPipeline",
+      "botocore_directory": "datapipeline",
+      "botocore_version": "2012-10-29",
+      "directory_found": true,
+      "operation": "AddTags",
+      "ambiguous": false,
+      "candidates": [
+        "AddTags"
+      ],
+      "resource_arg": "pipelineId",
+      "tags_arg": "tags",
+      "tags_shape": "list",
+      "tag_key_field": "key",
+      "tag_value_field": "value",
+      "composable": true
+    },
+    {
+      "service": "DataSync",
+      "botocore_directory": "datasync",
+      "botocore_version": "2018-11-09",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "DataZone",
+      "botocore_directory": "datazone",
+      "botocore_version": "2018-05-10",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "Detective",
+      "botocore_directory": "detective",
+      "botocore_version": "2018-10-26",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "DevOpsGuru",
+      "botocore_directory": "devops-guru",
+      "botocore_version": "2020-12-01",
+      "directory_found": true,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no operation in this service's model looks like a tagging write (a tag-ish, non-removal name whose input carries both a resource identifier and a *tags-suffixed member)"
+    },
+    {
+      "service": "DirectConnect",
+      "botocore_directory": "directconnect",
+      "botocore_version": "2012-10-25",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "list",
+      "tag_key_field": "key",
+      "tag_value_field": "value",
+      "composable": true
+    },
+    {
+      "service": "DocDB",
+      "botocore_directory": "docdb",
+      "botocore_version": "2014-10-31",
+      "directory_found": true,
+      "operation": "AddTagsToResource",
+      "ambiguous": false,
+      "candidates": [
+        "AddTagsToResource"
+      ],
+      "resource_arg": "ResourceName",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "DocDBElastic",
+      "botocore_directory": "docdb-elastic",
+      "botocore_version": "2022-11-28",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "DynamoDB",
+      "botocore_directory": "dynamodb",
+      "botocore_version": "2012-08-10",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "EC2",
+      "botocore_directory": "ec2",
+      "botocore_version": "2016-11-15",
+      "directory_found": true,
+      "operation": "CreateTags",
+      "ambiguous": false,
+      "candidates": [
+        "CreateTags"
+      ],
+      "resource_arg": "Resources",
+      "resource_arg_is_list": true,
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "ECR",
+      "botocore_directory": "ecr",
+      "botocore_version": "2015-09-21",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "ECS",
+      "botocore_directory": "ecs",
+      "botocore_version": "2014-11-13",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "list",
+      "tag_key_field": "key",
+      "tag_value_field": "value",
+      "composable": true
+    },
+    {
+      "service": "EFS",
+      "botocore_directory": "efs",
+      "botocore_version": "2015-02-01",
+      "directory_found": true,
+      "ambiguous": true,
+      "candidates": [
+        "CreateTags",
+        "TagResource"
+      ],
+      "composable": false,
+      "reason": "more than one operation looks tag-ish with no way to pick one: CreateTags, TagResource"
+    },
+    {
+      "service": "EKS",
+      "botocore_directory": "eks",
+      "botocore_version": "2017-11-01",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "EMR",
+      "botocore_directory": "emr",
+      "botocore_version": "2009-03-31",
+      "directory_found": true,
+      "operation": "AddTags",
+      "ambiguous": false,
+      "candidates": [
+        "AddTags"
+      ],
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": false,
+      "reason": "the operation takes 2 identifying arguments besides Tags (ClusterId, ResourceId), not the single scalar this tool can compose a command from"
+    },
+    {
+      "service": "EMRContainers",
+      "botocore_directory": "emr-containers",
+      "botocore_version": "2020-10-01",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "EMRServerless",
+      "botocore_directory": "emr-serverless",
+      "botocore_version": "2021-07-13",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "ElastiCache",
+      "botocore_directory": "elasticache",
+      "botocore_version": "2015-02-02",
+      "directory_found": true,
+      "operation": "AddTagsToResource",
+      "ambiguous": false,
+      "candidates": [
+        "AddTagsToResource"
+      ],
+      "resource_arg": "ResourceName",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "ElasticBeanstalk",
+      "botocore_directory": "elasticbeanstalk",
+      "botocore_version": "2010-12-01",
+      "directory_found": true,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no operation in this service's model looks like a tagging write (a tag-ish, non-removal name whose input carries both a resource identifier and a *tags-suffixed member)"
+    },
+    {
+      "service": "ElasticLoadBalancing",
+      "botocore_directory": "elb",
+      "botocore_version": "2012-06-01",
+      "directory_found": true,
+      "operation": "AddTags",
+      "ambiguous": false,
+      "candidates": [
+        "AddTags"
+      ],
+      "resource_arg": "LoadBalancerNames",
+      "resource_arg_is_list": true,
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "ElasticLoadBalancingV2",
+      "botocore_directory": "elbv2",
+      "botocore_version": "2015-12-01",
+      "directory_found": true,
+      "operation": "AddTags",
+      "ambiguous": false,
+      "candidates": [
+        "AddTags"
+      ],
+      "resource_arg": "ResourceArns",
+      "resource_arg_is_list": true,
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "Elasticsearch",
+      "directory_found": false,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no botocore data directory normalizes (or is aliased) to this CFN service segment"
+    },
+    {
+      "service": "Events",
+      "botocore_directory": "events",
+      "botocore_version": "2015-10-07",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceARN",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "Evidently",
+      "directory_found": false,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no botocore data directory normalizes (or is aliased) to this CFN service segment"
+    },
+    {
+      "service": "FIS",
+      "botocore_directory": "fis",
+      "botocore_version": "2020-12-01",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "FMS",
+      "botocore_directory": "fms",
+      "botocore_version": "2018-01-01",
+      "directory_found": true,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no operation in this service's model looks like a tagging write (a tag-ish, non-removal name whose input carries both a resource identifier and a *tags-suffixed member)"
+    },
+    {
+      "service": "FSx",
+      "botocore_directory": "fsx",
+      "botocore_version": "2018-03-01",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceARN",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "GameLift",
+      "botocore_directory": "gamelift",
+      "botocore_version": "2015-10-01",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceARN",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "GlobalAccelerator",
+      "botocore_directory": "globalaccelerator",
+      "botocore_version": "2018-08-08",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "Glue",
+      "botocore_directory": "glue",
+      "botocore_version": "2017-03-31",
+      "directory_found": true,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no operation in this service's model looks like a tagging write (a tag-ish, non-removal name whose input carries both a resource identifier and a *tags-suffixed member)"
+    },
+    {
+      "service": "Grafana",
+      "botocore_directory": "grafana",
+      "botocore_version": "2020-08-18",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "GuardDuty",
+      "botocore_directory": "guardduty",
+      "botocore_version": "2017-11-28",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "IAM",
+      "botocore_directory": "iam",
+      "botocore_version": "2010-05-08",
+      "directory_found": true,
+      "ambiguous": true,
+      "candidates": [
+        "TagInstanceProfile",
+        "TagMFADevice",
+        "TagOpenIDConnectProvider",
+        "TagPolicy",
+        "TagRole",
+        "TagSAMLProvider",
+        "TagServerCertificate",
+        "TagUser"
+      ],
+      "composable": false,
+      "reason": "more than one operation looks tag-ish with no way to pick one: TagInstanceProfile, TagMFADevice, TagOpenIDConnectProvider, TagPolicy, TagRole, TagSAMLProvider, TagServerCertificate, TagUser"
+    },
+    {
+      "service": "IVS",
+      "botocore_directory": "ivs",
+      "botocore_version": "2020-07-14",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "IVSChat",
+      "botocore_directory": "ivschat",
+      "botocore_version": "2020-07-14",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "IdentityStore",
+      "botocore_directory": "identitystore",
+      "botocore_version": "2020-06-15",
+      "directory_found": true,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no operation in this service's model looks like a tagging write (a tag-ish, non-removal name whose input carries both a resource identifier and a *tags-suffixed member)"
+    },
+    {
+      "service": "ImageBuilder",
+      "botocore_directory": "imagebuilder",
+      "botocore_version": "2019-12-02",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "Inspector",
+      "botocore_directory": "inspector",
+      "botocore_version": "2016-02-16",
+      "directory_found": true,
+      "operation": "SetTagsForResource",
+      "ambiguous": false,
+      "candidates": [
+        "SetTagsForResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "list",
+      "tag_key_field": "key",
+      "tag_value_field": "value",
+      "composable": true
+    },
+    {
+      "service": "InternetMonitor",
+      "botocore_directory": "internetmonitor",
+      "botocore_version": "2021-06-03",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "Invoicing",
+      "botocore_directory": "invoicing",
+      "botocore_version": "2024-12-01",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "ResourceTags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "IoT",
+      "botocore_directory": "iot",
+      "botocore_version": "2015-05-28",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "KMS",
+      "botocore_directory": "kms",
+      "botocore_version": "2014-11-01",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "KeyId",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "TagKey",
+      "tag_value_field": "TagValue",
+      "composable": true
+    },
+    {
+      "service": "Kendra",
+      "botocore_directory": "kendra",
+      "botocore_version": "2019-02-03",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceARN",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "Kinesis",
+      "botocore_directory": "kinesis",
+      "botocore_version": "2013-12-02",
+      "directory_found": true,
+      "ambiguous": true,
+      "candidates": [
+        "AddTagsToStream",
+        "TagResource"
+      ],
+      "composable": false,
+      "reason": "more than one operation looks tag-ish with no way to pick one: AddTagsToStream, TagResource"
+    },
+    {
+      "service": "KinesisAnalytics",
+      "botocore_directory": "kinesisanalytics",
+      "botocore_version": "2015-08-14",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceARN",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "KinesisAnalyticsV2",
+      "botocore_directory": "kinesisanalyticsv2",
+      "botocore_version": "2018-05-23",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceARN",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "KinesisFirehose",
+      "directory_found": false,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no botocore data directory normalizes (or is aliased) to this CFN service segment"
+    },
+    {
+      "service": "KinesisVideo",
+      "botocore_directory": "kinesisvideo",
+      "botocore_version": "2017-09-30",
+      "directory_found": true,
+      "ambiguous": true,
+      "candidates": [
+        "TagResource",
+        "TagStream"
+      ],
+      "composable": false,
+      "reason": "more than one operation looks tag-ish with no way to pick one: TagResource, TagStream"
+    },
+    {
+      "service": "LakeFormation",
+      "botocore_directory": "lakeformation",
+      "botocore_version": "2017-03-31",
+      "directory_found": true,
+      "operation": "AddLFTagsToResource",
+      "ambiguous": false,
+      "candidates": [
+        "AddLFTagsToResource"
+      ],
+      "tags_arg": "LFTags",
+      "composable": false,
+      "reason": "the operation takes 2 identifying arguments besides LFTags (CatalogId, Resource), not the single scalar this tool can compose a command from"
+    },
+    {
+      "service": "Lambda",
+      "botocore_directory": "lambda",
+      "botocore_version": "2015-03-31",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "Resource",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "Lex",
+      "directory_found": false,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no botocore data directory normalizes (or is aliased) to this CFN service segment"
+    },
+    {
+      "service": "LicenseManager",
+      "botocore_directory": "license-manager",
+      "botocore_version": "2018-08-01",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "Lightsail",
+      "botocore_directory": "lightsail",
+      "botocore_version": "2016-11-28",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "tags_arg": "tags",
+      "tags_shape": "list",
+      "tag_key_field": "key",
+      "tag_value_field": "value",
+      "composable": false,
+      "reason": "the operation takes 2 identifying arguments besides tags (resourceArn, resourceName), not the single scalar this tool can compose a command from"
+    },
+    {
+      "service": "Location",
+      "botocore_directory": "location",
+      "botocore_version": "2020-11-19",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "Logs",
+      "botocore_directory": "logs",
+      "botocore_version": "2014-03-28",
+      "directory_found": true,
+      "ambiguous": true,
+      "candidates": [
+        "TagLogGroup",
+        "TagResource"
+      ],
+      "composable": false,
+      "reason": "more than one operation looks tag-ish with no way to pick one: TagLogGroup, TagResource"
+    },
+    {
+      "service": "M2",
+      "botocore_directory": "m2",
+      "botocore_version": "2021-04-28",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "MSK",
+      "directory_found": false,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no botocore data directory normalizes (or is aliased) to this CFN service segment"
+    },
+    {
+      "service": "MWAA",
+      "botocore_directory": "mwaa",
+      "botocore_version": "2020-07-01",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "MediaConvert",
+      "botocore_directory": "mediaconvert",
+      "botocore_version": "2017-08-29",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "Arn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "MediaLive",
+      "botocore_directory": "medialive",
+      "botocore_version": "2017-10-14",
+      "directory_found": true,
+      "operation": "CreateTags",
+      "ambiguous": false,
+      "candidates": [
+        "CreateTags"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "MediaPackage",
+      "botocore_directory": "mediapackage",
+      "botocore_version": "2017-10-12",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "MediaStore",
+      "botocore_directory": "mediastore",
+      "botocore_version": "2017-09-01",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "Resource",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "MemoryDB",
+      "botocore_directory": "memorydb",
+      "botocore_version": "2021-01-01",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "Neptune",
+      "botocore_directory": "neptune",
+      "botocore_version": "2014-10-31",
+      "directory_found": true,
+      "operation": "AddTagsToResource",
+      "ambiguous": false,
+      "candidates": [
+        "AddTagsToResource"
+      ],
+      "resource_arg": "ResourceName",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "NeptuneGraph",
+      "botocore_directory": "neptune-graph",
+      "botocore_version": "2023-11-29",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "NetworkFirewall",
+      "botocore_directory": "network-firewall",
+      "botocore_version": "2020-11-12",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "NetworkFlowMonitor",
+      "botocore_directory": "networkflowmonitor",
+      "botocore_version": "2023-04-19",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "NetworkManager",
+      "botocore_directory": "networkmanager",
+      "botocore_version": "2019-07-05",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "Notifications",
+      "botocore_directory": "notifications",
+      "botocore_version": "2018-05-10",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "arn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "NotificationsContacts",
+      "botocore_directory": "notificationscontacts",
+      "botocore_version": "2018-05-10",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "arn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "ODB",
+      "botocore_directory": "odb",
+      "botocore_version": "2024-08-20",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "OSIS",
+      "botocore_directory": "osis",
+      "botocore_version": "2022-01-01",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "Arn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "Oam",
+      "botocore_directory": "oam",
+      "botocore_version": "2022-06-10",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "ObservabilityAdmin",
+      "botocore_directory": "observabilityadmin",
+      "botocore_version": "2018-05-10",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceARN",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "OpenSearchServerless",
+      "botocore_directory": "opensearchserverless",
+      "botocore_version": "2021-11-01",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "list",
+      "tag_key_field": "key",
+      "tag_value_field": "value",
+      "composable": true
+    },
+    {
+      "service": "OpenSearchService",
+      "directory_found": false,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no botocore data directory normalizes (or is aliased) to this CFN service segment"
+    },
+    {
+      "service": "Organizations",
+      "botocore_directory": "organizations",
+      "botocore_version": "2016-11-28",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceId",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "PaymentCryptography",
+      "botocore_directory": "payment-cryptography",
+      "botocore_version": "2021-09-14",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "Pinpoint",
+      "botocore_directory": "pinpoint",
+      "botocore_version": "2016-12-01",
+      "directory_found": true,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no operation in this service's model looks like a tagging write (a tag-ish, non-removal name whose input carries both a resource identifier and a *tags-suffixed member)"
+    },
+    {
+      "service": "Pipes",
+      "botocore_directory": "pipes",
+      "botocore_version": "2015-10-07",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "QBusiness",
+      "botocore_directory": "qbusiness",
+      "botocore_version": "2023-11-27",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceARN",
+      "tags_arg": "tags",
+      "tags_shape": "list",
+      "tag_key_field": "key",
+      "tag_value_field": "value",
+      "composable": true
+    },
+    {
+      "service": "QLDB",
+      "directory_found": false,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no botocore data directory normalizes (or is aliased) to this CFN service segment"
+    },
+    {
+      "service": "QuickSight",
+      "botocore_directory": "quicksight",
+      "botocore_version": "2018-04-01",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "RAM",
+      "botocore_directory": "ram",
+      "botocore_version": "2018-01-04",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "tags_arg": "tags",
+      "tags_shape": "list",
+      "tag_key_field": "key",
+      "tag_value_field": "value",
+      "composable": false,
+      "reason": "the operation takes 2 identifying arguments besides tags (resourceArn, resourceShareArn), not the single scalar this tool can compose a command from"
+    },
+    {
+      "service": "RDS",
+      "botocore_directory": "rds",
+      "botocore_version": "2014-10-31",
+      "directory_found": true,
+      "operation": "AddTagsToResource",
+      "ambiguous": false,
+      "candidates": [
+        "AddTagsToResource"
+      ],
+      "resource_arg": "ResourceName",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "RUM",
+      "botocore_directory": "rum",
+      "botocore_version": "2018-05-10",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "Rbin",
+      "botocore_directory": "rbin",
+      "botocore_version": "2021-06-15",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "Redshift",
+      "botocore_directory": "redshift",
+      "botocore_version": "2012-12-01",
+      "directory_found": true,
+      "operation": "CreateTags",
+      "ambiguous": false,
+      "candidates": [
+        "CreateTags"
+      ],
+      "resource_arg": "ResourceName",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "RedshiftServerless",
+      "botocore_directory": "redshift-serverless",
+      "botocore_version": "2021-04-21",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "list",
+      "tag_key_field": "key",
+      "tag_value_field": "value",
+      "composable": true
+    },
+    {
+      "service": "Rekognition",
+      "botocore_directory": "rekognition",
+      "botocore_version": "2016-06-27",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "ResilienceHub",
+      "botocore_directory": "resiliencehub",
+      "botocore_version": "2020-04-30",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "ResilienceHubV2",
+      "botocore_directory": "resiliencehubv2",
+      "botocore_version": "2026-02-17",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "ResourceExplorer2",
+      "botocore_directory": "resource-explorer-2",
+      "botocore_version": "2022-07-28",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "ResourceGroups",
+      "botocore_directory": "resource-groups",
+      "botocore_version": "2017-11-27",
+      "directory_found": true,
+      "operation": "Tag",
+      "ambiguous": false,
+      "candidates": [
+        "Tag"
+      ],
+      "resource_arg": "Arn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "RolesAnywhere",
+      "botocore_directory": "rolesanywhere",
+      "botocore_version": "2018-05-10",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "list",
+      "tag_key_field": "key",
+      "tag_value_field": "value",
+      "composable": true
+    },
+    {
+      "service": "Route53",
+      "botocore_directory": "route53",
+      "botocore_version": "2013-04-01",
+      "directory_found": true,
+      "operation": "ChangeTagsForResource",
+      "ambiguous": false,
+      "candidates": [
+        "ChangeTagsForResource"
+      ],
+      "tags_arg": "AddTags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": false,
+      "reason": "the operation takes 3 identifying arguments besides AddTags (RemoveTagKeys, ResourceId, ResourceType), not the single scalar this tool can compose a command from"
+    },
+    {
+      "service": "Route53Profiles",
+      "botocore_directory": "route53profiles",
+      "botocore_version": "2018-05-10",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "Route53RecoveryReadiness",
+      "botocore_directory": "route53-recovery-readiness",
+      "botocore_version": "2019-12-02",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "Route53Resolver",
+      "botocore_directory": "route53resolver",
+      "botocore_version": "2018-04-01",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "S3",
+      "botocore_directory": "s3",
+      "botocore_version": "2006-03-01",
+      "directory_found": true,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no operation in this service's model looks like a tagging write (a tag-ish, non-removal name whose input carries both a resource identifier and a *tags-suffixed member)"
+    },
+    {
+      "service": "S3Files",
+      "botocore_directory": "s3files",
+      "botocore_version": "2025-05-05",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceId",
+      "tags_arg": "tags",
+      "tags_shape": "list",
+      "tag_key_field": "key",
+      "tag_value_field": "value",
+      "composable": true
+    },
+    {
+      "service": "S3Outposts",
+      "botocore_directory": "s3outposts",
+      "botocore_version": "2017-07-25",
+      "directory_found": true,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no operation in this service's model looks like a tagging write (a tag-ish, non-removal name whose input carries both a resource identifier and a *tags-suffixed member)"
+    },
+    {
+      "service": "S3Tables",
+      "botocore_directory": "s3tables",
+      "botocore_version": "2018-05-10",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "S3Vectors",
+      "botocore_directory": "s3vectors",
+      "botocore_version": "2025-07-15",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "SES",
+      "botocore_directory": "ses",
+      "botocore_version": "2010-12-01",
+      "directory_found": true,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no operation in this service's model looks like a tagging write (a tag-ish, non-removal name whose input carries both a resource identifier and a *tags-suffixed member)"
+    },
+    {
+      "service": "SNS",
+      "botocore_directory": "sns",
+      "botocore_version": "2010-03-31",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "SQS",
+      "botocore_directory": "sqs",
+      "botocore_version": "2012-11-05",
+      "directory_found": true,
+      "operation": "TagQueue",
+      "ambiguous": false,
+      "candidates": [
+        "TagQueue"
+      ],
+      "resource_arg": "QueueUrl",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "SSM",
+      "botocore_directory": "ssm",
+      "botocore_version": "2014-11-06",
+      "directory_found": true,
+      "operation": "AddTagsToResource",
+      "ambiguous": false,
+      "candidates": [
+        "AddTagsToResource"
+      ],
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": false,
+      "reason": "the operation takes 2 identifying arguments besides Tags (ResourceId, ResourceType), not the single scalar this tool can compose a command from"
+    },
+    {
+      "service": "SSMContacts",
+      "botocore_directory": "ssm-contacts",
+      "botocore_version": "2021-05-03",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceARN",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "SSMIncidents",
+      "botocore_directory": "ssm-incidents",
+      "botocore_version": "2018-05-10",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "SSMQuickSetup",
+      "botocore_directory": "ssm-quicksetup",
+      "botocore_version": "2018-05-10",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "SSO",
+      "botocore_directory": "sso",
+      "botocore_version": "2019-06-10",
+      "directory_found": true,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no operation in this service's model looks like a tagging write (a tag-ish, non-removal name whose input carries both a resource identifier and a *tags-suffixed member)"
+    },
+    {
+      "service": "SageMaker",
+      "botocore_directory": "sagemaker",
+      "botocore_version": "2017-07-24",
+      "directory_found": true,
+      "operation": "AddTags",
+      "ambiguous": false,
+      "candidates": [
+        "AddTags"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "Scheduler",
+      "botocore_directory": "scheduler",
+      "botocore_version": "2021-06-30",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "SecretsManager",
+      "botocore_directory": "secretsmanager",
+      "botocore_version": "2017-10-17",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "SecretId",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "SecurityHub",
+      "botocore_directory": "securityhub",
+      "botocore_version": "2018-10-26",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "SecurityLake",
+      "botocore_directory": "securitylake",
+      "botocore_version": "2018-05-10",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "list",
+      "tag_key_field": "key",
+      "tag_value_field": "value",
+      "composable": true
+    },
+    {
+      "service": "ServiceCatalog",
+      "botocore_directory": "servicecatalog",
+      "botocore_version": "2015-12-10",
+      "directory_found": true,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no operation in this service's model looks like a tagging write (a tag-ish, non-removal name whose input carries both a resource identifier and a *tags-suffixed member)"
+    },
+    {
+      "service": "ServiceCatalogAppRegistry",
+      "botocore_directory": "servicecatalog-appregistry",
+      "botocore_version": "2020-06-24",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "ServiceDiscovery",
+      "botocore_directory": "servicediscovery",
+      "botocore_version": "2017-03-14",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceARN",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "Shield",
+      "botocore_directory": "shield",
+      "botocore_version": "2016-06-02",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceARN",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "Signer",
+      "botocore_directory": "signer",
+      "botocore_version": "2017-08-25",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "StepFunctions",
+      "botocore_directory": "stepfunctions",
+      "botocore_version": "2016-11-23",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "list",
+      "tag_key_field": "key",
+      "tag_value_field": "value",
+      "composable": true
+    },
+    {
+      "service": "StorageGateway",
+      "botocore_directory": "storagegateway",
+      "botocore_version": "2013-06-30",
+      "directory_found": true,
+      "operation": "AddTagsToResource",
+      "ambiguous": false,
+      "candidates": [
+        "AddTagsToResource"
+      ],
+      "resource_arg": "ResourceARN",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "Synthetics",
+      "botocore_directory": "synthetics",
+      "botocore_version": "2017-10-11",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "Transcribe",
+      "botocore_directory": "transcribe",
+      "botocore_version": "2017-10-26",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "Transfer",
+      "botocore_directory": "transfer",
+      "botocore_version": "2018-11-05",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "Arn",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "VerifiedPermissions",
+      "botocore_directory": "verifiedpermissions",
+      "botocore_version": "2021-12-01",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "VpcLattice",
+      "botocore_directory": "vpc-lattice",
+      "botocore_version": "2022-11-30",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "WAF",
+      "botocore_directory": "waf",
+      "botocore_version": "2015-08-24",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceARN",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "WAFRegional",
+      "botocore_directory": "waf-regional",
+      "botocore_version": "2016-11-28",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceARN",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "WAFv2",
+      "botocore_directory": "wafv2",
+      "botocore_version": "2019-07-29",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceARN",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "WorkSpaces",
+      "botocore_directory": "workspaces",
+      "botocore_version": "2015-04-08",
+      "directory_found": true,
+      "operation": "CreateTags",
+      "ambiguous": false,
+      "candidates": [
+        "CreateTags"
+      ],
+      "resource_arg": "ResourceId",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "WorkSpacesWeb",
+      "botocore_directory": "workspaces-web",
+      "botocore_version": "2020-07-08",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    },
+    {
+      "service": "XRay",
+      "botocore_directory": "xray",
+      "botocore_version": "2016-04-12",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceARN",
+      "tags_arg": "Tags",
+      "tags_shape": "list",
+      "tag_key_field": "Key",
+      "tag_value_field": "Value",
+      "composable": true
+    }
+  ]
+}

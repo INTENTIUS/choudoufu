@@ -40,6 +40,7 @@ type argSource string
 
 const (
 	argSourceIdentitySchema argSource = "provider identity schema (live/survey-full.json)"
+	argSourceImportGrammar  argSource = "import grammar (live/import-grammar.json)"
 	argSourceCarveSeed      argSource = "carve seed (tools/mapping-gen/carve-seed.json)"
 	argSourceGuessed        argSource = "GUESSED: snake_cased CFN property name"
 )
@@ -108,7 +109,7 @@ func enumerationStory(list bool, requiredInput []string) (string, []string) {
 // classifyMapped classifies one via:name/via:alias row (a row with a CFN
 // type) against its registry entry. The four rules run in the order the
 // issue states them; the first that fires wins.
-func classifyMapped(tf, cfn string, e registryEntry, survey map[string]surveyEntry, carveSeed map[string]string) proposal {
+func classifyMapped(tf, cfn string, e registryEntry, survey map[string]surveyEntry, importGrammar map[string]importGrammarRow, carveSeed map[string]string) proposal {
 	p := proposal{
 		TFType:            tf,
 		CFNType:           cfn,
@@ -140,7 +141,7 @@ func classifyMapped(tf, cfn string, e registryEntry, survey map[string]surveyEnt
 		id := e.PrimaryIdentifier[0]
 		if co[id] && !ro[id] {
 			p.Rule = "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties"
-			arg, src, confident := resolveArgName(tf, id, survey, carveSeed)
+			arg, src, confident := resolveArgName(tf, id, survey, importGrammar, carveSeed)
 			p.ArgName = arg
 			p.ArgSource = src
 			if confident {
@@ -201,15 +202,29 @@ func classifyFold(tf, foldParent string, mapped []proposal) proposal {
 	return p
 }
 
-// resolveArgName is the client-named argument-name source order the issue
-// states: the provider's own identity schema first, the carve seed second,
-// and a snake-cased guess off the CFN property name last - which is never
+// resolveArgName is the client-named argument-name source order issue #52's
+// second half restates: the provider's own identity schema first, then the
+// provider's own Import documentation (live/import-grammar.json,
+// tools/importdocs-gen) - trusted only when it names exactly one argument
+// and the doc itself says the ID is composed of configuration arguments
+// rather than a server-assigned opaque value, the same confidence bar the
+// identity schema already clears by construction - then the carve seed,
+// and a snake-cased guess off the CFN property name last, which is never
 // confident, so callers must check the third return value before treating
-// the row as pastable.
-func resolveArgName(tf, cfnProperty string, survey map[string]surveyEntry, carveSeed map[string]string) (string, argSource, bool) {
+// the row as pastable. import-grammar sits ahead of the carve seed because
+// it is a second authoritative source (the provider's own docs, not a
+// vendored snapshot of a sibling project's table); it sits behind the
+// identity schema because a schema's required_for_import is the provider's
+// own structured answer, sharper than a docs paragraph parsed at pin time.
+func resolveArgName(tf, cfnProperty string, survey map[string]surveyEntry, importGrammar map[string]importGrammarRow, carveSeed map[string]string) (string, argSource, bool) {
 	if s, ok := survey[tf]; ok {
 		if arg, ok := s.identityArg(); ok {
 			return arg, argSourceIdentitySchema, true
+		}
+	}
+	if g, ok := importGrammar[tf]; ok {
+		if g.ComposedOfArguments != nil && *g.ComposedOfArguments && len(g.Arguments) == 1 {
+			return g.Arguments[0], argSourceImportGrammar, true
 		}
 	}
 	if arg, ok := carveSeed[tf]; ok {

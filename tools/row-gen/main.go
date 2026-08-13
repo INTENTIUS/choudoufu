@@ -127,7 +127,7 @@ func classifyAll(rows []mappingRow, registry map[string]registryEntry, survey ma
 		if !ok {
 			return nil, fmt.Errorf("%s: mapped to %s, which is not in %s (a stale mapping against the current registry)", r.TFType, *r.CFNType, registryJSONRel)
 		}
-		mapped = append(mapped, classifyMapped(r.TFType, *r.CFNType, entry, survey, carveSeed))
+		mapped = append(mapped, classifyMapped(r.TFType, *r.CFNType, entry, survey, importGrammar, carveSeed))
 	}
 
 	out := make([]proposal, 0, len(mapped)+len(folds))
