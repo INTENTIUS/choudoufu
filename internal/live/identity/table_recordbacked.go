@@ -50,8 +50,4 @@ var recordBackedTable = buildTable(
 // record_store block is present (internal/live/lint/lint.go's
 // checkManagedResources); a caller that reaches resolve.go with one of
 // these types in its configuration has already passed that gate.
-func init() {
-	for k, v := range recordBackedTable {
-		DefaultTable[k] = v
-	}
-}
+func init() { registerCohortTable(recordBackedTable) }
