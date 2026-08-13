@@ -26,7 +26,7 @@ nor the carve seed) is evidence-only, not a proposal - see the argument
 line in each such block.
 
 ================================================================
-service: Lambda (8 types)
+service: Lambda (10 types)
 ================================================================
 
 ## aws_lambda_alias -> AWS::Lambda::Alias [evidence-only]
@@ -105,6 +105,19 @@ TypeIdentity{
 	ImportSyntax:  "FUNCTION_NAME",
 	IdentityAttrs: []string{"function_name"}, // "id" intentionally omitted; see issue #44 non-goals
 },
+
+## aws_lambda_function_event_invoke_config -> AWS::Lambda::EventInvokeConfig [needs hand separator]
+rule: len(primaryIdentifier) > 1 (composite; the separator is in no schema)
+registry fields read: primary_identifier=["FunctionName", "Qualifier"] read_only_properties=[] create_only_properties=["FunctionName", "Qualifier"]
+enumeration: parent-input ["FunctionName"]
+no pastable row: the composite separator is not registry evidence; a human chooses it.
+
+## aws_lambda_function_url -> AWS::Lambda::Url [evidence-only]
+rule: primaryIdentifier ⊆ readOnlyProperties
+registry fields read: primary_identifier=["FunctionArn"] read_only_properties=["FunctionUrl", "FunctionArn"] create_only_properties=["TargetFunctionArn", "Qualifier"]
+enumeration: parent-input ["TargetFunctionArn"]
+note: import docs show argument-composed ID: example
+no pastable row.
 
 ## aws_lambda_layer_version -> AWS::Lambda::LayerVersion [proposed: server-assigned]
 rule: primaryIdentifier ⊆ readOnlyProperties
