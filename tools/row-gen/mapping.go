@@ -27,9 +27,9 @@ type mappingArtifact struct {
 }
 
 // loadMapping reads live/mapping.json and returns every row whose via is
-// name, alias or fold - the "mapped set" this tool classifies. via:none rows
-// carry no CFN evidence at all and are silently excluded, sorted by tf_type
-// for deterministic output.
+// name, alias, service-alias or fold - the "mapped set" this tool
+// classifies. via:none rows carry no CFN evidence at all and are silently
+// excluded, sorted by tf_type for deterministic output.
 func loadMapping(path string) ([]mappingRow, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // a fixed path inside the checkout
 	if err != nil {
@@ -42,7 +42,7 @@ func loadMapping(path string) ([]mappingRow, error) {
 	out := make([]mappingRow, 0, len(art.Rows))
 	for _, r := range art.Rows {
 		switch r.Via {
-		case "name", "alias", "fold":
+		case "name", "alias", "service-alias", "fold":
 			out = append(out, r)
 		}
 	}

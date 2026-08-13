@@ -427,7 +427,7 @@ func Lookup(tfType string) (cohort Cohort, sentence string, ok bool) {
 			note = *row.Note
 		}
 		return CohortUnmapped, fmt.Sprintf("%s has no CloudFormation Registry counterpart (%s), so the registry-backed admission path cannot reach it.", tfType, note), true
-	case "name", "alias", "fold":
+	case "name", "alias", "service-alias", "fold":
 		cfnType := ""
 		if row.CFNType != nil {
 			cfnType = *row.CFNType
@@ -506,8 +506,8 @@ func UnmappedGroups() (groups []UnmappedGroup, total int) {
 }
 
 // LaggardType is one TF type in the registry-laggard cohort: mapped to a
-// CFN type (by name, alias, or fold) whose Registry entry ships no working
-// handler at all.
+// CFN type (by name, alias, service-alias, or fold) whose Registry entry
+// ships no working handler at all.
 type LaggardType struct {
 	TFType  string
 	CFNType string

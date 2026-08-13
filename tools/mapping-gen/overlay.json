@@ -55,11 +55,46 @@
   "nones": {
     "aws_acm_certificate_validation": "waiter: records only that DNS validation finished; waiting belongs to the lifecycle layer, not a CFN resource of its own"
   },
+  "service_aliases": {
+    "vpc": ["EC2"],
+    "ec2": ["EC2"],
+    "ebs": ["EC2"],
+    "cloudwatch_log": ["Logs"],
+    "cloudwatch_event": ["Events"],
+    "cloudwatch": ["CloudWatch"],
+    "db": ["RDS"],
+    "rds": ["RDS"],
+    "dx": ["DirectConnect"],
+    "route53_resolver": ["Route53Resolver"],
+    "route53": ["Route53"],
+    "elasticache": ["ElastiCache"],
+    "api_gateway": ["ApiGateway"],
+    "apigatewayv2": ["ApiGatewayV2"],
+    "sesv2": ["SES"],
+    "ssoadmin": ["SSO"],
+    "s3control": ["S3", "S3Outposts"],
+    "s3": ["S3"],
+    "lb": ["ElasticLoadBalancingV2"],
+    "alb": ["ElasticLoadBalancingV2"],
+    "redshift": ["Redshift"],
+    "cognito": ["Cognito"],
+    "iam": ["IAM"],
+    "lightsail": ["Lightsail"],
+    "quicksight": ["QuickSight"],
+    "sagemaker": ["SageMaker"],
+    "fsx": ["FSx"],
+    "opensearch": ["OpenSearchService"],
+    "backup": ["Backup"],
+    "guardduty": ["GuardDuty"]
+  },
   "_provenance": [
     "aliases: issue #43's 31-entry seed, validated against the curated 68 (raises the join from 28/68 to 59/68).",
     "folds (first 13, S3 and the two ECR entries): chant's packages/core/src/terraform/tier-map.ts:80-97 (FOLDS_INTO, 16 entries), minus aws_s3_bucket_policy - CloudFormation ships a standalone AWS::S3::BucketPolicy, so that one TF type is a genuine name-heuristic hit here, not a fold.",
     "folds (aws_lb_target_group_attachment, aws_iam_role_policy_attachment): issue #43's own fold seed - neither CloudFormation type carries a standalone attachment resource; both are properties on their parent (TargetGroup's Targets, Role's ManagedPolicyArns).",
     "folds (aws_secretsmanager_secret_version): not in chant's FOLDS_INTO list, but the same TF-decomposes-finer-than-CFN pattern - AWS::SecretsManager has no standalone SecretVersion type (verified against live/registry.json); the version is just the parent Secret's SecretString property. Needed for the curated-68 pin (59 mapped / 9 fold-or-none / 0 unexplained) to close - without it, this type falls through unexplained.",
-    "nones: issue #43's own seed (aws_acm_certificate_validation, a waiter)."
+    "nones: issue #43's own seed (aws_acm_certificate_validation, a waiter).",
+    "service_aliases: heuristic v2 (measurement showed 576 of the 900 via:none types are in services live/registry.json already covers - the join was failing on naming conventions, not coverage). Every service name here was checked against the current live/registry.json service list before being added. vpc/ec2/ebs all resolve to plain EC2 - TF invented 'vpc' and 'ebs' as if they were their own services, but CloudFormation has always kept them under EC2. cloudwatch splits three ways depending on the TF type's own second token: cloudwatch_log_* is really the Logs service, cloudwatch_event_* is really Events (this generalizes the single aws_cloudwatch_event_rule alias above to the whole family), and bare cloudwatch_* is the actual CloudWatch service. db/rds both mean RDS (TF uses both prefixes across its history). route53_resolver is Route53Resolver, a distinct CFN service from plain route53's Route53 - checked separately since the longer prefix must be tried, not just the shorter one it starts with. lb/alb both mean ElasticLoadBalancingV2 (alb is TF's older, still-supported alias family for the same resources as lb). sesv2 means SES (registry.json has no separate SESv2 service). opensearch means OpenSearchService, not a same-named service. The rest (api_gateway, apigatewayv2, ssoadmin->SSO, redshift, cognito, iam, lightsail, quicksight, sagemaker, fsx, dx->DirectConnect, elasticache, backup, guardduty) are same-named or already-aliased services included for completeness, since even a same-named service benefits from this file's resource-level cut-point matching (e.g. aws_ec2_fleet -> AWS::EC2::EC2Fleet, whose own resource segment redundantly repeats the service name the way aws_vpc_peering_connection -> AWS::EC2::VPCPeeringConnection does) - the plain name heuristic's single service+resource candidate string cannot reach either shape.",
+    "service_aliases: s3control names two services, not one - S3 and S3Outposts. First pass only listed S3 ('CloudFormation never split off a separate S3Control service' is true, but beside the point); that silently mapped aws_s3control_bucket and aws_s3control_bucket_policy to AWS::S3::Bucket/BucketPolicy, which is wrong - both TF resources are documented as S3-on-Outposts-only, and live/registry.json carries a distinct AWS::S3Outposts::Bucket/BucketPolicy pair for exactly that. Caught by cross-checking every service-alias hit against the full registry for same-cut matches in services this table did not name (not just the ones it did) - the same audit that cleared every other hit here as a genuine one-service correspondence, not a coincidence. Listing both services turns those two TF types ambiguous (via:none, reported to the needs-alias log) instead of silently wrong; a human still needs to pick one by hand.",
+    "service_aliases: some anchor families produced zero new mappings even though the CFN service name is correct and verified - elasticache (CacheCluster vs TF's cluster, ReplicationGroup-family naming does not line up token-for-token), redshift (real CFN types keep a Cluster* prefix - ClusterParameterGroup, ClusterSubnetGroup - that TF's own names drop), route53 bare prefix, iam, lightsail, quicksight and sagemaker (their remaining via:none members are TF-only constructs - settings, attachments, exclusives - with no CFN resource of their own, or CFN counterparts whose CFN naming genuinely diverges from TF's beyond a prefix cut). Left in the table anyway: the service pairing itself is correct and this is a service-scoped exact-match heuristic on purpose, not a fuzzy one - it is supposed to leave real naming divergences at via:none rather than guess."
   ]
 }

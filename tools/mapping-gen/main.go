@@ -14,11 +14,14 @@
 //	{"tf_type": "aws_s3_bucket", "cfn_type": "AWS::S3::Bucket", "via": "name", "fold_parent": null, "note": null}
 //
 // via is name (the heuristic in heuristic.go derived the CFN type from the
-// TF type's own name), alias (the overlay asserts the pair by hand), fold
-// (the TF type is a property-child of a CFN parent - Terraform decomposes
-// finer than CloudFormation here - fold_parent carries the parent's CFN
-// type and cfn_type stays null), or none (no CFN counterpart; note says why
-// when the overlay knows).
+// TF type's own name), alias (the overlay asserts the pair by hand),
+// service-alias (servicealias.go's heuristic v2 matched the TF type's
+// resource tokens against one CFN service's own resource names, the
+// service picked by the overlay's service_aliases table rather than
+// guessed across every service), fold (the TF type is a property-child of
+// a CFN parent - Terraform decomposes finer than CloudFormation here -
+// fold_parent carries the parent's CFN type and cfn_type stays null), or
+// none (no CFN counterpart; note says why when the overlay knows).
 //
 // Every input is a committed file - no provider, no network, no zip - so
 // this tool needs nothing beyond the checkout:
@@ -31,6 +34,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 // Path literals, centralized on purpose (see tools/survey-gen/main.go's
@@ -98,7 +102,7 @@ func run() error {
 		return fmt.Errorf("reading the overlay from %s: %w", overlayJSONRel, err)
 	}
 
-	mapping, err := buildMapping(tfTypes, cfnTypes, overlay)
+	mapping, needsAlias, err := buildMapping(tfTypes, cfnTypes, overlay)
 	if err != nil {
 		return err
 	}
@@ -114,5 +118,16 @@ func run() error {
 	}
 	fmt.Fprintf(os.Stderr, "mapping-gen: wrote %s (%d types: %d mapped, %d fold, %d none)\n",
 		mappingJSONRel, mapping.Counts.Types, mapping.Counts.Mapped, mapping.Counts.Fold, mapping.Counts.None)
+
+	// The service-alias heuristic's ambiguous hits are never written into
+	// mapping.json (see servicealias.go's package comment) - printed here
+	// instead, so a human can turn one of the candidates into an explicit
+	// overlay alias, but nothing downstream reads this report back.
+	if len(needsAlias) > 0 {
+		fmt.Fprintf(os.Stderr, "mapping-gen: %d TF type(s) matched more than one CFN type within their aliased service (needs a hand overlay alias, not mapped):\n", len(needsAlias))
+		for _, n := range needsAlias {
+			fmt.Fprintf(os.Stderr, "  %s -> %s\n", n.TFType, strings.Join(n.Candidates, " | "))
+		}
+	}
 	return nil
 }
