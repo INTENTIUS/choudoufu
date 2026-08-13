@@ -1,0 +1,160 @@
+row-gen: registry-evidence admission proposals (issue #44)
+
+Turns live/registry.json's per-type evidence, joined against live/mapping.json,
+into proposed rows for internal/live/lint/admission.go (admittedTypesV0) and
+internal/live/identity/table.go (DefaultTable). Nothing is written to either
+file by this tool: every block below is printed for a human to paste, edit
+and ratify. A wrong row touches live infrastructure, so the generator
+proposes and humans decide - see issue #37.
+
+Non-goals (also true of every block below, not just this header):
+  - no IdentityAttrs id-alias inference: whether a type's own "id" attribute
+    equals its import identity is not decided here (synthesize.go:47-52);
+    a ratifier adds "id" to IdentityAttrs only after confirming it by hand.
+  - no matchTable adoption rows: scope-uniqueness for content-match adoption
+    is human judgment (internal/live/foreign/classify.go:62-67).
+  - no composite separators: a type whose primaryIdentifier has more than
+    one part lands in "needs hand separator" and is never pastable, because
+    the join character (DefaultTable's are "/", ":", "_", ","; Cloud
+    Control's own is "|") is in no schema this tool can read.
+
+Every Reason string in a server-assigned block is flagged TEMPLATED: it names
+the CFN service and asserts server assignment, nothing more specific.
+Every client-named block whose argument name could only be GUESSED (a
+snake-cased CFN property name, backed by neither a provider identity schema
+nor the carve seed) is evidence-only, not a proposal - see the argument
+line in each such block.
+
+================================================================
+service: Lambda (8 types)
+================================================================
+
+## aws_lambda_alias -> AWS::Lambda::Alias [proposed: server-assigned]
+rule: primaryIdentifier ⊆ readOnlyProperties
+registry fields read: primary_identifier=["AliasArn"] read_only_properties=["AliasArn"] create_only_properties=["Name", "FunctionName"]
+enumeration: parent-input ["FunctionName"]
+
+--- paste into internal/live/lint/admission.go (admittedTypesV0) ---
+"aws_lambda_alias": {},
+
+--- paste into internal/live/identity/table.go (DefaultTable) ---
+serverAssigned("aws_lambda_alias",
+	"the Lambda service assigns this identity at create time; no argument reconstructs it.", // TEMPLATED: rewrite or accept this reason during ratification
+	"ALIASARN", // TEMPLATED: registry primaryIdentifier name(s), not the provider's documented import syntax; verify
+	// IdentityAttrs intentionally omitted: whether this type's own "id"
+	// attribute equals the identity above is the id-alias inference row-gen
+	// does not make (issue #44 non-goals). Add "id" and any other alias
+	// only after confirming it against the provider schema or docs.
+),
+
+## aws_lambda_capacity_provider -> AWS::Lambda::CapacityProvider [proposed: client-named]
+rule: len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties
+registry fields read: primary_identifier=["CapacityProviderName"] read_only_properties=["State", "Arn"] create_only_properties=["CapacityProviderName", "VpcConfig", "InstanceRequirements", "PermissionsConfig", "KmsKeyArn"]
+enumeration: list-free
+argument: name (source: provider identity schema (live/survey-full.json))
+
+--- paste into internal/live/lint/admission.go (admittedTypesV0) ---
+"aws_lambda_capacity_provider": {},
+
+--- paste into internal/live/identity/table.go (DefaultTable) ---
+TypeIdentity{
+	Type:          "aws_lambda_capacity_provider",
+	Components:    []Component{attr("name")},
+	ImportSyntax:  "NAME",
+	IdentityAttrs: []string{"name"}, // "id" intentionally omitted; see issue #44 non-goals
+},
+
+## aws_lambda_code_signing_config -> AWS::Lambda::CodeSigningConfig [proposed: server-assigned]
+rule: primaryIdentifier ⊆ readOnlyProperties
+registry fields read: primary_identifier=["CodeSigningConfigArn"] read_only_properties=["CodeSigningConfigId", "CodeSigningConfigArn"] create_only_properties=[]
+enumeration: list-free
+
+--- paste into internal/live/lint/admission.go (admittedTypesV0) ---
+"aws_lambda_code_signing_config": {},
+
+--- paste into internal/live/identity/table.go (DefaultTable) ---
+serverAssigned("aws_lambda_code_signing_config",
+	"the Lambda service assigns this identity at create time; no argument reconstructs it.", // TEMPLATED: rewrite or accept this reason during ratification
+	"CODESIGNINGCONFIGARN", // TEMPLATED: registry primaryIdentifier name(s), not the provider's documented import syntax; verify
+	// IdentityAttrs intentionally omitted: whether this type's own "id"
+	// attribute equals the identity above is the id-alias inference row-gen
+	// does not make (issue #44 non-goals). Add "id" and any other alias
+	// only after confirming it against the provider schema or docs.
+),
+
+## aws_lambda_event_source_mapping -> AWS::Lambda::EventSourceMapping [proposed: server-assigned]
+rule: primaryIdentifier ⊆ readOnlyProperties
+registry fields read: primary_identifier=["Id"] read_only_properties=["Id", "EventSourceMappingArn"] create_only_properties=["EventSourceArn", "StartingPosition", "StartingPositionTimestamp", "SelfManagedEventSource"]
+enumeration: list-free
+
+--- paste into internal/live/lint/admission.go (admittedTypesV0) ---
+"aws_lambda_event_source_mapping": {},
+
+--- paste into internal/live/identity/table.go (DefaultTable) ---
+serverAssigned("aws_lambda_event_source_mapping",
+	"the Lambda service assigns this identity at create time; no argument reconstructs it.", // TEMPLATED: rewrite or accept this reason during ratification
+	"ID", // TEMPLATED: registry primaryIdentifier name(s), not the provider's documented import syntax; verify
+	// IdentityAttrs intentionally omitted: whether this type's own "id"
+	// attribute equals the identity above is the id-alias inference row-gen
+	// does not make (issue #44 non-goals). Add "id" and any other alias
+	// only after confirming it against the provider schema or docs.
+),
+
+## aws_lambda_function -> AWS::Lambda::Function [proposed: client-named]
+rule: len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties
+registry fields read: primary_identifier=["FunctionName"] read_only_properties=["SnapStartResponse", "SnapStartResponse/ApplyOn", "SnapStartResponse/OptimizationStatus", "Arn"] create_only_properties=["FunctionName", "PackageType", "TenancyConfig"]
+enumeration: list-free
+argument: function_name (source: provider identity schema (live/survey-full.json))
+
+--- paste into internal/live/lint/admission.go (admittedTypesV0) ---
+"aws_lambda_function": {},
+
+--- paste into internal/live/identity/table.go (DefaultTable) ---
+TypeIdentity{
+	Type:          "aws_lambda_function",
+	Components:    []Component{attr("function_name")},
+	ImportSyntax:  "FUNCTION_NAME",
+	IdentityAttrs: []string{"function_name"}, // "id" intentionally omitted; see issue #44 non-goals
+},
+
+## aws_lambda_layer_version -> AWS::Lambda::LayerVersion [proposed: server-assigned]
+rule: primaryIdentifier ⊆ readOnlyProperties
+registry fields read: primary_identifier=["LayerVersionArn"] read_only_properties=["LayerVersionArn"] create_only_properties=["CompatibleRuntimes", "LicenseInfo", "CompatibleArchitectures", "LayerName", "Description", "Content"]
+enumeration: parent-input ["LayerName"]
+
+--- paste into internal/live/lint/admission.go (admittedTypesV0) ---
+"aws_lambda_layer_version": {},
+
+--- paste into internal/live/identity/table.go (DefaultTable) ---
+serverAssigned("aws_lambda_layer_version",
+	"the Lambda service assigns this identity at create time; no argument reconstructs it.", // TEMPLATED: rewrite or accept this reason during ratification
+	"LAYERVERSIONARN", // TEMPLATED: registry primaryIdentifier name(s), not the provider's documented import syntax; verify
+	// IdentityAttrs intentionally omitted: whether this type's own "id"
+	// attribute equals the identity above is the id-alias inference row-gen
+	// does not make (issue #44 non-goals). Add "id" and any other alias
+	// only after confirming it against the provider schema or docs.
+),
+
+## aws_lambda_layer_version_permission -> AWS::Lambda::LayerVersionPermission [proposed: server-assigned]
+rule: primaryIdentifier ⊆ readOnlyProperties
+registry fields read: primary_identifier=["Id"] read_only_properties=["Id"] create_only_properties=["OrganizationId", "Principal", "Action", "LayerVersionArn"]
+enumeration: parent-input ["LayerVersionArn"]
+
+--- paste into internal/live/lint/admission.go (admittedTypesV0) ---
+"aws_lambda_layer_version_permission": {},
+
+--- paste into internal/live/identity/table.go (DefaultTable) ---
+serverAssigned("aws_lambda_layer_version_permission",
+	"the Lambda service assigns this identity at create time; no argument reconstructs it.", // TEMPLATED: rewrite or accept this reason during ratification
+	"ID", // TEMPLATED: registry primaryIdentifier name(s), not the provider's documented import syntax; verify
+	// IdentityAttrs intentionally omitted: whether this type's own "id"
+	// attribute equals the identity above is the id-alias inference row-gen
+	// does not make (issue #44 non-goals). Add "id" and any other alias
+	// only after confirming it against the provider schema or docs.
+),
+
+## aws_lambda_permission -> AWS::Lambda::Permission [needs hand separator]
+rule: len(primaryIdentifier) > 1 (composite; the separator is in no schema)
+registry fields read: primary_identifier=["FunctionName", "Id"] read_only_properties=["Id"] create_only_properties=["FunctionName", "FunctionUrlAuthType", "InvokedViaFunctionUrl", "SourceAccount", "SourceArn", "Principal", "PrincipalOrgID", "Action", "EventSourceToken"]
+enumeration: parent-input ["FunctionName"]
+no pastable row: the composite separator is not registry evidence; a human chooses it.
