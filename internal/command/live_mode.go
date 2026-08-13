@@ -354,6 +354,9 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		diags = diags.Append(provs.close(ctx))
 		return nil, diags
 	}
+	// GitHub issue #70's interim half: never fatal, so it rides alongside the
+	// subset check rather than gating on it. See [lint.CheckModuleProviders].
+	diags = diags.Append(lint.CheckModuleProviders(config))
 
 	// Resolved now that lint has passed and the estate name is settled, so
 	// that any verb here is already known valid for its quadrant.
