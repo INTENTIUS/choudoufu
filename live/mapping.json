@@ -4,13 +4,18 @@
     "types": 1691,
     "mapped": 919,
     "fold": 18,
-    "none": 754,
+    "tf_only": 34,
+    "cfn_unmodeled": 0,
+    "deprecated_service": 7,
+    "unclassified": 713,
     "by_via": {
       "alias": 32,
+      "deprecated-service": 7,
       "fold": 18,
       "former2": 48,
       "name": 742,
-      "service-alias": 97
+      "service-alias": 97,
+      "tf-only": 34
     }
   },
   "former2_contradictions": [
@@ -79,7 +84,7 @@
     {
       "tf_type": "aws_acm_certificate_validation",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
       "note": "waiter: records only that DNS validation finished; waiting belongs to the lifecycle layer, not a CFN resource of its own"
     },
@@ -170,9 +175,9 @@
     {
       "tf_type": "aws_ami_copy",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an aws_ami_copy-style copy operation: starts a copy and tracks its result, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_ami_from_instance",
@@ -1010,9 +1015,9 @@
     {
       "tf_type": "aws_auditmanager_organization_admin_account_registration",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a registration action: enrolls an account or resource into a feature, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_autoscaling_attachment",
@@ -3096,9 +3101,9 @@
     {
       "tf_type": "aws_db_snapshot_copy",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an aws_ami_copy-style copy operation: starts a copy and tracks its result, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_db_subnet_group",
@@ -3110,30 +3115,30 @@
     {
       "tf_type": "aws_default_network_acl",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a default_* adopter: brings an AWS-created default resource under management rather than creating one, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_default_route_table",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a default_* adopter: brings an AWS-created default resource under management rather than creating one, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_default_security_group",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a default_* adopter: brings an AWS-created default resource under management rather than creating one, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_default_subnet",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a default_* adopter: brings an AWS-created default resource under management rather than creating one, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_default_vpc",
@@ -3145,9 +3150,9 @@
     {
       "tf_type": "aws_default_vpc_dhcp_options",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a default_* adopter: brings an AWS-created default resource under management rather than creating one, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_detective_graph",
@@ -3159,9 +3164,9 @@
     {
       "tf_type": "aws_detective_invitation_accepter",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an acceptance-side waiter: flips a pending cross-account request (an invitation, a peering or attachment offer) to accepted, with no cloud resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_detective_member",
@@ -3299,9 +3304,9 @@
     {
       "tf_type": "aws_directory_service_shared_directory_accepter",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an acceptance-side waiter: flips a pending cross-account request (an invitation, a peering or attachment offer) to accepted, with no cloud resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_directory_service_trust",
@@ -3474,9 +3479,9 @@
     {
       "tf_type": "aws_dx_connection_confirmation",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a confirmation waiter: flips a pending request to confirmed, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_dx_gateway",
@@ -3516,9 +3521,9 @@
     {
       "tf_type": "aws_dx_hosted_private_virtual_interface_accepter",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an acceptance-side waiter: flips a pending cross-account request (an invitation, a peering or attachment offer) to accepted, with no cloud resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_dx_hosted_public_virtual_interface",
@@ -3530,9 +3535,9 @@
     {
       "tf_type": "aws_dx_hosted_public_virtual_interface_accepter",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an acceptance-side waiter: flips a pending cross-account request (an invitation, a peering or attachment offer) to accepted, with no cloud resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_dx_hosted_transit_virtual_interface",
@@ -3544,9 +3549,9 @@
     {
       "tf_type": "aws_dx_hosted_transit_virtual_interface_accepter",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an acceptance-side waiter: flips a pending cross-account request (an invitation, a peering or attachment offer) to accepted, with no cloud resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_dx_lag",
@@ -3691,9 +3696,9 @@
     {
       "tf_type": "aws_ebs_snapshot_copy",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an aws_ami_copy-style copy operation: starts a copy and tracks its result, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_ebs_snapshot_import",
@@ -4041,9 +4046,9 @@
     {
       "tf_type": "aws_ec2_transit_gateway_peering_attachment_accepter",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an acceptance-side waiter: flips a pending cross-account request (an invitation, a peering or attachment offer) to accepted, with no cloud resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_ec2_transit_gateway_policy_table",
@@ -4104,9 +4109,9 @@
     {
       "tf_type": "aws_ec2_transit_gateway_vpc_attachment_accepter",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an acceptance-side waiter: flips a pending cross-account request (an invitation, a peering or attachment offer) to accepted, with no cloud resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_ecr_account_setting",
@@ -5161,9 +5166,9 @@
     {
       "tf_type": "aws_guardduty_invite_accepter",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an acceptance-side waiter: flips a pending cross-account request (an invitation, a peering or attachment offer) to accepted, with no cloud resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_guardduty_ipset",
@@ -6141,9 +6146,9 @@
     {
       "tf_type": "aws_lambda_invocation",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an invocation action: triggers a call and records its result, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_lambda_layer_version",
@@ -6351,9 +6356,9 @@
     {
       "tf_type": "aws_licensemanager_grant_accepter",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an acceptance-side waiter: flips a pending cross-account request (an invitation, a peering or attachment offer) to accepted, with no cloud resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_licensemanager_license_configuration",
@@ -6645,9 +6650,9 @@
     {
       "tf_type": "aws_macie2_invitation_accepter",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an acceptance-side waiter: flips a pending cross-account request (an invitation, a peering or attachment offer) to accepted, with no cloud resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_macie2_member",
@@ -7065,9 +7070,9 @@
     {
       "tf_type": "aws_networkfirewall_firewall_transit_gateway_attachment_accepter",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an acceptance-side waiter: flips a pending cross-account request (an invitation, a peering or attachment offer) to accepted, with no cloud resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_networkfirewall_logging_configuration",
@@ -7121,9 +7126,9 @@
     {
       "tf_type": "aws_networkmanager_attachment_accepter",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an acceptance-side waiter: flips a pending cross-account request (an invitation, a peering or attachment offer) to accepted, with no cloud resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_networkmanager_attachment_routing_policy_label",
@@ -7492,9 +7497,9 @@
     {
       "tf_type": "aws_opensearch_inbound_connection_accepter",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an acceptance-side waiter: flips a pending cross-account request (an invitation, a peering or attachment offer) to accepted, with no cloud resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_opensearch_outbound_connection",
@@ -8003,9 +8008,9 @@
     {
       "tf_type": "aws_quicksight_key_registration",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a registration action: enrolls an account or resource into a feature, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_quicksight_namespace",
@@ -8108,9 +8113,9 @@
     {
       "tf_type": "aws_ram_resource_share_accepter",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an acceptance-side waiter: flips a pending cross-account request (an invitation, a peering or attachment offer) to accepted, with no cloud resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_ram_resource_share_associations_exclusive",
@@ -8185,9 +8190,9 @@
     {
       "tf_type": "aws_rds_cluster_snapshot_copy",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an aws_ami_copy-style copy operation: starts a copy and tracks its result, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_rds_custom_db_engine_version",
@@ -8374,9 +8379,9 @@
     {
       "tf_type": "aws_redshift_snapshot_copy",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an aws_ami_copy-style copy operation: starts a copy and tracks its result, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_redshift_snapshot_copy_grant",
@@ -9053,9 +9058,9 @@
     {
       "tf_type": "aws_s3_object_copy",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an aws_ami_copy-style copy operation: starts a copy and tracks its result, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_s3control_access_grant",
@@ -9718,9 +9723,9 @@
     {
       "tf_type": "aws_securityhub_invite_accepter",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an acceptance-side waiter: flips a pending cross-account request (an invitation, a peering or attachment offer) to accepted, with no cloud resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_securityhub_member",
@@ -10376,9 +10381,9 @@
     {
       "tf_type": "aws_ssm_activation",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an activation action: flips a pending registration to active, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_ssm_association",
@@ -11013,9 +11018,9 @@
     {
       "tf_type": "aws_vpc_endpoint_connection_accepter",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an acceptance-side waiter: flips a pending cross-account request (an invitation, a peering or attachment offer) to accepted, with no cloud resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_vpc_endpoint_connection_notification",
@@ -11174,9 +11179,9 @@
     {
       "tf_type": "aws_vpc_peering_connection_accepter",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an acceptance-side waiter: flips a pending cross-account request (an invitation, a peering or attachment offer) to accepted, with no cloud resource of its own (no identity schema in the provider's own schema, so no importable identity either)"
     },
     {
       "tf_type": "aws_vpc_peering_connection_options",
@@ -11405,9 +11410,9 @@
     {
       "tf_type": "aws_waf_geo_match_set",
       "cfn_type": null,
-      "via": "none",
+      "via": "deprecated-service",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "WAF Classic: a service AWS has superseded with the unified WAFv2 API (live/residue.go's DeprecatedServices; every AWS::WAF:: registry type ships no working handler)"
     },
     {
       "tf_type": "aws_waf_ipset",
@@ -11419,23 +11424,23 @@
     {
       "tf_type": "aws_waf_rate_based_rule",
       "cfn_type": null,
-      "via": "none",
+      "via": "deprecated-service",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "WAF Classic: a service AWS has superseded with the unified WAFv2 API (live/residue.go's DeprecatedServices; every AWS::WAF:: registry type ships no working handler)"
     },
     {
       "tf_type": "aws_waf_regex_match_set",
       "cfn_type": null,
-      "via": "none",
+      "via": "deprecated-service",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "WAF Classic: a service AWS has superseded with the unified WAFv2 API (live/residue.go's DeprecatedServices; every AWS::WAF:: registry type ships no working handler)"
     },
     {
       "tf_type": "aws_waf_regex_pattern_set",
       "cfn_type": null,
-      "via": "none",
+      "via": "deprecated-service",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "WAF Classic: a service AWS has superseded with the unified WAFv2 API (live/residue.go's DeprecatedServices; every AWS::WAF:: registry type ships no working handler)"
     },
     {
       "tf_type": "aws_waf_rule",
@@ -11447,9 +11452,9 @@
     {
       "tf_type": "aws_waf_rule_group",
       "cfn_type": null,
-      "via": "none",
+      "via": "deprecated-service",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "WAF Classic: a service AWS has superseded with the unified WAFv2 API (live/residue.go's DeprecatedServices; every AWS::WAF:: registry type ships no working handler)"
     },
     {
       "tf_type": "aws_waf_size_constraint_set",
@@ -11510,9 +11515,9 @@
     {
       "tf_type": "aws_wafregional_regex_match_set",
       "cfn_type": null,
-      "via": "none",
+      "via": "deprecated-service",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "WAF Classic Regional: a service AWS has superseded with the unified WAFv2 API, same as WAF Classic (live/residue.go's DeprecatedServices; every AWS::WAFRegional:: registry type ships no working handler)"
     },
     {
       "tf_type": "aws_wafregional_regex_pattern_set",
@@ -11531,9 +11536,9 @@
     {
       "tf_type": "aws_wafregional_rule_group",
       "cfn_type": null,
-      "via": "none",
+      "via": "deprecated-service",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "WAF Classic Regional: a service AWS has superseded with the unified WAFv2 API, same as WAF Classic (live/residue.go's DeprecatedServices; every AWS::WAFRegional:: registry type ships no working handler)"
     },
     {
       "tf_type": "aws_wafregional_size_constraint_set",

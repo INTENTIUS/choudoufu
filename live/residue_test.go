@@ -21,6 +21,16 @@ func TestLookupCohorts(t *testing.T) {
 		{"aws_db_instance", CohortEmulatorBlocked, true},
 		{"aws_codebuild_project", CohortRegistryLaggard, true},
 		{"aws_accessanalyzer_archive_rule", CohortUnmapped, true},
+		// aws_waf_rule_group: via:"deprecated-service" in live/mapping.json
+		// itself (issue #53's mechanical classifier), reaching
+		// CohortDeprecated the same way aws_pinpoint_app above does (via
+		// deprecatedPrefixFor, checked before the mapping row is even read) -
+		// covering both paths to the identical cohort.
+		{"aws_waf_rule_group", CohortDeprecated, true},
+		// aws_vpc_peering_connection_accepter: issue #53's tf-only
+		// mechanical classifier (an accepter, corroborated by no identity
+		// schema in the provider).
+		{"aws_vpc_peering_connection_accepter", CohortTFOnly, true},
 		{"aws_vpc", "", false},            // admitted, mapped, working handlers: in no cohort
 		{"aws_s3_bucket", "", false},      // admitted, mapped, working handlers: in no cohort
 		{"aws_ecr_repository", "", false}, // registry-ratified batch #2 (#26): left EmulatorBlocked, now in no cohort
@@ -66,6 +76,36 @@ func TestUnmappedGroupsSumToTotal(t *testing.T) {
 	}
 	if sum != total {
 		t.Errorf("UnmappedGroups groups sum to %d, total reports %d", sum, total)
+	}
+}
+
+// TestTFOnlyGroupsSumToTotal is TestUnmappedGroupsSumToTotal's tf-only
+// twin (issue #53).
+func TestTFOnlyGroupsSumToTotal(t *testing.T) {
+	groups, total := TFOnlyGroups()
+	sum := 0
+	for _, g := range groups {
+		sum += g.Count
+	}
+	if sum != total {
+		t.Errorf("TFOnlyGroups groups sum to %d, total reports %d", sum, total)
+	}
+	if total == 0 {
+		t.Error("TFOnlyGroups reports 0 total; issue #53's mechanical classifier should have placed at least one row")
+	}
+}
+
+// TestCFNUnmodeledGroupsSumToTotal is TestUnmappedGroupsSumToTotal's
+// cfn-unmodeled twin (issue #53). Unlike TFOnlyGroups, a 0 total is
+// expected today - see overlay.json's cfn_unmodeled table for why.
+func TestCFNUnmodeledGroupsSumToTotal(t *testing.T) {
+	groups, total := CFNUnmodeledGroups()
+	sum := 0
+	for _, g := range groups {
+		sum += g.Count
+	}
+	if sum != total {
+		t.Errorf("CFNUnmodeledGroups groups sum to %d, total reports %d", sum, total)
 	}
 }
 

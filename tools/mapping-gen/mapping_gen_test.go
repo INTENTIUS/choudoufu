@@ -24,12 +24,13 @@ import (
 const unexplainedNote = "no CFN counterpart found by name or curated overlay"
 
 // testSources loads every committed input buildMapping needs - the two
-// rosters, the overlay, and issue #52's two generated/sourced tables - the
-// same way main.go's run() does, so every test below exercises the real
-// production join rather than a hand-trimmed subset of it. former2Usable is
-// returned separately since a couple of tests (the curated-68 pin) want an
-// empty Sources.Former2 instead of the real one.
-func testSources(t *testing.T) (tfTypes, cfnTypes []string, overlay Overlay, generatedAliases map[string][]string, former2Usable map[string]string) {
+// rosters, the overlay, issue #52's two generated/sourced tables, and issue
+// #53's two taxonomy-classifier corroboration sources - the same way
+// main.go's run() does, so every test below exercises the real production
+// join rather than a hand-trimmed subset of it. former2Usable is returned
+// separately since a couple of tests (the curated-68 pin) want an empty
+// Sources.Former2 instead of the real one.
+func testSources(t *testing.T) (tfTypes, cfnTypes []string, overlay Overlay, generatedAliases map[string][]string, former2Usable map[string]string, registryHandlerless, identitySchema map[string]bool) {
 	t.Helper()
 	root, err := repoRoot()
 	if err != nil {
@@ -48,9 +49,17 @@ func testSources(t *testing.T) (tfTypes, cfnTypes []string, overlay Overlay, gen
 	if err != nil {
 		t.Fatalf("loading primaryIdentifier presence: %v", err)
 	}
+	registryHandlerless, err = cfnRoster.HandlerlessTypes()
+	if err != nil {
+		t.Fatalf("loading handler presence: %v", err)
+	}
 	overlay, err = loadOverlay(filepath.Join(root, overlayJSONRel))
 	if err != nil {
 		t.Fatalf("loading the overlay: %v", err)
+	}
+	identitySchema, err = loadIdentitySchemaSignals(filepath.Join(root, tfRosterRel))
+	if err != nil {
+		t.Fatalf("loading identity_schema signals: %v", err)
 	}
 
 	tfSet := make(map[string]bool, len(tfTypes))
@@ -64,18 +73,20 @@ func testSources(t *testing.T) (tfTypes, cfnTypes []string, overlay Overlay, gen
 
 	generatedAliases = PinnedNamesData.Aliases
 	former2Usable, _ = filterFormer2Rows(PinnedFormer2.Rows, cfnWithPrimaryID, cfnSet, tfSet)
-	return tfTypes, cfnTypes, overlay, generatedAliases, former2Usable
+	return tfTypes, cfnTypes, overlay, generatedAliases, former2Usable, registryHandlerless, identitySchema
 }
 
 // TestCurated68Pin regenerates the join restricted to live/SURVEY.md's
 // curated 68 and pins issue #43's own acceptance numbers: 59 mapped
-// (28 by name, 31 by the overlay's aliases), 9 fold-or-none, and 0
-// unexplained - every curated type the heuristic does not reach has an
-// overlay entry that says why. former2 and the generated service-alias
-// table are both left out here on purpose: this pin is issue #43's own
-// historical acceptance number, over the overlay's original hand aliases
-// alone, and must stay stable regardless of what issue #52's sources later
-// grow to cover.
+// (28 by name, 31 by the overlay's aliases), 9 not mapped (fold, or one of
+// issue #53's terminal taxonomy values - the one curated waiter,
+// aws_acm_certificate_validation, is via:tf-only today, not via:none, since
+// its overlay entry moved from nones to tf_only), and 0 unexplained - every
+// curated type the heuristic does not reach has an overlay entry that says
+// why. former2 and the generated service-alias table are both left out here
+// on purpose: this pin is issue #43's own historical acceptance number, over
+// the overlay's original hand aliases alone, and must stay stable regardless
+// of what issue #52's sources or issue #53's taxonomy later grow to cover.
 func TestCurated68Pin(t *testing.T) {
 	root, err := repoRoot()
 	if err != nil {
@@ -106,7 +117,15 @@ func TestCurated68Pin(t *testing.T) {
 		t.Fatalf("buildMapping: %v", err)
 	}
 
-	foldOrNone := mapping.Counts.Fold + mapping.Counts.None
+	// notMapped is deliberately Types-Mapped rather than a sum over the
+	// individual not-mapped vias (Fold, TFOnly, CFNUnmodeled,
+	// DeprecatedService, Unclassified): the historical "9" this test pins
+	// is "everything that isn't Mapped," and stays true across a via being
+	// renamed or a curated row moving from one terminal class to another
+	// (as aws_acm_certificate_validation did, nones -> tf_only, when issue
+	// #53 landed) without this test needing to track which taxonomy value
+	// each of the 9 currently carries.
+	notMapped := mapping.Counts.Types - mapping.Counts.Mapped
 	var unexplained []string
 	for _, row := range mapping.Rows {
 		if row.Via == viaNone && row.Note != nil && *row.Note == unexplainedNote {
@@ -117,8 +136,8 @@ func TestCurated68Pin(t *testing.T) {
 	if mapping.Counts.Mapped != 59 {
 		t.Errorf("mapped = %d, want 59", mapping.Counts.Mapped)
 	}
-	if foldOrNone != 9 {
-		t.Errorf("fold+none = %d, want 9", foldOrNone)
+	if notMapped != 9 {
+		t.Errorf("types-mapped = %d, want 9", notMapped)
 	}
 	if len(unexplained) != 0 {
 		t.Errorf("%d curated types fell through with no overlay explanation: %v", len(unexplained), unexplained)
@@ -190,6 +209,16 @@ func TestOverlayTwoWayStaleness(t *testing.T) {
 	for tf := range overlay.Nones {
 		if !tfSet[tf] {
 			t.Errorf("none entry for %s: %s is no longer in the TF roster (%s); remove or update this overlay entry", tf, tf, tfRosterRel)
+		}
+	}
+	for tf := range overlay.TFOnly {
+		if !tfSet[tf] {
+			t.Errorf("tf_only entry for %s: %s is no longer in the TF roster (%s); remove or update this overlay entry", tf, tf, tfRosterRel)
+		}
+	}
+	for tf := range overlay.CFNUnmodeled {
+		if !tfSet[tf] {
+			t.Errorf("cfn_unmodeled entry for %s: %s is no longer in the TF roster (%s); remove or update this overlay entry", tf, tf, tfRosterRel)
 		}
 	}
 
@@ -265,9 +294,9 @@ func TestServiceAliasSourceAgreement(t *testing.T) {
 // independent via:name hits from the heuristic landing on the same CFN
 // type, which the heuristic itself has no way to notice or resolve.
 func TestNoUnflaggedCollisions(t *testing.T) {
-	tfTypes, cfnTypes, overlay, generated, former2Usable := testSources(t)
+	tfTypes, cfnTypes, overlay, generated, former2Usable, registryHandlerless, identitySchema := testSources(t)
 
-	mapping, _, _, err := buildMapping(tfTypes, cfnTypes, Sources{Overlay: overlay, GeneratedServiceAliases: generated, Former2: former2Usable})
+	mapping, _, _, err := buildMapping(tfTypes, cfnTypes, Sources{Overlay: overlay, GeneratedServiceAliases: generated, Former2: former2Usable, RegistryHandlerless: registryHandlerless, IdentitySchema: identitySchema})
 	if err != nil {
 		t.Fatalf("buildMapping: %v", err)
 	}
@@ -317,8 +346,8 @@ func TestNoUnflaggedCollisions(t *testing.T) {
 // being hand-picked, but the resolution these anchors exercise is
 // unchanged.
 func TestServiceAliasAnchorsResolve(t *testing.T) {
-	tfTypes, cfnTypes, overlay, generated, former2Usable := testSources(t)
-	mapping, _, _, err := buildMapping(tfTypes, cfnTypes, Sources{Overlay: overlay, GeneratedServiceAliases: generated, Former2: former2Usable})
+	tfTypes, cfnTypes, overlay, generated, former2Usable, registryHandlerless, identitySchema := testSources(t)
+	mapping, _, _, err := buildMapping(tfTypes, cfnTypes, Sources{Overlay: overlay, GeneratedServiceAliases: generated, Former2: former2Usable, RegistryHandlerless: registryHandlerless, IdentitySchema: identitySchema})
 	if err != nil {
 		t.Fatalf("buildMapping: %v", err)
 	}
@@ -400,8 +429,8 @@ func contains(ss []string, s string) bool {
 // or the generated table, so nothing in servicealias.go can ever reach
 // across into CodePipeline or Cassandra for them.
 func TestServiceAliasFalsePositiveGuard(t *testing.T) {
-	tfTypes, cfnTypes, overlay, generated, former2Usable := testSources(t)
-	mapping, _, _, err := buildMapping(tfTypes, cfnTypes, Sources{Overlay: overlay, GeneratedServiceAliases: generated, Former2: former2Usable})
+	tfTypes, cfnTypes, overlay, generated, former2Usable, registryHandlerless, identitySchema := testSources(t)
+	mapping, _, _, err := buildMapping(tfTypes, cfnTypes, Sources{Overlay: overlay, GeneratedServiceAliases: generated, Former2: former2Usable, RegistryHandlerless: registryHandlerless, IdentitySchema: identitySchema})
 	if err != nil {
 		t.Fatalf("buildMapping: %v", err)
 	}
@@ -434,8 +463,8 @@ func TestServiceAliasFalsePositiveGuard(t *testing.T) {
 // is exactly the signal that caught that S3Outposts bug: a human needs to
 // look, not silently trust either side.
 func TestServiceAliasCrossHeuristicCollisions(t *testing.T) {
-	tfTypes, cfnTypes, overlay, generated, former2Usable := testSources(t)
-	mapping, _, _, err := buildMapping(tfTypes, cfnTypes, Sources{Overlay: overlay, GeneratedServiceAliases: generated, Former2: former2Usable})
+	tfTypes, cfnTypes, overlay, generated, former2Usable, registryHandlerless, identitySchema := testSources(t)
+	mapping, _, _, err := buildMapping(tfTypes, cfnTypes, Sources{Overlay: overlay, GeneratedServiceAliases: generated, Former2: former2Usable, RegistryHandlerless: registryHandlerless, IdentitySchema: identitySchema})
 	if err != nil {
 		t.Fatalf("buildMapping: %v", err)
 	}
@@ -505,8 +534,8 @@ func TestServiceAliasCrossHeuristicCollisions(t *testing.T) {
 // "a stale entry fails too" rule - mirrors
 // TestServiceAliasCrossHeuristicCollisions immediately above.
 func TestFormer2ContradictionsAcknowledged(t *testing.T) {
-	tfTypes, cfnTypes, overlay, generated, former2Usable := testSources(t)
-	mapping, _, _, err := buildMapping(tfTypes, cfnTypes, Sources{Overlay: overlay, GeneratedServiceAliases: generated, Former2: former2Usable})
+	tfTypes, cfnTypes, overlay, generated, former2Usable, registryHandlerless, identitySchema := testSources(t)
+	mapping, _, _, err := buildMapping(tfTypes, cfnTypes, Sources{Overlay: overlay, GeneratedServiceAliases: generated, Former2: former2Usable, RegistryHandlerless: registryHandlerless, IdentitySchema: identitySchema})
 	if err != nil {
 		t.Fatalf("buildMapping: %v", err)
 	}
@@ -544,8 +573,8 @@ func TestFormer2ContradictionsAcknowledged(t *testing.T) {
 // report's own "sample 20 former2-sourced conversions" asked for, not just
 // a count.
 func TestFormer2SampleRowsResolveCorrectly(t *testing.T) {
-	tfTypes, cfnTypes, overlay, generated, former2Usable := testSources(t)
-	mapping, _, _, err := buildMapping(tfTypes, cfnTypes, Sources{Overlay: overlay, GeneratedServiceAliases: generated, Former2: former2Usable})
+	tfTypes, cfnTypes, overlay, generated, former2Usable, registryHandlerless, identitySchema := testSources(t)
+	mapping, _, _, err := buildMapping(tfTypes, cfnTypes, Sources{Overlay: overlay, GeneratedServiceAliases: generated, Former2: former2Usable, RegistryHandlerless: registryHandlerless, IdentitySchema: identitySchema})
 	if err != nil {
 		t.Fatalf("buildMapping: %v", err)
 	}
@@ -631,9 +660,9 @@ func TestMappingJSONMatchesCommittedInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tfTypes, cfnTypes, overlay, generated, former2Usable := testSources(t)
+	tfTypes, cfnTypes, overlay, generated, former2Usable, registryHandlerless, identitySchema := testSources(t)
 
-	mapping, _, _, err := buildMapping(tfTypes, cfnTypes, Sources{Overlay: overlay, GeneratedServiceAliases: generated, Former2: former2Usable})
+	mapping, _, _, err := buildMapping(tfTypes, cfnTypes, Sources{Overlay: overlay, GeneratedServiceAliases: generated, Former2: former2Usable, RegistryHandlerless: registryHandlerless, IdentitySchema: identitySchema})
 	if err != nil {
 		t.Fatalf("buildMapping: %v", err)
 	}
@@ -677,16 +706,94 @@ func TestMappingJSONMatchesCommittedInputs(t *testing.T) {
 	for tfType := range wantRows {
 		t.Errorf("%s: committed but no longer regenerated", tfType)
 	}
-	// MappingCounts now carries a map field (ByVia), so it is no longer
-	// comparable with == - compared field by field instead, DeepEqual for
-	// the map.
-	if gotM.Counts.Types != wantM.Counts.Types || gotM.Counts.Mapped != wantM.Counts.Mapped ||
-		gotM.Counts.Fold != wantM.Counts.Fold || gotM.Counts.None != wantM.Counts.None ||
-		!reflect.DeepEqual(gotM.Counts.ByVia, wantM.Counts.ByVia) {
+	// MappingCounts carries a map field (ByVia), so it is no longer
+	// comparable with == - DeepEqual instead, over the whole struct so a
+	// future field addition is covered here for free.
+	if !reflect.DeepEqual(gotM.Counts, wantM.Counts) {
 		t.Errorf("counts drifted: committed %+v, regenerated %+v", wantM.Counts, gotM.Counts)
 	}
 	if !reflect.DeepEqual(gotM.Former2Contradictions, wantM.Former2Contradictions) {
 		t.Errorf("former2_contradictions drifted: committed %+v, regenerated %+v", wantM.Former2Contradictions, gotM.Former2Contradictions)
 	}
 	t.Errorf("%s is stale; rerun `go run ./tools/mapping-gen` and review the diff", mappingJSONRel)
+}
+
+// enforceNoBareNone flips true when issue #53's last family sweep lands -
+// the point at which every one of live/mapping.json's rows is mapped,
+// folded, or terminally classified (tf-only, cfn-unmodeled,
+// deprecated-service), and a bare via:"none" becomes a build failure
+// instead of a known, counted gap. False today: this mechanical pass and
+// the family sweeps after it leave a real, honestly counted unclassified
+// remainder on purpose (see unclassifiedRatchetMax below), and
+// TestNoBareNoneOnceEnforced would fail on every one of them.
+const enforceNoBareNone = false
+
+// TestNoBareNoneOnceEnforced is issue #53's own closing gate, landed
+// disabled behind enforceNoBareNone per the issue's own instruction
+// ("A mapping-gen test fails on any bare/unclassified row"). Once every
+// family sweep lands and the flag flips to true, this test forbids
+// live/mapping.json from ever regrowing a bare via:"none" row - a provider
+// bump that adds an unclassifiable type fails the build until a human gives
+// it a classification, exactly the "the mapping can never silently regrow a
+// shrug" promise issue #53 makes.
+func TestNoBareNoneOnceEnforced(t *testing.T) {
+	if !enforceNoBareNone {
+		t.Skip("disabled until issue #53's last family sweep lands; flip enforceNoBareNone to enable")
+	}
+	tfTypes, cfnTypes, overlay, generated, former2Usable, registryHandlerless, identitySchema := testSources(t)
+	mapping, _, _, err := buildMapping(tfTypes, cfnTypes, Sources{Overlay: overlay, GeneratedServiceAliases: generated, Former2: former2Usable, RegistryHandlerless: registryHandlerless, IdentitySchema: identitySchema})
+	if err != nil {
+		t.Fatalf("buildMapping: %v", err)
+	}
+	var bare []string
+	for _, row := range mapping.Rows {
+		if row.Via == viaNone {
+			bare = append(bare, row.TFType)
+		}
+	}
+	if len(bare) > 0 {
+		sort.Strings(bare)
+		t.Errorf("%d TF type(s) are still via:\"none\" with enforceNoBareNone=true: %v", len(bare), bare)
+	}
+}
+
+// unclassifiedRatchetMax is issue #53's own downward ratchet, the "pinned
+// unclassified-count test that must only ever decrease" the issue asks for:
+// the highest live/mapping.json's counts.unclassified may be. This pass
+// measured 754 via:"none" rows before classification and left 713 after
+// (34 tf-only, 7 deprecated-service, 0 cfn-unmodeled - see this package's
+// taxonomy.go). Every family sweep after this one only ever removes rows
+// from the unclassified bucket (by mapping, folding, or terminally
+// classifying them), so this ceiling only ever moves down; lower it to
+// match live/mapping.json's own committed count whenever a sweep lands.
+// Raising it back up is exactly the "quietly regrow a shrug" issue #53
+// exists to forbid, and TestUnclassifiedCountRatchet below fails the build
+// the moment a regeneration would do that.
+const unclassifiedRatchetMax = 713
+
+// TestUnclassifiedCountRatchet reads the committed live/mapping.json's own
+// unclassified count and fails if it is above unclassifiedRatchetMax -
+// never below: a genuine drop is welcome and simply means the constant
+// above is stale and should be lowered to match, not a test failure. Reads
+// the committed artifact directly rather than regenerating (unlike
+// TestMappingJSONMatchesCommittedInputs, which already guards the two
+// staying in sync) so this ratchet keeps working as its own, independent
+// check even if that drift test's own shape changes later.
+func TestUnclassifiedCountRatchet(t *testing.T) {
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, mappingJSONRel))
+	if err != nil {
+		t.Fatalf("reading %s: %v", mappingJSONRel, err)
+	}
+	var m Mapping
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("decoding %s: %v", mappingJSONRel, err)
+	}
+	if m.Counts.Unclassified > unclassifiedRatchetMax {
+		t.Errorf("%s's unclassified count is %d, above the ratchet ceiling of %d (unclassifiedRatchetMax); a regeneration must never grow the unclassified bucket - if a new TF or CFN type genuinely has no mapping and no terminal classification, it still needs to land through the taxonomy (tf-only, cfn-unmodeled, deprecated-service) or an explicit, reviewed bump of this constant, not a silent increase",
+			mappingJSONRel, m.Counts.Unclassified, unclassifiedRatchetMax)
+	}
 }

@@ -53,9 +53,11 @@
     "aws_iam_role_policy_attachment": "AWS::IAM::Role",
     "aws_secretsmanager_secret_version": "AWS::SecretsManager::Secret"
   },
-  "nones": {
+  "nones": {},
+  "tf_only": {
     "aws_acm_certificate_validation": "waiter: records only that DNS validation finished; waiting belongs to the lifecycle layer, not a CFN resource of its own"
   },
+  "cfn_unmodeled": {},
   "service_aliases": {
     "ebs": ["EC2"],
     "cloudwatch_log": ["Logs"],
@@ -78,7 +80,9 @@
     "folds (first 13, S3 and the two ECR entries): chant's packages/core/src/terraform/tier-map.ts:80-97 (FOLDS_INTO, 16 entries), minus aws_s3_bucket_policy - CloudFormation ships a standalone AWS::S3::BucketPolicy, so that one TF type is a genuine name-heuristic hit here, not a fold.",
     "folds (aws_lb_target_group_attachment, aws_iam_role_policy_attachment): issue #43's own fold seed - neither CloudFormation type carries a standalone attachment resource; both are properties on their parent (TargetGroup's Targets, Role's ManagedPolicyArns).",
     "folds (aws_secretsmanager_secret_version): not in chant's FOLDS_INTO list, but the same TF-decomposes-finer-than-CFN pattern - AWS::SecretsManager has no standalone SecretVersion type (verified against live/registry.json); the version is just the parent Secret's SecretString property. Needed for the curated-68 pin (59 mapped / 9 fold-or-none / 0 unexplained) to close - without it, this type falls through unexplained.",
-    "nones: issue #43's own seed (aws_acm_certificate_validation, a waiter).",
+    "nones: empty since issue #53 - its one entry (aws_acm_certificate_validation, a waiter) moved to tf_only below, now that the taxonomy has a terminal class for it. Table kept (rather than deleted) as the landing spot for a curated 'no CFN counterpart, no further taxonomy known' judgment, if one is ever needed again; overlay.go's loader treats an empty table the same as an absent one.",
+    "tf_only: aws_acm_certificate_validation, moved here from nones by issue #53 - a waiter is exactly tools/mapping-gen/mapping.go's via:tf-only, not a bare via:none. Every other tf-only row in live/mapping.json comes from the mechanical pattern+corroboration classifier in mapping.go, not this table; this table is for a family sweep's hand judgment when the pattern classifier cannot reach a type on its own.",
+    "cfn_unmodeled: empty - issue #53 lands the taxonomy and the via:tf-only/deprecated-service mechanical classifiers, but no mechanical cfn-unmodeled classifier (proving a real resource has no CFN model at all is exactly the per-family judgment call the issue defers to the follow-up sweeps in its own workplan). This table is where a sweep records that judgment, the same shape as tf_only above.",
     "service_aliases: issue #52 replaced this table's original 30-entry hand seed (heuristic v2) with a table GENERATED from hashicorp/terraform-provider-aws's own names/data/names_data.hcl (tools/mapping-gen/namesdata.go, committed as namesdata-generated.json): TF prefix -> the provider's own AWS SDK service id -> a case/separator-insensitive match against live/registry.json's CFN service names. 16 of the original 30 hand entries (vpc, ec2, cloudwatch, rds, route53, elasticache, apigatewayv2, s3, redshift, iam, lightsail, quicksight, sagemaker, fsx, backup, guardduty) now come back identically from the generated table and were deleted - TestServiceAliasSourceAgreement in mapping_gen_test.go guards against any of them silently reappearing as dead weight. What remains here is exactly issue #52's 'overlay as a cache of ratified conflicts' rule: every entry below is a prefix names_data.hcl either gets wrong or does not cover at all, checked at generation time (buildMapping merges the generated table with this one, this table winning per prefix).",
     "service_aliases: ebs, cloudwatch_log, cloudwatch_event, db, dx, api_gateway are prefixes TF actually uses (aws_ebs_volume, aws_cloudwatch_log_group, aws_db_instance, aws_dx_connection, aws_api_gateway_rest_api, ...) that names_data.hcl's own resource_prefix.correct field never names as a family's canonical prefix (the file's own canonical spelling for these is aws_ec2ebs_, aws_logs_/aws_events_, aws_rds_, aws_directconnect_, aws_apigateway_ - HashiCorp's naming-convention target, not TF's actual shipped names) - the source simply has no entry to join against these particular strings, so the hand pick stands.",
     "service_aliases: route53_resolver is Route53Resolver, a distinct CFN service from plain route53's Route53 - names_data.hcl's own 'route53resolver' family (no underscore) does not token-match TF's actual 'route53_resolver' prefix, so the generated table has no entry under this exact key either.",

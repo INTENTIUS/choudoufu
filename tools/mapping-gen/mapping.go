@@ -12,7 +12,7 @@ import (
 	"sort"
 )
 
-// The via vocabulary: nothing outside these six tokens appears in a row's
+// The via vocabulary: nothing outside these nine tokens appears in a row's
 // via column. viaServiceAlias is issue #43's follow-up heuristic v2
 // (servicealias.go): a service-scoped resource-name match the plain name
 // heuristic's single service+resource candidate cannot reach; its own
@@ -22,13 +22,25 @@ import (
 // #52 - former2.go) is a new, distinct via: a per-resource pairing from
 // iann0036/former2's own independent CFN/TF join, used only for a TF type
 // none of the other heuristics could resolve at all.
+//
+// The last three - viaTFOnly, viaCFNUnmodeled, viaDeprecatedService - are
+// issue #53's terminal taxonomy: via:none stops being a shrug and becomes
+// one of these three (evidenced) or stays via:none as an explicitly counted
+// "unclassified" remainder for a later family sweep, never a silent catch-
+// all. See taxonomy.go for the mechanical classifiers that assign
+// viaTFOnly and viaDeprecatedService; viaCFNUnmodeled is curated-only today
+// (tools/mapping-gen/overlay.json's cfn_unmodeled table) - see that file's
+// package comment for why.
 const (
-	viaName         = "name"
-	viaAlias        = "alias"
-	viaFold         = "fold"
-	viaNone         = "none"
-	viaServiceAlias = "service-alias"
-	viaFormer2      = "former2"
+	viaName              = "name"
+	viaAlias             = "alias"
+	viaFold              = "fold"
+	viaNone              = "none"
+	viaServiceAlias      = "service-alias"
+	viaFormer2           = "former2"
+	viaTFOnly            = "tf-only"
+	viaCFNUnmodeled      = "cfn-unmodeled"
+	viaDeprecatedService = "deprecated-service"
 )
 
 // unexplainedNoteText is the generic fallback note a TF type carries when it
@@ -77,15 +89,32 @@ type Mapping struct {
 	Rows []Row `json:"rows"`
 }
 
-// MappingCounts are the roster-wide totals.
+// MappingCounts are the roster-wide totals. Types always equals
+// Mapped+Fold+TFOnly+CFNUnmodeled+DeprecatedService+Unclassified.
 type MappingCounts struct {
 	Types  int `json:"types"`
 	Mapped int `json:"mapped"`
 	Fold   int `json:"fold"`
-	None   int `json:"none"`
 
-	// ByVia is the per-source breakdown of Mapped+Fold (every via except
-	// "none"): issue #52's "report ... per-source counts" requirement.
+	// TFOnly, CFNUnmodeled and DeprecatedService are issue #53's terminal
+	// taxonomy counts: rows via:tf-only, via:cfn-unmodeled and
+	// via:deprecated-service respectively.
+	TFOnly            int `json:"tf_only"`
+	CFNUnmodeled      int `json:"cfn_unmodeled"`
+	DeprecatedService int `json:"deprecated_service"`
+
+	// Unclassified is the count of rows still via:"none" after every
+	// mapping source and every terminal classifier has had a turn - issue
+	// #53's own named remainder, the number the family sweeps burn down
+	// (renamed from this field's pre-#53 name, None; nothing outside this
+	// package read the old name - see mapping_gen_test.go).
+	Unclassified int `json:"unclassified"`
+
+	// ByVia is the per-row-count breakdown for every via except "none":
+	// name, alias, service-alias, former2 (the sources Mapped sums), fold,
+	// and, since issue #53, tf-only, cfn-unmodeled and deprecated-service -
+	// issue #52's "report ... per-source counts" requirement, unchanged in
+	// shape by the taxonomy addition.
 	ByVia map[string]int `json:"by_via"`
 }
 
@@ -121,6 +150,22 @@ type Sources struct {
 	// former2's own internal consistency (filterFormer2Rows) - every entry
 	// here is a candidate via:former2 row.
 	Former2 map[string]string
+
+	// RegistryHandlerless is live/registry.json's own handler summary
+	// (issue #53, registry.go's HandlerlessTypes): CFN type -> true when
+	// every one of its create/read/update/delete/list handlers is false.
+	// The deprecated-service mechanical classifier's own corroboration
+	// (taxonomy.go) - nil is treated as "no data," classifying nothing,
+	// the same optional-source shape Former2 and GeneratedServiceAliases
+	// already have.
+	RegistryHandlerless map[string]bool
+
+	// IdentitySchema is live/survey-full.json's own per-type identity_schema
+	// signal (issue #41, issue #53, tfroster.go's loadIdentitySchemaSignals):
+	// TF type -> whether the provider ships a resource identity schema for
+	// it at all. The tf-only mechanical classifier's own corroboration
+	// (taxonomy.go); nil is treated as "no data," classifying nothing.
+	IdentitySchema map[string]bool
 }
 
 // mergedServiceAliases combines the generated table with the overlay's own
@@ -140,14 +185,19 @@ func mergedServiceAliases(generated map[string][]string, overlay map[string][]st
 }
 
 // buildMapping joins the TF roster against the CFN roster: the overlay's
-// aliases, folds and nones win outright (curated, exact, and validated
-// against the current CFN roster), the name heuristic tries next for
-// anything the overlay does not cover, the service-alias heuristic (its own
-// table merged from names_data.hcl and the overlay's remaining conflicts)
-// tries next for anything still unclaimed, former2's per-resource pairing
-// tries next for anything STILL unclaimed by any of the above (never
-// overriding an explicit overlay judgment - see classifyRow), and anything
-// still unclaimed after all four is via:none with a generic note.
+// aliases, folds, tf_only, cfn_unmodeled and nones win outright (curated,
+// exact, and validated against the current CFN roster), the name heuristic
+// tries next for anything the overlay does not cover, the service-alias
+// heuristic (its own table merged from names_data.hcl and the overlay's
+// remaining conflicts) tries next for anything still unclaimed, former2's
+// per-resource pairing tries next for anything STILL unclaimed by any of
+// the above (never overriding an explicit overlay judgment - see
+// classifyRow), issue #53's own mechanical classifiers (taxonomy.go) try
+// next, in order, for anything STILL unclaimed after former2 - a
+// deprecated-service TF prefix with an all-handler-less registry footprint,
+// then a tf-only name pattern corroborated by the provider's own schema -
+// and anything still unclaimed after all of that is via:none, issue #53's
+// named "unclassified" remainder rather than a silent catch-all.
 //
 // former2 rows that instead CONTRADICT an already-mapped row (issue #52)
 // never change that row's via/cfn_type - they are reported back as the
@@ -192,6 +242,10 @@ func buildMapping(tfTypes, cfnTypes []string, src Sources) (Mapping, []NeedsAlia
 	contradictions := former2Contradictions(src.Former2, rows)
 	m.Former2Contradictions = contradictions
 
+	// Issue #53's mechanical classifiers each need a precomputed lookup
+	// built once, not per row - see taxonomy.go.
+	eligibleDeprecated := deprecatedServiceEligible(cfnTypes, src.RegistryHandlerless)
+
 	for _, tf := range sorted {
 		row := rows[tf]
 		if row.Via == viaNone && row.Note != nil && *row.Note == unexplainedNoteText {
@@ -200,13 +254,22 @@ func buildMapping(tfTypes, cfnTypes []string, src Sources) (Mapping, []NeedsAlia
 				row = Row{TFType: tf, Via: viaFormer2, CFNType: &cfnCopy}
 			}
 		}
+		if row.Via == viaNone && row.Note != nil && *row.Note == unexplainedNoteText {
+			row = classifyTaxonomy(tf, eligibleDeprecated, src.IdentitySchema)
+		}
 		switch row.Via {
 		case viaName, viaAlias, viaServiceAlias, viaFormer2:
 			m.Counts.Mapped++
 		case viaFold:
 			m.Counts.Fold++
+		case viaTFOnly:
+			m.Counts.TFOnly++
+		case viaCFNUnmodeled:
+			m.Counts.CFNUnmodeled++
+		case viaDeprecatedService:
+			m.Counts.DeprecatedService++
 		case viaNone:
-			m.Counts.None++
+			m.Counts.Unclassified++
 		}
 		if row.Via != viaNone {
 			m.Counts.ByVia[row.Via]++
@@ -218,17 +281,18 @@ func buildMapping(tfTypes, cfnTypes []string, src Sources) (Mapping, []NeedsAlia
 }
 
 // classifyRow decides one TF type's row, in priority order: a curated
-// overlay entry (alias, fold, or none) wins outright over both heuristics,
-// since curation exists precisely to override or fill in what a heuristic
-// gets wrong or cannot reach; the plain name heuristic wins next over the
-// service-alias heuristic, since an unscoped exact match needs no service
-// hint at all. When the service-alias heuristic finds more than one CFN
-// type within its aliased service, the row still falls through to via:none
-// (an ambiguous guess is not a mapping), but the candidates come back as
-// this call's second return value for buildMapping to collect. former2 is
+// overlay entry (alias, fold, tf_only, cfn_unmodeled, or none) wins outright
+// over both heuristics, since curation exists precisely to override or fill
+// in what a heuristic gets wrong or cannot reach; the plain name heuristic
+// wins next over the service-alias heuristic, since an unscoped exact match
+// needs no service hint at all. When the service-alias heuristic finds more
+// than one CFN type within its aliased service, the row still falls through
+// to via:none (an ambiguous guess is not a mapping), but the candidates come
+// back as this call's second return value for buildMapping to collect.
+// former2, then issue #53's own mechanical classifiers (taxonomy.go), are
 // applied by the caller afterward, only to rows this function leaves at the
-// generic unexplained via:none (never an explicit ov.Nones judgment) - see
-// buildMapping.
+// generic unexplained via:none (never an explicit ov.Nones/TFOnly/
+// CFNUnmodeled judgment) - see buildMapping.
 func classifyRow(tf string, index map[string]string, cfnSet map[string]bool, ov Overlay, cfnTypes []string, serviceAliases map[string][]string, svcCache serviceIndexCache) (Row, []string, error) {
 	row := Row{TFType: tf}
 
@@ -246,6 +310,16 @@ func classifyRow(tf string, index map[string]string, cfnSet map[string]bool, ov 
 		}
 		row.Via = viaFold
 		row.FoldParent = &parent
+		return row, nil, nil
+	}
+	if note, ok := ov.TFOnly[tf]; ok {
+		row.Via = viaTFOnly
+		row.Note = &note
+		return row, nil, nil
+	}
+	if note, ok := ov.CFNUnmodeled[tf]; ok {
+		row.Via = viaCFNUnmodeled
+		row.Note = &note
 		return row, nil, nil
 	}
 	if note, ok := ov.Nones[tf]; ok {

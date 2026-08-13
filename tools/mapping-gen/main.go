@@ -26,8 +26,18 @@
 // not cover), former2 (iann0036/former2's own independent per-resource
 // CFN/TF pairing, for a TF type none of the above could resolve), fold (the
 // TF type is a property-child of a CFN parent - fold_parent carries the
-// parent's CFN type and cfn_type stays null), or none (no CFN counterpart;
-// note says why when known).
+// parent's CFN type and cfn_type stays null), or one of issue #53's three
+// terminal-taxonomy values for a TF type with no CFN mapping and no fold
+// parent: tf-only (a provider-side construct with no cloud resource of its
+// own - taxonomy.go's mechanical classifier, or a curated
+// overlay.json tf_only entry), cfn-unmodeled (a real resource CFN does not
+// model - curated only, overlay.json's cfn_unmodeled table), or
+// deprecated-service (the TF type's prefix is in live/residue.go's
+// DeprecatedServices, and every registry type in that CFN service ships no
+// working handler - taxonomy.go's mechanical classifier). Anything left
+// after all of that is none, issue #53's own named "unclassified"
+// remainder - note says why when known, and the header's counts.unclassified
+// is exactly how many rows are still here.
 //
 // Usage, from anywhere in the checkout:
 //
@@ -131,6 +141,15 @@ func run(refreshNamesData bool, namesDataOverride string, refreshFormer2 bool, f
 	if err != nil {
 		return fmt.Errorf("reading primaryIdentifier presence from %s: %w", cfnRosterRel, err)
 	}
+	registryHandlerless, err := cfnRoster.HandlerlessTypes()
+	if err != nil {
+		return fmt.Errorf("reading handler presence from %s: %w", cfnRosterRel, err)
+	}
+
+	identitySchema, err := loadIdentitySchemaSignals(filepath.Join(root, tfRosterRel))
+	if err != nil {
+		return fmt.Errorf("reading identity_schema signals from %s: %w", tfRosterRel, err)
+	}
 
 	overlay, err := loadOverlay(filepath.Join(root, overlayJSONRel))
 	if err != nil {
@@ -164,6 +183,8 @@ func run(refreshNamesData bool, namesDataOverride string, refreshFormer2 bool, f
 		Overlay:                 overlay,
 		GeneratedServiceAliases: generatedAliases,
 		Former2:                 former2Usable,
+		RegistryHandlerless:     registryHandlerless,
+		IdentitySchema:          identitySchema,
 	})
 	if err != nil {
 		return err
@@ -178,8 +199,9 @@ func run(refreshNamesData bool, namesDataOverride string, refreshFormer2 bool, f
 	if err := os.WriteFile(out, data, 0o644); err != nil { //nolint:gosec // a committed artifact, not a secret
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "mapping-gen: wrote %s (%d types: %d mapped, %d fold, %d none)\n",
-		mappingJSONRel, mapping.Counts.Types, mapping.Counts.Mapped, mapping.Counts.Fold, mapping.Counts.None)
+	fmt.Fprintf(os.Stderr, "mapping-gen: wrote %s (%d types: %d mapped, %d fold, %d tf-only, %d cfn-unmodeled, %d deprecated-service, %d unclassified)\n",
+		mappingJSONRel, mapping.Counts.Types, mapping.Counts.Mapped, mapping.Counts.Fold,
+		mapping.Counts.TFOnly, mapping.Counts.CFNUnmodeled, mapping.Counts.DeprecatedService, mapping.Counts.Unclassified)
 	fmt.Fprintf(os.Stderr, "mapping-gen: per-source mapped counts: %v\n", mapping.Counts.ByVia)
 	fmt.Fprintf(os.Stderr, "mapping-gen: former2 contributed %d row(s) (%d raw rows dropped: see the reasons in %s)\n",
 		countVia(mapping, viaFormer2), len(former2Drops), former2RowsRel)

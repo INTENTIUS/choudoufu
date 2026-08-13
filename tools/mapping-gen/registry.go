@@ -33,14 +33,22 @@ type registryJSONRoster struct {
 
 // registryArtifact is the slice of live/registry.json's shape
 // (RegistryArtifact in tools/registry-gen/registry.go) this loader actually
-// needs - the type names and, for the former2 join's own eyeball-first
-// guard (issue #52), whether each carries a primaryIdentifier - so a schema
-// change to the rest of that artifact (counts, handlers, tagging, ...) does
-// not ripple into this tool.
+// needs - the type names, whether each carries a primaryIdentifier (the
+// former2 join's own eyeball-first guard, issue #52), and its handler
+// summary (the deprecated-service mechanical classifier's corroboration,
+// issue #53) - so a schema change to the rest of that artifact (tagging,
+// property lists, ...) does not ripple into this tool.
 type registryArtifact struct {
 	Types []struct {
 		TypeName          string   `json:"type_name"`
 		PrimaryIdentifier []string `json:"primary_identifier"`
+		Handlers          struct {
+			Create bool `json:"create"`
+			Read   bool `json:"read"`
+			Update bool `json:"update"`
+			Delete bool `json:"delete"`
+			List   bool `json:"list"`
+		} `json:"handlers"`
 	} `json:"types"`
 }
 
@@ -68,6 +76,26 @@ func (r registryJSONRoster) WithPrimaryIdentifier() (map[string]bool, error) {
 	out := make(map[string]bool, len(art.Types))
 	for _, t := range art.Types {
 		if len(t.PrimaryIdentifier) > 0 {
+			out[t.TypeName] = true
+		}
+	}
+	return out, nil
+}
+
+// HandlerlessTypes returns the set of CFN types whose Registry entry ships
+// no working handler at all (create, read, update, delete and list all
+// false) - issue #53's own corroboration signal for the deprecated-service
+// mechanical classifier (taxonomy.go), the same predicate live/residue.go's
+// registryHandler.none() applies for the registry-laggard cohort.
+func (r registryJSONRoster) HandlerlessTypes() (map[string]bool, error) {
+	art, err := r.load()
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]bool, len(art.Types))
+	for _, t := range art.Types {
+		h := t.Handlers
+		if !h.Create && !h.Read && !h.Update && !h.Delete && !h.List {
 			out[t.TypeName] = true
 		}
 	}

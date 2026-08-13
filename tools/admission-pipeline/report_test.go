@@ -162,3 +162,35 @@ func TestArtifactCounts_MissingFile(t *testing.T) {
 		t.Errorf("artifactCounts for a missing file = %v, want nil", got)
 	}
 }
+
+// TestReadMappingSummaryAgainstCommittedMapping locks readMappingSummary's
+// JSON tag to live/mapping.json's real header shape: issue #53 renamed the
+// header's own via:"none" count from "none" to "unclassified"
+// (tools/mapping-gen/mapping.go's MappingCounts), and this struct here
+// decodes that same file independently (mapping-gen is package main and not
+// importable - see mappingUnexplainedNote's comment) with no compiler tie
+// between the two field tags, so a future rename here can silently decode
+// to zero with no test catching it. This test would have caught issue #53's
+// own rename doing exactly that.
+func TestReadMappingSummaryAgainstCommittedMapping(t *testing.T) {
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	summary, err := readMappingSummary(root)
+	if err != nil {
+		t.Fatalf("readMappingSummary: %v", err)
+	}
+	if summary.None == 0 {
+		t.Error("readMappingSummary reports None = 0 against the committed live/mapping.json; the header's unclassified count did not decode (a JSON tag mismatch)")
+	}
+	if summary.None != summary.Unclassifiable {
+		// True as of issue #53's mechanical pass: every remaining via:"none"
+		// row carries the same generic unexplained note, so the two counts
+		// coincide. A future overlay.json nones entry with its own curated
+		// (non-generic) reason would make them diverge again - if that
+		// happens, update this assertion rather than deleting it, so the
+		// two fields stay independently exercised.
+		t.Errorf("None = %d, Unclassifiable = %d; expected them equal today (see comment)", summary.None, summary.Unclassifiable)
+	}
+}

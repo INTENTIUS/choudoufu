@@ -14,10 +14,10 @@ import (
 
 // Overlay is the curated file at tools/mapping-gen/overlay.json: the hand
 // asserted facts the name heuristic in heuristic.go cannot derive on its
-// own. Four tables. Three - Aliases, Folds, Nones - are disjoint and keyed
-// by TF type; the fourth - ServiceAliases - is keyed by TF type *prefix*
-// (a different domain, so it cannot collide with the other three) and
-// drives the service-scoped heuristic in servicealias.go:
+// own. Six tables. Five - Aliases, Folds, Nones, TFOnly, CFNUnmodeled - are
+// disjoint and keyed by TF type; the sixth - ServiceAliases - is keyed by TF
+// type *prefix* (a different domain, so it cannot collide with the other
+// five) and drives the service-scoped heuristic in servicealias.go:
 //
 //   - Aliases pairs a TF type straight to its CFN type when the two names
 //     just do not correspond - a legacy TF name (aws_cloudwatch_event_rule),
@@ -29,9 +29,24 @@ import (
 //     just properties on CloudFormation's one AWS::S3::Bucket), so the child
 //     carries no CFN type of its own - the map's value is the parent's CFN
 //     type, which becomes the row's fold_parent.
-//   - Nones names a TF type with no CFN counterpart at all, and says why
-//     (a waiter, a credential, an account-wide setting CloudFormation has no
-//     resource for).
+//   - Nones names a TF type with no CFN counterpart at all, and no further
+//     taxonomy has been curated for it yet - a bare via:none judgment, the
+//     one the terminal taxonomy (issue #53) is meant to empty out. Prefer
+//     TFOnly or CFNUnmodeled below for anything with a known reason.
+//   - TFOnly names a TF type that is a provider-side construct with no cloud
+//     resource of its own - a waiter, a validation, an aws_ami_copy-style
+//     operation - and says what it is instead. via:tf-only. Most tf-only
+//     rows in live/mapping.json instead come from mapping.go's own
+//     pattern+corroboration mechanical classifier, run after every source in
+//     this file; this table is for a family sweep's hand judgment when that
+//     classifier's evidence bar (a name pattern plus no importable identity
+//     in the provider's schema) cannot reach a type on its own.
+//   - CFNUnmodeled names a TF type that is a real, live AWS resource the
+//     CloudFormation Registry simply does not model (e.g. aws_s3_object),
+//     and says what the service-scoped registry search found (or didn't).
+//     via:cfn-unmodeled. Curated only - proving a resource has no CFN model
+//     at all is a per-family judgment call, not something this tool derives
+//     mechanically.
 //   - ServiceAliases pairs a TF type prefix (e.g. "vpc", "cloudwatch_log")
 //     with the CFN service name(s) it corresponds to, for prefixes whose
 //     relationship to a CFN service the name heuristic's own service-casing
@@ -42,7 +57,7 @@ import (
 //     servicealias.go for how a prefix, once matched, is turned into a CFN
 //     type match scoped to that service alone.
 //
-// A TF type appearing in more than one of the first three tables is almost
+// A TF type appearing in more than one of the first five tables is almost
 // certainly a curation mistake (the loader below refuses it), and every
 // entry in every table must name a type (or, for ServiceAliases, a service)
 // that still exists in the current TF and CFN rosters - see the two-way
@@ -55,8 +70,17 @@ type Overlay struct {
 	// Folds maps tf_type -> the parent's cfn_type (the row's fold_parent).
 	Folds map[string]string `json:"folds"`
 
-	// Nones maps tf_type -> the reason it has no CFN counterpart.
+	// Nones maps tf_type -> the reason it has no CFN counterpart, with no
+	// further taxonomy curated yet.
 	Nones map[string]string `json:"nones"`
+
+	// TFOnly maps tf_type -> what the type is instead of a CFN resource
+	// (issue #53's via:tf-only).
+	TFOnly map[string]string `json:"tf_only"`
+
+	// CFNUnmodeled maps tf_type -> the registry-search evidence that no CFN
+	// type models it (issue #53's via:cfn-unmodeled).
+	CFNUnmodeled map[string]string `json:"cfn_unmodeled"`
 
 	// ServiceAliases maps a TF type prefix (no "aws_" prefix, no trailing
 	// underscore, e.g. "vpc" or "cloudwatch_log") to the CFN service
@@ -84,6 +108,8 @@ func loadOverlay(path string) (Overlay, error) {
 		{"aliases", ov.Aliases},
 		{"folds", ov.Folds},
 		{"nones", ov.Nones},
+		{"tf_only", ov.TFOnly},
+		{"cfn_unmodeled", ov.CFNUnmodeled},
 	} {
 		for tfType, value := range table.keys {
 			if value == "" {

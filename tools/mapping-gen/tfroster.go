@@ -39,6 +39,39 @@ func loadTFRoster(path string) ([]string, error) {
 	return out, nil
 }
 
+// surveyFullArtifact is the slice of live/survey-full.json's shape (Survey
+// in tools/survey-gen/classify.go) loadIdentitySchemaSignals needs: each
+// type's identity_schema signal, issue #53's own corroboration input for
+// the tf-only mechanical classifier (taxonomy.go) - whether the provider
+// ships a resource identity schema for the type at all, not just its name.
+type surveyFullArtifact struct {
+	Types []struct {
+		Type    string `json:"type"`
+		Signals struct {
+			IdentitySchema bool `json:"identity_schema"`
+		} `json:"signals"`
+	} `json:"types"`
+}
+
+// loadIdentitySchemaSignals reads live/survey-full.json (the same file
+// loadTFRoster reads for its type roster) for its per-type identity_schema
+// signal alone.
+func loadIdentitySchemaSignals(path string) (map[string]bool, error) {
+	data, err := os.ReadFile(path) //nolint:gosec // a fixed path inside the checkout
+	if err != nil {
+		return nil, err
+	}
+	var art surveyFullArtifact
+	if err := json.Unmarshal(data, &art); err != nil {
+		return nil, fmt.Errorf("decoding %s: %w", path, err)
+	}
+	out := make(map[string]bool, len(art.Types))
+	for _, t := range art.Types {
+		out[t.Type] = t.Signals.IdentitySchema
+	}
+	return out, nil
+}
+
 // loadCuratedRoster reads just the type-name column of live/SURVEY.md's
 // hand-written per-type table: the curated 68 the pin test measures
 // against. A minimal parser on purpose - tools/survey-gen's own readRoster

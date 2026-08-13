@@ -465,6 +465,8 @@ registry-side footprint is computed against `live/registry.json`.
 | DAX | `aws_dax_` | 3 | a service (DynamoDB Accelerator) this fork holds out of scope by policy |
 
 **Total.** 76 CloudFormation Registry types across 7 services.
+
+7 Terraform types carry `live/mapping.json`'s own `via: "deprecated-service"` (issue #53): a TF prefix under one of the services above whose entire CFN Registry footprint ships no working handler at all, so a family sweep can never recover a real mapping for it either.
 <!-- survey-gen:end residue-deprecated -->
 
 #### CloudFormation-only constructs
@@ -490,23 +492,80 @@ package load and again by `tools/survey-gen`'s drift test.
 **Total.** 4 constructs, none counted against coverage: no Terraform configuration can name a CloudFormation-only type, so none can ever be refused either.
 <!-- survey-gen:end residue-cfn-only -->
 
-#### Unmapped Terraform types
+#### The terminal taxonomy (issue #53)
 
-Every `via: "none"` row of `live/mapping.json`: a Terraform AWS resource
-type the join found no CloudFormation Registry counterpart for, by name or
-by the curated overlay. Entirely computed — grouped by the row's own note,
-since the same note covers all but one of them. The registry-backed
-admission path (issue #40) cannot reach any type in this cohort by
-definition; the survey's other admission paths (client-named,
+`live/mapping.json`'s `via: "none"` used to be a single catch-all: 754 of
+the roster's 1,691 Terraform types, "no CFN counterpart," no further word on
+why. Issue #53 replaces the shrug with a taxonomy: every `none` row is now
+either evidenced into one of three terminal classes below, or left
+`none` — an explicitly counted **unclassified** remainder, never a silent
+default. `tools/mapping-gen` assigns `tf-only` and `deprecated-service`
+mechanically, each requiring corroboration beyond a name match before it
+classifies anything (a name pattern plus the provider's own schema showing
+no importable identity, for `tf-only`; a TF prefix's entire CloudFormation
+Registry footprint shipping no working handler, for `deprecated-service`);
+`cfn-unmodeled` is curated only, in `tools/mapping-gen/overlay.json`'s
+`cfn_unmodeled` table, since proving a real resource has no CFN model at all
+is a per-family judgment call this pass does not make on its own. The three
+sections below and "Unclassified Terraform types" further down are what the
+754 split into after this pass; a drift test (`TestNoBareNoneOnceEnforced`
+in `tools/mapping-gen/mapping_gen_test.go`) forbids the unclassified count
+from ever regrowing past where a later family sweep leaves it, and, once
+the last sweep lands, forbids `none` outright.
+
+#### TF-only constructs
+
+Terraform provider constructs with no cloud resource of their own: waiters,
+`aws_ami_copy`-style one-shot operations, `default_*` adopters that bring an
+already-existing AWS default resource under management rather than
+creating one. `via: "tf-only"` in `live/mapping.json`.
+
+<!-- survey-gen:begin residue-tf-only -->
+| Count | Note |
+|---|---|
+| 17 | an acceptance-side waiter: flips a pending cross-account request (an invitation, a peering or attachment offer) to accepted, with no cloud resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
+| 6 | an aws_ami_copy-style copy operation: starts a copy and tracks its result, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
+| 5 | a default_* adopter: brings an AWS-created default resource under management rather than creating one, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
+| 2 | a registration action: enrolls an account or resource into a feature, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
+| 1 | a confirmation waiter: flips a pending request to confirmed, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
+| 1 | an activation action: flips a pending registration to active, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
+| 1 | an invocation action: triggers a call and records its result, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
+| 1 | waiter: records only that DNS validation finished; waiting belongs to the lifecycle layer, not a CFN resource of its own |
+
+**Total.** 34 Terraform AWS resource types that are provider-side constructs, not infrastructure - no CloudFormation counterpart is expected for any of them. Each row's own note is in `live/mapping.json`.
+<!-- survey-gen:end residue-tf-only -->
+
+#### CFN-unmodeled resources
+
+Real, live AWS resources the CloudFormation Registry simply does not model
+(the canonical example is `aws_s3_object`, though it is not yet classified
+here — proving the negative is a family sweep's job, not this pass's).
+`via: "cfn-unmodeled"` in `live/mapping.json`; curated only, so this table is
+empty until a sweep adds its first entry.
+
+<!-- survey-gen:begin residue-cfn-unmodeled -->
+| Count | Note |
+|---|---|
+
+**Total.** 0 Terraform AWS resource types that are real infrastructure with no CloudFormation Registry model at all. Each row's own note is in `live/mapping.json`.
+<!-- survey-gen:end residue-cfn-unmodeled -->
+
+#### Unclassified Terraform types
+
+Every `via: "none"` row of `live/mapping.json` still standing after the
+terminal taxonomy above: a Terraform AWS resource type the join found no
+CloudFormation Registry counterpart for, by name, curated overlay, or
+mechanical classifier. Entirely computed — grouped by the row's own note.
+The registry-backed admission path (issue #40) cannot reach any type in
+this cohort by definition; the survey's other admission paths (client-named,
 parent-derived) are unaffected and may still reach one.
 
 <!-- survey-gen:begin residue-unmapped -->
 | Count | Note |
 |---|---|
-| 753 | no CFN counterpart found by name or curated overlay |
-| 1 | waiter: records only that DNS validation finished; waiting belongs to the lifecycle layer, not a CFN resource of its own |
+| 713 | no CFN counterpart found by name or curated overlay |
 
-**Total.** 754 Terraform AWS resource types with no CloudFormation Registry counterpart. Each row's own note is in `live/mapping.json`.
+**Total.** 713 Terraform AWS resource types with no CloudFormation Registry counterpart and no terminal classification yet - the count the family sweeps in issue #53's workplan burn down. Each row's own note is in `live/mapping.json`.
 <!-- survey-gen:end residue-unmapped -->
 
 #### Registry-laggard live services

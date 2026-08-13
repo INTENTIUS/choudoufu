@@ -14,7 +14,7 @@ import (
 	residue "github.com/intentius/choudoufu/live"
 )
 
-// TestLimitationsMDResidueRosterSpans holds live/LIMITATIONS.md's five
+// TestLimitationsMDResidueRosterSpans holds live/LIMITATIONS.md's seven
 // residue-roster spans and its untaggable-admitted span (issue #54)
 // byte-for-byte to what live/residue.go's accessors and
 // untaggable_render.go's derivation produce from the committed
@@ -46,6 +46,8 @@ func TestLimitationsMDResidueRosterSpans(t *testing.T) {
 	}{
 		{spanResidueDeprecated, renderResidueDeprecated()},
 		{spanResidueCFNOnly, renderResidueCFNOnly()},
+		{spanResidueTFOnly, renderResidueTFOnly()},
+		{spanResidueCFNUnmodeled, renderResidueCFNUnmodeled()},
 		{spanResidueUnmapped, renderResidueUnmapped()},
 		{spanResidueLaggard, renderResidueLaggard()},
 		{spanResidueEmulator, renderResidueEmulator()},

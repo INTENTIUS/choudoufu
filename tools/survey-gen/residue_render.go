@@ -8,12 +8,17 @@
 // with counts and one-sentence reasons, so that "not covered" is a named,
 // printable set rather than an implied one (#40's closing commitment).
 //
-// Five spans, one per cohort, each rendered the same way SURVEY.md's own
+// Seven spans, one per cohort, each rendered the same way SURVEY.md's own
 // spans are: from committed data, byte-for-byte, with no provider and no
 // network. Two cohorts (deprecated services, registry-laggard live
 // services) and one roster (emulator-blocked) carry hand judgment residue.go
 // documents in its own comments; this file only formats what residue.go
-// already computed or curated, it does not re-derive any of it.
+// already computed or curated, it does not re-derive any of it. tf-only and
+// cfn-unmodeled (issue #53) are the two spans added alongside the existing
+// five: the "unmapped Terraform types" cohort's own span narrowed to mean
+// exactly what its live/mapping.json via ("none") still says - unclassified,
+// not yet placed in any terminal class - once the taxonomy gave the
+// mechanically- or curated-classified rows their own two spans instead.
 package main
 
 import (
@@ -31,16 +36,18 @@ import (
 // holds to the committed survey artifact and the admission table.
 const limitationsMDRel = "live/LIMITATIONS.md"
 
-// The five residue-roster spans, one per exclusion cohort. Each lives in
+// The seven residue-roster spans, one per exclusion cohort. Each lives in
 // live/LIMITATIONS.md between a `<!-- survey-gen:begin NAME -->` line and a
 // `<!-- survey-gen:end NAME -->` line, the same marker convention
 // SURVEY.md's spans use (see render.go's spanMarkers).
 const (
-	spanResidueDeprecated = "residue-deprecated"
-	spanResidueCFNOnly    = "residue-cfn-only"
-	spanResidueUnmapped   = "residue-unmapped"
-	spanResidueLaggard    = "residue-laggard"
-	spanResidueEmulator   = "residue-emulator"
+	spanResidueDeprecated   = "residue-deprecated"
+	spanResidueCFNOnly      = "residue-cfn-only"
+	spanResidueTFOnly       = "residue-tf-only"
+	spanResidueCFNUnmodeled = "residue-cfn-unmodeled"
+	spanResidueUnmapped     = "residue-unmapped"
+	spanResidueLaggard      = "residue-laggard"
+	spanResidueEmulator     = "residue-emulator"
 )
 
 // renderLimitationsMD rewrites live/LIMITATIONS.md's five residue-roster
@@ -86,7 +93,7 @@ func renderLimitationsSpans(md string, untaggable []string) (string, error) {
 	return replaceSpan(limitationsMDRel, md, spanUntaggableAdmitted, renderUntaggableAdmitted(untaggable))
 }
 
-// renderResidueSpans returns live/LIMITATIONS.md with all five
+// renderResidueSpans returns live/LIMITATIONS.md with all seven
 // residue-roster spans replaced by their rendered bodies. The rest of the
 // file passes through byte-for-byte.
 func renderResidueSpans(md string) (string, error) {
@@ -96,6 +103,8 @@ func renderResidueSpans(md string) (string, error) {
 	}{
 		{spanResidueDeprecated, renderResidueDeprecated()},
 		{spanResidueCFNOnly, renderResidueCFNOnly()},
+		{spanResidueTFOnly, renderResidueTFOnly()},
+		{spanResidueCFNUnmodeled, renderResidueCFNUnmodeled()},
 		{spanResidueUnmapped, renderResidueUnmapped()},
 		{spanResidueLaggard, renderResidueLaggard()},
 		{spanResidueEmulator, renderResidueEmulator()},
@@ -112,7 +121,15 @@ func renderResidueSpans(md string) (string, error) {
 
 // renderResidueDeprecated renders the deprecated/EOL services cohort: one
 // row per live/residue.go DeprecatedServices entry, its registry-side
-// count computed against live/registry.json, and the total.
+// count computed against live/registry.json, and the total. The closing
+// paragraph adds issue #53's own TF-side count: how many live/mapping.json
+// rows the mechanical deprecated-service classifier itself placed
+// (via:"deprecated-service") - a subset of this cohort, since [Lookup]
+// resolves every type under one of these prefixes to CohortDeprecated
+// regardless of a mapping row's own via (a deprecated service AWS still
+// ships a working CFN handler for, if any, is not swept into
+// via:deprecated-service by the mechanical classifier - see
+// tools/mapping-gen/taxonomy.go's deprecatedServiceEligible).
 func renderResidueDeprecated() string {
 	var b strings.Builder
 	b.WriteString("| Service | TF prefix | CFN registry types | Reason |\n")
@@ -122,6 +139,8 @@ func renderResidueDeprecated() string {
 	}
 	fmt.Fprintf(&b, "\n**Total.** %d CloudFormation Registry types across %d services.\n",
 		residue.DeprecatedTotal(), len(residue.DeprecatedServices))
+	fmt.Fprintf(&b, "\n%d Terraform types carry `live/mapping.json`'s own `via: \"deprecated-service\"` (issue #53): a TF prefix under one of the services above whose entire CFN Registry footprint ships no working handler at all, so a family sweep can never recover a real mapping for it either.\n",
+		residue.DeprecatedServiceViaCount())
 	return b.String()
 }
 
@@ -138,9 +157,47 @@ func renderResidueCFNOnly() string {
 	return b.String()
 }
 
-// renderResidueUnmapped renders the unmapped-TF-types cohort: every
-// distinct note among live/mapping.json's via:"none" rows, with its count,
-// most common first.
+// renderResidueTFOnly renders the tf-only cohort (issue #53): every distinct
+// note among live/mapping.json's via:"tf-only" rows, with its count, most
+// common first - a provider-side construct (a waiter, a validation, an
+// aws_ami_copy-style operation, a default_* adopter) with no cloud resource
+// of its own.
+func renderResidueTFOnly() string {
+	groups, total := residue.TFOnlyGroups()
+	var b strings.Builder
+	b.WriteString("| Count | Note |\n")
+	b.WriteString("|---|---|\n")
+	for _, g := range groups {
+		fmt.Fprintf(&b, "| %d | %s |\n", g.Count, g.Note)
+	}
+	fmt.Fprintf(&b, "\n**Total.** %d Terraform AWS resource types that are provider-side constructs, not infrastructure - no CloudFormation counterpart is expected for any of them. Each row's own note is in `live/mapping.json`.\n", total)
+	return b.String()
+}
+
+// renderResidueCFNUnmodeled renders the cfn-unmodeled cohort (issue #53):
+// every distinct note among live/mapping.json's via:"cfn-unmodeled" rows,
+// with its count - a real, live AWS resource the CloudFormation Registry
+// does not model at all. Curated only today (no mechanical classifier
+// promotes a row here - see tools/mapping-gen/overlay.json's own
+// cfn_unmodeled table for why), so this table is empty until a family sweep
+// adds its first entry.
+func renderResidueCFNUnmodeled() string {
+	groups, total := residue.CFNUnmodeledGroups()
+	var b strings.Builder
+	b.WriteString("| Count | Note |\n")
+	b.WriteString("|---|---|\n")
+	for _, g := range groups {
+		fmt.Fprintf(&b, "| %d | %s |\n", g.Count, g.Note)
+	}
+	fmt.Fprintf(&b, "\n**Total.** %d Terraform AWS resource types that are real infrastructure with no CloudFormation Registry model at all. Each row's own note is in `live/mapping.json`.\n", total)
+	return b.String()
+}
+
+// renderResidueUnmapped renders the unclassified-TF-types cohort (narrowed
+// by issue #53 to exactly what live/mapping.json's via:"none" still means):
+// every distinct note among those rows, with its count, most common first -
+// a TF type no mapping source and no terminal classifier, mechanical or
+// curated, has placed yet.
 func renderResidueUnmapped() string {
 	groups, total := residue.UnmappedGroups()
 	var b strings.Builder
@@ -149,7 +206,7 @@ func renderResidueUnmapped() string {
 	for _, g := range groups {
 		fmt.Fprintf(&b, "| %d | %s |\n", g.Count, g.Note)
 	}
-	fmt.Fprintf(&b, "\n**Total.** %d Terraform AWS resource types with no CloudFormation Registry counterpart. Each row's own note is in `live/mapping.json`.\n", total)
+	fmt.Fprintf(&b, "\n**Total.** %d Terraform AWS resource types with no CloudFormation Registry counterpart and no terminal classification yet - the count the family sweeps in issue #53's workplan burn down. Each row's own note is in `live/mapping.json`.\n", total)
 	return b.String()
 }
 

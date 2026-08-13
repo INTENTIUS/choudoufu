@@ -179,7 +179,11 @@ func readMappingSummary(root string) (MappingSummary, error) {
 	}
 	var m struct {
 		Counts struct {
-			None int `json:"none"`
+			// unclassified: mapping.go's MappingCounts.Unclassified as of
+			// issue #53 (renamed from "none" when the taxonomy landed - this
+			// struct's own field name, None, is kept as this package's
+			// established vocabulary and is not renamed to match).
+			None int `json:"unclassified"`
 		} `json:"counts"`
 		Former2Contradictions []json.RawMessage `json:"former2_contradictions"`
 		Rows                  []struct {

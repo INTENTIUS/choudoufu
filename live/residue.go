@@ -24,14 +24,21 @@
 // in comments, the same way internal/live/lint/admission.go's opsExcluded
 // carries the credential and waiter judgments no schema can prove.
 //
-// The other two cohorts (unmapped TF types and registry-laggard live
-// services) are entirely computed, from the two artifacts embedded below:
-// live/mapping.json (issue #43) and live/registry.json (issue #42). They
-// are embedded, not copied into a hand-written table, so there is no
-// second copy of the join to fall out of sync with the committed
-// artifacts — a regenerated mapping.json or registry.json changes this
-// package's answers the moment it is committed, with no separate
-// regeneration step of its own.
+// The other cohorts - unmapped (unclassified) TF types, tf-only constructs,
+// cfn-unmodeled resources, and registry-laggard live services - are entirely
+// computed, from the two artifacts embedded below: live/mapping.json (issue
+// #43) and live/registry.json (issue #42). They are embedded, not copied
+// into a hand-written table, so there is no second copy of the join to fall
+// out of sync with the committed artifacts — a regenerated mapping.json or
+// registry.json changes this package's answers the moment it is committed,
+// with no separate regeneration step of its own. Issue #53's terminal
+// taxonomy (tf-only, cfn-unmodeled, deprecated-service, alongside the
+// original unmapped/"none") lives inside live/mapping.json's own rows
+// (each row's via) rather than as a further cohort here of its own kind:
+// [Lookup] reads a row's via directly, and [TFOnlyGroups] /
+// [CFNUnmodeledGroups] / [UnmappedGroups] group live/mapping.json's rows by
+// via the same way, one accessor per terminal class the mechanical or
+// curated classifiers in tools/mapping-gen assign.
 package residue
 
 import (
@@ -106,8 +113,21 @@ const (
 	CohortCFNOnly Cohort = "cfn-only"
 
 	// CohortUnmapped is a TF type live/mapping.json's join found no CFN
-	// counterpart for (via "none").
+	// counterpart for, and issue #53's terminal taxonomy has not (yet)
+	// classified any further (via "none" - the "unclassified" remainder
+	// the family sweeps burn down).
 	CohortUnmapped Cohort = "unmapped"
+
+	// CohortTFOnly is a TF type that is a provider-side construct with no
+	// cloud resource of its own - a waiter, a validation, an
+	// aws_ami_copy-style operation, a default_* adopter (via "tf-only",
+	// issue #53).
+	CohortTFOnly Cohort = "tf-only"
+
+	// CohortCFNUnmodeled is a TF type naming a real, live AWS resource the
+	// CloudFormation Registry does not model at all (via "cfn-unmodeled",
+	// issue #53).
+	CohortCFNUnmodeled Cohort = "cfn-unmodeled"
 
 	// CohortRegistryLaggard is a TF type mapped to a CFN type whose
 	// Registry entry ships no working handler at all, so the registry-
@@ -424,6 +444,31 @@ func Lookup(tfType string) (cohort Cohort, sentence string, ok bool) {
 			note = *row.Note
 		}
 		return CohortUnmapped, fmt.Sprintf("%s has no CloudFormation Registry counterpart (%s), so the registry-backed admission path cannot reach it.", tfType, note), true
+	case "tf-only":
+		note := "a provider-side construct with no cloud resource of its own"
+		if row.Note != nil && *row.Note != "" {
+			note = *row.Note
+		}
+		return CohortTFOnly, fmt.Sprintf("%s is %s.", tfType, note), true
+	case "cfn-unmodeled":
+		note := "a real resource the CloudFormation Registry does not model"
+		if row.Note != nil && *row.Note != "" {
+			note = *row.Note
+		}
+		return CohortCFNUnmodeled, fmt.Sprintf("%s is %s.", tfType, note), true
+	case "deprecated-service":
+		// Belt and suspenders: every via:"deprecated-service" row's own
+		// TFType already matches deprecatedPrefixFor above (taxonomy.go's
+		// mechanical classifier only ever assigns this via when the TF
+		// prefix is already in DeprecatedServices - see tools/mapping-gen's
+		// taxonomy.go), so this case is unreachable in practice. Handled
+		// explicitly anyway, so a mapping row's own via can never disagree
+		// with what Lookup reports for it.
+		note := "in a deprecated service"
+		if row.Note != nil && *row.Note != "" {
+			note = *row.Note
+		}
+		return CohortDeprecated, fmt.Sprintf("%s is %s; choudoufu does not admit it.", tfType, note), true
 	case "name", "alias", "service-alias", "former2", "fold":
 		cfnType := ""
 		if row.CFNType != nil {
@@ -466,21 +511,33 @@ func DeprecatedTotal() int {
 	return n
 }
 
-// UnmappedGroup is one distinct note among the via:"none" rows of
-// live/mapping.json, with the count of TF types that carry it.
-type UnmappedGroup struct {
+// NoteGroup is one distinct note among live/mapping.json's rows for a given
+// via, with the count of TF types that carry it. Issue #53 widened this from
+// a via:"none"-only shape (UnmappedGroup, kept below as an alias - a type
+// name older code and docs already reference) to one groupByNote can produce
+// for any via: [UnmappedGroups], [TFOnlyGroups] and [CFNUnmodeledGroups] are
+// the same grouping applied to via:"none", via:"tf-only" and
+// via:"cfn-unmodeled" respectively.
+type NoteGroup struct {
 	Note  string
 	Count int
 }
 
-// UnmappedGroups returns every via:"none" row's note, grouped, sorted by
-// descending count then by note text. UnmappedTotal is the sum of every
-// group's Count.
-func UnmappedGroups() (groups []UnmappedGroup, total int) {
+// UnmappedGroup is [NoteGroup]'s pre-#53 name, kept as an alias: nothing
+// outside this package constructs one by name, but the exported type name
+// itself predates the taxonomy and several comments elsewhere still refer to
+// "UnmappedGroups' groups" by it.
+type UnmappedGroup = NoteGroup
+
+// groupByNote returns every live/mapping.json row's note for the given via,
+// grouped, sorted by descending count then by note text - the shared
+// implementation behind [UnmappedGroups], [TFOnlyGroups] and
+// [CFNUnmodeledGroups].
+func groupByNote(via string) (groups []NoteGroup, total int) {
 	s := load()
 	counts := map[string]int{}
 	for _, r := range s.mapping.Rows {
-		if r.Via != "none" {
+		if r.Via != via {
 			continue
 		}
 		note := ""
@@ -491,7 +548,7 @@ func UnmappedGroups() (groups []UnmappedGroup, total int) {
 		total++
 	}
 	for note, c := range counts {
-		groups = append(groups, UnmappedGroup{Note: note, Count: c})
+		groups = append(groups, NoteGroup{Note: note, Count: c})
 	}
 	sort.Slice(groups, func(i, j int) bool {
 		if groups[i].Count != groups[j].Count {
@@ -500,6 +557,28 @@ func UnmappedGroups() (groups []UnmappedGroup, total int) {
 		return groups[i].Note < groups[j].Note
 	})
 	return groups, total
+}
+
+// UnmappedGroups returns every via:"none" row's note, grouped - issue #53's
+// "unclassified" remainder: a TF type no mapping source and no terminal
+// classifier (curated or mechanical) could place, after every other cohort
+// below has had a chance at it.
+func UnmappedGroups() (groups []NoteGroup, total int) { return groupByNote("none") }
+
+// TFOnlyGroups returns every via:"tf-only" row's note, grouped (issue #53).
+func TFOnlyGroups() (groups []NoteGroup, total int) { return groupByNote("tf-only") }
+
+// CFNUnmodeledGroups returns every via:"cfn-unmodeled" row's note, grouped
+// (issue #53).
+func CFNUnmodeledGroups() (groups []NoteGroup, total int) { return groupByNote("cfn-unmodeled") }
+
+// DeprecatedServiceViaCount returns the number of live/mapping.json rows
+// carrying via:"deprecated-service" - issue #53's own TF-side mechanical
+// count, as opposed to [DeprecatedCount]'s CFN Registry-side count of a
+// single service's type footprint.
+func DeprecatedServiceViaCount() int {
+	_, total := groupByNote("deprecated-service")
+	return total
 }
 
 // LaggardType is one TF type in the registry-laggard cohort: mapped to a
