@@ -159,48 +159,29 @@ rule").
 
 ### child-module
 
-**Construct.** A `module` block, at any depth, expanded with `count` or
-`for_each`. A static module call (neither) is not this limitation: see
-below.
+**Construct.** A `module` block, at any depth.
 
-**Why banned.** Module expansion by `count` renumbers every resource
-address inside the module positionally, on every insertion or removal
-above the changed index, and a `tofu-address` marker records an address,
-not a position. A renumbering that moves addresses out from under their
-markers is not a gap this mode intends to close, so `count`-expanded
-modules are refused permanently. `for_each` on a module block does not
-renumber the way `count` does - a key is stable under insertion and
-removal, the same reason `RuleForEachKey`-disciplined resource keys are
-admitted - which is what makes it worth admitting; it is refused only
-because nothing downstream of lint walks into a module's *instances* yet
-(issue #59, phase 3 / "59c").
+**Why banned.** Live markers v0 are a root-module mode. Identity
+resolution, discovery, marker stamping and the projection all stop at the
+root, and module expansion (`count` or `for_each` on a module block)
+changes every resource address inside the module, which is exactly what a
+`tofu-address` marker records. Binding markers under an expansion that can
+renumber them is the ambiguity the marker exists to remove.
 
-**A static module call is admitted.** As of issue #59, phase 2 ("59b"), the
-five packages downstream of lint - `identity`, `discovery`, `stamp`,
-`projection`, `mv` - traverse `cfg.Children` recursively, and a resource
-inside a static module binds by its module-qualified address
-(`module.a.module.b.aws_x.y`) exactly as soundly as a root resource binds by
-its own. `RuleChildModule` reports nothing for a module call that sets
-neither `count` nor `for_each`.
-
-**Forwarding address.** For a `count`- or `for_each`-expanded module: move
-the module's resources into the root module, or give the module an estate
-of its own, with its own directory, its own `live` block, and its own
-`estate` name. Two estates are two independent runs, which is the
-separation an expanded child module is standing in for. For `count`
-specifically this is the only forwarding address - there is no future
-traversal to wait for; `for_each` gets the same advice until 59c ships.
+**Forwarding address.** Move the module's resources into the root module,
+or give the module an estate of its own, with its own directory, its own
+`live` block, and its own `estate` name. Two estates are two independent
+runs, which is the separation a child module was standing in for.
 
 **Enforcement.** `RuleChildModule`, `internal/live/lint/child_module.go`
-(`checkChildModules`, detail text chosen by `childModuleDetail`, which
-reports nothing for a static call). Fixture at
-`live/e2e/limits/child-module/`, which is a tree rather than a single file
-and needs `choudoufu get` before the rule can be reached, since an
-uninstalled module block is refused while the configuration is still being
-loaded, earlier than any marker code runs. The fixture carries all three
-shapes at once - a static call ("network", admitted), a `count` call, and a
-`for_each` call - so one load proves the static call passes clean while the
-other two still fail.
+(`checkChildModules`). Fixture at `live/e2e/limits/child-module/`, which is
+a tree rather than a single file and needs `choudoufu get` before the rule can
+be reached, since an uninstalled module block is refused while the
+configuration is still being loaded, earlier than any marker code runs.
+The five packages downstream of lint (`identity`, `discovery`, `stamp`,
+`projection`, `mv`) each still refuse a configuration with children, but as a
+one-line internal invariant. Lint runs first in both commands, so reaching one
+of them with a child module means the pipeline ran out of order.
 
 ### backend-block
 
@@ -416,6 +397,7 @@ The unadmitted half holds by construction: `internal/live/discovery`
 builds the sweep universe from `identity.AdmittedTypes()`.)
 
 **Untaggable types carry no ownership marker of their own.** <!-- survey-gen:begin untaggable-admitted -->
+`aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
 `aws_api_gateway_account`, `aws_api_gateway_base_path_mapping`,
 `aws_api_gateway_documentation_version`, `aws_api_gateway_gateway_response`,
 `aws_api_gateway_method`, `aws_api_gateway_model`,
@@ -431,20 +413,32 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_eip_association`, `aws_eks_access_policy_association`,
 `aws_emr_security_configuration`, `aws_fsx_s3_access_point_attachment`,
 `aws_glue_catalog_table`, `aws_glue_classifier`,
-`aws_glue_data_catalog_encryption_settings`, `aws_iam_group`,
-`aws_iam_role_policy`, `aws_iam_role_policy_attachment`, `aws_kms_alias`,
+`aws_glue_data_catalog_encryption_settings`, `aws_guardduty_member`,
+`aws_guardduty_organization_admin_account`,
+`aws_guardduty_organization_configuration`, `aws_iam_group`,
+`aws_iam_role_policy`, `aws_iam_role_policy_attachment`,
+`aws_inspector2_delegated_admin_account`,
+`aws_inspector2_member_association`, `aws_kms_alias`,
 `aws_lambda_layer_version`, `aws_lb_target_group_attachment`,
 `aws_lightsail_lb_certificate`, `aws_lightsail_static_ip`,
-`aws_network_interface_attachment`, `aws_network_interface_permission`,
-`aws_rds_cluster_role_association`, `aws_route`,
-`aws_route53_hosted_zone_dnssec`, `aws_route53_key_signing_key`,
-`aws_route53_record`, `aws_route53_resolver_firewall_rule`,
+`aws_macie2_organization_admin_account`, `aws_network_interface_attachment`,
+`aws_network_interface_permission`, `aws_rds_cluster_role_association`,
+`aws_route`, `aws_route53_hosted_zone_dnssec`,
+`aws_route53_key_signing_key`, `aws_route53_record`,
+`aws_route53_resolver_firewall_rule`,
 `aws_route53_resolver_rule_association`, `aws_route53_zone_association`,
 `aws_route_table_association`, `aws_s3_bucket_lifecycle_configuration`,
 `aws_s3_bucket_policy`, `aws_s3_bucket_public_access_block`,
 `aws_s3_bucket_server_side_encryption_configuration`,
-`aws_s3_bucket_versioning`, `aws_sns_topic_policy`, `aws_sqs_queue_policy`
-and `aws_volume_attachment`<!-- survey-gen:end untaggable-admitted --> carry no tags, so a marker-based sweep
+`aws_s3_bucket_versioning`, `aws_secretsmanager_secret_policy`,
+`aws_secretsmanager_secret_rotation`,
+`aws_securityhub_configuration_policy_association`,
+`aws_securityhub_member`, `aws_securityhub_organization_admin_account`,
+`aws_securityhub_standards_control`,
+`aws_securityhub_standards_control_association`, `aws_sns_topic_policy`,
+`aws_sqs_queue_policy`, `aws_ssm_patch_group`, `aws_ssm_resource_data_sync`,
+`aws_ssm_service_setting`, `aws_volume_attachment` and
+`aws_wafv2_web_acl_rule`<!-- survey-gen:end untaggable-admitted --> carry no tags, so a marker-based sweep
 has nothing to search on for any of them. Their identity is built from
 their own configuration, which is a problem the moment a resource block is
 removed rather than destroyed: with no marker to search on and no
@@ -470,6 +464,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 `aws_sns_topic_policy`. <!-- survey-gen:begin untaggable-parent-read -->
 | Type | Parent | Removed by this leg |
 |---|---|---|
+| `aws_acmpca_certificate_authority_certificate` | `aws_acmpca_certificate_authority` | no (report-only) |
 | `aws_api_gateway_base_path_mapping` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_api_gateway_documentation_version` | `aws_api_gateway_rest_api` | no (report-only) |
 | `aws_api_gateway_gateway_response` | `aws_api_gateway_rest_api` | no (report-only) |
@@ -485,6 +480,8 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_fsx_s3_access_point_attachment` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_glue_catalog_table` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_glue_classifier` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_guardduty_member` | `aws_guardduty_detector` | no (report-only) |
+| `aws_guardduty_organization_configuration` | `aws_guardduty_detector` | no (report-only) |
 | `aws_iam_group` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_iam_role_policy` | `aws_iam_role` | no (report-only) |
 | `aws_iam_role_policy_attachment` | `aws_iam_role` | no (report-only) |
@@ -503,11 +500,16 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_s3_bucket_public_access_block` | `aws_s3_bucket` | no (report-only) |
 | `aws_s3_bucket_server_side_encryption_configuration` | `aws_s3_bucket` | no (report-only) |
 | `aws_s3_bucket_versioning` | `aws_s3_bucket` | no (report-only) |
+| `aws_secretsmanager_secret_policy` | `aws_secretsmanager_secret` | no (report-only) |
+| `aws_secretsmanager_secret_rotation` | `aws_secretsmanager_secret` | no (report-only) |
 | `aws_sns_topic_policy` | `aws_sns_topic` | no (report-only) |
 | `aws_sqs_queue_policy` | `aws_sqs_queue` | no (report-only) |
+| `aws_ssm_patch_group` | `aws_ssm_patch_baseline` | no (report-only) |
+| `aws_ssm_resource_data_sync` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_volume_attachment` | `aws_ebs_volume` | no (report-only) |
+| `aws_wafv2_web_acl_rule` | `aws_wafv2_web_acl` | no (report-only) |
 
-**Total.** 36 types swept via a parent read.
+**Total.** 44 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
@@ -535,16 +537,25 @@ behavior is checked the way the bucket policy's was - see
 per-type reasoning as it stands.
 
 **The residue.** <!-- survey-gen:begin untaggable-residue -->
-`aws_api_gateway_account`, `aws_apigatewayv2_routing_rule`,
-`aws_cloudfront_origin_access_control`, `aws_cloudwatch_dashboard`,
-`aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
-`aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
-`aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
+`aws_acmpca_policy`, `aws_api_gateway_account`,
+`aws_apigatewayv2_routing_rule`, `aws_cloudfront_origin_access_control`,
+`aws_cloudwatch_dashboard`, `aws_db_instance_role_association`,
+`aws_db_proxy_default_target_group`, `aws_dynamodb_resource_policy`,
+`aws_ebs_snapshot_block_public_access`, `aws_ecr_registry_policy`,
+`aws_ecr_registry_scanning_configuration`,
 `aws_ecr_replication_configuration`, `aws_ecs_cluster_capacity_providers`,
 `aws_eip_association`, `aws_glue_data_catalog_encryption_settings`,
-`aws_lambda_layer_version`, `aws_network_interface_attachment`,
+`aws_guardduty_organization_admin_account`,
+`aws_inspector2_delegated_admin_account`,
+`aws_inspector2_member_association`, `aws_lambda_layer_version`,
+`aws_macie2_organization_admin_account`, `aws_network_interface_attachment`,
 `aws_network_interface_permission`, `aws_rds_cluster_role_association`,
-`aws_route53_hosted_zone_dnssec` and `aws_route53_resolver_rule_association`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
+`aws_route53_hosted_zone_dnssec`, `aws_route53_resolver_rule_association`,
+`aws_securityhub_configuration_policy_association`,
+`aws_securityhub_member`, `aws_securityhub_organization_admin_account`,
+`aws_securityhub_standards_control`,
+`aws_securityhub_standards_control_association` and
+`aws_ssm_service_setting`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
 parent-readable: the three ECR registry types are account-level singletons
 with no admitted parent resource to read at all, and the dashboard, the
 KMS alias and the Lambda layer version are each client-named on their own

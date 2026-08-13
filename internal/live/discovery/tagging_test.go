@@ -135,12 +135,18 @@ func TestJoinTaggedResourceRealArtifacts(t *testing.T) {
 			wantOK:           true,
 		},
 		{
-			name:             "kms key",
-			arn:              "arn:aws:kms:us-east-1:123456789012:key/1234abcd-12ab-34cd-56ef-1234567890ab",
-			wantTypeName:     "aws_kms_key",
-			wantIdentityAttr: "id",
-			wantImportID:     "1234abcd-12ab-34cd-56ef-1234567890ab",
-			wantOK:           true,
+			// Genuinely ambiguous since the security batch (issue #65)
+			// admitted aws_kms_external_key alongside aws_kms_key: both map
+			// to AWS::KMS::Key in live/mapping.json, and a plain KMS key ARN
+			// (arn:...:key/UUID) carries no signal distinguishing a
+			// customer-managed key from an external (BYOK) one - that
+			// distinction lives only in the key's Origin, which the ARN
+			// does not carry. Same shape as the security-group-rule case
+			// below, one CFN type mapped from two admitted TF types.
+			name:          "kms key: genuinely ambiguous between a customer-managed and an external key",
+			arn:           "arn:aws:kms:us-east-1:123456789012:key/1234abcd-12ab-34cd-56ef-1234567890ab",
+			wantOK:        false,
+			wantReasonHas: []string{"aws_kms_external_key", "aws_kms_key", "more than one TF type"},
 		},
 		{
 			name:             "route53 hosted zone: global, no region or account in the ARN",
