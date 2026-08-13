@@ -3213,6 +3213,87 @@ DATA
 			body.SetAttributeRaw("upload_allowed", exprTokens(`"Enabled"`))
 		},
 	},
+	// WorkSpacesWeb's eight *_association fold-children (issue #68's
+	// fold-child admission path merged mid-batch; see the batch banner
+	// comment in internal/live/identity/table.go for why none of the
+	// eight actually needs that path's own machinery). Both arguments are
+	// ARNs of server-assigned siblings, so gen.go's identityArgName-based
+	// auto-wiring never fires (the same reason aws_eip_association's own
+	// instance_id above needs an explicit override) - each is wired here
+	// to the real sibling this cohort renders, or a literal placeholder
+	// ARN otherwise.
+	"aws_workspacesweb_browser_settings_association": {
+		Reasons: []string{
+			`browser_settings_arn and portal_arn are both required strings the provider validates are well-formed ARNs (validate: "cannot be parsed as an ARN"); the generic placeholder string is neither - wired to this cohort's own aws_workspacesweb_browser_settings.app and aws_workspacesweb_portal.app for real ones`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("browser_settings_arn", exprTokens(workspacesWebArnRef(g, "aws_workspacesweb_browser_settings", "browser_settings_arn", "browserSettings")))
+			body.SetAttributeRaw("portal_arn", exprTokens(workspacesWebPortalArnRef(g)))
+		},
+	},
+	"aws_workspacesweb_data_protection_settings_association": {
+		Reasons: []string{
+			`data_protection_settings_arn and portal_arn are both required strings the provider validates are well-formed ARNs (validate: "cannot be parsed as an ARN"); the generic placeholder string is neither - wired to this cohort's own aws_workspacesweb_data_protection_settings.app and aws_workspacesweb_portal.app for real ones`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("data_protection_settings_arn", exprTokens(workspacesWebArnRef(g, "aws_workspacesweb_data_protection_settings", "data_protection_settings_arn", "dataProtectionSettings")))
+			body.SetAttributeRaw("portal_arn", exprTokens(workspacesWebPortalArnRef(g)))
+		},
+	},
+	"aws_workspacesweb_ip_access_settings_association": {
+		Reasons: []string{
+			`ip_access_settings_arn and portal_arn are both required strings the provider validates are well-formed ARNs (validate: "cannot be parsed as an ARN"); the generic placeholder string is neither - wired to this cohort's own aws_workspacesweb_ip_access_settings.app and aws_workspacesweb_portal.app for real ones`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("ip_access_settings_arn", exprTokens(workspacesWebArnRef(g, "aws_workspacesweb_ip_access_settings", "ip_access_settings_arn", "ipAccessSettings")))
+			body.SetAttributeRaw("portal_arn", exprTokens(workspacesWebPortalArnRef(g)))
+		},
+	},
+	"aws_workspacesweb_network_settings_association": {
+		Reasons: []string{
+			`network_settings_arn and portal_arn are both required strings the provider validates are well-formed ARNs (validate: "cannot be parsed as an ARN"); the generic placeholder string is neither - wired to this cohort's own aws_workspacesweb_network_settings.app and aws_workspacesweb_portal.app for real ones`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("network_settings_arn", exprTokens(workspacesWebArnRef(g, "aws_workspacesweb_network_settings", "network_settings_arn", "networkSettings")))
+			body.SetAttributeRaw("portal_arn", exprTokens(workspacesWebPortalArnRef(g)))
+		},
+	},
+	"aws_workspacesweb_session_logger_association": {
+		Reasons: []string{
+			`session_logger_arn and portal_arn are both required strings the provider validates are well-formed ARNs (validate: "cannot be parsed as an ARN"); the generic placeholder string is neither - wired to this cohort's own aws_workspacesweb_session_logger.app and aws_workspacesweb_portal.app for real ones`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("session_logger_arn", exprTokens(workspacesWebArnRef(g, "aws_workspacesweb_session_logger", "session_logger_arn", "sessionLogger")))
+			body.SetAttributeRaw("portal_arn", exprTokens(workspacesWebPortalArnRef(g)))
+		},
+	},
+	"aws_workspacesweb_trust_store_association": {
+		Reasons: []string{
+			`trust_store_arn and portal_arn are both required strings the provider validates are well-formed ARNs (validate: "cannot be parsed as an ARN"); the generic placeholder string is neither - wired to this cohort's own aws_workspacesweb_trust_store.app and aws_workspacesweb_portal.app for real ones`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("trust_store_arn", exprTokens(workspacesWebArnRef(g, "aws_workspacesweb_trust_store", "trust_store_arn", "trustStore")))
+			body.SetAttributeRaw("portal_arn", exprTokens(workspacesWebPortalArnRef(g)))
+		},
+	},
+	"aws_workspacesweb_user_access_logging_settings_association": {
+		Reasons: []string{
+			`user_access_logging_settings_arn and portal_arn are both required strings the provider validates are well-formed ARNs (validate: "cannot be parsed as an ARN"); the generic placeholder string is neither - wired to this cohort's own aws_workspacesweb_user_access_logging_settings.app and aws_workspacesweb_portal.app for real ones`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("user_access_logging_settings_arn", exprTokens(workspacesWebArnRef(g, "aws_workspacesweb_user_access_logging_settings", "user_access_logging_settings_arn", "userAccessLoggingSettings")))
+			body.SetAttributeRaw("portal_arn", exprTokens(workspacesWebPortalArnRef(g)))
+		},
+	},
+	"aws_workspacesweb_user_settings_association": {
+		Reasons: []string{
+			`user_settings_arn and portal_arn are both required strings the provider validates are well-formed ARNs (validate: "cannot be parsed as an ARN"); the generic placeholder string is neither - wired to this cohort's own aws_workspacesweb_user_settings.app and aws_workspacesweb_portal.app for real ones`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("user_settings_arn", exprTokens(workspacesWebArnRef(g, "aws_workspacesweb_user_settings", "user_settings_arn", "userSettings")))
+			body.SetAttributeRaw("portal_arn", exprTokens(workspacesWebPortalArnRef(g)))
+		},
+	},
 	"aws_appintegrations_data_integration": {
 		Reasons: []string{
 			`source_uri is a required string the schema does not constrain, but the provider validates it against a fixed pattern (validate: "invalid value for source_uri (should be a valid source uri)"), documented as a connector-profile scheme like "Salesforce://AppFlow/example"; the generic placeholder string does not match it`,
@@ -3877,4 +3958,32 @@ func ssoadminPermissionSetArnRef(g *generator) string {
 		return `"arn:aws:sso:::permissionSet/ssoins-tofucohortid00/ps-tofucohortid00"`
 	}
 	return fmt.Sprintf("%s.arn", addr)
+}
+
+// workspacesWebPortalArnRef is the sibling aws_workspacesweb_portal's own
+// portal_arn attribute as HCL source when this run renders one, or a
+// literal placeholder portal ARN otherwise - shared by all eight
+// WorkSpacesWeb *_association fold-children's own portal_arn argument,
+// same conditional-sibling shape as ssoadminApplicationArnRef above.
+func workspacesWebPortalArnRef(g *generator) string {
+	addr, ok := g.byType["aws_workspacesweb_portal"]
+	if !ok {
+		return `"arn:aws:workspaces-web:us-east-1:000000000000:portal/tofucohortid00"`
+	}
+	return fmt.Sprintf("%s.portal_arn", addr)
+}
+
+// workspacesWebArnRef is one WorkSpacesWeb *_association fold-child's own
+// settings-type ARN argument as HCL source: the named sibling's own
+// exported *_arn attribute when this run renders one, or a literal
+// placeholder ARN of the given resource-path segment otherwise (each
+// WorkSpacesWeb settings type's own ARN embeds a different path segment,
+// e.g. "browserSettings", confirmed against each type's own documented
+// import ID example).
+func workspacesWebArnRef(g *generator, siblingType, attrName, arnPathSegment string) string {
+	addr, ok := g.byType[siblingType]
+	if !ok {
+		return fmt.Sprintf(`"arn:aws:workspaces-web:us-east-1:000000000000:%s/tofucohortid00"`, arnPathSegment)
+	}
+	return fmt.Sprintf("%s.%s", addr, attrName)
 }

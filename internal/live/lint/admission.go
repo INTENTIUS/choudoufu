@@ -1006,38 +1006,58 @@ var admittedTypesV0 = map[string]struct{}{
 	// ---- aws_connect_instance_storage_config does not, and is rejected on
 	// ---- exactly that ground. See internal/live/identity/table.go for the
 	// ---- per-type evidence. WorkSpacesWeb's eight *_association
-	// ---- property-children of AWS::WorkSpacesWeb::Portal are left out:
-	// ---- issue #68's fold-child admission path is what a batch would need
-	// ---- to ratify a property-child fold, and as of this batch that
-	// ---- branch has not merged to main (internal/live/lint/admission.go
-	// ---- carries no fold-child section yet) — deferred, not rejected.
+	// ---- property-children of AWS::WorkSpacesWeb::Portal ratify too: this
+	// ---- batch found issue #68's fold-child branch merged to main
+	// ---- mid-write (re-checked by grep against this file immediately
+	// ---- before finishing, per this batch's own recipe), but none of the
+	// ---- eight actually needs identity.FoldParentTypes' machinery at all —
+	// ---- each is an ordinary two-argument concrete composite
+	// ---- (SETTINGSARN,PORTALARN, both already-required configuration
+	// ---- arguments of the child's own, comma-joined), the same shape
+	// ---- aws_eks_access_entry and aws_iam_role_policy already ratify
+	// ---- elsewhere in this table, not the API Gateway four's "duplicate
+	// ---- the parent's whole composite" shape that machinery exists for.
+	// ---- Untaggable (no tags argument in any of the eight), so removal
+	// ---- sweep coverage stays the same accepted gap
+	// ---- live/LIMITATIONS.md's "Untaggable types cannot be removed by the
+	// ---- sweep" entry already carries; declared-instance resolution
+	// ---- (plan, apply, read-back) is unaffected either way. See
+	// ---- internal/live/identity/table.go for the per-type evidence.
 	// ---- Cohort estate: live/e2e/estates/connect-euc.
-	"aws_connect_instance":                           {},
-	"aws_connect_phone_number":                       {},
-	"aws_connect_contact_flow":                       {},
-	"aws_connect_contact_flow_module":                {},
-	"aws_connect_hours_of_operation":                 {},
-	"aws_connect_queue":                              {},
-	"aws_connect_quick_connect":                      {},
-	"aws_connect_routing_profile":                    {},
-	"aws_connect_security_profile":                   {},
-	"aws_connect_user":                               {},
-	"aws_connect_user_hierarchy_group":               {},
-	"aws_connect_user_hierarchy_structure":           {},
-	"aws_workspaces_connection_alias":                {},
-	"aws_workspaces_ip_group":                        {},
-	"aws_workspaces_pool":                            {},
-	"aws_workspaces_workspace":                       {},
-	"aws_workspacesweb_browser_settings":             {},
-	"aws_workspacesweb_data_protection_settings":     {},
-	"aws_workspacesweb_identity_provider":            {},
-	"aws_workspacesweb_ip_access_settings":           {},
-	"aws_workspacesweb_network_settings":             {},
-	"aws_workspacesweb_portal":                       {},
-	"aws_workspacesweb_session_logger":               {},
-	"aws_workspacesweb_trust_store":                  {},
-	"aws_workspacesweb_user_access_logging_settings": {},
-	"aws_workspacesweb_user_settings":                {},
+	"aws_connect_instance":                                       {},
+	"aws_connect_phone_number":                                   {},
+	"aws_connect_contact_flow":                                   {},
+	"aws_connect_contact_flow_module":                            {},
+	"aws_connect_hours_of_operation":                             {},
+	"aws_connect_queue":                                          {},
+	"aws_connect_quick_connect":                                  {},
+	"aws_connect_routing_profile":                                {},
+	"aws_connect_security_profile":                               {},
+	"aws_connect_user":                                           {},
+	"aws_connect_user_hierarchy_group":                           {},
+	"aws_connect_user_hierarchy_structure":                       {},
+	"aws_workspaces_connection_alias":                            {},
+	"aws_workspaces_ip_group":                                    {},
+	"aws_workspaces_pool":                                        {},
+	"aws_workspaces_workspace":                                   {},
+	"aws_workspacesweb_browser_settings":                         {},
+	"aws_workspacesweb_data_protection_settings":                 {},
+	"aws_workspacesweb_identity_provider":                        {},
+	"aws_workspacesweb_ip_access_settings":                       {},
+	"aws_workspacesweb_network_settings":                         {},
+	"aws_workspacesweb_portal":                                   {},
+	"aws_workspacesweb_session_logger":                           {},
+	"aws_workspacesweb_trust_store":                              {},
+	"aws_workspacesweb_user_access_logging_settings":             {},
+	"aws_workspacesweb_user_settings":                            {},
+	"aws_workspacesweb_browser_settings_association":             {},
+	"aws_workspacesweb_data_protection_settings_association":     {},
+	"aws_workspacesweb_ip_access_settings_association":           {},
+	"aws_workspacesweb_network_settings_association":             {},
+	"aws_workspacesweb_session_logger_association":               {},
+	"aws_workspacesweb_trust_store_association":                  {},
+	"aws_workspacesweb_user_access_logging_settings_association": {},
+	"aws_workspacesweb_user_settings_association":                {},
 
 	// ---- Registry-ratified (#40, #44, #65): sixth batch, data movement and
 	// ---- transfer (Transfer Family's server/user/workflow/connector core,

@@ -316,7 +316,7 @@ outcomes at all. They are named below.
 ## The Contract
 
 - **AWS only, <!-- survey-gen:begin contract-count -->
-537<!-- survey-gen:end contract-count --> resource types, root module only.** The v0 admission table
+545<!-- survey-gen:end contract-count --> resource types, root module only.** The v0 admission table
   (`internal/live/lint/admission.go`) is the whole subset. It holds <!-- survey-gen:begin contract-types -->
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
@@ -592,13 +592,22 @@ outcomes at all. They are named below.
   `aws_workspaces_connection_alias`, `aws_workspaces_ip_group`,
   `aws_workspaces_pool`, `aws_workspaces_workspace`,
   `aws_workspacesweb_browser_settings`,
+  `aws_workspacesweb_browser_settings_association`,
   `aws_workspacesweb_data_protection_settings`,
+  `aws_workspacesweb_data_protection_settings_association`,
   `aws_workspacesweb_identity_provider`,
   `aws_workspacesweb_ip_access_settings`,
-  `aws_workspacesweb_network_settings`, `aws_workspacesweb_portal`,
-  `aws_workspacesweb_session_logger`, `aws_workspacesweb_trust_store`,
+  `aws_workspacesweb_ip_access_settings_association`,
+  `aws_workspacesweb_network_settings`,
+  `aws_workspacesweb_network_settings_association`,
+  `aws_workspacesweb_portal`, `aws_workspacesweb_session_logger`,
+  `aws_workspacesweb_session_logger_association`,
+  `aws_workspacesweb_trust_store`,
+  `aws_workspacesweb_trust_store_association`,
   `aws_workspacesweb_user_access_logging_settings`,
-  `aws_workspacesweb_user_settings`, `aws_xray_group`,
+  `aws_workspacesweb_user_access_logging_settings_association`,
+  `aws_workspacesweb_user_settings`,
+  `aws_workspacesweb_user_settings_association`, `aws_xray_group`,
   `aws_xray_resource_policy`, and `aws_xray_sampling_rule`<!-- survey-gen:end contract-types -->. Nothing else, no
   other AWS type, no other provider. A `module` block calling into a child module is refused
   outright. The

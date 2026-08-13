@@ -7029,15 +7029,31 @@ var DefaultTable = buildTable(
 	// AWS::WorkSpacesWeb::Portal (browser_settings, data_protection_settings,
 	// ip_access_settings, network_settings, session_logger, trust_store,
 	// user_access_logging_settings and user_settings, each doubled into a
-	// standalone type above and a Portal-scoped association fold) are left
-	// out of this table entirely. row-gen's own notes propose each as
-	// "parent-derived admission keyed on aws_workspacesweb_portal once it
-	// is ratified" — exactly the fold-child shape issue #68 built an
-	// admission path for, on a branch (issue-68-fold-children) that has
-	// not merged to main as of this batch (internal/live/lint/admission.go
-	// on main carries no fold-child section to admit through). Deferred to
-	// whichever batch lands after that branch merges, not rejected on the
-	// merits.
+	// standalone type above and a Portal-scoped association fold) ratify
+	// too, below. row-gen's own notes propose each as "parent-derived
+	// admission keyed on aws_workspacesweb_portal once it is ratified" —
+	// this batch started under the assumption that needed issue #68's
+	// fold-child admission path (identity.FoldParentTypes,
+	// discovery.foldChildReadSweep), on a branch that had not merged to
+	// main when this batch's recipe was first read. It merged mid-batch;
+	// re-checking (grep for a fold-child section in
+	// internal/live/lint/admission.go on main) found it landed. Reading
+	// each type's real Import section directly settles the question that
+	// prompted the re-check either way: none of the eight actually needs
+	// [FoldParentTypes] at all. Each is an ordinary two-argument concrete
+	// composite — the child's own settings-type ARN and portal_arn,
+	// comma-joined, both already-Required configuration arguments of the
+	// association type itself — the same shape aws_eks_access_entry and
+	// aws_iam_role_policy already ratify elsewhere in this table, not the
+	// API Gateway four's "duplicate the parent's whole composite Components
+	// verbatim" shape [FoldParentTypes] exists for. None of the eight is
+	// taggable (confirmed against each Argument Reference: settings-type
+	// ARN, portal_arn and region only, no tags block), so none can carry an
+	// ownership marker of its own — the same accepted removal-sweep gap
+	// live/LIMITATIONS.md's "Untaggable types cannot be removed by the
+	// sweep" entry already carries for aws_iam_role_policy_attachment and
+	// aws_vpc_dhcp_options_association above. Declared-instance resolution
+	// (plan, apply, read-back) is unaffected either way.
 
 	serverAssigned("aws_connect_instance",
 		"Connect assigns the instance's own id at create time; instance_alias is client-chosen (required only when directory_id is not set) but is not the import identity. Confirmed against the provider's own Identity Schema (required: id) and its documented import command (terraform import aws_connect_instance.example f1288a1f-6193-445a-b47e-af739b2) — row-gen's own ARN guess corrected to the bare id its own Attribute Reference and Identity Schema both document.",
@@ -7138,6 +7154,81 @@ var DefaultTable = buildTable(
 	serverAssigned("aws_workspacesweb_user_settings",
 		"Same shape as aws_workspacesweb_browser_settings above: WorkSpacesWeb assigns the user settings' own ARN at create time, exported as user_settings_arn, no generic id attribute.",
 		"USERSETTINGSARN", "user_settings_arn"),
+
+	// WorkSpacesWeb's eight *_association property-children of
+	// AWS::WorkSpacesWeb::Portal: row-gen filed all eight evidence-only
+	// (via==fold, no CFN type of their own), but every one has a real,
+	// documented import grammar the provider's own docs give directly —
+	// the settings type's own ARN and portal_arn, comma-joined, in that
+	// order, confirmed against each type's real Import section
+	// individually (not inferred from one and assumed for the rest). Both
+	// halves are Required configuration arguments of the association type
+	// itself, so this is an ordinary concrete composite, not a
+	// [FoldParentOf] case — see the batch banner comment above.
+	TypeIdentity{
+		Type: "aws_workspacesweb_browser_settings_association",
+		Components: []Component{
+			attr("browser_settings_arn"), sep(","), attr("portal_arn"),
+		},
+		ImportSyntax:  "BROWSERSETTINGSARN,PORTALARN",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_workspacesweb_data_protection_settings_association",
+		Components: []Component{
+			attr("data_protection_settings_arn"), sep(","), attr("portal_arn"),
+		},
+		ImportSyntax:  "DATAPROTECTIONSETTINGSARN,PORTALARN",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_workspacesweb_ip_access_settings_association",
+		Components: []Component{
+			attr("ip_access_settings_arn"), sep(","), attr("portal_arn"),
+		},
+		ImportSyntax:  "IPACCESSSETTINGSARN,PORTALARN",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_workspacesweb_network_settings_association",
+		Components: []Component{
+			attr("network_settings_arn"), sep(","), attr("portal_arn"),
+		},
+		ImportSyntax:  "NETWORKSETTINGSARN,PORTALARN",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_workspacesweb_session_logger_association",
+		Components: []Component{
+			attr("session_logger_arn"), sep(","), attr("portal_arn"),
+		},
+		ImportSyntax:  "SESSIONLOGGERARN,PORTALARN",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_workspacesweb_trust_store_association",
+		Components: []Component{
+			attr("trust_store_arn"), sep(","), attr("portal_arn"),
+		},
+		ImportSyntax:  "TRUSTSTOREARN,PORTALARN",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_workspacesweb_user_access_logging_settings_association",
+		Components: []Component{
+			attr("user_access_logging_settings_arn"), sep(","), attr("portal_arn"),
+		},
+		ImportSyntax:  "USERACCESSLOGGINGSETTINGSARN,PORTALARN",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_workspacesweb_user_settings_association",
+		Components: []Component{
+			attr("user_settings_arn"), sep(","), attr("portal_arn"),
+		},
+		ImportSyntax:  "USERSETTINGSARN,PORTALARN",
+		IdentityAttrs: nil,
+	},
 
 	// ---- Registry-ratified (#40, #44, #65): sixth batch, databases beyond
 	// ---- RDS/DynamoDB/ElastiCache (issue #65's own recipe: Redshift,

@@ -11,7 +11,7 @@ schema and `internal/live/identity/table.go`'s identity table. Regenerate
 with:
 
 ```
-go run ./tools/estate-gen -cohort connect-euc -types aws_connect_instance,aws_connect_phone_number,aws_connect_contact_flow,aws_connect_contact_flow_module,aws_connect_hours_of_operation,aws_connect_queue,aws_connect_quick_connect,aws_connect_routing_profile,aws_connect_security_profile,aws_connect_user,aws_connect_user_hierarchy_group,aws_connect_user_hierarchy_structure,aws_workspaces_connection_alias,aws_workspaces_ip_group,aws_workspaces_pool,aws_workspaces_workspace,aws_workspacesweb_browser_settings,aws_workspacesweb_data_protection_settings,aws_workspacesweb_identity_provider,aws_workspacesweb_ip_access_settings,aws_workspacesweb_network_settings,aws_workspacesweb_portal,aws_workspacesweb_session_logger,aws_workspacesweb_trust_store,aws_workspacesweb_user_access_logging_settings,aws_workspacesweb_user_settings -out live/e2e/estates/connect-euc
+go run ./tools/estate-gen -cohort connect-euc -types aws_connect_instance,aws_connect_phone_number,aws_connect_contact_flow,aws_connect_contact_flow_module,aws_connect_hours_of_operation,aws_connect_queue,aws_connect_quick_connect,aws_connect_routing_profile,aws_connect_security_profile,aws_connect_user,aws_connect_user_hierarchy_group,aws_connect_user_hierarchy_structure,aws_workspaces_connection_alias,aws_workspaces_ip_group,aws_workspaces_pool,aws_workspaces_workspace,aws_workspacesweb_browser_settings,aws_workspacesweb_data_protection_settings,aws_workspacesweb_identity_provider,aws_workspacesweb_ip_access_settings,aws_workspacesweb_network_settings,aws_workspacesweb_portal,aws_workspacesweb_session_logger,aws_workspacesweb_trust_store,aws_workspacesweb_user_access_logging_settings,aws_workspacesweb_user_settings,aws_workspacesweb_browser_settings_association,aws_workspacesweb_data_protection_settings_association,aws_workspacesweb_ip_access_settings_association,aws_workspacesweb_network_settings_association,aws_workspacesweb_session_logger_association,aws_workspacesweb_trust_store_association,aws_workspacesweb_user_access_logging_settings_association,aws_workspacesweb_user_settings_association -out live/e2e/estates/connect-euc
 ```
 
 (`-types` is explicit because this cohort spans three CFN services —
@@ -19,13 +19,21 @@ Connect, WorkSpaces, WorkSpacesWeb — and `tools/estate-gen`'s no-`-types`
 default only ever matches one CFN service per cohort name.)
 
 This cohort exercises every type this batch ratified into
-`internal/live/lint/admission.go` and `internal/live/identity/table.go`: 26
-types across the three services, rejecting one (`aws_connect_instance_storage_config`)
-and deferring WorkSpacesWeb's eight `*_association` property-children of
-`AWS::WorkSpacesWeb::Portal`, plus AppStream (deprecated, never evaluated)
-and WorkSpaces' directory/bundle surface (real in the provider but outside
-`tools/row-gen`'s CFN-registry-keyed scope). See
-`internal/live/identity/table.go` for the per-type evidence.
+`internal/live/lint/admission.go` and `internal/live/identity/table.go`: 34
+types across the three services, rejecting one
+(`aws_connect_instance_storage_config`). AppStream (deprecated, never
+evaluated) and WorkSpaces' directory/bundle surface (real but outside
+`tools/row-gen`'s CFN-registry-keyed scope) are out of this batch's scope
+entirely. See `internal/live/identity/table.go` for the per-type evidence.
+
+**A note on scope drift mid-batch**: this batch's recipe named
+WorkSpacesWeb's eight `*_association` property-children of
+`AWS::WorkSpacesWeb::Portal` as deferred, pending issue #68's fold-child
+admission path merging to main. That branch merged while this batch was
+being written; re-checking (grep for a fold-child section in
+`internal/live/lint/admission.go`) found it landed, and all eight ratify
+below as a result — see "Parent-derived composite (fold-child)" in the
+coverage map.
 
 ## Coverage map
 
@@ -48,6 +56,18 @@ and WorkSpaces' directory/bundle surface (real in the provider but outside
 |---|---|---|
 | `aws_connect_user_hierarchy_structure.app` | row-gen filed this evidence-only too (the same import-grammar demotion as the nine Connect children above), but the real Import section shows no composite and no server-minted second half at all: the documented import id is `instance_id` alone, because a Connect instance has at most one hierarchy structure. The registry's read-only-ARN claim oversold the real grammar, the same "registry evidence oversold it" correction the EC2 batch's own `aws_vpc_dhcp_options_association` made — a named-singleton child of `aws_connect_instance.app`, `Components`-built from that parent's own id argument alone, no marker path or tags argument needed. |
 
+### Parent-derived composite (fold-child)
+
+Ratified once this batch found issue #68's fold-child admission path
+merged mid-write (see the scope-drift note above). All eight are an
+ordinary two-argument concrete composite — not `identity.FoldParentTypes`'
+own "duplicate the parent's whole composite Components verbatim" shape,
+which none of the eight needs.
+
+| Coverage row | Resource block | Why it lands there |
+|---|---|---|
+| `aws_workspacesweb_browser_settings_association.app`, `aws_workspacesweb_data_protection_settings_association.app`, `aws_workspacesweb_ip_access_settings_association.app`, `aws_workspacesweb_network_settings_association.app`, `aws_workspacesweb_session_logger_association.app`, `aws_workspacesweb_trust_store_association.app`, `aws_workspacesweb_user_access_logging_settings_association.app`, `aws_workspacesweb_user_settings_association.app` | row-gen filed all eight evidence-only (`via==fold`, property-children of `AWS::WorkSpacesWeb::Portal` with no CFN type of their own — row-gen's own note: "parent-derived admission keyed on `aws_workspacesweb_portal` once it is ratified"). Each has a real, documented import grammar the provider's own docs give directly: the settings type's own ARN and `portal_arn`, comma-joined, in that order — confirmed against each of the eight types' real Import section individually, not inferred from one and assumed for the rest. Both halves are Required configuration arguments of the association type itself (referencing the already-ratified `aws_workspacesweb_portal.app` and its matching settings-type sibling above), so this is a `Components`-built concrete composite, the same shape `aws_eks_access_entry` and `aws_iam_role_policy` already ratify elsewhere in the table. None of the eight is taggable. |
+
 ## Rejected
 
 - **`aws_connect_instance_storage_config`** — row-gen filed this
@@ -65,20 +85,6 @@ and WorkSpaces' directory/bundle surface (real in the provider but outside
 
 ## Deferred, out of this batch's scope
 
-WorkSpacesWeb's eight `*_association` property-children of
-`AWS::WorkSpacesWeb::Portal` (`aws_workspacesweb_browser_settings_association`,
-`_data_protection_settings_association`, `_ip_access_settings_association`,
-`_network_settings_association`, `_session_logger_association`,
-`_trust_store_association`, `_user_access_logging_settings_association` and
-`_user_settings_association`) are left out. row-gen's own notes propose each
-as "parent-derived admission keyed on `aws_workspacesweb_portal` once it is
-ratified" — exactly the fold-child shape issue #68 built an admission path
-for, on branch `issue-68-fold-children`. That branch has not merged to
-main as of this batch: `internal/live/lint/admission.go` on main carries no
-fold-child section to admit through (confirmed by grep before writing this
-batch). Deferred to whichever batch lands after that branch merges, not
-rejected on the merits.
-
 AppStream is a deprecated AWS service and was never evaluated here — out
 of scope by this batch's own recipe, not rejected on the merits.
 
@@ -94,14 +100,16 @@ proposal this batch could ratify or reject.
 
 ## Untaggable types
 
-One type in the coverage map above carries no `tags` argument in the AWS
+Nine types in the coverage map above carry no `tags` argument in the AWS
 provider: `aws_connect_user_hierarchy_structure` (confirmed against its
 real Argument Reference — `region`, `hierarchy_structure` and
-`instance_id` only). It is this batch's one Components-built entry, not a
-marker-path admission, so untaggability does not block it.
-`tools/survey-gen -render` folds it into `live/LIMITATIONS.md`'s
-"Untaggable types" span, the same generalized-past-the-curated-68
-derivation #54 built.
+`instance_id` only; this batch's one Components-built entry, not a
+marker-path admission, so untaggability does not block it) and all eight
+WorkSpacesWeb `*_association` fold-children (each Argument Reference lists
+only its own settings-type ARN, `portal_arn` and `region`, confirmed
+against every one individually). `tools/survey-gen -render` folds all nine
+into `live/LIMITATIONS.md`'s "Untaggable types" span, the same
+generalized-past-the-curated-68 derivation #54 built.
 
 ## Provenance
 
@@ -124,20 +132,35 @@ derivation #54 built.
 | `aws_workspaces_pool.app` | coverage | `bundle_id`/`directory_id` (fixed-prefix format), `running_mode` (closed enum) and a required `capacity` block not caught by `terraform validate` (found only by exercising a create against floci) — see `tools/estate-gen/overrides.go`. |
 | `aws_workspaces_workspace.app` | coverage | none |
 | `aws_workspacesweb_browser_settings.app` | coverage | `browser_policy` (well-formed JSON) — see `tools/estate-gen/overrides.go`. |
+| `aws_workspacesweb_browser_settings_association.app` | coverage | `browser_settings_arn`/`portal_arn` (well-formed ARNs, wired to this cohort's own siblings) — see `tools/estate-gen/overrides.go`. |
 | `aws_workspacesweb_data_protection_settings.app` | coverage | none |
+| `aws_workspacesweb_data_protection_settings_association.app` | coverage | `data_protection_settings_arn`/`portal_arn` — see `tools/estate-gen/overrides.go`. |
 | `aws_workspacesweb_identity_provider.app` | coverage | `identity_provider_type` (closed enum), `portal_arn` (well-formed ARN, wired to this cohort's own `aws_workspacesweb_portal.app`) and `identity_provider_details` (a required map the generic pass leaves empty) — see `tools/estate-gen/overrides.go`. |
 | `aws_workspacesweb_ip_access_settings.app` | coverage | a required `ip_rule` block (well-formed CIDR) — see `tools/estate-gen/overrides.go`. |
+| `aws_workspacesweb_ip_access_settings_association.app` | coverage | `ip_access_settings_arn`/`portal_arn` — see `tools/estate-gen/overrides.go`. |
 | `aws_workspacesweb_network_settings.app` | coverage | `subnet_ids` (2-5 elements) — see `tools/estate-gen/overrides.go`. |
+| `aws_workspacesweb_network_settings_association.app` | coverage | `network_settings_arn`/`portal_arn` — see `tools/estate-gen/overrides.go`. |
 | `aws_workspacesweb_portal.app` | coverage | none |
 | `aws_workspacesweb_session_logger.app` | coverage | required `event_filter` and `log_configuration` blocks, the latter's `folder_structure` value corrected from the provider's own stale Argument Reference prose to what the real validator accepts — see `tools/estate-gen/overrides.go`. |
+| `aws_workspacesweb_session_logger_association.app` | coverage | `session_logger_arn`/`portal_arn` — see `tools/estate-gen/overrides.go`. |
 | `aws_workspacesweb_trust_store.app` | coverage | none |
+| `aws_workspacesweb_trust_store_association.app` | coverage | `trust_store_arn`/`portal_arn` — see `tools/estate-gen/overrides.go`. |
 | `aws_workspacesweb_user_access_logging_settings.app` | coverage | `kinesis_stream_arn` (well-formed ARN) — see `tools/estate-gen/overrides.go`. |
+| `aws_workspacesweb_user_access_logging_settings_association.app` | coverage | `user_access_logging_settings_arn`/`portal_arn` — see `tools/estate-gen/overrides.go`. |
 | `aws_workspacesweb_user_settings.app` | coverage | five closed-enum attributes (`copy_allowed`, `download_allowed`, `paste_allowed`, `print_allowed`, `upload_allowed`) — see `tools/estate-gen/overrides.go`. |
+| `aws_workspacesweb_user_settings_association.app` | coverage | `user_settings_arn`/`portal_arn` — see `tools/estate-gen/overrides.go`. |
 
 Every override's full `Reasons` text (the exact `terraform validate`/apply
 error it exists to fix) is in `tools/estate-gen/overrides.go`'s own
 `typeOverrides` map, the same provenance format every earlier cohort's
-README uses.
+README uses. The eight `*_association` fold-children's own ARN-pair
+cross-references (each type's settings-type ARN plus `aws_workspacesweb_portal.app`'s
+own `portal_arn`) are resolved by hand in `overrides.go`'s
+`workspacesWebArnRef`/`workspacesWebPortalArnRef` helper functions, the
+same conditional-sibling pattern `ssoadminApplicationArnRef` already
+established — needed because both arguments reference server-assigned
+siblings, which `gen.go`'s `identityArgName`-based auto-wiring never links
+automatically.
 
 ## Requested types
 
@@ -158,15 +181,23 @@ README uses.
 - `aws_workspaces_pool`
 - `aws_workspaces_workspace`
 - `aws_workspacesweb_browser_settings`
+- `aws_workspacesweb_browser_settings_association`
 - `aws_workspacesweb_data_protection_settings`
+- `aws_workspacesweb_data_protection_settings_association`
 - `aws_workspacesweb_identity_provider`
 - `aws_workspacesweb_ip_access_settings`
+- `aws_workspacesweb_ip_access_settings_association`
 - `aws_workspacesweb_network_settings`
+- `aws_workspacesweb_network_settings_association`
 - `aws_workspacesweb_portal`
 - `aws_workspacesweb_session_logger`
+- `aws_workspacesweb_session_logger_association`
 - `aws_workspacesweb_trust_store`
+- `aws_workspacesweb_trust_store_association`
 - `aws_workspacesweb_user_access_logging_settings`
+- `aws_workspacesweb_user_access_logging_settings_association`
 - `aws_workspacesweb_user_settings`
+- `aws_workspacesweb_user_settings_association`
 
 ## Files
 
@@ -210,14 +241,18 @@ docker rm -f tofu-connect-euc-cohort-verify
 ```
 
 An `apply` against the pinned floci image above was run by hand during
-ratification (not wired into any automated tier — see "Gating" above).
+ratification (not wired into any automated tier — see "Gating" above),
+against the 26-type fixture this cohort had before the eight
+`*_association` fold-children joined it (see the scope-drift note at the
+top of this file); the eight were never separately exercised against
+floci, but nothing in the earlier apply run suggests WorkSpacesWeb fares
+any better for them than for the ten WorkSpacesWeb types already tried.
 `_localstack/health` on this image lists neither `connect`, `workspaces`
 nor `workspaces-web` among its running services at all — this batch's
 three CFN services have no floci implementation whatsoever, wider than
 every earlier batch's own gap (the identity batch's own two entirely
 unimplemented services, Cognito Identity and SSO Admin, is the closest
-precedent). Zero of this cohort's 26 ratified types create and destroy
-cleanly:
+precedent). Zero of the 26 types tried create and destroy cleanly:
 
 - **Amazon Connect**: `aws_connect_instance.app`'s `CreateInstance` call
   is accepted, but the provider's post-create `DescribeInstance` wait
@@ -262,9 +297,13 @@ cleanly:
   same "found by hand against floci, not a correctness compromise"
   category `aws_mq_broker`'s own `RABBITMQ` engine choice is in the
   streaming batch), left undone here since fabricating a placeholder PEM
-  certificate body would not make the type any more real.
+  certificate body would not make the type any more real. Every
+  `*_association` fold-child depends on `aws_workspacesweb_portal.app`
+  (untried against floci directly, but skipped the same dependency-skip
+  way if it were: the portal's own `CreatePortal` call is one of the
+  eight non-JSON-response failures above).
 
-None of this is evidence against any of the twenty-six types' admission:
+None of this is evidence against any of the thirty-four types' admission:
 identity and taggability are properties of the provider and the registry,
 not of one emulator's completeness, the same standard every earlier
 cohort's own "Verifying by hand" section states. It is, however, the
