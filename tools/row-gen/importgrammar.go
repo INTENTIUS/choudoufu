@@ -25,6 +25,28 @@ type importGrammarRow struct {
 	ComposedOfArguments *bool    `json:"composed_of_arguments"`
 	Separator           *string  `json:"separator"`
 	Arguments           []string `json:"arguments"`
+
+	// ArgumentReference, ArgumentsInOrder, IdentitySchemaRequired and
+	// IdentitySchemaOptional are the widened scrape's own evidence (issue:
+	// the decisive identity evidence for a scrape-gap type sits in the
+	// Argument Reference or the Identity Schema, not the Import section's
+	// prose alone) - see tools/importdocs-gen/artifact.go's Row for what
+	// each one means; the shapes here are the same, just re-declared for
+	// this package's own JSON decode the way the five fields above already
+	// are.
+	ArgumentReference      []argumentRefEntry `json:"argument_reference"`
+	ArgumentsInOrder       []string           `json:"arguments_in_doc_order"`
+	IdentitySchemaRequired []string           `json:"identity_schema_required"`
+	IdentitySchemaOptional []string           `json:"identity_schema_optional"`
+}
+
+// argumentRefEntry mirrors tools/importdocs-gen/artifact.go's
+// ArgumentRefEntry: one Argument Reference bullet's name and its
+// Required/ForceNew marking.
+type argumentRefEntry struct {
+	Name     string `json:"name"`
+	Required bool   `json:"required"`
+	ForceNew bool   `json:"force_new"`
 }
 
 type importGrammarArtifact struct {

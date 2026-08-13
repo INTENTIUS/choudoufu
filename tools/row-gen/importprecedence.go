@@ -28,8 +28,7 @@ import (
 // conservative pass is exactly the shape tryGrammarComposite resolves
 // further when the grammar row turns out to carry a usable argument list.
 //
-// Five narrow rules, tried in order per proposal; the first that fires
-// wins:
+// Rules, tried in order per proposal; the first that fires wins:
 //
 //  1. tryGrammarComposite: live/import-grammar.json itself pins
 //     composed_of_arguments, an argument list and (when there is more than
@@ -42,8 +41,39 @@ import (
 //     only two segments, so the arity check rejects it and aws_route stays
 //     needs-hand-separator. aws_lambda_alias's row is the same trap the
 //     other way: one named argument against a separator that plainly
-//     implies two segments.
-//  2. tryRegistryComposite: only for a still-needs-hand-separator proposal
+//     implies two segments. When the per-segment value tokens are too
+//     opaque to bijection-match (aws_api_gateway_gateway_response's
+//     "12345abcde/UNAUTHORIZED" placeholders), this rule falls back to the
+//     widened scrape's own ArgumentsInOrder - the same segments, matched to
+//     Argument Reference names from the format-string prose instead of the
+//     literal example value - see tryGrammarComposite's own doc comment.
+//  2. tryArgumentReferenceConfirmedGuess: a proposal classify.go already
+//     filed evidence-only because its argument name was GUESSED (the CFN
+//     property name, snake-cased, backed by no schema or grammar) - the
+//     widened Argument Reference scrape independently confirms that same
+//     name is a real, Required top-level argument, so the two sources
+//     (CFN's own primaryIdentifier naming, the provider's own docs) agree
+//     and the guess is trusted.
+//  3. tryArgumentReferenceValueMatch: the documented example is a single,
+//     unsplit value (no candidate separator present) whose own text
+//     embeds exactly one Required argument's name-token
+//     (aws_vpc_dhcp_options_association's "vpc-0f001273ec18911b1" embeds
+//     "vpc", the Required vpc_id argument's own token, while
+//     dhcp_options_id's own token is absent) - the client-naming argument
+//     the doc actually shows, independent of what the registry's own
+//     primaryIdentifier claims (which is often a multi-part composite the
+//     provider does not really use, or an opaque attribute read-only per
+//     CFN but not per the provider). Also catches the codebuild_fleet
+//     shape: a server-assigned registry claim (Arn is read-only) whose
+//     classic import example nonetheless names a Required argument
+//     directly.
+//  4. tryArgumentReferenceComposite: the still-needs-hand-separator
+//     sibling of rule 3, for a documented example that does split - tries
+//     every candidate separator against the Argument Reference's own
+//     Required argument names (rather than the registry's
+//     primaryIdentifier names, which rule 6 already tried and which do not
+//     always match the provider's own TF argument names).
+//  5. tryRegistryComposite: only for a still-needs-hand-separator proposal
 //     (the registry's own primaryIdentifier is the arity signal here, not
 //     the grammar). Splits the documented example on each of the four
 //     characters internal/live/identity/table.go's DefaultTable actually
@@ -51,28 +81,42 @@ import (
 //     matches exactly one primaryIdentifier property by name - recovering
 //     NetworkManager's association quartet's separator and order from
 //     evidence rather than guessing it.
-//  3. tryOpaqueOverride: still needs-hand-separator, but nothing in rule 2
-//     reconstructed the registry's claimed composite from the documented
-//     example at all. That is itself evidence the registry's composite
-//     primaryIdentifier is not what the provider actually imports by -
+//  6. tryOpaqueOverride: still needs-hand-separator, but nothing in rules
+//     3-5 reconstructed a composite from the documented example at all,
+//     AND the example itself looks like a genuinely single opaque value
+//     (looksOpaque) rather than one this pass simply failed to take apart -
 //     NetworkManager's device/site/link, whose provider StateContext
 //     importer reads a single arn attribute a GlobalNetworkId+DeviceId
 //     composite never touches.
-//  4. tryArnVsIDOverride: already believed server-assigned, single opaque
+//  7. tryArnVsIDOverride: already believed server-assigned, single opaque
 //     primaryIdentifier named like an ARN, but the documented example is
 //     not one - VPC Lattice's and Transfer Server's shape.
-//  5. tryCompoundArnImportSyntax: cosmetic-only, always tried last: a
-//     server-assigned proposal whose documented example joins two ARNs
-//     (DataSync's FSx-backed locations) gets an ImportSyntax placeholder
-//     that says so, instead of the flat single-primaryIdentifier guess.
+//  8. tryCompoundArnImportSyntax: cosmetic-only: a server-assigned proposal
+//     whose documented example joins two ARNs (DataSync's FSx-backed
+//     locations) gets an ImportSyntax placeholder that says so, instead of
+//     the flat single-primaryIdentifier guess.
+//  9. applyIdentitySchemaAttrsCorrection: always tried last, and only ever
+//     touches a proposal that rule 7 already gave a single-value
+//     DerivedIdentityAttrs guess to (never introduces a claim where none
+//     existed - see that function's own doc comment for why: this
+//     codebase's own established convention pairs most server-assigned
+//     types' single documented identity attribute with a hand-confirmed
+//     "id" alias, e.g. aws_lb's ["arn", "id"], that this scrape has no way
+//     to know about, and issue #44 declares that inference explicitly out
+//     of scope. When the widened scrape's own Identity Schema names a
+//     DIFFERENT attribute than rule 7's guess (not merely a shorter list),
+//     that direct provider evidence corrects the guess -
+//     aws_batch_compute_environment's legacy Import section example
+//     ("sample") makes rule 7 guess "id"; the Identity Schema correctly
+//     requires "arn".
 func applyImportGrammarPrecedence(proposals []proposal, importGrammar map[string]importGrammarRow) {
 	for i := range proposals {
 		p := &proposals[i]
 		if p.CFNType == "" {
 			// A fold row carries no registry primaryIdentifier of its own
 			// (classifyFold never sets PrimaryIdentifier) - nothing here
-			// applies, and rules 2-4 below would be vacuously unreachable
-			// anyway since they all gate on a non-empty PrimaryIdentifier.
+			// applies, and every rule below that gates on PrimaryIdentifier
+			// would be vacuously unreachable anyway.
 			continue
 		}
 		g, ok := importGrammar[p.TFType]
@@ -87,11 +131,15 @@ func applyImportGrammarPrecedence(proposals []proposal, importGrammar map[string
 		// argument name to a grammar-sourced one that happens to agree.
 		switch {
 		case p.Bucket != bucketClientNamed && tryGrammarComposite(p, g):
+		case p.Bucket == bucketEvidenceOnly && tryArgumentReferenceConfirmedGuess(p, g):
+		case p.Bucket != bucketClientNamed && p.Bucket != bucketComposite && tryArgumentReferenceValueMatch(p, g):
+		case p.Bucket == bucketNeedsHandSeparator && tryArgumentReferenceComposite(p, g):
 		case p.Bucket == bucketNeedsHandSeparator && tryRegistryComposite(p, g):
 		case p.Bucket == bucketNeedsHandSeparator && tryOpaqueOverride(p, g):
 		case p.Bucket == bucketServerAssigned && tryArnVsIDOverride(p, g):
 		}
 		tryCompoundArnImportSyntax(p, g)
+		applyIdentitySchemaAttrsCorrection(p, g)
 	}
 }
 
@@ -121,7 +169,7 @@ type derivedComposite struct {
 // the documented example "12345abcde/67890fghij/GET" is
 // rest_api_id/resource_id/http_method - the reverse - and against
 // aws_iam_role_policy_attachment the same way), so it is never trusted
-// directly. Order is instead recovered the same way rule 2
+// directly. Order is instead recovered the same way rule 5
 // (tryRegistryComposite) recovers it for the registry's own composite
 // primaryIdentifier: deriveCompositeWithSeparator's token-matching
 // bijection against the pinned separator. A single named argument needs no
@@ -152,11 +200,46 @@ func tryGrammarComposite(p *proposal, g importGrammarRow) bool {
 	if g.Separator == nil {
 		return false // more than one argument, but no pinned separator to join them with
 	}
-	dc, ok := deriveCompositeWithSeparator(g.ImportIDExample, *g.Separator, g.Arguments)
-	if !ok {
+	if dc, ok := deriveCompositeWithSeparator(g.ImportIDExample, *g.Separator, g.Arguments); ok {
+		setClientNamedComposite(p, dc.ArgsInOrder, dc.Separator, g)
+		return true
+	}
+	// The literal example's own segments were too opaque to bijection-match
+	// (aws_api_gateway_gateway_response's "12345abcde/UNAUTHORIZED"). The
+	// widened scrape's own ArgumentsInOrder recovers the same order a
+	// different way: the doc's format-string prose ("using
+	// `REST-API-ID/RESPONSE-TYPE`"), matched to Argument Reference names at
+	// scrape time rather than against the example value - so this still
+	// only fires when that order is the same argument set, split the same
+	// number of ways as the example itself splits on the pinned separator
+	// (an arity check against the example string, the same discipline rule
+	// 1's other branch already holds itself to).
+	if len(g.ArgumentsInOrder) == len(g.Arguments) && sameStringSet(g.ArgumentsInOrder, g.Arguments) &&
+		len(strings.Split(g.ImportIDExample, *g.Separator)) == len(g.ArgumentsInOrder) {
+		setClientNamedComposite(p, g.ArgumentsInOrder, *g.Separator, g)
+		p.Rule = "import-grammar precedence: composed_of_arguments, multi-argument, order recovered from the doc's format-string prose (the example's own segments were too opaque to match by value)"
+		return true
+	}
+	return false
+}
+
+// sameStringSet reports whether a and b contain exactly the same strings,
+// ignoring order and duplicates - the set-equality check tryGrammarComposite
+// needs to confirm ArgumentsInOrder is a reordering of Arguments, not a
+// different (and hence untrustworthy) argument list.
+func sameStringSet(a, b []string) bool {
+	if len(a) != len(b) {
 		return false
 	}
-	setClientNamedComposite(p, dc.ArgsInOrder, dc.Separator, g)
+	set := map[string]bool{}
+	for _, x := range a {
+		set[x] = true
+	}
+	for _, x := range b {
+		if !set[x] {
+			return false
+		}
+	}
 	return true
 }
 
@@ -180,7 +263,7 @@ func setClientNamedComposite(p *proposal, args []string, sep string, g importGra
 	p.Notes = append(p.Notes, fmt.Sprintf("import docs pin %s joined by %q: %s", quoteList(args), sep, g.ImportIDExample))
 }
 
-// tryRegistryComposite is rule 2: only reached for a still-needs-hand-
+// tryRegistryComposite is rule 5: only reached for a still-needs-hand-
 // separator proposal, whose registry primaryIdentifier is the arity signal
 // (the grammar row did not resolve it under rule 1 - either because it has
 // no composed_of_arguments evidence of its own, or that evidence's arity
@@ -290,12 +373,200 @@ func alnum(s string) string {
 	return b.String()
 }
 
-// tryOpaqueOverride is rule 3: reached only when rule 2 could not
-// reconstruct the registry's own composite primaryIdentifier from the
-// documented example under any candidate separator. That failure is itself
-// the evidence: the provider's own Import section pins a single value the
-// registry's claimed multi-part primaryIdentifier does not actually
-// describe - NetworkManager's device/site/link, whose provider
+// requiredArgumentReferenceNames returns the Name of every g.ArgumentReference
+// entry marked Required - the candidate pool tryArgumentReferenceConfirmedGuess,
+// tryArgumentReferenceValueMatch and tryArgumentReferenceComposite all draw
+// from, since an Optional argument (a default-assigned name, a config knob)
+// is never what a documented import ID actually identifies a resource by.
+func requiredArgumentReferenceNames(g importGrammarRow) []string {
+	var out []string
+	for _, a := range g.ArgumentReference {
+		if a.Required {
+			out = append(out, a.Name)
+		}
+	}
+	return out
+}
+
+// tryArgumentReferenceConfirmedGuess is rule 2: reached only for a proposal
+// classify.go's resolveArgName already filed evidence-only because its
+// argument name came from the last-resort GUESSED source (a snake-cased CFN
+// property name, backed by neither a provider identity schema nor
+// live/import-grammar.json's own composed_of_arguments evidence) - see
+// classify.go's argSourceGuessed. The widened Argument Reference scrape is a
+// second, independent source: when it also names that exact argument
+// Required, the two sources (CFN's own primaryIdentifier property name, the
+// provider's own docs) agree, which is enough to trust the guess -
+// aws_athena_workgroup, aws_athena_data_catalog, aws_glue_classifier and
+// aws_db_proxy's shape: row-gen already guessed the right TF argument name
+// from the CFN property, but had no source willing to confirm it until now.
+func tryArgumentReferenceConfirmedGuess(p *proposal, g importGrammarRow) bool {
+	if p.ArgSource != argSourceGuessed || p.ArgName == "" {
+		return false
+	}
+	for _, name := range requiredArgumentReferenceNames(g) {
+		if name == p.ArgName {
+			p.Bucket = bucketClientNamed
+			p.ArgSource = argSourceArgumentReference
+			p.Rule = "import-grammar precedence: the guessed argument name is confirmed as a Required top-level argument in the provider's own Argument Reference"
+			p.Notes = append(p.Notes, fmt.Sprintf("Argument Reference documents %q as Required, confirming the CFN-property-derived guess", p.ArgName))
+			return true
+		}
+	}
+	return false
+}
+
+// tryArgumentReferenceValueMatch is rule 3: the documented example is a
+// single, unsplit value (no candidate separator present - candidateSeparators,
+// this file's own set) whose own text embeds exactly one Required Argument
+// Reference argument's name-token (argToken; the same substring-bijection
+// technique deriveCompositeWithSeparator uses per-segment, applied here to
+// the one and only segment there is). aws_vpc_dhcp_options_association's
+// "vpc-0f001273ec18911b1" embeds the Required vpc_id argument's own token
+// "vpc" and nothing of dhcp_options_id's "dhcpoptions" - resolving the real,
+// simpler identity a two-part registry primaryIdentifier oversold. Runs
+// regardless of the proposal's current bucket (server-assigned, needs-hand-
+// separator or evidence-only all reach it) because the signal is the
+// documented value's own content, not any prior classification - but never
+// when composed_of_arguments already resolved true (rule 1's territory) or
+// when g.ArgumentsInOrder shows this same example is actually part of a
+// wider composite this function's single-segment reading would misread.
+func tryArgumentReferenceValueMatch(p *proposal, g importGrammarRow) bool {
+	if g.ImportIDExample == "" {
+		return false
+	}
+	if g.ComposedOfArguments != nil && *g.ComposedOfArguments {
+		return false
+	}
+	if strings.ContainsAny(g.ImportIDExample, ",|_/:") {
+		return false // not a single segment; tryArgumentReferenceComposite's territory
+	}
+	if strings.ContainsAny(g.ImportIDExample, "<>{}") {
+		return false // a doc placeholder token ("<id>"), not a real example value
+	}
+	valueNorm := alnum(g.ImportIDExample)
+	var match string
+	for _, name := range requiredArgumentReferenceNames(g) {
+		tok := argToken(name)
+		if len(tok) < 3 || !strings.Contains(valueNorm, tok) {
+			continue
+		}
+		if match != "" {
+			return false // ambiguous: more than one Required argument's token appears in the value
+		}
+		match = name
+	}
+	if match == "" {
+		return false
+	}
+	p.Bucket = bucketClientNamed
+	p.ArgName = match
+	p.ArgSource = argSourceArgumentReference
+	p.Rule = "import-grammar precedence: the documented example's own text embeds exactly one Required argument's name, confirming it over the registry's own primaryIdentifier claim"
+	p.Notes = append(p.Notes, fmt.Sprintf("import docs example %q embeds the Required argument %q; superseding the registry-only classification", g.ImportIDExample, match))
+	return true
+}
+
+// tryArgumentReferenceComposite is rule 4: the still-needs-hand-separator
+// sibling of rule 3, for a documented example that does split into more than
+// one segment. Tries every candidateSeparators entry against the Required
+// Argument Reference names (rather than the registry's primaryIdentifier
+// names, which rule 5/tryRegistryComposite already tried and which do not
+// always match the provider's own TF argument spelling - CFN's MemberId
+// against the provider's own account_id, for one) via the same
+// deriveCompositeWithSeparator bijection rule 5 uses, so it fails closed the
+// same way: an example whose segments carry no recognizable argument token
+// (a generic placeholder ID, not a name-prefixed or ARN-shaped value) simply
+// does not resolve, rather than guessing an order.
+func tryArgumentReferenceComposite(p *proposal, g importGrammarRow) bool {
+	if g.ImportIDExample == "" {
+		return false
+	}
+	required := requiredArgumentReferenceNames(g)
+	if len(required) < 2 {
+		return false
+	}
+	for _, sep := range candidateSeparators {
+		dc, ok := deriveCompositeWithSeparator(g.ImportIDExample, sep, required)
+		if !ok {
+			continue
+		}
+		p.Bucket = bucketComposite
+		p.CompositeArgs = dc.ArgsInOrder
+		p.CompositeSep = dc.Separator
+		p.ArgSource = argSourceArgumentReference
+		p.Rule = "import-grammar precedence: Argument Reference's own Required arguments, separator and order recovered from the documented example string"
+		p.Notes = append(p.Notes, fmt.Sprintf("import docs example %q splits on %q into exactly %d Required Argument Reference names, matched by name: %s", g.ImportIDExample, sep, len(required), quoteList(dc.ArgsInOrder)))
+		return true
+	}
+	return false
+}
+
+// applyIdentitySchemaAttrsCorrection is rule 9: see this file's own
+// package-level doc comment for why it is a correction pass, called
+// unconditionally after every switch rule and tryCompoundArnImportSyntax,
+// rather than one more switch case - it only ever touches a proposal that
+// rule 6 (tryOpaqueOverride) or rule 7 (tryArnVsIDOverride) already gave a
+// single-value DerivedIdentityAttrs guess to (len == 1), never introduces a
+// claim where none existed (a bucketComposite or still-needs-hand-separator
+// proposal is left alone, the same issue #44 non-goal every other rule here
+// respects).
+//
+// Corrects that guess only when the widened scrape's own Identity Schema
+// names exactly one Required attribute, it differs from the guess already
+// on file, and that name is confirmed absent from Argument Reference (the
+// same "not actually a configuration argument" shape rule 1's territory
+// would have claimed instead, had it resolved) - aws_batch_compute_environment's
+// legacy Import section example ("sample") makes rule 7 guess "id"; the
+// Identity Schema correctly requires "arn". A multi-attribute Identity
+// Schema is left alone: that is a different shape (a composite identity) a
+// single-value guess cannot be corrected into.
+func applyIdentitySchemaAttrsCorrection(p *proposal, g importGrammarRow) {
+	if p.Bucket != bucketServerAssigned || len(p.DerivedIdentityAttrs) != 1 {
+		return
+	}
+	if len(g.IdentitySchemaRequired) != 1 {
+		return
+	}
+	attr := g.IdentitySchemaRequired[0]
+	if attr == p.DerivedIdentityAttrs[0] {
+		return
+	}
+	for _, ref := range g.ArgumentReference {
+		if ref.Name == attr {
+			return // a configuration argument, not a read-only identity attribute
+		}
+	}
+	p.Notes = append(p.Notes, fmt.Sprintf("Identity Schema requires %q for import, correcting the %q guess derived from the legacy Import section example", attr, p.DerivedIdentityAttrs[0]))
+	p.DerivedIdentityAttrs = []string{attr}
+	p.DerivedImportSyntax = strings.ToUpper(attr)
+	p.Rule = "import-grammar precedence: the provider's own Terraform 1.12+ Identity Schema names a different required import identity attribute than the legacy Import section's example implied"
+}
+
+// looksOpaque reports whether g's own evidence actually supports "a single,
+// server-assigned value" - the shape tryOpaqueOverride is for - rather than
+// merely "nothing above resolved a composite for this proposal." An
+// ARN-shaped example is always eligible: an ARN's own internal "/" and ":"
+// characters are structural to the ARN itself, not a composite-ID separator
+// (NetworkManager's device/site/link). Anything else must contain no
+// candidate composite separator at all: a value like
+// "aabbccddee/example-stage" or "example.com/base-path" plainly looks
+// composite even when nothing in this pass could name its parts, and is left
+// needs-hand-separator - an honest unresolved gap - rather than guessed
+// opaque.
+func looksOpaque(example string) bool {
+	if strings.HasPrefix(example, "arn:") {
+		return true
+	}
+	return !strings.ContainsAny(example, ",|_/:")
+}
+
+// tryOpaqueOverride is rule 6: reached only when rules 3-5 could not
+// reconstruct a composite from the documented example under any candidate
+// separator or argument source, and the example itself looksOpaque. That
+// combination is itself the evidence: the provider's own Import section pins
+// a single value the registry's claimed multi-part primaryIdentifier does
+// not actually describe - NetworkManager's device/site/link, whose provider
 // StateContext importer reads the type's own arn attribute (confirmed
 // against each resource's @Testing(importStateIdAttribute="arn")
 // decoration in the AWS provider source) rather than composing
@@ -307,6 +578,9 @@ func tryOpaqueOverride(p *proposal, g importGrammarRow) bool {
 	if g.ComposedOfArguments != nil && *g.ComposedOfArguments {
 		return false // rule 1's territory; if it did not resolve this already, guessing further here is not warranted
 	}
+	if !looksOpaque(g.ImportIDExample) {
+		return false // the example still looks composite; an honest needs-hand-separator gap, not opacity
+	}
 	syntax, attr := labelForOpaqueValue(g.ImportIDExample)
 	p.Bucket = bucketServerAssigned
 	p.DerivedImportSyntax = syntax
@@ -316,7 +590,7 @@ func tryOpaqueOverride(p *proposal, g importGrammarRow) bool {
 	return true
 }
 
-// tryArnVsIDOverride is rule 4: the VPC Lattice/Transfer Server shape. The
+// tryArnVsIDOverride is rule 7: the VPC Lattice/Transfer Server shape. The
 // proposal is already believed server-assigned (rule 1 in classify.go:
 // primaryIdentifier ⊆ readOnlyProperties), the registry's own single
 // primaryIdentifier is opaque and named like an ARN, but the provider's
@@ -371,17 +645,19 @@ func labelForOpaqueValue(example string) (importSyntax, identityAttr string) {
 // arnRe matches one ARN's own service segment ("arn:aws:SERVICE:...").
 var arnRe = regexp.MustCompile(`arn:aws[a-z0-9-]*:([a-z0-9-]+):`)
 
-// tryCompoundArnImportSyntax is rule 5, always tried last and cosmetic
-// only: a bucketServerAssigned proposal whose documented example joins two
-// (or more) ARNs - DataSync's FSx-backed locations, whose provider Import
+// tryCompoundArnImportSyntax is rule 8, tried after every switch rule above
+// (and cosmetic only, not "always tried last": rule 9,
+// applyIdentitySchemaAttrsCorrection, still runs after it): a
+// bucketServerAssigned proposal whose documented example joins two (or
+// more) ARNs - DataSync's FSx-backed locations, whose provider Import
 // section reads "DataSync-ARN#FSx-ARN" - gets an ImportSyntax placeholder
 // built from each ARN's own service token, instead of the flat single-
 // primaryIdentifier guess renderServerAssignedEntry would otherwise print.
-// Never overrides a rule 3/4 result (DerivedImportSyntax already set), and
+// Never overrides a rule 6/7 result (DerivedImportSyntax already set), and
 // never changes the bucket or IdentityAttrs - ImportSyntax is documentation
 // only (see TypeIdentity's own doc comment: "Components is what the code
 // follows"), so getting this placeholder's wording exactly right is not
-// load-bearing the way the other four rules are.
+// load-bearing the way the other rules are.
 func tryCompoundArnImportSyntax(p *proposal, g importGrammarRow) {
 	if p.Bucket != bucketServerAssigned || p.DerivedImportSyntax != "" {
 		return

@@ -187,7 +187,8 @@ func renderAdmissionLine(tfType string) string {
 // verified - unless applyImportGrammarPrecedence set DerivedImportSyntax,
 // in which case pinned import-grammar evidence already disagreed with the
 // registry and won (see importprecedence.go's tryArnVsIDOverride,
-// tryOpaqueOverride and tryCompoundArnImportSyntax), and
+// tryOpaqueOverride, tryCompoundArnImportSyntax and
+// applyIdentitySchemaAttrsCorrection), and
 // DerivedIdentityAttrs is pasted too - the one case row-gen does propose an
 // IdentityAttrs value despite issue #44's general non-goal, because this
 // specific correction (which exported attribute, not whether one exists) is
