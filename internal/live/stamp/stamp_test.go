@@ -739,6 +739,39 @@ var (
 		"aws_appsync_graphql_api",
 		"aws_pipes_pipe",
 		"aws_scheduler_schedule_group",
+		// Registry-ratified data-movement batch (#40, #44, issue #65): all
+		// twenty-seven types this batch ratified carry a top-level tags
+		// argument in the pinned provider's own wire schema, confirmed
+		// against the provider's documented Argument Reference for each —
+		// this batch has no untaggable rows at all. See
+		// live/e2e/estates/data-movement/README.md.
+		"aws_transfer_server",
+		"aws_transfer_user",
+		"aws_transfer_workflow",
+		"aws_transfer_connector",
+		"aws_datasync_agent",
+		"aws_datasync_task",
+		"aws_datasync_location_s3",
+		"aws_datasync_location_efs",
+		"aws_datasync_location_nfs",
+		"aws_datasync_location_smb",
+		"aws_datasync_location_hdfs",
+		"aws_datasync_location_object_storage",
+		"aws_datasync_location_azure_blob",
+		"aws_datasync_location_fsx_lustre_file_system",
+		"aws_datasync_location_fsx_ontap_file_system",
+		"aws_datasync_location_fsx_openzfs_file_system",
+		"aws_datasync_location_fsx_windows_file_system",
+		"aws_dms_certificate",
+		"aws_dms_endpoint",
+		"aws_dms_s3_endpoint",
+		"aws_dms_event_subscription",
+		"aws_dms_replication_config",
+		"aws_dms_replication_instance",
+		"aws_dms_replication_subnet_group",
+		"aws_dms_replication_task",
+		"aws_appintegrations_data_integration",
+		"aws_appintegrations_event_integration",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -1839,6 +1872,37 @@ func testSchemas() Schemas {
 		"aws_iot_thing_type":             tagged("arn", "name"),
 		"aws_iot_topic_rule":             tagged("arn", "name"),
 		"aws_iot_topic_rule_destination": untagged("arn"),
+
+		// Registry-ratified data-movement batch (#40, #44, issue #65). All
+		// twenty-seven types are taggable per the real provider's
+		// documented Argument Reference for each.
+		"aws_transfer_server":                           tagged("id", "arn"),
+		"aws_transfer_user":                             tagged("id", "arn", "server_id", "user_name"),
+		"aws_transfer_workflow":                         tagged("id", "arn"),
+		"aws_transfer_connector":                        tagged("id", "arn", "connector_id"),
+		"aws_datasync_agent":                            tagged("id", "arn"),
+		"aws_datasync_task":                             tagged("id", "arn"),
+		"aws_datasync_location_s3":                      tagged("id", "arn"),
+		"aws_datasync_location_efs":                     tagged("id", "arn"),
+		"aws_datasync_location_nfs":                     tagged("id", "arn"),
+		"aws_datasync_location_smb":                     tagged("id", "arn"),
+		"aws_datasync_location_hdfs":                    tagged("id", "arn"),
+		"aws_datasync_location_object_storage":          tagged("id", "arn"),
+		"aws_datasync_location_azure_blob":              tagged("id", "arn"),
+		"aws_datasync_location_fsx_lustre_file_system":  tagged("id", "arn"),
+		"aws_datasync_location_fsx_ontap_file_system":   tagged("id", "arn"),
+		"aws_datasync_location_fsx_openzfs_file_system": tagged("id", "arn"),
+		"aws_datasync_location_fsx_windows_file_system": tagged("id", "arn"),
+		"aws_dms_certificate":                           tagged("id", "certificate_arn", "certificate_id"),
+		"aws_dms_endpoint":                              tagged("id", "endpoint_arn", "endpoint_id"),
+		"aws_dms_s3_endpoint":                           tagged("id", "endpoint_arn", "endpoint_id"),
+		"aws_dms_event_subscription":                    tagged("id", "arn", "name"),
+		"aws_dms_replication_config":                    tagged("id", "arn"),
+		"aws_dms_replication_instance":                  tagged("id", "replication_instance_arn", "replication_instance_id"),
+		"aws_dms_replication_subnet_group":              tagged("id", "replication_subnet_group_id"),
+		"aws_dms_replication_task":                      tagged("id", "replication_task_arn", "replication_task_id"),
+		"aws_appintegrations_data_integration":          tagged("id", "arn"),
+		"aws_appintegrations_event_integration":         tagged("id", "arn", "name"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.
