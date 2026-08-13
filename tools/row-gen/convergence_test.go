@@ -16,25 +16,28 @@ import (
 // ratchet, the "delete-me ratchet idiom" tools/mapping-gen's own
 // unclassifiedRatchetMax already uses for live/mapping.json's unclassified
 // count (mapping_gen_test.go): the highest live/rowgen-convergence.json's
-// summary.unannotated_mismatches may be. This pass measured 152 genuine
+// summary.unannotated_mismatches may be. This pass measured 170 genuine
 // mismatches between row-gen's fresh proposals and internal/live/identity's
-// ratified DefaultTable entries, none of them annotated - see
-// tools/row-gen/annotations.json's own doc comment for why: every mismatch
-// found in this pass is either a scrape-gap (import-grammar.json's
-// Import-section-only scrape falling short of a fuller doc-page read - 85
-// of the 152, tagged scrape_gap in the artifact) or a still-mechanical gap
-// this pass's own heuristics decline to guess at rather than risk a wrong
-// proposal (fold-child Components derivation, ~35; order-unrecoverable
-// composites like the API Gateway and IAM inline-policy families, ~30) -
-// not a maintainer's own scoping judgment the way keeping
-// aws_elasticsearch_domain separate from aws_opensearch_domain would be.
-// Lower this constant to match live/rowgen-convergence.json's own committed
-// count whenever a future change (a wider importdocs-gen scrape, a
-// fold-child Components rule, annotations.json gaining real rulings) closes
-// some of the gap. Raising it back up needs a reviewed reason, not a silent
-// increase - TestUnannotatedMismatchRatchet below fails the build the
-// moment a regeneration would do that.
-const unannotatedMismatchRatchetMax = 152
+// ratified DefaultTable entries (over 571 admitted types, after merging
+// origin/main's ratify-sagemaker/ratify-governance/ratify-media batches),
+// none of them annotated - see tools/row-gen/annotations.json's own doc
+// comment for why: every mismatch found in this pass is either a
+// scrape-gap (import-grammar.json's Import-section-only scrape falling
+// short of a fuller doc-page read - 101 of the 170, tagged scrape_gap in
+// the artifact; SageMaker's own batch report named exactly this class) or a
+// still-mechanical gap this pass's own heuristics decline to guess at
+// rather than risk a wrong proposal (fold-child Components derivation,
+// ~35; order-unrecoverable composites like the API Gateway and IAM
+// inline-policy families, ~30) - not a maintainer's own scoping judgment
+// the way keeping aws_elasticsearch_domain separate from
+// aws_opensearch_domain would be. Lower this constant to match
+// live/rowgen-convergence.json's own committed count whenever a future
+// change (a wider importdocs-gen scrape, a fold-child Components rule,
+// annotations.json gaining real rulings) closes some of the gap. Raising
+// it back up needs a reviewed reason, not a silent increase -
+// TestUnannotatedMismatchRatchet below fails the build the moment a
+// regeneration would do that.
+const unannotatedMismatchRatchetMax = 170
 
 // TestUnannotatedMismatchRatchet reads the committed live/rowgen-
 // convergence.json directly (not a fresh regeneration - see

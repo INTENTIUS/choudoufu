@@ -1,15 +1,15 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 511,
-    "compared": 500,
+    "admitted_total": 571,
+    "compared": 560,
     "not_in_mapped_set": 11,
-    "adopted_unchanged": 348,
-    "adopted_unchanged_pct": 69.6,
-    "genuine_mismatches": 152,
+    "adopted_unchanged": 390,
+    "adopted_unchanged_pct": 69.64,
+    "genuine_mismatches": 170,
     "annotated": 0,
-    "unannotated_mismatches": 152,
-    "scrape_gap_mismatches": 85
+    "unannotated_mismatches": 170,
+    "scrape_gap_mismatches": 101
   },
   "by_service": {
     "ACMPCA": {
@@ -66,6 +66,11 @@
       "compared": 2,
       "adopted_unchanged": 0,
       "adopted_unchanged_pct": 0
+    },
+    "AuditManager": {
+      "compared": 2,
+      "adopted_unchanged": 2,
+      "adopted_unchanged_pct": 100
     },
     "Backup": {
       "compared": 6,
@@ -141,6 +146,16 @@
       "compared": 10,
       "adopted_unchanged": 3,
       "adopted_unchanged_pct": 30
+    },
+    "Config": {
+      "compared": 5,
+      "adopted_unchanged": 5,
+      "adopted_unchanged_pct": 100
+    },
+    "ControlTower": {
+      "compared": 3,
+      "adopted_unchanged": 2,
+      "adopted_unchanged_pct": 66.67
     },
     "DMS": {
       "compared": 8,
@@ -262,6 +277,16 @@
       "adopted_unchanged": 8,
       "adopted_unchanged_pct": 57.14
     },
+    "IVS": {
+      "compared": 3,
+      "adopted_unchanged": 3,
+      "adopted_unchanged_pct": 100
+    },
+    "IVSChat": {
+      "compared": 2,
+      "adopted_unchanged": 2,
+      "adopted_unchanged_pct": 100
+    },
     "InspectorV2": {
       "compared": 1,
       "adopted_unchanged": 1,
@@ -317,6 +342,21 @@
       "adopted_unchanged": 2,
       "adopted_unchanged_pct": 100
     },
+    "MediaLive": {
+      "compared": 2,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 50
+    },
+    "MediaPackage": {
+      "compared": 1,
+      "adopted_unchanged": 0,
+      "adopted_unchanged_pct": 0
+    },
+    "MediaPackageV2": {
+      "compared": 1,
+      "adopted_unchanged": 0,
+      "adopted_unchanged_pct": 0
+    },
     "MemoryDB": {
       "compared": 6,
       "adopted_unchanged": 5,
@@ -347,6 +387,11 @@
       "adopted_unchanged": 1,
       "adopted_unchanged_pct": 100
     },
+    "Organizations": {
+      "compared": 4,
+      "adopted_unchanged": 4,
+      "adopted_unchanged_pct": 100
+    },
     "Pipes": {
       "compared": 1,
       "adopted_unchanged": 1,
@@ -375,6 +420,16 @@
     "RedshiftServerless": {
       "compared": 2,
       "adopted_unchanged": 2,
+      "adopted_unchanged_pct": 100
+    },
+    "ResourceExplorer2": {
+      "compared": 2,
+      "adopted_unchanged": 2,
+      "adopted_unchanged_pct": 100
+    },
+    "ResourceGroups": {
+      "compared": 1,
+      "adopted_unchanged": 1,
       "adopted_unchanged_pct": 100
     },
     "Route53": {
@@ -427,6 +482,11 @@
       "adopted_unchanged": 2,
       "adopted_unchanged_pct": 40
     },
+    "SageMaker": {
+      "compared": 27,
+      "adopted_unchanged": 15,
+      "adopted_unchanged_pct": 55.56
+    },
     "Scheduler": {
       "compared": 1,
       "adopted_unchanged": 1,
@@ -441,6 +501,16 @@
       "compared": 7,
       "adopted_unchanged": 6,
       "adopted_unchanged_pct": 85.71
+    },
+    "ServiceCatalog": {
+      "compared": 4,
+      "adopted_unchanged": 3,
+      "adopted_unchanged_pct": 75
+    },
+    "ServiceCatalogAppRegistry": {
+      "compared": 3,
+      "adopted_unchanged": 2,
+      "adopted_unchanged_pct": 66.67
     },
     "StepFunctions": {
       "compared": 2,
@@ -1018,6 +1088,26 @@
       ],
       "scrape_gap": true,
       "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_auditmanager_assessment",
+      "service": "AuditManager",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_auditmanager_framework",
+      "service": "AuditManager",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
       "annotated": false
     },
     {
@@ -2027,6 +2117,102 @@
       "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_config_config_rule",
+      "service": "Config",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_config_configuration_aggregator",
+      "service": "Config",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_config_conformance_pack",
+      "service": "Config",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_config_organization_conformance_pack",
+      "service": "Config",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_config_remediation_configuration",
+      "service": "Config",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_controltower_baseline",
+      "service": "ControlTower",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_controltower_control",
+      "service": "ControlTower",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the registry's composite primaryIdentifier does not reconstruct the documented example string under any known separator; the provider's own Import section shows a single opaque value instead",
+      "mismatch_classes": [
+        "server-assigned",
+        "components",
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_controltower_landing_zone",
+      "service": "ControlTower",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
       ],
       "matched": true,
       "annotated": false
@@ -3978,6 +4164,61 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_ivs_channel",
+      "service": "IVS",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ivs_playback_key_pair",
+      "service": "IVS",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ivs_recording_configuration",
+      "service": "IVS",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ivschat_logging_configuration",
+      "service": "IVSChat",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ivschat_room",
+      "service": "IVSChat",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_key_pair",
       "service": "EC2",
       "proposed_bucket": "client-named",
@@ -4377,6 +4618,67 @@
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
       "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_media_package_channel",
+      "service": "MediaPackage",
+      "proposed_bucket": "evidence-only",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_media_packagev2_channel_group",
+      "service": "MediaPackageV2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "server-assigned",
+        "components",
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_medialive_multiplex",
+      "service": "MediaLive",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_medialive_multiplex_program",
+      "service": "MediaLive",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the registry's composite primaryIdentifier does not reconstruct the documented example string under any known separator; the provider's own Import section shows a single opaque value instead",
+      "mismatch_classes": [
+        "server-assigned",
+        "components",
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
       "annotated": false
     },
     {
@@ -4975,6 +5277,51 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_organizations_account",
+      "service": "Organizations",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_organizations_organizational_unit",
+      "service": "Organizations",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_organizations_policy",
+      "service": "Organizations",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_organizations_resource_policy",
+      "service": "Organizations",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_pipes_pipe",
       "service": "Pipes",
       "proposed_bucket": "client-named",
@@ -5230,6 +5577,40 @@
     {
       "tf_type": "aws_redshiftserverless_workgroup",
       "service": "RedshiftServerless",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_resourceexplorer2_index",
+      "service": "ResourceExplorer2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_resourceexplorer2_view",
+      "service": "ResourceExplorer2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_resourcegroups_group",
+      "service": "ResourceGroups",
       "proposed_bucket": "client-named",
       "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
       "cosmetic_notes": [
@@ -5677,6 +6058,366 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_sagemaker_algorithm",
+      "service": "SageMaker",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_app",
+      "service": "SageMaker",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the registry's composite primaryIdentifier does not reconstruct the documented example string under any known separator; the provider's own Import section shows a single opaque value instead",
+      "mismatch_classes": [
+        "server-assigned",
+        "components",
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_app_image_config",
+      "service": "SageMaker",
+      "proposed_bucket": "evidence-only",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_code_repository",
+      "service": "SageMaker",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "server-assigned",
+        "components"
+      ],
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_data_quality_job_definition",
+      "service": "SageMaker",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_device_fleet",
+      "service": "SageMaker",
+      "proposed_bucket": "evidence-only",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_domain",
+      "service": "SageMaker",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_endpoint",
+      "service": "SageMaker",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_endpoint_configuration",
+      "service": "SageMaker",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_feature_group",
+      "service": "SageMaker",
+      "proposed_bucket": "evidence-only",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_hub",
+      "service": "SageMaker",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "server-assigned",
+        "components",
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_image",
+      "service": "SageMaker",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "server-assigned",
+        "components",
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_mlflow_app",
+      "service": "SageMaker",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_mlflow_tracking_server",
+      "service": "SageMaker",
+      "proposed_bucket": "evidence-only",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_model",
+      "service": "SageMaker",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_model_card",
+      "service": "SageMaker",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_model_package_group",
+      "service": "SageMaker",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "server-assigned",
+        "components",
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_model_package_group_policy",
+      "service": "SageMaker",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::SageMaker::ModelPackageGroup",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_monitoring_schedule",
+      "service": "SageMaker",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_notebook_instance",
+      "service": "SageMaker",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_notebook_instance_lifecycle_configuration",
+      "service": "SageMaker",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_pipeline",
+      "service": "SageMaker",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_project",
+      "service": "SageMaker",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_space",
+      "service": "SageMaker",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the registry's composite primaryIdentifier does not reconstruct the documented example string under any known separator; the provider's own Import section shows a single opaque value instead",
+      "mismatch_classes": [
+        "server-assigned",
+        "components",
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_studio_lifecycle_config",
+      "service": "SageMaker",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_user_profile",
+      "service": "SageMaker",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_workteam",
+      "service": "SageMaker",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_scheduler_schedule_group",
       "service": "Scheduler",
       "proposed_bucket": "client-named",
@@ -5820,6 +6561,94 @@
         "import-syntax-wording"
       ],
       "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_servicecatalog_portfolio",
+      "service": "ServiceCatalog",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_servicecatalog_portfolio_share",
+      "service": "ServiceCatalog",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the registry's composite primaryIdentifier does not reconstruct the documented example string under any known separator; the provider's own Import section shows a single opaque value instead",
+      "mismatch_classes": [
+        "server-assigned",
+        "components",
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_servicecatalog_product",
+      "service": "ServiceCatalog",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_servicecatalog_provisioned_product",
+      "service": "ServiceCatalog",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_servicecatalogappregistry_application",
+      "service": "ServiceCatalogAppRegistry",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_servicecatalogappregistry_attribute_group",
+      "service": "ServiceCatalogAppRegistry",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_servicecatalogappregistry_attribute_group_association",
+      "service": "ServiceCatalogAppRegistry",
+      "proposed_bucket": "evidence-only",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
       "annotated": false
     },
     {
