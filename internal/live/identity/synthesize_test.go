@@ -145,9 +145,9 @@ func TestSchemaFallbackAbsentSchemasUnchanged(t *testing.T) {
 func TestSchemaFallbackTypeNotServed(t *testing.T) {
 	_, errText := resolveFallback(t, "unknown-type", fallbackSchemas())
 	if errText == "" {
-		t.Fatal("aws_instance resolved against schemas that do not describe it")
+		t.Fatal("aws_customer_gateway resolved against schemas that do not describe it")
 	}
-	if !strings.Contains(errText, "serves no aws_instance") {
+	if !strings.Contains(errText, "serves no aws_customer_gateway") {
 		t.Errorf("the refusal does not say the provider never served the type: %s", errText)
 	}
 }

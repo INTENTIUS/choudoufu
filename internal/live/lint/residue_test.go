@@ -76,13 +76,14 @@ func assertRefusalNamesCohort(t *testing.T, dir, construct string, wantCohort re
 // contract: a type in no exclusion cohort - the common case, since most
 // unadmitted types are simply not wired yet rather than excluded by any
 // rule - keeps exactly today's base refusal message, with nothing appended
-// by [residue.Lookup]. aws_instance is the same example
-// TestLimitationsDocAgainstSurvey pins as surveyed-but-unadmitted, and it
-// is in no cohort: it has a real CFN counterpart with working handlers, in
-// no deprecated service, and is not on the emulator-blocked roster.
+// by [residue.Lookup]. aws_customer_gateway is in no cohort: it has a real
+// CFN counterpart with a working handler, in no deprecated service, and is
+// not on the emulator-blocked roster — simply outside the EC2 core batch's
+// instances/EBS/ENI scope (issue #65), the same "not wired yet" shape
+// aws_instance had here before that batch admitted it.
 func TestRefusalSilentForTypeInNoCohort(t *testing.T) {
-	if _, _, ok := residue.Lookup("aws_instance"); ok {
-		t.Fatal("aws_instance now resolves to a cohort; this test needs a type genuinely in none")
+	if _, _, ok := residue.Lookup("aws_customer_gateway"); ok {
+		t.Fatal("aws_customer_gateway now resolves to a cohort; this test needs a type genuinely in none")
 	}
 
 	cfg := loadConfigDir(t, "testdata/unadmitted")

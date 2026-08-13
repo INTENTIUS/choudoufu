@@ -215,30 +215,46 @@ rule, and each should be provably caught on its own. Fixture at
 
 ### unadmitted-type
 
-**Construct.** `aws_instance`, a resource type outside the v0 admission
+**Construct.** `aws_nat_gateway`, a resource type outside the v0 admission
 table.
 
 **Why bounded.** "The admission rule". A type participates only if its
 identity is recoverable from the live system with no memory, by one of the
-four admission paths. `aws_instance` is in the AWS provider survey
+four admission paths. `aws_nat_gateway` is in the AWS provider survey
 (`live/SURVEY.md`, 65 of 68 top types admitted) but is not yet in the
 hardcoded v0 table (`internal/live/lint/admission.go`, mirrored by
-`internal/live/identity`'s `DefaultTable`, the copy the sweep and
-identity resolution read). This is a scoping boundary, not a permanent ban.
+`internal/live/identity`'s `DefaultTable`, the copy the sweep and identity
+resolution read). `aws_instance` held this fixture's place until the EC2
+core ratification batch (issue #65) admitted it; `aws_nat_gateway` takes
+over as a stable replacement — a real, non-logical, server-assigned type in
+`live/SURVEY.md`'s curated 68 (marker path), deliberately left out of that
+same batch's own instances/EBS/ENI scope
+(`live/e2e/estates/ec2-core/README.md`, "Rejected, and out of scope") and
+outside every batch issue #65 names next (RDS, ECS/EKS, API Gateway,
+DynamoDB periphery, Route53 remainder). This is a scoping boundary, not a
+permanent ban.
 
 Two kinds of type hit this rule, and the error message does not distinguish
-them. Most out-of-table types are like `aws_instance`: the survey admits
+them. Most out-of-table types are like `aws_nat_gateway`: the survey admits
 them in principle and they are simply not wired yet, which is the scoping
-boundary described above. Three surveyed types are out by the admission
-rule itself, with no wiring batch ever coming: `aws_iam_access_key` and
-`aws_secretsmanager_secret_version` (credentials, whose identity is born
-server-side alongside a secret that can never be read again; they become a
-lifecycle-layer Op writing to the secret store, referenced by ARN or
-pointer, never by value, the same forwarding `random_password` gets above)
-and `aws_acm_certificate_validation` (a waiter pretending to be a
-resource; it moves to lifecycle sequencing, the same forwarding as
-`time_sleep`). `live/SURVEY.md`, "The three the rule excludes", has
-the full account.
+boundary described above. `aws_nat_gateway` specifically carries a second,
+independent reason it is not wired: `live/SURVEY.md`'s own `blocked-emulator`
+row for it says the provider reads `subnet_id` out of the `NatGatewayAddresses`
+list, which floci returns empty, so an imported gateway loses its subnet and
+every plan proposes replacement (choudoufu#26) — a gap in the emulator, not
+in the type's identity, but one that makes this fixture's example
+particularly stable: even a batch that decided to ratify the type on paper
+anyway (the same call this batch made for `aws_instance`) would still need
+to choose to do so deliberately, not pull it in by accident. Three surveyed
+types are out by the admission rule itself, with no wiring batch ever
+coming: `aws_iam_access_key` and `aws_secretsmanager_secret_version`
+(credentials, whose identity is born server-side alongside a secret that can
+never be read again; they become a lifecycle-layer Op writing to the secret
+store, referenced by ARN or pointer, never by value, the same forwarding
+`random_password` gets above) and `aws_acm_certificate_validation` (a waiter
+pretending to be a resource; it moves to lifecycle sequencing, the same
+forwarding as `time_sleep`). `live/SURVEY.md`, "The three the rule
+excludes", has the full account.
 
 **Forwarding address.** For types awaiting wiring: the provider survey
 (`live/SURVEY.md`) / v0 admission table, which grows as later phases
@@ -381,18 +397,18 @@ The unadmitted half holds by construction: `internal/live/discovery`
 builds the sweep universe from `identity.AdmittedTypes()`.)
 
 **Untaggable types cannot be removed by the sweep.** <!-- survey-gen:begin untaggable-admitted -->
-`aws_cloudwatch_dashboard`, `aws_dynamodb_global_table`,
-`aws_dynamodb_resource_policy`, `aws_ecr_registry_policy`,
-`aws_ecr_registry_scanning_configuration`,
-`aws_ecr_replication_configuration`, `aws_iam_role_policy`,
-`aws_iam_role_policy_attachment`, `aws_kms_alias`,
-`aws_lambda_layer_version`, `aws_lb_target_group_attachment`, `aws_route`,
-`aws_route53_record`, `aws_route_table_association`,
+`aws_cloudwatch_dashboard`, `aws_ebs_snapshot_block_public_access`,
+`aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
+`aws_ecr_replication_configuration`, `aws_eip_association`,
+`aws_iam_role_policy`, `aws_iam_role_policy_attachment`, `aws_kms_alias`,
+`aws_lambda_layer_version`, `aws_lb_target_group_attachment`,
+`aws_network_interface_attachment`, `aws_network_interface_permission`,
+`aws_route`, `aws_route53_record`, `aws_route_table_association`,
 `aws_s3_bucket_lifecycle_configuration`, `aws_s3_bucket_policy`,
 `aws_s3_bucket_public_access_block`,
 `aws_s3_bucket_server_side_encryption_configuration`,
-`aws_s3_bucket_versioning`, `aws_sns_topic_policy` and
-`aws_sqs_queue_policy`<!-- survey-gen:end untaggable-admitted --> carry no tags, so they can carry no
+`aws_s3_bucket_versioning`, `aws_sns_topic_policy`, `aws_sqs_queue_policy`
+and `aws_volume_attachment`<!-- survey-gen:end untaggable-admitted --> carry no tags, so they can carry no
 ownership marker and the sweep has nothing to search on. Their identity is
 built from their own configuration, which means deleting the resource
 block deletes the only record of which resource it was. Destroy the
