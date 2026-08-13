@@ -25,6 +25,16 @@
 // internal/live/identity.AdmittedTypes (see cohort.go's defaultCohortTypes):
 // every admitted type whose CFN service matches the cohort name - what
 // issue #56 calls "the admission table's registry-ratified sections".
+//
+// -module-wrap (issue #59, 59b) puts every generated resource inside one
+// static module call instead of at the estate root: the root directory
+// gets versions.tf (provider wiring, unchanged) and a main.tf holding
+// nothing but `module "wrapped" { source = "./wrapped" }`, and everything
+// else - locals.tf, the coverage file, supporting.tf - moves into a
+// "wrapped" subdirectory one level down. It exists so a generated cohort
+// can exercise the five walkers' module traversal end to end, the same
+// resources either way; see live/e2e/estate-module/ for the fixture this
+// flag built.
 package main
 
 import (
@@ -70,15 +80,16 @@ func main() {
 	count := flag.Int("count", 0, "generate N replicas of one resource type via HCL's count meta-argument instead of one resource per admitted type - a scale/benchmark estate (issue #64). Requires -types to name exactly one, schema-simple type (its identity argument the only required one, no required nested blocks, taggable).")
 	initBin := flag.String("init-bin", defaultInitBin, "binary that downloads the pinned provider (terraform, tofu or choudoufu)")
 	fmtBin := flag.String("fmt-bin", defaultFmtBin, "binary that formats the generated *.tf files (terraform, tofu or choudoufu)")
+	moduleWrap := flag.Bool("module-wrap", false, "wrap the cohort's resources in one static module call (module \"wrapped\") instead of writing them at the estate root, to exercise issue #59's traversal")
 	flag.Parse()
 
-	if err := run(*cohort, *types, *out, *count, *initBin, *fmtBin); err != nil {
+	if err := run(*cohort, *types, *out, *count, *initBin, *fmtBin, *moduleWrap); err != nil {
 		fmt.Fprintf(os.Stderr, "estate-gen: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(cohort, typesFlag, out string, count int, initBin, fmtBin string) error {
+func run(cohort, typesFlag, out string, count int, initBin, fmtBin string, moduleWrap bool) error {
 	if cohort == "" {
 		return fmt.Errorf("-cohort is required")
 	}
@@ -139,7 +150,7 @@ func run(cohort, typesFlag, out string, count int, initBin, fmtBin string) error
 		return nil
 	}
 
-	if err := writeCohort(out, cohort, requested, g); err != nil {
+	if err := writeCohort(out, cohort, requested, g, moduleWrap); err != nil {
 		return err
 	}
 
@@ -214,12 +225,29 @@ func countKind(g *generator, k resourceKind) int {
 	return n
 }
 
+// wrappedModuleDir is the child directory a -module-wrap run puts every
+// resource-bearing file into, and the local name of the module call the
+// root's generated main.tf points at it with.
+const wrappedModuleDir = "wrapped"
+
 // writeCohort renders every planned resource and writes the cohort
 // directory's files: versions.tf, locals.tf, README.md, "<cohort>.tf" for
 // coverage rows and, only when this run added any, "supporting.tf".
-func writeCohort(out, cohort string, requested []string, g *generator) error {
+//
+// With moduleWrap, everything except versions.tf and README.md moves one
+// level down into wrappedModuleDir/, and the root gains a main.tf holding
+// nothing but the module call - see [moduleWrapMainTF]. Provider wiring
+// stays at the root either way: a static module call with no provider
+// block of its own inherits the root's default (unaliased) "aws"
+// configuration, the ordinary rule, and repeating it in the child would
+// only invite the two copies drifting apart.
+func writeCohort(out, cohort string, requested []string, g *generator, moduleWrap bool) error {
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
+	}
+
+	if moduleWrap {
+		g.modulePrefix = "module." + wrappedModuleDir + "."
 	}
 
 	var coverage, supporting []string
@@ -233,29 +261,56 @@ func writeCohort(out, cohort string, requested []string, g *generator) error {
 		}
 	}
 
+	contentDir := out
+	if moduleWrap {
+		contentDir = filepath.Join(out, wrappedModuleDir)
+		if err := os.MkdirAll(contentDir, 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(out, "main.tf"), []byte(moduleWrapMainTF()), 0o644); err != nil { //nolint:gosec // a committed fixture, not a secret
+			return err
+		}
+	}
+
 	if err := os.WriteFile(filepath.Join(out, "versions.tf"), []byte(versionsTF(cohort)), 0o644); err != nil { //nolint:gosec // a committed fixture, not a secret
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(out, "locals.tf"), []byte(localsTF(cohort)), 0o644); err != nil { //nolint:gosec // a committed fixture, not a secret
+	if err := os.WriteFile(filepath.Join(contentDir, "locals.tf"), []byte(localsTF(cohort)), 0o644); err != nil { //nolint:gosec // a committed fixture, not a secret
 		return err
 	}
 	if len(coverage) > 0 {
 		body := strings.Join(coverage, "\n")
-		if err := os.WriteFile(filepath.Join(out, cohort+".tf"), []byte(body), 0o644); err != nil { //nolint:gosec // a committed fixture, not a secret
+		if err := os.WriteFile(filepath.Join(contentDir, cohort+".tf"), []byte(body), 0o644); err != nil { //nolint:gosec // a committed fixture, not a secret
 			return err
 		}
 	}
 	if len(supporting) > 0 {
 		body := strings.Join(supporting, "\n")
-		if err := os.WriteFile(filepath.Join(out, "supporting.tf"), []byte(body), 0o644); err != nil { //nolint:gosec // a committed fixture, not a secret
+		if err := os.WriteFile(filepath.Join(contentDir, "supporting.tf"), []byte(body), 0o644); err != nil { //nolint:gosec // a committed fixture, not a secret
 			return err
 		}
 	}
-	readme := readmeMD(cohort, requested, g)
+	readme := readmeMD(cohort, requested, g, moduleWrap)
 	if err := os.WriteFile(filepath.Join(out, "README.md"), []byte(readme), 0o644); err != nil { //nolint:gosec // a committed fixture, not a secret
 		return err
 	}
 	return nil
+}
+
+// moduleWrapMainTF is the root main.tf a -module-wrap run writes: the one
+// module call, admitted outright by 59b's traversal since it sets neither
+// count nor for_each.
+func moduleWrapMainTF() string {
+	return fmt.Sprintf(`# Generated by tools/estate-gen -module-wrap (issue #59, 59b). Every
+# resource this cohort declares lives in ./%s instead of here, so that the
+# five walkers' traversal into a static module is what this estate
+# exercises; the module call itself carries neither count nor for_each, the
+# one shape RuleChildModule admits.
+
+module %q {
+  source = "./%s"
+}
+`, wrappedModuleDir, wrappedModuleDir, wrappedModuleDir)
 }
 
 func runCombined(name string, args ...string) ([]byte, error) {

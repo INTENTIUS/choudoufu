@@ -70,6 +70,15 @@ type generator struct {
 	// live/e2e/estates/lambda/lambda.tf's two aws_iam_role.lambda
 	// references already do by hand.
 	byType map[string]resourceAddr
+
+	// modulePrefix is prepended to the tofu-address literal [render]
+	// writes into a taggable resource's tags, so that a -module-wrap run's
+	// hardcoded marker names the address the resource actually has once
+	// the module call wraps it - "module.wrapped.aws_eip.app", not
+	// "aws_eip.app" - rather than one the stamping pass would immediately
+	// reject as a conflict on the first plan. Empty for an unwrapped run,
+	// which is every run before issue #59, 59b.
+	modulePrefix string
 }
 
 // iamRoleRefExpr is the one curated cross-type alias this generator knows
@@ -237,7 +246,7 @@ func (g *generator) render(p planned) (string, []string) {
 		rBody.SetAttributeRaw("tags", exprTokens(fmt.Sprintf(`{
     tofu-estate  = local.estate_tag
     tofu-address = %q
-  }`, p.Addr.String())))
+  }`, g.modulePrefix+p.Addr.String())))
 	}
 
 	comment := g.comment(p, overrides)
