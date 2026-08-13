@@ -90,8 +90,28 @@ func taggableAdmittedTypes(schemas listclient.Schemas) map[string]bool {
 // parentReadSweepType runs the leg for one parent-readable untaggable type:
 // every bound parent instance this pass resolved, checked against the
 // children already declared for that type, with a scoped read for the rest.
+//
+// Whether that read is one list call per undeclared parent or one list call
+// for the whole type depends on the child's own list configuration. When it
+// accepts the linking argument (hasAttr(ts.Config, link.Attr)), each list
+// call is server-side scoped to one parent, so paying for one per undeclared
+// parent is the right cost. When it does not, [listclient.List] has no
+// filter to send at all - the provider itself must enumerate every parent
+// to answer, an S3-bucket-sub-resource shape where "list" is really
+// "describe every bucket" - and that unscoped list already returns every
+// parent's child in one call. Issuing it once per undeclared parent instead
+// of once per type made this leg accidentally quadratic in the estate's own
+// size (confirmed against TestPlanCallBudgetAgainstFloci: N=200 measured
+// ~40200 calls on four of these types, 200 unscoped lists each paying
+// O(200) - not the O(200) total the budget expects).
 func parentReadSweepType(ctx context.Context, req Request, schemas listclient.Schemas, typeName string, link identity.ParentLink, res *Result) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
+
+	ts, ok := schemas.Get(typeName)
+	if !ok {
+		return diags
+	}
+	scoped := hasAttr(ts.Config, link.Attr)
 
 	// The child values this type already has a declared, composed
 	// resolution for - a client-named resource block resolves concrete
@@ -108,6 +128,23 @@ func parentReadSweepType(ctx context.Context, req Request, schemas listclient.Sc
 		declared[r.ImportID] = true
 	}
 
+	// byParentValue is only built and consulted in the unscoped case: one
+	// list call for the whole type, indexed by the identity value that
+	// pins a result to its parent, so every undeclared parent below is a
+	// map lookup rather than a fresh call.
+	var byParentValue map[string]listclient.Result
+	if !scoped {
+		var listDiags tfdiags.Diagnostics
+		byParentValue, listDiags = listUnscopedChildren(ctx, req, ts, typeName)
+		if listDiags.HasErrors() {
+			// Same restraint as the per-parent path below: a provider
+			// hiccup on a type nothing in the configuration mentions must
+			// not fail the whole run.
+			return diags
+		}
+		diags = diags.Append(listDiags)
+	}
+
 	for _, r := range res.Resolutions {
 		if r.Type() != link.Parent || r.Class != identity.ClassConcrete || r.ImportID == "" {
 			continue
@@ -116,31 +153,28 @@ func parentReadSweepType(ctx context.Context, req Request, schemas listclient.Sc
 		if declared[parentValue] {
 			continue
 		}
-		diags = diags.Append(readParentChild(ctx, req, schemas, typeName, link, r.Addr, parentValue, res))
+		if scoped {
+			diags = diags.Append(readParentChildScoped(ctx, req, ts, typeName, link, r.Addr, parentValue, res))
+			continue
+		}
+		if found, ok := byParentValue[parentValue]; ok {
+			recordParentReadFinding(typeName, link, r.Addr, parentValue, found, res)
+		}
 	}
 	return diags
 }
 
-// readParentChild reads one (child type, parent instance) pair: a scoped
-// list when the child's own list configuration accepts the linking
-// argument, an unscoped list filtered on the returned identity otherwise,
-// same fallback shape [scanType] already uses for a type with no tag
-// filter. A result is only ever accepted when its own identity equals
-// parentValue exactly - the whole of what a named-singleton child's
-// identity is - so an unscoped list can never misattribute one parent's
-// child to another.
-func readParentChild(ctx context.Context, req Request, schemas listclient.Schemas, typeName string, link identity.ParentLink, parentAddr addrs.AbsResourceInstance, parentValue string, res *Result) tfdiags.Diagnostics {
+// readParentChildScoped reads one (child type, parent instance) pair with a
+// list call scoped server-side to parentValue - the cheap path, used only
+// when the child's own list configuration accepts the linking argument. A
+// result is only ever accepted when its own identity equals parentValue
+// exactly - the whole of what a named-singleton child's identity is - so a
+// provider that ignores the scope can never misattribute one parent's child
+// to another.
+func readParentChildScoped(ctx context.Context, req Request, ts listclient.TypeSchema, typeName string, link identity.ParentLink, parentAddr addrs.AbsResourceInstance, parentValue string, res *Result) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
-	ts, ok := schemas.Get(typeName)
-	if !ok {
-		return diags
-	}
-
-	vals := make(map[string]cty.Value)
-	if hasAttr(ts.Config, link.Attr) {
-		vals[link.Attr] = cty.StringVal(parentValue)
-	}
+	vals := map[string]cty.Value{link.Attr: cty.StringVal(parentValue)}
 	if hasAttr(ts.Config, "region") && req.Region != "" {
 		vals["region"] = cty.StringVal(req.Region)
 	}
@@ -162,43 +196,96 @@ func readParentChild(ctx context.Context, req Request, schemas listclient.Schema
 	diags = diags.Append(listDiags)
 
 	for _, r := range results {
-		importID, idAttr, hasID := importIdentity(typeName, r)
+		importID, _, hasID := importIdentity(typeName, r)
 		if !hasID || importID != parentValue {
 			continue
 		}
-
-		finding := ParentReadFinding{
-			TypeName:     typeName,
-			Parent:       link.Parent,
-			ParentAddr:   parentAddr,
-			ParentValue:  parentValue,
-			ImportID:     importID,
-			IdentityAttr: idAttr,
-			Identity:     r.Identity,
-			DisplayName:  r.DisplayName,
-		}
-
-		if identity.ParentReadRemovable(typeName) {
-			finding.Removal = true
-			addr := syntheticChildAddr(typeName, parentAddr)
-			res.Resolutions = append(res.Resolutions, identity.Resolution{
-				Addr:       addr,
-				Class:      identity.ClassConcrete,
-				ImportID:   importID,
-				Identity:   r.Identity,
-				Undeclared: true,
-			})
-		} else {
-			finding.Withheld = fmt.Sprintf(
-				"%s is parent-readable via %s but not yet wired for removal by this pass; see live/LIMITATIONS.md, \"Some untaggable types are swept via a parent read instead\"",
-				typeName, link.Parent)
-		}
-		res.ParentReads = append(res.ParentReads, finding)
+		recordParentReadFinding(typeName, link, parentAddr, parentValue, r, res)
 		// A named-singleton child has at most one live instance per parent;
 		// nothing more to look for once one is found.
 		break
 	}
 	return diags
+}
+
+// listUnscopedChildren runs the one list call a type whose list
+// configuration cannot be scoped to a parent gets for the whole
+// [parentReadSweepType] pass, indexed by each result's own import identity.
+// A later import ID collision (two results resolving to the same identity,
+// which a well-formed named-singleton child's provider should never
+// produce) keeps the first result seen, the same "first match wins"
+// discipline [readParentChildScoped]'s break already applies per parent.
+func listUnscopedChildren(ctx context.Context, req Request, ts listclient.TypeSchema, typeName string) (map[string]listclient.Result, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+
+	vals := make(map[string]cty.Value)
+	if hasAttr(ts.Config, "region") && req.Region != "" {
+		vals["region"] = cty.StringVal(req.Region)
+	}
+	config, cfgDiags := ts.BuildConfig(vals)
+	diags = diags.Append(cfgDiags)
+	if cfgDiags.HasErrors() {
+		return nil, diags
+	}
+
+	results, listDiags := listclient.List(ctx, req.Provider, typeName, config, true)
+	diags = diags.Append(listDiags)
+	if listDiags.HasErrors() {
+		return nil, diags
+	}
+
+	byParentValue := make(map[string]listclient.Result, len(results))
+	for _, r := range results {
+		importID, _, hasID := importIdentity(typeName, r)
+		if !hasID {
+			continue
+		}
+		if _, exists := byParentValue[importID]; !exists {
+			byParentValue[importID] = r
+		}
+	}
+	return byParentValue, diags
+}
+
+// recordParentReadFinding is the one place a matched (child type, parent
+// instance) pair turns into a [ParentReadFinding] and, for a removable
+// type, an undeclared [identity.Resolution] - shared by both
+// [readParentChildScoped]'s per-parent match and [parentReadSweepType]'s
+// unscoped map lookup, so the two list strategies above stay
+// indistinguishable to everything downstream of a match.
+func recordParentReadFinding(typeName string, link identity.ParentLink, parentAddr addrs.AbsResourceInstance, parentValue string, r listclient.Result, res *Result) {
+	importID, idAttr, hasID := importIdentity(typeName, r)
+	if !hasID {
+		return
+	}
+
+	finding := ParentReadFinding{
+		TypeName:     typeName,
+		Parent:       link.Parent,
+		ParentAddr:   parentAddr,
+		ParentValue:  parentValue,
+		ImportID:     importID,
+		IdentityAttr: idAttr,
+		Identity:     r.Identity,
+		DisplayName:  r.DisplayName,
+	}
+
+	if identity.ParentReadRemovable(typeName) {
+		finding.Removal = true
+		addr := syntheticChildAddr(typeName, parentAddr)
+		res.Resolutions = append(res.Resolutions, identity.Resolution{
+			Addr:       addr,
+			Class:      identity.ClassConcrete,
+			ImportID:   importID,
+			Identity:   r.Identity,
+			Undeclared: true,
+		})
+	} else {
+		finding.Withheld = fmt.Sprintf(
+			"%s is parent-readable via %s but not yet wired for removal by this pass; see live/LIMITATIONS.md, \"Some untaggable types are swept via a parent read instead\"",
+			typeName, link.Parent)
+	}
+	res.ParentReads = append(res.ParentReads, finding)
 }
 
 // syntheticChildAddr is the address a removable parent-read finding enters
