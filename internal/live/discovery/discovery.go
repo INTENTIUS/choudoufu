@@ -18,9 +18,11 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/registry"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -74,6 +76,24 @@ type Request struct {
 	// tests and for a future in which the admitted set is derived from
 	// provider schemas rather than asserted.
 	SweepTypes []string
+
+	// CloudControl is the AWS Cloud Control client a scan falls back to for
+	// a marker-path type with no native provider list resource (issue #47).
+	// The provider's own list resource stays primary wherever it exists -
+	// it returns the provider-shaped objects the rest of discovery already
+	// consumes - so this is consulted only when [listclient.Schemas] has no
+	// entry for the type. Nil (the zero value) disables the fallback
+	// entirely: such a type keeps refusing exactly as it did before this
+	// existed, [ProblemTypeNotListable].
+	CloudControl *cloudcontrol.Client
+
+	// Roster is the live/mapping.json + live/registry.json join
+	// ([registry.Roster]) that says which CFN type a TF type corresponds
+	// to and whether Cloud Control can enumerate it with no required
+	// input. Required for the Cloud Control fallback to fire at all; a
+	// non-nil CloudControl with a nil Roster finds no type mapped and
+	// behaves exactly as if CloudControl were nil too.
+	Roster *registry.Roster
 }
 
 // Discover finds the live resources of an estate and binds them to the
@@ -480,10 +500,21 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		TypeName: typeName,
 		Declared: len(decl.types[typeName]),
 		Sweep:    sweep,
+		Source:   SourceProvider,
 	}
 
 	ts, ok := schemas.Get(typeName)
 	if !ok {
+		// No native list resource. Before refusing, see whether Cloud
+		// Control can enumerate this type instead (issue #47): the mapped
+		// CFN type has to exist and be listable with no required input, and
+		// a caller has to have configured a Cloud Control client at all -
+		// nil Request.CloudControl is "the fallback does not apply here",
+		// not an error, so every existing caller that never heard of Cloud
+		// Control keeps today's refusal unchanged.
+		if cfnType, ccOK := cloudControlSource(req, typeName); ccOK {
+			return scanTypeCloudControl(ctx, req, decl, typeName, cfnType, res, sweep)
+		}
 		res.Scans = append(res.Scans, scan)
 		if sweep {
 			return diags.Append(sweepGapDiag(res, SweepGap{
@@ -1278,16 +1309,17 @@ func problemDiag(res *Result, p Problem) tfdiags.Diagnostic {
 }
 
 var problemSummaries = map[ProblemKind]string{
-	ProblemCollision:         "Two live resources claiming one address",
-	ProblemMalformedMarker:   "Malformed ownership marker",
-	ProblemNeedsSlotMarkers:  "Indistinguishable instances without per-instance markers",
-	ProblemMixedSlots:        "Partial slot markers on a count set",
-	ProblemMalformedSlot:     "Malformed slot marker",
-	ProblemDuplicateSlot:     "Two live resources claiming one slot",
-	ProblemSlotExhausted:     "No slot left to mint",
-	ProblemNoIdentity:        "Listed resource with no identity",
-	ProblemNoTags:            "Listed resource with no tags",
-	ProblemTypeNotListable:   "Unlistable marker-discovered type",
-	ProblemUnresolvedAccount: "No AWS account ID from the provider",
-	ProblemListFailed:        "Failed to list a resource type",
+	ProblemCollision:              "Two live resources claiming one address",
+	ProblemMalformedMarker:        "Malformed ownership marker",
+	ProblemNeedsSlotMarkers:       "Indistinguishable instances without per-instance markers",
+	ProblemMixedSlots:             "Partial slot markers on a count set",
+	ProblemMalformedSlot:          "Malformed slot marker",
+	ProblemDuplicateSlot:          "Two live resources claiming one slot",
+	ProblemSlotExhausted:          "No slot left to mint",
+	ProblemNoIdentity:             "Listed resource with no identity",
+	ProblemNoTags:                 "Listed resource with no tags",
+	ProblemTypeNotListable:        "Unlistable marker-discovered type",
+	ProblemUnresolvedAccount:      "No AWS account ID from the provider",
+	ProblemListFailed:             "Failed to list a resource type",
+	ProblemUncomposableIdentifier: "Cloud Control identifier could not be composed",
 }
