@@ -117,6 +117,33 @@ type Request struct {
 	// sets it, or sets it with Tagging or Roster left nil, gets the pre-#51
 	// per-type sweep unchanged.
 	TaggingSweep bool
+
+	// ScopeProvider narrows which of Resolutions this pass treats as
+	// "waiting to be found" - both the needs-discovery config-driven scan
+	// and the parent-read leg - to the ones whose resource block uses this
+	// provider configuration. It exists for issue #69's multi-provider
+	// sweep ([Merge], run by internal/command/live_plan.go's
+	// statelessDiscover once per distinct provider configuration among an
+	// estate's managed resources): a pass must never bind a needs-discovery
+	// instance, or read a parent-derived child, through the wrong account.
+	//
+	// It deliberately does NOT narrow what counts as "already declared" for
+	// [declared.declares] - the check that keeps a live, client-named
+	// resource matching another pass's declared address from being
+	// misclassified as an orphan. That check stays global, over every
+	// resolution in Resolutions regardless of provider, because a type like
+	// aws_s3_bucket whose list operation is account-global (not
+	// region-scoped - see testdata/alias-e2e/main.tf's comment) will hand
+	// every pass every account's bucket, including ones declared under a
+	// different provider configuration; without whole-config knowledge of
+	// what is declared, a pass would misread another provider's own
+	// resource as undeclared and propose destroying it out from under the
+	// pass that actually owns it.
+	//
+	// The zero value means no scoping: every resolution in Resolutions is
+	// in scope, which is every existing caller's behavior and what keeps a
+	// single-provider Discover call exactly as it always was.
+	ScopeProvider addrs.AbsProviderConfig
 }
 
 // Discover finds the live resources of an estate and binds them to the
@@ -366,6 +393,24 @@ func (d *declared) typeNames() []string {
 	return out
 }
 
+// inScope reports whether a resource block is this pass's business: every
+// block, when req.ScopeProvider is the zero value (every existing caller,
+// unchanged), or only the blocks using that exact provider configuration
+// when it is set (issue #69's multi-provider sweep - see
+// [Request.ScopeProvider]'s own doc comment for what this is and is not
+// used to restrict).
+func inScope(req Request, rc *configs.Resource) bool {
+	if req.ScopeProvider.Provider.Type == "" {
+		return true
+	}
+	addr := addrs.AbsProviderConfig{
+		Module:   addrs.RootModule,
+		Provider: rc.Provider,
+		Alias:    rc.ProviderConfigAddr().Alias,
+	}
+	return addr.String() == req.ScopeProvider.String()
+}
+
 // declaredInstances indexes the needs-discovery resolutions by type and
 // escaped address, checking each against the configuration as it goes.
 func declaredInstances(req Request) (*declared, tfdiags.Diagnostics) {
@@ -412,6 +457,15 @@ func declaredInstances(req Request) (*declared, tfdiags.Diagnostics) {
 				"Resolved resource missing from the configuration",
 				fmt.Sprintf("Discovery was asked to find %s, but the configuration it was given declares no resource block %q. The resolutions and the configuration come from different runs; this is a bug in whatever assembled them.", r.Addr, blockAddr),
 			))
+			continue
+		}
+
+		if !inScope(req, block) {
+			// Declared, but by a different provider configuration than this
+			// pass is scoped to (issue #69's multi-provider sweep). It
+			// already contributed its address to d.all above, which is what
+			// keeps another pass's sweep from mistaking it for an orphan;
+			// this pass simply is not the one that tries to find it.
 			continue
 		}
 
@@ -476,6 +530,14 @@ func declaredInstances(req Request) (*declared, tfdiags.Diagnostics) {
 func (d *declared) indexCountBlocks(req Request) {
 	for name, rc := range req.Config.Module.ManagedResources {
 		if rc.Count == nil {
+			continue
+		}
+		if !inScope(req, rc) {
+			// This pass is not the one scoped to find this block's
+			// instances (issue #69's multi-provider sweep) - so it must not
+			// build a count-set entry for it either, or a marker naming one
+			// of its slots would be parked on a block this pass never
+			// declared anything into.
 			continue
 		}
 		typeName := rc.Type
