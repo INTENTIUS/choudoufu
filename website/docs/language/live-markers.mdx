@@ -316,7 +316,7 @@ outcomes at all. They are named below.
 ## The Contract
 
 - **AWS only, <!-- survey-gen:begin contract-count -->
-388<!-- survey-gen:end contract-count --> resource types, root module only.** The v0 admission table
+397<!-- survey-gen:end contract-count --> resource types, root module only.** The v0 admission table
   (`internal/live/lint/admission.go`) is the whole subset. It holds <!-- survey-gen:begin contract-types -->
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
@@ -438,7 +438,9 @@ outcomes at all. They are named below.
   `aws_iam_service_linked_role`, `aws_iam_user`, `aws_iam_user_policy`,
   `aws_iam_user_policy_attachment`, `aws_inspector2_delegated_admin_account`,
   `aws_inspector2_filter`, `aws_inspector2_member_association`,
-  `aws_instance`, `aws_internet_gateway`, `aws_key_pair`,
+  `aws_instance`, `aws_internet_gateway`, `aws_ivs_channel`,
+  `aws_ivs_playback_key_pair`, `aws_ivs_recording_configuration`,
+  `aws_ivschat_logging_configuration`, `aws_ivschat_room`, `aws_key_pair`,
   `aws_kinesis_firehose_delivery_stream`, `aws_kinesis_stream`,
   `aws_kinesis_stream_consumer`, `aws_kms_alias`, `aws_kms_external_key`,
   `aws_kms_key`, `aws_kms_replica_key`, `aws_lambda_capacity_provider`,
@@ -452,11 +454,13 @@ outcomes at all. They are named below.
   `aws_lightsail_lb_certificate`, `aws_lightsail_static_ip`,
   `aws_macie2_classification_job`, `aws_macie2_custom_data_identifier`,
   `aws_macie2_findings_filter`, `aws_macie2_member`,
-  `aws_macie2_organization_admin_account`, `aws_mq_broker`,
-  `aws_mq_configuration`, `aws_msk_cluster`, `aws_msk_configuration`,
-  `aws_msk_serverless_cluster`, `aws_mskconnect_connector`,
-  `aws_mskconnect_custom_plugin`, `aws_mskconnect_worker_configuration`,
-  `aws_nat_gateway`, `aws_nat_gateway_eip_association`, `aws_network_acl`,
+  `aws_macie2_organization_admin_account`, `aws_media_package_channel`,
+  `aws_media_packagev2_channel_group`, `aws_medialive_multiplex`,
+  `aws_medialive_multiplex_program`, `aws_mq_broker`, `aws_mq_configuration`,
+  `aws_msk_cluster`, `aws_msk_configuration`, `aws_msk_serverless_cluster`,
+  `aws_mskconnect_connector`, `aws_mskconnect_custom_plugin`,
+  `aws_mskconnect_worker_configuration`, `aws_nat_gateway`,
+  `aws_nat_gateway_eip_association`, `aws_network_acl`,
   `aws_network_acl_rule`, `aws_network_interface`,
   `aws_network_interface_attachment`, `aws_network_interface_permission`,
   `aws_pipes_pipe`, `aws_placement_group`, `aws_rds_cluster`,
