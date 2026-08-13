@@ -234,46 +234,47 @@ rule, and each should be provably caught on its own. Fixture at
 
 ### unadmitted-type
 
-**Construct.** `aws_nat_gateway`, a resource type outside the v0 admission
-table.
+**Construct.** `aws_cloudwatch_event_rule`, a resource type outside the v0
+admission table.
 
 **Why bounded.** "The admission rule". A type participates only if its
 identity is recoverable from the live system with no memory, by one of the
-four admission paths. `aws_nat_gateway` is in the AWS provider survey
-(`live/SURVEY.md`, 65 of 68 top types admitted) but is not yet in the
+four admission paths. `aws_cloudwatch_event_rule` is in the AWS provider
+survey (`live/SURVEY.md`, 65 of 68 top types admitted) but is not in the
 hardcoded v0 table (`internal/live/lint/admission.go`, mirrored by
 `internal/live/identity`'s `DefaultTable`, the copy the sweep and identity
-resolution read). `aws_instance` held this fixture's place until the EC2
-core ratification batch (issue #65) admitted it; `aws_nat_gateway` takes
-over as a stable replacement — a real, non-logical, server-assigned type in
-`live/SURVEY.md`'s curated 68 (marker path), deliberately left out of that
-same batch's own instances/EBS/ENI scope
-(`live/e2e/estates/ec2-core/README.md`, "Rejected, and out of scope") and
-outside every batch issue #65 names next (RDS, ECS/EKS, API Gateway,
-DynamoDB periphery, Route53 remainder). This is a scoping boundary, not a
-permanent ban.
+resolution read).
+`aws_nat_gateway` held this fixture's place until the EC2 networking
+ratification batch (issue #65) admitted it; `aws_cloudwatch_event_rule`
+takes over as a replacement stabler than "not yet wired" can offer: its
+documented import id is `event_bus_name/rule_name`, where `event_bus_name`
+silently defaults to the account's default bus when omitted from
+configuration — a literal fallback for an omitted argument, not just a
+separator, which is a [`Component`](internal/live/identity/table.go) this
+table's vocabulary does not have yet. Four separate ratification batches
+(messaging, DynamoDB periphery, RDS, ECS/EKS) have already reached this
+exact type and cited the identical gap rather than wiring it, so it is a
+proven-stable pick rather than a type the next batch is likely to close.
+This is a scoping boundary, not a permanent ban — a future batch that adds
+the missing `Component` kind could still admit it.
 
 Two kinds of type hit this rule, and the error message does not distinguish
-them. Most out-of-table types are like `aws_nat_gateway`: the survey admits
-them in principle and they are simply not wired yet, which is the scoping
-boundary described above. `aws_nat_gateway` specifically carries a second,
-independent reason it is not wired: `live/SURVEY.md`'s own `blocked-emulator`
-row for it says the provider reads `subnet_id` out of the `NatGatewayAddresses`
-list, which floci returns empty, so an imported gateway loses its subnet and
-every plan proposes replacement (choudoufu#26) — a gap in the emulator, not
-in the type's identity, but one that makes this fixture's example
-particularly stable: even a batch that decided to ratify the type on paper
-anyway (the same call this batch made for `aws_instance`) would still need
-to choose to do so deliberately, not pull it in by accident. Three surveyed
-types are out by the admission rule itself, with no wiring batch ever
-coming: `aws_iam_access_key` and `aws_secretsmanager_secret_version`
-(credentials, whose identity is born server-side alongside a secret that can
-never be read again; they become a lifecycle-layer Op writing to the secret
-store, referenced by ARN or pointer, never by value, the same forwarding
-`random_password` gets above) and `aws_acm_certificate_validation` (a waiter
-pretending to be a resource; it moves to lifecycle sequencing, the same
-forwarding as `time_sleep`). `live/SURVEY.md`, "The three the rule
-excludes", has the full account.
+them. Most out-of-table types are simply not wired yet, which is the
+scoping boundary described above — `aws_nat_gateway` was exactly this shape
+until issue #65's EC2 networking batch reached it, and most of the survey's
+remaining unadmitted rows still are. `aws_cloudwatch_event_rule` carries a
+second, independent reason it stays out, one this table's own vocabulary
+rather than any single batch's effort: see
+`internal/live/identity/table.go`'s messaging-batch comment for the full
+grammar citation. Three surveyed types are out by the admission rule
+itself, with no wiring batch ever coming: `aws_iam_access_key` and
+`aws_secretsmanager_secret_version` (credentials, whose identity is born
+server-side alongside a secret that can never be read again; they become a
+lifecycle-layer Op writing to the secret store, referenced by ARN or
+pointer, never by value, the same forwarding `random_password` gets above)
+and `aws_acm_certificate_validation` (a waiter pretending to be a resource;
+it moves to lifecycle sequencing, the same forwarding as `time_sleep`).
+`live/SURVEY.md`, "The three the rule excludes", has the full account.
 
 **Forwarding address.** For types awaiting wiring: the provider survey
 (`live/SURVEY.md`) / v0 admission table, which grows as later phases
@@ -442,6 +443,12 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_cognito_user_pool_domain`, `aws_db_instance_role_association`,
 `aws_db_proxy_default_target_group`, `aws_dynamodb_global_table`,
 `aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
+`aws_ec2_client_vpn_route`, `aws_ec2_managed_prefix_list_entry`,
+`aws_ec2_transit_gateway_metering_policy_entry`,
+`aws_ec2_transit_gateway_policy_table_association`,
+`aws_ec2_transit_gateway_route`,
+`aws_ec2_transit_gateway_route_table_association`,
+`aws_ec2_transit_gateway_route_table_propagation`,
 `aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
 `aws_ecr_replication_configuration`, `aws_ecrpublic_repository_policy`,
 `aws_ecs_cluster_capacity_providers`, `aws_eip_association`,
@@ -458,6 +465,7 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_lambda_layer_version`, `aws_lb_target_group_attachment`,
 `aws_lightsail_lb_certificate`, `aws_lightsail_static_ip`,
 `aws_macie2_organization_admin_account`, `aws_msk_configuration`,
+`aws_nat_gateway_eip_association`, `aws_network_acl_rule`,
 `aws_network_interface_attachment`, `aws_network_interface_permission`,
 `aws_rds_cluster_role_association`, `aws_route`,
 `aws_route53_hosted_zone_dnssec`, `aws_route53_key_signing_key`,
@@ -476,6 +484,10 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_ssm_service_setting`, `aws_ssoadmin_account_assignment`,
 `aws_ssoadmin_application_assignment`,
 `aws_ssoadmin_instance_access_control_attributes`, `aws_volume_attachment`,
+`aws_vpc_dhcp_options_association`, `aws_vpc_endpoint_policy`,
+`aws_vpc_endpoint_private_dns`, `aws_vpc_endpoint_route_table_association`,
+`aws_vpc_endpoint_security_group_association`,
+`aws_vpc_endpoint_subnet_association`, `aws_vpc_ipam_pool_cidr`,
 `aws_wafv2_web_acl_rule` and `aws_xray_resource_policy`<!-- survey-gen:end untaggable-admitted --> carry no tags, so a marker-based sweep
 has nothing to search on for any of them. Their identity is built from
 their own configuration, which is a problem the moment a resource block is
@@ -530,6 +542,12 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_cognito_user_group` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_cognito_user_in_group` | `aws_cognito_user_pool` | no (report-only) |
 | `aws_dynamodb_global_table` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_ec2_client_vpn_route` | `aws_ec2_client_vpn_endpoint` | no (report-only) |
+| `aws_ec2_managed_prefix_list_entry` | `aws_ec2_managed_prefix_list` | no (report-only) |
+| `aws_ec2_transit_gateway_metering_policy_entry` | `aws_ec2_transit_gateway_metering_policy` | no (report-only) |
+| `aws_ec2_transit_gateway_policy_table_association` | `aws_ec2_transit_gateway_policy_table` | no (report-only) |
+| `aws_ec2_transit_gateway_route_table_association` | `aws_ec2_transit_gateway_route_table` | no (report-only) |
+| `aws_ec2_transit_gateway_route_table_propagation` | `aws_ec2_transit_gateway_route_table` | no (report-only) |
 | `aws_ecrpublic_repository_policy` | `aws_ecrpublic_repository` | no (report-only) |
 | `aws_eks_access_policy_association` | `aws_iam_policy` | no (report-only) |
 | `aws_emr_security_configuration` | `aws_api_gateway_domain_name` | no (report-only) |
@@ -549,6 +567,8 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_lb_target_group_attachment` | `aws_lb_target_group` | no (report-only) |
 | `aws_lightsail_lb_certificate` | `aws_lightsail_lb` | no (report-only) |
 | `aws_lightsail_static_ip` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_nat_gateway_eip_association` | `aws_nat_gateway` | no (report-only) |
+| `aws_network_acl_rule` | `aws_network_acl` | no (report-only) |
 | `aws_route` | `aws_route_table` | no (report-only) |
 | `aws_route53_key_signing_key` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_route53_record` | `aws_api_gateway_domain_name` | no (report-only) |
@@ -570,9 +590,15 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_ssoadmin_application_assignment` | `aws_ssoadmin_application` | no (report-only) |
 | `aws_ssoadmin_instance_access_control_attributes` | `aws_instance` | no (report-only) |
 | `aws_volume_attachment` | `aws_ebs_volume` | no (report-only) |
+| `aws_vpc_endpoint_policy` | `aws_vpc_endpoint` | no (report-only) |
+| `aws_vpc_endpoint_private_dns` | `aws_vpc_endpoint` | no (report-only) |
+| `aws_vpc_endpoint_route_table_association` | `aws_vpc_endpoint` | no (report-only) |
+| `aws_vpc_endpoint_security_group_association` | `aws_vpc_endpoint` | no (report-only) |
+| `aws_vpc_endpoint_subnet_association` | `aws_vpc_endpoint` | no (report-only) |
+| `aws_vpc_ipam_pool_cidr` | `aws_vpc_ipam_pool` | no (report-only) |
 | `aws_wafv2_web_acl_rule` | `aws_wafv2_web_acl` | no (report-only) |
 
-**Total.** 69 types swept via a parent read.
+**Total.** 83 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
@@ -609,7 +635,8 @@ per-type reasoning as it stands.
 `aws_codedeploy_deployment_config`, `aws_cognito_user_pool_domain`,
 `aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
 `aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
-`aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
+`aws_ec2_transit_gateway_route`, `aws_ecr_registry_policy`,
+`aws_ecr_registry_scanning_configuration`,
 `aws_ecr_replication_configuration`, `aws_ecs_cluster_capacity_providers`,
 `aws_eip_association`, `aws_glue_data_catalog_encryption_settings`,
 `aws_guardduty_organization_admin_account`,
@@ -622,8 +649,8 @@ per-type reasoning as it stands.
 `aws_securityhub_configuration_policy_association`,
 `aws_securityhub_member`, `aws_securityhub_organization_admin_account`,
 `aws_securityhub_standards_control`,
-`aws_securityhub_standards_control_association`, `aws_ssm_service_setting`
-and `aws_xray_resource_policy`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
+`aws_securityhub_standards_control_association`, `aws_ssm_service_setting`,
+`aws_vpc_dhcp_options_association` and `aws_xray_resource_policy`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
 parent-readable: the three ECR registry types are account-level singletons
 with no admitted parent resource to read at all, and the dashboard, the
 KMS alias and the Lambda layer version are each client-named on their own

@@ -1,3 +1,3 @@
-resource "aws_customer_gateway" "web" {
-  bgp_asn = 65000
+resource "aws_cloudwatch_event_rule" "web" {
+  name = "example-rule"
 }

@@ -179,17 +179,18 @@ func TestJoinTaggedResourceRealArtifacts(t *testing.T) {
 			wantReasonHas: []string{"AWS::EC2::SecurityGroupEgress", "AWS::EC2::SecurityGroupIngress", "more than one CFN type"},
 		},
 		{
-			name:          "ec2 nat gateway: mapped in live/mapping.json but not in identity.DefaultTable",
-			arn:           "arn:aws:ec2:us-east-1:123456789012:natgateway/nat-0123456789abcdef0",
+			name:          "ec2 carrier gateway: mapped in live/mapping.json but not in identity.DefaultTable",
+			arn:           "arn:aws:ec2:us-east-1:123456789012:carrier-gateway/cagw-0123456789abcdef0",
 			wantOK:        false,
-			wantReasonHas: []string{"aws_nat_gateway", "internal/live/identity's table"},
+			wantReasonHas: []string{"aws_ec2_carrier_gateway", "internal/live/identity's table"},
 		},
 		{
 			// aws_lambda_function joined the identity table when the first
 			// registry-ratified batch admitted it; the mapped-but-unadmitted
 			// case lived on with aws_instance until the EC2 core batch
-			// (issue #65) admitted it too, and now lives on with
-			// aws_nat_gateway above.
+			// (issue #65) admitted it, then with aws_nat_gateway until the
+			// EC2 networking batch (issue #65) admitted it too, and now
+			// lives on with aws_ec2_carrier_gateway above.
 			name:             "lambda function: mapped and admitted, function name binds",
 			arn:              "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 			wantTypeName:     "aws_lambda_function",
