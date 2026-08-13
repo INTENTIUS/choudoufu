@@ -26,8 +26,24 @@ type TypeIdentity struct {
 	// ServerAssigned, unused otherwise.
 	Reason string
 
+	// RecordBacked is true when this type's identity is not observed from
+	// the cloud at all: the type is one of GitHub issue #73's
+	// RECORD_ADMITTED logical types (internal/live/lint), whose whole
+	// existence is a persisted micro-state record. Instances of such a
+	// type would always classify [ClassRecordBacked], whatever their
+	// arguments say, the same way ServerAssigned instances always classify
+	// ClassNeedsDiscovery above.
+	//
+	// Staged and currently inert: no entry in [DefaultTable] sets this
+	// field yet, because a RECORD_ADMITTED type is refused by lint before
+	// it ever reaches this table, and [SynthesizeTypeIdentity] never
+	// produces it either. It exists so the projection work #73 stages next
+	// - hydrating a record-backed instance without a cloud read - is an
+	// additive change to this struct's callers rather than a breaking one.
+	RecordBacked bool
+
 	// Components build the import identity by concatenation, in order.
-	// Required unless ServerAssigned.
+	// Required unless ServerAssigned or RecordBacked.
 	Components []Component
 
 	// ImportSyntax documents the provider's import-ID grammar for this
