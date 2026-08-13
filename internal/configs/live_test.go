@@ -416,3 +416,153 @@ func TestModule_liveConflicts(t *testing.T) {
 		})
 	}
 }
+
+// TestModule_liveRecordStore covers GitHub issue #73's config surface: a
+// "record_store" block nested inside "live", labeled by backend, phrased in
+// the same labeled-block-names-the-implementation shape a stock "backend"
+// block uses.
+func TestModule_liveRecordStore(t *testing.T) {
+	t.Run("local", func(t *testing.T) {
+		mod, diags := testModuleFromDir("testdata/valid-modules/live-record-store-local")
+		if diags.HasErrors() {
+			t.Fatalf("unexpected diagnostics: %s", diags.Error())
+		}
+		rs := mod.Live.RecordStore
+		if rs == nil {
+			t.Fatal("no record_store block was decoded")
+		}
+		if rs.Type != "local" {
+			t.Errorf("Type = %q, want local", rs.Type)
+		}
+		if got, want := rs.Path, ".tofu-records"; got != want {
+			t.Errorf("Path = %q, want %q", got, want)
+		}
+		if rs.BucketSet || rs.KeyPrefixSet || rs.RegionSet {
+			t.Errorf("local record_store carries bucket/key_prefix/region: %+v", rs)
+		}
+	})
+
+	t.Run("ssm", func(t *testing.T) {
+		mod, diags := testModuleFromDir("testdata/valid-modules/live-record-store-ssm")
+		if diags.HasErrors() {
+			t.Fatalf("unexpected diagnostics: %s", diags.Error())
+		}
+		rs := mod.Live.RecordStore
+		if rs == nil {
+			t.Fatal("no record_store block was decoded")
+		}
+		if rs.Type != "ssm" {
+			t.Errorf("Type = %q, want ssm", rs.Type)
+		}
+		if got, want := rs.KeyPrefix, "custom/prefix"; got != want {
+			t.Errorf("KeyPrefix = %q, want %q", got, want)
+		}
+		if got, want := rs.Region, "us-west-2"; got != want {
+			t.Errorf("Region = %q, want %q", got, want)
+		}
+		if rs.PathSet || rs.BucketSet {
+			t.Errorf("ssm record_store carries path/bucket: %+v", rs)
+		}
+	})
+
+	t.Run("s3", func(t *testing.T) {
+		mod, diags := testModuleFromDir("testdata/valid-modules/live-record-store-s3")
+		if diags.HasErrors() {
+			t.Fatalf("unexpected diagnostics: %s", diags.Error())
+		}
+		rs := mod.Live.RecordStore
+		if rs == nil {
+			t.Fatal("no record_store block was decoded")
+		}
+		if rs.Type != "s3" {
+			t.Errorf("Type = %q, want s3", rs.Type)
+		}
+		if got, want := rs.Bucket, "my-records-bucket"; got != want {
+			t.Errorf("Bucket = %q, want %q", got, want)
+		}
+	})
+}
+
+// TestModule_liveRecordStoreAbsent: no record_store block leaves
+// Live.RecordStore nil, which is what internal/live/lint reads as "GitHub
+// issue #73's RECORD_ADMITTED logical types stay refused" - the same
+// "no attribute -> nothing" contract every other optional live-block
+// feature follows.
+func TestModule_liveRecordStoreAbsent(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/live")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	if mod.Live == nil {
+		t.Fatal("no live block was decoded")
+	}
+	if mod.Live.RecordStore != nil {
+		t.Errorf("RecordStore is %+v for a live block with no record_store, want nil", mod.Live.RecordStore)
+	}
+}
+
+// TestModule_liveRecordStoreRefused covers every decode-time refusal: an
+// unknown backend label, "s3" with no bucket, and a key_prefix that would
+// collide with the receipts namespace (live/RECEIPTS.md).
+func TestModule_liveRecordStoreRefused(t *testing.T) {
+	for _, tc := range []struct {
+		file string
+		want string
+	}{
+		{"testdata/invalid-files/live-record-store-unknown-backend.tf", `names a backend this fork does not know`},
+		{"testdata/invalid-files/live-record-store-s3-no-bucket.tf", `requires a "bucket" argument`},
+		{"testdata/invalid-files/live-record-store-key-prefix-receipts.tf", `must not begin with the "tofu-receipts" segment`},
+		{"testdata/invalid-files/live-record-store-duplicate.tf", "Duplicate record_store block"},
+	} {
+		t.Run(tc.file, func(t *testing.T) {
+			parser := NewParser(nil)
+			_, diags := parser.LoadConfigFile(tc.file)
+			if !diags.HasErrors() {
+				t.Fatal("the configuration loaded with no errors")
+			}
+			if !strings.Contains(diags.Error(), tc.want) {
+				t.Errorf("wrong diagnostic:\n%s", diags.Error())
+			}
+		})
+	}
+}
+
+// TestValidateRecordStoreKeyPrefix is the disjointness rule GitHub issue
+// #73's namespace-safety requirement rests on at the config layer: a
+// key_prefix override can never land inside live/RECEIPTS.md's
+// "/tofu-receipts/" namespace, checked at the "/"-delimited segment level
+// so a merely-similar-looking prefix ("tofu-receipts-archive") is not
+// falsely refused.
+func TestValidateRecordStoreKeyPrefix(t *testing.T) {
+	for _, tc := range []struct {
+		prefix string
+		want   string // a fragment of the refusal, or "" for accepted
+	}{
+		{"my-estate", ""},
+		{"tofu-records/my-estate", ""},
+		{"/tofu-records/my-estate/", ""},
+		// A prefix that merely starts with the same letters is not a
+		// segment match and must not be refused.
+		{"tofu-receipts-archive", ""},
+		{"nested/tofu-receipts", ""},
+
+		{"tofu-receipts", "must not begin with the \"tofu-receipts\" segment"},
+		{"tofu-receipts/my-estate", "must not begin with the \"tofu-receipts\" segment"},
+		{"/tofu-receipts/my-estate", "must not begin with the \"tofu-receipts\" segment"},
+
+		{"", "empty"},
+		{"///", "empty"},
+	} {
+		t.Run(tc.prefix, func(t *testing.T) {
+			got := validateRecordStoreKeyPrefix(tc.prefix)
+			switch {
+			case tc.want == "" && got != "":
+				t.Errorf("%q was refused: %s", tc.prefix, got)
+			case tc.want != "" && got == "":
+				t.Errorf("%q was accepted, want a refusal mentioning %q", tc.prefix, tc.want)
+			case tc.want != "" && !strings.Contains(got, tc.want):
+				t.Errorf("%q was refused with the wrong reason:\ngot:  %s\nwant it to mention: %s", tc.prefix, got, tc.want)
+			}
+		})
+	}
+}

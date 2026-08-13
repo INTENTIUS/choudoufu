@@ -93,10 +93,29 @@ func CheckWith(ctx context.Context, cfg *configs.Config, lctx Context) []Issue {
 		signal, _ = identity.ScanConfig(ctx, cfg)
 	}
 
+	// The record store gate is read once, from the root module's live block,
+	// the same way the estate name and the policy block are: it is a
+	// property of the whole run, not of whichever module node the walk
+	// happens to be visiting. See [recordStoreConfigured].
+	recordStoreConfigured := recordStoreConfiguredIn(cfg)
+
 	var issues []Issue
-	checkConfig(ctx, cfg, addrs.RootModuleInstance, lctx.Schemas, signal, &issues)
+	checkConfig(ctx, cfg, addrs.RootModuleInstance, lctx.Schemas, signal, recordStoreConfigured, &issues)
 	sortIssues(issues)
 	return issues
+}
+
+// recordStoreConfiguredIn reports whether cfg's root module declares a live
+// block with a record_store block in it - GitHub issue #73's config surface
+// for a RECORD_ADMITTED logical type's admission. False for every
+// configuration written before that block existed, which is exactly what
+// keeps every RECORD_ADMITTED type refused by default: see
+// [checkManagedResources].
+func recordStoreConfiguredIn(cfg *configs.Config) bool {
+	if cfg == nil || cfg.Module == nil || cfg.Module.Live == nil {
+		return false
+	}
+	return cfg.Module.Live.RecordStore != nil
 }
 
 // checkConfig appends the issues found in one node of the module tree and then
@@ -113,7 +132,13 @@ func CheckWith(ctx context.Context, cfg *configs.Config, lctx Context) []Issue {
 // with tree depth for no more information than the longest one already
 // gives (a marker's length grows with a key's own length, not with which
 // key was chosen).
-func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleInstance, schemas map[string]providers.Schema, signal *identity.ConfigSignal, issues *[]Issue) {
+//
+// recordStoreConfigured is GitHub issue #73's admission gate, read once
+// from the root module (see [recordStoreConfiguredIn]) and threaded
+// unchanged through every recursive call, the same way schemas and signal
+// already are: it is a property of the whole run, not of whichever module
+// node the walk happens to be visiting.
+func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleInstance, schemas map[string]providers.Schema, signal *identity.ConfigSignal, recordStoreConfigured bool, issues *[]Issue) {
 	if cfg == nil || cfg.Module == nil {
 		return
 	}
@@ -125,7 +150,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	checkChildModules(ctx, mod, path, issues)
 	checkMovedBlocks(mod, path, issues)
 	checkLivePolicy(mod, path, issues)
-	checkManagedResources(mod, path, schemas, signal, issues)
+	checkManagedResources(mod, path, schemas, signal, recordStoreConfigured, issues)
 	checkForEachKeys(ctx, mod, path, issues)
 	checkOverlongAddresses(ctx, mod, modInst, issues)
 	checkDataResources(mod, path, issues)
@@ -140,7 +165,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	sort.Strings(names)
 	for _, name := range names {
 		childInst := modInst.Child(name, worstCaseChildKey(ctx, mod, mod.ModuleCalls[name]))
-		checkConfig(ctx, cfg.Children[name], childInst, schemas, signal, issues)
+		checkConfig(ctx, cfg.Children[name], childInst, schemas, signal, recordStoreConfigured, issues)
 	}
 }
 
@@ -228,7 +253,7 @@ func checkMovedBlocks(mod *configs.Module, path addrs.Module, issues *[]Issue) {
 // checkManagedResources runs the rules that apply to resource blocks:
 // provisioners and their connection blocks, logical resource types, and the v0
 // admission table.
-func checkManagedResources(mod *configs.Module, path addrs.Module, schemas map[string]providers.Schema, signal *identity.ConfigSignal, issues *[]Issue) {
+func checkManagedResources(mod *configs.Module, path addrs.Module, schemas map[string]providers.Schema, signal *identity.ConfigSignal, recordStoreConfigured bool, issues *[]Issue) {
 	for _, resource := range mod.ManagedResources {
 		addr := resource.Addr().String()
 
@@ -239,6 +264,19 @@ func checkManagedResources(mod *configs.Module, path addrs.Module, schemas map[s
 		// source stores nothing and is re-read every operation, so it has no
 		// identity to recover and no admission question to answer.
 		if lt, ok := ClassifyLogicalType(resource.Type); ok {
+			if lt.Class == ClassRecordAdmitted && recordStoreConfigured {
+				// GitHub issue #73: a RECORD_ADMITTED type flips from
+				// refused to admitted once a live block configures a
+				// record_store. Its identity is the persisted micro-state
+				// record itself (internal/live/identity's
+				// ClassRecordBacked); nothing more to say here, and no
+				// RuleLogicalResource issue for it. Falling through to the
+				// admission-table check below would be wrong too - this
+				// type never goes through admitted()'s v0 hand table, so
+				// it is skipped entirely, the same way a refused logical
+				// type always has been.
+				continue
+			}
 			*issues = append(*issues, Issue{
 				Rule:      RuleLogicalResource,
 				Construct: addr,

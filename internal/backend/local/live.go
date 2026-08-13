@@ -56,4 +56,22 @@ type StatelessRun interface {
 	//
 	// Error diagnostics abort the run before anything is planned.
 	PriorState(ctx context.Context, config *configs.Config, core *tofu.Context) (*states.State, tfdiags.Diagnostics)
+
+	// WriteBack is GitHub issue #73's third leg: after a successful apply,
+	// persist every record-backed resource instance's new state to the
+	// record store PriorState read from, and delete the record for any
+	// record-backed instance a destroy removed. finalState is the state the
+	// apply finished with; schemas is the run's own schema set, already in
+	// hand at the one call site (opApply).
+	//
+	// Called exactly once per apply, after the ordinary state write has
+	// already succeeded - never mid-apply, and never for a plan-only run.
+	// A run with no record store configured (or no live block at all) does
+	// nothing and returns no diagnostics. Error diagnostics here are fatal
+	// to the run: a version conflict at write-back means this run's apply
+	// already happened but the record store's record of it may not match
+	// what actually ran, and that must surface loudly rather than
+	// silently, the same philosophy live/MARKERS.md's marker-collision
+	// handling already uses.
+	WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas) tfdiags.Diagnostics
 }

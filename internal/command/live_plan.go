@@ -25,6 +25,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/foreign"
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -1171,6 +1172,16 @@ func statelessNeedsDiscoveryProvider(config *configs.Config, needs []identity.Re
 func statelessManagedResourceProviders(config *configs.Config) []addrs.AbsProviderConfig {
 	seen := make(map[string]addrs.AbsProviderConfig)
 	walkManagedResources(config, func(rc *configs.Resource, modPath addrs.Module) {
+		if ti, ok := identity.LookupType(rc.Type); ok && ti.RecordBacked {
+			// GitHub issue #73's record-backed resources (null_resource,
+			// terraform_data, time_*, non-sensitive random_*) have no
+			// cloud object and no marker of any kind, so they are never a
+			// candidate for the estate-wide sweep's provider set: there is
+			// nothing for a sweep issued through their provider to find,
+			// and no discovery.Discover call makes sense against a
+			// provider with no listable, taggable resources at all.
+			return
+		}
 		addr := providerConfigAddr(rc, modPath)
 		seen[addr.String()] = addr
 	})
@@ -1691,11 +1702,23 @@ func (p *statelessProviders) ConfiguredProvider(ctx context.Context, addr addrs.
 	if schemaDiags.HasErrors() {
 		return nil, fmt.Errorf("cannot read the schema of provider %s: %w", addr.Provider, schemaDiags.Err())
 	}
-	if schema.Provider.Block == nil {
-		return nil, fmt.Errorf("provider %s reported no configuration schema", addr.Provider)
+	// A nil Provider.Block means the provider declares no provider-level
+	// configuration schema at all - the builtin "terraform" provider
+	// (terraform_data's provider, admitted by GitHub issue #73's
+	// record-backed types) is the one this fork has ever needed to
+	// configure that shape, since every other provider a live estate has
+	// used until now was AWS. An empty block is the correct
+	// nothing-to-configure substitute: decoding an empty provider body
+	// against it produces the same all-null/empty value an ordinary
+	// provider with zero configuration arguments would get from
+	// providerConfigValue below, rather than treating "nothing to
+	// configure" as a fatal error.
+	block := schema.Provider.Block
+	if block == nil {
+		block = &configschema.Block{}
 	}
 
-	configVal, cfgDiags := p.providerConfigValue(ctx, addr, schema.Provider.Block.DecoderSpec())
+	configVal, cfgDiags := p.providerConfigValue(ctx, addr, block.DecoderSpec())
 	if cfgDiags.HasErrors() {
 		return nil, fmt.Errorf("cannot evaluate the configuration of provider %s: %w", addr, cfgDiags.Err())
 	}

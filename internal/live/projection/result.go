@@ -44,6 +44,14 @@ type Result struct {
 	// what is missing".
 	Unowned []Unowned
 
+	// RecordVersions lists the store version read at plan time for every
+	// GitHub issue #73 record-backed instance whose record actually
+	// existed, in address order. Write-back (WriteBack) uses this as the
+	// expected version for each PutIfVersion/Delete call: an instance with
+	// no entry here had no prior record, so write-back opens with
+	// expectedVersion "" - the store's own create/absence convention.
+	RecordVersions []RecordVersion
+
 	// Policy lists every declared instance whose admission or tag handling
 	// GitHub issue #67's policy governed with a verb other than that
 	// quadrant's [policy.DefaultVerb] - so a run with no policy block, or
@@ -52,6 +60,13 @@ type Result struct {
 	// current behavior" checkable directly against this field. See
 	// [builder.checkPolicy].
 	Policy []PolicyOutcome
+}
+
+// RecordVersion pairs one record-backed resource instance with the version
+// its record carried when this projection read it.
+type RecordVersion struct {
+	Addr    addrs.AbsResourceInstance
+	Version string
 }
 
 // PolicyOutcome is one declared instance whose admission or tag handling a

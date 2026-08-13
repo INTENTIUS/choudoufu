@@ -8,6 +8,7 @@ package identity
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -156,16 +157,17 @@ func TestResolveEstate(t *testing.T) {
 	assertClassifications(t, result, want)
 }
 
-// TestResolveNeverEmitsRecordBacked pins GitHub issue #73's groundwork:
-// ClassRecordBacked exists in the Class enum, but nothing in this package
-// produces it yet. A RECORD_ADMITTED logical type (internal/live/lint) never
-// reaches Resolve at all today - lint refuses it first - so this checks the
-// weaker, always-true-until-#73's-projection-work claim directly: not one
-// resolution of the estate fixture, which exercises every admission path
-// this package has, carries the new class. The day a resolver starts
-// producing it, this test starts failing, which is the point: the failure
-// is the signal to move this pin, not to loosen it.
-func TestResolveNeverEmitsRecordBacked(t *testing.T) {
+// TestResolveNeverEmitsRecordBackedForAWSEstate is GitHub issue #73's
+// groundwork pin, moved rather than loosened now that the resolver produces
+// ClassRecordBacked (see TestResolveRecordBackedTypes below for the positive
+// case this test used to be a placeholder for). The claim it checks is
+// narrower and still true: the P0.1 AWS estate fixture declares no
+// RECORD_ADMITTED logical type (null_resource, terraform_data, time_*,
+// non-sensitive random_*), so resolving it should never produce the new
+// class either - a resolver bug that started tagging ordinary AWS resources
+// ClassRecordBacked would be exactly the kind of thing this pin exists to
+// catch.
+func TestResolveNeverEmitsRecordBackedForAWSEstate(t *testing.T) {
 	cfg := loadConfig(t, estateDir(t), nil)
 	result, diags := Resolve(context.Background(), cfg)
 	assertNoErrors(t, diags)
@@ -175,8 +177,70 @@ func TestResolveNeverEmitsRecordBacked(t *testing.T) {
 	}
 	for _, res := range result.All() {
 		if res.Class == ClassRecordBacked {
-			t.Errorf("%s resolved to ClassRecordBacked; no resolver in this package should produce that class yet (GitHub issue #73's projection work is what will)", res.Addr)
+			t.Errorf("%s resolved to ClassRecordBacked; the AWS estate fixture declares no RECORD_ADMITTED logical type", res.Addr)
 		}
+	}
+}
+
+// TestResolveRecordBackedTypes is the positive case GitHub issue #73's
+// groundwork staged: a configuration declaring RECORD_ADMITTED logical
+// types resolves every instance to ClassRecordBacked, with none of the
+// three payload fields (ImportID, Formula, Reason) populated - there is no
+// cloud identity to build for any of them, whatever their arguments say.
+//
+// Resolve alone (no lint pass ahead of it) is deliberately what this test
+// calls: whether a RECORD_ADMITTED type may reach resolution at all is
+// internal/live/lint's gate (checkManagedResources, gated on a live block's
+// record_store), not this package's - see table_recordbacked.go's init
+// comment. This test is only about what resolution itself does once a type
+// gets here.
+func TestResolveRecordBackedTypes(t *testing.T) {
+	dir := t.TempDir()
+	const src = `
+resource "null_resource" "trigger" {
+  triggers = {
+    input = "value"
+  }
+}
+
+resource "terraform_data" "replacement" {
+  input = "value"
+}
+
+resource "time_static" "created" {}
+
+resource "random_pet" "name" {
+  length = 2
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
+		t.Fatalf("writing fixture: %s", err)
+	}
+
+	cfg := loadConfig(t, dir, nil)
+	result, diags := Resolve(context.Background(), cfg)
+	assertNoErrors(t, diags)
+
+	want := []string{
+		`null_resource.trigger`,
+		`random_pet.name`,
+		`terraform_data.replacement`,
+		`time_static.created`,
+	}
+	var got []string
+	for _, res := range result.All() {
+		got = append(got, res.Addr.String())
+		if res.Class != ClassRecordBacked {
+			t.Errorf("%s classified %s, want ClassRecordBacked", res.Addr, res.Class)
+			continue
+		}
+		if res.ImportID != "" || res.Formula != nil || res.Reason != "" {
+			t.Errorf("%s is ClassRecordBacked but carries a payload: ImportID=%q Formula=%v Reason=%q", res.Addr, res.ImportID, res.Formula, res.Reason)
+		}
+	}
+	sort.Strings(got)
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("wrong resolved addresses: got %v, want %v", got, want)
 	}
 }
 
@@ -545,13 +609,24 @@ func TestTableCoversFixtureTypes(t *testing.T) {
 			t.Errorf("a fixture uses %s, which the v0 identity table does not cover", typeName)
 		}
 	}
+	nonRecordBacked := 0
 	for _, typeName := range AdmittedTypes() {
+		entry, _ := LookupType(typeName)
+		if entry.RecordBacked {
+			// GitHub issue #73's record-backed types (null_resource,
+			// terraform_data, time_*, random_*) are not AWS resources and
+			// never appear in the AWS-emulator fixtures this test walks -
+			// see table_recordbacked.go and TestRecordBackedTypesClassify
+			// for their own coverage instead.
+			continue
+		}
+		nonRecordBacked++
 		if !used[typeName] {
 			t.Errorf("the v0 identity table covers %s, which no fixture uses", typeName)
 		}
 	}
-	if got, want := len(AdmittedTypes()), len(used); got != want {
-		t.Errorf("table covers %d types, want the fixtures' %d", got, want)
+	if got, want := nonRecordBacked, len(used); got != want {
+		t.Errorf("table covers %d non-record-backed types, want the fixtures' %d", got, want)
 	}
 }
 
@@ -560,6 +635,12 @@ func TestTableEntriesWellFormed(t *testing.T) {
 		entry, _ := LookupType(typeName)
 		if entry.Type != typeName {
 			t.Errorf("%s: entry is keyed as %s", typeName, entry.Type)
+		}
+		if entry.RecordBacked {
+			if entry.ImportSyntax != "" || len(entry.Components) != 0 || entry.ServerAssigned {
+				t.Errorf("%s: record-backed but also carries an import syntax, identity components, or ServerAssigned", typeName)
+			}
+			continue
 		}
 		if entry.ImportSyntax == "" {
 			t.Errorf("%s: no documented import syntax", typeName)

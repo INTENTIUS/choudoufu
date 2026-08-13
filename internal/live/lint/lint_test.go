@@ -660,6 +660,101 @@ func TestLogicalResourceDetailsRenderByClass(t *testing.T) {
 	})
 }
 
+// TestRecordStoreAdmitsRecordAdmittedTypes is GitHub issue #73's admission
+// flip: a RECORD_ADMITTED logical type is refused exactly as before when the
+// live block has no record_store, and produces no RuleLogicalResource issue
+// at all once one is configured - the existing refusal Detail (which
+// already says "refused today") is what a store's absence still gets,
+// unchanged. SECRET_REFUSED (random_password here) stays refused either
+// way: the store flips RECORD_ADMITTED only, never the no-secrets rule.
+func TestRecordStoreAdmitsRecordAdmittedTypes(t *testing.T) {
+	const src = `
+terraform {
+  live {
+    estate = "test-estate"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }
+}
+
+resource "null_resource" "trigger" {
+  triggers = {
+    input = "value"
+  }
+}
+
+resource "random_password" "secret" {
+  length = 16
+}
+`
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
+		t.Fatalf("writing fixture: %s", err)
+	}
+
+	cfg := loadConfigDir(t, dir)
+	issues := CheckContext(t.Context(), cfg)
+
+	var logicalIssues []Issue
+	for _, issue := range issues {
+		if issue.Rule == RuleLogicalResource {
+			logicalIssues = append(logicalIssues, issue)
+		}
+	}
+	if len(logicalIssues) != 1 {
+		t.Fatalf("got %d RuleLogicalResource issues with a record_store configured, want exactly 1 (random_password only): %v", len(logicalIssues), logicalIssues)
+	}
+	if logicalIssues[0].Construct != "random_password.secret" {
+		t.Errorf("the one remaining RuleLogicalResource issue is for %q, want random_password.secret", logicalIssues[0].Construct)
+	}
+	if !strings.Contains(logicalIssues[0].Detail, "SECRET_REFUSED") {
+		t.Errorf("random_password.secret's Detail = %q, want it to still say SECRET_REFUSED", logicalIssues[0].Detail)
+	}
+}
+
+// TestRecordStoreAbsentLeavesRefusalUnchanged pins the other half: without a
+// record_store block, a RECORD_ADMITTED type's Detail is byte-identical to
+// what a configuration with no live block at all gets - the same assertion
+// TestLogicalResourceDetailsRenderByClass makes over logicalResourceDetail
+// directly, checked here end to end through CheckContext instead, so a
+// future change to the threading in checkManagedResources cannot
+// accidentally admit a type when nothing configured a store.
+func TestRecordStoreAbsentLeavesRefusalUnchanged(t *testing.T) {
+	const src = `
+resource "null_resource" "trigger" {
+  triggers = {
+    input = "value"
+  }
+}
+`
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
+		t.Fatalf("writing fixture: %s", err)
+	}
+
+	cfg := loadConfigDir(t, dir)
+	issues := CheckContext(t.Context(), cfg)
+
+	var logicalIssues []Issue
+	for _, issue := range issues {
+		if issue.Rule == RuleLogicalResource {
+			logicalIssues = append(logicalIssues, issue)
+		}
+	}
+	if len(logicalIssues) != 1 {
+		t.Fatalf("got %d RuleLogicalResource issues with no live block at all, want exactly 1: %v", len(logicalIssues), logicalIssues)
+	}
+	lt, ok := ClassifyLogicalType("null_resource")
+	if !ok {
+		t.Fatal("null_resource did not classify as a logical type")
+	}
+	want := logicalResourceDetail("null_resource", lt)
+	if logicalIssues[0].Detail != want {
+		t.Errorf("Detail =\n%q\nwant\n%q", logicalIssues[0].Detail, want)
+	}
+}
+
 // assertIssues compares what Check produced against the expected issues, in
 // order. Every issue must also carry a detail, which is required rather than
 // compared.
