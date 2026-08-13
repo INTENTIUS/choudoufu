@@ -1,24 +1,24 @@
 {
   "pin": {
-    "digest": "sha256:f05366bcba3160e5992f4ae312286e6f06a87dcbef425b29b39259beadd42ce0",
-    "resources": 1653,
-    "accepted": "2026-08-12"
+    "digest": "sha256:2ab2db2351402f588b86795eb31d73290ca9910e11f13fdac9cb46c00eb8ece0",
+    "resources": 1683,
+    "accepted": "2026-08-13"
   },
   "generated_by": "tools/registry-gen (go run ./tools/registry-gen)",
   "counts": {
-    "types": 1653,
-    "with_primary_identifier": 1653,
+    "types": 1683,
+    "with_primary_identifier": 1683,
     "primary_identifier_arity": {
-      "single": 1364,
-      "double": 232,
-      "three_or_more": 57
+      "single": 1386,
+      "double": 239,
+      "three_or_more": 58
     },
-    "taggable": 1014,
-    "list_free": 1098,
-    "list_with_required_input": 309,
-    "no_list_handler": 246,
-    "no_handlers_at_all": 168,
-    "with_read": 1479
+    "taggable": 1035,
+    "list_free": 1121,
+    "list_with_required_input": 322,
+    "no_list_handler": 240,
+    "no_handlers_at_all": 161,
+    "with_read": 1516
   },
   "types": [
     {
@@ -442,6 +442,102 @@
         "update": true,
         "delete": true,
         "list": true
+      }
+    },
+    {
+      "type_name": "AWS::AccessAnalyzer::ArchiveRule",
+      "primary_identifier": [
+        "Arn"
+      ],
+      "additional_identifiers": [
+        [
+          "AnalyzerName",
+          "RuleName"
+        ]
+      ],
+      "read_only_properties": [
+        "Arn",
+        "CreatedAt",
+        "UpdatedAt"
+      ],
+      "create_only_properties": [
+        "AnalyzerName",
+        "RuleName"
+      ],
+      "tagging": {
+        "taggable": false,
+        "tag_on_create": false,
+        "tag_updatable": false
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true,
+        "list_required_input": [
+          "AnalyzerName"
+        ]
+      }
+    },
+    {
+      "type_name": "AWS::AccountAccess::Application",
+      "primary_identifier": [
+        "ApplicationArn"
+      ],
+      "read_only_properties": [
+        "ApplicationArn",
+        "IdentitySource/IdentityCenter/ApplicationArn",
+        "Status",
+        "TenantId",
+        "CreatedAt",
+        "UpdatedAt"
+      ],
+      "create_only_properties": [
+        "IdentitySource"
+      ],
+      "tagging": {
+        "taggable": true,
+        "tag_on_create": true,
+        "tag_updatable": true
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
+      }
+    },
+    {
+      "type_name": "AWS::AccountAccess::Entitlement",
+      "primary_identifier": [
+        "ApplicationArn",
+        "EntitlementId"
+      ],
+      "read_only_properties": [
+        "EntitlementId",
+        "Entitlement/PrincipalRole/Account",
+        "CreatedAt"
+      ],
+      "create_only_properties": [
+        "ApplicationArn",
+        "Entitlement"
+      ],
+      "tagging": {
+        "taggable": false,
+        "tag_on_create": false,
+        "tag_updatable": false
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": false,
+        "delete": true,
+        "list": true,
+        "list_required_input": [
+          "ApplicationArn"
+        ]
       }
     },
     {
@@ -1375,7 +1471,7 @@
     {
       "type_name": "AWS::ApiGatewayV2::ApiGatewayManagedOverrides",
       "primary_identifier": [
-        "Id"
+        "ApiId"
       ],
       "read_only_properties": [
         "Id"
@@ -1389,10 +1485,10 @@
         "tag_updatable": false
       },
       "handlers": {
-        "create": false,
-        "read": false,
-        "update": false,
-        "delete": false,
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
         "list": false
       }
     },
@@ -1594,6 +1690,34 @@
         "list_required_input": [
           "ApiId"
         ]
+      }
+    },
+    {
+      "type_name": "AWS::ApiGatewayV2::PortalProduct",
+      "primary_identifier": [
+        "PortalProductArn"
+      ],
+      "additional_identifiers": [
+        [
+          "PortalProductId"
+        ]
+      ],
+      "read_only_properties": [
+        "PortalProductArn",
+        "PortalProductId",
+        "LastModified"
+      ],
+      "tagging": {
+        "taggable": true,
+        "tag_on_create": true,
+        "tag_updatable": true
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
       }
     },
     {
@@ -1901,6 +2025,50 @@
         "list": true,
         "list_required_input": [
           "ApplicationId"
+        ]
+      }
+    },
+    {
+      "type_name": "AWS::AppConfig::ExperimentDefinition",
+      "primary_identifier": [
+        "ApplicationId",
+        "Id"
+      ],
+      "additional_identifiers": [
+        [
+          "ApplicationIdentifier",
+          "Name"
+        ]
+      ],
+      "read_only_properties": [
+        "ApplicationId",
+        "Id",
+        "Status",
+        "CreatedAt",
+        "UpdatedAt",
+        "Control/Key",
+        "Treatments/*/Key"
+      ],
+      "create_only_properties": [
+        "ApplicationIdentifier",
+        "Name",
+        "ConfigurationProfileIdentifier",
+        "EnvironmentIdentifier",
+        "FlagKey"
+      ],
+      "tagging": {
+        "taggable": true,
+        "tag_on_create": true,
+        "tag_updatable": true
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true,
+        "list_required_input": [
+          "ApplicationIdentifier"
         ]
       }
     },
@@ -3581,12 +3749,19 @@
       ],
       "write_only_properties": [
         "Name",
-        "Description"
+        "Description",
+        "Scope/AwsAccounts/*/Name",
+        "Scope/AwsAccounts/*/EmailAddress",
+        "Scope/AwsServices",
+        "AwsAccount/Name",
+        "AwsAccount/EmailAddress",
+        "Delegations/*/AssessmentId",
+        "Delegations/*/AssessmentName"
       ],
       "tagging": {
         "taggable": true,
         "tag_on_create": true,
-        "tag_updatable": false
+        "tag_updatable": true
       },
       "handlers": {
         "create": true,
@@ -4298,7 +4473,9 @@
         "ComputeEnvironmentName",
         "Tags",
         "Type",
-        "EksConfiguration"
+        "EksConfiguration",
+        "ComputeResources/ManagedInstancesProvider/InstanceLaunchTemplate/CapacityOptionType",
+        "ComputeResources/ManagedInstancesProvider/InstanceLaunchTemplate/FipsEnabled"
       ],
       "write_only_properties": [
         "ComputeResources/UpdateToLatestImageVersion",
@@ -5185,6 +5362,39 @@
       }
     },
     {
+      "type_name": "AWS::Bedrock::Session",
+      "primary_identifier": [
+        "SessionArn"
+      ],
+      "additional_identifiers": [
+        [
+          "SessionId"
+        ]
+      ],
+      "read_only_properties": [
+        "SessionArn",
+        "SessionId",
+        "SessionStatus",
+        "CreatedAt",
+        "LastUpdatedAt"
+      ],
+      "create_only_properties": [
+        "EncryptionKeyArn"
+      ],
+      "tagging": {
+        "taggable": true,
+        "tag_on_create": true,
+        "tag_updatable": true
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
+      }
+    },
+    {
       "type_name": "AWS::BedrockAgentCore::ApiKeyCredentialProvider",
       "primary_identifier": [
         "CredentialProviderArn"
@@ -5281,6 +5491,41 @@
       "create_only_properties": [
         "Name",
         "Description"
+      ],
+      "tagging": {
+        "taggable": true,
+        "tag_on_create": true,
+        "tag_updatable": true
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
+      }
+    },
+    {
+      "type_name": "AWS::BedrockAgentCore::CapacityProvider",
+      "primary_identifier": [
+        "Arn"
+      ],
+      "additional_identifiers": [
+        [
+          "CapacityProviderId"
+        ]
+      ],
+      "read_only_properties": [
+        "Arn",
+        "CapacityProviderId",
+        "Status",
+        "CreatedAt",
+        "LastUpdatedAt"
+      ],
+      "create_only_properties": [
+        "Name",
+        "PermissionsConfiguration",
+        "ComputeConfiguration"
       ],
       "tagging": {
         "taggable": true,
@@ -5474,22 +5719,49 @@
       }
     },
     {
-      "type_name": "AWS::BedrockAgentCore::GatewayTarget",
+      "type_name": "AWS::BedrockAgentCore::GatewayRateLimit",
       "primary_identifier": [
         "GatewayIdentifier",
-        "TargetId"
+        "RateLimitId"
+      ],
+      "read_only_properties": [
+        "CreatedAt",
+        "Status",
+        "UpdatedAt"
+      ],
+      "create_only_properties": [
+        "DimensionKeys",
+        "GatewayIdentifier",
+        "RateLimitId"
+      ],
+      "tagging": {
+        "taggable": false,
+        "tag_on_create": false,
+        "tag_updatable": false
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true,
+        "list_required_input": [
+          "GatewayIdentifier"
+        ]
+      }
+    },
+    {
+      "type_name": "AWS::BedrockAgentCore::GatewayRule",
+      "primary_identifier": [
+        "GatewayIdentifier",
+        "RuleId"
       ],
       "read_only_properties": [
         "CreatedAt",
         "GatewayArn",
-        "LastSynchronizedAt",
+        "RuleId",
         "Status",
-        "StatusReasons",
-        "TargetId",
-        "PrivateEndpointManagedResources",
-        "UpdatedAt",
-        "AuthorizationData",
-        "ProtocolType"
+        "UpdatedAt"
       ],
       "create_only_properties": [
         "GatewayIdentifier"
@@ -5504,7 +5776,50 @@
         "read": true,
         "update": true,
         "delete": true,
-        "list": true
+        "list": true,
+        "list_required_input": [
+          "GatewayIdentifier"
+        ]
+      }
+    },
+    {
+      "type_name": "AWS::BedrockAgentCore::GatewayTarget",
+      "primary_identifier": [
+        "GatewayIdentifier",
+        "TargetId"
+      ],
+      "read_only_properties": [
+        "AuthorizationData",
+        "CreatedAt",
+        "GatewayArn",
+        "LastSynchronizedAt",
+        "PrivateEndpointManagedResources",
+        "ProtocolType",
+        "Status",
+        "StatusReasons",
+        "TargetId",
+        "UpdatedAt"
+      ],
+      "create_only_properties": [
+        "GatewayIdentifier"
+      ],
+      "write_only_properties": [
+        "PrivateEndpoint/ManagedVpcResource/Tags"
+      ],
+      "tagging": {
+        "taggable": false,
+        "tag_on_create": false,
+        "tag_updatable": false
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true,
+        "list_required_input": [
+          "GatewayIdentifier"
+        ]
       }
     },
     {
@@ -8384,6 +8699,47 @@
         "Status",
         "CreatedTime",
         "LastModifiedTime"
+      ],
+      "tagging": {
+        "taggable": true,
+        "tag_on_create": true,
+        "tag_updatable": true
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
+      }
+    },
+    {
+      "type_name": "AWS::CloudHSM::Cluster",
+      "primary_identifier": [
+        "Arn"
+      ],
+      "additional_identifiers": [
+        [
+          "ClusterId"
+        ]
+      ],
+      "read_only_properties": [
+        "Arn",
+        "ClusterId",
+        "State",
+        "SecurityGroup",
+        "VpcId",
+        "SubnetMapping",
+        "BackupPolicy"
+      ],
+      "create_only_properties": [
+        "SubnetIds",
+        "NetworkType",
+        "Mode",
+        "HsmType"
+      ],
+      "write_only_properties": [
+        "SubnetIds"
       ],
       "tagging": {
         "taggable": true,
@@ -12223,6 +12579,39 @@
       }
     },
     {
+      "type_name": "AWS::DataExchange::DataSet",
+      "primary_identifier": [
+        "Arn"
+      ],
+      "additional_identifiers": [
+        [
+          "Id"
+        ]
+      ],
+      "read_only_properties": [
+        "Arn",
+        "Id",
+        "CreatedAt",
+        "UpdatedAt",
+        "Origin"
+      ],
+      "create_only_properties": [
+        "AssetType"
+      ],
+      "tagging": {
+        "taggable": true,
+        "tag_on_create": true,
+        "tag_updatable": true
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
+      }
+    },
+    {
       "type_name": "AWS::DataPipeline::Pipeline",
       "primary_identifier": [
         "PipelineId"
@@ -13806,6 +14195,43 @@
       }
     },
     {
+      "type_name": "AWS::DevOpsAgent::Asset",
+      "primary_identifier": [
+        "AgentSpaceId",
+        "AssetId"
+      ],
+      "read_only_properties": [
+        "AssetId",
+        "Version",
+        "CreatedAt",
+        "UpdatedAt",
+        "Arn"
+      ],
+      "create_only_properties": [
+        "AgentSpaceId",
+        "AssetType"
+      ],
+      "write_only_properties": [
+        "Files",
+        "Zip"
+      ],
+      "tagging": {
+        "taggable": false,
+        "tag_on_create": false,
+        "tag_updatable": false
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true,
+        "list_required_input": [
+          "AgentSpaceId"
+        ]
+      }
+    },
+    {
       "type_name": "AWS::DevOpsAgent::Association",
       "primary_identifier": [
         "AgentSpaceId",
@@ -13921,6 +14347,40 @@
         "update": true,
         "delete": true,
         "list": true
+      }
+    },
+    {
+      "type_name": "AWS::DevOpsAgent::Trigger",
+      "primary_identifier": [
+        "AgentSpaceId",
+        "TriggerId"
+      ],
+      "read_only_properties": [
+        "TriggerId",
+        "CreatedAt",
+        "UpdatedAt",
+        "Arn"
+      ],
+      "create_only_properties": [
+        "AgentSpaceId",
+        "Type",
+        "Condition",
+        "Action"
+      ],
+      "tagging": {
+        "taggable": false,
+        "tag_on_create": false,
+        "tag_updatable": false
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true,
+        "list_required_input": [
+          "AgentSpaceId"
+        ]
       }
     },
     {
@@ -19680,6 +20140,42 @@
       }
     },
     {
+      "type_name": "AWS::ElastiCache::ServerlessCacheSnapshot",
+      "primary_identifier": [
+        "ARN"
+      ],
+      "additional_identifiers": [
+        [
+          "ServerlessCacheSnapshotName"
+        ]
+      ],
+      "read_only_properties": [
+        "ARN",
+        "SnapshotType",
+        "Status",
+        "CreateTime",
+        "BytesUsedForCache",
+        "ServerlessCacheConfiguration"
+      ],
+      "create_only_properties": [
+        "ServerlessCacheSnapshotName",
+        "ServerlessCacheName",
+        "KmsKeyId"
+      ],
+      "tagging": {
+        "taggable": true,
+        "tag_on_create": true,
+        "tag_updatable": true
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
+      }
+    },
+    {
       "type_name": "AWS::ElastiCache::SubnetGroup",
       "primary_identifier": [
         "CacheSubnetGroupName"
@@ -21829,10 +22325,16 @@
     {
       "type_name": "AWS::Glue::Classifier",
       "primary_identifier": [
-        "Id"
+        "Name"
       ],
       "read_only_properties": [
-        "Id"
+        "Name"
+      ],
+      "create_only_properties": [
+        "XMLClassifier/Name",
+        "CsvClassifier/Name",
+        "JsonClassifier/Name",
+        "GrokClassifier/Name"
       ],
       "tagging": {
         "taggable": false,
@@ -21840,11 +22342,11 @@
         "tag_updatable": false
       },
       "handlers": {
-        "create": false,
-        "read": false,
-        "update": false,
-        "delete": false,
-        "list": false
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
       }
     },
     {
@@ -21895,10 +22397,13 @@
     {
       "type_name": "AWS::Glue::CustomEntityType",
       "primary_identifier": [
-        "Id"
+        "Name"
       ],
-      "read_only_properties": [
-        "Id"
+      "create_only_properties": [
+        "Name"
+      ],
+      "write_only_properties": [
+        "Tags"
       ],
       "tagging": {
         "taggable": false,
@@ -21906,11 +22411,11 @@
         "tag_updatable": false
       },
       "handlers": {
-        "create": false,
-        "read": false,
-        "update": false,
-        "delete": false,
-        "list": false
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
       }
     },
     {
@@ -21937,22 +22442,25 @@
     {
       "type_name": "AWS::Glue::DataQualityRuleset",
       "primary_identifier": [
-        "Id"
+        "Name"
       ],
-      "read_only_properties": [
-        "Id"
+      "create_only_properties": [
+        "Name"
+      ],
+      "write_only_properties": [
+        "ClientToken"
       ],
       "tagging": {
-        "taggable": false,
-        "tag_on_create": false,
-        "tag_updatable": false
+        "taggable": true,
+        "tag_on_create": true,
+        "tag_updatable": true
       },
       "handlers": {
-        "create": false,
-        "read": false,
-        "update": false,
-        "delete": false,
-        "list": false
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
       }
     },
     {
@@ -22272,10 +22780,7 @@
     {
       "type_name": "AWS::Glue::SecurityConfiguration",
       "primary_identifier": [
-        "Id"
-      ],
-      "read_only_properties": [
-        "Id"
+        "Name"
       ],
       "create_only_properties": [
         "Name"
@@ -22286,11 +22791,11 @@
         "tag_updatable": false
       },
       "handlers": {
-        "create": false,
-        "read": false,
+        "create": true,
+        "read": true,
         "update": false,
-        "delete": false,
-        "list": false
+        "delete": true,
+        "list": true
       }
     },
     {
@@ -22322,10 +22827,10 @@
     {
       "type_name": "AWS::Glue::TableOptimizer",
       "primary_identifier": [
-        "Id"
-      ],
-      "read_only_properties": [
-        "Id"
+        "TableName",
+        "DatabaseName",
+        "Type",
+        "CatalogId"
       ],
       "create_only_properties": [
         "TableName",
@@ -22339,11 +22844,17 @@
         "tag_updatable": false
       },
       "handlers": {
-        "create": false,
-        "read": false,
-        "update": false,
-        "delete": false,
-        "list": false
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true,
+        "list_required_input": [
+          "CatalogId",
+          "DatabaseName",
+          "TableName",
+          "Type"
+        ]
       }
     },
     {
@@ -22434,25 +22945,22 @@
     {
       "type_name": "AWS::Glue::Workflow",
       "primary_identifier": [
-        "Id"
-      ],
-      "read_only_properties": [
-        "Id"
+        "Name"
       ],
       "create_only_properties": [
         "Name"
       ],
       "tagging": {
-        "taggable": false,
-        "tag_on_create": false,
-        "tag_updatable": false
+        "taggable": true,
+        "tag_on_create": true,
+        "tag_updatable": true
       },
       "handlers": {
-        "create": false,
-        "read": false,
-        "update": false,
-        "delete": false,
-        "list": false
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
       }
     },
     {
@@ -24665,8 +25173,7 @@
         "LastUpdatedAt"
       ],
       "create_only_properties": [
-        "CreateIntegrationDetails",
-        "Tags"
+        "CreateIntegrationDetails"
       ],
       "write_only_properties": [
         "CreateIntegrationDetails",
@@ -24696,8 +25203,44 @@
       "create_only_properties": [
         "Name",
         "ScopeSettings",
-        "Level",
-        "Tags"
+        "Level"
+      ],
+      "tagging": {
+        "taggable": true,
+        "tag_on_create": true,
+        "tag_updatable": true
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
+      }
+    },
+    {
+      "type_name": "AWS::InspectorV2::Connector",
+      "primary_identifier": [
+        "ConnectorArn"
+      ],
+      "read_only_properties": [
+        "ConnectorArn",
+        "EnablementStatus",
+        "EnablementStatusReason",
+        "Health",
+        "CreatedAt",
+        "LastUpdatedAt",
+        "ProviderConfiguration/Azure/ScopeConfiguration/VmScanning/State",
+        "ProviderConfiguration/Azure/ScopeConfiguration/VmScanning/StateReason",
+        "ProviderConfiguration/Azure/ScopeConfiguration/ContainerImageScanning/State",
+        "ProviderConfiguration/Azure/ScopeConfiguration/ContainerImageScanning/StateReason",
+        "ProviderConfiguration/Azure/ScopeConfiguration/ServerlessScanning/State",
+        "ProviderConfiguration/Azure/ScopeConfiguration/ServerlessScanning/StateReason"
+      ],
+      "create_only_properties": [
+        "Provider",
+        "Name",
+        "ProviderConfiguration/Azure/AwsConfigConnectorArn"
       ],
       "tagging": {
         "taggable": true,
@@ -25143,6 +25686,48 @@
       ],
       "create_only_properties": [
         "MetricName"
+      ],
+      "tagging": {
+        "taggable": true,
+        "tag_on_create": true,
+        "tag_updatable": true
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
+      }
+    },
+    {
+      "type_name": "AWS::IoT::Job",
+      "primary_identifier": [
+        "Arn"
+      ],
+      "additional_identifiers": [
+        [
+          "JobId"
+        ]
+      ],
+      "read_only_properties": [
+        "Arn",
+        "CreatedAt"
+      ],
+      "create_only_properties": [
+        "JobId",
+        "Targets",
+        "Document",
+        "DocumentSource",
+        "TargetSelection",
+        "JobTemplateArn",
+        "DocumentParameters",
+        "SchedulingConfig",
+        "DestinationPackageVersions",
+        "JobExecutionsRetryConfig"
+      ],
+      "write_only_properties": [
+        "Document"
       ],
       "tagging": {
         "taggable": true,
@@ -31316,6 +31901,30 @@
       }
     },
     {
+      "type_name": "AWS::MediaTailor::Function",
+      "primary_identifier": [
+        "FunctionId"
+      ],
+      "read_only_properties": [
+        "Arn"
+      ],
+      "create_only_properties": [
+        "FunctionId"
+      ],
+      "tagging": {
+        "taggable": true,
+        "tag_on_create": true,
+        "tag_updatable": true
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
+      }
+    },
+    {
       "type_name": "AWS::MediaTailor::LiveSource",
       "primary_identifier": [
         "LiveSourceName",
@@ -33739,6 +34348,41 @@
       }
     },
     {
+      "type_name": "AWS::OpenSearch::DataSource",
+      "primary_identifier": [
+        "Arn"
+      ],
+      "additional_identifiers": [
+        [
+          "DomainName",
+          "Name"
+        ]
+      ],
+      "read_only_properties": [
+        "Arn",
+        "Status"
+      ],
+      "create_only_properties": [
+        "DomainName",
+        "Name"
+      ],
+      "tagging": {
+        "taggable": false,
+        "tag_on_create": false,
+        "tag_updatable": false
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true,
+        "list_required_input": [
+          "DomainName"
+        ]
+      }
+    },
+    {
       "type_name": "AWS::OpenSearchServerless::AccessPolicy",
       "primary_identifier": [
         "Type",
@@ -34760,6 +35404,32 @@
         "create": true,
         "read": true,
         "update": false,
+        "delete": true,
+        "list": true
+      }
+    },
+    {
+      "type_name": "AWS::Personalize::EventTracker",
+      "primary_identifier": [
+        "EventTrackerArn"
+      ],
+      "read_only_properties": [
+        "EventTrackerArn",
+        "TrackingId"
+      ],
+      "create_only_properties": [
+        "Name",
+        "DatasetGroupArn"
+      ],
+      "tagging": {
+        "taggable": true,
+        "tag_on_create": true,
+        "tag_updatable": true
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
         "delete": true,
         "list": true
       }
@@ -35971,6 +36641,32 @@
       }
     },
     {
+      "type_name": "AWS::QuickSight::ApprovalPolicy",
+      "primary_identifier": [
+        "PolicyId"
+      ],
+      "read_only_properties": [
+        "CreatedAt",
+        "PolicyArn",
+        "UpdatedAt"
+      ],
+      "create_only_properties": [
+        "PolicyId"
+      ],
+      "tagging": {
+        "taggable": false,
+        "tag_on_create": false,
+        "tag_updatable": false
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
+      }
+    },
+    {
       "type_name": "AWS::QuickSight::CustomPermissions",
       "primary_identifier": [
         "AwsAccountId",
@@ -35982,6 +36678,35 @@
       "create_only_properties": [
         "AwsAccountId",
         "CustomPermissionsName"
+      ],
+      "tagging": {
+        "taggable": true,
+        "tag_on_create": true,
+        "tag_updatable": true
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
+      }
+    },
+    {
+      "type_name": "AWS::QuickSight::DLPSetting",
+      "primary_identifier": [
+        "AwsAccountId",
+        "DlpSettingId"
+      ],
+      "read_only_properties": [
+        "Arn",
+        "CreatedAt",
+        "Status",
+        "UpdatedAt"
+      ],
+      "create_only_properties": [
+        "AwsAccountId",
+        "DlpSettingId"
       ],
       "tagging": {
         "taggable": true,
@@ -36760,6 +37485,9 @@
       "type_name": "AWS::RDS::DBParameterGroup",
       "primary_identifier": [
         "DBParameterGroupName"
+      ],
+      "read_only_properties": [
+        "DBParameterGroupArn"
       ],
       "create_only_properties": [
         "DBParameterGroupName",
@@ -37999,6 +38727,37 @@
         "update": true,
         "delete": true,
         "list": true
+      }
+    },
+    {
+      "type_name": "AWS::Rekognition::Dataset",
+      "primary_identifier": [
+        "DatasetArn"
+      ],
+      "read_only_properties": [
+        "DatasetArn"
+      ],
+      "create_only_properties": [
+        "DatasetType",
+        "ProjectArn"
+      ],
+      "write_only_properties": [
+        "ProjectArn"
+      ],
+      "tagging": {
+        "taggable": true,
+        "tag_on_create": true,
+        "tag_updatable": true
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true,
+        "list_required_input": [
+          "ProjectArn"
+        ]
       }
     },
     {
@@ -41586,6 +42345,40 @@
       }
     },
     {
+      "type_name": "AWS::SSM::CloudConnector",
+      "primary_identifier": [
+        "CloudConnectorArn"
+      ],
+      "additional_identifiers": [
+        [
+          "CloudConnectorId"
+        ]
+      ],
+      "read_only_properties": [
+        "CloudConnectorArn",
+        "CloudConnectorId",
+        "CreatedAt",
+        "UpdatedAt"
+      ],
+      "create_only_properties": [
+        "RoleArn",
+        "ConfigConnectorArn",
+        "Configuration/AzureConfiguration/TenantId"
+      ],
+      "tagging": {
+        "taggable": true,
+        "tag_on_create": true,
+        "tag_updatable": true
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
+      }
+    },
+    {
       "type_name": "AWS::SSM::Document",
       "primary_identifier": [
         "Name"
@@ -42387,6 +43180,34 @@
       }
     },
     {
+      "type_name": "AWS::SageMaker::Artifact",
+      "primary_identifier": [
+        "Arn"
+      ],
+      "read_only_properties": [
+        "Arn",
+        "CreationTime",
+        "LastModifiedTime"
+      ],
+      "create_only_properties": [
+        "ArtifactType",
+        "Source",
+        "MetadataProperties"
+      ],
+      "tagging": {
+        "taggable": true,
+        "tag_on_create": true,
+        "tag_updatable": true
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
+      }
+    },
+    {
       "type_name": "AWS::SageMaker::Cluster",
       "primary_identifier": [
         "ClusterArn"
@@ -42690,34 +43511,30 @@
     {
       "type_name": "AWS::SageMaker::ExperimentTrialComponent",
       "primary_identifier": [
-        "Arn"
-      ],
-      "additional_identifiers": [
-        [
-          "TrialComponentName"
-        ]
+        "Id"
       ],
       "read_only_properties": [
-        "Arn",
+        "LineageGroupArn",
         "CreationTime",
+        "Id",
         "LastModifiedTime",
-        "LineageGroupArn"
+        "Arn"
       ],
       "create_only_properties": [
-        "TrialComponentName",
-        "MetadataProperties"
+        "MetadataProperties",
+        "TrialComponentName"
       ],
       "tagging": {
-        "taggable": true,
-        "tag_on_create": true,
-        "tag_updatable": true
+        "taggable": false,
+        "tag_on_create": false,
+        "tag_updatable": false
       },
       "handlers": {
-        "create": true,
-        "read": true,
-        "update": true,
-        "delete": true,
-        "list": true
+        "create": false,
+        "read": false,
+        "update": false,
+        "delete": false,
+        "list": false
       }
     },
     {
@@ -42773,6 +43590,40 @@
       "create_only_properties": [
         "HubName",
         "S3StorageConfig"
+      ],
+      "tagging": {
+        "taggable": true,
+        "tag_on_create": true,
+        "tag_updatable": true
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
+      }
+    },
+    {
+      "type_name": "AWS::SageMaker::HumanTaskUi",
+      "primary_identifier": [
+        "HumanTaskUiArn"
+      ],
+      "additional_identifiers": [
+        [
+          "HumanTaskUiName"
+        ]
+      ],
+      "read_only_properties": [
+        "HumanTaskUiArn",
+        "CreationTime"
+      ],
+      "create_only_properties": [
+        "HumanTaskUiName",
+        "UiTemplate"
+      ],
+      "write_only_properties": [
+        "UiTemplate"
       ],
       "tagging": {
         "taggable": true,
@@ -43565,6 +44416,40 @@
       }
     },
     {
+      "type_name": "AWS::SageMaker::Workforce",
+      "primary_identifier": [
+        "WorkforceArn"
+      ],
+      "additional_identifiers": [
+        [
+          "WorkforceName"
+        ]
+      ],
+      "read_only_properties": [
+        "WorkforceArn",
+        "SubDomain"
+      ],
+      "create_only_properties": [
+        "WorkforceName",
+        "CognitoConfig"
+      ],
+      "write_only_properties": [
+        "OidcConfig/ClientSecret"
+      ],
+      "tagging": {
+        "taggable": true,
+        "tag_on_create": true,
+        "tag_updatable": true
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
+      }
+    },
+    {
       "type_name": "AWS::SageMaker::Workteam",
       "primary_identifier": [
         "Id"
@@ -43815,6 +44700,47 @@
       }
     },
     {
+      "type_name": "AWS::SecurityAgent::Artifact",
+      "primary_identifier": [
+        "Arn"
+      ],
+      "additional_identifiers": [
+        [
+          "AgentSpaceId",
+          "ArtifactId"
+        ]
+      ],
+      "read_only_properties": [
+        "ArtifactId",
+        "Arn",
+        "UpdatedAt"
+      ],
+      "create_only_properties": [
+        "AgentSpaceId",
+        "ArtifactContent",
+        "ArtifactType",
+        "FileName"
+      ],
+      "write_only_properties": [
+        "ArtifactContent"
+      ],
+      "tagging": {
+        "taggable": false,
+        "tag_on_create": false,
+        "tag_updatable": false
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": false,
+        "delete": true,
+        "list": true,
+        "list_required_input": [
+          "AgentSpaceId"
+        ]
+      }
+    },
+    {
       "type_name": "AWS::SecurityAgent::Pentest",
       "primary_identifier": [
         "PentestId",
@@ -43823,10 +44749,14 @@
       "read_only_properties": [
         "PentestId",
         "CreatedAt",
-        "UpdatedAt"
+        "UpdatedAt",
+        "Assets/Actors/*/MfaForwardingAddress"
       ],
       "create_only_properties": [
         "AgentSpaceId"
+      ],
+      "write_only_properties": [
+        "Assets/Actors/*/EnableEmailMfa"
       ],
       "tagging": {
         "taggable": false,
@@ -44403,6 +45333,49 @@
         "NotificationConfiguration/HttpsNotificationConfiguration/Endpoint",
         "NotificationConfiguration/HttpsNotificationConfiguration/HttpMethod",
         "NotificationConfiguration/HttpsNotificationConfiguration/TargetRoleArn"
+      ],
+      "tagging": {
+        "taggable": false,
+        "tag_on_create": false,
+        "tag_updatable": false
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
+      }
+    },
+    {
+      "type_name": "AWS::ServerlessRepo::Application",
+      "primary_identifier": [
+        "ApplicationId"
+      ],
+      "additional_identifiers": [
+        [
+          "Name"
+        ]
+      ],
+      "read_only_properties": [
+        "ApplicationId",
+        "CreationTime",
+        "IsVerifiedAuthor"
+      ],
+      "create_only_properties": [
+        "Name",
+        "SpdxLicenseId",
+        "LicenseBody",
+        "SemanticVersion",
+        "SourceCodeUrl",
+        "TemplateBody"
+      ],
+      "write_only_properties": [
+        "LicenseBody",
+        "ReadmeBody",
+        "TemplateBody",
+        "SemanticVersion",
+        "SourceCodeUrl"
       ],
       "tagging": {
         "taggable": false,
@@ -45085,16 +46058,16 @@
         "Name"
       ],
       "tagging": {
-        "taggable": false,
-        "tag_on_create": false,
-        "tag_updatable": false
+        "taggable": true,
+        "tag_on_create": true,
+        "tag_updatable": true
       },
       "handlers": {
-        "create": false,
-        "read": false,
-        "update": false,
-        "delete": false,
-        "list": false
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
       }
     },
     {
@@ -45673,7 +46646,8 @@
         "Endpoint",
         "ReaderEndpoint",
         "InfluxAuthParametersSecretArn",
-        "EngineType"
+        "EngineType",
+        "NextMaintenanceTime"
       ],
       "create_only_properties": [
         "Name",
@@ -45944,6 +46918,47 @@
         "update": true,
         "delete": true,
         "list": true
+      }
+    },
+    {
+      "type_name": "AWS::Transfer::HostKey",
+      "primary_identifier": [
+        "Arn"
+      ],
+      "additional_identifiers": [
+        [
+          "ServerId",
+          "HostKeyId"
+        ]
+      ],
+      "read_only_properties": [
+        "Arn",
+        "HostKeyId",
+        "HostKeyFingerprint",
+        "Type",
+        "DateImported"
+      ],
+      "create_only_properties": [
+        "ServerId",
+        "HostKeyBody"
+      ],
+      "write_only_properties": [
+        "HostKeyBody"
+      ],
+      "tagging": {
+        "taggable": true,
+        "tag_on_create": true,
+        "tag_updatable": true
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true,
+        "list_required_input": [
+          "ServerId"
+        ]
       }
     },
     {
@@ -47506,6 +48521,39 @@
         "taggable": true,
         "tag_on_create": true,
         "tag_updatable": true
+      },
+      "handlers": {
+        "create": true,
+        "read": true,
+        "update": true,
+        "delete": true,
+        "list": true
+      }
+    },
+    {
+      "type_name": "AWS::Wickr::Network",
+      "primary_identifier": [
+        "NetworkArn"
+      ],
+      "additional_identifiers": [
+        [
+          "NetworkId"
+        ]
+      ],
+      "read_only_properties": [
+        "NetworkArn",
+        "NetworkId",
+        "AwsAccountId",
+        "Standing",
+        "MigrationState"
+      ],
+      "create_only_properties": [
+        "AccessLevel"
+      ],
+      "tagging": {
+        "taggable": false,
+        "tag_on_create": false,
+        "tag_updatable": false
       },
       "handlers": {
         "create": true,

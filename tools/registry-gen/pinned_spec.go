@@ -18,9 +18,9 @@ import (
 // paste the printed digest/resources/accepted block here - in its own
 // commit, together with a regenerated pinned-types.json.
 var PinnedSpec = SpecPin{
-	Digest:    "sha256:f05366bcba3160e5992f4ae312286e6f06a87dcbef425b29b39259beadd42ce0",
-	Resources: 1653,
-	Accepted:  "2026-08-12",
+	Digest:    "sha256:2ab2db2351402f588b86795eb31d73290ca9910e11f13fdac9cb46c00eb8ece0",
+	Resources: 1683,
+	Accepted:  "2026-08-13",
 }
 
 //go:embed pinned-types.json

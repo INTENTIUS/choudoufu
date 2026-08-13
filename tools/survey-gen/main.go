@@ -97,7 +97,7 @@ const (
 	// the same release the estate fixture pins
 	// (live/e2e/estate/versions.tf).
 	providerSource  = "hashicorp/aws"
-	providerVersion = "6.58.0"
+	providerVersion = "6.59.0"
 
 	// defaultInitBin downloads the provider. Stock terraform, the same
 	// binary the gated test tier drives; -init-bin swaps it for choudoufu

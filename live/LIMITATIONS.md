@@ -640,6 +640,7 @@ empty until a sweep adds its first entry.
 | 2 | searched the registry for an AWS::CloudHSM service: none exists anywhere in live/registry.json |
 | 1 | AWS::EC2::Snapshot itself has no CFN Registry resource type at all (registry search for 'snapshot' under EC2 finds only SnapshotBlockPublicAccess), so the CreateVolumePermission attribute TF exposes as a separate resource cannot be modeled either |
 | 1 | AWS::Lightsail::Disk exposes AttachedTo/AttachmentState/IsAttached only as Fn::GetAtt read-only attributes, not as settable Properties - the attach action itself is not something a CFN template can declare |
+| 1 | AWS::NetworkFirewall::* carries no ContainerAssociation type (confirmed by search of every AWS::NetworkFirewall::* type in live/registry.json: Firewall, FirewallPolicy, LoggingConfiguration, RuleGroup, TLSInspectionConfiguration, VpcEndpointAssociation - none models linking an ECS/EKS cluster's containers to a Network Firewall for dynamic IP-set resolution, which is what this TF resource's own docs describe) |
 | 1 | AWS::SWF has zero CFN Registry resource types at all (registry search for 'SWF' returns no matches) |
 | 1 | AWS::StorageGateway's current CFN Registry footprint (live/registry.json) is a single type, AWS::StorageGateway::TapePool; no Cache/Gateway/Volume/FileShare type is registered even though these are real, actively used Storage Gateway resources |
 | 1 | AWS::WorkMail has zero CFN Registry resource types at all (registry search for 'WorkMail' returns no matches) |
@@ -902,7 +903,7 @@ empty until a sweep adds its first entry.
 | 1 | uploads/manages an object's content in an S3 bucket - a data-plane operation (PutObject/DeleteObject), not account/control-plane infrastructure the CloudFormation Registry models. Deprecated by the provider in favor of aws_s3_object (identical functionality); see that row for the canonical evidence. |
 | 1 | uploads/manages an object's content in an S3 bucket - a real, live piece of data-plane activity, but not a control-plane resource the CloudFormation Registry models (there is no AWS::S3::Object type; S3's modeled types are AccessGrant, AccessGrantsInstance, AccessGrantsLocation, AccessPoint, Bucket, BucketPolicy, MultiRegionAccessPoint, MultiRegionAccessPointPolicy, StorageLens, StorageLensGroup only). |
 
-**Total.** 302 Terraform AWS resource types that are real infrastructure with no CloudFormation Registry model at all. Each row's own note is in `live/mapping.json`.
+**Total.** 303 Terraform AWS resource types that are real infrastructure with no CloudFormation Registry model at all. Each row's own note is in `live/mapping.json`.
 <!-- survey-gen:end residue-cfn-unmodeled -->
 
 #### Unclassified Terraform types
@@ -992,15 +993,10 @@ excluding types already counted under "Deprecated or EOL services" above.
 | `aws_fsx_openzfs_volume` | `AWS::FSx::Volume` |
 | `aws_fsx_windows_file_system` | `AWS::FSx::FileSystem` |
 | `aws_glue_catalog_table` | `AWS::Glue::Table` |
-| `aws_glue_catalog_table_optimizer` | `AWS::Glue::TableOptimizer` |
-| `aws_glue_classifier` | `AWS::Glue::Classifier` |
 | `aws_glue_connection` | `AWS::Glue::Connection` |
-| `aws_glue_data_quality_ruleset` | `AWS::Glue::DataQualityRuleset` |
 | `aws_glue_dev_endpoint` | `AWS::Glue::DevEndpoint` |
 | `aws_glue_ml_transform` | `AWS::Glue::MLTransform` |
 | `aws_glue_partition` | `AWS::Glue::Partition` |
-| `aws_glue_security_configuration` | `AWS::Glue::SecurityConfiguration` |
-| `aws_glue_workflow` | `AWS::Glue::Workflow` |
 | `aws_iam_access_key` | `AWS::IAM::AccessKey` |
 | `aws_iam_group_membership` | `AWS::IAM::UserToGroupAddition` |
 | `aws_iot_policy_attachment` | `AWS::IoT::PolicyPrincipalAttachment` |
@@ -1027,12 +1023,11 @@ excluding types already counted under "Deprecated or EOL services" above.
 | `aws_service_discovery_http_namespace` | `AWS::ServiceDiscovery::HttpNamespace` |
 | `aws_service_discovery_instance` | `AWS::ServiceDiscovery::Instance` |
 | `aws_service_discovery_private_dns_namespace` | `AWS::ServiceDiscovery::PrivateDnsNamespace` |
-| `aws_service_discovery_public_dns_namespace` | `AWS::ServiceDiscovery::PublicDnsNamespace` |
 | `aws_ses_receipt_filter` | `AWS::SES::ReceiptFilter` |
 | `aws_ses_receipt_rule` | `AWS::SES::ReceiptRule` |
 | `aws_ses_receipt_rule_set` | `AWS::SES::ReceiptRuleSet` |
 
-**Total.** 82 types, covered only where the provider's own identity schema reaches (the union `live/survey-full.json` measures). A successor CFN type sometimes exists with working handlers - `AWS::Elasticsearch::Domain` above has no handlers, but its successor `AWS::OpenSearchService::Domain` does; `live/mapping.json` does not yet link `aws_opensearch_domain` to it.
+**Total.** 76 types, covered only where the provider's own identity schema reaches (the union `live/survey-full.json` measures). A successor CFN type sometimes exists with working handlers - `AWS::Elasticsearch::Domain` above has no handlers, but its successor `AWS::OpenSearchService::Domain` does; `live/mapping.json` does not yet link `aws_opensearch_domain` to it.
 <!-- survey-gen:end residue-laggard -->
 
 #### Emulator-blocked
