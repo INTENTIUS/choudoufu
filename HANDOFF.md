@@ -1,6 +1,6 @@
 # Handoff
 
-Written 2026-08-13. Read this before doing anything.
+Rewritten 2026-08-13. Read this before doing anything.
 
 ## The goal
 
@@ -9,130 +9,170 @@ fact must be derived by a generator from provider schema, the CloudFormation
 Registry, or provider docs. Where a generator is wrong, the correction belongs
 in a machine-readable ledger, never as a hand-edited entry in a table.
 
+A generator's output contains its own wiring. A hand-written line that
+assembles generated pieces into a table is the same paste cycle in a smaller
+font, and it fails this charter exactly as a pasted block does.
+
 Charter issue: #93. Sites: #94-#100.
 
-## Why this needs saying
+## The test
 
-`row-gen` computes admission entries and prints them as
-`--- paste into internal/live/lint/admission.go ---` blocks that a human copies
-in by hand. That has happened roughly 846 times. The generators exist, they
-work, and their output is being applied with a clipboard.
+**If the work makes hand-maintenance faster, safer, more parallelisable, or
+better documented, stop. It is the wrong work.** The only acceptable direction
+is deleting the hand-maintenance.
 
-## The failure mode, stated plainly
+This test exists because the wrong work is indistinguishable from the right
+work by ordinary engineering instinct. An agent-day once went into splitting
+the tables into 113 per-cohort files so batches could hand-append without
+conflicts. The 47% conflict rate it fixed was a real, measured number. All 113
+files are now deleted. That contention existed only because the files were
+hand-maintained.
 
-The previous session drifted off this goal four separate times, and the session
-before it did the same. The drift is not random. It always takes the same shape:
-the manual path has real, measurable problems, and fixing those problems feels
-like progress.
+## Why this keeps failing, and how to slice it so it does not
 
-What that looked like in practice:
+The drift is not a discipline problem. It is what the obvious decomposition
+rewards. The previous session drifted four times; the one before it did the
+same; and the session that wrote this file reproduced it within twenty minutes
+of reading the warning, by starting to write a hand-maintained
+`var DefaultTable = mergeTables(...)`.
 
-- The best agent of the day was spent splitting the four hand-written tables
-  into 113 per-cohort files, so that concurrent batches could hand-append
-  without merge conflicts. That work is now scheduled for deletion in #96.
-- A runbook was written (`contributing/LIVE-TABLES.md`) documenting where a
-  human should paste new entries. It has been deleted.
-- Hours went into diagnosing a 47% merge-conflict rate across seven files. That
-  contention exists only because those files are hand-maintained. Generated
-  files do not conflict; they are regenerated.
-- #96 was originally filed as blocked behind a 215-item hand-annotation
-  campaign. It was not blocked. That error alone would have cost weeks.
+**846 rows look like 846 parallel tasks. They are not.** The work is about six
+classifier rules plus two extraction stages. Hand an agent a slice of
+*resources* and the fastest way for it to finish is to hand-write the rows, and
+it is right that this is fastest: fixing the extractor for one resource costs
+ten times more and only pays off across the other 845 that agent cannot see.
+Every resource-shaped slice points at hand-wiring.
 
-**The test:** if the work makes hand-maintenance faster, safer, more
-parallelizable, or better documented, stop. It is the wrong work. The only
-acceptable direction is deleting the hand-maintenance.
+**The diagnosis lives above the slice.** The #94 root cause below needed four
+facts held at once: an artifact header date, `omitempty` on three struct tags,
+the contents of the doc cache, and a section parser's boundary rule. Nobody
+working a 13-row slice holds those. From inside such a slice, "the evidence is
+prose, this needs judgment" is a *reasonable* conclusion. Locally true,
+globally false. That is why "can't be generated" keeps being reported, and why
+accepting it once cost an entire session.
 
-**Corollary, learned the hard way:** when a subagent reports that something
-cannot be generated (`the comments carry the evidence`, `these are closures,
-not data`), that is the question to push on, not an answer to accept.
-Accepting it once is how an entire session went into optimizing hand-maintenance.
+**The measuring instrument is broken.** See `isScrapeGap` below. When
+measurement lies, agent self-reports cannot be checked and progress gets
+accepted on narrative.
+
+So:
+
+- Fan out on **rules and extraction stages**, roughly six wide. Never on
+  resources.
+- The orchestrator holds the measurement and does the cross-layer diagnosis.
+  That part cannot be sliced.
+- Require **computed set differences** (matched-before vs matched-after over
+  the full compared set), never a quoted summary line. A fix and a regression
+  cancel out in a total.
+- One regression outweighs many fixes.
+
+Subagents get all of this as a system prompt via `.claude/agents/generator-work.md`.
+Use that agent type for anything touching generators or per-resource facts, so
+the briefing cannot be forgotten.
 
 ## Where things stand
 
-`main` is at `2fd01e6dd`. CI is green. No branches in flight, no agents running.
+`main` is at `b67189ce5`. Build green, tests green, `gofmt` clean. No agents
+running. CI is deprioritised — keep work local for now.
 
-The convergence artifact `live/rowgen-convergence.json` measures the gap between
-what the generator produces and what humans committed:
+**The tables are generated.** `DefaultTable` (846 rows) and `admittedTypesV0`
+(836) are each declared in full by a file `tools/row-gen -emit` owns end to
+end. No fragment, no `init()`, no core literal, no assembly line.
+`table.go`/`admission.go` hold only resolution behaviour. `-emit` is a fixed
+point: running it twice with no source change is a byte-for-byte no-op.
+
+Convergence, measured at `b67189ce5`:
 
 ```
 admitted_total       846
 compared             825
-adopted_unchanged    610   (73.94%)   generator already agrees
-genuine_mismatches   215
-  scrape_gap         117              importdocs-gen extraction gaps (#94)
-  real disagreement   98              row-gen classifier rules (#95)
+adopted_unchanged    631   (76.48%)   generator reproduces these
+genuine_mismatches   194
 annotated              1              the ruling ledger is essentially unused
 ```
 
-`tools/row-gen -emit` exists as of `2fd01e6dd`. It writes four files carrying
-`Code generated ... DO NOT EDIT`: a 610-entry generated partition and a 236/226
-entry override ledger for `DefaultTable` and `admittedTypesV0`. Byte-identity is
-proven and guarded by `TestEmitFilesMatchCommitted`.
+Do not quote a scrape-gap/classifier split from this artifact yet. See below.
 
-**The generated files are not load-bearing yet.** The 86 per-cohort fragments
-still build the tables through `registerCohortTable`/`registerCohortAdmitted`,
-which panic on duplicate keys, so wiring the generated files in today would
-panic on all 846 types.
-
-Also note: `-emit` currently copies every field verbatim from `DefaultTable`
-rather than re-deriving it, because `Reason` strings are human prose by design
-(issue #44's non-goal). So the commit proves 610 entries *could* be derived and
-builds the harness to prove it. It has not yet made them derived.
-
-## The single most important number
-
-**The irreducible tail is 1.**
-
-Of the 215 mismatches, exactly one type has an identity shape that is genuinely
-ambiguous by its own nature: `aws_route`, which the code's own comments already
-flag as a deliberate trap. Plausibly 3-5 once unverified rows are checked.
-
-Everything else is mechanical debt in two places. This project can be fully
-generated. It is not a 215-item judgment campaign.
+**What is still carried rather than derived.** `-emit` copies every field
+verbatim from the live table. 194 rows are values no fresh classifier run
+reproduces, so they are still human judgments the generator merely carries.
+The wiring is gone; 23% of the data is not yet derived. It would be easy to
+read the #96 commit as "the table is generated now" and stop. It is generated
+in *form*.
 
 ## Next actions, in order
 
-1. **Fix `isScrapeGap()` first.** `tools/row-gen/convergence.go:219-269` never
-   checks `bucketFoldChild` and checks only GUESSED-notes for
-   `bucketNeedsHandSeparator`. The #94/#95 split is therefore mislabeled: 37 of
-   the 38 `needs-hand-separator` rows attributed to classifier work are actually
-   extraction gaps. Do not quote either count again until this is fixed.
+1. **Fix `isScrapeGap`** (`tools/row-gen/convergence.go`). Its final gate reads
+   `if p.Bucket != bucketEvidenceOnly && p.Bucket != bucketNeedsHandSeparator
+   { return false }`, so a `bucketFoldChild` row can never be labelled a scrape
+   gap whatever its notes say. The #94/#95 split is therefore mislabelled at
+   the source. Note the gate has two parts — bucket AND notes — so adding the
+   bucket may be a no-op if fold rows carry no `GUESSED` /
+   `argument-composed ID` note; determine that empirically, in-process.
+   `proposed_notes` is serialised for 0 of 825 rows, so the artifact cannot
+   answer it. Partial work: branch `worktree-agent-a7297e2ab0fc69764`
+   (unverified). It had reached the point of confirming the single remaining
+   non-scrape-gap `needs-hand-separator` row is `aws_route`.
 
-2. **Delete the `CFNType` guard.** `importprecedence.go:113-121` has
-   `if p.CFNType == "" { continue }`, which skips every fold row before
-   `tryGrammarComposite` and `tryArgumentReferenceValueMatch` run, though neither
-   rule references `CFNType`. Simulated against the 49 fold-child mismatches this
-   resolves 19 immediately. It is a four-line deletion.
+2. **Fix the widened scrape (#94).** This is the biggest single lever and it is
+   one defect, not 117. `arguments_in_doc_order`, `identity_schema_required`
+   and `identity_schema_optional` are absent from **all 1600 rows** of
+   `live/import-grammar.json`. The extraction is already implemented and wired
+   (`tools/importdocs-gen/artifact.go:162-164`, `parse.go:543`); it runs and
+   returns nothing. The artifact is not stale (6.59.0, regenerated the same
+   day). The input is present (923 cached docs carry an `Identity Schema`
+   block). The obvious sectioning bug is ruled out: `importSection`
+   (`parse.go:43`) terminates only on `"## "`, so a `### Identity Schema`
+   heading does not cut the section short.
 
-3. **Populate `arguments_in_doc_order` from the identity block.**
-   `tryGrammarComposite`'s prose-order fallback (`importprecedence.go:203-222`)
-   is already written to consume that field. 13 rows resolve with zero row-gen
-   changes. The evidence is already captured in `evidence_excerpt`.
+   This matters more than the 13 rows once estimated:
+   `applyIdentitySchemaAttrsCorrection` (the ARN-vs-short-id rule) and
+   `tryGrammarComposite`'s prose-order fallback both consume these fields, so
+   **both have been dead code**. Candidate population: 66 unmatched
+   `server-assigned` rows plus 36 whose only complaint is `identity-attrs`.
 
-4. **Attack the two big extraction clusters** (#94): 55 rows where
-   `composed_of_arguments` never fires on legacy pre-1.12 doc prose, then 24
-   rows where the parse captures one of two-plus arguments.
+   Fastest first step: a throwaway test in `tools/importdocs-gen` running
+   `buildRow` against the real cached `batch_compute_environment.html.markdown`,
+   printing what each field returns. Partial work: branch
+   `worktree-agent-ab534ae5121942cfe` (unverified).
 
-5. **Wire the generated files in and delete the fragments** (#96): remove
-   `table.go`/`admission.go`'s core literals, all 56 `*_cohort_*.go` files and
-   `table_recordbacked.go`, then have the four generated files build the tables.
+3. **Then the remaining classifier rules (#95)**, worked as rules, not as rows.
+   28 of the 49 fold-child mismatches remain after the precedence fix.
 
-6. **Then decide the `Reason` prose question**: emit it from the annotation
-   ledger, or accept it as curated data the generator carries.
+4. **Finish #96's out-of-scope half**: `typeOverrides`
+   (`tools/estate-gen/overrides.go` `Apply` closures) and the stamp tables.
 
-The four remaining classifier fixes are detailed with counts in #95.
+5. **Then decide the `Reason` prose question**: emit it from a ledger, or
+   accept it as curated data the generator carries. Currently deferred, carried
+   verbatim.
+
+## Recently learned, do not re-derive
+
+- **The generated/override split is gone from the source.** It measured how
+  well the classifier was doing, and the table's shape should not encode that.
+  Counts live in `live/rowgen-convergence.json` and the `-emit` summary. Payoff:
+  `b67189ce5` improved the classifier by 21 rows and `table_generated.go` came
+  out byte-unchanged.
+- **Do not hand-list struct fields in a renderer.** `renderTypeIdentity` used
+  to, so adding a field meant editing the generator in lockstep and silently
+  dropping the field until someone noticed. Rows render by reflection now.
+- **Do not generate the type definitions.** Considered and rejected: there is
+  no upstream source to derive `TypeIdentity`'s shape from, so a model JSON
+  would be exactly as hand-maintained as the struct, minus compiler checking,
+  plus a codegen path and a drift test. That is relocating hand-maintenance.
+  The real coupling was the renderer's field list, and reflection removed it.
+- **The generator once read hand-written comment prose as input.**
+  `scanFileForRejected` globbed the table sources and grepped Go comments for
+  the word `Rejected`, harvesting every `aws_*` token within 60 lines as a veto
+  set. Deleting the fragments would have emptied it silently and let PROPOSE
+  re-propose 147 already-declined types. Now `tools/row-gen/rejected.json`,
+  loader fails closed. Watch for other instances of this shape.
 
 ## Working model
 
-No branches. No worktrees. Agents commit directly to `main`, one writer at a
-time.
-
-This replaced a branch-and-merge flow that was costing more than it returned:
-three integration passes in one session, roughly 2000 seconds of dedicated
-model time, plus every instance of silent content loss, which is a merge-only
-failure mode.
-
-The contract that replaces what branches provided:
+No branches for review. Agents work in isolated worktrees when they must build
+concurrently; the orchestrator verifies and lands to `main` as single writer.
+Verify agent claims by recomputing them — do not take reported numbers.
 
 - Run `go build ./...` and the relevant tests **before** committing. Never
   commit red. If it cannot be made green, commit nothing and report.
@@ -141,38 +181,48 @@ The contract that replaces what branches provided:
 
 ## Traps that cost real time
 
-**Test invocation.** Always run tests as:
+**Test invocation.** Always:
 
 ```
 env -u PWD go test -C /Users/alex/Documents/checkouts/intentius/choudoufu ./...
 ```
 
-`/Users/alex/checkouts` is a symlink to the real path and `os.Getwd()` honors
+`/Users/alex/checkouts` is a symlink to the real path and `os.Getwd()` honours
 `PWD`, so a plain invocation produces 10 false failures in `local-exec` and
 `TestFmt*`. They are environmental. Do not chase them.
 
-**CI.** The only lint CI runs is a `gofmt` step over fork-owned packages
-(`internal/live cmd site`). It sat red for 20+ consecutive pushes because of one
-unformatted file, and nobody noticed. Check it.
+**Doc cache is offline.** `~/Library/Caches/choudoufu/importdocs-gen/6.59.0/`,
+1699 files. Re-running a doc sweep needs no network; use it as a measurement
+loop.
 
-**`just lint`** runs the full repo twice, once per GOOS. Both passes are
-load-bearing (the windows pass catches real bugs in the 5 `*_windows.go` files).
-It takes about 41 seconds, not the 6 minutes an earlier estimate claimed.
+**`just lint`** runs the full repo twice, once per GOOS, in about 41 seconds.
+Six issues are currently outstanding and all predate this work
+(`statelessOwnership` unused, five staticcheck).
 
-**The `admission-pipeline` workflow has never run.** Zero executions, all time,
-despite a weekly schedule and `workflow_dispatch`. Running it once is worth
-doing; it may well be broken.
+**The `admission-pipeline` workflow has never run.** Zero executions, all time.
+It may well be broken.
 
 ## Off the path
 
-These are open and legitimate but are not the goal. Do not let them absorb the
-session: the #76 documentation slices (#85-#88), the #73 charter phases
-(#81-#84), #79, #77, #70.
+Open and legitimate, but not the goal: the #76 documentation slices (#85-#88),
+the #73 charter phases (#81-#84), #79, #77, #70. Silent-merge-loss findings
+#89-#92 are real defects (#89 fixed) but are cleanup.
 
-Silent-merge-loss findings #89-#92 are real defects; #89 is fixed. They matter,
-but they are cleanup, not the goal.
+## Residue
 
-## Residue to clean
+Worktrees and branches were pruned: 20 worktrees removed, 85 branches deleted
+(103 branches down to 18). Not touched, needing a human decision:
 
-26 worktrees and roughly 90 stale branches remain from the retired branch model.
-They are safe to prune once nothing references them.
+- Two dirty worktrees — `agent-a645c07bacae418aa` (6 uncommitted files) and
+  `agent-ab7119058a89f8f63` (**mid-merge-conflict**, unresolved `UU` files).
+- 14 branches with real unmerged commits, including `iampolicy-gen` (a whole
+  `tools/iampolicy-gen`, 10k+ lines), `issue-74-plan-fingerprint`,
+  `issue-72-sidecar`, `issue-79-docs-redesign`, `generated-merge-strategy`,
+  `branding-tagline`.
+- Three branches (`floci-capabilities`, `fragment-hot-files`,
+  `pipeline-admission-endgame`) are genuinely merged but `git branch -d`
+  refuses them because `origin/main` is behind local `main`. Safe to `-D`, or
+  fetch first.
+- Two WIP branches from this session, `worktree-agent-a7297e2ab0fc69764` and
+  `worktree-agent-ab534ae5121942cfe`, hold the unverified partial work
+  referenced in Next Actions 1 and 2.
