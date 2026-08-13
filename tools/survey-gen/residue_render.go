@@ -66,8 +66,12 @@ func renderLimitationsMD(root string) error {
 	if err != nil {
 		return err
 	}
+	readable, residue, err := parentReadableRoster(root)
+	if err != nil {
+		return err
+	}
 
-	out, err := renderLimitationsSpans(string(md), untaggable)
+	out, err := renderLimitationsSpans(string(md), untaggable, readable, residue)
 	if err != nil {
 		return err
 	}
@@ -83,14 +87,23 @@ func renderLimitationsMD(root string) error {
 }
 
 // renderLimitationsSpans returns live/LIMITATIONS.md with all five
-// residue-roster spans and the untaggable-admitted span replaced by their
-// rendered bodies. The rest of the file passes through byte-for-byte.
-func renderLimitationsSpans(md string, untaggable []string) (string, error) {
+// residue-roster spans, the untaggable-admitted span, and the two
+// parent-read-split spans (issue #60) replaced by their rendered bodies.
+// The rest of the file passes through byte-for-byte.
+func renderLimitationsSpans(md string, untaggable []string, readable []parentReadableType, residue []string) (string, error) {
 	md, err := renderResidueSpans(md)
 	if err != nil {
 		return "", err
 	}
-	return replaceSpan(limitationsMDRel, md, spanUntaggableAdmitted, renderUntaggableAdmitted(untaggable))
+	md, err = replaceSpan(limitationsMDRel, md, spanUntaggableAdmitted, renderUntaggableAdmitted(untaggable))
+	if err != nil {
+		return "", err
+	}
+	md, err = replaceSpan(limitationsMDRel, md, spanUntaggableParentRead, renderUntaggableParentRead(readable))
+	if err != nil {
+		return "", err
+	}
+	return replaceSpan(limitationsMDRel, md, spanUntaggableResidue, renderUntaggableResidue(residue))
 }
 
 // renderResidueSpans returns live/LIMITATIONS.md with all seven

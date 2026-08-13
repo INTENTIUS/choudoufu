@@ -77,6 +77,31 @@ type StatelessForeign struct {
 	// Unswept are the types this classification cannot speak for, with a
 	// reason code and a sentence each.
 	Unswept []StatelessUnsweptType
+
+	// ParentReads are the untaggable children a parent read found (issue
+	// #60): resources with no marker and no declared block of their own,
+	// found by reading a marked, admitted parent's identity instead. Each
+	// says whether it also became a removal - the plan's own resource diff
+	// carries the destroy itself for those, and this list is what says a
+	// parent read is why.
+	ParentReads []StatelessParentRead
+}
+
+// StatelessParentRead is one live child a parent read found.
+type StatelessParentRead struct {
+	TypeName    string
+	Parent      string
+	ParentAddr  string
+	ParentValue string
+	LiveID      string
+	DisplayName string
+
+	// Removal is true when this finding also entered the prior state as a
+	// destroy.
+	Removal bool
+
+	// Withheld is why Removal is false, empty when Removal is true.
+	Withheld string
 }
 
 // StatelessForeignItem is one live resource nobody claims.
@@ -373,6 +398,8 @@ var statelessSweepGapReasons = map[string]string{
 
 const statelessRenameIntro = `Each line below is a live resource this estate owns whose ownership marker names a for_each key the configuration no longer declares, beside the one declared instance of the same resource block that nothing claimed. They are probably the same resource under a new key. Nothing was renamed and the plan is unchanged by this: it still proposes creating the new key, and the live resource is still owned at an address nothing declares. Run the command if the pairing is right - rewriting that tag is the whole move.`
 
+const statelessParentReadIntro = `Each of these carries no tags and no ownership marker of its own, and no resource block declares it either. It was found by reading a marked, admitted parent's own identity instead: a bucket policy's identity is the bucket's own name, and so on for the other types below (see live/LIMITATIONS.md, "Some untaggable types are swept via a parent read instead"). REPORT ONLY means this pass can see it but does not yet trust the read to remove it; WILL BE DESTROYED means it does, and the destroy itself is in the resource diff above this section, the same as any other planned removal.`
+
 const statelessRenameAmbiguousIntro = `The resource blocks below have live resources this estate owns at for_each keys the configuration no longer declares, and declared instances of the same block that nothing claimed - but not one of each, so which live resource became which key is not something a marker answers. Nothing is offered and the plan is unchanged: it proposes creating the new keys, and the live resources are still owned at addresses nothing declares. Rename them one at a time with "choudoufu live-mv" if you know which is which.`
 
 // Foreign renders the classification of the live resources this estate does
@@ -482,6 +509,26 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 		for _, reason := range order {
 			colored("  [bold]%s[reset] [%s]\n", strings.Join(byReason[reason], ", "), reason)
 			wrapped(statelessSweepGapReasons[reason], 6)
+		}
+	}
+
+	if len(rep.ParentReads) > 0 {
+		colored("\n[reset][bold]Swept via parent read: %d resource %s[reset]\n\n",
+			len(rep.ParentReads), noun(len(rep.ParentReads), "type", "types"))
+		wrapped(statelessParentReadIntro, 0)
+		out("\n")
+		for _, f := range rep.ParentReads {
+			status := "REPORT ONLY"
+			if f.Removal {
+				status = "WILL BE DESTROYED"
+			}
+			colored("  [bold]%s[reset] %s via [bold]%s[reset] %s [%s]\n",
+				f.TypeName, liveIDOrNone(f.LiveID), f.Parent, f.ParentAddr, status)
+			if f.Removal {
+				wrapped(fmt.Sprintf("found by reading %s's own identity (%s); see the resource diff above for the destroy.", f.Parent, f.ParentValue), 6)
+			} else {
+				wrapped(f.Withheld, 6)
+			}
 		}
 	}
 
