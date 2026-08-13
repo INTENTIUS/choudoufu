@@ -310,6 +310,12 @@ cannot make sound. Rewrite the block as a keyed `for_each` over your own
 stable names, move its resources into the root module, or give the module
 an estate of its own.
 
+**A `provider` block declared inside a module is a separate, still-open
+question.** Per-module provider resolution (issue #70) is neither supported
+nor refused today: the module's resources are silently served by the root
+configuration's own provider config instead, and `lint.CheckModuleProviders`
+only warns about it by name, once per run, rather than failing the run.
+
 ### The keyed-module marker idiom
 
 Auto-stamping cannot reach a resource declared inside a `for_each`'d
