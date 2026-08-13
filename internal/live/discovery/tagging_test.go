@@ -179,10 +179,15 @@ func TestJoinTaggedResourceRealArtifacts(t *testing.T) {
 			wantReasonHas: []string{"aws_instance", "internal/live/identity's table"},
 		},
 		{
-			name:          "lambda function: mapped in live/mapping.json but not in identity.DefaultTable",
-			arn:           "arn:aws:lambda:us-east-1:123456789012:function:my-function",
-			wantOK:        false,
-			wantReasonHas: []string{"aws_lambda_function", "internal/live/identity's table"},
+			// aws_lambda_function joined the identity table when the first
+			// registry-ratified batch admitted it; the mapped-but-unadmitted
+			// case lives on with aws_instance below.
+			name:             "lambda function: mapped and admitted, function name binds",
+			arn:              "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+			wantTypeName:     "aws_lambda_function",
+			wantIdentityAttr: "id",
+			wantImportID:     "my-function",
+			wantOK:           true,
 		},
 		{
 			name:          "unknown service entirely",
