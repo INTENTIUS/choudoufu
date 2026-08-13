@@ -622,6 +622,49 @@ var (
 		"aws_codepipeline_custom_action_type",
 		"aws_codepipeline_webhook",
 		"aws_ecrpublic_repository",
+		// Registry-ratified identity batch (#40, #44, #65): Cognito, IAM
+		// leftovers, SSO Admin. See live/e2e/estates/identity/README.md.
+		"aws_cognito_identity_pool",
+		"aws_cognito_user_pool",
+		"aws_iam_openid_connect_provider",
+		"aws_iam_policy",
+		"aws_iam_server_certificate",
+		"aws_ssoadmin_application",
+		"aws_ssoadmin_permission_set",
+		// Registry-ratified observability and eventing remainder batch
+		// (#40, #44, issue #65). See
+		// live/e2e/estates/observability/README.md, "Untaggable types",
+		// for this batch's untaggable rows.
+		"aws_cloudwatch_alarm_mute_rule",
+		"aws_cloudwatch_contributor_insight_rule",
+		"aws_cloudwatch_event_bus",
+		"aws_cloudwatch_log_anomaly_detector",
+		"aws_cloudwatch_log_delivery",
+		"aws_cloudwatch_log_delivery_destination",
+		"aws_cloudwatch_log_delivery_source",
+		"aws_cloudwatch_log_destination",
+		"aws_grafana_workspace",
+		"aws_rum_app_monitor",
+		"aws_sfn_activity",
+		"aws_synthetics_canary",
+		"aws_synthetics_group",
+		"aws_xray_group",
+		"aws_xray_sampling_rule",
+		// Registry-ratified streaming and app integration batch (#40, #44,
+		// issue #65). aws_msk_configuration and aws_appflow_connector_profile
+		// are this batch's two untaggable types, below. See
+		// live/e2e/estates/streaming/README.md, "Untaggable types".
+		"aws_mq_broker",
+		"aws_mq_configuration",
+		"aws_msk_cluster",
+		"aws_msk_serverless_cluster",
+		"aws_mskconnect_connector",
+		"aws_mskconnect_custom_plugin",
+		"aws_mskconnect_worker_configuration",
+		"aws_appflow_flow",
+		"aws_appsync_graphql_api",
+		"aws_pipes_pipe",
+		"aws_scheduler_schedule_group",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -758,6 +801,52 @@ var (
 		"aws_codebuild_webhook",
 		"aws_codedeploy_deployment_config",
 		"aws_ecrpublic_repository_policy",
+		// Registry-ratified identity batch (#40, #44, #65): Cognito, IAM
+		// leftovers, SSO Admin. Fifteen untaggable types, confirmed against
+		// the real provider's documented Argument Reference for each - see
+		// live/e2e/estates/identity/README.md, "Untaggable types".
+		"aws_cognito_identity_pool_provider_principal_tag",
+		"aws_cognito_identity_pool_roles_attachment",
+		"aws_cognito_identity_provider",
+		"aws_cognito_resource_server",
+		"aws_cognito_user",
+		"aws_cognito_user_group",
+		"aws_cognito_user_in_group",
+		"aws_cognito_user_pool_domain",
+		"aws_iam_group_policy",
+		"aws_iam_group_policy_attachment",
+		"aws_iam_user_policy",
+		"aws_iam_user_policy_attachment",
+		"aws_ssoadmin_account_assignment",
+		"aws_ssoadmin_application_assignment",
+		"aws_ssoadmin_instance_access_control_attributes",
+		// Registry-ratified observability and eventing remainder batch
+		// (#40, #44, issue #65): fourteen types with no top-level tags
+		// argument in the pinned provider's own wire schema, confirmed
+		// against each type's documented Argument Reference. See
+		// live/e2e/estates/observability/README.md, "Untaggable types".
+		"aws_cloudwatch_otel_enrichment",
+		"aws_cloudwatch_log_account_policy",
+		"aws_cloudwatch_log_metric_filter",
+		"aws_cloudwatch_log_resource_policy",
+		"aws_cloudwatch_log_stream",
+		"aws_cloudwatch_log_subscription_filter",
+		"aws_cloudwatch_log_transformer",
+		"aws_cloudwatch_query_definition",
+		"aws_cloudwatch_event_api_destination",
+		"aws_cloudwatch_event_archive",
+		"aws_cloudwatch_event_connection",
+		"aws_cloudwatch_event_endpoint",
+		"aws_cloudwatch_event_permission",
+		"aws_xray_resource_policy",
+		// Registry-ratified streaming and app integration batch (#40, #44,
+		// issue #65): two types with no tags argument at all —
+		// aws_msk_configuration's Argument Reference names no tags block,
+		// and aws_appflow_connector_profile's exports only arn and
+		// credentials_arn. See live/e2e/estates/streaming/README.md,
+		// "Untaggable types".
+		"aws_msk_configuration",
+		"aws_appflow_connector_profile",
 	}
 )
 
@@ -1430,6 +1519,87 @@ func testSchemas() Schemas {
 		"aws_lightsail_lb":                                 tagged("id", "arn", "name"),
 		"aws_lightsail_lb_certificate":                     untagged("id", "arn", "lb_name", "name"),
 		"aws_lightsail_static_ip":                          untagged("id", "arn", "name"),
+		// Registry-ratified identity batch (#40, #44, #65): Cognito, IAM
+		// leftovers, SSO Admin. Taggable/untaggable per the real provider's
+		// documented Argument Reference for each type - the fifteen
+		// untaggable rows are exactly this batch's own "Untaggable types"
+		// list in live/e2e/estates/identity/README.md.
+		"aws_cognito_identity_pool":                        tagged("id", "identity_pool_name"),
+		"aws_cognito_identity_pool_provider_principal_tag": untagged("id", "identity_pool_id", "identity_provider_name"),
+		"aws_cognito_identity_pool_roles_attachment":       untagged("id", "identity_pool_id"),
+		"aws_cognito_identity_provider":                    untagged("id", "user_pool_id", "provider_name", "provider_type"),
+		"aws_cognito_resource_server":                      untagged("id", "user_pool_id", "identifier", "name"),
+		"aws_cognito_user":                                 untagged("id", "user_pool_id", "username"),
+		"aws_cognito_user_group":                           untagged("id", "user_pool_id", "name"),
+		"aws_cognito_user_in_group":                        untagged("id", "user_pool_id", "group_name", "username"),
+		"aws_cognito_user_pool":                            tagged("id", "arn", "name"),
+		"aws_cognito_user_pool_domain":                     untagged("id", "domain", "user_pool_id"),
+		"aws_iam_group_policy":                             untagged("id", "group", "name", "policy"),
+		"aws_iam_group_policy_attachment":                  untagged("id", "group", "policy_arn"),
+		"aws_iam_openid_connect_provider":                  tagged("id", "arn", "url"),
+		"aws_iam_policy":                                   tagged("id", "arn", "name"),
+		"aws_iam_server_certificate":                       tagged("id", "arn", "name"),
+		"aws_iam_user_policy":                              untagged("id", "user", "name", "policy"),
+		"aws_iam_user_policy_attachment":                   untagged("id", "user", "policy_arn"),
+		"aws_ssoadmin_account_assignment":                  untagged("id", "instance_arn", "permission_set_arn", "principal_id", "principal_type", "target_id", "target_type"),
+		"aws_ssoadmin_application":                         tagged("id", "arn", "name", "instance_arn", "application_provider_arn"),
+		"aws_ssoadmin_application_assignment":              untagged("id", "application_arn", "principal_id", "principal_type"),
+		"aws_ssoadmin_instance_access_control_attributes":  untagged("id", "instance_arn"),
+		"aws_ssoadmin_permission_set":                      tagged("id", "arn", "name", "instance_arn"),
+
+		// Registry-ratified observability and eventing remainder batch
+		// (#40, #44, issue #65). Taggable/untaggable per the real
+		// provider's documented Argument Reference for each type; the
+		// fourteen untaggable rows are exactly this batch's own
+		// "Untaggable types" list in
+		// live/e2e/estates/observability/README.md.
+		"aws_cloudwatch_alarm_mute_rule":          tagged("id", "name", "rule"),
+		"aws_cloudwatch_contributor_insight_rule": tagged("id", "rule_name", "rule_definition"),
+		"aws_cloudwatch_otel_enrichment":          untagged("id"),
+		"aws_cloudwatch_log_account_policy":       untagged("id", "policy_name", "policy_type", "policy_document"),
+		"aws_cloudwatch_log_anomaly_detector":     tagged("id", "arn", "log_group_arn_list"),
+		"aws_cloudwatch_log_delivery":             tagged("id", "delivery_source_name", "delivery_destination_arn"),
+		"aws_cloudwatch_log_delivery_destination": tagged("id", "arn", "name"),
+		"aws_cloudwatch_log_delivery_source":      tagged("id", "arn", "name", "log_type", "resource_arn"),
+		"aws_cloudwatch_log_destination":          tagged("id", "arn", "name", "role_arn", "target_arn"),
+		"aws_cloudwatch_log_metric_filter":        untagged("id", "name", "log_group_name", "pattern"),
+		"aws_cloudwatch_log_resource_policy":      untagged("id", "policy_name", "policy_document"),
+		"aws_cloudwatch_log_stream":               untagged("id", "name", "log_group_name"),
+		"aws_cloudwatch_log_subscription_filter":  untagged("id", "name", "log_group_name", "destination_arn"),
+		"aws_cloudwatch_log_transformer":          untagged("id", "log_group_arn"),
+		"aws_cloudwatch_query_definition":         untagged("id", "name", "query_string"),
+		"aws_cloudwatch_event_api_destination":    untagged("id", "arn", "name", "connection_arn", "http_method"),
+		"aws_cloudwatch_event_archive":            untagged("id", "name", "event_source_arn"),
+		"aws_cloudwatch_event_bus":                tagged("id", "arn", "name"),
+		"aws_cloudwatch_event_connection":         untagged("id", "arn", "name", "authorization_type"),
+		"aws_cloudwatch_event_endpoint":           untagged("id", "arn", "name"),
+		"aws_cloudwatch_event_permission":         untagged("id", "statement_id", "principal"),
+		"aws_sfn_activity":                        tagged("id", "arn", "name"),
+		"aws_xray_group":                          tagged("id", "arn", "group_name", "filter_expression"),
+		"aws_xray_resource_policy":                untagged("id", "policy_name", "policy_document"),
+		"aws_xray_sampling_rule":                  tagged("id", "arn", "rule_name", "priority"),
+		"aws_grafana_workspace":                   tagged("id", "arn", "account_access_type", "authentication_providers", "permission_type"),
+		"aws_rum_app_monitor":                     tagged("id", "name", "domain"),
+		"aws_synthetics_canary":                   tagged("id", "arn", "name"),
+		"aws_synthetics_group":                    tagged("id", "arn", "name"),
+
+		// Registry-ratified streaming and app integration batch (#40, #44,
+		// issue #65). Taggable/untaggable per the real provider's
+		// documented Argument Reference for each type: aws_msk_configuration
+		// and aws_appflow_connector_profile carry no tags argument at all.
+		"aws_mq_broker":                       tagged("id", "arn", "broker_name"),
+		"aws_mq_configuration":                tagged("id", "arn", "name"),
+		"aws_msk_cluster":                     tagged("id", "arn", "cluster_name"),
+		"aws_msk_configuration":               untagged("arn", "name"),
+		"aws_msk_serverless_cluster":          tagged("id", "arn", "cluster_name"),
+		"aws_mskconnect_connector":            tagged("id", "arn", "name"),
+		"aws_mskconnect_custom_plugin":        tagged("id", "arn", "name"),
+		"aws_mskconnect_worker_configuration": tagged("id", "arn", "name"),
+		"aws_appflow_connector_profile":       untagged("arn", "name"),
+		"aws_appflow_flow":                    tagged("id", "arn", "name"),
+		"aws_appsync_graphql_api":             tagged("id", "arn", "name"),
+		"aws_pipes_pipe":                      tagged("id", "arn", "name"),
+		"aws_scheduler_schedule_group":        tagged("id", "arn", "name"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.

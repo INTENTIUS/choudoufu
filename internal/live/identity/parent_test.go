@@ -17,6 +17,7 @@ import "testing"
 var testParents = map[string]bool{
 	"aws_s3_bucket":        true,
 	"aws_iam_role":         true,
+	"aws_iam_policy":       true,
 	"aws_lb_target_group":  true,
 	"aws_route_table":      true,
 	"aws_route53_zone":     true,
@@ -24,10 +25,21 @@ var testParents = map[string]bool{
 	"aws_sqs_queue":        true,
 	"aws_subnet":           true,
 	"aws_internet_gateway": true,
+	"aws_security_group":   true,
+	"aws_eks_node_group":   true,
 	// Deliberately NOT included, so the type-name-prefix rule's
 	// disambiguation is exercised rather than assumed: aws_iam_role_policy
 	// is itself untaggable and must never win as a parent even though its
 	// name is the longer prefix match for aws_iam_role_policy_attachment.
+	//
+	// Also deliberately NOT included, for
+	// TestParentOfRefusesUnrelatedSuffixMatch below: aws_iam_group and
+	// aws_iam_group_policy are both untaggable (IAM has no TagGroup API),
+	// which is exactly what makes aws_iam_group_policy_attachment's own
+	// "group" argument a trap for the *_group suffix convention -
+	// aws_security_group and aws_eks_node_group are both eligible here,
+	// both end in "_group", and neither has anything to do with an IAM
+	// group.
 }
 
 func TestParentOfNamedSingletonChildren(t *testing.T) {
@@ -84,6 +96,35 @@ func TestParentOfDisambiguatesByEligibility(t *testing.T) {
 	// read alone fully settles.
 	if _, ok := SingleParentComponent("aws_iam_role_policy_attachment", testParents); ok {
 		t.Error("aws_iam_role_policy_attachment reported as a single-parent-component type; it has a second free-standing argument (policy_arn)")
+	}
+}
+
+// TestParentOfRefusesUnrelatedSuffixMatch is
+// aws_iam_group_policy_attachment's own case, the rule-2 (argument
+// convention) sibling of TestParentOfDisambiguatesByEligibility's rule-1
+// case above: its "group" component names the untaggable aws_iam_group
+// (IAM has no TagGroup API - the same reason aws_iam_role_policy_attachment
+// above needs the eligibility fallback at all), but unlike
+// aws_iam_role_policy_attachment's prefix chain, aws_security_group and
+// aws_eks_node_group are not ancestors of aws_iam_group at any remove -
+// they only happen to end in "_group" too. ParentOf must report nothing
+// for the "group" argument rather than pick either stranger, and it must
+// do so the same way on every run: before the fix this file's own history
+// names, parentByConvention searched only the eligible subset, so whichever
+// of aws_security_group/aws_eks_node_group Go's randomized map iteration
+// happened to visit first silently won.
+func TestParentOfRefusesUnrelatedSuffixMatch(t *testing.T) {
+	links := ParentOf("aws_iam_group_policy_attachment", testParents)
+	if len(links) != 1 || links[0] != (ParentLink{Attr: "policy_arn", Parent: "aws_iam_policy"}) {
+		t.Fatalf("ParentOf(aws_iam_group_policy_attachment) = %v, want exactly one link, {policy_arn aws_iam_policy} - "+
+			"never aws_security_group or aws_eks_node_group by way of the unrelated \"group\" argument", links)
+	}
+
+	// Not a single-parent-component type either: "group" is a real,
+	// free-standing second component even though it resolves to no parent
+	// link, the same shape aws_route's own destination argument has.
+	if _, ok := SingleParentComponent("aws_iam_group_policy_attachment", testParents); ok {
+		t.Error("aws_iam_group_policy_attachment reported as single-parent-component; it has a second free-standing argument (group)")
 	}
 }
 
