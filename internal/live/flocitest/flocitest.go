@@ -107,6 +107,15 @@ func LimitsDir(t *testing.T) string {
 	return fixtureDir(t, filepath.Join("live", "e2e", "limits"))
 }
 
+// ImportFixtureDir returns the path of the live-import fixture (issue #61):
+// a small, deliberately marker-free configuration standing in for an estate
+// that has run under ordinary state-backed OpenTofu/Terraform and never used
+// live resource markers.
+func ImportFixtureDir(t *testing.T) string {
+	t.Helper()
+	return fixtureDir(t, filepath.Join("live", "e2e", "import-fixture"))
+}
+
 // EstatesDir returns the path of the per-cohort verification estates
 // directory, live/e2e/estates: one subdirectory per ratification batch,
 // exercised only in the gated tier (#48, phase 3 of #38). Unlike EstateDir,
@@ -171,12 +180,21 @@ func fixtureDir(t *testing.T, rel string) string {
 // re-downloading it over a copy some other process is executing.
 func CopyEstate(t *testing.T) string {
 	t.Helper()
+	return CopyFixtureDir(t, EstateDir(t))
+}
 
-	src := EstateDir(t)
+// CopyFixtureDir is [CopyEstate] generalized to any fixture directory: it
+// makes a scratch copy of src's .tf files (and .terraform.lock.hcl, for the
+// same plugin-cache-trust reason CopyEstate's doc explains) and returns the
+// copy's directory, so terraform's own artifacts and any edit a test makes
+// never touch the checkout.
+func CopyFixtureDir(t *testing.T, src string) string {
+	t.Helper()
+
 	dst := t.TempDir()
 	entries, err := os.ReadDir(src)
 	if err != nil {
-		t.Fatalf("reading the estate fixture: %v", err)
+		t.Fatalf("reading the fixture directory %s: %v", src, err)
 	}
 	for _, e := range entries {
 		if e.IsDir() || (!strings.HasSuffix(e.Name(), ".tf") && e.Name() != ".terraform.lock.hcl") {
