@@ -32,7 +32,7 @@ func TestRefusalNamesDeprecatedServiceCohort(t *testing.T) {
 }
 
 func TestRefusalNamesUnmappedCohort(t *testing.T) {
-	assertRefusalNamesCohort(t, "testdata/residue-unmapped", "aws_accessanalyzer_archive_rule.rule", residue.CohortUnmapped)
+	assertRefusalNamesCohort(t, "testdata/residue-unmapped", "aws_cloudformation_type.example", residue.CohortUnmapped)
 }
 
 func TestRefusalNamesRegistryLaggardCohort(t *testing.T) {

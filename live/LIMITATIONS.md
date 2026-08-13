@@ -916,7 +916,19 @@ parent-derived) are unaffected and may still reach one.
 <!-- survey-gen:begin residue-unmapped -->
 | Count | Note |
 |---|---|
-| 13 | no CFN counterpart found by name or curated overlay |
+| 1 | AWS::SES::EmailIdentity is already claimed by aws_ses_email_identity/aws_sesv2_email_identity; asserting a third synonym needs a decision, not a sweep guess |
+| 1 | CFN models RoutingPolicyLabel as a property on several NetworkManager attachment types; the TF resource attaches generically across all of them |
+| 1 | an exclusive-set manager spanning both SecurityGroupIngress and SecurityGroupEgress - no single CFN counterpart |
+| 1 | attaches to private, public, or transit VIFs via a bare virtual_interface_id - no single fold parent among the three DirectConnect VIF types |
+| 1 | creates SimpleAD, MicrosoftAD, or ADConnector depending on its type argument - three CFN targets, no single alias |
+| 1 | creates an ingress or egress rule by its type argument, and both AWS::EC2::SecurityGroup{Ingress,Egress} are already claimed by the split per-direction TF types |
+| 1 | legacy per-table replica API; AWS::DynamoDB::GlobalTable's Replicas is plausible but the correspondence to a plain Table's replica is unconfirmed |
+| 1 | no registry candidate identified with confidence at sweep time |
+| 1 | one TF resource registers any extension kind; the registry splits it across AWS::CloudFormation::{Resource,Module}{Version,DefaultVersion} by kind |
+| 1 | one TF resource spans five distinct AWS::ServiceCatalog::*Constraint types depending on its type field |
+| 1 | semantics too obscure to classify with confidence; no registry candidate found |
+| 1 | targets either a Lambda alias or a raw version - two possible fold parents, no single correct one |
+| 1 | the reverse-direction shape of AWS::IAM::UserToGroupAddition (one user to many groups vs one group to many users) - the correspondence is not clean |
 
 **Total.** 13 Terraform AWS resource types with no CloudFormation Registry counterpart and no terminal classification yet - the count the family sweeps in issue #53's workplan burn down. Each row's own note is in `live/mapping.json`.
 <!-- survey-gen:end residue-unmapped -->

@@ -286,9 +286,23 @@ func joinTaggedResource(roster *registry.Roster, arnStr string) arnJoinOutcome {
 			cfnType, a.Service, resourceSegmentLabel(a))}
 	}
 	if len(tfTypes) > 1 {
-		return arnJoinOutcome{cfnType: cfnType, reason: fmt.Sprintf(
-			"CFN type %s (from ARN service %q, resource segment %q) is mapped from more than one TF type in live/mapping.json (%s), and the ARN alone does not say which",
-			cfnType, a.Service, resourceSegmentLabel(a), strings.Join(tfTypes, ", "))}
+		// TF-side synonym pairs (aws_lb/aws_alb, the sweeps' many-to-one
+		// aliases) map several TF names onto one CFN type. The join only
+		// ever binds a type the identity table admits, so when exactly one
+		// of the candidates is admitted the ARN is not actually ambiguous -
+		// the others could never have been the answer.
+		var admitted []string
+		for _, tf := range tfTypes {
+			if _, ok := identity.LookupType(tf); ok {
+				admitted = append(admitted, tf)
+			}
+		}
+		if len(admitted) != 1 {
+			return arnJoinOutcome{cfnType: cfnType, reason: fmt.Sprintf(
+				"CFN type %s (from ARN service %q, resource segment %q) is mapped from more than one TF type in live/mapping.json (%s), and the ARN alone does not say which",
+				cfnType, a.Service, resourceSegmentLabel(a), strings.Join(tfTypes, ", "))}
+		}
+		tfTypes = admitted
 	}
 	tfType := tfTypes[0]
 

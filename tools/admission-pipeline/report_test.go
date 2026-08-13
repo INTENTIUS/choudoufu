@@ -184,13 +184,15 @@ func TestReadMappingSummaryAgainstCommittedMapping(t *testing.T) {
 	if summary.None == 0 {
 		t.Error("readMappingSummary reports None = 0 against the committed live/mapping.json; the header's unclassified count did not decode (a JSON tag mismatch)")
 	}
-	if summary.None != summary.Unclassifiable {
-		// True as of issue #53's mechanical pass: every remaining via:"none"
-		// row carries the same generic unexplained note, so the two counts
-		// coincide. A future overlay.json nones entry with its own curated
-		// (non-generic) reason would make them diverge again - if that
-		// happens, update this assertion rather than deleting it, so the
-		// two fields stay independently exercised.
-		t.Errorf("None = %d, Unclassifiable = %d; expected them equal today (see comment)", summary.None, summary.Unclassifiable)
+	if summary.Unclassifiable != 0 {
+		// The divergence this assertion's earlier form predicted arrived
+		// with issue #53's closing sweep: every remaining via:"none" row
+		// now carries a curated per-type reason (overlay.d's residual
+		// fragment), so the generic-note shrug count must be zero - and
+		// mapping-gen's own enforceNoBareNone gate fails the build before
+		// a committed artifact could ever carry one again. None stays
+		// nonzero (the reasoned ambiguous residue), keeping the two fields
+		// independently exercised.
+		t.Errorf("Unclassifiable = %d, want 0: a committed artifact carries a generic-note shrug the no-bare-none gate should have refused", summary.Unclassifiable)
 	}
 }

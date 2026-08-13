@@ -738,15 +738,16 @@ func TestMappingJSONMatchesCommittedInputs(t *testing.T) {
 	t.Errorf("%s is stale; rerun `go run ./tools/mapping-gen` and review the diff", mappingJSONRel)
 }
 
-// enforceNoBareNone flips true when issue #53's last family sweep lands -
-// the point at which every one of live/mapping.json's rows is mapped,
-// folded, or terminally classified (tf-only, cfn-unmodeled,
-// deprecated-service), and a bare via:"none" becomes a build failure
-// instead of a known, counted gap. False today: this mechanical pass and
-// the family sweeps after it leave a real, honestly counted unclassified
-// remainder on purpose (see unclassifiedRatchetMax below), and
-// TestNoBareNoneOnceEnforced would fail on every one of them.
-const enforceNoBareNone = false
+// enforceNoBareNone flipped true when issue #53's last family sweep
+// landed. Every row is now mapped, folded, terminally classified
+// (tf-only, cfn-unmodeled, deprecated-service), or carries a curated
+// per-type reason in the overlay's nones table (the thirteen
+// structurally-ambiguous types in overlay.d/sweep-residual-ambiguous.json,
+// where one TF resource spans several CFN types and no single alias or
+// fold_parent is honest). "Bare" therefore means via:"none" with only the
+// generic unexplained note - a shrug - and a provider bump that adds one
+// fails the build until a human classifies it or writes its reason down.
+const enforceNoBareNone = true
 
 // TestNoBareNoneOnceEnforced is issue #53's own closing gate, landed
 // disabled behind enforceNoBareNone per the issue's own instruction
@@ -767,13 +768,13 @@ func TestNoBareNoneOnceEnforced(t *testing.T) {
 	}
 	var bare []string
 	for _, row := range mapping.Rows {
-		if row.Via == viaNone {
+		if row.Via == viaNone && (row.Note == nil || *row.Note == unexplainedNote) {
 			bare = append(bare, row.TFType)
 		}
 	}
 	if len(bare) > 0 {
 		sort.Strings(bare)
-		t.Errorf("%d TF type(s) are still via:\"none\" with enforceNoBareNone=true: %v", len(bare), bare)
+		t.Errorf("%d TF type(s) are via:\"none\" with no curated reason (a shrug): %v - classify each, or record why it cannot be classified in the overlay's nones table", len(bare), bare)
 	}
 }
 
@@ -789,7 +790,7 @@ func TestNoBareNoneOnceEnforced(t *testing.T) {
 // Raising it back up is exactly the "quietly regrow a shrug" issue #53
 // exists to forbid, and TestUnclassifiedCountRatchet below fails the build
 // the moment a regeneration would do that.
-const unclassifiedRatchetMax = 713
+const unclassifiedRatchetMax = 13
 
 // TestUnclassifiedCountRatchet reads the committed live/mapping.json's own
 // unclassified count and fails if it is above unclassifiedRatchetMax -

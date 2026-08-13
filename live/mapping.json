@@ -1697,7 +1697,7 @@
       "cfn_type": null,
       "via": "none",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "one TF resource registers any extension kind; the registry splits it across AWS::CloudFormation::{Resource,Module}{Version,DefaultVersion} by kind"
     },
     {
       "tf_type": "aws_cloudfront_anycast_ip_list",
@@ -3272,7 +3272,7 @@
       "cfn_type": null,
       "via": "none",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "creates SimpleAD, MicrosoftAD, or ADConnector depending on its type argument - three CFN targets, no single alias"
     },
     {
       "tf_type": "aws_directory_service_log_subscription",
@@ -3461,7 +3461,7 @@
       "cfn_type": null,
       "via": "none",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "attaches to private, public, or transit VIFs via a bare virtual_interface_id - no single fold parent among the three DirectConnect VIF types"
     },
     {
       "tf_type": "aws_dx_connection",
@@ -3650,7 +3650,7 @@
       "cfn_type": null,
       "via": "none",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "legacy per-table replica API; AWS::DynamoDB::GlobalTable's Replicas is plausible but the correspondence to a plain Table's replica is unconfirmed"
     },
     {
       "tf_type": "aws_dynamodb_tag",
@@ -5323,7 +5323,7 @@
       "cfn_type": null,
       "via": "none",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "semantics too obscure to classify with confidence; no registry candidate found"
     },
     {
       "tf_type": "aws_iam_policy",
@@ -5428,7 +5428,7 @@
       "cfn_type": null,
       "via": "none",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "the reverse-direction shape of AWS::IAM::UserToGroupAddition (one user to many groups vs one group to many users) - the correspondence is not clean"
     },
     {
       "tf_type": "aws_iam_user_login_profile",
@@ -6135,7 +6135,7 @@
       "cfn_type": null,
       "via": "none",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "no registry candidate identified with confidence at sweep time"
     },
     {
       "tf_type": "aws_lambda_function_url",
@@ -6177,7 +6177,7 @@
       "cfn_type": null,
       "via": "none",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "targets either a Lambda alias or a raw version - two possible fold parents, no single correct one"
     },
     {
       "tf_type": "aws_lambda_runtime_management_config",
@@ -7136,7 +7136,7 @@
       "cfn_type": null,
       "via": "none",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "CFN models RoutingPolicyLabel as a property on several NetworkManager attachment types; the TF resource attaches generically across all of them"
     },
     {
       "tf_type": "aws_networkmanager_connect_attachment",
@@ -9642,7 +9642,7 @@
       "cfn_type": null,
       "via": "none",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "creates an ingress or egress rule by its type argument, and both AWS::EC2::SecurityGroup{Ingress,Egress} are already claimed by the split per-direction TF types"
     },
     {
       "tf_type": "aws_securityhub_account",
@@ -9866,7 +9866,7 @@
       "cfn_type": null,
       "via": "none",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "one TF resource spans five distinct AWS::ServiceCatalog::*Constraint types depending on its type field"
     },
     {
       "tf_type": "aws_servicecatalog_organizations_access",
@@ -10020,7 +10020,7 @@
       "cfn_type": null,
       "via": "none",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "AWS::SES::EmailIdentity is already claimed by aws_ses_email_identity/aws_sesv2_email_identity; asserting a third synonym needs a decision, not a sweep guess"
     },
     {
       "tf_type": "aws_ses_domain_identity_verification",
@@ -11245,7 +11245,7 @@
       "cfn_type": null,
       "via": "none",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an exclusive-set manager spanning both SecurityGroupIngress and SecurityGroupEgress - no single CFN counterpart"
     },
     {
       "tf_type": "aws_vpc_security_group_vpc_association",
