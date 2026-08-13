@@ -485,7 +485,9 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
 `aws_api_gateway_account`, `aws_api_gateway_base_path_mapping`,
 `aws_api_gateway_documentation_version`, `aws_api_gateway_gateway_response`,
-`aws_api_gateway_method`, `aws_api_gateway_model`,
+`aws_api_gateway_integration`, `aws_api_gateway_integration_response`,
+`aws_api_gateway_method`, `aws_api_gateway_method_response`,
+`aws_api_gateway_method_settings`, `aws_api_gateway_model`,
 `aws_api_gateway_rest_api_policy`, `aws_api_gateway_usage_plan_key`,
 `aws_apigatewayv2_routing_rule`, `aws_appflow_connector_profile`,
 `aws_cloudfront_monitoring_subscription`,
@@ -544,6 +546,9 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_opensearchserverless_access_policy`,
 `aws_opensearchserverless_lifecycle_policy`,
 `aws_opensearchserverless_security_policy`,
+`aws_prometheus_alert_manager_definition`,
+`aws_prometheus_query_logging_configuration`,
+`aws_prometheus_scraper_logging_configuration`,
 `aws_rds_cluster_role_association`, `aws_route`,
 `aws_route53_hosted_zone_dnssec`, `aws_route53_key_signing_key`,
 `aws_route53_record`, `aws_route53_resolver_firewall_rule`,
@@ -596,7 +601,11 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_api_gateway_base_path_mapping` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_api_gateway_documentation_version` | `aws_api_gateway_rest_api` | no (report-only) |
 | `aws_api_gateway_gateway_response` | `aws_api_gateway_rest_api` | no (report-only) |
+| `aws_api_gateway_integration` | `aws_api_gateway_rest_api` | no (report-only) |
+| `aws_api_gateway_integration_response` | `aws_api_gateway_rest_api` | no (report-only) |
 | `aws_api_gateway_method` | `aws_api_gateway_rest_api` | no (report-only) |
+| `aws_api_gateway_method_response` | `aws_api_gateway_rest_api` | no (report-only) |
+| `aws_api_gateway_method_settings` | `aws_api_gateway_rest_api` | no (report-only) |
 | `aws_api_gateway_model` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_api_gateway_rest_api_policy` | `aws_api_gateway_rest_api` | no (report-only) |
 | `aws_api_gateway_usage_plan_key` | `aws_api_gateway_usage_plan` | no (report-only) |
@@ -656,6 +665,9 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_opensearchserverless_access_policy` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_opensearchserverless_lifecycle_policy` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_opensearchserverless_security_policy` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_prometheus_alert_manager_definition` | `aws_grafana_workspace` | no (report-only) |
+| `aws_prometheus_query_logging_configuration` | `aws_grafana_workspace` | no (report-only) |
+| `aws_prometheus_scraper_logging_configuration` | `aws_prometheus_scraper` | no (report-only) |
 | `aws_route` | `aws_route_table` | no (report-only) |
 | `aws_route53_key_signing_key` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_route53_record` | `aws_api_gateway_domain_name` | no (report-only) |
@@ -685,7 +697,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_vpc_ipam_pool_cidr` | `aws_vpc_ipam_pool` | no (report-only) |
 | `aws_wafv2_web_acl_rule` | `aws_wafv2_web_acl` | no (report-only) |
 
-**Total.** 92 types swept via a parent read.
+**Total.** 99 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it

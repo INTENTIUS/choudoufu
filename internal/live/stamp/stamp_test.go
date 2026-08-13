@@ -602,6 +602,11 @@ var (
 		"aws_network_acl",
 		"aws_flow_log",
 		"aws_nat_gateway",
+		// Fold-child batch (issue #68): the two new APS parents admitted
+		// solely so the three APS fold-children below have something to key
+		// on. See live/e2e/estates/aps/README.md.
+		"aws_prometheus_workspace",
+		"aws_prometheus_scraper",
 		// Registry-ratified compute-platforms batch (#40, #44, issue #65's
 		// ratification campaign): Batch, EMR remainder, App Runner, Elastic
 		// Beanstalk, Amplify and Lightsail. Three of this batch's types are
@@ -988,6 +993,17 @@ var (
 		"aws_vpc_endpoint_route_table_association",
 		"aws_vpc_endpoint_subnet_association",
 		"aws_vpc_endpoint_security_group_association",
+		// Fold-child batch (issue #68): all seven carry no tags argument,
+		// confirmed against each type's own Argument Reference. See
+		// live/e2e/estates/apigateway/README.md and
+		// live/e2e/estates/aps/README.md, both "Untaggable types".
+		"aws_api_gateway_integration",
+		"aws_api_gateway_integration_response",
+		"aws_api_gateway_method_response",
+		"aws_api_gateway_method_settings",
+		"aws_prometheus_alert_manager_definition",
+		"aws_prometheus_query_logging_configuration",
+		"aws_prometheus_scraper_logging_configuration",
 		// Registry-ratified compute-platforms batch (#40, #44, issue #65's
 		// ratification campaign): three types with no tags argument at all
 		// in the pinned provider's own wire schema, confirmed against
@@ -1605,19 +1621,25 @@ func testSchemas() Schemas {
 		"aws_api_gateway_domain_name":                    tagged("id", "domain_name"),
 		"aws_api_gateway_domain_name_access_association": tagged("id", "arn", "domain_name_arn"),
 		"aws_api_gateway_gateway_response":               untagged("id", "rest_api_id", "response_type"),
-		"aws_api_gateway_method":                         untagged("id", "rest_api_id", "resource_id", "http_method"),
-		"aws_api_gateway_model":                          untagged("id", "rest_api_id", "name"),
-		"aws_api_gateway_rest_api":                       tagged("id", "arn", "name"),
-		"aws_api_gateway_rest_api_policy":                untagged("id", "rest_api_id", "policy"),
-		"aws_api_gateway_stage":                          tagged("id", "arn", "rest_api_id", "stage_name", "deployment_id"),
-		"aws_api_gateway_usage_plan":                     tagged("id", "name"),
-		"aws_api_gateway_usage_plan_key":                 untagged("id", "usage_plan_id", "key_id", "key_type"),
-		"aws_api_gateway_vpc_link":                       tagged("id", "name", "target_arns"),
-		"aws_apigatewayv2_api":                           tagged("id", "arn", "name", "protocol_type"),
-		"aws_apigatewayv2_domain_name":                   tagged("id", "domain_name"),
-		"aws_apigatewayv2_routing_rule":                  untagged("id", "domain_name", "action", "condition"),
-		"aws_apigatewayv2_stage":                         tagged("id", "arn", "api_id", "name"),
-		"aws_apigatewayv2_vpc_link":                      tagged("id", "name", "security_group_ids", "subnet_ids"),
+		// Fold-child batch (issue #68): all four carry no tags argument,
+		// confirmed against each type's own Argument Reference.
+		"aws_api_gateway_integration":          untagged("rest_api_id", "resource_id", "http_method", "type"),
+		"aws_api_gateway_integration_response": untagged("rest_api_id", "resource_id", "http_method", "status_code"),
+		"aws_api_gateway_method":               untagged("id", "rest_api_id", "resource_id", "http_method"),
+		"aws_api_gateway_method_response":      untagged("rest_api_id", "resource_id", "http_method", "status_code"),
+		"aws_api_gateway_method_settings":      untagged("rest_api_id", "stage_name", "method_path"),
+		"aws_api_gateway_model":                untagged("id", "rest_api_id", "name"),
+		"aws_api_gateway_rest_api":             tagged("id", "arn", "name"),
+		"aws_api_gateway_rest_api_policy":      untagged("id", "rest_api_id", "policy"),
+		"aws_api_gateway_stage":                tagged("id", "arn", "rest_api_id", "stage_name", "deployment_id"),
+		"aws_api_gateway_usage_plan":           tagged("id", "name"),
+		"aws_api_gateway_usage_plan_key":       untagged("id", "usage_plan_id", "key_id", "key_type"),
+		"aws_api_gateway_vpc_link":             tagged("id", "name", "target_arns"),
+		"aws_apigatewayv2_api":                 tagged("id", "arn", "name", "protocol_type"),
+		"aws_apigatewayv2_domain_name":         tagged("id", "domain_name"),
+		"aws_apigatewayv2_routing_rule":        untagged("id", "domain_name", "action", "condition"),
+		"aws_apigatewayv2_stage":               tagged("id", "arn", "api_id", "name"),
+		"aws_apigatewayv2_vpc_link":            tagged("id", "name", "security_group_ids", "subnet_ids"),
 		// Registry-ratified RDS batch (#40, #44, issue #65's ratification
 		// campaign). Taggable/untaggable per the real provider's documented
 		// Argument Reference for each type: aws_db_instance_role_association,
@@ -1736,6 +1758,15 @@ func testSchemas() Schemas {
 		"aws_cloudfront_realtime_log_config":                   untagged("id", "arn", "name", "sampling_rate"),
 		"aws_cloudfront_trust_store":                           tagged("id", "arn", "name"),
 		"aws_cloudfront_vpc_origin":                            tagged("id", "arn"),
+		// Fold-child batch (issue #68): the two new APS parents are
+		// taggable (ordinary marker path); the three fold-children keyed on
+		// them carry no tags argument at all, confirmed against each
+		// type's own Argument Reference.
+		"aws_prometheus_workspace":                     tagged("id", "arn"),
+		"aws_prometheus_scraper":                       tagged("id", "arn", "scrape_configuration"),
+		"aws_prometheus_alert_manager_definition":      untagged("workspace_id", "definition"),
+		"aws_prometheus_query_logging_configuration":   untagged("workspace_id"),
+		"aws_prometheus_scraper_logging_configuration": untagged("scraper_id"),
 		// Registry-ratified developer tools batch (#40, #44, issue #65).
 		// Taggable/untaggable per the real provider's documented Argument
 		// Reference for each type: aws_codebuild_webhook and
