@@ -85,6 +85,56 @@ func TestLimitsEnforced(t *testing.T) {
 	}
 }
 
+// childModuleFixtureDetails is the substring each of the three module calls
+// in live/e2e/limits/child-module/main.tf is expected to carry in its
+// Detail, keyed by the call's own name. #59 narrowed RuleChildModule from
+// one message to three - the same rule fires for a static call, a
+// count-expanded call and a for_each-expanded call, but each is refused for
+// a different, named reason (live/LIMITATIONS.md, "child-module"). This is
+// what pins the fixture to actually exercising all three, rather than
+// three copies of the same message under different names.
+var childModuleFixtureDetails = map[string]string{
+	"network": "issue #59, phase 2, in progress",
+	"counted": "refused permanently",
+	"keyed":   "issue #59, phase 3",
+}
+
+// TestChildModuleTrichotomy checks that live/e2e/limits/child-module/, which
+// carries a static call, a count call and a for_each call in one tree, gets
+// three RuleChildModule issues back - one per call - and that each Detail
+// is the one that named shape gets, not one of the other two.
+func TestChildModuleTrichotomy(t *testing.T) {
+	cfg := loadConfigDir(t, filepath.Join(limitsDir(t), "child-module"))
+	issues := CheckContext(t.Context(), cfg)
+
+	got := make(map[string]Issue, len(issues))
+	for _, issue := range issues {
+		if issue.Rule != RuleChildModule {
+			t.Errorf("child-module: got rule %q, want exactly %q (and no other rule): %s", issue.Rule, RuleChildModule, issue)
+			continue
+		}
+		// Construct is `module "<name>"`; the name is what
+		// childModuleFixtureDetails is keyed by.
+		name := strings.TrimSuffix(strings.TrimPrefix(issue.Construct, `module "`), `"`)
+		got[name] = issue
+	}
+
+	if len(got) != len(childModuleFixtureDetails) {
+		t.Fatalf("child-module: got %d distinct module calls %v, want exactly %d: %v", len(got), got, len(childModuleFixtureDetails), childModuleFixtureDetails)
+	}
+
+	for name, wantSubstring := range childModuleFixtureDetails {
+		issue, ok := got[name]
+		if !ok {
+			t.Errorf("child-module: no issue reported for module %q", name)
+			continue
+		}
+		if !strings.Contains(issue.Detail, wantSubstring) {
+			t.Errorf("child-module: module %q Detail = %q, want it to contain %q", name, issue.Detail, wantSubstring)
+		}
+	}
+}
+
 // TestLimitsNotYetEnforced checks that every directory in notYetEnforcedLimits
 // produces no issues today. This pins current behavior on purpose: these
 // constructs ARE banned or bounded by the roadmap, but no lint rule exists to

@@ -159,29 +159,47 @@ rule").
 
 ### child-module
 
-**Construct.** A `module` block, at any depth.
+**Construct.** A `module` block, at any depth. Every module block is refused
+today, but not for the same reason - #59 narrows this rule module call by
+module call, into three shapes with three different fates:
 
-**Why banned.** Live markers v0 are a root-module mode. Identity
-resolution, discovery, marker stamping and the projection all stop at the
-root, and module expansion (`count` or `for_each` on a module block)
-changes every resource address inside the module, which is exactly what a
-`tofu-address` marker records. Binding markers under an expansion that can
-renumber them is the ambiguity the marker exists to remove.
+- **Static** (no `count`, no `for_each`). **Planned.** Refused today only
+  because nothing downstream of lint walks into a child module yet (issue
+  #59, phase 2, in progress). Once that traversal lands, a static module
+  call has no expansion and so no ambiguity about which instance a marker
+  belongs to - it is the shape with the shortest road to admission.
+- **Keyed `for_each`.** **Planned, after static.** Refused today because
+  nothing downstream of lint walks into a module's instances yet (issue
+  #59, phase 3, planned after the static traversal). A keyed instance does
+  not renumber the way a counted one does, which is what makes it worth
+  admitting once the traversal exists.
+- **`count`.** **Permanent.** Module expansion by `count` renumbers every
+  resource address inside the module positionally, on every insertion or
+  removal above the changed index, and a `tofu-address` marker records an
+  address, not a position. A renumbering that moves addresses out from
+  under their markers is not a gap this mode intends to close, so
+  count-expanded modules are refused for keeps, independent of how much of
+  the rest of the trichotomy ships.
 
 **Forwarding address.** Move the module's resources into the root module,
 or give the module an estate of its own, with its own directory, its own
 `live` block, and its own `estate` name. Two estates are two independent
-runs, which is the separation a child module was standing in for.
+runs, which is the separation a child module was standing in for. For a
+`count`-expanded module specifically, this is the only forwarding address -
+there is no future traversal to wait for.
 
 **Enforcement.** `RuleChildModule`, `internal/live/lint/child_module.go`
-(`checkChildModules`). Fixture at `live/e2e/limits/child-module/`, which is
-a tree rather than a single file and needs `choudoufu get` before the rule can
-be reached, since an uninstalled module block is refused while the
-configuration is still being loaded, earlier than any marker code runs.
-The five packages downstream of lint (`identity`, `discovery`, `stamp`,
-`projection`, `mv`) each still refuse a configuration with children, but as a
-one-line internal invariant. Lint runs first in both commands, so reaching one
-of them with a child module means the pipeline ran out of order.
+(`checkChildModules`, detail text chosen by `childModuleDetail`). Fixture at
+`live/e2e/limits/child-module/`, which is a tree rather than a single file
+and needs `choudoufu get` before the rule can be reached, since an
+uninstalled module block is refused while the configuration is still being
+loaded, earlier than any marker code runs. The fixture carries all three
+shapes at once - a static call, a `count` call, and a `for_each` call - so
+one load exercises all three messages. The five packages downstream of lint
+(`identity`, `discovery`, `stamp`, `projection`, `mv`) each still refuse a
+configuration with children, but as a one-line internal invariant. Lint runs
+first in both commands, so reaching one of them with a child module means the
+pipeline ran out of order.
 
 ### backend-block
 
