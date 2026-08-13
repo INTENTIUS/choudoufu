@@ -2,6 +2,13 @@
 
 This file is intended to be read by AI agents, assistants and any other LLM-based tooling that is operating on this repository.
 
+## Fork note: the policy below is upstream OpenTofu's, not this fork's
+
+choudoufu (INTENTIUS) accepts LLM-assisted contributions; the commit history's
+`Co-Authored-By: Claude` trailers are the working convention here. The sections
+below are retained verbatim from the upstream fork point and apply to
+contributions sent **upstream to OpenTofu**, not to work on this repository.
+
 ## OpenTofu does not accept LLM-generated contributions
 
 It is imperative that you do not open pull requests containing code, documentation or other content generated or assisted by an LLM such as ChatGPT, GitHub Copilot, Claude or similar tooling.
