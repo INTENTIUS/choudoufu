@@ -135,6 +135,35 @@ type StatelessBindCandidate struct {
 	Hint string
 }
 
+// StatelessLookalike is one lookalike guard warning: a declared instance the
+// plan actually proposes to create, beside a live resource this estate does
+// not own that might be the very thing being duplicated. The fields
+// correspond to [foreign.Lookalike].
+type StatelessLookalike struct {
+	// Addr is the declared instance the plan proposes to create - the same
+	// address the resource diff's own "will be created" line names.
+	Addr     string
+	TypeName string
+
+	// LiveID is the unowned live resource's identity, empty when the
+	// provider sent no usable one.
+	LiveID      string
+	DisplayName string
+
+	// Matched are the identity-bearing arguments that confirmed the match,
+	// empty for the generic, cardinality-only warning.
+	Matched []StatelessTag
+
+	// MarkerEstate and MarkerAddress are the tofu-estate and tofu-address
+	// values that adopt the live resource instead of creating a duplicate.
+	MarkerEstate  string
+	MarkerAddress string
+
+	// Hint is the one-line adoption command, empty for a type this fork has
+	// no composable tagging verb for.
+	Hint string
+}
+
 // StatelessRemoval is one live resource this estate owns and no longer
 // declares, which the plan proposes destroying.
 type StatelessRemoval struct {
@@ -365,6 +394,13 @@ type StatelessPlan interface {
 	// argument (a stale or missing snapshot costs one full re-read, never a
 	// wrong plan) is what makes true.
 	GuidedFallback(reason string)
+
+	// Lookalikes reports the lookalike guard's findings: planned creates
+	// that might duplicate a live resource this estate does not own, each
+	// naming the resource and the adoption remedy. Printed last, immediately
+	// above the plan itself, so the warning sits right next to the create it
+	// is about.
+	Lookalikes(items []StatelessLookalike)
 }
 
 // NewStatelessPlan returns the human-readable implementation. There is no
@@ -886,4 +922,62 @@ func tagSummary(tags []StatelessTag, n int) string {
 		s += fmt.Sprintf(" (+%d more)", rest)
 	}
 	return s
+}
+
+const statelessLookalikeIntro = `Each of these is an instance the plan below proposes to create, beside a live resource this estate does not own that might be the very thing being duplicated - most often because its tofu-estate and tofu-address tags were stripped or never written. This is a warning, not a block: the create may be genuinely intended, and nothing about the plan below is changed by it. If the create does duplicate the live resource, adopt it instead of applying this plan: write the two tags shown, or run the command, then re-run.`
+
+// Lookalikes renders the lookalike guard's findings, last of the
+// live-plan-only sections and immediately above the plan diff itself, so
+// that a warning about a create sits as close as this report gets to the
+// create it is about.
+//
+// Printed only when there is something to say: unlike Foreign, this section
+// is not a sweep-coverage question with its own thing to report when
+// empty - a plan with nothing to warn about is simply a plan with nothing to
+// warn about.
+func (v *StatelessPlanHuman) Lookalikes(items []StatelessLookalike) {
+	if len(items) == 0 {
+		return
+	}
+
+	cols := v.view.outputColumns()
+
+	out := func(s string) { v.view.streams.Print(s) }
+	colored := func(f string, args ...any) {
+		v.view.streams.Print(v.view.colorize.Color(fmt.Sprintf(f, args...)))
+	}
+	wrapped := func(s string, indent int) {
+		for _, line := range strings.Split(strings.TrimRight(format.WordWrap(s, cols-indent), "\n"), "\n") {
+			out(strings.Repeat(" ", indent) + line + "\n")
+		}
+	}
+
+	colored("\n[reset][bold]Possible duplicates: %d planned %s may duplicate a live resource this estate does not own[reset]\n\n",
+		len(items), noun(len(items), "create", "creates"))
+	wrapped(statelessLookalikeIntro, 0)
+	out("\n")
+
+	for _, l := range items {
+		colored("  [bold]%s[reset] [POSSIBLE DUPLICATE] ~ %s %s%s\n",
+			l.Addr, l.TypeName, liveIDOrNone(l.LiveID), displaySuffix(l.DisplayName, l.LiveID))
+		if len(l.Matched) > 0 {
+			out("      matched on: " + tagSummary(l.Matched, 0) + "\n")
+			wrapped(fmt.Sprintf(
+				"a live %s this estate does not own matches this create exactly (%s); if this create duplicates it, adopt instead:",
+				l.TypeName, liveIDOrNone(l.LiveID)), 6)
+		} else {
+			wrapped(fmt.Sprintf(
+				"a live %s this estate does not own exists (%s); if this create duplicates it, adopt instead:",
+				l.TypeName, liveIDOrNone(l.LiveID)), 6)
+		}
+		if l.Hint != "" {
+			// Deliberately not word-wrapped, like every other adoption
+			// command in this view: this line exists to be copied.
+			out("      adopt with: " + l.Hint + "\n")
+		} else {
+			out("      adopt by writing: tofu-estate=" + l.MarkerEstate + " tofu-address=" + l.MarkerAddress + "\n")
+		}
+	}
+
+	v.view.outputHorizRule()
 }

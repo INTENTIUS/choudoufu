@@ -106,6 +106,53 @@ func TestStatelessPlan_guidedFallback(t *testing.T) {
 	}
 }
 
+// TestStatelessPlan_lookalikesSection pins the lookalike guard's exact
+// wording: a matchTable-confirmed warning names what it matched on, a
+// generic warning (no matchTable entry) says only that a live resource
+// exists, and both name the live ID and print the adoption remedy.
+func TestStatelessPlan_lookalikesSection(t *testing.T) {
+	streams, done := terminal.StreamsForTesting(t)
+	v := NewStatelessPlan(NewView(streams).SetRunningInAutomation(true))
+
+	v.Lookalikes([]StatelessLookalike{
+		{
+			Addr:          "aws_security_group.main",
+			TypeName:      "aws_security_group",
+			LiveID:        "sg-0abc",
+			Matched:       []StatelessTag{{Key: "name", Value: "stateless-e2e-main"}},
+			MarkerEstate:  "stateless-e2e",
+			MarkerAddress: "aws_security_group.main",
+			Hint:          "aws ec2 create-tags --resources 'sg-0abc' --tags 'Key=tofu-estate,Value=stateless-e2e' 'Key=tofu-address,Value=aws_security_group.main'",
+		},
+		{
+			Addr:          "aws_route_table.main",
+			TypeName:      "aws_route_table",
+			LiveID:        "rtb-stripped",
+			MarkerEstate:  "stateless-e2e",
+			MarkerAddress: "aws_route_table.main",
+		},
+	})
+
+	got := done(t).Stdout()
+
+	for _, want := range []string{
+		"Possible duplicates: 2 planned creates may duplicate a live resource this estate does not own",
+		"aws_security_group.main [POSSIBLE DUPLICATE] ~ aws_security_group sg-0abc",
+		"matched on: name=stateless-e2e-main",
+		"a live aws_security_group this estate does not own matches this create",
+		"exactly (sg-0abc); if this create duplicates it, adopt instead:",
+		"adopt with: aws ec2 create-tags --resources 'sg-0abc'",
+		"aws_route_table.main [POSSIBLE DUPLICATE] ~ aws_route_table rtb-stripped",
+		"a live aws_route_table this estate does not own exists (rtb-stripped);",
+		"if this create duplicates it, adopt instead:",
+		"adopt by writing: tofu-estate=stateless-e2e tofu-address=aws_route_table.main",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the section does not contain %q:\n%s", want, got)
+		}
+	}
+}
+
 // TestStatelessPlan_guidedFallbackEmpty: an empty reason renders nothing,
 // which is the case for every pass that never configured guided discovery at
 // all and for every pass where it engaged successfully - neither is
@@ -118,5 +165,19 @@ func TestStatelessPlan_guidedFallbackEmpty(t *testing.T) {
 
 	if got := done(t).Stdout(); got != "" {
 		t.Errorf("an empty fallback reason rendered output:\n%s", got)
+	}
+}
+
+// TestStatelessPlan_lookalikesSectionEmpty: no warnings, nothing rendered -
+// the ordinary case, since a plan with nothing to warn about should print
+// nothing about it.
+func TestStatelessPlan_lookalikesSectionEmpty(t *testing.T) {
+	streams, done := terminal.StreamsForTesting(t)
+	v := NewStatelessPlan(NewView(streams).SetRunningInAutomation(true))
+
+	v.Lookalikes(nil)
+
+	if got := done(t).Stdout(); got != "" {
+		t.Errorf("an empty lookalike list rendered output:\n%s", got)
 	}
 }

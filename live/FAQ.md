@@ -279,6 +279,30 @@ the *category* of one-shot state-surgery constructs, but the specific
 behavior of upstream's `destroy = false` is not yet one of the choices, only
 a documented gap with a manual workaround.
 
+## What stops someone from stripping a resource's markers and getting a duplicate?
+
+Nothing stops the tags from being removed - they are ordinary AWS resource
+tags, and `aws ec2 delete-tags` or a console cleanup can untag anything
+with the right permissions. What it costs afterward depends on the type.
+A client-named resource is a nuisance: the next plan reports it
+`[UNOWNED]` with the adoption command, and the cloud's own uniqueness
+constraint means a duplicate can never actually be created under the same
+name. A server-assigned resource (`aws_vpc`, `aws_security_group`, and the
+rest) has no other handle, so the next plan proposes creating a second
+one beside the orphaned first.
+
+`live/MARKERS.md`'s "Protecting the markers" section has the full answer:
+what an AWS Organizations tag policy can and cannot do here (it enforces
+tag *values*, not tag *survival*, and does not block untagging at all), an
+SCP snippet that denies the untagging actions on the three marker keys to
+everyone but the automation principal, with the caveats that make it
+honest rather than a false sense of safety, and the plan-time backstop -
+every create of an admitted type gets checked against the estate's unowned
+live resources of the same type, and a match earns a `[POSSIBLE
+DUPLICATE]` warning naming the live resource and the adopt command,
+directly above the plan diff. Warn, never block: the create might be
+genuine. But it is never silent.
+
 ## How does this relate to upstream OpenTofu?
 
 The fork was cut from

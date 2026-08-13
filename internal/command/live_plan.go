@@ -356,10 +356,15 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	statelessView.Omissions(statelessOmissions(projResult))
 	statelessView.Unowned(statelessUnownedReport(projResult, estate))
 
+	// classified and foreignReq are kept in outer scope, past the section
+	// they were computed for: the lookalike guard below needs the same
+	// classification and the same request (for its region and endpoint) once
+	// the plan is in hand and it knows which addresses are actually about to
+	// be created.
 	var classified *foreign.Result
+	var foreignReq foreign.Request
 	if disco != nil {
-		var foreignDiags tfdiags.Diagnostics
-		classified, foreignDiags = foreign.Classify(ctx, foreign.Request{
+		foreignReq = foreign.Request{
 			Estate:    disco.Estate,
 			Config:    config,
 			Discovery: disco,
@@ -377,7 +382,9 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 			// produces nothing in this section at all) requires.
 			Region:      provs.region(discoProvider),
 			EndpointURL: provs.endpointURL(discoProvider),
-		})
+		}
+		var foreignDiags tfdiags.Diagnostics
+		classified, foreignDiags = foreign.Classify(ctx, foreignReq)
 		diags = diags.Append(foreignDiags)
 		if foreignDiags.HasErrors() {
 			return 1, false, diags
@@ -441,6 +448,18 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	diags = diags.Append(planDiags)
 	if plan == nil {
 		return 1, false, diags
+	}
+
+	// The lookalike guard: now that the plan is in hand, ask which of its
+	// creates might be duplicating a live resource this estate does not own
+	// - most often because a resource's tofu-estate and tofu-address tags
+	// were stripped out of band, off a server-assigned type no marker means
+	// no other way to find. It reuses the classification computed above
+	// rather than sweeping a second time, and it never touches the plan: a
+	// create beside a genuine lookalike is still a create, and this only
+	// makes sure the warning sits right above it.
+	if classified != nil {
+		statelessView.Lookalikes(statelessLookalikeReport(foreign.Lookalikes(foreignReq, classified, statelessPlannedCreates(plan))))
 	}
 
 	view.Operation().Plan(plan, schemas)
@@ -1238,6 +1257,55 @@ func statelessForeignReport(res *foreign.Result) views.StatelessForeign {
 		})
 	}
 	return rep
+}
+
+// statelessPlannedCreates is every address the plan actually proposes to
+// create, in the order [plans.Changes.Resources] carries them - the input
+// the lookalike guard needs, since it warns about the plan's own actions
+// rather than about what discovery merely left unbound. A replace (however
+// it is spelled: [plans.Replace], [plans.DeleteThenCreate],
+// [plans.CreateThenDelete], [plans.ForgetThenCreate]) is deliberately
+// excluded: the address already has a prior-state entry, so there is no
+// question of it duplicating a live resource nobody owns.
+func statelessPlannedCreates(plan *plans.Plan) []addrs.AbsResourceInstance {
+	if plan == nil || plan.Changes == nil {
+		return nil
+	}
+	var out []addrs.AbsResourceInstance
+	for _, rc := range plan.Changes.Resources {
+		if rc.Action == plans.Create {
+			out = append(out, rc.Addr)
+		}
+	}
+	return out
+}
+
+// statelessLookalikeReport converts the lookalike guard's findings into the
+// view's wire format, the same split [statelessForeignReport] and
+// [statelessUnownedReport] keep: data across the package boundary, never
+// rendered text.
+func statelessLookalikeReport(warnings []foreign.Lookalike) []views.StatelessLookalike {
+	if len(warnings) == 0 {
+		return nil
+	}
+	out := make([]views.StatelessLookalike, 0, len(warnings))
+	for _, w := range warnings {
+		matched := make([]views.StatelessTag, 0, len(w.Matched))
+		for _, m := range w.Matched {
+			matched = append(matched, views.StatelessTag{Key: m.Attr, Value: m.Value})
+		}
+		out = append(out, views.StatelessLookalike{
+			Addr:          w.Addr.String(),
+			TypeName:      w.TypeName,
+			LiveID:        w.LiveID,
+			DisplayName:   w.DisplayName,
+			Matched:       matched,
+			MarkerEstate:  w.MarkerEstate,
+			MarkerAddress: w.MarkerAddress,
+			Hint:          w.Hint,
+		})
+	}
+	return out
 }
 
 func statelessTags(tags []foreign.Tag) []views.StatelessTag {
