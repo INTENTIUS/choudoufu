@@ -116,6 +116,7 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 			view.Diagnostics(diags)
 			return 1
 		}
+		diags = diags.Append(c.checkAWSProviderVersionSkew())
 	}
 
 	// Before we delegate to the backend, we'll print any warning diagnostics

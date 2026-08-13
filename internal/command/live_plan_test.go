@@ -26,6 +26,7 @@ import (
 	"github.com/intentius/choudoufu/internal/terminal"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tofu"
+	residue "github.com/intentius/choudoufu/live"
 )
 
 // The live-plan tests drive the whole pipeline (lint, identity
@@ -108,6 +109,126 @@ func TestLivePlan_proposesCreate(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "1 to add, 0 to change, 0 to destroy") {
 		t.Errorf("plan summary is not 1 to add:\n%s", stdout)
+	}
+}
+
+// writeAWSProviderLock writes a minimal ".terraform.lock.hcl" into dir,
+// locking hashicorp/aws to version - just enough for
+// [Meta.resolvedAWSProviderVersion] to read a version back, with no hashes
+// block since providerFactories never actually opens this package (the
+// live-plan tests run through the in-process testingOverrides provider, not
+// an installed one, so the lock file's only job here is to name a resolved
+// version).
+func writeAWSProviderLock(t *testing.T, dir, version string) {
+	t.Helper()
+	content := fmt.Sprintf(`# This file is maintained automatically by "tofu init".
+# Manual edits may be lost in future updates.
+
+provider "registry.opentofu.org/hashicorp/aws" {
+  version     = %q
+  constraints = %q
+}
+`, version, version)
+	if err := os.WriteFile(filepath.Join(dir, ".terraform.lock.hcl"), []byte(content), 0o644); err != nil {
+		t.Fatalf("writing .terraform.lock.hcl: %v", err)
+	}
+}
+
+// bumpPatchVersion increments the patch component of a clean "x.y.z"
+// version string, so TestLivePlan_providerVersionSkewWarns exercises the
+// patch-only-differs case issue #63's design comment argues warrants a
+// warning, derived from whatever live/survey.json currently pins rather
+// than a version string hand-copied here to fall out of sync with it.
+func bumpPatchVersion(t *testing.T, v string) string {
+	t.Helper()
+	parts := strings.Split(v, ".")
+	if len(parts) != 3 {
+		t.Fatalf("evidence version %q is not a clean x.y.z string", v)
+	}
+	var patch int
+	if _, err := fmt.Sscanf(parts[2], "%d", &patch); err != nil {
+		t.Fatalf("evidence version %q has a non-numeric patch component: %v", v, err)
+	}
+	return fmt.Sprintf("%s.%s.%d", parts[0], parts[1], patch+1)
+}
+
+// TestLivePlan_providerVersionSkewWarns is issue #63's command-level proof:
+// a resolved hashicorp/aws version that does not match live/survey.json's
+// admission evidence version produces exactly the one warning
+// [providerversion.Check] documents, naming both versions, and the plan
+// still succeeds - this is a caution, never a gate.
+func TestLivePlan_providerVersionSkewWarns(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-plan"), td)
+
+	evidence := residue.EvidenceVersion()
+	if evidence == "" {
+		t.Fatal("residue.EvidenceVersion() is empty")
+	}
+	skewed := bumpPatchVersion(t, evidence)
+	writeAWSProviderLock(t, td, skewed)
+
+	t.Chdir(td)
+
+	cloud := newStatelessTestCloud()
+	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	})
+
+	c, done := newLivePlanCommand(t, cloud)
+
+	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-target=aws_s3_bucket.data"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0 (a version skew warns, it does not fail the run)\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+
+	all := output.All()
+	if !strings.Contains(all, "Provider version does not match the admission evidence version") {
+		t.Errorf("no provider-version-skew warning in output:\n%s", all)
+	}
+	if !strings.Contains(all, skewed) {
+		t.Errorf("warning does not name the resolved version %q:\n%s", skewed, all)
+	}
+	if !strings.Contains(all, evidence) {
+		t.Errorf("warning does not name the evidence version %q:\n%s", evidence, all)
+	}
+	if strings.Count(all, "Provider version does not match the admission evidence version") != 1 {
+		t.Errorf("warning appears %d times, want exactly once per run:\n%s", strings.Count(all, "Provider version does not match the admission evidence version"), all)
+	}
+}
+
+// TestLivePlan_providerVersionMatchIsSilent is the negative half of
+// TestLivePlan_providerVersionSkewWarns: a resolved version identical to
+// the admission evidence version produces no warning at all.
+func TestLivePlan_providerVersionMatchIsSilent(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-plan"), td)
+
+	evidence := residue.EvidenceVersion()
+	if evidence == "" {
+		t.Fatal("residue.EvidenceVersion() is empty")
+	}
+	writeAWSProviderLock(t, td, evidence)
+
+	t.Chdir(td)
+
+	cloud := newStatelessTestCloud()
+	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	})
+
+	c, done := newLivePlanCommand(t, cloud)
+
+	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-target=aws_s3_bucket.data"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+
+	all := output.All()
+	if strings.Contains(all, "Provider version does not match the admission evidence version") {
+		t.Errorf("a matching resolved version still produced the skew warning:\n%s", all)
 	}
 }
 
