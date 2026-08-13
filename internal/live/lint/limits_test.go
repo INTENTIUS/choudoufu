@@ -34,6 +34,7 @@ var enforcedLimits = map[string]Rule{
 	"local-exec":         RuleProvisioner,
 	"remote-exec":        RuleProvisioner,
 	"null-resource":      RuleLogicalResource,
+	"terraform-data":     RuleLogicalResource,
 	"local-file":         RuleLogicalResource,
 	"random-password":    RuleLogicalResource,
 	"time-sleep":         RuleLogicalResource,
@@ -79,6 +80,69 @@ func TestLimitsEnforced(t *testing.T) {
 			for _, issue := range issues {
 				if issue.Rule != rule {
 					t.Errorf("%s: got rule %q, want exactly %q (and no other rule): %s", dir, issue.Rule, rule, issue)
+				}
+			}
+		})
+	}
+}
+
+// logicalLimitsClasses pairs every logical-resource limits fixture with the
+// [LogicalClass] its one resource classifies as, so
+// TestLogicalLimitsDetailsRender can check that the class actually shows up
+// in the Detail an operator sees - not just that RuleLogicalResource fired
+// (TestLimitsEnforced already pins that), but that the new per-type
+// classification (GitHub issue #73's groundwork) reached the message.
+var logicalLimitsClasses = map[string]LogicalClass{
+	"null-resource":   ClassRecordAdmitted,
+	"terraform-data":  ClassRecordAdmitted,
+	"time-sleep":      ClassRecordAdmitted,
+	"random-password": ClassSecretRefused,
+	"local-file":      ClassOtherRefused,
+}
+
+// TestLogicalLimitsDetailsRender checks that every logical-resource limits
+// fixture's single issue carries the right class-specific wording in its
+// Detail: RECORD_ADMITTED and SECRET_REFUSED name their class outright and
+// carry the forwarding language specific to them (#73, and the secret
+// manager address, respectively), while OTHER_REFUSED carries neither by
+// design - its whole point is that the original, class-agnostic wording is
+// unchanged (TestLogicalResourceDetailsRenderByClass in lint_test.go pins
+// that wording byte-identical to the pre-table template).
+func TestLogicalLimitsDetailsRender(t *testing.T) {
+	for dir, class := range logicalLimitsClasses {
+		t.Run(dir, func(t *testing.T) {
+			cfg := loadConfigDir(t, filepath.Join(limitsDir(t), dir))
+			issues := CheckContext(t.Context(), cfg)
+
+			var logical []Issue
+			for _, issue := range issues {
+				if issue.Rule == RuleLogicalResource {
+					logical = append(logical, issue)
+				}
+			}
+			if len(logical) != 1 {
+				t.Fatalf("%s: got %d RuleLogicalResource issues, want exactly 1: %v", dir, len(logical), logical)
+			}
+
+			detail := logical[0].Detail
+			switch class {
+			case ClassRecordAdmitted:
+				if !strings.Contains(detail, string(class)) {
+					t.Errorf("%s: Detail = %q, want it to contain class %q", dir, detail, class)
+				}
+				if !strings.Contains(detail, "#73") {
+					t.Errorf("%s: RECORD_ADMITTED Detail = %q, want it to cite #73", dir, detail)
+				}
+			case ClassSecretRefused:
+				if !strings.Contains(detail, string(class)) {
+					t.Errorf("%s: Detail = %q, want it to contain class %q", dir, detail, class)
+				}
+				if !strings.Contains(detail, "secret manager") {
+					t.Errorf("%s: SECRET_REFUSED Detail = %q, want the secret-manager forwarding address", dir, detail)
+				}
+			case ClassOtherRefused:
+				if strings.Contains(detail, string(ClassRecordAdmitted)) || strings.Contains(detail, string(ClassSecretRefused)) {
+					t.Errorf("%s: OTHER_REFUSED Detail = %q, want no other class's wording (current wording preserved)", dir, detail)
 				}
 			}
 		})
