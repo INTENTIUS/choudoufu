@@ -108,15 +108,19 @@ func TestDiscoverCloudControlFallbackAgainstFloci(t *testing.T) {
 	}
 
 	if _, ok := res.BindingFor(mustAddr(t, "aws_glue_registry.demo")); !ok {
-		t.Skip("aws_glue_registry.demo was not discovered through Cloud Control against floci. " +
-			"This is the documented, currently-reproducing gap: floci's Cloud Control ListResources " +
-			"does not reflect resources created through the ordinary service API for this type (manual " +
-			"probing with the AWS CLI found the same for AWS::Route53::HealthCheck, AWS::EC2::KeyPair and " +
-			"AWS::IoT::ThingType; only the pre-seeded default AWS::EC2::VPC came back). The code path this " +
-			"test exercises (scanTypeCloudControl, the enumeration-source selection, the composite-identifier " +
-			"rule) is proven against fake servers in cloudcontrol_test.go; this e2e case is what proves it " +
-			"against floci's real wire behavior once floci's Cloud Control coverage catches up. See " +
-			"testdata/cloudcontrol-e2e/main.tf for the full probe notes.")
+		// flocitest.CloudControlListCapabilityGate skips with a loud,
+		// digest-cited reason when live/floci-capabilities.json already
+		// explains this exact gap (it does, as of the pinned digest - see
+		// testdata/cloudcontrol-e2e/main.tf for the full probe notes that
+		// entry is built from). If the manifest has no matching entry, this
+		// falls through to a real failure instead of a silent skip: an
+		// unexplained miss here means either floci's Cloud Control coverage
+		// regressed, or a new gap needs investigating and recording, not
+		// waving through by hand again.
+		flocitest.CloudControlListCapabilityGate(t, "aws_glue_registry")
+		t.Fatal("aws_glue_registry.demo was not discovered through Cloud Control against floci, and " +
+			"live/floci-capabilities.json has no entry explaining why for this floci image - investigate and " +
+			"record the finding there (tools/floci-capability-gen's doc comment) rather than skip unexplained")
 	}
 
 	// Reached only once floci actually reflects the resource: verify the

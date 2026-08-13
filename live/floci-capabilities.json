@@ -1,0 +1,267 @@
+{
+  "generated_by": "tools/floci-capability-gen (go run ./tools/floci-capability-gen); see its package doc for the probe/merge workflow",
+  "images": [
+    {
+      "digest": "sha256:4753246c0260a22af1056c65993f4d73b0a907729a9580b9baba5d628b6dad34",
+      "ref": "ghcr.io/lex00/floci@sha256:4753246c0260a22af1056c65993f4d73b0a907729a9580b9baba5d628b6dad34",
+      "services": [
+        {
+          "service": "networkmanager",
+          "status": "unimplemented",
+          "evidence": "absent from /_localstack/health's service list entirely",
+          "source": "live/e2e/estates/stragglers/README.md, \"Floci coverage\""
+        },
+        {
+          "service": "storagegateway",
+          "status": "unimplemented",
+          "evidence": "absent from /_localstack/health's service list entirely",
+          "source": "live/e2e/estates/stragglers/README.md, \"Floci coverage\""
+        },
+        {
+          "service": "transfer",
+          "status": "implemented",
+          "evidence": "present as \"running\" in /_localstack/health, but several specific operations are unimplemented - see the types table (mechanism \"\")",
+          "source": "live/e2e/estates/stragglers/README.md, \"Floci coverage\""
+        },
+        {
+          "service": "ecr",
+          "status": "implemented",
+          "evidence": "present as \"running\" in /_localstack/health, but several specific newer operations are unimplemented - see the types table (mechanism \"\")",
+          "source": "live/e2e/estates/stragglers/README.md, \"Floci coverage\""
+        }
+      ],
+      "types": [
+        {
+          "type": "aws_redshift_cluster",
+          "status": "unimplemented",
+          "evidence": "CreateCluster/CreateClusterParameterGroup/CreateClusterSubnetGroup/CreateSnapshotSchedule are all routed by floci to its SQS handler instead of a Redshift handler (UnsupportedOperation: Operation ... is not supported by SQS)",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_redshift_parameter_group",
+          "status": "unimplemented",
+          "evidence": "CreateCluster/CreateClusterParameterGroup/CreateClusterSubnetGroup/CreateSnapshotSchedule are all routed by floci to its SQS handler instead of a Redshift handler (UnsupportedOperation: Operation ... is not supported by SQS)",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_redshift_subnet_group",
+          "status": "unimplemented",
+          "evidence": "CreateCluster/CreateClusterParameterGroup/CreateClusterSubnetGroup/CreateSnapshotSchedule are all routed by floci to its SQS handler instead of a Redshift handler (UnsupportedOperation: Operation ... is not supported by SQS)",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_redshift_snapshot_schedule",
+          "status": "unimplemented",
+          "evidence": "CreateCluster/CreateClusterParameterGroup/CreateClusterSubnetGroup/CreateSnapshotSchedule are all routed by floci to its SQS handler instead of a Redshift handler (UnsupportedOperation: Operation ... is not supported by SQS)",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_redshiftserverless_namespace",
+          "status": "unimplemented",
+          "evidence": "CreateNamespace returns UnknownOperationException",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_redshiftserverless_workgroup",
+          "status": "unimplemented",
+          "evidence": "CreateWorkgroup returns UnknownOperationException",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_opensearchserverless_security_policy",
+          "status": "unimplemented",
+          "evidence": "CreateSecurityPolicy returns UnknownOperationException",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_opensearchserverless_lifecycle_policy",
+          "status": "unimplemented",
+          "evidence": "CreateLifecyclePolicy returns UnknownOperationException",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_opensearchserverless_collection_group",
+          "status": "unimplemented",
+          "evidence": "the Create call returns UnknownOperationException",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_opensearchserverless_access_policy",
+          "status": "unimplemented",
+          "evidence": "graph-skipped once its own dependency (the security policy) failed first; same UnknownOperationException root cause",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_opensearchserverless_collection",
+          "status": "unimplemented",
+          "evidence": "graph-skipped once its own dependency (the security policy) failed first; same UnknownOperationException root cause",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_timestreamwrite_database",
+          "status": "unimplemented",
+          "evidence": "DescribeEndpoints itself is unimplemented (UnknownOperationException)",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_timestreaminfluxdb_db_cluster",
+          "status": "unimplemented",
+          "evidence": "the Create call returns UnknownOperationException",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_timestreaminfluxdb_db_instance",
+          "status": "unimplemented",
+          "evidence": "the Create call returns UnknownOperationException",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_timestreamwrite_table",
+          "status": "unimplemented",
+          "evidence": "graph-skipped once aws_timestreamwrite_database failed first",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_timestreamquery_scheduled_query",
+          "status": "unimplemented",
+          "evidence": "graph-skipped once its own dependencies failed first",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_keyspaces_keyspace",
+          "status": "unimplemented",
+          "evidence": "CreateKeyspace returns UnknownOperationException",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_keyspaces_table",
+          "status": "unimplemented",
+          "evidence": "graph-skipped once aws_keyspaces_keyspace failed first (its keyspace_name argument references the sibling keyspace)",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_memorydb_parameter_group",
+          "status": "unimplemented",
+          "evidence": "the Create call returns UnknownOperationException",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_memorydb_subnet_group",
+          "status": "unimplemented",
+          "evidence": "the Create call returns UnknownOperationException",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_memorydb_multi_region_cluster",
+          "status": "unimplemented",
+          "evidence": "the Create call returns UnknownOperationException",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_docdb_event_subscription",
+          "status": "unimplemented",
+          "evidence": "CreateEventSubscription returns UnsupportedOperation",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_docdbelastic_cluster",
+          "status": "broken",
+          "evidence": "CreateCluster reaches a router-recognized handler, but the response is an HTML error page rather than a JSON error body (deserialization failed: invalid character '<' looking for beginning of value)",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_qldb_ledger",
+          "status": "broken",
+          "evidence": "CreateLedger hits the same HTML-error-page shape as aws_docdbelastic_cluster - reached, but the handler crashes",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_opensearch_domain",
+          "status": "partial",
+          "evidence": "Create only completes with the host Docker socket mounted into the floci container; even then, DescribeDomain never reports Created=true/Processing=false, because the OpenSearch container floci spawns and floci itself both land on Docker's anonymous default bridge network, which does not do container-name DNS, so floci's own internal readiness probe can never reach the node it started. A fix for exactly this gap (addressing the container by its resolved IP) is carried on the floci-image-bump branch's pending digest sha256:8702a33eadb820ce2f58adf72260de164719b0d6eb058a8fbba0e67a4ef098da (opensearch-dns-fix, not yet the digest this entry is pinned to) - reprobe once that bump lands and regenerate this entry.",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_elasticsearch_domain",
+          "status": "broken",
+          "evidence": "Without the Docker socket mounted (the invocation this harness actually uses), CreateElasticsearchDomain never even reaches OpenSearchDomainManager - hits the same HTML-error-page shape as aws_docdbelastic_cluster/aws_qldb_ledger. With the socket mounted, it shares aws_opensearch_domain's partial DNS-gap behavior instead.",
+          "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_networkmanager_core_network_policy_attachment",
+          "status": "unimplemented",
+          "evidence": "networkmanager is absent from /_localstack/health entirely; PutCoreNetworkPolicy (and GetCoreNetwork on a subsequent read/destroy) both return an HTML error page the AWS SDK cannot even deserialize as a JSON error",
+          "source": "live/e2e/estates/stragglers/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_storagegateway_tape_pool",
+          "status": "unimplemented",
+          "evidence": "storagegateway is absent from /_localstack/health entirely; CreateTapePool returns UnknownOperationException",
+          "source": "live/e2e/estates/stragglers/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_transfer_agreement",
+          "status": "unimplemented",
+          "evidence": "transfer reports \"running\" in /_localstack/health, but CreateAgreement returns UnknownOperationException/UnsupportedOperation - floci's transfer implementation serves only the server/user/workflow/connector core",
+          "source": "live/e2e/estates/stragglers/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_transfer_certificate",
+          "status": "unimplemented",
+          "evidence": "ImportCertificate returns UnknownOperationException/UnsupportedOperation, same gap class as aws_transfer_agreement",
+          "source": "live/e2e/estates/stragglers/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_transfer_profile",
+          "status": "unimplemented",
+          "evidence": "CreateProfile returns UnknownOperationException/UnsupportedOperation, same gap class as aws_transfer_agreement",
+          "source": "live/e2e/estates/stragglers/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_transfer_web_app",
+          "status": "unimplemented",
+          "evidence": "CreateWebApp returns UnknownOperationException/UnsupportedOperation, same gap class as aws_transfer_agreement",
+          "source": "live/e2e/estates/stragglers/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_transfer_web_app_customization",
+          "status": "unimplemented",
+          "evidence": "UpdateWebAppCustomization returns UnknownOperationException/UnsupportedOperation, same gap class as aws_transfer_agreement",
+          "source": "live/e2e/estates/stragglers/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_ecr_pull_through_cache_rule",
+          "status": "unimplemented",
+          "evidence": "ecr reports \"running\" in /_localstack/health, but CreatePullThroughCacheRule returns UnknownOperationException/UnsupportedOperation - floci's ecr implementation serves repository-level operations only, not this newer API surface",
+          "source": "live/e2e/estates/stragglers/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_ecr_pull_time_update_exclusion",
+          "status": "unimplemented",
+          "evidence": "RegisterPullTimeUpdateExclusion returns UnknownOperationException/UnsupportedOperation, same gap class as aws_ecr_pull_through_cache_rule",
+          "source": "live/e2e/estates/stragglers/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_ecr_repository_creation_template",
+          "status": "unimplemented",
+          "evidence": "CreateRepositoryCreationTemplate returns UnknownOperationException/UnsupportedOperation, same gap class as aws_ecr_pull_through_cache_rule",
+          "source": "live/e2e/estates/stragglers/README.md, \"Floci coverage\""
+        },
+        {
+          "type": "aws_iam_role",
+          "status": "unimplemented",
+          "evidence": "The Resource Groups Tagging API's GetResources answers correctly on the wire (once the request's Content-Type is application/x-amz-json-1.1) but does not reflect resources tagged through the ordinary service APIs: an aws_iam_role created and tagged via terraform apply, and confirmed present via iam list-role-tags, still comes back empty from GetResources; manual probing found the same gap for an S3 bucket tagged via put-bucket-tagging.",
+          "source": "internal/live/discovery/tagging_live_test.go, TestTaggingSweepAgainstFloci",
+          "mechanism": "tagging-sweep"
+        },
+        {
+          "type": "aws_glue_registry",
+          "status": "unimplemented",
+          "evidence": "Cloud Control's ListResources does not reflect a aws_glue_registry created through the ordinary service API; manual AWS CLI probing found the same gap for AWS::Route53::HealthCheck, AWS::EC2::KeyPair and AWS::IoT::ThingType - only the pre-seeded default AWS::EC2::VPC came back.",
+          "source": "internal/live/discovery/cloudcontrol_live_test.go, TestDiscoverCloudControlFallbackAgainstFloci",
+          "mechanism": "cloudcontrol-list"
+        }
+      ]
+    }
+  ]
+}
