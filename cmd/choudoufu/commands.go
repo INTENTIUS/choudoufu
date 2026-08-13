@@ -277,6 +277,16 @@ func initCommands(
 			}, nil
 		},
 
+		// The bulk migration path (issue #61): read an existing tfstate
+		// once, verify it against the live system, and stamp markers on
+		// what verifies. Hidden alongside its two siblings while the whole
+		// mode is experimental.
+		"live-import": func() (cli.Command, error) {
+			return &command.LiveImportCommand{
+				Meta: meta,
+			}, nil
+		},
+
 		"providers lock": func() (cli.Command, error) {
 			return &command.ProvidersLockCommand{
 				Meta: meta,
@@ -487,6 +497,7 @@ func initCommands(
 		"push":            {},
 		"live-mv":         {},
 		"live-plan":       {},
+		"live-import":     {},
 	}
 }
 
