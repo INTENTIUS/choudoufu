@@ -529,17 +529,77 @@ creating one. `via: "tf-only"` in `live/mapping.json`.
 | 2 | a registration action: enrolls an account or resource into a feature, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
 | 1 | a confirmation waiter: flips a pending request to confirmed, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
 | 1 | a default_* adopter: brings the AWS-created default VPC under management rather than creating one; CloudFormation's AWS::EC2::VPC always creates a new VPC and has no adopt-the-existing-default semantics, so there is no CFN resource of its own to alias to |
+| 1 | a generic Cloud Control API passthrough: manages an arbitrary CFN-registry resource type by name via the CCAPI CRUDL operations, with no fixed cloud resource of its own |
+| 1 | a one-shot KMS Encrypt API call whose ciphertext result is stored in Terraform state; not a cloud resource |
+| 1 | a registration: enables AWS Audit Manager for the account/region (RegisterAccount), a single account-scoped toggle with no cloud resource of its own |
+| 1 | a registration: registers an existing member account as CloudTrail's AWS Organizations delegated administrator, with no cloud resource of its own |
+| 1 | a settings singleton: reads/writes account-wide AWS Backup settings (e.g. cross-account/cross-region opt-in) via API, with no cloud resource of its own |
+| 1 | a settings singleton: reads/writes region-wide AWS Backup service-opt-in settings via API, with no cloud resource of its own |
+| 1 | a settings singleton: reads/writes the account-wide Chime SDK Voice logging configuration via API, with no cloud resource of its own |
+| 1 | a settings singleton: reads/writes the account/region-wide Bedrock model-invocation logging configuration via API, with no cloud resource of its own |
+| 1 | a settings singleton: sets the customer-managed KMS key used to encrypt an existing AgentCore token vault, with no cloud resource of its own |
 | 1 | a state-setter: starts/stops an existing aws_instance, no CFN resource of its own |
 | 1 | a status toggle for an existing aws_config_configuration_recorder: starts or stops recording via the Config API's Stop/StartConfigurationRecorder actions directly; AWS::Config::ConfigurationRecorder starts recording automatically once created (its own CFN doc: 'AWS CloudFormation starts the recorder as soon as the delivery channel is available... To stop the recorder without deleting it, call the StopConfigurationRecorder action... directly') and exposes no property for this control |
+| 1 | adds/removes an IoT thing from a thing group (AddThingToThingGroup); a dynamic relationship with no CFN AWS::IoT type of its own - ThingGroup and Thing are each modeled, but membership is neither a resource nor a property in either's CFN schema |
 | 1 | adopts an existing Cognito User Pool Client (e.g. one AWS auto-creates for Managed Login branding or an OpenSearch domain's Cognito authentication) rather than creating one - the provider's own docs say it 'does not create or delete this resource, but instead assumes management of it', the same default_*-adopter shape as aws_default_vpc; no CFN resource of its own |
+| 1 | an account-level ECR setting (PutAccountSetting, e.g. default basic scan type); a preference on the account, not a distinct resource, and no CFN AWS::ECR account-settings type exists |
+| 1 | an account-level ECS default setting (PutAccountSettingDefault); a preference on the account, not a distinct resource |
+| 1 | an account-wide IoT fleet-indexing configuration singleton (UpdateIndexingConfiguration); no CFN model |
+| 1 | an account-wide IoT logging configuration singleton (SetV2LoggingOptions); no CFN model |
+| 1 | an account/region-wide EMR security setting (PutBlockPublicAccessConfiguration), not a per-cluster resource; no distinct identity, no CFN model |
+| 1 | an account/region-wide IoT event-type configuration singleton (UpdateEventConfigurations); no CFN model |
 | 1 | an activation action: flips a pending registration to active, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
+| 1 | an activation toggle: enables/disables Cost Explorer tracking for an existing cost allocation tag key, with no cloud resource of its own |
+| 1 | an agreement action: accepts a Bedrock foundation model's EULA/offer for the account, with no cloud resource of its own |
+| 1 | an agreement action: submits a Bedrock model-access use-case request for the account, with no cloud resource of its own |
+| 1 | an association-manager: creates a delegation request for a control set within an existing Audit Manager assessment, with no cloud resource of its own |
+| 1 | an association-manager: enables one of AWS's built-in managed Contributor Insights rule templates on an existing resource (import ID is resource_arn,template_name, not a CloudWatch::InsightRule ARN), with no cloud resource of its own |
+| 1 | an association-manager: marks an existing App Runner AutoScalingConfiguration version as the account/region default, with no cloud resource of its own |
+| 1 | an association-manager: shares an existing custom Audit Manager framework with another account, with no cloud resource of its own |
 | 1 | an aws_ami_copy-style copy operation: starts a cross-region/cross-account EBS volume copy and tracks the resulting volume's id; the destination is an ordinary AWS::EC2::Volume but CFN's Volume resource has no cross-region copy-source semantics, so the copy operation itself models nothing CFN provides |
+| 1 | an exclusive-set manager: overwrites a CloudFront KeyValueStore's entire key set to exactly what's configured (removing anything else), with no cloud resource of its own beyond the store |
 | 1 | an invocation action: triggers a call and records its result, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
+| 1 | an invocation: triggers an App Runner StartDeployment call and tracks its result, with no cloud resource of its own |
+| 1 | an operation: reimports/overwrites a REST API's OpenAPI definition via PutRestApi, with no cloud resource of its own (the API itself is aws_api_gateway_rest_api) |
 | 1 | an out-of-band tag manager: sets a single tag on an existing DynamoDB resource without owning it, no CFN resource of its own |
 | 1 | an out-of-band tag manager: sets a single tag on an existing EC2 resource without owning it, no CFN resource of its own |
+| 1 | associates/disassociates a Grafana Enterprise license via a dedicated AssociateLicense/DisassociateLicense API; not any property of AWS::Grafana::Workspace's CFN schema |
+| 1 | attaches a single arbitrary tag to an existing ECS resource by ARN (TagResource); no cloud resource of its own |
+| 1 | attaches one managed policy across an arbitrary combination of users/roles/groups in a single resource; spans multiple possible CFN parent types at once, so it has no single CFN parent and no distinct identity of its own |
+| 1 | authoritatively reconciles the complete set of inline policies on an existing IAM group; a declarative enforcer over another resource's state, not a resource with its own identity |
+| 1 | authoritatively reconciles the complete set of inline policies on an existing IAM role; a declarative enforcer over another resource's state, not a resource with its own identity |
+| 1 | authoritatively reconciles the complete set of inline policies on an existing IAM user; a declarative enforcer over another resource's state, not a resource with its own identity |
+| 1 | authoritatively reconciles the complete set of managed-policy attachments on an existing IAM group; a declarative enforcer over another resource's state, not a resource with its own identity |
+| 1 | authoritatively reconciles the complete set of managed-policy attachments on an existing IAM role; a declarative enforcer over another resource's state, not a resource with its own identity |
+| 1 | authoritatively reconciles the complete set of managed-policy attachments on an existing IAM user; a declarative enforcer over another resource's state, not a resource with its own identity |
+| 1 | creates a Grafana-internal service account inside the workspace; an application-level construct, not a CFN-modeled AWS resource of its own |
+| 1 | designates the GuardDuty delegated administrator account org-wide (EnableOrganizationAdminAccount); a singleton, no CFN model |
+| 1 | designates the Inspector delegated administrator account org-wide (EnableDelegatedAdminAccount); a singleton, no CFN model |
+| 1 | designates the account-wide Firewall Manager administrator account (PutAdminAccount); an account-level singleton, no distinct resource identity, no CFN model |
+| 1 | enables IAM Organizations-wide features (centralized root credential management, etc.) via EnableAWSOrganizationsRootCredentialsManagement-style calls; a singleton, no CFN model |
+| 1 | enables Inspector scanning for specific resource types across accounts (BatchEnableMember-style call); not a distinct addressable resource |
+| 1 | issues a short-lived Grafana workspace API key/credential (CreateWorkspaceApiKey); not a persistent CFN-managed resource |
+| 1 | issues a token for a workspace service account; an ephemeral credential revealed once, no persistent CFN resource |
+| 1 | locks an existing Glacier vault's policy (InitiateVaultLock/CompleteVaultLock); the vault itself has no CFN model to fold under, and locking is a one-time state transition, not a separate resource |
+| 1 | manages the complete, authoritative set of LF-tags on a Data Catalog resource in one call (the successor to the singular resource_lf_tag); not a 1:1 mapping to a single AWS::LakeFormation::TagAssociation resource |
+| 1 | maps SSO users/groups to Grafana Admin/Editor roles via UpdatePermissions; not a Workspace property (distinct from the SAML-only RoleValues nested under SamlConfiguration) |
+| 1 | org-wide GuardDuty auto-enable configuration (UpdateOrganizationConfiguration); a singleton, no CFN model |
+| 1 | org-wide GuardDuty auto-enable configuration, per protection-plan feature; a singleton, no CFN model |
+| 1 | org-wide Inspector auto-enable configuration (UpdateOrganizationConfiguration); a singleton, no CFN model |
+| 1 | reconfigures the SAML sub-block of an existing domain's fine-grained access control via UpdateElasticsearchDomainConfig; AWS::Elasticsearch::Domain's AdvancedSecurityOptionsInput schema (AnonymousAuthEnabled/Enabled/InternalUserDatabaseEnabled/MasterUserOptions) exposes no SAMLOptions, and this is not a resource of its own |
+| 1 | sets a function's runtime-version update mode (PutRuntimeManagementConfig - Auto/FunctionUpdate/Manual); not a property AWS::Lambda::Function's CFN schema exposes, no resource of its own |
+| 1 | sets the account's IAM alias (CreateAccountAlias); an account-level singleton, no CFN model |
+| 1 | sets the account's global STS endpoint token-version preference (SetSecurityTokenServicePreferences); a singleton, no CFN model |
+| 1 | sets the reverse-DNS (PTR) domain name on an existing Elastic IP via ModifyAddressAttribute; AWS::EC2::EIP's CFN schema (Address/Domain/InstanceId/IpamPoolId/NetworkBorderGroup/PublicIpv4Pool/Tags/TransferAddress) has no such property, and no resource of its own |
+| 1 | the Glue Data Catalog's single account-wide resource policy (PutResourcePolicy); a singleton with no distinct identity, no CFN model |
+| 1 | the account-wide IAM password policy (UpdateAccountPasswordPolicy); a singleton, no CFN model |
+| 1 | the account-wide Kinesis Data Streams shard-limit settings (UpdateStreamLimits); a singleton, no CFN model |
+| 1 | the account-wide Lake Formation / IAM Identity Center integration configuration (CreateLakeFormationIdentityCenterConfiguration); a singleton, no CFN model |
+| 1 | toggles GuardDuty protection-plan features on a member account's detector from the admin account (UpdateMemberDetectors); not a property of the admin's own Detector resource, and AWS::GuardDuty::Member has no Features property |
+| 1 | toggles a Lambda function's recursive-invocation loop detection (PutFunctionRecursionConfig); not a property AWS::Lambda::Function's CFN schema exposes, no resource of its own |
 | 1 | waiter: records only that DNS validation finished; waiting belongs to the lifecycle layer, not a CFN resource of its own |
 
-**Total.** 41 Terraform AWS resource types that are provider-side constructs, not infrastructure - no CloudFormation counterpart is expected for any of them. Each row's own note is in `live/mapping.json`.
+**Total.** 101 Terraform AWS resource types that are provider-side constructs, not infrastructure - no CloudFormation counterpart is expected for any of them. Each row's own note is in `live/mapping.json`.
 <!-- survey-gen:end residue-tf-only -->
 
 #### CFN-unmodeled resources
@@ -555,10 +615,46 @@ empty until a sweep adds its first entry.
 |---|---|
 | 6 | real Device Farm resource; live/registry.json has zero AWS::DeviceFarm::* types |
 | 4 | real DataExchange resource; live/registry.json has zero AWS::DataExchange::* types |
+| 4 | searched the registry for an AWS::AppFabric service: no AWS::AppFabric::* type exists anywhere in live/registry.json |
 | 3 | real CodeCatalyst resource; live/registry.json has zero AWS::CodeCatalyst::* types (service unmodeled by CFN entirely) |
+| 3 | searched the registry for a Chime SDK Voice CFN service: none exists at all |
 | 2 | real account-level Cost Optimization Hub setting; live/registry.json has zero AWS::CostOptimizationHub::* types |
+| 2 | searched the registry for an AWS::CloudHSM service: none exists anywhere in live/registry.json |
+| 1 | a FinSpace Managed kdb+ (Kx) cluster; CFN's FinSpace coverage is only AWS::FinSpace::Environment (the legacy FinSpace platform), with no Kx sub-resources modeled at all |
+| 1 | a FinSpace Managed kdb+ (Kx) database; not modeled by CFN's sole AWS::FinSpace::Environment type |
+| 1 | a FinSpace Managed kdb+ (Kx) dataview; not modeled by CFN's sole AWS::FinSpace::Environment type |
+| 1 | a FinSpace Managed kdb+ (Kx) environment - a distinct resource from the modeled AWS::FinSpace::Environment (the legacy FinSpace platform), created via the separate CreateKxEnvironment API; not itself a CFN type |
+| 1 | a FinSpace Managed kdb+ (Kx) scaling group; not modeled by CFN's sole AWS::FinSpace::Environment type |
+| 1 | a FinSpace Managed kdb+ (Kx) user; not modeled by CFN's sole AWS::FinSpace::Environment type |
+| 1 | a FinSpace Managed kdb+ (Kx) volume; not modeled by CFN's sole AWS::FinSpace::Environment type |
+| 1 | a Glacier vault with its own VaultARN; the CFN registry has zero AWS::Glacier types |
+| 1 | a Global Accelerator custom-routing accelerator; CFN's GlobalAccelerator types (Accelerator/CrossAccountAttachment/EndpointGroup/Listener) are all standard-routing only, with no CustomRouting* types |
+| 1 | a Global Accelerator custom-routing endpoint group; not modeled by any CFN GlobalAccelerator type |
+| 1 | a Global Accelerator custom-routing listener; not modeled by any CFN GlobalAccelerator type |
+| 1 | a Glue partition index (CreatePartitionIndex), with its own IndexName; AWS::Glue::Partition's schema (CatalogId/DatabaseName/PartitionInput/TableName) has no index-list property, and no separate PartitionIndex CFN type exists |
+| 1 | a KMS custom key store (CloudHSM- or XKS-backed) with its own CustomKeyStoreId; not modeled by any CFN KMS type |
+| 1 | a KMS grant with its own GrantId; not modeled by any CFN KMS type |
+| 1 | a Kendra Experience (search UI) with its own Id/Arn; CFN's Kendra types are DataSource/Faq/Index only |
+| 1 | a Kendra query-suggestions block list, a real resource with its own Id; not modeled by CFN's Kendra types |
+| 1 | a Kendra thesaurus, a real resource with its own Id; not modeled by CFN's Kendra types |
+| 1 | a Kinesis Data Analytics v2 application snapshot with its own SnapshotName; CFN's KinesisAnalyticsV2 types (Application/ApplicationCloudWatchLoggingOption/ApplicationOutput/ApplicationReferenceDataSource) do not include Snapshot |
+| 1 | a multi-Region replica of an externally-sourced KMS key; AWS::KMS::ReplicaKey's schema (Description/Enabled/KeyPolicy/PendingWindowInDays/PrimaryKeyArn/Tags) has no key-material-import support, so an EXTERNAL-origin replica is not representable |
+| 1 | a purchased ElastiCache reservation (PurchaseReservedCacheNodesOffering); a real, billed resource with its own ReservedCacheNodeId, but no AWS::ElastiCache reservation type is in the CFN registry |
 | 1 | a real DynamoDB item (data plane, not control plane) - the canonical cfn-unmodeled shape named in tools/mapping-gen/taxonomy.go's own doc comment alongside aws_s3_object; no AWS::DynamoDB::Item type exists |
 | 1 | a real customer data record (not a control-plane resource); live/registry.json's CustomerProfiles types (Domain, DomainObjectType, ObjectType, Integration, ...) model schema/config, not individual profile records - no Profile type |
+| 1 | a saved LF-tag expression (a named boolean combination of LF-tags) with its own name; not among CFN's LakeFormation types (DataCellsFilter/DataLakeSettings/Permissions/PrincipalPermissions/Resource/Tag/TagAssociation) |
+| 1 | a service-specific credential (e.g. CodeCommit git credentials) with its own ServiceSpecificCredentialId; real and addressable, but CFN's IAM types include AccessKey, not this credential kind |
+| 1 | an EMR-on-EKS job template, addressable via its own JobTemplateId/Arn; CFN's EMRContainers coverage (Endpoint/SecurityConfiguration/VirtualCluster) has no JobTemplate type |
+| 1 | an Elastic Transcoder pipeline; a real, addressable resource (PipelineId/Arn), but the CFN registry has zero AWS::ElasticTranscoder types at all |
+| 1 | an Elastic Transcoder preset; a real, addressable resource (PresetId/Arn), but the CFN registry has zero AWS::ElasticTranscoder types at all |
+| 1 | an Elasticsearch/OpenSearch VPC endpoint (cross-account PrivateLink-style access) with its own VpcEndpointId; not modeled by any AWS::Elasticsearch or AWS::OpenSearchService type in the registry |
+| 1 | an FSx File Cache with its own FileCacheId/Arn; not present among the CFN registry's FSx types |
+| 1 | an FSx backup with its own BackupId/Arn; no AWS::FSx::Backup type is in the CFN registry (only FileSystem/Volume/Snapshot/StorageVirtualMachine/DataRepositoryAssociation/S3AccessPointAttachment are modeled) |
+| 1 | an IAM Identity Center identity-store user with its own UserId; CFN's IdentityStore coverage is Group/GroupMembership only, no User type |
+| 1 | an uploaded SSH public key for CodeCommit, with its own SSHPublicKeyId; no CFN IAM type models it |
+| 1 | an uploaded X.509 signing certificate for a user, with its own CertificateId; no CFN IAM type models it |
+| 1 | associates a member account with the Inspector delegated admin (mirroring AWS::GuardDuty::Member's concept); CFN's InspectorV2 types (Filter/CisScanConfiguration/CodeSecurityIntegration/CodeSecurityScanConfiguration) have no Member-equivalent type |
+| 1 | opts a principal+resource pair into Lake Formation's hybrid access mode; addressable via ListLakeFormationOptIns with its own identity, not modeled by any CFN LakeFormation type |
 | 1 | real CloudWatch log subscription for a directory; live/registry.json's only AWS::DirectoryService types are MicrosoftAD and SimpleAD - no log-subscription type |
 | 1 | real Comprehend custom entity recognizer; live/registry.json's only AWS::Comprehend types are DocumentClassifier and Flywheel - no EntityRecognizer type |
 | 1 | real DNS conditional-forwarder resource for a directory; live/registry.json's only AWS::DirectoryService types are MicrosoftAD and SimpleAD - neither models sub-features like conditional forwarders |
@@ -613,8 +709,44 @@ empty until a sweep adds its first entry.
 | 1 | real resource; live/registry.json's only AWS::CodeCommit type is Repository - no ApprovalRuleTemplate type |
 | 1 | real resource; live/registry.json's only AWS::CodeCommit type is Repository - no association type for approval rule templates |
 | 1 | real trust-relationship resource between directories; live/registry.json's only AWS::DirectoryService types are MicrosoftAD and SimpleAD - no trust type |
+| 1 | searched AWS::ACMPCA: only Certificate, CertificateAuthority, CertificateAuthorityActivation and Permission exist; no Policy type models the resource-based policy PutCertificateAuthorityPolicy attaches to a CA |
+| 1 | searched AWS::Amplify: only App, Branch and Domain exist; no BackendEnvironment type models Amplify CLI backend environments |
+| 1 | searched AWS::Amplify: only App, Branch and Domain exist; no Webhook type - note this is NOT AWS::CodePipeline::Webhook, a different service's unrelated same-named concept |
+| 1 | searched AWS::AppRunner: no type models a custom domain association for a Service |
+| 1 | searched AWS::AppRunner: only AutoScalingConfiguration, ObservabilityConfiguration, Service, VpcConnector and VpcIngressConnection exist; no Connection type models the (manually-authorized) source-repository connection |
+| 1 | searched AWS::AppSync: schema is modeled only as one whole-document resource (GraphQLSchema's Definition/DefinitionS3Location); no type gives per-GraphQL-type granularity for the incremental CreateType/UpdateType API this TF resource wraps - not AWS::Cassandra::Type, an unrelated same-named type in a different service |
+| 1 | searched AWS::Athena: only CapacityReservation, DataCatalog, NamedQuery, PreparedStatement and WorkGroup exist; no Database type (an Athena database is a Glue Data Catalog database under the hood, but that is a different CFN service, not an Athena-scoped match) |
+| 1 | searched AWS::AuditManager: only Assessment and AssessmentFramework exist; no Control type models a custom Audit Manager control |
+| 1 | searched AWS::AuditManager: only Assessment and AssessmentFramework exist; no type models a generated assessment report, which has its own id/lifecycle distinct from the assessment |
+| 1 | searched AWS::Bedrock: no Evaluation type exists for model-evaluation jobs (AWS::BedrockAgentCore::Evaluator is a distinct agent-evaluation concept in a different sub-service) |
+| 1 | searched AWS::Bedrock: no Model/CustomModel type exists; fine-tuned/custom models are not registry-modeled |
+| 1 | searched AWS::Bedrock: no ProvisionedModelThroughput type exists, despite Provisioned Throughput having its own ARN and create/delete lifecycle |
+| 1 | searched AWS::BedrockAgentCore: no Registry type exists among its ApiKeyCredentialProvider/BrowserCustom/.../WorkloadIdentity roster for this MCP-server/agent-skill catalog concept |
+| 1 | searched AWS::Chime: only AppInstance, AppInstanceBot and AppInstanceUser exist (Chime SDK Identity); no VoiceConnector type - classic Chime Voice Connector has no CFN modeling at all |
+| 1 | searched AWS::Chime: only AppInstance, AppInstanceBot and AppInstanceUser exist; no VoiceConnectorGroup type |
+| 1 | searched AWS::Chime: only AppInstance, AppInstanceBot and AppInstanceUser exist; no type models Voice Connector SIP termination credentials |
+| 1 | searched AWS::Chime: only AppInstance, AppInstanceBot and AppInstanceUser exist; no type models Voice Connector logging configuration |
+| 1 | searched AWS::Chime: only AppInstance, AppInstanceBot and AppInstanceUser exist; no type models Voice Connector media streaming configuration |
+| 1 | searched AWS::Chime: only AppInstance, AppInstanceBot and AppInstanceUser exist; no type models Voice Connector origination routing |
+| 1 | searched AWS::Chime: only AppInstance, AppInstanceBot and AppInstanceUser exist; no type models Voice Connector termination routing |
+| 1 | searched AWS::Cloud9: only EnvironmentEC2 exists; no type models adding a member/permission to an existing Cloud9 environment |
+| 1 | searched AWS::CloudFront: KeyValueStore models only the store container; a single key-value pair is a data-plane item with its own import identity (store ARN + key name), the same aws_s3_object-style gap between CFN's control-plane container resource and per-item data |
+| 1 | searched AWS::CloudFront: no FieldLevelEncryptionConfig/Profile type exists among its roster (AnycastIpList, CachePolicy, ..., VpcOrigin); field-level encryption has no CFN modeling |
+| 1 | searched AWS::CloudFront: no FieldLevelEncryptionProfile type exists; field-level encryption has no CFN modeling |
+| 1 | searched AWS::EC2 and AWS::ImageBuilder: no type models a plain custom AMI built from a snapshot/block-device mapping (AWS::ImageBuilder::Image is a distinct pipeline-built artifact, not this resource) |
+| 1 | searched AWS::EC2 and AWS::ImageBuilder: no type models creating an AMI from a running instance |
+| 1 | searched AWS::EC2: no type models AMI launch-permission grants (ModifyImageAttribute); the AMI itself (aws_ami) is also unmodeled by CFN in this registry |
+| 1 | searched AWS::Logs: no type models exporting a log group to S3 Tables; this is a newer feature with no registry counterpart yet |
+| 1 | searched AWS::Logs::AccountPolicy, the account-level policy resource: its PolicyType enum is DATA_PROTECTION_POLICY | SUBSCRIPTION_FILTER_POLICY | FIELD_INDEX_POLICY | TRANSFORMER_POLICY | METRIC_EXTRACTION_POLICY - no storage-tier option, and no other Logs type models the account-wide Infrequent-Access storage-tier policy this TF resource sets |
+| 1 | searched the registry for a Chime SDK Media Pipelines CFN service: none exists (namesdata-generated.json's own mismatches roster confirms no CFN service normalizes to its AWS SDK id either) |
+| 1 | searched the registry for an AWS::Account service (region opt-in/opt-out): no AWS::Account::* type exists anywhere in live/registry.json |
+| 1 | searched the registry for an AWS::Account service (the AWS Account API's alternate-contact management): no AWS::Account::* type exists anywhere in live/registry.json |
+| 1 | searched the registry for an AWS::Account service: no AWS::Account::* type exists anywhere in live/registry.json |
+| 1 | searched the registry for an AWS::AppFabric service: no AWS::AppFabric::* type exists anywhere in live/registry.json (namesdata-generated.json's own mismatches roster confirms no CFN service normalizes to AppFabric's AWS SDK id either) |
+| 1 | searched the registry for an AWS::CloudSearch service: none exists anywhere in live/registry.json |
+| 1 | searched the registry for an AWS::CloudSearch service: none exists anywhere in live/registry.json (and its own parent domain is likewise unmodeled) |
 
-**Total.** 71 Terraform AWS resource types that are real infrastructure with no CloudFormation Registry model at all. Each row's own note is in `live/mapping.json`.
+**Total.** 149 Terraform AWS resource types that are real infrastructure with no CloudFormation Registry model at all. Each row's own note is in `live/mapping.json`.
 <!-- survey-gen:end residue-cfn-unmodeled -->
 
 #### Unclassified Terraform types
@@ -630,9 +762,9 @@ parent-derived) are unaffected and may still reach one.
 <!-- survey-gen:begin residue-unmapped -->
 | Count | Note |
 |---|---|
-| 596 | no CFN counterpart found by name or curated overlay |
+| 361 | no CFN counterpart found by name or curated overlay |
 
-**Total.** 596 Terraform AWS resource types with no CloudFormation Registry counterpart and no terminal classification yet - the count the family sweeps in issue #53's workplan burn down. Each row's own note is in `live/mapping.json`.
+**Total.** 361 Terraform AWS resource types with no CloudFormation Registry counterpart and no terminal classification yet - the count the family sweeps in issue #53's workplan burn down. Each row's own note is in `live/mapping.json`.
 <!-- survey-gen:end residue-unmapped -->
 
 #### Registry-laggard live services
@@ -678,7 +810,21 @@ excluding types already counted under "Deprecated or EOL services" above.
 | `aws_ec2_client_vpn_network_association` | `AWS::EC2::ClientVpnTargetNetworkAssociation` |
 | `aws_ec2_client_vpn_route` | `AWS::EC2::ClientVpnRoute` |
 | `aws_elasticsearch_domain` | `AWS::Elasticsearch::Domain` |
+| `aws_elasticsearch_domain_policy` | `AWS::Elasticsearch::Domain` |
 | `aws_emr_cluster` | `AWS::EMR::Cluster` |
+| `aws_emr_instance_fleet` | `AWS::EMR::InstanceFleetConfig` |
+| `aws_emr_instance_group` | `AWS::EMR::InstanceGroupConfig` |
+| `aws_emr_managed_scaling_policy` | `AWS::EMR::Cluster` |
+| `aws_fsx_lustre_file_system` | `AWS::FSx::FileSystem` |
+| `aws_fsx_ontap_file_system` | `AWS::FSx::FileSystem` |
+| `aws_fsx_ontap_storage_virtual_machine` | `AWS::FSx::StorageVirtualMachine` |
+| `aws_fsx_ontap_volume` | `AWS::FSx::Volume` |
+| `aws_fsx_openzfs_file_system` | `AWS::FSx::FileSystem` |
+| `aws_fsx_openzfs_snapshot` | `AWS::FSx::Snapshot` |
+| `aws_fsx_openzfs_volume` | `AWS::FSx::Volume` |
+| `aws_fsx_windows_file_system` | `AWS::FSx::FileSystem` |
+| `aws_glue_catalog_table` | `AWS::Glue::Table` |
+| `aws_glue_catalog_table_optimizer` | `AWS::Glue::TableOptimizer` |
 | `aws_glue_classifier` | `AWS::Glue::Classifier` |
 | `aws_glue_connection` | `AWS::Glue::Connection` |
 | `aws_glue_data_quality_ruleset` | `AWS::Glue::DataQualityRuleset` |
@@ -688,6 +834,7 @@ excluding types already counted under "Deprecated or EOL services" above.
 | `aws_glue_security_configuration` | `AWS::Glue::SecurityConfiguration` |
 | `aws_glue_workflow` | `AWS::Glue::Workflow` |
 | `aws_iam_access_key` | `AWS::IAM::AccessKey` |
+| `aws_iam_group_membership` | `AWS::IAM::UserToGroupAddition` |
 | `aws_iot_policy_attachment` | `AWS::IoT::PolicyPrincipalAttachment` |
 | `aws_iot_thing_principal_attachment` | `AWS::IoT::ThingPrincipalAttachment` |
 | `aws_kinesis_analytics_application` | `AWS::KinesisAnalytics::Application` |
@@ -715,7 +862,7 @@ excluding types already counted under "Deprecated or EOL services" above.
 | `aws_ses_receipt_rule` | `AWS::SES::ReceiptRule` |
 | `aws_ses_receipt_rule_set` | `AWS::SES::ReceiptRuleSet` |
 
-**Total.** 65 types, covered only where the provider's own identity schema reaches (the union `live/survey-full.json` measures). A successor CFN type sometimes exists with working handlers - `AWS::Elasticsearch::Domain` above has no handlers, but its successor `AWS::OpenSearchService::Domain` does; `live/mapping.json` does not yet link `aws_opensearch_domain` to it.
+**Total.** 80 types, covered only where the provider's own identity schema reaches (the union `live/survey-full.json` measures). A successor CFN type sometimes exists with working handlers - `AWS::Elasticsearch::Domain` above has no handlers, but its successor `AWS::OpenSearchService::Domain` does; `live/mapping.json` does not yet link `aws_opensearch_domain` to it.
 <!-- survey-gen:end residue-laggard -->
 
 #### Emulator-blocked
