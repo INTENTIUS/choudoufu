@@ -453,6 +453,24 @@ var (
 		"aws_cloudwatch_composite_alarm",
 		"aws_cloudwatch_metric_stream",
 		"aws_sqs_queue",
+		// Registry-ratified RDS batch (#40, #44, issue #65's ratification
+		// campaign). aws_db_instance_role_association, aws_db_proxy_default_target_group
+		// and aws_rds_cluster_role_association are this batch's untaggable
+		// types, below.
+		"aws_db_event_subscription",
+		"aws_db_instance",
+		"aws_db_option_group",
+		"aws_db_parameter_group",
+		"aws_db_proxy",
+		"aws_db_proxy_endpoint",
+		"aws_db_subnet_group",
+		"aws_rds_cluster",
+		"aws_rds_cluster_instance",
+		"aws_rds_cluster_parameter_group",
+		"aws_rds_custom_db_engine_version",
+		"aws_rds_global_cluster",
+		"aws_rds_integration",
+		"aws_rds_shard_group",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -484,6 +502,12 @@ var (
 		"aws_cloudwatch_dashboard",
 		"aws_sns_topic_policy",
 		"aws_sqs_queue_policy",
+		// Registry-ratified RDS batch (#40, #44, issue #65's ratification
+		// campaign): three types with no tags argument at all. See
+		// live/e2e/estates/rds/README.md, "Untaggable types".
+		"aws_db_instance_role_association",
+		"aws_db_proxy_default_target_group",
+		"aws_rds_cluster_role_association",
 	}
 )
 
@@ -911,6 +935,29 @@ func testSchemas() Schemas {
 		"aws_sns_topic_policy":           untagged("id", "arn", "policy"),
 		"aws_sqs_queue":                  tagged("id", "arn", "url", "name"),
 		"aws_sqs_queue_policy":           untagged("id", "queue_url", "policy"),
+
+		// Registry-ratified RDS batch (#40, #44, issue #65's ratification
+		// campaign). Taggable/untaggable per the real provider's documented
+		// Argument Reference for each type: aws_db_instance_role_association,
+		// aws_db_proxy_default_target_group and
+		// aws_rds_cluster_role_association carry no tags argument at all.
+		"aws_db_event_subscription":         tagged("id", "arn", "name", "sns_topic"),
+		"aws_db_instance":                   tagged("id", "identifier", "instance_class"),
+		"aws_db_instance_role_association":  untagged("id", "db_instance_identifier", "feature_name", "role_arn"),
+		"aws_db_option_group":               tagged("id", "arn", "name", "engine_name", "major_engine_version"),
+		"aws_db_parameter_group":            tagged("id", "arn", "name", "family"),
+		"aws_db_proxy":                      tagged("id", "arn", "name", "engine_family", "role_arn"),
+		"aws_db_proxy_default_target_group": untagged("id", "arn", "name", "db_proxy_name"),
+		"aws_db_proxy_endpoint":             tagged("id", "arn", "db_proxy_name", "db_proxy_endpoint_name"),
+		"aws_db_subnet_group":               tagged("id", "arn", "name", "subnet_ids"),
+		"aws_rds_cluster":                   tagged("id", "arn", "cluster_identifier", "engine"),
+		"aws_rds_cluster_instance":          tagged("id", "arn", "identifier", "cluster_identifier", "engine", "instance_class"),
+		"aws_rds_cluster_parameter_group":   tagged("id", "arn", "name", "family"),
+		"aws_rds_cluster_role_association":  untagged("id", "db_cluster_identifier", "feature_name", "role_arn"),
+		"aws_rds_custom_db_engine_version":  tagged("arn", "engine", "engine_version"),
+		"aws_rds_global_cluster":            tagged("id", "arn", "global_cluster_identifier"),
+		"aws_rds_integration":               tagged("id", "arn", "integration_name", "source_arn", "target_arn"),
+		"aws_rds_shard_group":               tagged("arn", "db_shard_group_identifier", "db_cluster_identifier", "max_acu"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.
