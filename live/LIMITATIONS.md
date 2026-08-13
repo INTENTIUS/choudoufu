@@ -381,14 +381,18 @@ The unadmitted half holds by construction: `internal/live/discovery`
 builds the sweep universe from `identity.AdmittedTypes()`.)
 
 **Untaggable types cannot be removed by the sweep.** <!-- survey-gen:begin untaggable-admitted -->
-`aws_cloudwatch_dashboard`, `aws_ecr_registry_policy`,
-`aws_ecr_registry_scanning_configuration`,
+`aws_cloudfront_monitoring_subscription`,
+`aws_cloudfront_origin_access_control`,
+`aws_cloudfront_realtime_log_config`, `aws_cloudwatch_dashboard`,
+`aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
 `aws_ecr_replication_configuration`, `aws_iam_role_policy`,
 `aws_iam_role_policy_attachment`, `aws_kms_alias`,
 `aws_lambda_layer_version`, `aws_lb_target_group_attachment`, `aws_route`,
-`aws_route53_record`, `aws_route_table_association`,
-`aws_s3_bucket_lifecycle_configuration`, `aws_s3_bucket_policy`,
-`aws_s3_bucket_public_access_block`,
+`aws_route53_hosted_zone_dnssec`, `aws_route53_key_signing_key`,
+`aws_route53_record`, `aws_route53_resolver_firewall_rule`,
+`aws_route53_resolver_rule_association`, `aws_route53_zone_association`,
+`aws_route_table_association`, `aws_s3_bucket_lifecycle_configuration`,
+`aws_s3_bucket_policy`, `aws_s3_bucket_public_access_block`,
 `aws_s3_bucket_server_side_encryption_configuration`,
 `aws_s3_bucket_versioning`, `aws_sns_topic_policy` and
 `aws_sqs_queue_policy`<!-- survey-gen:end untaggable-admitted --> carry no tags, so they can carry no

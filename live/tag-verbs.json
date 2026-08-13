@@ -4,13 +4,13 @@
   "generated_by": "tools/tagverbs-gen (go run ./tools/tagverbs-gen)",
   "accepted": "2026-08-13",
   "counts": {
-    "services": 192,
-    "directory_found": 183,
-    "no_directory": 9,
-    "single": 155,
+    "services": 205,
+    "directory_found": 187,
+    "no_directory": 18,
+    "single": 158,
     "ambiguous": 10,
-    "none": 18,
-    "composable": 147
+    "none": 19,
+    "composable": 150
   },
   "rows": [
     {
@@ -75,6 +75,13 @@
       "tags_arg": "tags",
       "tags_shape": "map",
       "composable": true
+    },
+    {
+      "service": "AmazonMQ",
+      "directory_found": false,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no botocore data directory normalizes (or is aliased) to this CFN service segment"
     },
     {
       "service": "Amplify",
@@ -223,6 +230,21 @@
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "ApplicationAutoScaling",
+      "botocore_directory": "application-autoscaling",
+      "botocore_version": "2016-02-06",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceARN",
+      "tags_arg": "Tags",
       "tags_shape": "map",
       "composable": true
     },
@@ -433,6 +455,13 @@
       "tag_key_field": "Key",
       "tag_value_field": "Value",
       "composable": true
+    },
+    {
+      "service": "Cassandra",
+      "directory_found": false,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no botocore data directory normalizes (or is aliased) to this CFN service segment"
     },
     {
       "service": "CertificateManager",
@@ -1178,6 +1207,13 @@
       "reason": "no botocore data directory normalizes (or is aliased) to this CFN service segment"
     },
     {
+      "service": "EventSchemas",
+      "directory_found": false,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no botocore data directory normalizes (or is aliased) to this CFN service segment"
+    },
+    {
       "service": "Events",
       "botocore_directory": "events",
       "botocore_version": "2015-10-07",
@@ -1406,6 +1442,13 @@
       "composable": true
     },
     {
+      "service": "InspectorV2",
+      "directory_found": false,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no botocore data directory normalizes (or is aliased) to this CFN service segment"
+    },
+    {
       "service": "InternetMonitor",
       "botocore_directory": "internetmonitor",
       "botocore_version": "2021-06-03",
@@ -1469,6 +1512,21 @@
       "tags_shape": "list",
       "tag_key_field": "TagKey",
       "tag_value_field": "TagValue",
+      "composable": true
+    },
+    {
+      "service": "KafkaConnect",
+      "botocore_directory": "kafkaconnect",
+      "botocore_version": "2021-09-14",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "resourceArn",
+      "tags_arg": "tags",
+      "tags_shape": "map",
       "composable": true
     },
     {
@@ -1691,6 +1749,13 @@
       "composable": true
     },
     {
+      "service": "Macie",
+      "directory_found": false,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no botocore data directory normalizes (or is aliased) to this CFN service segment"
+    },
+    {
       "service": "MediaConvert",
       "botocore_directory": "mediaconvert",
       "botocore_version": "2017-08-29",
@@ -1724,6 +1789,21 @@
       "service": "MediaPackage",
       "botocore_directory": "mediapackage",
       "botocore_version": "2017-10-12",
+      "directory_found": true,
+      "operation": "TagResource",
+      "ambiguous": false,
+      "candidates": [
+        "TagResource"
+      ],
+      "resource_arg": "ResourceArn",
+      "tags_arg": "Tags",
+      "tags_shape": "map",
+      "composable": true
+    },
+    {
+      "service": "MediaPackageV2",
+      "botocore_directory": "mediapackagev2",
+      "botocore_version": "2022-12-25",
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2290,6 +2370,13 @@
       "composable": true
     },
     {
+      "service": "Route53RecoveryControl",
+      "directory_found": false,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no botocore data directory normalizes (or is aliased) to this CFN service segment"
+    },
+    {
       "service": "Route53RecoveryReadiness",
       "botocore_directory": "route53-recovery-readiness",
       "botocore_version": "2019-12-02",
@@ -2331,6 +2418,13 @@
       "reason": "no operation in this service's model looks like a tagging write (a tag-ish, non-removal name whose input carries both a resource identifier and a *tags-suffixed member)"
     },
     {
+      "service": "S3Express",
+      "directory_found": false,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no botocore data directory normalizes (or is aliased) to this CFN service segment"
+    },
+    {
       "service": "S3Files",
       "botocore_directory": "s3files",
       "botocore_version": "2025-05-05",
@@ -2346,6 +2440,13 @@
       "tag_key_field": "key",
       "tag_value_field": "value",
       "composable": true
+    },
+    {
+      "service": "S3ObjectLambda",
+      "directory_found": false,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no botocore data directory normalizes (or is aliased) to this CFN service segment"
     },
     {
       "service": "S3Outposts",
@@ -2390,6 +2491,15 @@
       "service": "SES",
       "botocore_directory": "ses",
       "botocore_version": "2010-12-01",
+      "directory_found": true,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no operation in this service's model looks like a tagging write (a tag-ish, non-removal name whose input carries both a resource identifier and a *tags-suffixed member)"
+    },
+    {
+      "service": "SMSVOICE",
+      "botocore_directory": "sms-voice",
+      "botocore_version": "2018-09-05",
       "directory_found": true,
       "ambiguous": false,
       "composable": false,
@@ -2704,6 +2814,13 @@
       "tags_arg": "Tags",
       "tags_shape": "map",
       "composable": true
+    },
+    {
+      "service": "Timestream",
+      "directory_found": false,
+      "ambiguous": false,
+      "composable": false,
+      "reason": "no botocore data directory normalizes (or is aliased) to this CFN service segment"
     },
     {
       "service": "Transcribe",
