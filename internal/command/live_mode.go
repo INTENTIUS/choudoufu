@@ -460,6 +460,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 			return nil, diags
 		}
 		r.view.Foreign(statelessForeignReport(classified))
+		r.view.GuidedFallback(disco.GuidedFallback)
 	}
 
 	// The schemas are read before the plan rather than after it because
