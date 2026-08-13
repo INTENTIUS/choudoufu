@@ -3801,7 +3801,568 @@ var DefaultTable = buildTable(
 		ImportSyntax:  "NAME",
 		IdentityAttrs: []string{"name"},
 	},
-	// ---- Registry-ratified (#40, #44, #65): fifth batch, developer tools
+
+	// ---- Registry-ratified (#40, #44, #65): sixth batch, security and
+	// ---- secrets. Same tools/row-gen pipeline as the batches above,
+	// ---- cross-checked against the AWS provider's documented import
+	// ---- behaviour, live/survey-full.json's per-type signals (built from
+	// ---- the real provider schema, not the CloudFormation Registry's own
+	// ---- tagging claim, which disagrees with it for several SecurityHub v1
+	// ---- types below), and a live floci probe of every service in scope.
+	// ---- Cohort estate: live/e2e/estates/security. See that cohort's own
+	// ---- README for the full rejected/deferred list and the
+	// ---- credential-adjacent exclusions this batch calls out explicitly.
+	//
+	// aws_secretsmanager_secret: row-gen proposed this server-assigned via
+	// the registry's opaque "Id", which undersells it: the type is
+	// `tools/survey-gen/survey_gen_test.go`'s own `pathExceptions` entry
+	// (cohort "account-derived, not yet wired") — its required import
+	// attribute is the secret's ARN, and that ARN carries a six-character
+	// suffix Secrets Manager mints per secret (confirmed live: a floci
+	// `CreateSecret` for name "my-test-secret" came back
+	// "...secret:my-test-secret-YOZ450") that no account/region template
+	// reconstructs. `live/SURVEY.md`'s own row records exactly this and
+	// defers to the marker path the type is already taggable for; this
+	// batch honors that deferral rather than re-deriving it. Verified live:
+	// `secretsmanager:TagResource` and `ListSecrets` round-trip the marker
+	// tag cleanly against floci.
+	serverAssigned("aws_secretsmanager_secret",
+		"Secrets Manager assigns the secret's ARN at create time, with a six-character suffix minted per secret that no account/region template reconstructs (live/SURVEY.md's own recorded wrinkle); the name argument is client-chosen but is not the import identity.",
+		"ARN", "arn", "id"),
+	// aws_secretsmanager_secret_policy and aws_secretsmanager_secret_rotation:
+	// both row-gen classified evidence-only (folded onto
+	// AWS::SecretsManager::Secret's own registry entry). Both are real,
+	// separate CFN types with their own Identity Schema
+	// (live/import-grammar.json): a single required argument — secret_arn
+	// for the policy, secret_id for the rotation schedule — that is also
+	// each resource's own required config argument, referencing the parent
+	// secret's ARN through the aws_secretsmanager_secret marker above. Both
+	// would self-admit through [SynthesizeTypeIdentity] given schemas; hand
+	// rows are added anyway, the same way aws_route53_hosted_zone_dnssec and
+	// aws_cloudfront_monitoring_subscription above carry hand rows despite
+	// being single-attribute self-admit candidates too, so the cohort estate
+	// documents them explicitly rather than depending on schema
+	// availability at resolution time.
+	TypeIdentity{
+		Type:          "aws_secretsmanager_secret_policy",
+		Components:    []Component{attr("secret_arn")},
+		ImportSyntax:  "SECRETARN",
+		IdentityAttrs: []string{"secret_arn"},
+	},
+	TypeIdentity{
+		Type:          "aws_secretsmanager_secret_rotation",
+		Components:    []Component{attr("secret_id")},
+		ImportSyntax:  "SECRETID",
+		IdentityAttrs: []string{"secret_id"},
+	},
+	// aws_secretsmanager_secret_version (credential: secret_id plus a
+	// server-assigned version UUID, the secret unreadable after create) and
+	// aws_secretsmanager_tag (untaggable, no native list resource, no
+	// identity schema in v6.59.0) are not repeated here — see the cohort
+	// README's "Rejected" section.
+
+	// KMS remainder (issue #65's own "grants, replica keys, custom key
+	// stores" suggestion). aws_kms_external_key and aws_kms_replica_key both
+	// map to CFN's AWS::KMS::Key/ReplicaKey types, both taggable
+	// (live/survey-full.json), and both ship no identity schema in v6.59.0,
+	// the same docs-tier shape aws_kms_key itself was admitted under
+	// originally: no name argument reconstructs the server-minted key ID,
+	// so both go through the marker path — verified live: floci's
+	// `kms:CreateKey`, `TagResource` and `ListResourceTags` round-trip
+	// cleanly (the same API family aws_kms_key already proved). Neither
+	// aws_kms_grant nor aws_kms_custom_key_store is ratified: see the
+	// cohort README's "Credential-adjacent exclusions" section — both are
+	// cfn-unmodeled, untaggable, and ship no native provider list resource
+	// (live/survey-full.json: "moves to Ops" for both, independent of any
+	// credential concern), and aws_kms_custom_key_store's own
+	// `key_store_password` argument is a literal credential value this
+	// batch declines to plumb through a live read on principle, extending
+	// opsExcluded's reasoning explicitly even though the ordinary
+	// recoverability rule already excludes it.
+	serverAssigned("aws_kms_external_key",
+		"KMS assigns the key ID (a UUID) at create time, the same shape as aws_kms_key; the type has no name argument and no identity schema in v6.59.0, so nothing in configuration reconstructs it.",
+		"KEYID", "id", "key_id"),
+	serverAssigned("aws_kms_replica_key",
+		"KMS assigns the replica key's own ID (a UUID) at create time; the primary_key_arn argument names the key it replicates, not this key's own identity.",
+		"KEYID", "id", "key_id"),
+
+	// SSM remainder (documents, maintenance windows, patch baselines,
+	// associations). A live floci probe found the entire remainder blocked
+	// at create time (ssm:CreateAssociation, CreatePatchBaseline and
+	// CreateMaintenanceWindow all answer UnsupportedOperation, the same
+	// answer aws_ssm_document's own CreateDocument already gets and
+	// live/residue.go already records) — this batch ratifies the remainder
+	// on identity grounds anyway, the same stance aws_efs_file_system and
+	// the whole FSx family took in the storage batch despite the pinned
+	// image serving neither, and leaves aws_ssm_document itself alone: it
+	// is live/residue.go's one deliberately curated "kept out of a wiring
+	// slice entirely" example (EmulatorBlocked, Admitted: false), and nothing
+	// about this batch's own findings changes that judgment or forces a
+	// swap to a new example. See the cohort README for the full account.
+	//
+	// aws_ssm_association: taggable, server-assigned association_id
+	// (live/survey-full.json), no native list resource in v6.59.0 — the
+	// marker path, the same shape as aws_ssm_patch_baseline and
+	// aws_ssm_maintenance_window below.
+	serverAssigned("aws_ssm_association",
+		"SSM assigns the association its own ID at create time; the name argument names the document, not the association.",
+		"ASSOCIATIONID", "id", "association_id"),
+	serverAssigned("aws_ssm_maintenance_window",
+		"SSM assigns the maintenance window its own ID (mw-…) at create time; the name argument is client-chosen but is not the import identity.",
+		"WINDOWID", "id"),
+	serverAssigned("aws_ssm_patch_baseline",
+		"SSM assigns the patch baseline its own ID (pb-…) at create time; the name argument is client-chosen but is not the import identity.",
+		"BASELINEID", "id"),
+	// aws_ssm_patch_group: row-gen classified this a fold (property-child of
+	// AWS::SSM::PatchBaseline), evidence-only. The provider's own Identity
+	// Schema settles it directly (live/import-grammar.json): required
+	// baseline_id and patch_group, both already-admitted-or-configured
+	// (baseline_id through the aws_ssm_patch_baseline marker above,
+	// patch_group a client-chosen string), comma-joined in the documented
+	// order (terraform import aws_ssm_patch_group.example
+	// patch-group-name,pb-1234567890abcdef0). A composite of two required
+	// attributes is exactly what [SynthesizeTypeIdentity] refuses to
+	// self-admit, the same reason aws_route53_zone_association needs a hand
+	// row despite a full Identity Schema too.
+	TypeIdentity{
+		Type: "aws_ssm_patch_group",
+		Components: []Component{
+			attr("patch_group"),
+			sep(","),
+			attr("baseline_id"),
+		},
+		ImportSyntax:  "PATCHGROUP,BASELINEID",
+		IdentityAttrs: nil,
+	},
+	// aws_ssm_resource_data_sync: row-gen's own evidence shows a
+	// docs-tier gap (no identity schema in v6.59.0) that its mechanical
+	// classifier reads as "moves to Ops" — but the provider's own Import
+	// section is unambiguous: import by the "name" argument alone
+	// (terraform import aws_ssm_resource_data_sync.example example-name),
+	// the type's own required, client-chosen argument. Client-named,
+	// verified against the documented import command directly rather than
+	// against any identity schema, the same docs-tier correction
+	// aws_cloudfront_function's own entry above makes.
+	TypeIdentity{
+		Type:          "aws_ssm_resource_data_sync",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	// aws_ssm_service_setting: same docs-tier gap and same correction. The
+	// provider's Import section documents import by the "setting_id"
+	// argument alone — not a server-minted token but the full, fixed
+	// service-setting path the caller must already name in configuration
+	// to update an existing, AWS-predefined setting (e.g.
+	// "arn:aws:ssm:REGION:ACCOUNT:servicesetting/ssm/parameter-store/high-throughput-enabled").
+	// Client-named.
+	TypeIdentity{
+		Type:          "aws_ssm_service_setting",
+		Components:    []Component{attr("setting_id")},
+		ImportSyntax:  "SETTINGID",
+		IdentityAttrs: []string{"setting_id"},
+	},
+	// aws_ssm_default_patch_baseline, aws_ssm_maintenance_window_target and
+	// aws_ssm_maintenance_window_task are not ratified — see the cohort
+	// README's "Rejected" section (the latter two are untaggable with
+	// list_required_input set, the exact internal/live/registry.Roster
+	// shape that already excludes aws_efs_mount_target in the storage
+	// batch).
+
+	// ACM-PCA.
+	//
+	// aws_acmpca_certificate_authority: taggable, server-assigned ARN
+	// (live/survey-full.json, live/import-grammar.json's Identity Schema) —
+	// the marker path.
+	serverAssigned("aws_acmpca_certificate_authority",
+		"ACM Private CA assigns the certificate authority's own ARN at create time; the subject and key parameters describe it but do not identify it.",
+		"CERTIFICATEAUTHORITYARN", "arn", "id"),
+	// aws_acmpca_certificate_authority_certificate: row-gen proposed this
+	// correctly (client-named): a single required argument,
+	// certificate_authority_arn, already in configuration through the
+	// marker above — the CA's own activation record, at most one per CA,
+	// the same named-singleton-child shape as aws_route53_hosted_zone_dnssec.
+	TypeIdentity{
+		Type:          "aws_acmpca_certificate_authority_certificate",
+		Components:    []Component{attr("certificate_authority_arn")},
+		ImportSyntax:  "CERTIFICATEAUTHORITYARN",
+		IdentityAttrs: []string{"certificate_authority_arn"},
+	},
+	// aws_acmpca_policy: cfn-unmodeled (no AWS::ACMPCA::Policy type exists;
+	// searched the registry directly). live/survey-full.json's own
+	// heuristic mislinks its parent as "aws_api_gateway_resource" — a false
+	// match on the shared argument name "resource_arn" rather than a real
+	// relationship; the provider's own Identity Schema is unambiguous that
+	// this resource_arn is "the ACM PCA certificate authority" ARN,
+	// confirmed against live/import-grammar.json's evidence excerpt. Wired
+	// through the CA marker above instead, correcting the mislink the same
+	// way this batch corrects aws_securityhub_organization_admin_account's
+	// and aws_securityhub_configuration_policy_association's below.
+	TypeIdentity{
+		Type:          "aws_acmpca_policy",
+		Components:    []Component{attr("resource_arn")},
+		ImportSyntax:  "RESOURCEARN",
+		IdentityAttrs: []string{"resource_arn"},
+	},
+	// aws_acmpca_certificate (untaggable, no native list resource — a leaf
+	// certificate the CA mints per request) and aws_acmpca_permission
+	// (untaggable, no identity schema) are not ratified — see the cohort
+	// README.
+
+	// GuardDuty.
+	//
+	// aws_guardduty_detector: taggable, server-assigned ID
+	// (live/survey-full.json) — the marker path, the account-wide detector
+	// every other GuardDuty type below is scoped under.
+	serverAssigned("aws_guardduty_detector",
+		"GuardDuty assigns the detector its own ID at create time; nothing in configuration names it.",
+		"DETECTORID", "id"),
+	// aws_guardduty_filter: row-gen classified this needs-hand-separator
+	// (registry primaryIdentifier ["DetectorId", "Name"], composite, no
+	// separator in any schema). The provider's own documented import
+	// command supplies it directly: detector_id and name, colon-joined
+	// (terraform import aws_guardduty_filter.MyFilter
+	// 00b00fd5aecc0ab60a708659477e9617:MyFilter) — detector_id through the
+	// marker above, name a client-chosen, already-configured argument. Not
+	// wired through the marker's own tag-filtered discovery, because the
+	// composite is fully derivable from configuration and needs no live
+	// read to build.
+	TypeIdentity{
+		Type: "aws_guardduty_filter",
+		Components: []Component{
+			attr("detector_id"),
+			sep(":"),
+			attr("name"),
+		},
+		ImportSyntax:  "DETECTORID:NAME",
+		IdentityAttrs: nil,
+	},
+	// aws_guardduty_ipset, aws_guardduty_threatintelset and
+	// aws_guardduty_publishing_destination: all three document a
+	// "detectorId:id" composite import string, but unlike the filter above,
+	// the second half is a server-minted ID none of the three types' own
+	// arguments supplies — detector_id is a plain, already-known
+	// configuration argument, not something a Component needs to compose,
+	// and the set/destination's own id is exactly the aws_kms_key shape:
+	// server-assigned, recovered by the marker's tag-filtered list rather
+	// than built from configuration. All three are taggable
+	// (live/survey-full.json).
+	serverAssigned("aws_guardduty_ipset",
+		"GuardDuty assigns the IPSet its own ID at create time; detector_id is a required argument but does not identify this set, and the format argument describes the file, not the set.",
+		"DETECTORID:ID", "id"),
+	serverAssigned("aws_guardduty_threatintelset",
+		"GuardDuty assigns the ThreatIntelSet its own ID at create time; detector_id is a required argument but does not identify this set.",
+		"DETECTORID:ID", "id"),
+	serverAssigned("aws_guardduty_publishing_destination",
+		"GuardDuty assigns the publishing destination its own ID at create time; detector_id is a required argument but does not identify this destination.",
+		"DETECTORID:ID", "id"),
+	// aws_guardduty_malware_protection_plan: row-gen proposed this
+	// correctly (server-assigned): taggable, the plan's own ID minted at
+	// create time.
+	serverAssigned("aws_guardduty_malware_protection_plan",
+		"GuardDuty assigns the malware protection plan its own ID at create time; nothing in configuration names it.",
+		"MALWAREPROTECTIONPLANID", "id"),
+	// aws_guardduty_member: row-gen's mechanical classifier calls this
+	// "moves to Ops" (no identity schema in v6.59.0, untaggable), but the
+	// provider's own Import section is unambiguous — detector_id and
+	// account_id, colon-joined (terraform import aws_guardduty_member.MyMember
+	// 00b00fd5aecc0ab60a708659477e9617:123456789012) — both the type's own
+	// required, already-configured arguments (you must name which detector
+	// and which account to invite), the same docs-tier correction
+	// aws_ssm_resource_data_sync's entry above makes.
+	TypeIdentity{
+		Type: "aws_guardduty_member",
+		Components: []Component{
+			attr("detector_id"),
+			sep(":"),
+			attr("account_id"),
+		},
+		ImportSyntax:  "DETECTORID:ACCOUNTID",
+		IdentityAttrs: nil,
+	},
+	// aws_guardduty_organization_admin_account: same docs-tier correction —
+	// import by the admin_account_id argument alone (a required,
+	// already-configured account ID designating the org's GuardDuty
+	// delegated administrator), client-named rather than "moves to Ops".
+	TypeIdentity{
+		Type:          "aws_guardduty_organization_admin_account",
+		Components:    []Component{attr("admin_account_id")},
+		ImportSyntax:  "ADMINACCOUNTID",
+		IdentityAttrs: []string{"admin_account_id"},
+	},
+	// aws_guardduty_organization_configuration: import by the detector_id
+	// argument alone (terraform import
+	// aws_guardduty_organization_configuration.example
+	// 00b00fd5aecc0ab60a708659477e9617) — the same named-singleton-child
+	// shape as aws_route53_hosted_zone_dnssec, through the detector marker
+	// above.
+	TypeIdentity{
+		Type:          "aws_guardduty_organization_configuration",
+		Components:    []Component{attr("detector_id")},
+		ImportSyntax:  "DETECTORID",
+		IdentityAttrs: nil,
+	},
+	// aws_guardduty_detector_feature (untaggable fold-child),
+	// aws_guardduty_organization_configuration_feature (no cached evidence
+	// for its exact import grammar — not guessed) and
+	// aws_guardduty_invite_accepter (a waiter: flips a pending invitation
+	// to accepted, with no cloud resource of its own, the same shape
+	// opsExcluded's aws_acm_certificate_validation entry already carries)
+	// are not ratified — see the cohort README.
+
+	// Macie2. Confirmed not an AWS-deprecated service before proceeding
+	// (issue #65's own instruction): Macie Classic's aws_macie_* resources
+	// are gone from the provider entirely (live/mapping.json has none), and
+	// Macie2 itself carries no AWS end-of-support notice, unlike this
+	// batch's WAF-Classic-adjacent neighbors already in
+	// live/residue.go's DeprecatedServices.
+	//
+	// aws_macie2_custom_data_identifier, aws_macie2_findings_filter: both
+	// taggable, both server-assigned IDs (live/survey-full.json,
+	// live/registry.json) — the marker path.
+	serverAssigned("aws_macie2_custom_data_identifier",
+		"Macie assigns the custom data identifier its own ID at create time; the name argument is client-chosen but is not the import identity.",
+		"ID", "id"),
+	serverAssigned("aws_macie2_findings_filter",
+		"Macie assigns the findings filter its own ID at create time; the name argument is client-chosen but is not the import identity.",
+		"ID", "id"),
+	// aws_macie2_classification_job: cfn-unmodeled (registry search: no
+	// AWS::Macie::ClassificationJob type), but live/survey-full.json's own
+	// signal, read off the real provider schema, shows it taggable — the
+	// same TagResource/ListTagsForResource surface
+	// aws_macie2_custom_data_identifier and aws_macie2_findings_filter
+	// share, hand-verified since no CFN registry entry backs it.
+	serverAssigned("aws_macie2_classification_job",
+		"Macie assigns the classification job its own ID at create time; the name argument is client-chosen but is not the import identity.",
+		"JOBID", "id"),
+	// aws_macie2_member: row-gen's mechanical classifier calls this
+	// "moves to Ops"; the provider's own Import section documents import by
+	// the account ID of the member account alone (terraform import
+	// aws_macie2_member.example 123456789012), the type's own required
+	// account_id argument. Client-named, the same docs-tier correction
+	// aws_guardduty_member's account half makes.
+	TypeIdentity{
+		Type:          "aws_macie2_member",
+		Components:    []Component{attr("account_id")},
+		ImportSyntax:  "ACCOUNTID",
+		IdentityAttrs: []string{"account_id"},
+	},
+	// aws_macie2_organization_admin_account: same docs-tier correction as
+	// aws_guardduty_organization_admin_account above — import by
+	// admin_account_id alone, client-named.
+	TypeIdentity{
+		Type:          "aws_macie2_organization_admin_account",
+		Components:    []Component{attr("admin_account_id")},
+		ImportSyntax:  "ADMINACCOUNTID",
+		IdentityAttrs: []string{"admin_account_id"},
+	},
+	// aws_macie2_account and aws_macie2_classification_export_configuration
+	// (both untaggable, per-account-and-region singletons with no
+	// distinguishing argument — the identity is the run's own AWS account
+	// ID, which nothing in this fork's identity resolution can supply; see
+	// internal/live/identity's CloudContext doc comment) and
+	// aws_macie2_invitation_accepter (a waiter) are not ratified — see the
+	// cohort README.
+
+	// SecurityHub. The registry-vs-schema mismatch issue #65 warned about:
+	// several legacy v1 types' CFN registry entries claim `tagging.taggable:
+	// true`, but live/survey-full.json's signal — read off the real
+	// provider schema, not the registry — shows the v1 resource itself
+	// ships no tags argument at all. The newer v2 generation (HubV2,
+	// AggregatorV2, AutomationRuleV2, ConnectorV2) is where the two sources
+	// agree and the marker path is real; v1's aws_securityhub_automation_rule
+	// is the one v1 type this batch found where the schema itself confirms
+	// real tagging support, so it ratifies alongside its v2 siblings.
+	//
+	// aws_securityhub_account_v2, aws_securityhub_aggregator_v2,
+	// aws_securityhub_automation_rule, aws_securityhub_automation_rule_v2:
+	// all four taggable per live/survey-full.json, all four server-assigned
+	// ARNs.
+	serverAssigned("aws_securityhub_account_v2",
+		"Security Hub assigns the v2 hub's own ARN at create time; nothing in configuration names it.",
+		"ARN", "arn", "id"),
+	serverAssigned("aws_securityhub_aggregator_v2",
+		"Security Hub assigns the v2 aggregator's own ARN at create time; nothing in configuration names it.",
+		"ARN", "arn", "id"),
+	serverAssigned("aws_securityhub_automation_rule",
+		"Security Hub assigns the automation rule's own ARN at create time; the rule's own schema (unlike aws_securityhub_account's) carries a real tags argument, confirmed against live/survey-full.json.",
+		"ARN", "arn", "id"),
+	serverAssigned("aws_securityhub_automation_rule_v2",
+		"Security Hub assigns the v2 automation rule's own ARN at create time; nothing in configuration names it.",
+		"ARN", "arn", "id"),
+	// aws_securityhub_connector_v2: taggable, server-assigned connector_id
+	// (live/import-grammar.json's Identity Schema).
+	serverAssigned("aws_securityhub_connector_v2",
+		"Security Hub assigns the v2 connector's own ID at create time; the provider/name arguments describe it but do not identify it.",
+		"CONNECTORID", "id", "connector_id"),
+	// aws_securityhub_configuration_policy_association: row-gen and
+	// live/survey-full.json's own heuristic mislink its parent as
+	// "aws_db_proxy_target" — a false match on the shared argument name
+	// "target_id" rather than a real relationship. The provider's own
+	// Identity Schema names target_id as the type's sole required import
+	// attribute, and it is a plain, already-configured string (the account,
+	// OU or root ID the policy applies to) — client-named, not
+	// parent-derived through any type this table admits.
+	TypeIdentity{
+		Type:          "aws_securityhub_configuration_policy_association",
+		Components:    []Component{attr("target_id")},
+		ImportSyntax:  "TARGETID",
+		IdentityAttrs: []string{"target_id"},
+	},
+	// aws_securityhub_organization_admin_account: same mislink correction
+	// (live/survey-full.json names its bogus parent "aws_fms_admin_account"
+	// on the same shared-argument-name basis) — import by admin_account_id
+	// alone, client-named.
+	TypeIdentity{
+		Type:          "aws_securityhub_organization_admin_account",
+		Components:    []Component{attr("admin_account_id")},
+		ImportSyntax:  "ADMINACCOUNTID",
+		IdentityAttrs: []string{"admin_account_id"},
+	},
+	// aws_securityhub_standards_control: the ram-servicecatalog family
+	// sweep (issue #53) already found and recorded the false friend here —
+	// AWS::SecurityHub::SecurityControl's own primary identifier is
+	// SecurityControlId alone (the newer, standard-independent unified
+	// control view), not the per-standard-scoped standards_control_arn this
+	// type actually manages, so live/mapping.json correctly leaves this
+	// type unmapped to that CFN type rather than folding onto it. The
+	// provider's own Identity Schema settles the real identity directly: a
+	// single required argument, standards_control_arn, already in
+	// configuration. Client-named.
+	TypeIdentity{
+		Type:          "aws_securityhub_standards_control",
+		Components:    []Component{attr("standards_control_arn")},
+		ImportSyntax:  "STANDARDSCONTROLARN",
+		IdentityAttrs: []string{"standards_control_arn"},
+	},
+	// aws_securityhub_standards_control_association: the same false-friend
+	// avoidance as the type above, for the same reason (SecurityControlId
+	// alone, no standards_arn dimension). Two required arguments,
+	// comma-joined per the documented import command (terraform import
+	// aws_securityhub_standards_control_association.example
+	// IAM.1,arn:aws:securityhub:...) — both plain, already-configured
+	// strings, not composed through any type this table admits.
+	TypeIdentity{
+		Type: "aws_securityhub_standards_control_association",
+		Components: []Component{
+			attr("security_control_id"),
+			sep(","),
+			attr("standards_arn"),
+		},
+		ImportSyntax:  "SECURITYCONTROLID,STANDARDSARN",
+		IdentityAttrs: nil,
+	},
+	// aws_securityhub_member: the provider's Identity Schema names the
+	// required import attribute "member_account_id", but the resource's own
+	// configuration argument is named "account_id" — a name mismatch
+	// [SynthesizeTypeIdentity] cannot bridge (it only ever reads an
+	// argument under its own identity-attribute name), so this needs a hand
+	// row even though the shape is otherwise the simplest client-named case
+	// in this batch. Confirmed against the provider's Argument Reference
+	// (required: account_id) and Import section (member AWS account ID).
+	TypeIdentity{
+		Type: "aws_securityhub_member",
+		Components: []Component{
+			inAttr("member_account_id", attr("account_id")),
+		},
+		ImportSyntax:  "MEMBERACCOUNTID",
+		IdentityAttrs: nil,
+	},
+	// aws_securityhub_account (untaggable per the real schema despite the
+	// registry's taggable claim; a per-account singleton needing a
+	// CloudContext this fork's resolver does not supply),
+	// aws_securityhub_configuration_policy, aws_securityhub_finding_aggregator,
+	// aws_securityhub_insight, aws_securityhub_organization_configuration,
+	// aws_securityhub_product_subscription, aws_securityhub_standards_subscription
+	// and aws_securityhub_invite_accepter (a waiter) are not ratified — see
+	// the cohort README.
+
+	// Inspector2.
+	//
+	// aws_inspector2_filter: taggable, server-assigned ARN
+	// (live/survey-full.json, live/import-grammar.json's Identity Schema).
+	serverAssigned("aws_inspector2_filter",
+		"Inspector2 assigns the filter its own ARN at create time; the name argument is client-chosen but is not the import identity.",
+		"ARN", "arn", "id"),
+	// aws_inspector2_delegated_admin_account, aws_inspector2_member_association:
+	// row-gen's mechanical classifier calls both "moves to Ops"; both
+	// documented import commands are unambiguous — the account_id argument
+	// alone, the type's own required, already-configured argument in both
+	// cases. Client-named.
+	TypeIdentity{
+		Type:          "aws_inspector2_delegated_admin_account",
+		Components:    []Component{attr("account_id")},
+		ImportSyntax:  "ACCOUNTID",
+		IdentityAttrs: []string{"account_id"},
+	},
+	TypeIdentity{
+		Type:          "aws_inspector2_member_association",
+		Components:    []Component{attr("account_id")},
+		ImportSyntax:  "ACCOUNTID",
+		IdentityAttrs: []string{"account_id"},
+	},
+	// aws_inspector2_organization_configuration (untaggable singleton, no
+	// distinguishing argument) and aws_inspector2_enabler (a dynamic,
+	// sorted-list-encoded composite of account_ids and resource_types this
+	// table's Component vocabulary cannot express without guessing) are not
+	// ratified — see the cohort README.
+
+	// WAFv2. All four "needs hand separator" marker candidates below
+	// document a composite ID/Name/Scope import string, but Id is the part
+	// CloudFront — sorry, WAFv2 — actually mints at create time; Name and
+	// Scope are configured arguments the marker path does not need to
+	// compose, the same aws_kms_key shape as the GuardDuty set/destination
+	// types above. All four are taggable (live/survey-full.json and a live
+	// floci probe: `wafv2:CreateIPSet` and `ListIPSets` both work).
+	// internal/live/registry.Roster.Listable reports every one of them
+	// unlistable through the Cloud Control fallback today (Scope is a
+	// required list input, the same EnumerabilityParentInput shape that
+	// already excludes aws_efs_mount_target in the storage batch), and no
+	// native provider list resource exists either
+	// (live/survey-full.json: list_resource false) — admitted anyway on
+	// identity grounds, the same stance the storage batch's whole FSx
+	// family took despite an identical zero-enumeration gap; see the
+	// cohort README.
+	serverAssigned("aws_wafv2_ip_set",
+		"WAFv2 assigns the IP set its own ID at create time; the documented import string composes it with the client-chosen name and scope, but neither reconstructs the ID itself.",
+		"ID/NAME/SCOPE", "id", "arn"),
+	serverAssigned("aws_wafv2_regex_pattern_set",
+		"WAFv2 assigns the regex pattern set its own ID at create time; the documented import string composes it with the client-chosen name and scope, but neither reconstructs the ID itself.",
+		"ID/NAME/SCOPE", "id", "arn"),
+	serverAssigned("aws_wafv2_rule_group",
+		"WAFv2 assigns the rule group its own ID at create time; the documented import string composes it with the client-chosen name and scope, but neither reconstructs the ID itself.",
+		"ID/NAME/SCOPE", "id", "arn"),
+	serverAssigned("aws_wafv2_web_acl",
+		"WAFv2 assigns the web ACL its own ID at create time; the documented import string composes it with the client-chosen name and scope, but neither reconstructs the ID itself.",
+		"ID/NAME/SCOPE", "id", "arn"),
+	// aws_wafv2_web_acl_rule: row-gen folded this onto AWS::WAFv2::WebACL's
+	// own registry entry and proposed parent-derived admission "once [the
+	// web ACL] is ratified" — ratified above, in this same batch. Two
+	// required arguments per the provider's own Identity Schema, comma-joined
+	// per the documented import command (terraform import
+	// aws_wafv2_web_acl_rule.example
+	// arn:aws:wafv2:...:regional/webacl/example/abc123def456,my-rule):
+	// web_acl_arn through the web ACL marker above, name a client-chosen,
+	// already-configured argument.
+	TypeIdentity{
+		Type: "aws_wafv2_web_acl_rule",
+		Components: []Component{
+			attr("web_acl_arn"),
+			sep(","),
+			attr("name"),
+		},
+		ImportSyntax:  "WEBACLARN,NAME",
+		IdentityAttrs: nil,
+	},
+	// aws_wafv2_web_acl_association (untaggable, composite of two external
+	// ARNs neither this table admits), aws_wafv2_web_acl_logging_configuration
+	// (untaggable, argument name guessed rather than schema-backed) and
+	// aws_wafv2_web_acl_rule_group_association (a branching, mode-dependent
+	// four-part composite with no identity schema at all — "custom" vs.
+	// "managed" rule groups document different grammars, and guessing which
+	// one applies is not this batch's job) are not ratified — see the
+	// cohort README.
+	// ---- Registry-ratified (#40, #44, #65): seventh batch, developer tools
 	// ---- (issue #65) ------------------------------------------------------
 	//
 	// Same pipeline as the batches above: every row started as a
@@ -4558,6 +5119,905 @@ var DefaultTable = buildTable(
 		Components:    []Component{attr("resource_set_name")},
 		ImportSyntax:  "RESOURCE_SET_NAME",
 		IdentityAttrs: []string{"resource_set_name"},
+	},
+	// ---- Registry-ratified (#40, #44, #65): fifth batch, identity
+	// ---- (Cognito, IAM leftovers, SSO Admin) ------------------------------
+	//
+	// Same pipeline as the batches above: every row started as a
+	// tools/row-gen proposal from live/registry.json, cross-checked against
+	// the AWS provider's documented import behaviour — its real Import,
+	// Argument Reference and Attribute Reference sections, fetched from
+	// github.com/hashicorp/terraform-provider-aws at the pinned v6.59.0 tag
+	// — rather than accepted on the registry's word alone. Cohort estate:
+	// live/e2e/estates/identity.
+	//
+	// Rejected outright, on independent verification against the
+	// provider's real docs:
+	//
+	//   - aws_iam_group_membership: row-gen proposed server-assigned via
+	//     the registry's opaque "Id" (AWS::IAM::UserToGroupAddition, whose
+	//     registry entry ships every handler false — create, read, update,
+	//     delete and list — a stub CFN type with no working handler at
+	//     all). The real provider docs settle it further than the registry
+	//     even tries to: v6.59.0's website/docs/r/iam_group_membership
+	//     carries no Import section whatsoever, meaning this type simply
+	//     is not importable in the pinned provider release. Not a
+	//     composite this table could hand-write a separator for, and not a
+	//     marker candidate either — genuinely absent evidence, not weak
+	//     evidence.
+	//   - aws_cognito_managed_login_branding: row-gen filed this
+	//     needs-hand-separator (UserPoolId, ManagedLoginBrandingId). The
+	//     real import id is exactly that pair, comma-joined — but
+	//     ManagedLoginBrandingId is the provider's own Attribute
+	//     Reference-only output ("ID of the managed login branding
+	//     style"), never a configuration argument, so only the
+	//     user_pool_id half is composable. Same shape as
+	//     aws_cognito_user_pool_client below.
+	//   - aws_cognito_user_pool_client: row-gen filed this
+	//     needs-hand-separator (UserPoolId, ClientId). The real import id
+	//     is UserPoolId/ClientId, slash-joined, but ClientId is Cognito's
+	//     own server-assigned output (Attribute Reference only, never an
+	//     argument) — no config value reconstructs it. Compounding, not
+	//     the deciding factor: when generate_secret is set, the same
+	//     resource also mints a client_secret attribute a live read can
+	//     never recover, the same credential shape that excludes
+	//     aws_iam_access_key by SURVEY.md's standing rule.
+	//   - aws_cognito_risk_configuration and
+	//     aws_cognito_user_pool_ui_customization: both key on the same
+	//     unadmitted client_id half aws_cognito_user_pool_client's own
+	//     rejection just named — ui_customization requires it outright,
+	//     and risk_configuration's own real import id
+	//     (user_pool_id, or user_pool_id:client_id when client_id is set —
+	//     the provider's Argument Reference marks client_id Optional) is a
+	//     conditionally-shaped composite this table's Components
+	//     vocabulary has no way to express even before client_id's own
+	//     problem is reached.
+	//   - aws_identitystore_group and aws_identitystore_group_membership:
+	//     row-gen filed both needs-hand-separator
+	//     (IdentityStoreId/GroupId, IdentityStoreId/MembershipId — both
+	//     confirmed slash-joined against the real docs). GroupId and
+	//     MembershipId are each the provider's own Attribute
+	//     Reference-only output (a UUID IdentityStore mints at create
+	//     time), so only the identity_store_id half is composable — the
+	//     same shape as the two Cognito rejections above, and, like
+	//     aws_ssoadmin_permission_set below, scoped by an IAM Identity
+	//     Center singleton this fork has no admitted resource for. Neither
+	//     is taggable (IdentityStore's tagging API is scoped to
+	//     principals, not groups or memberships), so there is no marker
+	//     path either. A batch that gives aws_ssoadmin_permission_set's
+	//     own singleton-scope precedent a second, content-matched
+	//     enumeration mechanism (rather than this batch's tag-filtered
+	//     one) could pick these back up.
+	//
+	// Already rejected, and not re-litigated here: aws_iam_saml_provider
+	// and aws_iam_virtual_mfa_device were both rejected by the IAM/ECR
+	// batch above on ARN-embedding grounds (the registry's read-only Arn
+	// field is really a composite of a required name argument this
+	// provider does not treat as reconstructible). aws_iam_access_key is
+	// excluded the same way that batch excluded it: SURVEY.md's standing
+	// credential rule (a create-only secret a live read can never recover).
+	// This batch's own independent look at all three found nothing that
+	// changes the earlier verdict.
+	//
+	// Deferred, evidence-only per row-gen with no pastable row to
+	// hand-verify against — the same "not this batch's to decide" standard
+	// the IAM/ECR batch's own aws_iam_role_policy_attachment slice used
+	// for its siblings: aws_ssoadmin_customer_managed_policy_attachment,
+	// aws_ssoadmin_customer_managed_policy_attachments_exclusive,
+	// aws_ssoadmin_managed_policy_attachment,
+	// aws_ssoadmin_managed_policy_attachments_exclusive,
+	// aws_ssoadmin_permission_set_inline_policy and
+	// aws_ssoadmin_permissions_boundary_attachment are all property-children
+	// of AWS::SSO::PermissionSet that row-gen never generated a row for
+	// (its own note: "parent aws_ssoadmin_permission_set is not itself
+	// proposed"). That parent is admitted below, but hand-composing six
+	// children row-gen gives no evidence for at all is a bigger lift than
+	// this batch's mandate. aws_cognito_log_delivery_configuration is the
+	// same shape on the Cognito side: evidence-only, untaggable, unlistable,
+	// no pastable row. aws_identitystore_user and
+	// aws_cognito_managed_user_pool_client are outside row-gen's scope
+	// entirely — live/mapping.json carries no CFN type for either (the
+	// first is real IAM Identity Center surface CloudFormation's
+	// IdentityStore coverage does not model; the second adopts an existing
+	// Cognito-managed client rather than creating one, the same
+	// default_*-adopter shape as aws_default_vpc) — so row-gen's
+	// registry-driven analysis never runs on them at all.
+
+	serverAssigned("aws_cognito_identity_pool",
+		"Cognito Identity mints the identity pool's own id (a REGION:UUID string) at create time; the identity_pool_name argument is client-chosen but is not the import identity.",
+		"IDENTITYPOOLID", "id"),
+	serverAssigned("aws_cognito_user_pool",
+		"Cognito mints the user pool's own id (region_XXXXXXXXX) at create time; the name argument is client-chosen but is not the import identity.",
+		"USERPOOLID", "id"),
+
+	TypeIdentity{
+		// row-gen proposed this server-assigned via the registry's opaque
+		// "Id" (AWS::Cognito::IdentityPoolRoleAttachment). The real,
+		// documented import id is not an independent token at all: it is
+		// literally the parent identity pool's own id, verbatim
+		// (terraform import aws_cognito_identity_pool_roles_attachment.example
+		// us-west-2:b64805ad-cb56-40ba-9ffc-f5d8207e6d42) — the same
+		// named-singleton-child shape as aws_s3_bucket_policy, at most one
+		// attachment per pool. Concrete whenever
+		// aws_cognito_identity_pool above is, through its own marker.
+		Type:          "aws_cognito_identity_pool_roles_attachment",
+		Components:    []Component{attr("identity_pool_id")},
+		ImportSyntax:  "IDENTITYPOOLID",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// row-gen filed this needs-hand-separator
+		// (IdentityPoolId, IdentityProviderName). The provider's real
+		// Import section and Argument Reference confirm a colon-joined
+		// composite of two Required arguments, identity_pool_id (the
+		// already-admitted pool's own marker-discovered id) and
+		// identity_provider_name (a literal string already in
+		// configuration) — the same concrete-composite shape as
+		// aws_iam_role_policy's ROLENAME:POLICYNAME.
+		Type: "aws_cognito_identity_pool_provider_principal_tag",
+		Components: []Component{
+			attr("identity_pool_id"),
+			sep(":"),
+			attr("identity_provider_name"),
+		},
+		ImportSyntax:  "IDENTITYPOOLID:IDENTITYPROVIDERNAME",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// row-gen filed this needs-hand-separator (UserPoolId,
+		// ProviderName). The provider's real Import section and Argument
+		// Reference confirm a colon-joined composite of two Required
+		// arguments, user_pool_id (the already-admitted pool's own
+		// marker-discovered id) and provider_name (a literal string
+		// already in configuration) — the same shape as the principal tag
+		// above.
+		Type: "aws_cognito_identity_provider",
+		Components: []Component{
+			attr("user_pool_id"),
+			sep(":"),
+			attr("provider_name"),
+		},
+		ImportSyntax:  "USERPOOLID:PROVIDERNAME",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// row-gen filed this needs-hand-separator (UserPoolId,
+		// Identifier). The provider's real Import section documents a
+		// pipe-joined composite ("us-west-2_abc123|https://example.com"),
+		// an unusual separator character this table has not used before —
+		// confirmed directly against the raw provider docs source, not
+		// inferred — of two Required arguments already in configuration:
+		// user_pool_id (the already-admitted pool's own marker-discovered
+		// id) and identifier (a literal string, e.g. an API's URI).
+		Type: "aws_cognito_resource_server",
+		Components: []Component{
+			attr("user_pool_id"),
+			sep("|"),
+			attr("identifier"),
+		},
+		ImportSyntax:  "USERPOOLID|IDENTIFIER",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// row-gen filed this needs-hand-separator (UserPoolId, Username).
+		// The provider's real Import section confirms a slash-joined
+		// composite of two Required arguments already in configuration:
+		// user_pool_id (the already-admitted pool's own marker-discovered
+		// id) and username (a literal string).
+		Type: "aws_cognito_user",
+		Components: []Component{
+			attr("user_pool_id"),
+			sep("/"),
+			attr("username"),
+		},
+		ImportSyntax:  "USERPOOLID/USERNAME",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// row-gen filed this needs-hand-separator (UserPoolId, GroupName —
+		// the registry's own field name; the provider's Argument Reference
+		// calls the same argument "name"). The real Import section
+		// confirms a slash-joined composite of two Required arguments
+		// already in configuration: user_pool_id (the already-admitted
+		// pool's own marker-discovered id) and name (a literal group
+		// name).
+		Type: "aws_cognito_user_group",
+		Components: []Component{
+			attr("user_pool_id"),
+			sep("/"),
+			attr("name"),
+		},
+		ImportSyntax:  "USERPOOLID/NAME",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// row-gen filed this needs-hand-separator (UserPoolId, GroupName,
+		// Username — a three-part composite, beyond what any earlier batch
+		// in this table has hand-wired). The provider's real Import
+		// section confirms a comma-joined triple of three Required
+		// arguments already in configuration: user_pool_id (the
+		// already-admitted pool's own marker-discovered id), group_name
+		// and username (both literal strings).
+		Type: "aws_cognito_user_in_group",
+		Components: []Component{
+			attr("user_pool_id"),
+			sep(","),
+			attr("group_name"),
+			sep(","),
+			attr("username"),
+		},
+		ImportSyntax:  "USERPOOLID,GROUPNAME,USERNAME",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// row-gen proposed this needs-hand-separator on the registry's own
+		// evidence (primaryIdentifier=[UserPoolId, Domain]). The real
+		// provider docs disagree with the registry's own compound key: the
+		// documented import command
+		// (terraform import aws_cognito_user_pool_domain.main
+		// auth.example.org) and Argument Reference both settle on the
+		// domain argument alone — CloudFormation's AWS::Cognito::UserPoolDomain
+		// models the domain as scoped by its pool, but the Terraform
+		// resource's own import grammar does not require the scope at
+		// all. Same shape as the RDS batch's aws_db_proxy_default_target_group
+		// correction: the registry's compound key oversold what the
+		// provider actually asks for.
+		Type:          "aws_cognito_user_pool_domain",
+		Components:    []Component{attr("domain")},
+		ImportSyntax:  "DOMAIN",
+		IdentityAttrs: []string{"domain"},
+	},
+
+	serverAssigned("aws_iam_openid_connect_provider",
+		"IAM mints the OIDC provider's own ARN at create time, embedding the required url argument's host with its scheme stripped as a value the provider computes rather than one this table treats as reconstructible; the url argument itself is not the identity. Taggable, so recoverable by tag-filtered list — though the provider ships this type no native list resource in v6.59.0 (live/survey-full.json: list_resource=false), so today's only enumeration route for it is the same registry-only Cloud Control gap live/e2e/estates/storage/README.md documents for aws_efs_file_system, proven at internal/live/discovery's own test tier but not yet reachable from a real run.",
+		"ARN", "arn", "id"),
+	serverAssigned("aws_iam_policy",
+		"IAM mints the policy's own ARN at create time — it embeds the name argument and, when path is set, that too, but the provider's identity schema requires the whole arn as one opaque string (required_for_import=[arn]), not built component-by-component the way aws_sns_topic's account-derived ARN is. Taggable and listable (live/survey-full.json: list_resource=true), so recoverable by ordinary tag-filtered list. row-gen's own registry evidence (Id) undersold this; the IAM/ECR batch above left it out as account-derived follow-on work, but the provider's own required_for_import already names the simpler, schema-literal marker path this row takes instead.",
+		"ARN", "arn", "id"),
+	TypeIdentity{
+		// row-gen proposed this server-assigned via the registry's opaque
+		// "Id"; the real, documented import id and Attribute Reference are
+		// both the name argument alone (terraform import
+		// aws_iam_server_certificate.certificate
+		// example.com-certificate-until-2018), the same client-named shape
+		// as aws_iam_role, aws_iam_user and aws_iam_group above.
+		Type:          "aws_iam_server_certificate",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"id", "name"},
+	},
+	TypeIdentity{
+		// row-gen filed this needs-hand-separator (PolicyName, GroupName).
+		// The provider's real Import section and Argument Reference
+		// confirm a colon-joined composite of two arguments already in
+		// configuration, group and name (name Optional — Terraform assigns
+		// a random one when omitted, the same idiom aws_iam_role_policy
+		// above already accepts as "concrete in any realistic config") —
+		// the group-policy sibling of that exact row.
+		Type: "aws_iam_group_policy",
+		Components: []Component{
+			attr("group"),
+			sep(":"),
+			attr("name"),
+		},
+		ImportSyntax:  "GROUPNAME:POLICYNAME",
+		IdentityAttrs: []string{"id"},
+	},
+	TypeIdentity{
+		// row-gen filed this property-child fold evidence-only, keyed on
+		// aws_iam_group once ratified (client-named already, before this
+		// batch). The provider's real Import section and Argument
+		// Reference confirm a slash-joined composite of two Required
+		// arguments already in configuration, group and policy_arn — the
+		// group-policy-attachment sibling of aws_iam_role_policy_attachment
+		// above, same standard of care: the attachment's own id is
+		// provider-internal and is not the import id, so nothing may
+		// derive an identity from it.
+		Type: "aws_iam_group_policy_attachment",
+		Components: []Component{
+			attr("group"),
+			sep("/"),
+			attr("policy_arn"),
+		},
+		ImportSyntax:  "GROUPNAME/POLICYARN",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// Same shape as the group policy above, the user-policy sibling.
+		// row-gen filed this needs-hand-separator (PolicyName, UserName);
+		// the real Import section and Argument Reference confirm a
+		// colon-joined composite of user and name (name Optional, same
+		// idiom).
+		Type: "aws_iam_user_policy",
+		Components: []Component{
+			attr("user"),
+			sep(":"),
+			attr("name"),
+		},
+		ImportSyntax:  "USERNAME:POLICYNAME",
+		IdentityAttrs: []string{"id"},
+	},
+	TypeIdentity{
+		// Same shape as the group policy attachment above, the
+		// user-policy-attachment sibling. row-gen filed this property-child
+		// fold evidence-only, keyed on aws_iam_user once ratified
+		// (client-named already, before this batch); the real Import
+		// section and Argument Reference confirm a slash-joined composite
+		// of user and policy_arn.
+		Type: "aws_iam_user_policy_attachment",
+		Components: []Component{
+			attr("user"),
+			sep("/"),
+			attr("policy_arn"),
+		},
+		ImportSyntax:  "USERNAME/POLICYARN",
+		IdentityAttrs: nil,
+	},
+
+	serverAssigned("aws_ssoadmin_application",
+		"SSO Admin mints the application's own ARN at create time, embedding a pre-existing IAM Identity Center instance ARN and a server-assigned application id; the name argument is client-chosen but is not the import identity. Taggable, so recoverable by tag-filtered list — the provider documents no dedicated data source for enumerating applications, the same enumeration caveat live/e2e/estates/storage/README.md already records for a type this table admits on identity grounds alone.",
+		"APPLICATIONARN", "arn", "id"),
+	TypeIdentity{
+		// row-gen proposed this correctly the first time: the registry's
+		// primaryIdentifier=[InstanceArn], entirely createOnlyProperties,
+		// matches the provider's own real, documented import id (terraform
+		// import aws_ssoadmin_instance_access_control_attributes.example
+		// arn:aws:sso:::instance/ssoins-0123456789abcdef) — the instance_arn
+		// argument alone. An IAM Identity Center instance is an
+		// account-level singleton no CFN type and no provider resource
+		// models (there is no aws_ssoadmin_instance type at all), so this
+		// argument is always a literal string a configuration copies from
+		// the aws_ssoadmin_instances data source rather than a reference to
+		// any admitted resource — the same account-scoped-singleton shape
+		// aws_ecr_registry_policy's own registry_id has above.
+		Type:          "aws_ssoadmin_instance_access_control_attributes",
+		Components:    []Component{attr("instance_arn")},
+		ImportSyntax:  "INSTANCEARN",
+		IdentityAttrs: []string{"instance_arn"}, // "id" intentionally omitted; see issue #44 non-goals
+	},
+	serverAssigned("aws_ssoadmin_permission_set",
+		"SSO Admin mints the permission set's own ARN at create time; the name argument is client-chosen but is not the import identity, and the provider's documented import string additionally requires the instance ARN, comma-joined — the same account-level-singleton precedent aws_ecr_registry_policy's own registry_id already set: an IAM Identity Center instance pre-exists any resource, is never created by this fork, and has no admitted resource type of its own to be parent-derived through (no AWS::SSO::Instance CFN type exists, and there is no aws_ssoadmin_instance resource type). No single attribute of this type equals the whole two-ARN import string, so none is offered as an identity source.",
+		"PERMISSIONSETARN,INSTANCEARN"),
+	TypeIdentity{
+		// row-gen filed this needs-hand-separator (six-part primary
+		// identifier, InstanceArn/TargetId/TargetType/PermissionSetArn/
+		// PrincipalType/PrincipalId, all createOnlyProperties). The
+		// provider's real Import section confirms a comma-joined sextuple
+		// in a specific documented order — principal_id, principal_type,
+		// target_id, target_type, permission_set_arn, instance_arn — of
+		// six Required arguments already in configuration. permission_set_arn
+		// and instance_arn are references to the two already-admitted
+		// marker types just above (aws_ssoadmin_permission_set,
+		// unadmitted-instance-singleton), the same "a live parent ARN
+		// feeds a literal argument" shape aws_lb_target_group_attachment's
+		// target_group_arn already has. live/survey-full.json's own
+		// mechanical pass reaches "parent-derived, admission: schema"
+		// independently (every required_for_import attribute is a
+		// same-named Required argument) — the same double-confirmation
+		// aws_dynamodb_resource_policy's own row above records — but a
+		// hand row is still written here, the same way that one was, both
+		// for the explicit, doc-verified field order and for the cohort
+		// estate coverage row.
+		Type: "aws_ssoadmin_account_assignment",
+		Components: []Component{
+			attr("principal_id"),
+			sep(","),
+			attr("principal_type"),
+			sep(","),
+			attr("target_id"),
+			sep(","),
+			attr("target_type"),
+			sep(","),
+			attr("permission_set_arn"),
+			sep(","),
+			attr("instance_arn"),
+		},
+		ImportSyntax:  "PRINCIPAL_ID,PRINCIPAL_TYPE,TARGET_ID,TARGET_TYPE,PERMISSION_SET_ARN,INSTANCE_ARN",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// row-gen filed this needs-hand-separator (ApplicationArn,
+		// PrincipalType, PrincipalId). The provider's real Import section
+		// confirms a comma-joined triple in a specific documented order —
+		// application_arn, principal_id, principal_type — of three
+		// Required arguments already in configuration. application_arn
+		// is a reference to the already-admitted aws_ssoadmin_application
+		// marker above, the same shape as permission_set_arn in the
+		// account assignment just above.
+		Type: "aws_ssoadmin_application_assignment",
+		Components: []Component{
+			attr("application_arn"),
+			sep(","),
+			attr("principal_id"),
+			sep(","),
+			attr("principal_type"),
+		},
+		ImportSyntax:  "APPLICATION_ARN,PRINCIPAL_ID,PRINCIPAL_TYPE",
+		IdentityAttrs: nil,
+	},
+
+	// ---- Registry-ratified (#40, #44, #65): fifth batch, observability and
+	// ---- eventing remainder (issue #65's ratification campaign). Same
+	// ---- tools/row-gen pipeline as the earlier batches, cross-checked
+	// ---- against live/import-grammar.json (the provider's documented
+	// ---- Import sections, fetched at the pinned v6.59.0 tag) and, for
+	// ---- several rows, against the provider's Argument Reference directly
+	// ---- rather than accepted on the registry's word alone. Cohort estate:
+	// ---- live/e2e/estates/observability.
+	//
+	// Amazon Managed Prometheus (AWS::APS::*, the "AMP" TF prefix
+	// aws_prometheus_*) is deliberately out of scope: issue #68's concurrent
+	// batch owns it, and this batch's own evidence-gathering pass over
+	// row-gen's APS section stops at reading it, to avoid two agents
+	// proposing the same admission.go/table.go rows at once. Amazon
+	// Application Signals has no CloudFormation resource type in
+	// live/mapping.json's roster at all (row-gen's service listing has no
+	// ApplicationSignals section), so there is nothing here to ratify or
+	// reject for it.
+	//
+	// CloudWatch: three corrections. row-gen filed
+	// aws_cloudwatch_alarm_mute_rule and aws_cloudwatch_contributor_insight_rule
+	// evidence-only because the registry's own primaryIdentifier for both is
+	// a read-only Arn — but each provider doc disagrees, the same shape as
+	// the messaging batch's aws_sns_topic_policy correction: both resources'
+	// Argument Reference and Identity Schema require_for_import exactly one
+	// argument already in configuration (name, rule_name respectively), and
+	// the documented import command uses that value verbatim, not an ARN.
+	TypeIdentity{
+		Type:          "aws_cloudwatch_alarm_mute_rule",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		Type:          "aws_cloudwatch_contributor_insight_rule",
+		Components:    []Component{attr("rule_name")},
+		ImportSyntax:  "RULE_NAME",
+		IdentityAttrs: []string{"rule_name"},
+	},
+	// aws_cloudwatch_otel_enrichment: row-gen proposed server-assigned via
+	// the registry's AccountId. The provider's own Argument Reference has no
+	// required arguments at all (region is its only, optional, argument),
+	// and its Import section's example ID is the region string alone
+	// ("us-west-2") — a per-region account singleton, the same shape as
+	// aws_ecr_registry_policy and aws_api_gateway_account above, neither of
+	// which any configuration argument identifies.
+	serverAssigned("aws_cloudwatch_otel_enrichment",
+		"the OTel enrichment setting is a singleton per AWS region: its identity is the region the run is against, which pre-exists the resource and is never supplied by a configuration argument — the resource has no required arguments at all. Confirmed against the provider's own Import section, whose example ID is the region string alone.",
+		"REGION"),
+
+	// Logs. aws_cloudwatch_log_group is already admitted above (client-
+	// assigned identity, path 1) and is not repeated here.
+	//
+	// Four property-children row-gen folds onto an already-ratified Logs
+	// parent (aws_cloudwatch_log_data_protection_policy and
+	// aws_cloudwatch_log_index_policy onto LogGroup,
+	// aws_cloudwatch_log_delivery_destination_policy onto
+	// DeliveryDestination, aws_cloudwatch_log_destination_policy onto
+	// Destination) are deferred for the same reason the ApiGateway batch's
+	// method/response children were: admitting a property-child needs a
+	// parent-derived admission mechanism this table does not have yet. Their
+	// identity work is not the blocker — only the mechanism is.
+	serverAssigned("aws_cloudwatch_log_anomaly_detector",
+		"the Logs service assigns the anomaly detector's ARN at create time; no argument reconstructs it. Confirmed against the provider's own Identity Schema (required: arn) — the row-gen proposal here already matched the provider's documented behaviour with no correction needed.",
+		"ARN"),
+	serverAssigned("aws_cloudwatch_log_delivery",
+		"the Logs service assigns the delivery's own opaque id at create time; delivery_source_name and delivery_destination_arn describe what it connects, not what comes back. Confirmed against the provider's own Identity Schema (required: id) and its Import section's example (a short opaque token, not an ARN).",
+		"ID"),
+	TypeIdentity{
+		Type:          "aws_cloudwatch_log_delivery_destination",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		Type:          "aws_cloudwatch_log_delivery_source",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		Type:          "aws_cloudwatch_log_destination",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		Type:          "aws_cloudwatch_log_transformer",
+		Components:    []Component{attr("log_group_arn")},
+		ImportSyntax:  "LOG_GROUP_ARN",
+		IdentityAttrs: []string{"log_group_arn"},
+	},
+	serverAssigned("aws_cloudwatch_query_definition",
+		"the Logs service assigns the query definition's own UUID at create time; the query's name and query_string describe it but do not identify it. Confirmed against the provider's own Identity Schema (required: query_definition_id) — the row-gen proposal here already matched the provider's documented behaviour with no correction needed.",
+		"QUERY_DEFINITION_ID"),
+	// Three of row-gen's four Logs "needs hand separator" rows resolve
+	// cleanly against live/import-grammar.json's scraped Import sections,
+	// each confirmed required in the provider's own Argument Reference
+	// (issue #65's own note that most needs-hand-separator rows are now
+	// resolvable this way): aws_cloudwatch_log_metric_filter and
+	// aws_cloudwatch_log_stream both join log_group_name and name with a
+	// colon; aws_cloudwatch_log_subscription_filter joins the same two
+	// arguments with a pipe instead — confirmed by fetching its docs
+	// directly, not assumed from the other two's separator. Neither type's
+	// own id attribute is asserted to equal the joined string (unconfirmed
+	// against provider source), so IdentityAttrs stays nil, the same
+	// caution aws_route's own composite above takes.
+	TypeIdentity{
+		Type: "aws_cloudwatch_log_metric_filter",
+		Components: []Component{
+			attr("log_group_name"),
+			sep(":"),
+			attr("name"),
+		},
+		ImportSyntax:  "LOG_GROUP_NAME:NAME",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_cloudwatch_log_stream",
+		Components: []Component{
+			attr("log_group_name"),
+			sep(":"),
+			attr("name"),
+		},
+		ImportSyntax:  "LOG_GROUP_NAME:NAME",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_cloudwatch_log_subscription_filter",
+		Components: []Component{
+			attr("log_group_name"),
+			sep("|"),
+			attr("name"),
+		},
+		ImportSyntax:  "LOG_GROUP_NAME|NAME",
+		IdentityAttrs: nil,
+	},
+	// The fourth: aws_cloudwatch_log_account_policy. Its two composed
+	// arguments (policy_name, policy_type) are both required in the
+	// provider's own Argument Reference, and its Import section's separator
+	// is a colon, confirmed the same way as the three above.
+	TypeIdentity{
+		Type: "aws_cloudwatch_log_account_policy",
+		Components: []Component{
+			attr("policy_name"),
+			sep(":"),
+			attr("policy_type"),
+		},
+		ImportSyntax:  "POLICY_NAME:POLICY_TYPE",
+		IdentityAttrs: nil,
+	},
+	// aws_cloudwatch_log_resource_policy: row-gen proposed client-named via
+	// policy_name alone, reading only the registry's primaryIdentifier. The
+	// provider's real Argument Reference says both policy_name and
+	// resource_arn are individually optional but "exactly one ... must be
+	// specified" — an account-scoped policy imports by policy_name verbatim,
+	// a resource-scoped one by resource_arn verbatim, never both. This is
+	// the same mutually-exclusive-alternatives shape aws_route's own
+	// destination component already carries (attr's first-present-wins
+	// reads whichever of several differently-named arguments the
+	// configuration actually set), not a new mechanism: a config that sets
+	// neither fails to resolve rather than guessing, the honest half-
+	// coverage aws_route53_record's set_identifier caveat also accepts.
+	TypeIdentity{
+		Type:          "aws_cloudwatch_log_resource_policy",
+		Components:    []Component{attr("policy_name", "resource_arn")},
+		ImportSyntax:  "POLICY_NAME | RESOURCE_ARN (exactly one)",
+		IdentityAttrs: nil,
+	},
+
+	// EventBridge/Events. aws_cloudwatch_event_rule was already rejected by
+	// the messaging batch (needs a literal-default component this table
+	// does not have, for event_bus_name silently defaulting to "default")
+	// and is not repeated here. Its property-child,
+	// aws_cloudwatch_event_target, folds onto it and is deferred with the
+	// rest of this batch's property-children, for the same missing-
+	// mechanism reason.
+	TypeIdentity{
+		Type:          "aws_cloudwatch_event_api_destination",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		Type:          "aws_cloudwatch_event_archive",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		Type:          "aws_cloudwatch_event_bus",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		Type:          "aws_cloudwatch_event_connection",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		Type:          "aws_cloudwatch_event_endpoint",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	// aws_cloudwatch_event_permission and aws_cloudwatch_event_bus_policy
+	// are documented synonyms — both map to the one CloudFormation resource
+	// AWS::Events::EventBusPolicy, an allowlisted mapping-gen contradiction
+	// (tools/mapping-gen/mapping_gen_test.go's Former2Contradictions
+	// allowlist: "aws_cloudwatch_event_bus_policy manages a whole EventBridge
+	// bus policy document; aws_cloudwatch_event_permission manages one
+	// statement in it") — but they do not share a ratification verdict.
+	// row-gen filed both needs-hand-separator over the registry's composite
+	// [EventBusName, StatementId]. The provider's real Identity Schema
+	// disagrees for each, in opposite directions:
+	//
+	//   - aws_cloudwatch_event_permission's Identity Schema requires only
+	//     statement_id (event_bus_name is not part of it at all, only an
+	//     optional account_id/region), and statement_id is a required
+	//     configuration argument. Single-component, resolves concrete
+	//     whenever the resource does. Ratified below, correcting row-gen's
+	//     classification the same way aws_xray_sampling_rule below does.
+	//   - aws_cloudwatch_event_bus_policy's Identity Schema requires
+	//     event_bus_name, but the provider's own Argument Reference marks
+	//     event_bus_name (Optional) — "if you omit this, the permissions are
+	//     set on the default event bus" — so a real, valid configuration may
+	//     have no argument for this component to read at all. This is
+	//     exactly live/survey-full.json's own "needs-config-signal"
+	//     classification for this type (identity attrs settable but not
+	//     required arguments), and the same missing-literal-default gap the
+	//     messaging batch already declined for aws_cloudwatch_event_rule.
+	//     Rejected, not deferred: the gap is a table mechanism this batch
+	//     does not build, not missing evidence.
+	TypeIdentity{
+		Type:          "aws_cloudwatch_event_permission",
+		Components:    []Component{attr("statement_id")},
+		ImportSyntax:  "STATEMENT_ID",
+		IdentityAttrs: []string{"statement_id"},
+	},
+
+	// Step Functions remainder: aws_sfn_activity only, per this batch's own
+	// scope (aws_sfn_state_machine is already admitted above;
+	// aws_sfn_alias is a state-machine alias, out of this batch's named
+	// scope and left for a future one).
+	serverAssigned("aws_sfn_activity",
+		"Step Functions assigns the activity's own ARN at create time; the name argument is client-chosen but the provider's documented import command uses the ARN, which wraps it in an account and a region the configuration does not carry — the same shape as aws_sfn_state_machine above.",
+		"ARN"),
+
+	// X-Ray.
+	serverAssigned("aws_xray_group",
+		"X-Ray assigns the group's own ARN at create time; group_name is a required argument but the provider's documented import command uses the ARN, not the name. Confirmed against the provider's own Import section.",
+		"ARN"),
+	TypeIdentity{
+		Type:          "aws_xray_resource_policy",
+		Components:    []Component{attr("policy_name")},
+		ImportSyntax:  "POLICY_NAME",
+		IdentityAttrs: []string{"policy_name"},
+	},
+	// aws_xray_sampling_rule: row-gen filed this evidence-only, reading only
+	// the registry's read-only RuleARN. The provider's real Argument
+	// Reference requires rule_name (already in configuration) and its
+	// Import section's example ID is the rule name verbatim ("example-rule"),
+	// the same registry-vs-provider mismatch the CloudWatch corrections
+	// above share.
+	TypeIdentity{
+		Type:          "aws_xray_sampling_rule",
+		Components:    []Component{attr("rule_name")},
+		ImportSyntax:  "RULE_NAME",
+		IdentityAttrs: []string{"rule_name"},
+	},
+
+	// Grafana. row-gen's proposal already matches the provider: no
+	// argument in aws_grafana_workspace's schema is required (name is
+	// optional and is not the identity even when set), and the provider
+	// mints an opaque "g-..." workspace id at create time, confirmed
+	// against the Import section's example.
+	serverAssigned("aws_grafana_workspace",
+		"Grafana assigns the workspace's own id (g-...) at create time; every argument, including the optional name, describes the workspace but does not identify it.",
+		"ID"),
+
+	// RUM.
+	TypeIdentity{
+		Type:          "aws_rum_app_monitor",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+
+	// Synthetics. aws_synthetics_group_association folds onto
+	// AWS::Synthetics::Group and is deferred with this batch's other
+	// property-children.
+	TypeIdentity{
+		Type:          "aws_synthetics_canary",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		Type:          "aws_synthetics_group",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+
+	// ---- Registry-ratified (#40, #44, #65): fifth batch, streaming and
+	// ---- app integration ------------------------------------------------
+	//
+	// Same pipeline as the batches above: every row started as a
+	// tools/row-gen proposal from live/registry.json, cross-checked against
+	// the AWS provider's documented Argument Reference, Attribute Reference
+	// and Import section (fetched from the provider's own website/docs/r/
+	// source at the pinned v6.59.0 tag) and, for the types the pinned
+	// release ships one, against its own ResourceIdentitySchema
+	// (live/survey-full.json's required_for_import field) — not accepted on
+	// the registry's classification alone. Cohort estate:
+	// live/e2e/estates/streaming.
+	//
+	// MSK's scope this batch is deliberately narrow — clusters,
+	// configurations and the serverless cluster, plus MSK Connect (which
+	// live/mapping.json carries under AWS::KafkaConnect::*, a
+	// via:"service-alias" row, not AWS::MSK::* itself). row-gen's MSK
+	// section proposes six more types (aws_msk_cluster_policy,
+	// aws_msk_replicator, aws_msk_single_scram_secret_association,
+	// aws_msk_vpc_connection all pastable; aws_msk_scram_secret_association
+	// and aws_msk_topic evidence-only) that this batch does not evaluate at
+	// all — deferred to a future batch's scope, not rejected on the merits.
+	// SWF never entered scope: live/mapping.json carries aws_swf_domain as
+	// via:"cfn-unmodeled" (tools/mapping-gen/overlay.d/sweep-servicequotas-
+	// xray.json's own note: "all three services have zero matching CFN
+	// Registry types at all"), so row-gen prints nothing for it.
+	//
+	// Rejected, and deliberately absent from this table:
+	//
+	//   - aws_appsync_api: row-gen proposed server-assigned via the
+	//     registry's ApiArn (AWS::AppSync::Api's primaryIdentifier). The
+	//     provider disagrees: its documented import command (terraform
+	//     import aws_appsync_api.example example-api-id) and Attribute
+	//     Reference both name the identifier api_id, not the arn — the
+	//     same registry-says-one-field-but-the-provider-imports-by-another
+	//     shape the earlier batches' rejections established (e.g. the
+	//     messaging batch's aws_cloudwatch_event_rule). api_id is itself a
+	//     registry readOnlyProperty, so a corrected row is possible in
+	//     principle, but this batch does not write one — see
+	//     live/e2e/estates/streaming/README.md for why.
+	//   - aws_appsync_api_cache, aws_appsync_api_key: row-gen proposed both
+	//     server-assigned off registry readOnlyProperties (Id, ApiKeyId).
+	//     Independent verification of live/registry.json itself finds both
+	//     CFN types' handlers block is create/read/update/delete/list all
+	//     false — the "registry-laggard" shape live/LIMITATIONS.md's
+	//     Registry-laggard live services table already names both of these
+	//     exact types for (they are two of that table's existing rows). A
+	//     registry entry with no working handler at all supplies no real
+	//     evidence, whatever its primaryIdentifier field claims; row-gen's
+	//     classifier does not check handler liveness, so this is exactly
+	//     the kind of proposal the ratification step exists to catch
+	//     instead.
+	//   - aws_appsync_domain_name_api_association: row-gen proposed
+	//     server-assigned via the registry's ApiAssociationIdentifier
+	//     (AWS::AppSync::DomainNameApiAssociation's primaryIdentifier). The
+	//     provider disagrees outright, not just on which field: its
+	//     documented import command (terraform import
+	//     aws_appsync_domain_name_api_association.example example.com)
+	//     imports by the client-supplied domain_name argument, already in
+	//     configuration — this type is client-named, not server-assigned,
+	//     and the registry's own claim is simply wrong for what this
+	//     provider does.
+	//   - aws_appsync_function: row-gen proposed server-assigned via the
+	//     registry's FunctionArn (AWS::AppSync::FunctionConfiguration's
+	//     primaryIdentifier, a single field). The provider disagrees: its
+	//     documented import command (terraform import
+	//     aws_appsync_function.example xxxxx-yyyyy) is a hyphen-joined
+	//     composite of api_id (a configured argument) and function_id (a
+	//     server-assigned output first available only after creation) —
+	//     the registry's single-field claim understates the real shape the
+	//     same way aws_cloudwatch_event_rule's did in the messaging batch,
+	//     and the correction needs a component this table's vocabulary
+	//     does not have (composing a configured argument with the type's
+	//     own not-yet-created output), not just a separator guess.
+	//   - aws_scheduler_schedule: row-gen itself never proposed this row —
+	//     its "name" argument was GUESSED, not backed by an identity
+	//     schema, live/import-grammar.json or the carve seed, so it landed
+	//     evidence-only. Independent verification confirms row-gen's own
+	//     caution was warranted: the provider's documented import ID is
+	//     the composite group_name/name (terraform import
+	//     aws_scheduler_schedule.example my-schedule-group/my-schedule),
+	//     and its own v6.59.0 identity schema lists both group_name and
+	//     name as required_for_import but neither as a required argument
+	//     (live/survey-full.json: "identity attrs (group_name, name) are
+	//     settable but not required arguments, so client-naming is
+	//     unprovable from the schema"). This batch's mandate is to ratify
+	//     what row-gen proposes; a row it never proposed stays out.
+
+	serverAssigned("aws_mq_broker",
+		"Amazon MQ assigns the broker's own id (a UUID) at create time; broker_name is client-chosen but names the broker, not its identity. Confirmed against the provider's documented import command (terraform import aws_mq_broker.example a1b2c3d4-d5f6-7777-8888-9999aaaabbbbcccc) and its Attribute Reference, which states id is \"the unique ID that Amazon MQ generates for the broker.\"",
+		"ID", "id"),
+	serverAssigned("aws_mq_configuration",
+		"Amazon MQ assigns the configuration's own id (c-…) at create time; name is client-chosen but names the configuration, not its identity. Confirmed against the provider's documented import command (terraform import aws_mq_configuration.example c-0187d1eb-88c8-475a-9b79-16ef5a10c94f) and its Attribute Reference, which states id is \"the unique ID that Amazon MQ generates for the configuration.\"",
+		"ID", "id"),
+
+	serverAssigned("aws_msk_cluster",
+		"MSK mints the cluster's own ARN at create time, embedding a UUID it assigns itself; cluster_name is client-chosen but does not reconstruct the ARN. Confirmed against the provider's own v6.59.0 identity schema (required_for_import: arn) and its documented import command (terraform import aws_msk_cluster.example arn:aws:kafka:us-west-2:123456789012:cluster/example/279c0212-d057-4dba-9aa9-1c4e5a25bfc7-3).",
+		"ARN", "arn"),
+	serverAssigned("aws_msk_configuration",
+		"MSK mints the configuration's own ARN at create time; name is client-chosen but does not reconstruct the ARN. Confirmed against the provider's documented import command (terraform import aws_msk_configuration.example arn:aws:kafka:us-west-2:123456789012:configuration/example/279c0212-d057-4dba-9aa9-1c4e5a25bfc7-3). Untaggable — its Argument Reference names no tags block at all, and live/registry.json's own tagging.taggable is false — so it reaches this table only through the registry-backed path, not the marker path; see live/e2e/estates/streaming/README.md, \"Untaggable types.\"",
+		"ARN", "arn"),
+	serverAssigned("aws_msk_serverless_cluster",
+		"MSK mints the serverless cluster's own ARN at create time; cluster_name is client-chosen but does not reconstruct the ARN. Confirmed against the provider's own v6.59.0 identity schema (required_for_import: arn) and its documented import command (terraform import aws_msk_serverless_cluster.example arn:aws:kafka:us-west-2:123456789012:cluster/example/279c0212-d057-4dba-9aa9-1c4e5a25bfc7-3).",
+		"ARN", "arn"),
+
+	// MSK Connect: live/mapping.json's AWS::KafkaConnect::* rows reach
+	// these three aws_mskconnect_* types by via:"service-alias", not a
+	// direct AWS::MSK::* mapping — the CFN service is named KafkaConnect,
+	// the TF resources keep the mskconnect_ prefix.
+	serverAssigned("aws_mskconnect_connector",
+		"KafkaConnect (MSK Connect) mints the connector's own ARN at create time; connector_name is client-chosen but does not reconstruct the ARN. Confirmed against the provider's documented import command (terraform import aws_mskconnect_connector.example 'arn:aws:kafkaconnect:eu-central-1:123456789012:connector/example/264edee4-17a3-412e-bd76-6681cfc93805-3').",
+		"ARN", "arn"),
+	serverAssigned("aws_mskconnect_custom_plugin",
+		"KafkaConnect mints the custom plugin's own ARN at create time; name is client-chosen but does not reconstruct the ARN. Confirmed against the provider's documented import command (terraform import aws_mskconnect_custom_plugin.example 'arn:aws:kafkaconnect:eu-central-1:123456789012:custom-plugin/debezium-example/abcdefgh-1234-5678-9abc-defghijklmno-4').",
+		"ARN", "arn"),
+	serverAssigned("aws_mskconnect_worker_configuration",
+		"KafkaConnect mints the worker configuration's own ARN at create time; name is client-chosen but does not reconstruct the ARN. Confirmed against the provider's documented import command (terraform import aws_mskconnect_worker_configuration.example 'arn:aws:kafkaconnect:eu-central-1:123456789012:worker-configuration/example/8848493b-7fcc-478c-a646-4a52634e3378-4').",
+		"ARN", "arn"),
+
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[ConnectorProfileName], in
+		// createOnlyProperties and not in readOnlyProperties — client-named,
+		// row-gen proposed it correctly the first time. Confirmed against
+		// the provider's own v6.59.0 identity schema (required_for_import:
+		// name) and its documented import command (terraform import
+		// aws_appflow_connector_profile.example example-profile). Untaggable
+		// — its Attribute Reference exports only arn and credentials_arn,
+		// no tags, and live/registry.json's own tagging.taggable is false
+		// — so it reaches this table only through the registry-backed
+		// path; see live/e2e/estates/streaming/README.md, "Untaggable
+		// types."
+		Type:          "aws_appflow_connector_profile",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[FlowName], client-named,
+		// proposed correctly. Confirmed against the provider's own v6.59.0
+		// identity schema (required_for_import: name) and its documented
+		// import command (terraform import aws_appflow_flow.example
+		// example-flow).
+		Type:          "aws_appflow_flow",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+
+	serverAssigned("aws_appsync_graphql_api",
+		"AppSync mints the GraphQL API's own id at create time; the registry's primaryIdentifier for this type, ApiId, is exactly the value the provider's own documented import command uses (terraform import aws_appsync_graphql_api.example 0123456789) and exports as both id (\"API ID\") and arn (\"ARN\") — the one AppSync proposal in this batch's scope where the registry and the provider agree; see the rejected-proposals note above for the four AppSync siblings where they do not.",
+		"ID", "id", "arn"),
+
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[Name], client-named, proposed
+		// correctly (row-gen's argument line came from
+		// live/import-grammar.json). Confirmed against the provider's
+		// documented import command (terraform import aws_pipes_pipe.example
+		// my-pipe) and its Attribute Reference, which states id is "Same as
+		// name."
+		Type:          "aws_pipes_pipe",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"id", "name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[Name], client-named, proposed
+		// correctly. Confirmed against the provider's documented import
+		// command (terraform import aws_scheduler_schedule_group.example
+		// my-schedule-group) and its Attribute Reference, which states id
+		// is "Name of the schedule group." aws_scheduler_schedule, the
+		// sibling type one section below in the provider's own docs, is
+		// not ratified here — see the rejected-proposals note above.
+		Type:          "aws_scheduler_schedule_group",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"id", "name"},
 	},
 )
 
