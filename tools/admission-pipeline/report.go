@@ -68,18 +68,32 @@ type ReportInput struct {
 	Artifacts     []ArtifactDelta
 	RowGenSummary string // row-gen's captured stderr summary line, "" if unavailable
 	ProposalPath  string // path (relative to repo root) row-gen's full report was written to
-	Mapping       MappingSummary
-	MappingErr    string // set instead of Mapping when live/mapping.json couldn't be read
+	// ProposeSummary and ProposePath mirror RowGenSummary/ProposalPath for
+	// PROPOSE's own subprocess (issue #65) - both empty when PROPOSE was
+	// skipped (-skip-propose, or REGENERATE itself was skipped).
+	ProposeSummary string
+	ProposePath    string
+	Mapping        MappingSummary
+	MappingErr     string // set instead of Mapping when live/mapping.json couldn't be read
 }
 
 // WriteReport gathers a ReportInput (git diff/show, artifact reads,
-// regen.Runs) and writes the rendered markdown to
+// regen.Runs, propose's own summary) and writes the rendered markdown to
 // tmp/admission-pipeline/report-<timestamp>.md, returning that path.
-func WriteReport(root string, drift *DriftReport, regen *RegenerateResult, log io.Writer) (string, error) {
+func WriteReport(root string, drift *DriftReport, regen *RegenerateResult, propose *ProposeResult, log io.Writer) (string, error) {
 	in := ReportInput{
 		GeneratedAt: time.Now().UTC(),
 		Drift:       drift,
 		Regenerated: regen != nil,
+	}
+
+	if propose != nil {
+		in.ProposeSummary = propose.Summary
+		if rel, err := filepath.Rel(root, propose.Path); err == nil {
+			in.ProposePath = rel
+		} else {
+			in.ProposePath = propose.Path
+		}
 	}
 
 	if regen != nil {
@@ -230,6 +244,8 @@ func renderReport(in ReportInput) string {
 	fmt.Fprintln(&b)
 	renderRowGen(&b, in.RowGenSummary, in.ProposalPath)
 	fmt.Fprintln(&b)
+	renderPropose(&b, in.ProposeSummary, in.ProposePath)
+	fmt.Fprintln(&b)
 	renderMapping(&b, in.Mapping, in.MappingErr)
 
 	return b.String()
@@ -281,6 +297,37 @@ func renderRowGen(b *strings.Builder, summary, proposalPath string) {
 	if proposalPath != "" {
 		fmt.Fprintf(b, "\nFull report: `%s`\n", proposalPath)
 	}
+}
+
+// renderPropose is REPORT's own summary of PROPOSE's findings (issue #65):
+// the one-line count of qualifying rule classes and new proposals, a link
+// to the full rule-class ledger and any pasted blocks, and a condensed
+// restatement of the spot-check contract right next to it - so an approver
+// reading only the PR body, never the linked file, still sees what they are
+// being asked to verify. tools/row-gen/propose.go's own proposeContractHeader
+// is the full version this restates.
+func renderPropose(b *strings.Builder, summary, path string) {
+	fmt.Fprintln(b, "## PROPOSE: automatic high-confidence admission proposals (issue #65)")
+	fmt.Fprintln(b)
+	if summary == "" {
+		fmt.Fprintln(b, "PROPOSE did not run for this run (skipped, or REGENERATE itself was skipped).")
+		return
+	}
+	fmt.Fprintln(b, summary)
+	if path != "" {
+		fmt.Fprintf(b, "\nFull rule-class ledger and any ready-to-paste blocks: `%s`\n", path)
+	}
+	fmt.Fprintln(b)
+	fmt.Fprintln(b, "**Spot-check contract.** Every proposal above is emitted only for a classification "+
+		"rule whose every historical instance matched what a human independently ratified, with zero "+
+		"exceptions, over enough instances that a streak is not luck - see the linked report for each "+
+		"rule's own N. Approving proposals from this section means, per proposed type: (1) opening the "+
+		"provider's own Import/Identity-Schema documentation and confirming the pasted argument or "+
+		"attribute is what it documents; (2) confirming the type mints no credential material; (3) pasting "+
+		"the two blocks unedited; and (4) still building the cohort estate and getting a floci probe before "+
+		"merging, the same as any hand-ratified batch. It does not mean re-deriving the classification, and "+
+		"it does not mean the type has been proven against floci or a live account - see the linked report's "+
+		"own \"WHAT THIS DOES NOT CLAIM\" section for the complete boundary.")
 }
 
 func renderMapping(b *strings.Builder, m MappingSummary, mappingErr string) {

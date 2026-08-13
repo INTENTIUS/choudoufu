@@ -2,10 +2,12 @@ name: admission-pipeline
 
 # Issue #55: one weekly (or on-demand) run that DETECTs provider/registry
 # drift, REGENERATEs every derived admission artifact when there's drift,
-# VERIFIes it builds and tests green, and opens a PR with the generated
-# report as its body. A no-drift run exits during DETECT and does nothing
-# else - see tools/admission-pipeline's own package doc for the stage
-# breakdown.
+# PROPOSEs ready-to-paste admission entries for the logical types whose
+# classification rule has a 100% historical adoption record (issue #65's
+# endgame stage), VERIFIes it builds and tests green, and opens a PR with the
+# generated report - PROPOSE's own findings included - as its body. A
+# no-drift run exits during DETECT and does nothing else - see
+# tools/admission-pipeline's own package doc for the stage breakdown.
 on:
   schedule:
     - cron: "0 6 * * 1" # Monday 06:00 UTC

@@ -30,6 +30,15 @@
 // live infrastructure. See convergence.go's own doc comment.
 //
 //	go run ./tools/row-gen -convergence
+//
+// -propose switches to a third mode (issue #65's PROPOSE stage): only the
+// proposals whose classification rule has a spotless, large-enough
+// historical record - see propose.go's own doc comment for the exact bar
+// and the report's own printed contract for what a human approving those
+// proposals is and is not trusting. Still prints only; still writes
+// nothing.
+//
+//	go run ./tools/row-gen -propose
 package main
 
 import (
@@ -72,10 +81,19 @@ func repoRoot() (string, error) {
 func main() {
 	service := flag.String("service", "", "restrict the report to one CFN service batch (e.g. Lambda); empty prints every batch")
 	convergence := flag.Bool("convergence", false, "measure row-gen's fresh proposals against internal/live/identity.DefaultTable's ratified entries and write live/rowgen-convergence.json, instead of printing the pastable-row report")
+	propose := flag.Bool("propose", false, "issue #65's PROPOSE stage: print only the rule classes with a 100% historical adoption record and their not-yet-admitted candidates, instead of the full pastable-row report (see propose.go)")
 	flag.Parse()
 
 	if *convergence {
 		if err := runConvergence(os.Stdout, os.Stderr); err != nil {
+			fmt.Fprintf(os.Stderr, "row-gen: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if *propose {
+		if err := runPropose(os.Stdout, os.Stderr); err != nil {
 			fmt.Fprintf(os.Stderr, "row-gen: %v\n", err)
 			os.Exit(1)
 		}
@@ -182,6 +200,24 @@ func runConvergence(out, errOut *os.File) error {
 	fmt.Fprintf(errOut, "row-gen -convergence: %d/%d admitted types compared (%d not in the mapped set), %.2f%% adopted-unchanged, %d genuine mismatches (%d annotated, %d unannotated, %d scrape-gap)\n",
 		art.Summary.Compared, art.Summary.AdmittedTotal, art.Summary.NotInMappedSet,
 		art.Summary.AdoptedUnchangedPct, art.Summary.GenuineMismatches, art.Summary.Annotated, art.Summary.UnannotatedMismatches, art.Summary.ScrapeGapMismatches)
+	return nil
+}
+
+// runPropose is -propose's entry point: buildProposeReport (propose.go) does
+// the whole computation, so this only has to print its two halves in the
+// same places every other mode uses - the pastable report to out, the
+// one-line summary admission-pipeline's REPORT stage greps for to errOut.
+func runPropose(out, errOut *os.File) error {
+	root, err := repoRoot()
+	if err != nil {
+		return err
+	}
+	report, summary, err := buildProposeReport(root)
+	if err != nil {
+		return err
+	}
+	fmt.Fprint(out, report)
+	fmt.Fprintln(errOut, summary)
 	return nil
 }
 

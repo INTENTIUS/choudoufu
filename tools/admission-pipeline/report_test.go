@@ -121,9 +121,11 @@ func TestRenderReport_FullFixture(t *testing.T) {
 				After:        map[string]any{"types": float64(1691), "mapped": float64(919)},
 			},
 		},
-		RowGenSummary: "row-gen: 919 mapped types (312 server-assigned, 401 client-named, 88 needs-hand-separator, 118 evidence-only)",
-		ProposalPath:  "tmp/admission-pipeline/row-gen-proposals.txt",
-		Mapping:       MappingSummary{Former2Contradictions: 3, None: 754, Unclassifiable: 700},
+		RowGenSummary:  "row-gen: 919 mapped types (312 server-assigned, 401 client-named, 88 needs-hand-separator, 118 evidence-only)",
+		ProposalPath:   "tmp/admission-pipeline/row-gen-proposals.txt",
+		ProposeSummary: "row-gen -propose: 6 rule class(es) considered (min sample 5), 1 qualify at 100% historical adoption, 3 new logical type(s) proposed for auto-admission",
+		ProposePath:    "tmp/admission-pipeline/row-gen-propose.txt",
+		Mapping:        MappingSummary{Former2Contradictions: 3, None: 754, Unclassifiable: 700},
 	}
 
 	out := renderReport(in)
@@ -139,6 +141,10 @@ func TestRenderReport_FullFixture(t *testing.T) {
 		"types=1691 (+1)",
 		"919 mapped types",
 		"tmp/admission-pipeline/row-gen-proposals.txt",
+		"PROPOSE: automatic high-confidence admission proposals",
+		"3 new logical type(s) proposed for auto-admission",
+		"tmp/admission-pipeline/row-gen-propose.txt",
+		"Spot-check contract",
 		"former2 contradictions: 3",
 		"754 total, 700 unclassifiable",
 	}
@@ -153,6 +159,30 @@ func TestRenderReport_FullFixture(t *testing.T) {
 	// here too, and there's no reason for REPORT to ever emit one).
 	if strings.Contains(out, "Co-Authored-By") {
 		t.Error("renderReport output carries a Co-Authored-By trailer; REPORT must never emit one")
+	}
+}
+
+func TestRenderPropose_EmptySummary(t *testing.T) {
+	var b strings.Builder
+	renderPropose(&b, "", "")
+	out := b.String()
+	if !strings.Contains(out, "PROPOSE did not run") {
+		t.Errorf("renderPropose with no summary: want a did-not-run note, got:\n%s", out)
+	}
+	if strings.Contains(out, "Spot-check contract") {
+		t.Errorf("renderPropose with no summary: should not print the spot-check contract with nothing to check, got:\n%s", out)
+	}
+}
+
+func TestRenderPropose_WithSummary(t *testing.T) {
+	var b strings.Builder
+	summary := "row-gen -propose: 6 rule class(es) considered (min sample 5), 0 qualify at 100% historical adoption, 0 new logical type(s) proposed for auto-admission"
+	renderPropose(&b, summary, "tmp/admission-pipeline/row-gen-propose.txt")
+	out := b.String()
+	for _, want := range []string{summary, "tmp/admission-pipeline/row-gen-propose.txt", "Spot-check contract", "credential material", "floci probe"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("renderPropose output missing %q; full output:\n%s", want, out)
+		}
 	}
 }
 
