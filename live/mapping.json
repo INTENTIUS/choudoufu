@@ -2,20 +2,21 @@
   "generated_by": "tools/mapping-gen (go run ./tools/mapping-gen)",
   "counts": {
     "types": 1691,
-    "mapped": 919,
-    "fold": 18,
-    "tf_only": 34,
-    "cfn_unmodeled": 0,
+    "mapped": 951,
+    "fold": 41,
+    "tf_only": 41,
+    "cfn_unmodeled": 55,
     "deprecated_service": 7,
-    "unclassified": 713,
+    "unclassified": 596,
     "by_via": {
-      "alias": 32,
+      "alias": 56,
+      "cfn-unmodeled": 55,
       "deprecated-service": 7,
-      "fold": 18,
+      "fold": 41,
       "former2": 48,
       "name": 742,
-      "service-alias": 97,
-      "tf-only": 34
+      "service-alias": 105,
+      "tf-only": 41
     }
   },
   "former2_contradictions": [
@@ -8092,16 +8093,16 @@
     {
       "tf_type": "aws_ram_principal_association",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::RAM::ResourceShare",
+      "note": null
     },
     {
       "tf_type": "aws_ram_resource_association",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::RAM::ResourceShare",
+      "note": null
     },
     {
       "tf_type": "aws_ram_resource_share",
@@ -8120,16 +8121,16 @@
     {
       "tf_type": "aws_ram_resource_share_associations_exclusive",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a declarative exclusive-set manager: replaces a RAM resource share's entire principal and resource-association lists on apply, rather than adding one item the way aws_ram_principal_association/aws_ram_resource_association do; the provider's own docs call it out as incompatible with mixing those per-item resources on the same share. No CFN resource of its own - it only ever sets AWS::RAM::ResourceShare's existing Principals/ResourceArns properties wholesale."
     },
     {
       "tf_type": "aws_ram_sharing_with_organization",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an account-level feature-enablement action (EnableSharingWithAwsOrganization): toggles RAM's AWS Organizations sharing integration for the whole account. No arguments beyond the toggle, keyed by account ID, no cloud resource of its own."
     },
     {
       "tf_type": "aws_rbin_rule",
@@ -8141,9 +8142,9 @@
     {
       "tf_type": "aws_rds_certificate",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a region-level default-certificate override: overrides the system-default SSL/TLS CA certificate new RDS instances/clusters in the region will use going forward. Keyed by region, not an individual DB resource; deleting it reverts to the region's system default. No AWS::RDS::Certificate (or equivalent) type exists in the registry (RDS's modeled types are CustomDBEngineVersion, DBCluster, DBClusterParameterGroup, DBInstance, DBParameterGroup, DBProxy*, DBSecurityGroup*, DBShardGroup, DBSubnetGroup, EventSubscription, GlobalCluster, Integration, OptionGroup)."
     },
     {
       "tf_type": "aws_rds_cluster",
@@ -8155,23 +8156,23 @@
     {
       "tf_type": "aws_rds_cluster_activity_stream",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "toggles RDS/Aurora Database Activity Streams on an existing cluster (StartActivityStream/StopActivityStream), keyed by the parent cluster's own ARN with no independent stream identity. AWS::RDS::DBCluster's full property list (verified against the CFN template reference: AllowEngineModeChange, AssociatedRoles, ... EnableCloudwatchLogsExports, ... - no ActivityStream* property anywhere) has no activity-stream property; the feature isn't modeled at all."
     },
     {
       "tf_type": "aws_rds_cluster_endpoint",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "manages a custom Aurora cluster endpoint (a curated subset of readers, exposed under its own DNS name). No AWS::RDS::DBClusterEndpoint (or equivalent) type exists in live/registry.json - RDS's modeled types are CustomDBEngineVersion, DBCluster, DBClusterParameterGroup, DBInstance, DBParameterGroup, DBProxy, DBProxyEndpoint, DBProxyTargetGroup, DBSecurityGroup, DBSecurityGroupIngress, DBShardGroup, DBSubnetGroup, EventSubscription, GlobalCluster, Integration, OptionGroup only."
     },
     {
       "tf_type": "aws_rds_cluster_instance",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::RDS::DBInstance",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_rds_cluster_parameter_group",
@@ -8183,9 +8184,9 @@
     {
       "tf_type": "aws_rds_cluster_role_association",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::RDS::DBCluster",
+      "note": null
     },
     {
       "tf_type": "aws_rds_cluster_snapshot_copy",
@@ -8204,9 +8205,9 @@
     {
       "tf_type": "aws_rds_export_task",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a real, tracked RDS/Aurora snapshot-to-S3 export task (StartExportTask) with its own identifier and status/progress attributes. No snapshot or export-task type exists among RDS's registry types (see aws_rds_cluster_endpoint's note for the full list) - CFN does not model RDS snapshots or their exports at all."
     },
     {
       "tf_type": "aws_rds_global_cluster",
@@ -8218,9 +8219,9 @@
     {
       "tf_type": "aws_rds_instance_state",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a running/stopped state toggle on an existing RDS instance (start/stop only); the provider's own docs state destroying this resource is a no-op and does not modify the instance's AWS-side state. No cloud resource of its own - it acts on an instance mapped elsewhere."
     },
     {
       "tf_type": "aws_rds_integration",
@@ -8232,23 +8233,23 @@
     {
       "tf_type": "aws_rds_reserved_instance",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a one-time RDS Reserved Instance purchase (a capacity/pricing commitment); the provider's own docs state it cannot be deleted through the API - destroy only removes it from Terraform state while the real reservation runs its term. No RDS reservation type exists in the registry (see aws_rds_cluster_endpoint's note for the full RDS type list)."
     },
     {
       "tf_type": "aws_rds_shard_group",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::RDS::DBShardGroup",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_redshift_authentication_profile",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a named JSON authentication-profile config object with its own identifier. No AWS::Redshift::AuthenticationProfile (or equivalent) type exists in the registry - Redshift's modeled types are Cluster, ClusterParameterGroup, ClusterSecurityGroup, ClusterSecurityGroupIngress, ClusterSubnetGroup, EndpointAccess, EndpointAuthorization, EventSubscription, Integration, ScheduledAction, SnapshotSchedule only."
     },
     {
       "tf_type": "aws_redshift_cluster",
@@ -8260,30 +8261,30 @@
     {
       "tf_type": "aws_redshift_cluster_iam_roles",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::Redshift::Cluster",
+      "note": null
     },
     {
       "tf_type": "aws_redshift_cluster_snapshot",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a real, tracked manual Redshift cluster snapshot object with its own identifier and retention settings. No AWS::Redshift snapshot type exists in the registry (see aws_redshift_authentication_profile's note for the full Redshift type list)."
     },
     {
       "tf_type": "aws_redshift_data_share_authorization",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "grants a Redshift datashare authorization to a consumer account (or ADX); no AWS::Redshift DataShare/DataShareAuthorization type exists in the registry at all (see aws_redshift_authentication_profile's note) - Redshift data sharing predates/lacks CFN Registry support."
     },
     {
       "tf_type": "aws_redshift_data_share_consumer_association",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "associates a Redshift datashare with a consumer (account, ARN, or region); same gap as aws_redshift_data_share_authorization - no AWS::Redshift DataShare type exists in the registry."
     },
     {
       "tf_type": "aws_redshift_endpoint_access",
@@ -8309,23 +8310,23 @@
     {
       "tf_type": "aws_redshift_hsm_client_certificate",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a real HSM client certificate object (with its own public key, to be registered in the customer's HSM out of band). No AWS::Redshift HSM type exists in the registry (see aws_redshift_authentication_profile's note for the full Redshift type list)."
     },
     {
       "tf_type": "aws_redshift_hsm_configuration",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a real HSM configuration object (server IP, partition name, certs). Same gap as aws_redshift_hsm_client_certificate - no AWS::Redshift HSM type exists in the registry."
     },
     {
       "tf_type": "aws_redshift_idc_application",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a real IAM Identity Center managed application bound to Redshift, with its own AWS-generated ARN. No AWS::Redshift IdcApplication (or equivalent) type exists in the registry (see aws_redshift_authentication_profile's note for the full Redshift type list)."
     },
     {
       "tf_type": "aws_redshift_integration",
@@ -8337,16 +8338,16 @@
     {
       "tf_type": "aws_redshift_logging",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::Redshift::Cluster",
+      "note": null
     },
     {
       "tf_type": "aws_redshift_namespace_registration",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "registers a Redshift (serverless or provisioned) namespace with the AWS Glue Data Catalog; the provider's own docs note AWS provides no reliable API to verify registration status. Neither AWS::Redshift nor AWS::RedshiftServerless carries a Glue Data Catalog registration type."
     },
     {
       "tf_type": "aws_redshift_parameter_group",
@@ -8358,16 +8359,16 @@
     {
       "tf_type": "aws_redshift_partner",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a Redshift Partner Integration record tying a cluster/database to an AWS-authorized partner name, with partner-driven status fields Terraform doesn't control. No AWS::Redshift Partner type exists in the registry (see aws_redshift_authentication_profile's note for the full Redshift type list)."
     },
     {
       "tf_type": "aws_redshift_resource_policy",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "attaches a resource policy document to an arbitrary Redshift resource ARN (cluster, namespace, or snapshot, per the provider's own docs - not scoped to one resource kind). AWS::Redshift::Cluster does carry its own NamespaceResourcePolicy property, but since this TF resource is generic across resource kinds Redshift doesn't even give CFN types to (there is no Redshift snapshot type at all), pinning it to Cluster alone would misrepresent every non-cluster use - not modeled as a single fold target."
     },
     {
       "tf_type": "aws_redshift_scheduled_action",
@@ -8386,9 +8387,9 @@
     {
       "tf_type": "aws_redshift_snapshot_copy_grant",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a real, named KMS-key grant object for cross-region encrypted snapshot copies, created in the destination region. No AWS::Redshift SnapshotCopyGrant type exists in the registry (see aws_redshift_authentication_profile's note for the full Redshift type list)."
     },
     {
       "tf_type": "aws_redshift_snapshot_schedule",
@@ -8400,9 +8401,9 @@
     {
       "tf_type": "aws_redshift_snapshot_schedule_association",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "associates an existing cluster with an existing AWS::Redshift::SnapshotSchedule. AWS::Redshift::Cluster's full property list (verified against the CFN template reference) has no SnapshotSchedule/ScheduleIdentifier-linking property, and SnapshotSchedule itself is scoped independently - the cluster-to-schedule association isn't modeled by either type."
     },
     {
       "tf_type": "aws_redshift_subnet_group",
@@ -8414,30 +8415,30 @@
     {
       "tf_type": "aws_redshift_usage_limit",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a real, AWS-issued usage-limit object (Spectrum data scanned, concurrency-scaling time, or cross-region datasharing caps) with its own identifier, distinct from the cluster it's scoped to. No AWS::Redshift UsageLimit type exists in the registry (see aws_redshift_authentication_profile's note for the full Redshift type list)."
     },
     {
       "tf_type": "aws_redshiftdata_statement",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "executes a Redshift Data API SQL statement (ExecuteStatement) and tracks its own AWS-issued statement ID through a real status state machine (SUBMITTED/STARTED/FINISHED/FAILED/ABORTED). AWS::RedshiftServerless carries no Data-API type, and there is no separate AWS::RedshiftData CFN service at all - the executed statement is real tracked activity, not a CFN-modeled resource."
     },
     {
       "tf_type": "aws_redshiftserverless_custom_domain_association",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "associates a custom domain name and ACM certificate with a Redshift Serverless workgroup. AWS::RedshiftServerless::Workgroup's full property list (verified against the CFN template reference: BaseCapacity, ConfigParameters, EnhancedVpcRouting, MaxCapacity, NamespaceName, Port, PricePerformanceTarget, PubliclyAccessible, RecoveryPointId, SecurityGroupIds, SnapshotArn/Name/OwnerAccount, SubnetIds, Tags, TrackName, Workgroup, WorkgroupName) has no custom-domain property at all."
     },
     {
       "tf_type": "aws_redshiftserverless_endpoint_access",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "creates a distinct VPC endpoint object (its own vpc_endpoint_id, DNS address, network interfaces) for a Redshift Serverless workgroup, not merely a workgroup setting. No AWS::RedshiftServerless EndpointAccess type exists in the registry - RedshiftServerless's modeled types are Namespace, Snapshot, Workgroup only."
     },
     {
       "tf_type": "aws_redshiftserverless_namespace",
@@ -8449,9 +8450,9 @@
     {
       "tf_type": "aws_redshiftserverless_resource_policy",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "attaches a resource policy document to a Redshift Serverless resource ARN, generically. No AWS::RedshiftServerless ResourcePolicy type exists in the registry, and neither Namespace nor Workgroup's schema exposes a resource-policy property."
     },
     {
       "tf_type": "aws_redshiftserverless_snapshot",
@@ -8463,9 +8464,9 @@
     {
       "tf_type": "aws_redshiftserverless_usage_limit",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a real, AWS-issued usage-limit object (RPU-hours or cross-region datasharing) with its own identifier. No AWS::RedshiftServerless UsageLimit type exists in the registry - RedshiftServerless's modeled types are Namespace, Snapshot, Workgroup only."
     },
     {
       "tf_type": "aws_redshiftserverless_workgroup",
@@ -8533,9 +8534,9 @@
     {
       "tf_type": "aws_resourcegroups_resource",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::ResourceGroups::Group",
+      "note": null
     },
     {
       "tf_type": "aws_rolesanywhere_profile",
@@ -8568,16 +8569,16 @@
     {
       "tf_type": "aws_route53_cidr_location",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::Route53::CidrCollection",
+      "note": null
     },
     {
       "tf_type": "aws_route53_delegation_set",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a real, reusable Route 53 delegation set object with its own AWS-assigned ID and ARN, usable across multiple hosted zones. No AWS::Route53 DelegationSet type exists in the registry - Route53's modeled types are CidrCollection, DNSSEC, HealthCheck, HostedZone, KeySigningKey, RecordSet, RecordSetGroup only."
     },
     {
       "tf_type": "aws_route53_health_check",
@@ -8588,10 +8589,10 @@
     },
     {
       "tf_type": "aws_route53_hosted_zone_dnssec",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Route53::DNSSEC",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_route53_key_signing_key",
@@ -8603,9 +8604,9 @@
     {
       "tf_type": "aws_route53_query_log",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::Route53::HostedZone",
+      "note": null
     },
     {
       "tf_type": "aws_route53_record",
@@ -8617,9 +8618,9 @@
     {
       "tf_type": "aws_route53_records_exclusive",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a declarative exclusive-set manager: owns a hosted zone's entire recordset list on apply (any record not listed is removed), rather than the per-record aws_route53_record resource. The provider's own docs state destroying it halts management but does not delete the configured records - it never owned an AWS-side object of its own."
     },
     {
       "tf_type": "aws_route53_resolver_config",
@@ -8645,9 +8646,9 @@
     {
       "tf_type": "aws_route53_resolver_firewall_config",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a real, per-VPC DNS Firewall fail-open setting (GetFirewallConfig/UpdateFirewallConfig), distinct from AWS::Route53Resolver::ResolverConfig (which only covers the unrelated AutodefinedReverseFlag setting). No AWS::Route53Resolver::FirewallConfig type exists in the registry."
     },
     {
       "tf_type": "aws_route53_resolver_firewall_domain_list",
@@ -8659,9 +8660,9 @@
     {
       "tf_type": "aws_route53_resolver_firewall_rule",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::Route53Resolver::FirewallRuleGroup",
+      "note": null
     },
     {
       "tf_type": "aws_route53_resolver_firewall_rule_group",
@@ -8679,17 +8680,17 @@
     },
     {
       "tf_type": "aws_route53_resolver_query_log_config",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Route53Resolver::ResolverQueryLoggingConfig",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_route53_resolver_query_log_config_association",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Route53Resolver::ResolverQueryLoggingConfigAssociation",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_route53_resolver_rule",
@@ -8708,23 +8709,23 @@
     {
       "tf_type": "aws_route53_traffic_policy",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a real, versioned Route 53 traffic-policy document with its own ID and AWS-managed version number. No AWS::Route53 TrafficPolicy type exists in the registry (see aws_route53_delegation_set's note for the full Route53 type list)."
     },
     {
       "tf_type": "aws_route53_traffic_policy_instance",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "materializes a traffic-policy version into actual DNS records at a name, with its own UUID identifier. No AWS::Route53 TrafficPolicyInstance type exists in the registry (see aws_route53_delegation_set's note for the full Route53 type list)."
     },
     {
       "tf_type": "aws_route53_vpc_association_authorization",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a real, standing cross-account authorization grant (CreateVPCAssociationAuthorization/DeleteVPCAssociationAuthorization) permitting another account's VPC to associate with a local private hosted zone. No AWS::Route53 authorization type exists in the registry (see aws_route53_delegation_set's note for the full Route53 type list) - cross-account authorization grants for Route53 aren't modeled."
     },
     {
       "tf_type": "aws_route53_zone",
@@ -8736,37 +8737,37 @@
     {
       "tf_type": "aws_route53_zone_association",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::Route53::HostedZone",
+      "note": null
     },
     {
       "tf_type": "aws_route53domains_delegation_signer_record",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "manages a real DS (delegation signer) record and its AWS-generated signing key for a Route53-registered domain's parent zone. No AWS::Route53Domains service exists in live/registry.json's roster at all (verified against the registry's full service list)."
     },
     {
       "tf_type": "aws_route53domains_domain",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "registers, renews, and deregisters a real domain name via Route53 Domains - an actual purchase/registration lifecycle. No AWS::Route53Domains service exists in live/registry.json's roster at all (verified against the registry's full service list)."
     },
     {
       "tf_type": "aws_route53domains_registered_domain",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "manages settings (contacts, name servers, auto-renew, transfer lock) on a domain already registered with Route53 Domains; the provider's own docs note destroy does not deregister the domain. Same gap as aws_route53domains_domain - no AWS::Route53Domains service exists in the registry."
     },
     {
       "tf_type": "aws_route53profiles_association",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Route53Profiles::ProfileAssociation",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_route53profiles_profile",
@@ -8777,38 +8778,38 @@
     },
     {
       "tf_type": "aws_route53profiles_resource_association",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Route53Profiles::ProfileResourceAssociation",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_route53recoverycontrolconfig_cluster",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Route53RecoveryControl::Cluster",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_route53recoverycontrolconfig_control_panel",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Route53RecoveryControl::ControlPanel",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_route53recoverycontrolconfig_routing_control",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Route53RecoveryControl::RoutingControl",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_route53recoverycontrolconfig_safety_rule",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Route53RecoveryControl::SafetyRule",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_route53recoveryreadiness_cell",
@@ -8862,9 +8863,9 @@
     {
       "tf_type": "aws_rum_metrics_destination",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "configures where an existing CloudWatch RUM app monitor sends extended metrics (CloudWatch, Evidently, ...) via PutRumMetricsDestination. AWS::RUM::AppMonitor's full property list (verified against the CFN template reference: AppMonitorConfiguration, CustomEvents, CwLogEnabled, DeobfuscationConfiguration, Domain, DomainList, Name, Platform, ResourcePolicy, Tags) has no metric-destination property, and RUM has no other registry type."
     },
     {
       "tf_type": "aws_s3_access_point",
@@ -8876,9 +8877,9 @@
     {
       "tf_type": "aws_s3_account_public_access_block",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "sets the S3 account-level Public Access Block configuration (a singleton per account). No AWS::S3::AccountPublicAccessBlock (or equivalent account-scoped) type exists in the registry - only the per-bucket PublicAccessBlockConfiguration property on AWS::S3::Bucket is modeled, a different scope entirely."
     },
     {
       "tf_type": "aws_s3_bucket",
@@ -8890,9 +8891,9 @@
     {
       "tf_type": "aws_s3_bucket_abac",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::S3::Bucket",
+      "note": null
     },
     {
       "tf_type": "aws_s3_bucket_accelerate_configuration",
@@ -8911,9 +8912,9 @@
     {
       "tf_type": "aws_s3_bucket_analytics_configuration",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::S3::Bucket",
+      "note": null
     },
     {
       "tf_type": "aws_s3_bucket_cors_configuration",
@@ -8932,9 +8933,9 @@
     {
       "tf_type": "aws_s3_bucket_inventory",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::S3::Bucket",
+      "note": null
     },
     {
       "tf_type": "aws_s3_bucket_lifecycle_configuration",
@@ -8953,16 +8954,16 @@
     {
       "tf_type": "aws_s3_bucket_metadata_configuration",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::S3::Bucket",
+      "note": null
     },
     {
       "tf_type": "aws_s3_bucket_metric",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::S3::Bucket",
+      "note": null
     },
     {
       "tf_type": "aws_s3_bucket_notification",
@@ -8974,16 +8975,16 @@
     {
       "tf_type": "aws_s3_bucket_object",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "uploads/manages an object's content in an S3 bucket - a data-plane operation (PutObject/DeleteObject), not account/control-plane infrastructure the CloudFormation Registry models. Deprecated by the provider in favor of aws_s3_object (identical functionality); see that row for the canonical evidence."
     },
     {
       "tf_type": "aws_s3_bucket_object_lock_configuration",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::S3::Bucket",
+      "note": null
     },
     {
       "tf_type": "aws_s3_bucket_ownership_controls",
@@ -9009,9 +9010,9 @@
     {
       "tf_type": "aws_s3_bucket_replication_configuration",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::S3::Bucket",
+      "note": null
     },
     {
       "tf_type": "aws_s3_bucket_request_payment_configuration",
@@ -9043,17 +9044,17 @@
     },
     {
       "tf_type": "aws_s3_directory_bucket",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::S3Express::DirectoryBucket",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_s3_object",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "uploads/manages an object's content in an S3 bucket - a real, live piece of data-plane activity, but not a control-plane resource the CloudFormation Registry models (there is no AWS::S3::Object type; S3's modeled types are AccessGrant, AccessGrantsInstance, AccessGrantsLocation, AccessPoint, Bucket, BucketPolicy, MultiRegionAccessPoint, MultiRegionAccessPointPolicy, StorageLens, StorageLensGroup only)."
     },
     {
       "tf_type": "aws_s3_object_copy",
@@ -9079,9 +9080,9 @@
     {
       "tf_type": "aws_s3control_access_grants_instance_resource_policy",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "attaches a cross-account resource policy to the singleton per-account S3 Access Grants instance. No AWS::S3::AccessGrantsInstanceResourcePolicy type exists in the registry, and AccessGrantsInstance's own schema (primary identifier AccessGrantsInstanceArn; read-only AccessGrantsInstanceArn/Id; create-only Tags) carries no resource-policy property."
     },
     {
       "tf_type": "aws_s3control_access_grants_location",
@@ -9093,37 +9094,37 @@
     {
       "tf_type": "aws_s3control_access_point_policy",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "attaches a resource policy to an S3 Access Point. No AWS::S3::AccessPointPolicy type exists in the registry (verified against the full AWS::S3::* type list: AccessGrant, AccessGrantsInstance, AccessGrantsLocation, AccessPoint, Bucket, BucketPolicy, MultiRegionAccessPoint, MultiRegionAccessPointPolicy, StorageLens, StorageLensGroup - only AWS::S3ObjectLambda::AccessPointPolicy is modeled, for a different access-point kind)."
     },
     {
       "tf_type": "aws_s3control_bucket",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::S3Outposts::Bucket",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_s3control_bucket_lifecycle_configuration",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::S3Outposts::Bucket",
+      "note": null
     },
     {
       "tf_type": "aws_s3control_bucket_policy",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::S3Outposts::BucketPolicy",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_s3control_directory_bucket_access_point_scope",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::S3Express::AccessPoint",
+      "note": null
     },
     {
       "tf_type": "aws_s3control_multi_region_access_point",
@@ -9142,30 +9143,30 @@
     {
       "tf_type": "aws_s3control_multi_region_access_point_routes",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "sets traffic-dial percentages on an existing S3 Multi-Region Access Point's routes; the provider's own docs note destroying this resource only removes it from state and does not reset the real routing configuration. AWS::S3::MultiRegionAccessPoint's registry entry has no update handler at all (handlers: create/read/delete/list true, update false) - CFN cannot modify an MRAP's routes after creation, so ongoing route management isn't modeled."
     },
     {
       "tf_type": "aws_s3control_object_lambda_access_point",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::S3ObjectLambda::AccessPoint",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_s3control_object_lambda_access_point_policy",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::S3ObjectLambda::AccessPointPolicy",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_s3control_storage_lens_configuration",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::S3::StorageLens",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_s3files_access_point",
@@ -9198,9 +9199,9 @@
     {
       "tf_type": "aws_s3files_synchronization_configuration",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::S3Files::FileSystem",
+      "note": null
     },
     {
       "tf_type": "aws_s3outposts_endpoint",
@@ -9240,9 +9241,9 @@
     {
       "tf_type": "aws_s3tables_table_bucket_replication",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::S3Tables::TableBucket",
+      "note": null
     },
     {
       "tf_type": "aws_s3tables_table_policy",
@@ -9254,9 +9255,9 @@
     {
       "tf_type": "aws_s3tables_table_replication",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "replicates a single S3 Tables table (by table_arn) to destination bucket(s). AWS::S3Tables::Table's full property list (verified against the CFN template reference: Compaction, IcebergMetadata, Namespace, OpenTableFormat, SnapshotManagement, StorageClassConfiguration, TableBucketARN, TableName, Tags, WithoutMetadata) has no Replication property - only the table-bucket-level AWS::S3Tables::TableBucket carries ReplicationConfiguration (see aws_s3tables_table_bucket_replication's fold)."
     },
     {
       "tf_type": "aws_s3vectors_index",
@@ -9359,9 +9360,9 @@
     {
       "tf_type": "aws_sagemaker_flow_definition",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a real, standalone Augmented AI human-review workflow with its own name/ARN. No AWS::SageMaker::FlowDefinition type exists in the registry (SageMaker's ~39 modeled types include Domain, Endpoint, Model, ModelPackageGroup, Pipeline, ... but no FlowDefinition)."
     },
     {
       "tf_type": "aws_sagemaker_hub",
@@ -9373,23 +9374,23 @@
     {
       "tf_type": "aws_sagemaker_hub_content_reference",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "references a SageMaker JumpStart public-hub model into a private Hub. AWS::SageMaker::Hub is modeled, but no AWS::SageMaker::HubContent/HubContentReference type exists in the registry - referencing content into a hub isn't modeled, only the hub container itself."
     },
     {
       "tf_type": "aws_sagemaker_human_task_ui",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a real, standalone worker-facing UI template with its own name/ARN, used by human-review workflows. No AWS::SageMaker::HumanTaskUi type exists in the registry (see aws_sagemaker_flow_definition's note)."
     },
     {
       "tf_type": "aws_sagemaker_hyper_parameter_tuning_job",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a real, tracked SageMaker hyperparameter tuning job; the provider's own docs note Terraform does not wait for the job to reach a terminal state before returning. No AWS::SageMaker::HyperParameterTuningJob type exists in the registry (see aws_sagemaker_flow_definition's note)."
     },
     {
       "tf_type": "aws_sagemaker_image",
@@ -9408,9 +9409,9 @@
     {
       "tf_type": "aws_sagemaker_labeling_job",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a real, tracked SageMaker Ground Truth labeling job with completion telemetry (status, label counters, failure reason). No AWS::SageMaker::LabelingJob type exists in the registry (see aws_sagemaker_flow_definition's note)."
     },
     {
       "tf_type": "aws_sagemaker_mlflow_app",
@@ -9443,9 +9444,9 @@
     {
       "tf_type": "aws_sagemaker_model_card_export_job",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a real, tracked one-shot export of a SageMaker model card to S3, with its own ARN-shaped identifier. No AWS::SageMaker::ModelCardExportJob type exists in the registry - only AWS::SageMaker::ModelCard (the card itself) is modeled, not its export jobs."
     },
     {
       "tf_type": "aws_sagemaker_model_package_group",
@@ -9457,9 +9458,9 @@
     {
       "tf_type": "aws_sagemaker_model_package_group_policy",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::SageMaker::ModelPackageGroup",
+      "note": null
     },
     {
       "tf_type": "aws_sagemaker_monitoring_schedule",
@@ -9499,9 +9500,9 @@
     {
       "tf_type": "aws_sagemaker_servicecatalog_portfolio_status",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an account/region-level feature toggle (Enabled/Disabled) controlling whether SageMaker AI Projects may use Service Catalog; its only arguments are region and status, and its import identity is the region itself, not a resource ID. No cloud resource of its own."
     },
     {
       "tf_type": "aws_sagemaker_space",
@@ -9520,9 +9521,9 @@
     {
       "tf_type": "aws_sagemaker_training_job",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a real, standalone SageMaker training job with its own identifier and an ongoing lifecycle (the provider's own docs document an update timeout and cleanup-on-destroy flags, not a fire-and-forget run). No AWS::SageMaker::TrainingJob type exists in the registry (see aws_sagemaker_flow_definition's note)."
     },
     {
       "tf_type": "aws_sagemaker_user_profile",
@@ -9534,9 +9535,9 @@
     {
       "tf_type": "aws_sagemaker_workforce",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a real, standalone private labeling workforce (Cognito- or OIDC-backed) with its own name/ARN. No AWS::SageMaker::Workforce type exists in the registry - only the related but distinct AWS::SageMaker::Workteam is modeled."
     },
     {
       "tf_type": "aws_sagemaker_workteam",
@@ -9548,9 +9549,9 @@
     {
       "tf_type": "aws_savingsplans_savings_plan",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a real Savings Plan purchase; the provider's own docs state an active plan cannot be cancelled or deleted - destroying it only removes it from Terraform state while the real commitment runs its term (only a still-queued, not-yet-active plan can genuinely be deleted). No AWS::SavingsPlans service exists in live/registry.json's roster at all (verified against the registry's full service list) - Savings Plans aren't a CFN-modeled resource kind."
     },
     {
       "tf_type": "aws_scheduler_schedule",
@@ -9568,31 +9569,31 @@
     },
     {
       "tf_type": "aws_schemas_discoverer",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EventSchemas::Discoverer",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_schemas_registry",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EventSchemas::Registry",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_schemas_registry_policy",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EventSchemas::RegistryPolicy",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_schemas_schema",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EventSchemas::Schema",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_secretsmanager_secret",
@@ -9603,17 +9604,17 @@
     },
     {
       "tf_type": "aws_secretsmanager_secret_policy",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::SecretsManager::ResourcePolicy",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_secretsmanager_secret_rotation",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::SecretsManager::RotationSchedule",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_secretsmanager_secret_version",
@@ -9625,9 +9626,9 @@
     {
       "tf_type": "aws_secretsmanager_tag",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::SecretsManager::Secret",
+      "note": null
     },
     {
       "tf_type": "aws_security_group",
@@ -9652,17 +9653,17 @@
     },
     {
       "tf_type": "aws_securityhub_account_v2",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::SecurityHub::HubV2",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_securityhub_action_target",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a real, standalone Security Hub custom action target with its own ARN, wireable to EventBridge automations. No AWS::SecurityHub::ActionTarget type exists in the registry (SecurityHub's modeled types are AggregatorV2, AutomationRule, AutomationRuleV2, ConfigurationPolicy, Connector, ConnectorV2, DelegatedAdmin, FindingAggregator, Hub, HubV2, Insight, OrganizationConfiguration, PolicyAssociation, ProductSubscription, SecurityControl, Standard only)."
     },
     {
       "tf_type": "aws_securityhub_aggregator_v2",
@@ -9694,10 +9695,10 @@
     },
     {
       "tf_type": "aws_securityhub_configuration_policy_association",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::SecurityHub::PolicyAssociation",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_securityhub_connector_v2",
@@ -9730,16 +9731,16 @@
     {
       "tf_type": "aws_securityhub_member",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "adds a real AWS account as a Security Hub member of the calling admin account, optionally sending an invitation. No AWS::SecurityHub::Member type exists in the registry (see aws_securityhub_action_target's note for the full SecurityHub type list)."
     },
     {
       "tf_type": "aws_securityhub_organization_admin_account",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::SecurityHub::DelegatedAdmin",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_securityhub_organization_configuration",
@@ -9758,23 +9759,23 @@
     {
       "tf_type": "aws_securityhub_standards_control",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "toggles an individual legacy standards control, identified by its own per-standard-scoped ARN (standards_control_arn). AWS::SecurityHub::SecurityControl's primary identifier is SecurityControlId alone (the newer, standard-independent unified control view, per the registry) - a per-standard control ARN isn't the identity CFN models here."
     },
     {
       "tf_type": "aws_securityhub_standards_control_association",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "manages a specific security control's enablement status within a specific standard - a compound identity (security_control_id, standards_arn). AWS::SecurityHub::SecurityControl's primary identifier is SecurityControlId alone with no standards_arn dimension, so the per-standard scope this resource manages isn't what that type's identity models."
     },
     {
       "tf_type": "aws_securityhub_standards_subscription",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::SecurityHub::Standard",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_securitylake_aws_log_source",
@@ -9786,9 +9787,9 @@
     {
       "tf_type": "aws_securitylake_custom_log_source",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a real custom log source with its own provisioned infrastructure (a Glue crawler IAM role, cross-account trust via provider_identity, OCSF event-class config). No AWS::SecurityLake::CustomLogSource type exists in the registry - only AwsLogSource (for AWS-native sources), DataLake, Subscriber, and SubscriberNotification are modeled."
     },
     {
       "tf_type": "aws_securitylake_data_lake",
@@ -9814,9 +9815,9 @@
     {
       "tf_type": "aws_serverlessapplicationrepository_cloudformation_stack",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "deploys a CloudFormation stack from a Serverless Application Repository application (application_id + semantic_version as the template source), with SAR-specific capabilities (CAPABILITY_RESOURCE_POLICY, CAPABILITY_AUTO_EXPAND). No AWS::ServerlessApplicationRepository service exists in live/registry.json's roster at all (verified against the registry's full service list) - the deployed artifact is CloudFormation's own Stack primitive, not a Registry type representing SAR itself."
     },
     {
       "tf_type": "aws_service_discovery_http_namespace",
@@ -9856,9 +9857,9 @@
     {
       "tf_type": "aws_servicecatalog_budget_resource_association",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "associates an AWS Budget with a Service Catalog product or portfolio (a compound budget_name:resource_id link). No AWS::ServiceCatalog::BudgetResourceAssociation type exists in the registry (ServiceCatalog's modeled types are AcceptedPortfolioShare, CloudFormationProduct, CloudFormationProvisionedProduct, LaunchNotificationConstraint, LaunchRoleConstraint, LaunchTemplateConstraint, Portfolio, PortfolioPrincipalAssociation, PortfolioProductAssociation, PortfolioShare, ResourceUpdateConstraint, ServiceAction, ServiceActionAssociation, StackSetConstraint, TagOption, TagOptionAssociation only)."
     },
     {
       "tf_type": "aws_servicecatalog_constraint",
@@ -9870,9 +9871,9 @@
     {
       "tf_type": "aws_servicecatalog_organizations_access",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an account-level feature toggle enabling AWS Organizations-wide Service Catalog portfolio sharing; the entire resource is one required boolean (enabled), and the provider's own docs carry no Import section at all. No cloud resource of its own."
     },
     {
       "tf_type": "aws_servicecatalog_portfolio",
@@ -9890,38 +9891,38 @@
     },
     {
       "tf_type": "aws_servicecatalog_principal_portfolio_association",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::ServiceCatalog::PortfolioPrincipalAssociation",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_servicecatalog_product",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::ServiceCatalog::CloudFormationProduct",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_servicecatalog_product_portfolio_association",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::ServiceCatalog::PortfolioProductAssociation",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_servicecatalog_provisioned_product",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::ServiceCatalog::CloudFormationProvisionedProduct",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_servicecatalog_provisioning_artifact",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "manages one provisioning artifact (product version) with its own AWS-issued ID and independent create/update/delete lifecycle. AWS::ServiceCatalog::CloudFormationProduct only accepts ProvisioningArtifactParameters at creation plus a write-only whole-list ReplaceProvisioningArtifacts operation on update (per live/registry.json) - it has no per-artifact identity or lifecycle of its own, so an individual artifact's independent management isn't modeled."
     },
     {
       "tf_type": "aws_servicecatalog_service_action",
@@ -9939,10 +9940,10 @@
     },
     {
       "tf_type": "aws_servicecatalog_tag_option_resource_association",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::ServiceCatalog::TagOptionAssociation",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_servicecatalogappregistry_application",
