@@ -816,6 +816,43 @@ var (
 		"aws_servicecatalogappregistry_attribute_group",
 		"aws_auditmanager_assessment",
 		"aws_auditmanager_framework",
+		// Registry-ratified AI services and Location batch (#40, #44,
+		// issue #65). aws_bedrockagentcore_resource_policy,
+		// aws_lexv2models_bot_locale and aws_location_tracker_association
+		// are this batch's three untaggable types, below. See
+		// live/e2e/estates/ai-location/README.md.
+		"aws_bedrock_guardrail",
+		"aws_bedrock_inference_profile",
+		"aws_bedrockagent_agent",
+		"aws_bedrockagent_agent_alias",
+		"aws_bedrockagent_flow",
+		"aws_bedrockagent_knowledge_base",
+		"aws_bedrockagent_prompt",
+		"aws_bedrockagentcore_agent_runtime",
+		"aws_bedrockagentcore_agent_runtime_endpoint",
+		"aws_bedrockagentcore_api_key_credential_provider",
+		"aws_bedrockagentcore_browser",
+		"aws_bedrockagentcore_browser_profile",
+		"aws_bedrockagentcore_code_interpreter",
+		"aws_bedrockagentcore_evaluator",
+		"aws_bedrockagentcore_gateway",
+		"aws_bedrockagentcore_harness",
+		"aws_bedrockagentcore_memory",
+		"aws_bedrockagentcore_oauth2_credential_provider",
+		"aws_bedrockagentcore_online_evaluation_config",
+		"aws_bedrockagentcore_policy_engine",
+		"aws_comprehend_document_classifier",
+		"aws_kendra_index",
+		"aws_lexv2models_bot",
+		"aws_location_geofence_collection",
+		"aws_location_map",
+		"aws_location_place_index",
+		"aws_location_route_calculator",
+		"aws_location_tracker",
+		"aws_qbusiness_application",
+		"aws_rekognition_collection",
+		"aws_rekognition_project",
+		"aws_rekognition_stream_processor",
 		// Registry-ratified data-movement batch (#40, #44, issue #65): all
 		// twenty-seven types this batch ratified carry a top-level tags
 		// argument in the pinned provider's own wire schema, confirmed
@@ -1197,6 +1234,16 @@ var (
 		"aws_controltower_control",
 		"aws_servicecatalog_portfolio_share",
 		"aws_servicecatalogappregistry_attribute_group_association",
+		// Registry-ratified AI services and Location batch (#40, #44,
+		// issue #65): three types with no tags argument at all —
+		// aws_bedrockagentcore_resource_policy's Attribute Reference
+		// exports none, aws_lexv2models_bot_locale's Argument Reference
+		// names no tags block, and aws_location_tracker_association's
+		// Argument Reference names only consumer_arn/tracker_name/region.
+		// See live/e2e/estates/ai-location/README.md.
+		"aws_bedrockagentcore_resource_policy",
+		"aws_lexv2models_bot_locale",
+		"aws_location_tracker_association",
 		// Registry-ratified databases batch (#40, #44, issue #65): the
 		// three OpenSearchServerless policy types (access, lifecycle,
 		// security) carry only a name/type/policy document, the same
@@ -2090,6 +2137,48 @@ func testSchemas() Schemas {
 		"aws_wafv2_rule_group":                             tagged("id", "arn", "name", "scope"),
 		"aws_wafv2_web_acl":                                tagged("id", "arn", "name", "scope"),
 		"aws_wafv2_web_acl_rule":                           untagged("id", "web_acl_arn", "name"),
+
+		// Registry-ratified AI services and Location batch (#40, #44,
+		// issue #65). Taggable per the real provider's documented Argument
+		// Reference, except the three types below whose Argument/Attribute
+		// Reference names no tags block at all. See
+		// live/e2e/estates/ai-location/README.md.
+		"aws_bedrock_guardrail":                            tagged("id", "guardrail_id", "name"),
+		"aws_bedrock_inference_profile":                    tagged("id", "name"),
+		"aws_bedrockagent_agent":                           tagged("id", "agent_id", "agent_name"),
+		"aws_bedrockagent_agent_alias":                     tagged("id", "agent_alias_id", "agent_id"),
+		"aws_bedrockagent_flow":                            tagged("id", "name"),
+		"aws_bedrockagent_knowledge_base":                  tagged("id", "name", "role_arn"),
+		"aws_bedrockagent_prompt":                          tagged("id", "name"),
+		"aws_bedrockagentcore_agent_runtime":               tagged("id", "agent_runtime_id", "agent_runtime_name"),
+		"aws_bedrockagentcore_agent_runtime_endpoint":      tagged("id", "name", "agent_runtime_id"),
+		"aws_bedrockagentcore_api_key_credential_provider": tagged("id", "name"),
+		"aws_bedrockagentcore_browser":                     tagged("id", "name"),
+		"aws_bedrockagentcore_browser_profile":             tagged("id", "profile_id", "name"),
+		"aws_bedrockagentcore_code_interpreter":            tagged("id", "name"),
+		"aws_bedrockagentcore_evaluator":                   tagged("id", "evaluator_id", "evaluator_name"),
+		"aws_bedrockagentcore_gateway":                     tagged("id", "name"),
+		"aws_bedrockagentcore_harness":                     tagged("id", "harness_id", "harness_name"),
+		"aws_bedrockagentcore_memory":                      tagged("id", "name"),
+		"aws_bedrockagentcore_oauth2_credential_provider":  tagged("id", "name"),
+		"aws_bedrockagentcore_online_evaluation_config":    tagged("id", "online_evaluation_config_name"),
+		"aws_bedrockagentcore_policy_engine":               tagged("id", "name"),
+		"aws_bedrockagentcore_resource_policy":             untagged("id", "resource_arn", "policy"),
+		"aws_comprehend_document_classifier":               tagged("id", "arn", "name"),
+		"aws_kendra_index":                                 tagged("id", "name", "role_arn"),
+		"aws_lexv2models_bot":                              tagged("id", "name", "role_arn"),
+		"aws_lexv2models_bot_locale":                       untagged("id", "bot_id", "bot_version", "locale_id"),
+		"aws_location_geofence_collection":                 tagged("id", "collection_name"),
+		"aws_location_map":                                 tagged("id", "map_name"),
+		"aws_location_place_index":                         tagged("id", "index_name"),
+		"aws_location_route_calculator":                    tagged("id", "calculator_name"),
+		"aws_location_tracker":                             tagged("id", "tracker_name"),
+		"aws_location_tracker_association":                 untagged("id", "tracker_name", "consumer_arn"),
+		"aws_qbusiness_application":                        tagged("id", "display_name"),
+		"aws_rekognition_collection":                       tagged("id", "collection_id"),
+		"aws_rekognition_project":                          tagged("id", "name"),
+		"aws_rekognition_stream_processor":                 tagged("id", "name", "role_arn"),
+
 		// Registry-ratified IoT core batch (#40, #44, issue #65).
 		// Taggable/untaggable per the real provider's documented Argument
 		// Reference for each type: aws_iot_thing (name, attributes,
