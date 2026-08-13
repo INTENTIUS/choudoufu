@@ -74,9 +74,11 @@ func TestDerivableFields(t *testing.T) {
 			identity: map[string]string{"name": "req", "region": "opt", "account_id": "opt"},
 		},
 		// Not in the hand table: the shape a wiring batch would pick up.
-		"aws_cloudwatch_log_metric_filter": {
-			args:     map[string]string{"name": "req", "log_group_name": "req", "id": "optcomp"},
-			identity: map[string]string{"name": "req", "log_group_name": "req", "account_id": "opt"},
+		// aws_cloudwatch_log_metric_filter used to stand here; it is in the
+		// table now (issue #65's observability batch).
+		"aws_wafv2_web_acl_association": {
+			args:     map[string]string{"name": "req", "resource_arn": "req", "id": "optcomp"},
+			identity: map[string]string{"name": "req", "resource_arn": "req", "account_id": "opt"},
 		},
 	})
 
@@ -101,17 +103,17 @@ func TestDerivableFields(t *testing.T) {
 		t.Errorf("context attributes are %v, want [account_id region]", known.Context)
 	}
 
-	candidate := byType["aws_cloudwatch_log_metric_filter"]
+	candidate := byType["aws_wafv2_web_acl_association"]
 	if candidate.InTable {
-		t.Error("aws_cloudwatch_log_metric_filter is not in the hand table")
+		t.Error("aws_wafv2_web_acl_association is not in the hand table")
 	}
-	if !reflect.DeepEqual(candidate.IdentityAttrs, []string{"log_group_name", "name"}) {
-		t.Errorf("identity attributes are %v, want [log_group_name name]", candidate.IdentityAttrs)
+	if !reflect.DeepEqual(candidate.IdentityAttrs, []string{"name", "resource_arn"}) {
+		t.Errorf("identity attributes are %v, want [name resource_arn]", candidate.IdentityAttrs)
 	}
 
 	newOnes := DerivableNew(schemas)
-	if len(newOnes) != 1 || newOnes[0].Type != "aws_cloudwatch_log_metric_filter" {
-		t.Errorf("the new-candidate set is %v, want only aws_cloudwatch_log_metric_filter", newOnes)
+	if len(newOnes) != 1 || newOnes[0].Type != "aws_wafv2_web_acl_association" {
+		t.Errorf("the new-candidate set is %v, want only aws_wafv2_web_acl_association", newOnes)
 	}
 }
 
@@ -125,10 +127,12 @@ func TestVerificationCarriesDerivable(t *testing.T) {
 		},
 		// Deliberately a type the hand table does not cover, so the InTable
 		// split has something on both sides. aws_sqs_queue used to stand
-		// here; it is in the table now (the messaging batch, #40, #44).
-		"aws_cloudwatch_log_metric_filter": {
-			args:     map[string]string{"name": "req", "log_group_name": "req"},
-			identity: map[string]string{"name": "req", "log_group_name": "req", "account_id": "opt"},
+		// here (the messaging batch, #40, #44 wired it), and then
+		// aws_cloudwatch_log_metric_filter (issue #65's observability
+		// batch wired that one).
+		"aws_wafv2_web_acl_association": {
+			args:     map[string]string{"name": "req", "resource_arn": "req"},
+			identity: map[string]string{"name": "req", "resource_arn": "req", "account_id": "opt"},
 		},
 	})
 
@@ -142,7 +146,7 @@ func TestVerificationCarriesDerivable(t *testing.T) {
 			newly = append(newly, d.Type)
 		}
 	}
-	if !reflect.DeepEqual(newly, []string{"aws_cloudwatch_log_metric_filter"}) {
-		t.Errorf("new candidates are %v, want [aws_cloudwatch_log_metric_filter]", newly)
+	if !reflect.DeepEqual(newly, []string{"aws_wafv2_web_acl_association"}) {
+		t.Errorf("new candidates are %v, want [aws_wafv2_web_acl_association]", newly)
 	}
 }
