@@ -63,7 +63,20 @@ import (
 // it back up again needs its own reviewed reason, not a silent increase -
 // TestUnannotatedMismatchRatchet below fails the build the moment a
 // regeneration would do that.
-const unannotatedMismatchRatchetMax = 215
+//
+// importprecedence.go's applyImportGrammarPrecedence used to skip every
+// fold row before any of its rules ran (a guard reading
+// "if p.CFNType == \"\" { continue }", justified by a comment claiming
+// every rule below gates on PrimaryIdentifier - false for tryGrammarComposite
+// and tryArgumentReferenceValueMatch, which read only the import-grammar row
+// and p.Bucket). Deleting that guard is exactly the "fold-child Components
+// rule" this comment already anticipated above: of the 49 fold-child rows
+// that were unconditionally mismatched (bucketFoldChild never claims
+// Components, so it could never match a ratified composite/client-named
+// entry), 21 now resolve through those same two rules, with zero rows that
+// previously matched now mismatching (verified by a full before/after diff
+// over the compared set, not just the fold-child rows). 215 down to 194.
+const unannotatedMismatchRatchetMax = 194
 
 // TestUnannotatedMismatchRatchet reads the committed live/rowgen-
 // convergence.json directly (not a fresh regeneration - see

@@ -112,13 +112,19 @@ import (
 func applyImportGrammarPrecedence(proposals []proposal, importGrammar map[string]importGrammarRow) {
 	for i := range proposals {
 		p := &proposals[i]
-		if p.CFNType == "" {
-			// A fold row carries no registry primaryIdentifier of its own
-			// (classifyFold never sets PrimaryIdentifier) - nothing here
-			// applies, and every rule below that gates on PrimaryIdentifier
-			// would be vacuously unreachable anyway.
-			continue
-		}
+		// No CFNType/PrimaryIdentifier guard here: a fold row (CFNType=="",
+		// PrimaryIdentifier==nil - classifyFold never sets either) is not
+		// skipped. tryGrammarComposite and tryArgumentReferenceValueMatch
+		// read only g and p.Bucket, so they apply to a fold row exactly as
+		// well as a mapped one. Every other rule below is reached only
+		// behind a p.Bucket==bucketNeedsHandSeparator or
+		// p.Bucket==bucketServerAssigned case guard, and classifyFold never
+		// produces either bucket (only bucketFoldChild or bucketEvidenceOnly
+		// - see its own doc comment), nor can the two PrimaryIdentifier-free
+		// rules above promote a fold row into one of those buckets (they
+		// only ever set bucketClientNamed or bucketComposite) - so those
+		// PrimaryIdentifier-dependent rules stay unreachable for a fold row,
+		// not merely coincidentally empty-safe.
 		g, ok := importGrammar[p.TFType]
 		if !ok {
 			continue

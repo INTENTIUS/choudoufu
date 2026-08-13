@@ -4,11 +4,11 @@
     "admitted_total": 846,
     "compared": 825,
     "not_in_mapped_set": 21,
-    "adopted_unchanged": 610,
-    "adopted_unchanged_pct": 73.94,
-    "genuine_mismatches": 215,
+    "adopted_unchanged": 631,
+    "adopted_unchanged_pct": 76.48,
+    "genuine_mismatches": 194,
     "annotated": 0,
-    "unannotated_mismatches": 215,
+    "unannotated_mismatches": 194,
     "scrape_gap_mismatches": 117
   },
   "by_service": {
@@ -19,8 +19,8 @@
     },
     "APS": {
       "compared": 6,
-      "adopted_unchanged": 3,
-      "adopted_unchanged_pct": 50
+      "adopted_unchanged": 4,
+      "adopted_unchanged_pct": 66.67
     },
     "ARCRegionSwitch": {
       "compared": 1,
@@ -44,8 +44,8 @@
     },
     "ApiGateway": {
       "compared": 20,
-      "adopted_unchanged": 13,
-      "adopted_unchanged_pct": 65
+      "adopted_unchanged": 16,
+      "adopted_unchanged_pct": 80
     },
     "ApiGatewayV2": {
       "compared": 5,
@@ -179,8 +179,8 @@
     },
     "CodeBuild": {
       "compared": 4,
-      "adopted_unchanged": 2,
-      "adopted_unchanged_pct": 50
+      "adopted_unchanged": 3,
+      "adopted_unchanged_pct": 75
     },
     "CodeCommit": {
       "compared": 1,
@@ -299,18 +299,18 @@
     },
     "DynamoDB": {
       "compared": 3,
-      "adopted_unchanged": 1,
-      "adopted_unchanged_pct": 33.33
+      "adopted_unchanged": 2,
+      "adopted_unchanged_pct": 66.67
     },
     "EC2": {
       "compared": 87,
-      "adopted_unchanged": 66,
-      "adopted_unchanged_pct": 75.86
+      "adopted_unchanged": 68,
+      "adopted_unchanged_pct": 78.16
     },
     "ECR": {
       "compared": 11,
-      "adopted_unchanged": 8,
-      "adopted_unchanged_pct": 72.73
+      "adopted_unchanged": 10,
+      "adopted_unchanged_pct": 90.91
     },
     "ECS": {
       "compared": 6,
@@ -574,8 +574,8 @@
     },
     "NetworkManager": {
       "compared": 17,
-      "adopted_unchanged": 16,
-      "adopted_unchanged_pct": 94.12
+      "adopted_unchanged": 17,
+      "adopted_unchanged_pct": 100
     },
     "Notifications": {
       "compared": 3,
@@ -724,8 +724,8 @@
     },
     "S3": {
       "compared": 7,
-      "adopted_unchanged": 3,
-      "adopted_unchanged_pct": 42.86
+      "adopted_unchanged": 4,
+      "adopted_unchanged_pct": 57.14
     },
     "S3Express": {
       "compared": 1,
@@ -864,8 +864,8 @@
     },
     "Transfer": {
       "compared": 9,
-      "adopted_unchanged": 5,
-      "adopted_unchanged_pct": 55.56
+      "adopted_unchanged": 6,
+      "adopted_unchanged_pct": 66.67
     },
     "VerifiedPermissions": {
       "compared": 1,
@@ -889,8 +889,8 @@
     },
     "WorkSpacesWeb": {
       "compared": 18,
-      "adopted_unchanged": 10,
-      "adopted_unchanged_pct": 55.56
+      "adopted_unchanged": 18,
+      "adopted_unchanged_pct": 100
     },
     "XRay": {
       "compared": 3,
@@ -1052,29 +1052,23 @@
     {
       "tf_type": "aws_api_gateway_integration",
       "service": "ApiGateway",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::ApiGateway::Method",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order recovered from the doc's format-string prose (the example's own segments were too opaque to match by value)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
       "tf_type": "aws_api_gateway_integration_response",
       "service": "ApiGateway",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::ApiGateway::Method",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order recovered from the doc's format-string prose (the example's own segments were too opaque to match by value)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -1091,15 +1085,12 @@
     {
       "tf_type": "aws_api_gateway_method_response",
       "service": "ApiGateway",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::ApiGateway::Method",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order recovered from the doc's format-string prose (the example's own segments were too opaque to match by value)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -2677,16 +2668,13 @@
     {
       "tf_type": "aws_codebuild_webhook",
       "service": "CodeBuild",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::CodeBuild::Project",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: the documented example's own text embeds exactly one Required argument's name, confirming it over the registry's own primaryIdentifier claim",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -3792,16 +3780,12 @@
     {
       "tf_type": "aws_dynamodb_resource_policy",
       "service": "DynamoDB",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::DynamoDB::Table",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
       "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)",
-        "import-syntax-wording"
+        "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -4200,16 +4184,12 @@
     {
       "tf_type": "aws_ecr_lifecycle_policy",
       "service": "ECR",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::ECR::Repository",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
       "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)",
-        "import-syntax-wording"
+        "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -4292,16 +4272,12 @@
     {
       "tf_type": "aws_ecr_repository_policy",
       "service": "ECR",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::ECR::Repository",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
       "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)",
-        "import-syntax-wording"
+        "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -6679,15 +6655,12 @@
     {
       "tf_type": "aws_nat_gateway_eip_association",
       "service": "EC2",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::EC2::NatGateway",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order recovered from the doc's format-string prose (the example's own segments were too opaque to match by value)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -6886,16 +6859,12 @@
     {
       "tf_type": "aws_networkmanager_core_network_policy_attachment",
       "service": "NetworkManager",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::NetworkManager::CoreNetwork",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: the documented example's own text embeds exactly one Required argument's name, confirming it over the registry's own primaryIdentifier claim",
       "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)",
-        "import-syntax-wording"
+        "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -7418,15 +7387,12 @@
     {
       "tf_type": "aws_prometheus_scraper_logging_configuration",
       "service": "APS",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::APS::Scraper",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -8157,16 +8123,13 @@
     {
       "tf_type": "aws_s3_bucket_public_access_block",
       "service": "S3",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::S3::Bucket",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -9628,16 +9591,12 @@
     {
       "tf_type": "aws_transfer_web_app_customization",
       "service": "Transfer",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::Transfer::WebApp",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
       "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)",
-        "import-syntax-wording"
+        "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -9787,15 +9746,12 @@
     {
       "tf_type": "aws_vpc_endpoint_private_dns",
       "service": "EC2",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::EC2::VPCEndpoint",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -9815,8 +9771,8 @@
     {
       "tf_type": "aws_vpc_endpoint_security_group_association",
       "service": "EC2",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::EC2::VPCEndpoint",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
       "mismatch_classes": [
         "components"
       ],
@@ -9841,8 +9797,8 @@
     {
       "tf_type": "aws_vpc_endpoint_subnet_association",
       "service": "EC2",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::EC2::VPCEndpoint",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
       "mismatch_classes": [
         "components"
       ],
@@ -10282,15 +10238,12 @@
     {
       "tf_type": "aws_workspacesweb_browser_settings_association",
       "service": "WorkSpacesWeb",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::WorkSpacesWeb::Portal",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -10307,15 +10260,12 @@
     {
       "tf_type": "aws_workspacesweb_data_protection_settings_association",
       "service": "WorkSpacesWeb",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::WorkSpacesWeb::Portal",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -10343,15 +10293,12 @@
     {
       "tf_type": "aws_workspacesweb_ip_access_settings_association",
       "service": "WorkSpacesWeb",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::WorkSpacesWeb::Portal",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -10368,15 +10315,12 @@
     {
       "tf_type": "aws_workspacesweb_network_settings_association",
       "service": "WorkSpacesWeb",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::WorkSpacesWeb::Portal",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -10404,15 +10348,12 @@
     {
       "tf_type": "aws_workspacesweb_session_logger_association",
       "service": "WorkSpacesWeb",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::WorkSpacesWeb::Portal",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -10429,15 +10370,12 @@
     {
       "tf_type": "aws_workspacesweb_trust_store_association",
       "service": "WorkSpacesWeb",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::WorkSpacesWeb::Portal",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -10454,15 +10392,12 @@
     {
       "tf_type": "aws_workspacesweb_user_access_logging_settings_association",
       "service": "WorkSpacesWeb",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::WorkSpacesWeb::Portal",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -10479,15 +10414,12 @@
     {
       "tf_type": "aws_workspacesweb_user_settings_association",
       "service": "WorkSpacesWeb",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::WorkSpacesWeb::Portal",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
