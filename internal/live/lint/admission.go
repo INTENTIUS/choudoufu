@@ -6,8 +6,6 @@
 package lint
 
 import (
-	"strings"
-
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -574,6 +572,28 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_flow_log":                                     {},
 	"aws_nat_gateway":                                  {},
 	"aws_nat_gateway_eip_association":                  {},
+	// ---- Fold-children (issue #68): declared property-children of an
+	// ---- admitted parent, admitted the same way live/mapping.json's other
+	// ---- ~170 "fold" rows will be as this path picks them up in future
+	// ---- batches. See internal/live/identity/table.go's own "Fold-children
+	// ---- (issue #68)" section comment for the per-type evidence and the
+	// ---- two sub-shapes (API Gateway's four duplicate an already-admitted
+	// ---- parent's own composite identity; the APS three key on a single
+	// ---- parent argument, the same named-singleton-child shape
+	// ---- aws_s3_bucket_policy and aws_sns_topic_policy already ratify).
+	// ---- Cohort estate: live/e2e/estates/apigateway (the API Gateway four)
+	// ---- and live/e2e/estates/aps (the APS three plus their two new
+	// ---- parents, aws_prometheus_workspace and aws_prometheus_scraper,
+	// ---- neither previously admitted).
+	"aws_api_gateway_integration":                  {},
+	"aws_api_gateway_integration_response":         {},
+	"aws_api_gateway_method_response":              {},
+	"aws_api_gateway_method_settings":              {},
+	"aws_prometheus_workspace":                     {},
+	"aws_prometheus_scraper":                       {},
+	"aws_prometheus_alert_manager_definition":      {},
+	"aws_prometheus_query_logging_configuration":   {},
+	"aws_prometheus_scraper_logging_configuration": {},
 
 	// ---- Registry-ratified (#40, #44, #65): fifth batch, compute
 	// ---- platforms (Batch, EMR remainder, App Runner, Elastic
@@ -719,6 +739,121 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_codepipeline_webhook":                       {},
 	"aws_ecrpublic_repository":                       {},
 	"aws_ecrpublic_repository_policy":                {},
+
+	// ---- Registry-ratified (#40, #44, #65): sixth batch, IoT core
+	// ---- (things, thing types/groups, policies, topic rules;
+	// ---- issue #65's recipe). Same tools/row-gen pipeline as the earlier
+	// ---- batches, cross-checked against the AWS provider's documented
+	// ---- Argument/Attribute/Import sections fetched from the pinned
+	// ---- v6.59.0 tag directly, not accepted on row-gen's own
+	// ---- classification: six of these eleven rows are evidence-only
+	// ---- GUESSED-argument proposals row-gen itself declined to paste,
+	// ---- promoted here only after the provider's own docs confirmed (or,
+	// ---- for aws_iot_role_alias, corrected) the guessed argument name.
+	// ---- Four rows are rejected outright: aws_iot_certificate and
+	// ---- aws_iot_ca_certificate, aws_iot_policy_attachment and
+	// ---- aws_iot_thing_principal_attachment carry no "## Import" section
+	// ---- anywhere in the pinned provider's docs at all - confirmed by
+	// ---- fetching the raw doc source, not merely its rendered page - so
+	// ---- no admission path is provider-documented for them.
+	// ---- aws_iot_certificate carries a second, independent
+	// ---- disqualification: evaluated explicitly against the
+	// ---- credential-material bar aws_iam_access_key is excluded by
+	// ---- (live/SURVEY.md's "three the rule excludes"), because when
+	// ---- created with neither `csr` nor `certificate_pem` the provider's
+	// ---- own Attribute Reference has it mint and export `private_key` -
+	// ---- a secret a live read would transit and that AWS never returns
+	// ---- again after create. Excluded by that rule, independent of the
+	// ---- missing Import section. IoT Events, IoT Analytics, Greengrass
+	// ---- (v1 and v2), IoT SiteWise and IoT TwinMaker are all named in
+	// ---- issue #65's recipe as this batch's scope but are not admitted
+	// ---- here: the pinned provider ships no resources for any of the
+	// ---- five services at all (confirmed against the provider's own
+	// ---- website/docs/r/ directory listing at the pinned tag), so
+	// ---- live/mapping.json carries no rows and tools/row-gen emits no
+	// ---- proposals for them - there is nothing this batch could ratify
+	// ---- or reject. See internal/live/identity/table.go for the
+	// ---- per-type evidence. Cohort estate: live/e2e/estates/iot.
+	"aws_iot_authorizer":             {},
+	"aws_iot_billing_group":          {},
+	"aws_iot_domain_configuration":   {},
+	"aws_iot_policy":                 {},
+	"aws_iot_provisioning_template":  {},
+	"aws_iot_role_alias":             {},
+	"aws_iot_thing":                  {},
+	"aws_iot_thing_group":            {},
+	"aws_iot_thing_type":             {},
+	"aws_iot_topic_rule":             {},
+	"aws_iot_topic_rule_destination": {},
+	// ---- Registry-ratified (#40, #44, #65): sixth batch, advanced
+	// ---- networking (Network Firewall, NetworkManager/Cloud WAN, VPC
+	// ---- Lattice, Global Accelerator, Route53 Recovery Readiness). Same
+	// ---- tools/row-gen pipeline as the batches above, cross-checked
+	// ---- against the AWS provider's documented Argument/Attribute/Import
+	// ---- sections and, where the doc text alone left the schema argument
+	// ---- names or the exact import-ID mechanics ambiguous, the pinned
+	// ---- provider's own resource source (internal/service/... on the
+	// ---- hashicorp/terraform-provider-aws repository). VPC Lattice is
+	// ---- the notable catch: row-gen's flat serverAssigned() template
+	// ---- read the CFN registry's primaryIdentifier field name ("Arn")
+	// ---- for eleven of its fourteen types and proposed ARN-based
+	// ---- identities for all of them, but the provider's own documented
+	// ---- Import sections disagree for nine of the eleven — VPC Lattice
+	// ---- imports almost its whole family by the short, provider-minted
+	// ---- id (svc-…, sn-…, tg-…, rgw-…, rcfg-…, dv-…, snra-…, rft-…), not
+	// ---- the arn attribute the same resources also export. See
+	// ---- internal/live/identity/table.go for the per-type evidence, the
+	// ---- NetworkManager composite identities resolved by hand past
+	// ---- row-gen's own "needs hand separator" refusal, and the deferred
+	// ---- App Mesh (deprecated service) and Cloud WAN (not a distinct CFN
+	// ---- service; folded into NetworkManager's CoreNetwork family)
+	// ---- scope notes. Cohort estate:
+	// ---- live/e2e/estates/networking-advanced.
+	"aws_networkfirewall_firewall":                              {},
+	"aws_networkfirewall_firewall_policy":                       {},
+	"aws_networkfirewall_logging_configuration":                 {},
+	"aws_networkfirewall_rule_group":                            {},
+	"aws_networkfirewall_tls_inspection_configuration":          {},
+	"aws_networkfirewall_vpc_endpoint_association":              {},
+	"aws_networkmanager_connect_attachment":                     {},
+	"aws_networkmanager_connect_peer":                           {},
+	"aws_networkmanager_core_network":                           {},
+	"aws_networkmanager_customer_gateway_association":           {},
+	"aws_networkmanager_device":                                 {},
+	"aws_networkmanager_dx_gateway_attachment":                  {},
+	"aws_networkmanager_global_network":                         {},
+	"aws_networkmanager_link":                                   {},
+	"aws_networkmanager_link_association":                       {},
+	"aws_networkmanager_prefix_list_association":                {},
+	"aws_networkmanager_site":                                   {},
+	"aws_networkmanager_site_to_site_vpn_attachment":            {},
+	"aws_networkmanager_transit_gateway_peering":                {},
+	"aws_networkmanager_transit_gateway_registration":           {},
+	"aws_networkmanager_transit_gateway_route_table_attachment": {},
+	"aws_networkmanager_vpc_attachment":                         {},
+	"aws_globalaccelerator_accelerator":                         {},
+	"aws_globalaccelerator_cross_account_attachment":            {},
+	"aws_globalaccelerator_endpoint_group":                      {},
+	"aws_globalaccelerator_listener":                            {},
+	"aws_vpclattice_access_log_subscription":                    {},
+	"aws_vpclattice_auth_policy":                                {},
+	"aws_vpclattice_domain_verification":                        {},
+	"aws_vpclattice_listener":                                   {},
+	"aws_vpclattice_listener_rule":                              {},
+	"aws_vpclattice_resource_configuration":                     {},
+	"aws_vpclattice_resource_gateway":                           {},
+	"aws_vpclattice_resource_policy":                            {},
+	"aws_vpclattice_service":                                    {},
+	"aws_vpclattice_service_network":                            {},
+	"aws_vpclattice_service_network_resource_association":       {},
+	"aws_vpclattice_service_network_service_association":        {},
+	"aws_vpclattice_service_network_vpc_association":            {},
+	"aws_vpclattice_target_group":                               {},
+	"aws_route53recoveryreadiness_cell":                         {},
+	"aws_route53recoveryreadiness_readiness_check":              {},
+	"aws_route53recoveryreadiness_recovery_group":               {},
+	"aws_route53recoveryreadiness_resource_set":                 {},
+
 	// ---- Registry-ratified (#40, #44, #65): fifth batch, identity
 	// ---- (Cognito, IAM leftovers, SSO Admin; issue #65's ratification
 	// ---- campaign). Same tools/row-gen pipeline and verification standard
@@ -835,70 +970,276 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_appsync_graphql_api":             {},
 	"aws_pipes_pipe":                      {},
 	"aws_scheduler_schedule_group":        {},
+	// ---- Registry-ratified (#40, #44, #65): governance batch (Config
+	// ---- remainder, Control Tower, License Manager, Organizations,
+	// ---- Resource Explorer, Resource Groups, Service Catalog remainder
+	// ---- plus AppRegistry, Audit Manager; issue #65's own next-batch
+	// ---- list). Same tools/row-gen pipeline as the batches above,
+	// ---- cross-checked against the AWS provider's documented
+	// ---- Argument/Attribute/Import sections and against
+	// ---- live/survey-full.json's real-schema taggable/list_resource
+	// ---- signals, not accepted on the registry's classification alone -
+	// ---- the second check caught five of row-gen's clean-looking
+	// ---- proposals (aws_licensemanager_grant, the whole License Manager
+	// ---- service; aws_organizations_organization; aws_servicecatalog_
+	// ---- service_action and aws_servicecatalog_tag_option) whose
+	// ---- server-assigned identity is real but whose live/survey-full.json
+	// ---- signals are untaggable with no native list resource, which
+	// ---- leaves none of this package's four admission paths
+	// ---- (internal/live/doc.go) able to recover an existing instance - a
+	// ---- clean import grammar is not the same claim as a working
+	// ---- admission path. Three of row-gen's needs-hand-separator
+	// ---- proposals in this batch's scope are corrected rather than
+	// ---- deferred, the same way the GuardDuty filter and WAFv2 web ACL
+	// ---- rule corrections read in earlier batches: aws_controltower_
+	// ---- control and aws_servicecatalog_portfolio_share both have an
+	// ---- unambiguous, documented separator and component arguments the
+	// ---- registry's own composite primaryIdentifier either names outright
+	// ---- or undercounts by one field; aws_servicecatalog_tag_option_
+	// ---- resource_association's own composite is equally clean but stays
+	// ---- unratified anyway because its own tag_option_id half names a
+	// ---- type this batch just rejected. Two more siblings
+	// ---- (aws_servicecatalog_principal_portfolio_association and
+	// ---- aws_servicecatalog_product_portfolio_association) are unratified
+	// ---- for a different reason: both documented import IDs require
+	// ---- accept_language, an optional, defaulted argument this table's
+	// ---- Component vocabulary has no way to supply when it is omitted
+	// ---- from configuration - the same literal-fallback gap the messaging
+	// ---- batch's aws_cloudwatch_event_rule left unratified.
+	// ---- aws_config_configuration_recorder and aws_config_delivery_channel
+	// ---- are registry-laggard (row-gen's own evidence-only classification
+	// ---- undersells a real, clean name-based import this batch confirmed
+	// ---- against the provider's docs) but out of this batch's mandate,
+	// ---- which named only Config's clean proposals; left for a future
+	// ---- batch alongside aws_config_aggregate_authorization and the three
+	// ---- OrganizationConfigRule aliases (also confirmed importable, also
+	// ---- out of this batch's named scope). aws_servicecatalog_constraint
+	// ---- stays reasoned-none, untouched. No AWS::WellArchitected::* rows
+	// ---- appeared in this cycle's row-gen pool at all. The four
+	// ---- Organizations types that are ratified (accounts, OUs, policies
+	// ---- and the resource policy singleton) go in on clean identity
+	// ---- evidence alone - but this batch's cohort estate does not
+	// ---- exercise any Organizations create against the pinned floci
+	// ---- image; see live/e2e/estates/governance/README.md for why.
+	// ---- Cohort estate: live/e2e/estates/governance.
+	"aws_config_config_rule":                                    {},
+	"aws_config_configuration_aggregator":                       {},
+	"aws_config_conformance_pack":                               {},
+	"aws_config_organization_conformance_pack":                  {},
+	"aws_config_remediation_configuration":                      {},
+	"aws_controltower_baseline":                                 {},
+	"aws_controltower_control":                                  {},
+	"aws_controltower_landing_zone":                             {},
+	"aws_organizations_account":                                 {},
+	"aws_organizations_organizational_unit":                     {},
+	"aws_organizations_policy":                                  {},
+	"aws_organizations_resource_policy":                         {},
+	"aws_resourceexplorer2_index":                               {},
+	"aws_resourceexplorer2_view":                                {},
+	"aws_resourcegroups_group":                                  {},
+	"aws_servicecatalog_portfolio":                              {},
+	"aws_servicecatalog_portfolio_share":                        {},
+	"aws_servicecatalog_product":                                {},
+	"aws_servicecatalog_provisioned_product":                    {},
+	"aws_servicecatalogappregistry_application":                 {},
+	"aws_servicecatalogappregistry_attribute_group":             {},
+	"aws_servicecatalogappregistry_attribute_group_association": {},
+	"aws_auditmanager_assessment":                               {},
+	"aws_auditmanager_framework":                                {},
+
+	// ---- Registry-ratified (#40, #44, #65): media services
+	// ---- (MediaLive's Multiplex pair, MediaPackage v1 and v2, IVS, and
+	// ---- IVSChat). Same tools/row-gen pipeline as the batches above,
+	// ---- cross-checked against the AWS provider's documented
+	// ---- Argument/Attribute/Import sections at the pinned v6.58.0 tag
+	// ---- (live/import-grammar.json), not accepted on the registry's
+	// ---- classification alone. Four of row-gen's proposals in this
+	// ---- batch's scope are deferred rather than ratified — MediaLive's
+	// ---- Channel, Input and InputSecurityGroup and MediaConvert's Queue
+	// ---- all map to a CloudFormation Registry entry whose handlers block
+	// ---- is create/read/update/delete/list **all false** (three of them
+	// ---- "some registry-laggard" MediaLive rows a prior sweep already
+	// ---- flagged), the same "supplies no real evidence, whatever its
+	// ---- primaryIdentifier claims" standard the streaming batch's
+	// ---- aws_appsync_api_cache/aws_appsync_api_key rejections set — see
+	// ---- internal/live/identity/table.go's own comment for the four
+	// ---- deferred rows' evidence (including a hand-verified correction
+	// ---- for the Queue, left unratified anyway for consistency) and
+	// ---- live/e2e/estates/media/README.md for the full account. MediaStore
+	// ---- (both its Container and the Container's policy) is deliberately
+	// ---- absent for a different reason: AWS discontinued the service
+	// ---- November 13, 2025 (already past), and the pinned provider's own
+	// ---- docs carry a deprecation notice on both types — moved to
+	// ---- live/residue.go's DeprecatedServices instead of ratified; see
+	// ---- the README's "MediaStore: deprecated-service, not ratified"
+	// ---- section for the evidence. MediaTailor and MediaConnect never
+	// ---- entered scope at all: the pinned v6.58.0 AWS provider ships no
+	// ---- aws_mediatailor_*/aws_mediaconnect_* resources whatsoever,
+	// ---- despite both services being fully modeled in the CloudFormation
+	// ---- Registry. Cohort estate: live/e2e/estates/media.
+	"aws_medialive_multiplex":           {},
+	"aws_medialive_multiplex_program":   {},
+	"aws_media_package_channel":         {},
+	"aws_media_packagev2_channel_group": {},
+	"aws_ivs_channel":                   {},
+	"aws_ivs_playback_key_pair":         {},
+	"aws_ivs_recording_configuration":   {},
+	"aws_ivschat_logging_configuration": {},
+	"aws_ivschat_room":                  {},
+
+	// ---- Registry-ratified (#40, #44, #65): sixth batch, data movement and
+	// ---- transfer (Transfer Family's server/user/workflow/connector core,
+	// ---- DataSync's agents/locations/tasks in full, DMS including its
+	// ---- three registry-laggard replication types, AppIntegrations). Same
+	// ---- tools/row-gen pipeline as the batches above, cross-checked
+	// ---- against the AWS provider's documented Argument/Attribute/Import
+	// ---- sections fetched from the pinned v6.58.0 tag directly. Transfer
+	// ---- Server's row-gen proposal (ARN) does not survive that check — the
+	// ---- documented import and "id" attribute are both the ServerID — and
+	// ---- Transfer User's registry-says-ARN evidence is corrected to its
+	// ---- real composite (server_id/user_name). DMS's Certificate and the
+	// ---- two Endpoint types (including the S3 endpoint alias the sweep
+	// ---- recorded against the same CFN type) correct the same way, to
+	// ---- their documented client-named identifiers. DMS's replication
+	// ---- instance, subnet group and task are registry-laggard (the CFN
+	// ---- Registry ships every handler false for all three), but their
+	// ---- provider-documented import commands are clean, unambiguous
+	// ---- client-named identifiers untouched by that gap, the same
+	// ---- registry-disagrees-but-the-provider-is-clear shape the devtools
+	// ---- batch's CodeBuild/CodeCommit corrections established. Two of
+	// ---- DataSync's FSx-backed locations (ONTAP, OpenZFS) correct
+	// ---- row-gen's plain-ARN ImportSyntax to the provider's documented
+	// ---- compound "DataSync-ARN#FSx-ARN" grammar; the identity itself
+	// ---- stays server-assigned. Storage Gateway is registry-absent beyond
+	// ---- a single TapePool type and is skipped entirely, and MGN/DRS have
+	// ---- no CFN Registry footprint at all — row-gen proposes nothing for
+	// ---- either. See internal/live/identity/table.go for the per-type
+	// ---- evidence and the six Transfer Family types (certificate,
+	// ---- profile, web_app, web_app_customization, agreement, ssh_key) left
+	// ---- outside this batch's named scope. Cohort estate:
+	// ---- live/e2e/estates/data-movement.
+	"aws_transfer_server":                           {},
+	"aws_transfer_user":                             {},
+	"aws_transfer_workflow":                         {},
+	"aws_transfer_connector":                        {},
+	"aws_datasync_agent":                            {},
+	"aws_datasync_task":                             {},
+	"aws_datasync_location_s3":                      {},
+	"aws_datasync_location_efs":                     {},
+	"aws_datasync_location_nfs":                     {},
+	"aws_datasync_location_smb":                     {},
+	"aws_datasync_location_hdfs":                    {},
+	"aws_datasync_location_object_storage":          {},
+	"aws_datasync_location_azure_blob":              {},
+	"aws_datasync_location_fsx_lustre_file_system":  {},
+	"aws_datasync_location_fsx_ontap_file_system":   {},
+	"aws_datasync_location_fsx_openzfs_file_system": {},
+	"aws_datasync_location_fsx_windows_file_system": {},
+	"aws_dms_certificate":                           {},
+	"aws_dms_endpoint":                              {},
+	"aws_dms_s3_endpoint":                           {},
+	"aws_dms_event_subscription":                    {},
+	"aws_dms_replication_config":                    {},
+	"aws_dms_replication_instance":                  {},
+	"aws_dms_replication_subnet_group":              {},
+	"aws_dms_replication_task":                      {},
+	"aws_appintegrations_data_integration":          {},
+	"aws_appintegrations_event_integration":         {},
+	// ---- Registry-ratified (#40, #44, #65): sixth batch, databases beyond
+	// ---- RDS/DynamoDB/ElastiCache (issue #65's own recipe: Redshift,
+	// ---- OpenSearch/OpenSearchServerless, Neptune, DocDB, Timestream, QLDB,
+	// ---- MemoryDB, Cassandra/Keyspaces). Same tools/row-gen pipeline as the
+	// ---- batches above, cross-checked against live/import-grammar.json's
+	// ---- scraped Import sections (the pinned v6.58.0 provider docs
+	// ---- fetched directly) rather than accepted on the CFN registry's
+	// ---- classification alone — several of these rows correct a row-gen
+	// ---- "evidence-only" demotion the same way earlier batches corrected
+	// ---- aws_sns_topic_policy and aws_qldb_ledger and aws_memorydb_subnet_group
+	// ---- do here. Per-service scope is deliberately narrow, matching issue
+	// ---- #65's own sub-lists rather than every row-gen proposal in each
+	// ---- service: see internal/live/identity/table.go for the per-type
+	// ---- evidence, the rejection, and the out-of-scope proposals this batch
+	// ---- left for later. Cohort estate: live/e2e/estates/databases.
+	"aws_redshift_cluster":                      {},
+	"aws_redshift_parameter_group":              {},
+	"aws_redshift_subnet_group":                 {},
+	"aws_redshift_snapshot_schedule":            {},
+	"aws_redshiftserverless_namespace":          {},
+	"aws_redshiftserverless_workgroup":          {},
+	"aws_opensearch_domain":                     {},
+	"aws_elasticsearch_domain":                  {},
+	"aws_opensearchserverless_collection":       {},
+	"aws_opensearchserverless_collection_group": {},
+	"aws_opensearchserverless_access_policy":    {},
+	"aws_opensearchserverless_lifecycle_policy": {},
+	"aws_opensearchserverless_security_policy":  {},
+	"aws_neptune_cluster_parameter_group":       {},
+	"aws_neptune_parameter_group":               {},
+	"aws_neptune_subnet_group":                  {},
+	"aws_docdb_event_subscription":              {},
+	"aws_docdbelastic_cluster":                  {},
+	"aws_timestreamwrite_database":              {},
+	"aws_timestreamwrite_table":                 {},
+	"aws_timestreaminfluxdb_db_cluster":         {},
+	"aws_timestreaminfluxdb_db_instance":        {},
+	"aws_timestreamquery_scheduled_query":       {},
+	"aws_qldb_ledger":                           {},
+	"aws_memorydb_acl":                          {},
+	"aws_memorydb_cluster":                      {},
+	"aws_memorydb_multi_region_cluster":         {},
+	"aws_memorydb_parameter_group":              {},
+	"aws_memorydb_user":                         {},
+	"aws_memorydb_subnet_group":                 {},
+	"aws_keyspaces_keyspace":                    {},
+	"aws_keyspaces_table":                       {},
 
 	// ---- Registry-ratified (#40, #44, #65): the REMAINDER ratification
-	// ---- batch. Issue #65's pool worked down service by service,
+	// ---- batch. Issue #65 pool worked down service by service,
 	// ---- excluding every service already owned by a concurrent batch
 	// ---- (SageMaker; the Media* family and IVS/IVSChat; Connect,
 	// ---- WorkSpaces and WorkSpacesWeb; Bedrock*, Location, Lex and the
 	// ---- other AI services; Config, Organizations, the Resource*
 	// ---- services, LicenseManager, ServiceCatalog*, ControlTower and
 	// ---- AuditManager; and the databases and networking-advanced
-	// ---- agents' own scopes: Redshift*, OpenSearch*, Neptune*, DocDB*,
+	// ---- agents own scopes: Redshift*, OpenSearch*, Neptune*, DocDB*,
 	// ---- Timestream, QLDB, MemoryDB, Cassandra, NetworkFirewall,
 	// ---- NetworkManager, VpcLattice and GlobalAccelerator). Everything
 	// ---- else with a clean row-gen proposal for a type not yet admitted
 	// ---- is here: a long tail of services, most contributing only a
 	// ---- handful of types each. Every row below was independently
-	// ---- verified against the pinned v6.58.0 provider's own documented
+	// ---- verified against the pinned v6.58.0 provider own documented
 	// ---- Import section (or, missing one, its source and Identity
-	// ---- Schema), not accepted on row-gen's registry classification
+	// ---- Schema), not accepted on row-gen registry classification
 	// ---- alone - see internal/live/identity/table.go for the per-type
-	// ---- corrections this verification made to row-gen's raw proposals
+	// ---- corrections this verification made to row-gen raw proposals
 	// ---- and live/e2e/estates/remainder/README.md for the full
-	// ---- accounting of what was rejected and why, including four types
-	// ---- (aws_pinpoint_app, the seven aws_waf_* and eleven
-	// ---- aws_wafregional_* types minus one, aws_ssm_document,
-	// ---- aws_fms_policy, aws_ec2_carrier_gateway, and the four
-	// ---- aws_alb_* ELBv2 aliases) that verified clean on the provider
-	// ---- docs alone but were held back for reasons the docs check does
-	// ---- not see: a standing policy exclusion (WAF Classic/WAF Regional
-	// ---- and Pinpoint are in live/residue.go's DeprecatedServices),
-	// ---- a fixture this repo's own test suite reserves the type for
-	// ---- (aws_ssm_document, aws_ec2_carrier_gateway), or a naming
-	// ---- collision the identity package's convention-based parent
-	// ---- inference cannot disambiguate (aws_fms_policy tying
-	// ---- aws_iam_policy under the "_policy" suffix rule; the aws_alb_*
-	// ---- aliases duplicating already-admitted aws_lb_* CFN mappings and
-	// ---- breaking ARN-to-type joins). Cohort estate:
-	// ---- live/e2e/estates/remainder, capped at a representative subset
-	// ---- rather than one resource per admitted type - see that README's
-	// ---- "Estate-covered vs identity-only-verified" section.
-	"aws_datapipeline_pipeline":            {},
-	"aws_datasync_agent":                   {},
-	"aws_datasync_location_azure_blob":     {},
-	"aws_datasync_location_efs":            {},
-	"aws_datasync_location_hdfs":           {},
-	"aws_datasync_location_nfs":            {},
-	"aws_datasync_location_object_storage": {},
-	"aws_datasync_location_s3":             {},
-	"aws_datasync_location_smb":            {},
-	"aws_datasync_task":                    {},
-	"aws_datazone_domain":                  {},
-	"aws_detective_graph":                  {},
-	"aws_devopsguru_resource_collection":   {},
-	"aws_dlm_lifecycle_policy":             {},
-	"aws_dms_event_subscription":           {},
-	"aws_dms_replication_config":           {},
-	"aws_dsql_cluster":                     {},
-	"aws_dx_connection":                    {},
-	"aws_dx_gateway":                       {},
-	"aws_dx_lag":                           {},
-	"aws_dx_private_virtual_interface":     {},
-	"aws_dx_public_virtual_interface":      {},
-	"aws_dx_transit_virtual_interface":     {},
-	"aws_ec2_instance_connect_endpoint":    {},
-	"aws_ec2_local_gateway_route_table":    {},
+	// ---- accounting of what was rejected and why, including 24 types
+	// ---- that verified clean on the provider docs alone but were held
+	// ---- back for reasons the docs check does not see (a standing
+	// ---- policy exclusion, a type this repo own test suite reserves as
+	// ---- a canonical unadmitted-type example, or a naming collision),
+	// ---- and a further 21 types that verified clean here too but were
+	// ---- dropped from this batch own contribution when a concurrently-
+	// ---- landed batch turned out to already admit them first - see
+	// ---- live/e2e/estates/remainder/README.md for the full
+	// ---- reconciliation. Cohort estate: live/e2e/estates/remainder,
+	// ---- capped at a representative subset rather than one resource
+	// ---- per admitted type - see that README own "Estate-covered vs
+	// ---- identity-only-verified" section.
+	"aws_datapipeline_pipeline":          {},
+	"aws_datazone_domain":                {},
+	"aws_detective_graph":                {},
+	"aws_devopsguru_resource_collection": {},
+	"aws_dlm_lifecycle_policy":           {},
+	"aws_dsql_cluster":                   {},
+	"aws_dx_connection":                  {},
+	"aws_dx_gateway":                     {},
+	"aws_dx_lag":                         {},
+	"aws_dx_private_virtual_interface":   {},
+	"aws_dx_public_virtual_interface":    {},
+	"aws_dx_transit_virtual_interface":   {},
+	"aws_ec2_instance_connect_endpoint":  {},
+	"aws_ec2_local_gateway_route_table":  {},
 	"aws_ec2_local_gateway_route_table_virtual_interface_group_association": {},
 	"aws_ec2_local_gateway_route_table_vpc_association":                     {},
 	"aws_ec2_network_insights_access_scope":                                 {},
@@ -945,9 +1286,6 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_inspector_assessment_template":                 {},
 	"aws_internetmonitor_monitor":                       {},
 	"aws_invoicing_invoice_unit":                        {},
-	"aws_iot_provisioning_template":                     {},
-	"aws_iot_topic_rule":                                {},
-	"aws_iot_topic_rule_destination":                    {},
 	"aws_kinesis_analytics_application":                 {},
 	"aws_kinesis_resource_policy":                       {},
 	"aws_lb_listener_rule":                              {},
@@ -1033,11 +1371,8 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_ssmquicksetup_configuration_manager":           {},
 	"aws_storagegateway_tape_pool":                      {},
 	"aws_transfer_certificate":                          {},
-	"aws_transfer_connector":                            {},
 	"aws_transfer_profile":                              {},
-	"aws_transfer_server":                               {},
 	"aws_transfer_web_app":                              {},
-	"aws_transfer_workflow":                             {},
 	"aws_verifiedaccess_endpoint":                       {},
 	"aws_verifiedaccess_instance":                       {},
 	"aws_verifiedaccess_trust_provider":                 {},
@@ -1048,7 +1383,6 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_vpc_route_server_endpoint":                     {},
 	"aws_vpc_route_server_peer":                         {},
 	"aws_vpn_concentrator":                              {},
-
 	// ---- Registry-ratified (#40, #44, #65): the REMAINDER ratification
 	// ---- batch, second slice - APS, ARC Region Switch, ARC Zonal Shift,
 	// ---- AppConfig, AppIntegrations, AppSync own newer Api-family types,
@@ -1056,23 +1390,7 @@ var admittedTypesV0 = map[string]struct{}{
 	// ---- Exports, Billing, Cost Explorer, Cost and Usage Reports,
 	// ---- Chatbot, Clean Rooms, Cloud9, CloudFront own policy/identity
 	// ---- family, and CloudTrail. Same verification standard as the first
-	// ---- slice above: checked against the pinned v6.58.0 provider own
-	// ---- documented Import section, not accepted on row-gen registry
-	// ---- classification alone. Three of row-gen proposals in this
-	// ---- slice scope were promoted from a rejected or evidence-only
-	// ---- shape to a corrected admission on independent verification
-	// ---- (aws_arczonalshift_autoshift_observer_notification_status,
-	// ---- aws_appsync_api_cache, aws_appsync_domain_name_api_association -
-	// ---- see internal/live/identity/table.go for each one own evidence),
-	// ---- and six more are rejected outright; aws_appstream_fleet and
-	// ---- aws_appstream_image_builder verified clean but are excluded on
-	// ---- the same standing policy ground as WAF/WAF Regional/Pinpoint
-	// ---- above (AppStream is in live/residue.go DeprecatedServices),
-	// ---- and aws_codebuild_source_credential verified clean but is held
-	// ---- back because this repo own test suite
-	// ---- (TestRefusalNamesRegistryLaggardCohort) reserves it as the
-	// ---- canonical registry-laggard unadmitted-type example. See
-	// ---- live/e2e/estates/remainder/README.md for the full accounting.
+	// ---- slice above.
 	"aws_prometheus_rule_group_namespace":                      {},
 	"aws_arcregionswitch_plan":                                 {},
 	"aws_arczonalshift_zonal_autoshift_configuration":          {},
@@ -1080,8 +1398,6 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_appconfig_deployment_strategy":                        {},
 	"aws_appconfig_extension":                                  {},
 	"aws_appconfig_extension_association":                      {},
-	"aws_appintegrations_data_integration":                     {},
-	"aws_appintegrations_event_integration":                    {},
 	"aws_athena_named_query":                                   {},
 	"aws_autoscaling_group":                                    {},
 	"aws_launch_configuration":                                 {},
@@ -1106,8 +1422,6 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_cloudtrail":                                           {},
 	"aws_cloudtrail_event_data_store":                          {},
 	"aws_codegurureviewer_repository_association":              {},
-	"aws_prometheus_scraper":                                   {},
-	"aws_prometheus_workspace":                                 {},
 	"aws_appsync_api":                                          {},
 	"aws_arczonalshift_autoshift_observer_notification_status": {},
 	"aws_appsync_api_cache":                                    {},
@@ -1136,32 +1450,4 @@ func admitted(resourceType string, schemas map[string]providers.Schema, signal *
 	}
 	_, ok := identity.SynthesizeTypeIdentity(resourceType, schemas, signal)
 	return ok
-}
-
-// logicalTypePrefixes are the provider-local type prefixes whose resources
-// exist only inside the state file. Their value is generated once and then
-// remembered; the record of them IS the store that stateless mode removes, so
-// there is nothing to recover them from and no version of them that works
-// without authoritative state. See live/LIMITATIONS.md.
-//
-// Checked before the admission table so that a random_id gets the explanation
-// for why its whole family is out rather than the generic "not in the v0
-// table" message.
-var logicalTypePrefixes = []string{
-	"random_",
-	"tls_",
-	"time_",
-	"null_",
-	"local_",
-}
-
-// logicalType reports whether the given provider-local resource type is a
-// logical, store-only type, and returns the prefix that matched.
-func logicalType(resourceType string) (string, bool) {
-	for _, prefix := range logicalTypePrefixes {
-		if strings.HasPrefix(resourceType, prefix) {
-			return prefix, true
-		}
-	}
-	return "", false
 }

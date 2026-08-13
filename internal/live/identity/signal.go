@@ -266,14 +266,17 @@ func ScanConfig(ctx context.Context, cfg *configs.Config) (*ConfigSignal, tfdiag
 // goes.
 func (r *resolver) collectSignal(cfg *configs.Config) *ConfigSignal {
 	signal := newConfigSignal()
-	r.collectSignalInto(cfg, signal)
+	r.collectSignalInto(cfg, addrs.RootModuleInstance, signal)
 	return signal
 }
 
 // collectSignalInto is [resolver.collectSignal]'s recursive step: one
-// module's resources, then its children in name order.
-func (r *resolver) collectSignalInto(cfg *configs.Config, signal *ConfigSignal) {
-	r.enterModule(cfg)
+// module's resources, then its children in name order. modInst is the
+// instance cfg is being visited as; see [resolver.walkModule]'s doc for why
+// it has to be threaded down explicitly once a for_each module (59c) is in
+// the tree rather than recomputed from cfg.Path.
+func (r *resolver) collectSignalInto(cfg *configs.Config, modInst addrs.ModuleInstance, signal *ConfigSignal) {
+	r.enterModuleAt(cfg, modInst)
 	for _, rc := range sortedResources(cfg.Module.ManagedResources) {
 		exp, ok := r.expansionFor(rc)
 		if !ok {
@@ -282,7 +285,22 @@ func (r *resolver) collectSignalInto(cfg *configs.Config, signal *ConfigSignal) 
 		r.signalFor(signal, rc, exp)
 	}
 	for _, name := range SortedChildNames(cfg.Children) {
-		r.collectSignalInto(cfg.Children[name], signal)
+		child := cfg.Children[name]
+		var forEach hcl.Expression
+		if call, ok := r.mod.ModuleCalls[name]; ok && call != nil {
+			forEach = call.ForEach
+		}
+		keys, diag := ChildModuleKeys(r.ctx, r.mod, childSubject(name), forEach)
+		if diag != nil {
+			// Advisory, like every other diagnostic this collection produces
+			// (see the doc on [ScanConfig]): a module whose for_each this
+			// pass cannot enumerate contributes nothing to the signal rather
+			// than failing the scan.
+			continue
+		}
+		for _, key := range keys {
+			r.collectSignalInto(child, modInst.Child(name, key), signal)
+		}
 	}
 }
 

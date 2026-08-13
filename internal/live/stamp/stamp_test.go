@@ -602,6 +602,11 @@ var (
 		"aws_network_acl",
 		"aws_flow_log",
 		"aws_nat_gateway",
+		// Fold-child batch (issue #68): the two new APS parents admitted
+		// solely so the three APS fold-children below have something to key
+		// on. See live/e2e/estates/aps/README.md.
+		"aws_prometheus_workspace",
+		"aws_prometheus_scraper",
 		// Registry-ratified compute-platforms batch (#40, #44, issue #65's
 		// ratification campaign): Batch, EMR remainder, App Runner, Elastic
 		// Beanstalk, Amplify and Lightsail. Three of this batch's types are
@@ -683,6 +688,59 @@ var (
 		"aws_codepipeline_custom_action_type",
 		"aws_codepipeline_webhook",
 		"aws_ecrpublic_repository",
+		// Registry-ratified IoT core batch (#40, #44, issue #65): nine of
+		// the batch's eleven types carry a top-level tags argument in the
+		// pinned provider's own wire schema. See
+		// live/e2e/estates/iot/README.md.
+		"aws_iot_authorizer",
+		"aws_iot_billing_group",
+		"aws_iot_domain_configuration",
+		"aws_iot_policy",
+		"aws_iot_provisioning_template",
+		"aws_iot_role_alias",
+		"aws_iot_thing_group",
+		"aws_iot_thing_type",
+		"aws_iot_topic_rule",
+		// Registry-ratified advanced networking batch (#40, #44, issue
+		// #65): Network Firewall, NetworkManager, VPC Lattice, Global
+		// Accelerator and Route53 Recovery Readiness types with a
+		// top-level tags argument in the pinned provider's own wire
+		// schema. See live/e2e/estates/networking-advanced/README.md.
+		"aws_networkfirewall_firewall",
+		"aws_networkfirewall_firewall_policy",
+		"aws_networkfirewall_rule_group",
+		"aws_networkfirewall_tls_inspection_configuration",
+		"aws_networkfirewall_vpc_endpoint_association",
+		"aws_networkmanager_connect_attachment",
+		"aws_networkmanager_connect_peer",
+		"aws_networkmanager_core_network",
+		"aws_networkmanager_device",
+		"aws_networkmanager_dx_gateway_attachment",
+		"aws_networkmanager_global_network",
+		"aws_networkmanager_link",
+		"aws_networkmanager_site",
+		"aws_networkmanager_site_to_site_vpn_attachment",
+		"aws_networkmanager_transit_gateway_peering",
+		"aws_networkmanager_transit_gateway_route_table_attachment",
+		"aws_networkmanager_vpc_attachment",
+		"aws_globalaccelerator_accelerator",
+		"aws_globalaccelerator_cross_account_attachment",
+		"aws_vpclattice_access_log_subscription",
+		"aws_vpclattice_domain_verification",
+		"aws_vpclattice_listener",
+		"aws_vpclattice_listener_rule",
+		"aws_vpclattice_resource_configuration",
+		"aws_vpclattice_resource_gateway",
+		"aws_vpclattice_service",
+		"aws_vpclattice_service_network",
+		"aws_vpclattice_service_network_resource_association",
+		"aws_vpclattice_service_network_service_association",
+		"aws_vpclattice_service_network_vpc_association",
+		"aws_vpclattice_target_group",
+		"aws_route53recoveryreadiness_cell",
+		"aws_route53recoveryreadiness_readiness_check",
+		"aws_route53recoveryreadiness_recovery_group",
+		"aws_route53recoveryreadiness_resource_set",
 		// Registry-ratified identity batch (#40, #44, #65): Cognito, IAM
 		// leftovers, SSO Admin. See live/e2e/estates/identity/README.md.
 		"aws_cognito_identity_pool",
@@ -726,26 +784,166 @@ var (
 		"aws_appsync_graphql_api",
 		"aws_pipes_pipe",
 		"aws_scheduler_schedule_group",
+		// Registry-ratified media services batch (#40, #44, issue #65).
+		// aws_medialive_multiplex_program is this batch's one untaggable
+		// type, below. See live/e2e/estates/media/README.md, "Untaggable
+		// types".
+		"aws_medialive_multiplex",
+		"aws_media_package_channel",
+		"aws_media_packagev2_channel_group",
+		"aws_ivs_channel",
+		"aws_ivs_playback_key_pair",
+		"aws_ivs_recording_configuration",
+		"aws_ivschat_logging_configuration",
+		"aws_ivschat_room",
+		// Registry-ratified governance batch (#40, #44, issue #65). See
+		// live/e2e/estates/governance/README.md.
+		"aws_config_config_rule",
+		"aws_config_configuration_aggregator",
+		"aws_controltower_baseline",
+		"aws_controltower_landing_zone",
+		"aws_organizations_account",
+		"aws_organizations_organizational_unit",
+		"aws_organizations_policy",
+		"aws_organizations_resource_policy",
+		"aws_resourceexplorer2_index",
+		"aws_resourceexplorer2_view",
+		"aws_resourcegroups_group",
+		"aws_servicecatalog_portfolio",
+		"aws_servicecatalog_product",
+		"aws_servicecatalog_provisioned_product",
+		"aws_servicecatalogappregistry_application",
+		"aws_servicecatalogappregistry_attribute_group",
+		"aws_auditmanager_assessment",
+		"aws_auditmanager_framework",
+		// Registry-ratified data-movement batch (#40, #44, issue #65): all
+		// twenty-seven types this batch ratified carry a top-level tags
+		// argument in the pinned provider's own wire schema, confirmed
+		// against the provider's documented Argument Reference for each —
+		// this batch has no untaggable rows at all. See
+		// live/e2e/estates/data-movement/README.md.
+		"aws_transfer_server",
+		"aws_transfer_user",
+		"aws_transfer_workflow",
+		"aws_transfer_connector",
+		"aws_datasync_agent",
+		"aws_datasync_task",
+		"aws_datasync_location_s3",
+		"aws_datasync_location_efs",
+		"aws_datasync_location_nfs",
+		"aws_datasync_location_smb",
+		"aws_datasync_location_hdfs",
+		"aws_datasync_location_object_storage",
+		"aws_datasync_location_azure_blob",
+		"aws_datasync_location_fsx_lustre_file_system",
+		"aws_datasync_location_fsx_ontap_file_system",
+		"aws_datasync_location_fsx_openzfs_file_system",
+		"aws_datasync_location_fsx_windows_file_system",
+		"aws_dms_certificate",
+		"aws_dms_endpoint",
+		"aws_dms_s3_endpoint",
+		"aws_dms_event_subscription",
+		"aws_dms_replication_config",
+		"aws_dms_replication_instance",
+		"aws_dms_replication_subnet_group",
+		"aws_dms_replication_task",
+		"aws_appintegrations_data_integration",
+		"aws_appintegrations_event_integration",
+		// Registry-ratified databases batch (#40, #44, issue #65): every
+		// ratified type in this batch except the three OpenSearchServerless
+		// policy types below (untaggableAdmittedTypes) carries a top-level
+		// tags argument in the pinned provider's own wire schema, confirmed
+		// against the generated live/e2e/estates/databases fixture. See
+		// live/e2e/estates/databases/README.md.
+		"aws_redshift_cluster",
+		"aws_redshift_parameter_group",
+		"aws_redshift_subnet_group",
+		"aws_redshift_snapshot_schedule",
+		"aws_redshiftserverless_namespace",
+		"aws_redshiftserverless_workgroup",
+		"aws_opensearch_domain",
+		"aws_elasticsearch_domain",
+		"aws_opensearchserverless_collection",
+		"aws_opensearchserverless_collection_group",
+		"aws_neptune_cluster_parameter_group",
+		"aws_neptune_parameter_group",
+		"aws_neptune_subnet_group",
+		"aws_docdb_event_subscription",
+		"aws_docdbelastic_cluster",
+		"aws_timestreamwrite_database",
+		"aws_timestreamwrite_table",
+		"aws_timestreaminfluxdb_db_cluster",
+		"aws_timestreaminfluxdb_db_instance",
+		"aws_timestreamquery_scheduled_query",
+		"aws_qldb_ledger",
+		"aws_memorydb_acl",
+		"aws_memorydb_cluster",
+		"aws_memorydb_multi_region_cluster",
+		"aws_memorydb_parameter_group",
+		"aws_memorydb_user",
+		"aws_memorydb_subnet_group",
+		"aws_keyspaces_keyspace",
+		"aws_keyspaces_table",
+		// SageMaker batch (issue #65): 26 of its 27 ratified types carry a
+		// tags argument, confirmed against each type's documented Argument
+		// Reference at the pinned v6.58.0 tag; see
+		// live/e2e/estates/sagemaker/README.md, "Untaggable types" for the
+		// one exception (aws_sagemaker_model_package_group_policy, in
+		// untaggableAdmittedTypes below).
+		"aws_sagemaker_algorithm",
+		"aws_sagemaker_app",
+		"aws_sagemaker_app_image_config",
+		"aws_sagemaker_code_repository",
+		"aws_sagemaker_data_quality_job_definition",
+		"aws_sagemaker_device_fleet",
+		"aws_sagemaker_domain",
+		"aws_sagemaker_endpoint",
+		"aws_sagemaker_endpoint_configuration",
+		"aws_sagemaker_feature_group",
+		"aws_sagemaker_hub",
+		"aws_sagemaker_image",
+		"aws_sagemaker_mlflow_app",
+		"aws_sagemaker_mlflow_tracking_server",
+		"aws_sagemaker_model",
+		"aws_sagemaker_model_card",
+		"aws_sagemaker_model_package_group",
+		"aws_sagemaker_monitoring_schedule",
+		"aws_sagemaker_notebook_instance",
+		"aws_sagemaker_notebook_instance_lifecycle_configuration",
+		"aws_sagemaker_pipeline",
+		"aws_sagemaker_project",
+		"aws_sagemaker_space",
+		"aws_sagemaker_studio_lifecycle_config",
+		"aws_sagemaker_user_profile",
+		"aws_sagemaker_workteam",
 
 		// Registry-ratified REMAINDER ratification batch (#40, #44, #65):
 		// the long tail of services outside every concurrent batch's own
 		// scope, verified against the pinned v6.58.0 provider's Argument
 		// Reference for each. See live/e2e/estates/remainder/README.md.
+		"aws_appconfig_application",
+		"aws_appconfig_deployment_strategy",
+		"aws_appconfig_extension",
+		"aws_appsync_api",
+		"aws_arcregionswitch_plan",
+		"aws_bcmdataexports_export",
+		"aws_billing_view",
+		"aws_ce_anomaly_monitor",
+		"aws_ce_anomaly_subscription",
+		"aws_ce_cost_category",
+		"aws_chatbot_slack_channel_configuration",
+		"aws_cleanrooms_collaboration",
+		"aws_cleanrooms_configured_table",
+		"aws_cleanrooms_membership",
+		"aws_cloud9_environment_ec2",
+		"aws_cloudtrail",
+		"aws_cloudtrail_event_data_store",
+		"aws_codegurureviewer_repository_association",
+		"aws_cur_report_definition",
 		"aws_datapipeline_pipeline",
-		"aws_datasync_agent",
-		"aws_datasync_location_azure_blob",
-		"aws_datasync_location_efs",
-		"aws_datasync_location_hdfs",
-		"aws_datasync_location_nfs",
-		"aws_datasync_location_object_storage",
-		"aws_datasync_location_s3",
-		"aws_datasync_location_smb",
-		"aws_datasync_task",
 		"aws_datazone_domain",
 		"aws_detective_graph",
 		"aws_dlm_lifecycle_policy",
-		"aws_dms_event_subscription",
-		"aws_dms_replication_config",
 		"aws_dsql_cluster",
 		"aws_dx_connection",
 		"aws_dx_gateway",
@@ -793,8 +991,6 @@ var (
 		"aws_inspector_assessment_template",
 		"aws_internetmonitor_monitor",
 		"aws_invoicing_invoice_unit",
-		"aws_iot_provisioning_template",
-		"aws_iot_topic_rule",
 		"aws_kinesis_analytics_application",
 		"aws_lb_listener_rule",
 		"aws_lb_trust_store",
@@ -821,6 +1017,7 @@ var (
 		"aws_pinpointsmsvoicev2_opt_out_list",
 		"aws_pinpointsmsvoicev2_phone_number",
 		"aws_pinpointsmsvoicev2_pool",
+		"aws_prometheus_rule_group_namespace",
 		"aws_ram_permission",
 		"aws_ram_resource_share",
 		"aws_rbin_rule",
@@ -853,11 +1050,8 @@ var (
 		"aws_ssmquicksetup_configuration_manager",
 		"aws_storagegateway_tape_pool",
 		"aws_transfer_certificate",
-		"aws_transfer_connector",
 		"aws_transfer_profile",
-		"aws_transfer_server",
 		"aws_transfer_web_app",
-		"aws_transfer_workflow",
 		"aws_verifiedaccess_endpoint",
 		"aws_verifiedaccess_instance",
 		"aws_verifiedaccess_trust_provider",
@@ -868,34 +1062,6 @@ var (
 		"aws_vpc_route_server_endpoint",
 		"aws_vpc_route_server_peer",
 		"aws_vpn_concentrator",
-
-		// Registry-ratified REMAINDER ratification batch, second slice
-		// (#40, #44, #65): APS through CloudTrail. See
-		// live/e2e/estates/remainder/README.md.
-		"aws_prometheus_rule_group_namespace",
-		"aws_arcregionswitch_plan",
-		"aws_appconfig_application",
-		"aws_appconfig_deployment_strategy",
-		"aws_appconfig_extension",
-		"aws_appintegrations_data_integration",
-		"aws_appintegrations_event_integration",
-		"aws_bcmdataexports_export",
-		"aws_billing_view",
-		"aws_ce_anomaly_monitor",
-		"aws_ce_anomaly_subscription",
-		"aws_ce_cost_category",
-		"aws_cur_report_definition",
-		"aws_chatbot_slack_channel_configuration",
-		"aws_cleanrooms_collaboration",
-		"aws_cleanrooms_configured_table",
-		"aws_cleanrooms_membership",
-		"aws_cloud9_environment_ec2",
-		"aws_cloudtrail",
-		"aws_cloudtrail_event_data_store",
-		"aws_codegurureviewer_repository_association",
-		"aws_prometheus_scraper",
-		"aws_prometheus_workspace",
-		"aws_appsync_api",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -1025,6 +1191,17 @@ var (
 		"aws_vpc_endpoint_route_table_association",
 		"aws_vpc_endpoint_subnet_association",
 		"aws_vpc_endpoint_security_group_association",
+		// Fold-child batch (issue #68): all seven carry no tags argument,
+		// confirmed against each type's own Argument Reference. See
+		// live/e2e/estates/apigateway/README.md and
+		// live/e2e/estates/aps/README.md, both "Untaggable types".
+		"aws_api_gateway_integration",
+		"aws_api_gateway_integration_response",
+		"aws_api_gateway_method_response",
+		"aws_api_gateway_method_settings",
+		"aws_prometheus_alert_manager_definition",
+		"aws_prometheus_query_logging_configuration",
+		"aws_prometheus_scraper_logging_configuration",
 		// Registry-ratified compute-platforms batch (#40, #44, issue #65's
 		// ratification campaign): three types with no tags argument at all
 		// in the pinned provider's own wire schema, confirmed against
@@ -1077,6 +1254,33 @@ var (
 		"aws_codebuild_webhook",
 		"aws_codedeploy_deployment_config",
 		"aws_ecrpublic_repository_policy",
+		// Registry-ratified IoT core batch (#40, #44, issue #65): two of
+		// the batch's eleven types carry no tags argument at all in the
+		// pinned provider's own wire schema — aws_iot_thing's Argument
+		// Reference names only name, attributes and thing_type_name, and
+		// aws_iot_topic_rule_destination's names only enabled and
+		// vpc_configuration. See live/e2e/estates/iot/README.md,
+		// "Untaggable types".
+		"aws_iot_thing",
+		"aws_iot_topic_rule_destination",
+		// Registry-ratified advanced networking batch (#40, #44, issue
+		// #65): nine types with no tags argument at all in the pinned
+		// provider's own wire schema — logging_configuration and the four
+		// NetworkManager association/registration types are all
+		// parent-derived composites (the same untaggable shape as
+		// aws_route above), and the two Global Accelerator and two VPC
+		// Lattice rows carry no tags block in the provider's own Argument
+		// Reference. See live/e2e/estates/networking-advanced/README.md,
+		// "Untaggable types".
+		"aws_networkfirewall_logging_configuration",
+		"aws_networkmanager_customer_gateway_association",
+		"aws_networkmanager_link_association",
+		"aws_networkmanager_prefix_list_association",
+		"aws_networkmanager_transit_gateway_registration",
+		"aws_globalaccelerator_endpoint_group",
+		"aws_globalaccelerator_listener",
+		"aws_vpclattice_auth_policy",
+		"aws_vpclattice_resource_policy",
 		// Registry-ratified identity batch (#40, #44, #65): Cognito, IAM
 		// leftovers, SSO Admin. Fifteen untaggable types, confirmed against
 		// the real provider's documented Argument Reference for each - see
@@ -1123,15 +1327,58 @@ var (
 		// "Untaggable types".
 		"aws_msk_configuration",
 		"aws_appflow_connector_profile",
+		// Registry-ratified media services batch (#40, #44, issue #65):
+		// aws_medialive_multiplex_program's Argument Reference names no
+		// tags block at all, and live/registry.json's own
+		// AWS::MediaLive::Multiplexprogram tagging.taggable is false. See
+		// live/e2e/estates/media/README.md, "Untaggable types".
+		"aws_medialive_multiplex_program",
+		// Registry-ratified governance batch (#40, #44, issue #65): six
+		// types with no tags argument at all, per
+		// live/survey-full.json's real-schema signal. See
+		// live/e2e/estates/governance/README.md.
+		"aws_config_conformance_pack",
+		"aws_config_organization_conformance_pack",
+		"aws_config_remediation_configuration",
+		"aws_controltower_control",
+		"aws_servicecatalog_portfolio_share",
+		"aws_servicecatalogappregistry_attribute_group_association",
+		// Registry-ratified databases batch (#40, #44, issue #65): the
+		// three OpenSearchServerless policy types (access, lifecycle,
+		// security) carry only a name/type/policy document, the same
+		// untaggable shape as aws_sns_topic_policy and
+		// aws_sqs_queue_policy above, confirmed against the generated
+		// live/e2e/estates/databases fixture. See
+		// live/e2e/estates/databases/README.md, "Untaggable types".
+		"aws_opensearchserverless_access_policy",
+		"aws_opensearchserverless_lifecycle_policy",
+		"aws_opensearchserverless_security_policy",
+		// SageMaker batch (issue #65): the one untaggable type this batch
+		// ratifies — a named-singleton-child of aws_sagemaker_model_package_group
+		// whose Argument Reference names only region and
+		// model_package_group_name, no tags block at all. See
+		// live/e2e/estates/sagemaker/README.md, "Untaggable types".
+		"aws_sagemaker_model_package_group_policy",
 
 		// Registry-ratified REMAINDER ratification batch (#40, #44, #65):
 		// the long tail of services outside every concurrent batch's own
 		// scope, confirmed against each type's Argument Reference at the
-		// pinned v6.58.0 tag to carry no top-level tags argument (or, for
-		// the two account-level singletons aws_securityhub_account and
-		// aws_securityhub_organization_configuration, no tags argument at
-		// all since each imports by the bare AWS account id). See
+		// pinned v6.58.0 tag to carry no top-level tags argument. See
 		// live/e2e/estates/remainder/README.md, "Untaggable types".
+		"aws_appconfig_extension_association",
+		"aws_appsync_api_cache",
+		"aws_appsync_domain_name_api_association",
+		"aws_arczonalshift_autoshift_observer_notification_status",
+		"aws_arczonalshift_zonal_autoshift_configuration",
+		"aws_athena_named_query",
+		"aws_autoscaling_group",
+		"aws_cloudfront_cache_policy",
+		"aws_cloudfront_continuous_deployment_policy",
+		"aws_cloudfront_key_group",
+		"aws_cloudfront_origin_access_identity",
+		"aws_cloudfront_origin_request_policy",
+		"aws_cloudfront_public_key",
+		"aws_cloudfront_response_headers_policy",
 		"aws_devopsguru_resource_collection",
 		"aws_ecr_pull_through_cache_rule",
 		"aws_ecr_pull_time_update_exclusion",
@@ -1141,8 +1388,8 @@ var (
 		"aws_glue_security_configuration",
 		"aws_iam_access_key",
 		"aws_inspector_assessment_target",
-		"aws_iot_topic_rule_destination",
 		"aws_kinesis_resource_policy",
+		"aws_launch_configuration",
 		"aws_macie2_account",
 		"aws_msk_cluster_policy",
 		"aws_notifications_event_rule",
@@ -1169,25 +1416,6 @@ var (
 		"aws_sns_topic_subscription",
 		"aws_ssmcontacts_contact_channel",
 		"aws_ssmcontacts_plan",
-
-		// Registry-ratified REMAINDER ratification batch, second slice
-		// (#40, #44, #65): APS through CloudTrail. See
-		// live/e2e/estates/remainder/README.md, "Untaggable types".
-		"aws_arczonalshift_zonal_autoshift_configuration",
-		"aws_appconfig_extension_association",
-		"aws_athena_named_query",
-		"aws_autoscaling_group",
-		"aws_launch_configuration",
-		"aws_cloudfront_cache_policy",
-		"aws_cloudfront_continuous_deployment_policy",
-		"aws_cloudfront_key_group",
-		"aws_cloudfront_origin_access_identity",
-		"aws_cloudfront_origin_request_policy",
-		"aws_cloudfront_public_key",
-		"aws_cloudfront_response_headers_policy",
-		"aws_arczonalshift_autoshift_observer_notification_status",
-		"aws_appsync_api_cache",
-		"aws_appsync_domain_name_api_association",
 	}
 )
 
@@ -1664,19 +1892,25 @@ func testSchemas() Schemas {
 		"aws_api_gateway_domain_name":                    tagged("id", "domain_name"),
 		"aws_api_gateway_domain_name_access_association": tagged("id", "arn", "domain_name_arn"),
 		"aws_api_gateway_gateway_response":               untagged("id", "rest_api_id", "response_type"),
-		"aws_api_gateway_method":                         untagged("id", "rest_api_id", "resource_id", "http_method"),
-		"aws_api_gateway_model":                          untagged("id", "rest_api_id", "name"),
-		"aws_api_gateway_rest_api":                       tagged("id", "arn", "name"),
-		"aws_api_gateway_rest_api_policy":                untagged("id", "rest_api_id", "policy"),
-		"aws_api_gateway_stage":                          tagged("id", "arn", "rest_api_id", "stage_name", "deployment_id"),
-		"aws_api_gateway_usage_plan":                     tagged("id", "name"),
-		"aws_api_gateway_usage_plan_key":                 untagged("id", "usage_plan_id", "key_id", "key_type"),
-		"aws_api_gateway_vpc_link":                       tagged("id", "name", "target_arns"),
-		"aws_apigatewayv2_api":                           tagged("id", "arn", "name", "protocol_type"),
-		"aws_apigatewayv2_domain_name":                   tagged("id", "domain_name"),
-		"aws_apigatewayv2_routing_rule":                  untagged("id", "domain_name", "action", "condition"),
-		"aws_apigatewayv2_stage":                         tagged("id", "arn", "api_id", "name"),
-		"aws_apigatewayv2_vpc_link":                      tagged("id", "name", "security_group_ids", "subnet_ids"),
+		// Fold-child batch (issue #68): all four carry no tags argument,
+		// confirmed against each type's own Argument Reference.
+		"aws_api_gateway_integration":          untagged("rest_api_id", "resource_id", "http_method", "type"),
+		"aws_api_gateway_integration_response": untagged("rest_api_id", "resource_id", "http_method", "status_code"),
+		"aws_api_gateway_method":               untagged("id", "rest_api_id", "resource_id", "http_method"),
+		"aws_api_gateway_method_response":      untagged("rest_api_id", "resource_id", "http_method", "status_code"),
+		"aws_api_gateway_method_settings":      untagged("rest_api_id", "stage_name", "method_path"),
+		"aws_api_gateway_model":                untagged("id", "rest_api_id", "name"),
+		"aws_api_gateway_rest_api":             tagged("id", "arn", "name"),
+		"aws_api_gateway_rest_api_policy":      untagged("id", "rest_api_id", "policy"),
+		"aws_api_gateway_stage":                tagged("id", "arn", "rest_api_id", "stage_name", "deployment_id"),
+		"aws_api_gateway_usage_plan":           tagged("id", "name"),
+		"aws_api_gateway_usage_plan_key":       untagged("id", "usage_plan_id", "key_id", "key_type"),
+		"aws_api_gateway_vpc_link":             tagged("id", "name", "target_arns"),
+		"aws_apigatewayv2_api":                 tagged("id", "arn", "name", "protocol_type"),
+		"aws_apigatewayv2_domain_name":         tagged("id", "domain_name"),
+		"aws_apigatewayv2_routing_rule":        untagged("id", "domain_name", "action", "condition"),
+		"aws_apigatewayv2_stage":               tagged("id", "arn", "api_id", "name"),
+		"aws_apigatewayv2_vpc_link":            tagged("id", "name", "security_group_ids", "subnet_ids"),
 		// Registry-ratified RDS batch (#40, #44, issue #65's ratification
 		// campaign). Taggable/untaggable per the real provider's documented
 		// Argument Reference for each type: aws_db_instance_role_association,
@@ -1795,6 +2029,15 @@ func testSchemas() Schemas {
 		"aws_cloudfront_realtime_log_config":                   untagged("id", "arn", "name", "sampling_rate"),
 		"aws_cloudfront_trust_store":                           tagged("id", "arn", "name"),
 		"aws_cloudfront_vpc_origin":                            tagged("id", "arn"),
+		// Fold-child batch (issue #68): the two new APS parents are
+		// taggable (ordinary marker path); the three fold-children keyed on
+		// them carry no tags argument at all, confirmed against each
+		// type's own Argument Reference.
+		"aws_prometheus_workspace":                     tagged("id", "arn"),
+		"aws_prometheus_scraper":                       tagged("id", "arn", "scrape_configuration"),
+		"aws_prometheus_alert_manager_definition":      untagged("workspace_id", "definition"),
+		"aws_prometheus_query_logging_configuration":   untagged("workspace_id"),
+		"aws_prometheus_scraper_logging_configuration": untagged("scraper_id"),
 		// Registry-ratified developer tools batch (#40, #44, issue #65).
 		// Taggable/untaggable per the real provider's documented Argument
 		// Reference for each type: aws_codebuild_webhook and
@@ -1989,6 +2232,20 @@ func testSchemas() Schemas {
 		"aws_pipes_pipe":                      tagged("id", "arn", "name"),
 		"aws_scheduler_schedule_group":        tagged("id", "arn", "name"),
 
+		// Registry-ratified media services batch (#40, #44, issue #65).
+		// Taggable/untaggable per the real provider's documented Argument
+		// Reference for each type: aws_medialive_multiplex_program's is
+		// this batch's one untaggable row.
+		"aws_medialive_multiplex":           tagged("id", "arn", "name"),
+		"aws_medialive_multiplex_program":   untagged("id", "program_name", "multiplex_id"),
+		"aws_media_package_channel":         tagged("id", "arn", "channel_id"),
+		"aws_media_packagev2_channel_group": tagged("arn", "name"),
+		"aws_ivs_channel":                   tagged("id", "arn"),
+		"aws_ivs_playback_key_pair":         tagged("id", "arn", "public_key"),
+		"aws_ivs_recording_configuration":   tagged("id", "arn"),
+		"aws_ivschat_logging_configuration": tagged("id", "arn"),
+		"aws_ivschat_room":                  tagged("id", "arn", "name"),
+
 		// Registry-ratified security and secrets batch (#40, #44, issue #65).
 		"aws_secretsmanager_secret":                        tagged("id", "arn", "name"),
 		"aws_secretsmanager_secret_policy":                 untagged("id", "secret_arn", "policy"),
@@ -2036,36 +2293,248 @@ func testSchemas() Schemas {
 		"aws_wafv2_rule_group":                             tagged("id", "arn", "name", "scope"),
 		"aws_wafv2_web_acl":                                tagged("id", "arn", "name", "scope"),
 		"aws_wafv2_web_acl_rule":                           untagged("id", "web_acl_arn", "name"),
+		// Registry-ratified IoT core batch (#40, #44, issue #65).
+		// Taggable/untaggable per the real provider's documented Argument
+		// Reference for each type: aws_iot_thing (name, attributes,
+		// thing_type_name only) and aws_iot_topic_rule_destination
+		// (enabled, vpc_configuration only) carry no tags argument at all.
+		"aws_iot_authorizer":             tagged("arn", "name"),
+		"aws_iot_billing_group":          tagged("id", "arn", "name"),
+		"aws_iot_domain_configuration":   tagged("id", "arn", "name"),
+		"aws_iot_policy":                 tagged("arn", "name"),
+		"aws_iot_provisioning_template":  tagged("arn", "name"),
+		"aws_iot_role_alias":             tagged("arn", "alias"),
+		"aws_iot_thing":                  untagged("arn", "name"),
+		"aws_iot_thing_group":            tagged("id", "arn", "name"),
+		"aws_iot_thing_type":             tagged("arn", "name"),
+		"aws_iot_topic_rule":             tagged("arn", "name"),
+		"aws_iot_topic_rule_destination": untagged("arn"),
+
+		// Registry-ratified data-movement batch (#40, #44, issue #65). All
+		// twenty-seven types are taggable per the real provider's
+		// documented Argument Reference for each.
+		"aws_transfer_server":                           tagged("id", "arn"),
+		"aws_transfer_user":                             tagged("id", "arn", "server_id", "user_name"),
+		"aws_transfer_workflow":                         tagged("id", "arn"),
+		"aws_transfer_connector":                        tagged("id", "arn", "connector_id"),
+		"aws_datasync_agent":                            tagged("id", "arn"),
+		"aws_datasync_task":                             tagged("id", "arn"),
+		"aws_datasync_location_s3":                      tagged("id", "arn"),
+		"aws_datasync_location_efs":                     tagged("id", "arn"),
+		"aws_datasync_location_nfs":                     tagged("id", "arn"),
+		"aws_datasync_location_smb":                     tagged("id", "arn"),
+		"aws_datasync_location_hdfs":                    tagged("id", "arn"),
+		"aws_datasync_location_object_storage":          tagged("id", "arn"),
+		"aws_datasync_location_azure_blob":              tagged("id", "arn"),
+		"aws_datasync_location_fsx_lustre_file_system":  tagged("id", "arn"),
+		"aws_datasync_location_fsx_ontap_file_system":   tagged("id", "arn"),
+		"aws_datasync_location_fsx_openzfs_file_system": tagged("id", "arn"),
+		"aws_datasync_location_fsx_windows_file_system": tagged("id", "arn"),
+		"aws_dms_certificate":                           tagged("id", "certificate_arn", "certificate_id"),
+		"aws_dms_endpoint":                              tagged("id", "endpoint_arn", "endpoint_id"),
+		"aws_dms_s3_endpoint":                           tagged("id", "endpoint_arn", "endpoint_id"),
+		"aws_dms_event_subscription":                    tagged("id", "arn", "name"),
+		"aws_dms_replication_config":                    tagged("id", "arn"),
+		"aws_dms_replication_instance":                  tagged("id", "replication_instance_arn", "replication_instance_id"),
+		"aws_dms_replication_subnet_group":              tagged("id", "replication_subnet_group_id"),
+		"aws_dms_replication_task":                      tagged("id", "replication_task_arn", "replication_task_id"),
+		"aws_appintegrations_data_integration":          tagged("id", "arn"),
+		"aws_appintegrations_event_integration":         tagged("id", "arn", "name"),
+
+		// Registry-ratified advanced networking batch (#40, #44, issue
+		// #65's ratification campaign). Taggable/untaggable per the real
+		// provider's documented Argument Reference for each type: the
+		// NetworkManager association/registration quartet and Network
+		// Firewall's logging_configuration are parent-derived composites
+		// with no tags argument at all, the same untagged shape as
+		// aws_route above; Global Accelerator's endpoint_group/listener
+		// and VPC Lattice's auth_policy/resource_policy carry no tags
+		// block either.
+		"aws_networkfirewall_firewall":                              tagged("id", "arn", "name", "firewall_policy_arn", "vpc_id"),
+		"aws_networkfirewall_firewall_policy":                       tagged("id", "arn", "name"),
+		"aws_networkfirewall_logging_configuration":                 untagged("id", "firewall_arn"),
+		"aws_networkfirewall_rule_group":                            tagged("id", "arn", "name", "capacity", "type"),
+		"aws_networkfirewall_tls_inspection_configuration":          tagged("id", "arn", "name"),
+		"aws_networkfirewall_vpc_endpoint_association":              tagged("id", "vpc_endpoint_association_arn", "firewall_arn", "vpc_id"),
+		"aws_networkmanager_connect_attachment":                     tagged("id", "arn", "core_network_id", "transport_attachment_id"),
+		"aws_networkmanager_connect_peer":                           tagged("id", "connect_attachment_id", "peer_address"),
+		"aws_networkmanager_core_network":                           tagged("id", "arn", "global_network_id"),
+		"aws_networkmanager_customer_gateway_association":           untagged("global_network_id", "customer_gateway_arn"),
+		"aws_networkmanager_device":                                 tagged("id", "arn", "global_network_id"),
+		"aws_networkmanager_dx_gateway_attachment":                  tagged("id", "arn", "core_network_id", "direct_connect_gateway_arn"),
+		"aws_networkmanager_global_network":                         tagged("id", "arn"),
+		"aws_networkmanager_link":                                   tagged("id", "arn", "global_network_id", "site_id"),
+		"aws_networkmanager_link_association":                       untagged("global_network_id", "link_id", "device_id"),
+		"aws_networkmanager_prefix_list_association":                untagged("core_network_id", "prefix_list_arn"),
+		"aws_networkmanager_site":                                   tagged("id", "arn", "global_network_id"),
+		"aws_networkmanager_site_to_site_vpn_attachment":            tagged("id", "arn", "core_network_id", "vpn_connection_arn"),
+		"aws_networkmanager_transit_gateway_peering":                tagged("id", "arn", "core_network_id", "transit_gateway_arn"),
+		"aws_networkmanager_transit_gateway_registration":           untagged("global_network_id", "transit_gateway_arn"),
+		"aws_networkmanager_transit_gateway_route_table_attachment": tagged("id", "arn", "peering_id", "transit_gateway_route_table_arn"),
+		"aws_networkmanager_vpc_attachment":                         tagged("id", "arn", "core_network_id", "vpc_arn"),
+		"aws_globalaccelerator_accelerator":                         tagged("id", "arn", "name"),
+		"aws_globalaccelerator_cross_account_attachment":            tagged("id", "arn", "name"),
+		"aws_globalaccelerator_endpoint_group":                      untagged("id", "arn", "listener_arn"),
+		"aws_globalaccelerator_listener":                            untagged("id", "arn", "accelerator_arn", "protocol"),
+		"aws_vpclattice_access_log_subscription":                    tagged("id", "arn", "resource_identifier", "destination_arn"),
+		"aws_vpclattice_auth_policy":                                untagged("resource_identifier", "policy"),
+		"aws_vpclattice_domain_verification":                        tagged("id", "arn", "domain_name"),
+		"aws_vpclattice_listener":                                   tagged("id", "arn", "name", "service_identifier", "protocol"),
+		"aws_vpclattice_listener_rule":                              tagged("id", "arn", "name", "listener_identifier", "service_identifier", "priority"),
+		"aws_vpclattice_resource_configuration":                     tagged("id", "arn", "name"),
+		"aws_vpclattice_resource_gateway":                           tagged("id", "arn", "name", "vpc_id"),
+		"aws_vpclattice_resource_policy":                            untagged("resource_arn", "policy"),
+		"aws_vpclattice_service":                                    tagged("id", "arn", "name"),
+		"aws_vpclattice_service_network":                            tagged("id", "arn", "name"),
+		"aws_vpclattice_service_network_resource_association":       tagged("id", "arn", "resource_configuration_identifier", "service_network_identifier"),
+		"aws_vpclattice_service_network_service_association":        tagged("id", "arn", "service_identifier", "service_network_identifier"),
+		"aws_vpclattice_service_network_vpc_association":            tagged("id", "arn", "service_network_identifier", "vpc_identifier"),
+		"aws_vpclattice_target_group":                               tagged("id", "arn", "name", "type"),
+		"aws_route53recoveryreadiness_cell":                         tagged("id", "arn", "cell_name"),
+		"aws_route53recoveryreadiness_readiness_check":              tagged("id", "arn", "readiness_check_name"),
+		"aws_route53recoveryreadiness_recovery_group":               tagged("id", "arn", "recovery_group_name"),
+		"aws_route53recoveryreadiness_resource_set":                 tagged("id", "arn", "resource_set_name", "resource_set_type"),
+		// Registry-ratified databases batch (#40, #44, issue #65).
+		// Taggable/untaggable per the real provider's documented Argument
+		// Reference for each type, confirmed against the generated
+		// live/e2e/estates/databases fixture: the three OpenSearchServerless
+		// policy types (access, lifecycle, security) carry only a
+		// name/type/policy document, the same untaggable shape as
+		// aws_sns_topic_policy above; every other type in this batch is
+		// taggable.
+		"aws_redshift_cluster":                      tagged("id", "arn", "cluster_identifier"),
+		"aws_redshift_parameter_group":              tagged("id", "arn", "name"),
+		"aws_redshift_subnet_group":                 tagged("id", "arn", "name"),
+		"aws_redshift_snapshot_schedule":            tagged("id", "arn", "identifier"),
+		"aws_redshiftserverless_namespace":          tagged("id", "arn", "namespace_name"),
+		"aws_redshiftserverless_workgroup":          tagged("id", "arn", "workgroup_name"),
+		"aws_opensearch_domain":                     tagged("id", "arn", "domain_name"),
+		"aws_elasticsearch_domain":                  tagged("id", "arn", "domain_name"),
+		"aws_opensearchserverless_collection":       tagged("id", "arn", "name"),
+		"aws_opensearchserverless_collection_group": tagged("id", "arn", "name"),
+		"aws_opensearchserverless_access_policy":    untagged("id", "name", "type", "policy"),
+		"aws_opensearchserverless_lifecycle_policy": untagged("id", "name", "type", "policy"),
+		"aws_opensearchserverless_security_policy":  untagged("id", "name", "type", "policy"),
+		"aws_neptune_cluster_parameter_group":       tagged("id", "arn", "name"),
+		"aws_neptune_parameter_group":               tagged("id", "arn", "name"),
+		"aws_neptune_subnet_group":                  tagged("id", "arn", "name"),
+		"aws_docdb_event_subscription":              tagged("id", "arn", "name"),
+		"aws_docdbelastic_cluster":                  tagged("id", "arn", "name"),
+		"aws_timestreamwrite_database":              tagged("id", "arn", "database_name"),
+		"aws_timestreamwrite_table":                 tagged("id", "arn", "database_name", "table_name"),
+		"aws_timestreaminfluxdb_db_cluster":         tagged("id", "arn", "name"),
+		"aws_timestreaminfluxdb_db_instance":        tagged("id", "arn", "name"),
+		"aws_timestreamquery_scheduled_query":       tagged("id", "arn", "name"),
+		"aws_qldb_ledger":                           tagged("id", "arn", "name"),
+		"aws_memorydb_acl":                          tagged("id", "arn", "name"),
+		"aws_memorydb_cluster":                      tagged("id", "arn", "name"),
+		"aws_memorydb_multi_region_cluster":         tagged("id", "arn", "multi_region_cluster_name"),
+		"aws_memorydb_parameter_group":              tagged("id", "arn", "name"),
+		"aws_memorydb_user":                         tagged("id", "arn", "user_name"),
+		"aws_memorydb_subnet_group":                 tagged("id", "arn", "name"),
+		"aws_keyspaces_keyspace":                    tagged("id", "arn", "name"),
+		"aws_keyspaces_table":                       tagged("id", "arn", "keyspace_name", "table_name"),
+
+		// Registry-ratified governance batch (#40, #44, issue #65).
+		// Taggable/untaggable per live/survey-full.json's real-schema signal
+		// for each type: aws_config_conformance_pack,
+		// aws_config_organization_conformance_pack,
+		// aws_config_remediation_configuration, aws_controltower_control,
+		// aws_servicecatalog_portfolio_share and
+		// aws_servicecatalogappregistry_attribute_group_association carry no
+		// tags argument at all. See live/e2e/estates/governance/README.md.
+		"aws_config_config_rule":                                    tagged("id", "arn", "name"),
+		"aws_config_configuration_aggregator":                       tagged("id", "arn", "name"),
+		"aws_config_conformance_pack":                               untagged("id", "arn", "name"),
+		"aws_config_organization_conformance_pack":                  untagged("id", "arn", "name"),
+		"aws_config_remediation_configuration":                      untagged("id", "config_rule_name"),
+		"aws_controltower_baseline":                                 tagged("id", "arn", "target_identifier"),
+		"aws_controltower_control":                                  untagged("id", "target_identifier", "control_identifier"),
+		"aws_controltower_landing_zone":                             tagged("id", "arn", "manifest_json"),
+		"aws_organizations_account":                                 tagged("id", "arn", "name", "email"),
+		"aws_organizations_organizational_unit":                     tagged("id", "arn", "name", "parent_id"),
+		"aws_organizations_policy":                                  tagged("id", "arn", "name", "type"),
+		"aws_organizations_resource_policy":                         tagged("id", "arn", "content"),
+		"aws_resourceexplorer2_index":                               tagged("id", "arn", "type"),
+		"aws_resourceexplorer2_view":                                tagged("id", "arn", "name"),
+		"aws_resourcegroups_group":                                  tagged("id", "arn", "name"),
+		"aws_servicecatalog_portfolio":                              tagged("id", "arn", "name"),
+		"aws_servicecatalog_portfolio_share":                        untagged("id", "portfolio_id", "type", "principal_id"),
+		"aws_servicecatalog_product":                                tagged("id", "arn", "name"),
+		"aws_servicecatalog_provisioned_product":                    tagged("id", "arn", "name"),
+		"aws_servicecatalogappregistry_application":                 tagged("id", "arn", "name"),
+		"aws_servicecatalogappregistry_attribute_group":             tagged("id", "arn", "name"),
+		"aws_servicecatalogappregistry_attribute_group_association": untagged("id", "application_id", "attribute_group_id"),
+		"aws_auditmanager_assessment":                               tagged("id", "arn", "name", "framework_id"),
+		"aws_auditmanager_framework":                                tagged("id", "arn", "name"),
+		// SageMaker batch (issue #65). Taggable per the real provider's
+		// documented Argument Reference for each type, except
+		// aws_sagemaker_model_package_group_policy, whose Argument
+		// Reference names only region and model_package_group_name.
+		"aws_sagemaker_algorithm":                                 tagged("id", "algorithm_name", "arn"),
+		"aws_sagemaker_app":                                       tagged("id", "arn", "app_name", "app_type", "domain_id"),
+		"aws_sagemaker_app_image_config":                          tagged("id", "app_image_config_name", "arn"),
+		"aws_sagemaker_code_repository":                           tagged("id", "code_repository_name", "arn"),
+		"aws_sagemaker_data_quality_job_definition":               tagged("id", "arn", "name", "role_arn"),
+		"aws_sagemaker_device_fleet":                              tagged("id", "device_fleet_name", "arn", "role_arn"),
+		"aws_sagemaker_domain":                                    tagged("id", "arn", "domain_name", "auth_mode"),
+		"aws_sagemaker_endpoint":                                  tagged("id", "arn", "name", "endpoint_config_name"),
+		"aws_sagemaker_endpoint_configuration":                    tagged("id", "arn", "name"),
+		"aws_sagemaker_feature_group":                             tagged("id", "arn", "feature_group_name", "role_arn"),
+		"aws_sagemaker_hub":                                       tagged("id", "arn", "hub_name"),
+		"aws_sagemaker_image":                                     tagged("id", "arn", "image_name", "role_arn"),
+		"aws_sagemaker_mlflow_app":                                tagged("arn", "name", "role_arn"),
+		"aws_sagemaker_mlflow_tracking_server":                    tagged("id", "arn", "tracking_server_name", "role_arn"),
+		"aws_sagemaker_model":                                     tagged("id", "arn", "name", "execution_role_arn"),
+		"aws_sagemaker_model_card":                                tagged("id", "arn", "model_card_name"),
+		"aws_sagemaker_model_package_group":                       tagged("id", "arn", "model_package_group_name"),
+		"aws_sagemaker_model_package_group_policy":                untagged("id", "model_package_group_name", "resource_policy"),
+		"aws_sagemaker_monitoring_schedule":                       tagged("id", "arn", "name"),
+		"aws_sagemaker_notebook_instance":                         tagged("id", "arn", "name", "role_arn", "instance_type"),
+		"aws_sagemaker_notebook_instance_lifecycle_configuration": tagged("id", "arn", "name"),
+		"aws_sagemaker_pipeline":                                  tagged("id", "arn", "pipeline_name"),
+		"aws_sagemaker_project":                                   tagged("id", "arn", "project_name"),
+		"aws_sagemaker_space":                                     tagged("id", "arn", "domain_id", "space_name"),
+		"aws_sagemaker_studio_lifecycle_config":                   tagged("id", "arn", "studio_lifecycle_config_name"),
+		"aws_sagemaker_user_profile":                              tagged("arn", "domain_id", "user_profile_name"),
+		"aws_sagemaker_workteam":                                  tagged("id", "arn", "workteam_name"),
 
 		// Registry-ratified REMAINDER ratification batch (#40, #44, #65):
 		// caricature schemas for this batch's admitted types, taggable per
-		// live/survey-full.json's per-type taggable signal (the same
-		// source internal/live/stamp/stamp_test.go's two pinned lists
-		// above are built from). See live/e2e/estates/remainder/README.md.
-		"aws_datapipeline_pipeline":            tagged("id", "arn"),
-		"aws_datasync_agent":                   tagged("id", "arn"),
-		"aws_datasync_location_azure_blob":     tagged("id", "arn"),
-		"aws_datasync_location_efs":            tagged("id", "arn"),
-		"aws_datasync_location_hdfs":           tagged("id", "arn"),
-		"aws_datasync_location_nfs":            tagged("id", "arn"),
-		"aws_datasync_location_object_storage": tagged("id", "arn"),
-		"aws_datasync_location_s3":             tagged("id", "arn"),
-		"aws_datasync_location_smb":            tagged("id", "arn"),
-		"aws_datasync_task":                    tagged("id", "arn"),
-		"aws_datazone_domain":                  tagged("id", "arn"),
-		"aws_detective_graph":                  tagged("id", "arn"),
-		"aws_dlm_lifecycle_policy":             tagged("id", "arn"),
-		"aws_dms_event_subscription":           tagged("id", "arn"),
-		"aws_dms_replication_config":           tagged("id", "arn"),
-		"aws_dsql_cluster":                     tagged("id", "arn"),
-		"aws_dx_connection":                    tagged("id", "arn"),
-		"aws_dx_gateway":                       tagged("id", "arn"),
-		"aws_dx_lag":                           tagged("id", "arn"),
-		"aws_dx_private_virtual_interface":     tagged("id", "arn"),
-		"aws_dx_public_virtual_interface":      tagged("id", "arn"),
-		"aws_dx_transit_virtual_interface":     tagged("id", "arn"),
-		"aws_ec2_instance_connect_endpoint":    tagged("id", "arn"),
-		"aws_ec2_local_gateway_route_table":    tagged("id", "arn"),
+		// live/survey-full.json's per-type taggable signal. See
+		// live/e2e/estates/remainder/README.md.
+		"aws_appconfig_application":                   tagged("id", "arn"),
+		"aws_appconfig_deployment_strategy":           tagged("id", "arn"),
+		"aws_appconfig_extension":                     tagged("id", "arn"),
+		"aws_appsync_api":                             tagged("id", "arn"),
+		"aws_arcregionswitch_plan":                    tagged("id", "arn"),
+		"aws_bcmdataexports_export":                   tagged("id", "arn"),
+		"aws_billing_view":                            tagged("id", "arn"),
+		"aws_ce_anomaly_monitor":                      tagged("id", "arn"),
+		"aws_ce_anomaly_subscription":                 tagged("id", "arn"),
+		"aws_ce_cost_category":                        tagged("id", "arn"),
+		"aws_chatbot_slack_channel_configuration":     tagged("id", "arn"),
+		"aws_cleanrooms_collaboration":                tagged("id", "arn"),
+		"aws_cleanrooms_configured_table":             tagged("id", "arn"),
+		"aws_cleanrooms_membership":                   tagged("id", "arn"),
+		"aws_cloud9_environment_ec2":                  tagged("id", "arn"),
+		"aws_cloudtrail":                              tagged("id", "arn"),
+		"aws_cloudtrail_event_data_store":             tagged("id", "arn"),
+		"aws_codegurureviewer_repository_association": tagged("id", "arn"),
+		"aws_cur_report_definition":                   tagged("id", "arn"),
+		"aws_datapipeline_pipeline":                   tagged("id", "arn"),
+		"aws_datazone_domain":                         tagged("id", "arn"),
+		"aws_detective_graph":                         tagged("id", "arn"),
+		"aws_dlm_lifecycle_policy":                    tagged("id", "arn"),
+		"aws_dsql_cluster":                            tagged("id", "arn"),
+		"aws_dx_connection":                           tagged("id", "arn"),
+		"aws_dx_gateway":                              tagged("id", "arn"),
+		"aws_dx_lag":                                  tagged("id", "arn"),
+		"aws_dx_private_virtual_interface":            tagged("id", "arn"),
+		"aws_dx_public_virtual_interface":             tagged("id", "arn"),
+		"aws_dx_transit_virtual_interface":            tagged("id", "arn"),
+		"aws_ec2_instance_connect_endpoint":           tagged("id", "arn"),
+		"aws_ec2_local_gateway_route_table":           tagged("id", "arn"),
 		"aws_ec2_local_gateway_route_table_virtual_interface_group_association": tagged("id", "arn"),
 		"aws_ec2_local_gateway_route_table_vpc_association":                     tagged("id", "arn"),
 		"aws_ec2_network_insights_access_scope":                                 tagged("id", "arn"),
@@ -2104,8 +2573,6 @@ func testSchemas() Schemas {
 		"aws_inspector_assessment_template":                                     tagged("id", "arn"),
 		"aws_internetmonitor_monitor":                                           tagged("id", "arn"),
 		"aws_invoicing_invoice_unit":                                            tagged("id", "arn"),
-		"aws_iot_provisioning_template":                                         tagged("id", "arn"),
-		"aws_iot_topic_rule":                                                    tagged("id", "arn"),
 		"aws_kinesis_analytics_application":                                     tagged("id", "arn"),
 		"aws_lb_listener_rule":                                                  tagged("id", "arn"),
 		"aws_lb_trust_store":                                                    tagged("id", "arn"),
@@ -2132,6 +2599,7 @@ func testSchemas() Schemas {
 		"aws_pinpointsmsvoicev2_opt_out_list":                                   tagged("id", "arn"),
 		"aws_pinpointsmsvoicev2_phone_number":                                   tagged("id", "arn"),
 		"aws_pinpointsmsvoicev2_pool":                                           tagged("id", "arn"),
+		"aws_prometheus_rule_group_namespace":                                   tagged("id", "arn"),
 		"aws_ram_permission":                                                    tagged("id", "arn"),
 		"aws_ram_resource_share":                                                tagged("id", "arn"),
 		"aws_rbin_rule":                                                         tagged("id", "arn"),
@@ -2164,11 +2632,8 @@ func testSchemas() Schemas {
 		"aws_ssmquicksetup_configuration_manager":                               tagged("id", "arn"),
 		"aws_storagegateway_tape_pool":                                          tagged("id", "arn"),
 		"aws_transfer_certificate":                                              tagged("id", "arn"),
-		"aws_transfer_connector":                                                tagged("id", "arn"),
 		"aws_transfer_profile":                                                  tagged("id", "arn"),
-		"aws_transfer_server":                                                   tagged("id", "arn"),
 		"aws_transfer_web_app":                                                  tagged("id", "arn"),
-		"aws_transfer_workflow":                                                 tagged("id", "arn"),
 		"aws_verifiedaccess_endpoint":                                           tagged("id", "arn"),
 		"aws_verifiedaccess_instance":                                           tagged("id", "arn"),
 		"aws_verifiedaccess_trust_provider":                                     tagged("id", "arn"),
@@ -2179,6 +2644,20 @@ func testSchemas() Schemas {
 		"aws_vpc_route_server_endpoint":                                         tagged("id", "arn"),
 		"aws_vpc_route_server_peer":                                             tagged("id", "arn"),
 		"aws_vpn_concentrator":                                                  tagged("id", "arn"),
+		"aws_appconfig_extension_association":                                   untagged("id"),
+		"aws_appsync_api_cache":                                                 untagged("id"),
+		"aws_appsync_domain_name_api_association":                               untagged("id"),
+		"aws_arczonalshift_autoshift_observer_notification_status":              untagged("id"),
+		"aws_arczonalshift_zonal_autoshift_configuration":                       untagged("id"),
+		"aws_athena_named_query":                                                untagged("id"),
+		"aws_autoscaling_group":                                                 untagged("id"),
+		"aws_cloudfront_cache_policy":                                           untagged("id"),
+		"aws_cloudfront_continuous_deployment_policy":                           untagged("id"),
+		"aws_cloudfront_key_group":                                              untagged("id"),
+		"aws_cloudfront_origin_access_identity":                                 untagged("id"),
+		"aws_cloudfront_origin_request_policy":                                  untagged("id"),
+		"aws_cloudfront_public_key":                                             untagged("id"),
+		"aws_cloudfront_response_headers_policy":                                untagged("id"),
 		"aws_devopsguru_resource_collection":                                    untagged("id"),
 		"aws_ecr_pull_through_cache_rule":                                       untagged("id"),
 		"aws_ecr_pull_time_update_exclusion":                                    untagged("id"),
@@ -2188,8 +2667,8 @@ func testSchemas() Schemas {
 		"aws_glue_security_configuration":                                       untagged("id"),
 		"aws_iam_access_key":                                                    untagged("id"),
 		"aws_inspector_assessment_target":                                       untagged("id"),
-		"aws_iot_topic_rule_destination":                                        untagged("id"),
 		"aws_kinesis_resource_policy":                                           untagged("id"),
+		"aws_launch_configuration":                                              untagged("id"),
 		"aws_macie2_account":                                                    untagged("id"),
 		"aws_msk_cluster_policy":                                                untagged("id"),
 		"aws_notifications_event_rule":                                          untagged("id"),
@@ -2216,49 +2695,6 @@ func testSchemas() Schemas {
 		"aws_sns_topic_subscription":                                            untagged("id"),
 		"aws_ssmcontacts_contact_channel":                                       untagged("id"),
 		"aws_ssmcontacts_plan":                                                  untagged("id"),
-
-		// Registry-ratified REMAINDER ratification batch, second slice
-		// (#40, #44, #65): APS through CloudTrail. See
-		// live/e2e/estates/remainder/README.md.
-		"aws_prometheus_rule_group_namespace":                      tagged("id", "arn"),
-		"aws_arcregionswitch_plan":                                 tagged("id", "arn"),
-		"aws_appconfig_application":                                tagged("id", "arn"),
-		"aws_appconfig_deployment_strategy":                        tagged("id", "arn"),
-		"aws_appconfig_extension":                                  tagged("id", "arn"),
-		"aws_appintegrations_data_integration":                     tagged("id", "arn"),
-		"aws_appintegrations_event_integration":                    tagged("id", "arn"),
-		"aws_bcmdataexports_export":                                tagged("id", "arn"),
-		"aws_billing_view":                                         tagged("id", "arn"),
-		"aws_ce_anomaly_monitor":                                   tagged("id", "arn"),
-		"aws_ce_anomaly_subscription":                              tagged("id", "arn"),
-		"aws_ce_cost_category":                                     tagged("id", "arn"),
-		"aws_cur_report_definition":                                tagged("id", "arn"),
-		"aws_chatbot_slack_channel_configuration":                  tagged("id", "arn"),
-		"aws_cleanrooms_collaboration":                             tagged("id", "arn"),
-		"aws_cleanrooms_configured_table":                          tagged("id", "arn"),
-		"aws_cleanrooms_membership":                                tagged("id", "arn"),
-		"aws_cloud9_environment_ec2":                               tagged("id", "arn"),
-		"aws_cloudtrail":                                           tagged("id", "arn"),
-		"aws_cloudtrail_event_data_store":                          tagged("id", "arn"),
-		"aws_codegurureviewer_repository_association":              tagged("id", "arn"),
-		"aws_prometheus_scraper":                                   tagged("id", "arn"),
-		"aws_prometheus_workspace":                                 tagged("id", "arn"),
-		"aws_appsync_api":                                          tagged("id", "arn"),
-		"aws_arczonalshift_zonal_autoshift_configuration":          untagged("id"),
-		"aws_appconfig_extension_association":                      untagged("id"),
-		"aws_athena_named_query":                                   untagged("id"),
-		"aws_autoscaling_group":                                    untagged("id"),
-		"aws_launch_configuration":                                 untagged("id"),
-		"aws_cloudfront_cache_policy":                              untagged("id"),
-		"aws_cloudfront_continuous_deployment_policy":              untagged("id"),
-		"aws_cloudfront_key_group":                                 untagged("id"),
-		"aws_cloudfront_origin_access_identity":                    untagged("id"),
-		"aws_cloudfront_origin_request_policy":                     untagged("id"),
-		"aws_cloudfront_public_key":                                untagged("id"),
-		"aws_cloudfront_response_headers_policy":                   untagged("id"),
-		"aws_arczonalshift_autoshift_observer_notification_status": untagged("id"),
-		"aws_appsync_api_cache":                                    untagged("id"),
-		"aws_appsync_domain_name_api_association":                  untagged("id"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.

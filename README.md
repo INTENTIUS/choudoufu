@@ -27,18 +27,21 @@ render as a site at [intentius.io/choudoufu](https://intentius.io/choudoufu/).
 ## Where this stands
 
 Live markers are experimental, and the scope is deliberately narrow. The mode
-covers AWS only, a fixed subset of resource types, and the root module.
-Configs
-outside that subset are refused up front by a lint pass rather than half
-supported. The full boundary, with the reasoning for each limit, is in
+covers AWS only and a fixed subset of resource types. Static module trees and
+statically-keyed `for_each` modules are covered too; a `count`-expanded
+module block is refused permanently. Configs outside that subset are refused
+up front by a lint pass rather than half supported. The full boundary, with
+the reasoning for each limit, is in
 [`live/LIMITATIONS.md`](live/LIMITATIONS.md).
 
 ## Install
 
-Every tagged release publishes prebuilt binaries for macOS and Linux
-(amd64 and arm64), with a `SHA256SUMS` file, on the
-[releases page](https://github.com/INTENTIUS/choudoufu/releases). To fetch
-the latest for your platform:
+Every tagged release publishes prebuilt binaries for macOS, Linux and
+Windows (amd64 and arm64), with a `SHA256SUMS` file, on the
+[releases page](https://github.com/INTENTIUS/choudoufu/releases). macOS and
+Linux ship as `.tar.gz`; Windows ships as `.zip`, since that is what
+Windows' built-in Explorer opens without extra tooling. To fetch the latest
+for macOS or Linux:
 
 ```
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -47,7 +50,15 @@ gh release download -R INTENTIUS/choudoufu --pattern "*_${os}_${arch}.tar.gz"
 tar xzf choudoufu_*_"${os}"_"${arch}".tar.gz   # unpacks ./choudoufu
 ```
 
-Building from source stays one command (below).
+On Windows, in PowerShell:
+
+```powershell
+gh release download -R INTENTIUS/choudoufu --pattern "*_windows_amd64.zip"
+Expand-Archive choudoufu_*_windows_amd64.zip .   # unpacks .\choudoufu.exe
+```
+
+(use `*_windows_arm64.zip` on ARM64 Windows). Building from source stays one
+command (below).
 
 ## Moving an existing estate over
 

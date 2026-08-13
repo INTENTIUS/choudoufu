@@ -69,18 +69,23 @@ config block owns this resource". The entire binding mechanism for the
 marker admission path (path 2) rests on this value matching an address that
 exists in configuration.
 
-**Grammar vs. what ships today.** The grammar and the `module.` segment
-below describe the address format in full generality, because a marker
-written under this spec has to remain readable by whatever eventually reads
-module-qualified addresses. Nothing in the fork writes one yet. The subset
-lint refuses every module call outright, with "Child modules are not
-available under live resource markers", before anything reads the live system
-(`RuleChildModule`, `internal/live/lint/child_module.go`). Identity
-resolution, projection, discovery, stamping and the rename each still
-refuse a configuration with children, but as an internal invariant. Lint
-runs first, so reaching one of them means the pipeline ran out of order.
-Every `tofu-address` value a current build stamps is a root-module address.
-The `module.` segment is forward-looking spec, not shipped behavior.
+**Grammar vs. what ships today.** The `module.` segment below is shipped,
+not forward-looking: identity resolution, projection, discovery, stamping
+and the rename all traverse `cfg.Children`, and a `tofu-address` value
+carries the full module-qualified address for a resource inside a static
+module tree or a `for_each`-keyed module call with statically-evaluable
+keys, at any nesting depth (issue #59, phases 1-2 / "59b"/"59c"). The one
+segment shape this grammar allows but no build ever produces is a `count`
+instance key on a `module.` segment - a module block expanded with `count`
+is refused outright before anything reads the live system, permanently,
+because the position-based renumbering it causes is exactly the ambiguity
+a `tofu-address` marker exists to remove (`RuleChildModule`,
+`internal/live/lint/child_module.go`; `live/LIMITATIONS.md`,
+"child-module"). A resource inside a `for_each`-keyed module's own
+instances is not auto-written even though its address is shipped: stamping
+cannot inject a marker into a shared configuration body, so that address is
+built by hand instead (`live/LIMITATIONS.md`'s "keyed module" behavioral
+limit; the concept page's "Modules" section has the idiom).
 
 The unescaped grammar, in informal EBNF matching OpenTofu's own address
 syntax.
@@ -93,12 +98,14 @@ quoted-key = '"' key-chars '"' ;
 ```
 
 Some examples of unescaped addresses follow. The last one is spec-only,
-see above.
+see above: a `count` key on a `module.` segment, refused permanently.
 
 - `aws_vpc.this`
 - `aws_subnet.this["a"]`
 - `aws_eip.this[2]`
-- `module.subnets["a"].aws_subnet.this` (not produced by any shipped build)
+- `module.subnets["a"].aws_subnet.this`
+- `module.subnets[2].aws_subnet.this` (spec-only; a count-expanded module
+  is refused permanently, see above)
 
 ### Escaping rule
 
@@ -214,7 +221,13 @@ change in the number of live instances mints or retires slots.
   `tofu-address` at once is also a named error. The marker admission path
   assumes at most one live resource per address per estate, and a
   collision means something upstream (a manual tag edit, a botched
-  `live-mv`) needs a human to resolve it.
+  `live-mv`) needs a human to resolve it. This holds regardless of region
+  or provider configuration: an address is unique estate-wide, not
+  estate-wide-per-region, so two live resources in two different regions
+  both carrying one estate's marker for one address are the same named
+  collision as two in one region, not two legitimate resources that happen
+  to sit in different places. A multi-provider estate (issue #69) reports
+  it the same way, naming every region involved.
 
 ## The rename rule
 
@@ -277,3 +290,147 @@ knowing it exists. No known implementation of this spec exists outside
 this fork today. That is expected at this stage. The spec is written to be
 the stable integration surface a future tool builds against, not proof
 that one already has.
+
+## Protecting the markers
+
+Markers are plain resource tags, and nothing about that grammar stops
+anyone with tagging permissions from removing them: `aws ec2 delete-tags`,
+a console "manage tags" cleanup, or an unrelated tag-hygiene automation
+that untags whatever it does not recognize. What that costs depends on the
+type.
+
+For a client-named resource (`aws_s3_bucket`, `aws_iam_role`, the rest of
+admission path 1) it is a nuisance and nothing worse: the next plan reports
+the resource `[UNOWNED]` with the exact adoption command, because the
+cloud's own uniqueness constraint means a duplicate can never actually be
+created under the same name. For a server-assigned resource (`aws_vpc`,
+`aws_security_group`, and the rest of admission path 2's table above) the
+marker is the *only* handle discovery has. Strip it off a live one and the
+declared address it used to bind to looks exactly like a resource that was
+never created: the next plan proposes CREATE, and unless something
+intervenes, apply produces a second, functionally identical resource
+sitting beside the orphaned first one. This section is about that case -
+the one a veteran operator fears most, because nothing about it looks like
+an error until the bill or the drift shows up.
+
+### What actually stops it, checked rather than assumed
+
+Two AWS Organizations mechanisms sound like they cover this. One does not,
+and the other only partially.
+
+**Tag policies enforce values, not survival.** Per AWS's own documentation
+([Tag policies](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_tag-policies.html),
+[Enforce tagging consistency](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_tag-policies-enforcement.html)),
+a tag policy "can specify that when the `CostCenter` tag is attached to a
+resource, it must use the case treatment and tag values that the tag
+policy defines," and enforcement mode "prevents noncompliant tagging
+requests on specified resource types from completing." That is a check on
+what a tag is set *to*, run when a tag is written, on resource types the
+feature explicitly supports. Nothing in that mechanism inspects a
+`DeleteTags`-shaped call at all, and AWS says so directly: "Basic
+compliance rules do not enforce tag compliance on resources that are
+created without tags. This capability does not enforce missing tag keys."
+A tag policy cannot be configured to block a tag from being removed,
+because removing a tag is not the kind of event it evaluates. Do not rely
+on one for this.
+
+**SCPs can block the untagging call, but only inside the org, only in
+member accounts, and only where the condition key is honored.** A service
+control policy is a guardrail on what IAM principals in an organization's
+*member* accounts can do
+([Service control policies](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_scps.html)):
+it never grants anything, it can `Deny` an action outright, and - per that
+same page - it has no effect on the management account or on any
+principal outside the organization. Denying the tag-removal actions for
+the three marker keys, with an exception for whichever principal runs
+`choudoufu`, is the closest thing to a real backstop:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DenyUntaggingMarkers",
+      "Effect": "Deny",
+      "Action": [
+        "ec2:DeleteTags",
+        "kms:UntagResource",
+        "elasticloadbalancing:RemoveTags",
+        "route53:ChangeTagsForResource",
+        "acm:RemoveTagsFromCertificate",
+        "states:UntagResource",
+        "sns:UntagResource",
+        "tag:UntagResources"
+      ],
+      "Condition": {
+        "ForAnyValue:StringEquals": {
+          "aws:TagKeys": ["tofu-estate", "tofu-address", "tofu-slot"]
+        },
+        "ArnNotLike": {
+          "aws:PrincipalArn": ["arn:aws:iam::*:role/choudoufu-automation"]
+        }
+      },
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+That action list is illustrative, not exhaustive or verified for every
+admitted type - it has to be, since this fork tracks each type's tagging
+*verb* (`live/tag-verbs.json`, `residue.TagVerbForType`) but not its
+untagging one, so there is no generated artifact to check it against the
+way the adoption hint's command is checked. Before deploying anything like
+it:
+
+- **Confirm `aws:TagKeys` is actually honored by each action**, per
+  service, per action. IAM's own docs point at the [Service Authorization
+  Reference](https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html)
+  to check this rather than promising it applies uniformly, and it does
+  not: operators have reported services whose tag-removal call does not
+  evaluate the condition the way EC2's `DeleteTags` does. A statement that
+  looks correct and silently does nothing for one service in the list is
+  worse than no policy, because it reads as protection that is not there.
+- **`route53:ChangeTagsForResource`** folds adding and removing tags into
+  one call keyed by a "keys to remove" parameter rather than a
+  dedicated untag action; the condition still keys off `aws:TagKeys`, but
+  verify the shape against that action's own reference page before
+  trusting it.
+- **The management account and any standalone (non-Organizations) account
+  are outside SCP reach entirely.** A principal there needs ordinary
+  least-privilege IAM to protect the marker keys, because no
+  organization-level guardrail reaches it.
+- **Nothing here stops the resource from being deleted outright** - only
+  its markers being stripped while the resource survives. Outright
+  deletion is a different, already-handled case: the next plan's estate
+  sweep reports the address as gone and proposes nothing, since there is
+  no live resource left to warn about.
+
+### The residual risk, and the last line of defense
+
+Even a correct SCP leaves gaps: the management account, a standalone
+account, a compromised or misused exemption for the automation principal,
+a service whose untag action does not honor `aws:TagKeys`, or simply a
+policy nobody has written yet. Prevention is not the whole answer, which
+is why this fork does not rely on it alone.
+
+At plan time, when a declared resource of an admitted type would be
+created and the estate sweep saw one or more live resources of the same
+type that this estate does not own, the plan runs the same content-match
+machinery that offers adoption elsewhere (`internal/live/foreign`'s match
+table and its one-to-one rule) against the declared configuration. On a
+match it does not change what the plan does - the create may be genuinely
+intended - but the create's entry in the plan gains a `[POSSIBLE
+DUPLICATE]` warning, naming the matched live resource's ID and the exact
+command that adopts it instead. A type with no content-match rule (a route
+table, an EIP - nothing in their configuration distinguishes one from
+another) still gets a generic warning when exactly one same-type unowned
+resource exists, naming it the same way. Either way the warning sits
+immediately above the plan diff itself, not buried in a report an operator
+could plan past without reading. This is the guard that assumes the tags
+will get stripped sometime, by someone, despite whatever policy is in
+place, and catches it anyway.
+
+That is the honest layering: a tag policy cannot do this job at all, an
+SCP narrows who can strip a marker and where, and the plan-time guard is
+what catches it when someone does it regardless.

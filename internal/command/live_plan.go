@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hcldec"
@@ -29,6 +30,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/stamp"
 	"github.com/intentius/choudoufu/internal/plans"
@@ -76,7 +78,13 @@ import (
 //     all. A count block's instances are bound as a set rather than one
 //     address at a time, so the live members past the declared count come
 //     back at the instance addresses above it and the plan below destroys
-//     them the way it destroys any shrunken count's leftovers.
+//     them the way it destroys any shrunken count's leftovers. When the
+//     estate's managed resources span more than one provider configuration
+//     (aliased providers, typically multi-region), statelessDiscover runs
+//     this step once per distinct provider configuration and
+//     [discovery.Merge] combines the results into one, so this step still
+//     reads as "discovery ran" even though it may have run several times
+//     under the hood (issue #69).
 //  6. [foreign.Classify] sorts those unclaimed resources into foreign, bind
 //     candidate and other-estate, and reports the owned resources sitting at a
 //     for_each key the configuration no longer declares as rename candidates.
@@ -262,6 +270,9 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		diags = diags.Append(provs.close(ctx))
 		return 1, false, diags
 	}
+	// GitHub issue #70's interim half: never fatal, so it rides alongside the
+	// subset check rather than gating on it. See [lint.CheckModuleProviders].
+	diags = diags.Append(lint.CheckModuleProviders(config))
 
 	// Resolution runs ahead of the providers being configured, as it always
 	// has, and is handed their schemas: a resource type the hand table has
@@ -289,17 +300,18 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 
 	// Resolved now that lint has passed and the estate name is settled, so
 	// that any verb here is already known valid for its quadrant (see
-	// internal/live/lint's checkLivePolicy). Nothing downstream reads this
-	// yet - GitHub issue #67's config/lint half only, see [statelessPolicy].
+	// internal/live/lint's checkLivePolicy).
+	var pol *policy.Policy
 	if config.Module != nil {
-		log.Printf("[TRACE] live: ownership policy: %s", statelessPolicy(config.Module.Live, estate))
+		pol = statelessPolicy(config.Module.Live, estate)
+		log.Printf("[TRACE] live: ownership policy: %s", pol)
 	}
 
 	// Marker discovery, when anything is waiting on it. Its output is a
 	// resolution list with the discovered instances made concrete, plus the
 	// unclaimed live resources the classifier below sorts out.
 	merged := resolutions.All()
-	disco, discoProvider, discoDiags := statelessDiscover(ctx, config, resolutions, estateFlag, provs)
+	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estateFlag, provs, pol, statelessView)
 	diags = diags.Append(discoDiags)
 	if discoDiags.HasErrors() {
 		// A marker problem means the estate's ownership records disagree with
@@ -312,9 +324,26 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		merged = disco.Resolutions
 	}
 
+	// GitHub issue #67's undeclared_untagged = "delete" scoped account
+	// reconciliation, when the policy asks for it. See live_mode.go's
+	// PriorState for why the roster merges in the same way a swept orphan
+	// does, and why a threshold refusal stops here after the report has a
+	// chance to show what tripped it.
+	reconcile, reconcileExtra, reconcileVerified, reconcileDiags := statelessPolicyReconcile(ctx, estate, pol, provs, discoProvider)
+	diags = diags.Append(reconcileDiags)
+	if len(reconcileExtra) > 0 {
+		merged = append(merged, reconcileExtra...)
+	}
+	if reconcileDiags.HasErrors() {
+		statelessView.Policy(statelessPolicyReport(nil, disco, nil, reconcile))
+		diags = diags.Append(provs.close(ctx))
+		return 1, false, diags
+	}
+
 	projResult, projDiags := projection.BuildWith(ctx, config, merged, provs, projection.Options{
-		UndeclaredProvider: discoProvider,
-		Ownership:          statelessOwnership(estate, disco),
+		UndeclaredProvider:  discoProvider,
+		UndeclaredProviders: undeclaredProviders,
+		Ownership:           statelessOwnershipWith(estate, disco, pol, reconcileVerified),
 	})
 	// The provider processes started for the projection have done their job
 	// by this point; the plan below starts its own from the same library.
@@ -327,22 +356,41 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	statelessView.Omissions(statelessOmissions(projResult))
 	statelessView.Unowned(statelessUnownedReport(projResult, estate))
 
+	// classified and foreignReq are kept in outer scope, past the section
+	// they were computed for: the lookalike guard below needs the same
+	// classification and the same request (for its region and endpoint) once
+	// the plan is in hand and it knows which addresses are actually about to
+	// be created.
+	var classified *foreign.Result
+	var foreignReq foreign.Request
 	if disco != nil {
-		classified, foreignDiags := foreign.Classify(ctx, foreign.Request{
+		foreignReq = foreign.Request{
 			Estate:    disco.Estate,
 			Config:    config,
 			Discovery: disco,
 			// The adoption hint carries the region and endpoint the
 			// resources were listed through, so that pasting it talks to
-			// the same cloud the plan just read.
+			// the same cloud the plan just read. discoProvider is the
+			// "primary" provider configuration (statelessDiscover's own doc
+			// comment): in a multi-provider estate (issue #69) a hint for a
+			// candidate or foreign resource found under a different provider
+			// configuration may name the wrong region here. That is a known
+			// v0 simplification, not a silent wrong answer - internal/live/
+			// foreign's Request has no per-item region yet, and splitting it
+			// is future work rather than something this fix's acceptance bar
+			// (the alias-e2e fixture, which owns both its resources and
+			// produces nothing in this section at all) requires.
 			Region:      provs.region(discoProvider),
 			EndpointURL: provs.endpointURL(discoProvider),
-		})
+		}
+		var foreignDiags tfdiags.Diagnostics
+		classified, foreignDiags = foreign.Classify(ctx, foreignReq)
 		diags = diags.Append(foreignDiags)
 		if foreignDiags.HasErrors() {
 			return 1, false, diags
 		}
 		statelessView.Foreign(statelessForeignReport(classified))
+		statelessView.GuidedFallback(disco.GuidedFallback)
 	}
 
 	rawVariables, varDiags := c.collectVariableValues()
@@ -374,12 +422,17 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// the configuration claims an ownership this run cannot honor, and
 	// planning past it would act on a resource whose owner is in dispute. So
 	// is a resource that only its marker could ever find going unstamped,
-	// which is why the resolutions travel into the pass.
-	_, stampDiags := statelessStamp(ctx, config, estateFlag, schemas, disco.SlotTable(), statelessNeedsDiscovery(resolutions))
+	// which is why the resolutions travel into the pass. policyUntag carries
+	// declared_tagged = "untag"'s released keys, worked out from the
+	// projection's own policy outcomes now that it has run.
+	policyUntag := statelessPolicyUntagMap(projResult.Policy, statelessPolicyTagKey(pol))
+	stampRes, stampDiags := statelessStamp(ctx, config, estateFlag, schemas, disco.SlotTable(), statelessNeedsDiscovery(resolutions), policyUntag)
 	diags = diags.Append(stampDiags)
 	if stampDiags.HasErrors() {
 		return 1, false, diags
 	}
+
+	statelessView.Policy(statelessPolicyReport(projResult, disco, stampRes, reconcile))
 
 	plan, planDiags := tfCtx.Plan(ctx, config, projResult.State, &tofu.PlanOpts{
 		Mode: plans.NormalMode,
@@ -395,6 +448,18 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	diags = diags.Append(planDiags)
 	if plan == nil {
 		return 1, false, diags
+	}
+
+	// The lookalike guard: now that the plan is in hand, ask which of its
+	// creates might be duplicating a live resource this estate does not own
+	// - most often because a resource's tofu-estate and tofu-address tags
+	// were stripped out of band, off a server-assigned type no marker means
+	// no other way to find. It reuses the classification computed above
+	// rather than sweeping a second time, and it never touches the plan: a
+	// create beside a genuine lookalike is still a create, and this only
+	// makes sure the warning sits right above it.
+	if classified != nil {
+		statelessView.Lookalikes(statelessLookalikeReport(foreign.Lookalikes(foreignReq, classified, statelessPlannedCreates(plan))))
 	}
 
 	view.Operation().Plan(plan, schemas)
@@ -415,7 +480,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 // Discovery and foreign classification
 // ---------------------------------------------------------------------------
 
-// statelessDiscover runs one marker discovery pass, wide enough to see the
+// statelessDiscover runs the marker discovery pass, wide enough to see the
 // resources nobody owns, and returns its result. It returns a nil result
 // with no error diagnostics in the two cases where discovery is not run at
 // all: nothing in the configuration is waiting on it, or the estate's name
@@ -434,10 +499,34 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 // those blocks is exactly as much a removal as deleting a marker-discovered
 // one.
 //
-// The provider configuration it listed through is returned along with the
-// result, because a resource found by the sweep has no resource block to read
-// a provider from and must be read back through the one that found it.
-func statelessDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, estateFlag string, provs *statelessProviders) (*discovery.Result, addrs.AbsProviderConfig, tfdiags.Diagnostics) {
+// Provider selection is two separate questions, and issue #69 is about
+// keeping them separate rather than answering both with the same rule. The
+// needs-discovery scan - the resolutions actually waiting to be found by
+// marker - has to go through one provider configuration, unconditionally:
+// see [statelessNeedsDiscoveryProvider]'s own doc comment for why a list
+// against the wrong account or region would misreport an estate as missing
+// rather than as merely unreachable. The estate-wide sweep has no such
+// hazard - a sweep against the wrong account only ever narrows what a run
+// can see, it never mis-reports what exists as absent - so when the
+// configuration's managed resources span more than one provider
+// configuration, the sweep runs once per one of them
+// ([statelessManagedResourceProviders]) and [discovery.Merge] combines the
+// results. A single-provider configuration - true of every estate before
+// this existed - takes the old direct path with no merge step at all, which
+// is what keeps that case byte-identical.
+//
+// The second return value is the "primary" provider configuration: the one
+// the needs-discovery scan used, or - when nothing needed discovery - the
+// first of the sweep's providers in sorted order. It is what a caller uses
+// for the one thing this pass cannot honestly split by provider without a
+// larger refactor of internal/live/foreign: the adoption hint's --region
+// and --endpoint-url flags. In a multi-provider estate that hint may name
+// the wrong region for a foreign resource found under a different provider
+// configuration - a known, documented v0 simplification, not a silent wrong
+// answer, and the third return value is what a caller uses instead for
+// materializing undeclared instances correctly, per-address, regardless of
+// which provider found them.
+func statelessDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, estateFlag string, provs *statelessProviders, pol *policy.Policy, statelessView views.StatelessPlan) (*discovery.Result, addrs.AbsProviderConfig, map[string]addrs.AbsProviderConfig, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	var noProvider addrs.AbsProviderConfig
 
@@ -446,43 +535,237 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 	estate, estateDiags := statelessEstateName(ctx, estateFlag, config, needs)
 	diags = diags.Append(estateDiags)
 	if estate == "" {
-		return nil, noProvider, diags
+		return nil, noProvider, nil, diags
 	}
 
-	providerAddr, providerDiags := statelessDiscoveryProvider(config, needs)
-	diags = diags.Append(providerDiags)
-	if providerDiags.HasErrors() {
-		return nil, noProvider, diags
+	needsProvider, needsDiags := statelessNeedsDiscoveryProvider(config, needs)
+	diags = diags.Append(needsDiags)
+	if needsDiags.HasErrors() {
+		return nil, noProvider, nil, diags
 	}
-	if providerAddr.Provider.Type == "" {
-		// A configuration with no managed resources at all. Nothing to find
-		// and nothing that could be undeclared.
-		return nil, noProvider, diags
+
+	sweepProviders := statelessManagedResourceProviders(config)
+	if len(sweepProviders) == 0 {
+		// No managed resources at all: nothing to find, nothing that could
+		// be undeclared.
+		return nil, noProvider, nil, diags
 	}
+
+	if len(sweepProviders) == 1 {
+		providerAddr := sweepProviders[0]
+		// No ScopeProvider: the single-provider path is the exact call
+		// every caller made before issue #69 existed.
+		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, addrs.AbsProviderConfig{}, provs, pol, statelessView)
+		diags = diags.Append(discoDiags)
+		if discoDiags.HasErrors() {
+			return nil, noProvider, nil, diags
+		}
+		return res, providerAddr, nil, diags
+	}
+
+	// More than one provider configuration among the estate's managed
+	// resources: issue #69. Every pass sees the *whole* estate's
+	// resolutions - not a filtered subset - because a live resource's
+	// marker can be visible through more than one provider configuration
+	// even when its declared instance is not: a type whose list operation is
+	// account-global rather than region-scoped (aws_s3_bucket, the
+	// alias-e2e fixture's own choice; also IAM and Route53) hands every
+	// pass every account's population of it, including objects declared
+	// under a different provider configuration. Request.ScopeProvider is
+	// what keeps a pass from *binding* through the wrong account while
+	// still letting it recognize (via [declared.declares], built from every
+	// resolution regardless of provider) that such an object is somebody
+	// else's declared, owned resource rather than an orphan to remove.
+	passes := make([]discovery.Pass, 0, len(sweepProviders))
+	for _, providerAddr := range sweepProviders {
+		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, providerAddr, provs, pol, statelessView)
+		diags = diags.Append(discoDiags)
+		if discoDiags.HasErrors() {
+			return nil, noProvider, nil, diags
+		}
+		passes = append(passes, discovery.Pass{
+			Provider: providerAddr,
+			Region:   provs.region(providerAddr),
+			Result:   res,
+		})
+	}
+
+	merged, providerOf, mergeDiags := discovery.Merge(estate, passes)
+	diags = diags.Append(mergeDiags)
+	if mergeDiags.HasErrors() {
+		return merged, noProvider, providerOf, diags
+	}
+
+	primary := needsProvider
+	if primary.Provider.Type == "" {
+		primary = sweepProviders[0]
+	}
+	return merged, primary, providerOf, diags
+}
+
+// statelessDiscoverOne runs [discovery.Discover] through one provider
+// configuration: the shared body of both statelessDiscover's single-provider
+// path and each iteration of its multi-provider loop. scopeProvider is
+// [discovery.Request.ScopeProvider]; its zero value means unscoped, which is
+// what the single-provider path passes.
+func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutions []identity.Resolution, estate string, providerAddr, scopeProvider addrs.AbsProviderConfig, provs *statelessProviders, pol *policy.Policy, statelessView views.StatelessPlan) (*discovery.Result, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
 
 	provider, err := provs.ConfiguredProvider(ctx, providerAddr)
 	if err != nil {
-		return nil, noProvider, diags.Append(tfdiags.Sourceless(
+		return nil, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Provider unavailable for marker discovery",
 			fmt.Sprintf("Finding the live resources of this estate needs provider %s, which could not be used: %s.", providerAddr, err),
 		))
 	}
 
-	res, discoDiags := discovery.Discover(ctx, discovery.Request{
+	req := discovery.Request{
 		Estate:           estate,
 		Config:           config,
-		Resolutions:      resolutions.All(),
+		Resolutions:      resolutions,
 		Provider:         provider,
 		Region:           provs.region(providerAddr),
 		CollectUnclaimed: true,
 		Sweep:            true,
-	})
-	diags = diags.Append(discoDiags)
-	if discoDiags.HasErrors() {
-		return nil, noProvider, diags
+		Policy:           pol,
+		ScopeProvider:    scopeProvider,
+		Progress:         statelessProgress(statelessView),
 	}
-	return res, providerAddr, diags
+	statelessApplyGuidedDiscovery(config, &req)
+
+	res, discoDiags := discovery.Discover(ctx, req)
+	diags = diags.Append(discoDiags)
+	return res, diags
+}
+
+// guidedDiscoveryDisableEnvVar opts every estate this process plans or
+// applies out of the default-on snapshot-guided discovery
+// [statelessApplyGuidedDiscovery] turns on, forcing today's full sweep
+// regardless of what the "live" block configures. Set it to any non-empty
+// value.
+//
+// The name and shape follow this fork's existing convention for a
+// default-on behavior with an environment-variable escape hatch -
+// TF_DISABLE_PLUGIN_TLS in meta_providers.go is the precedent - rather than
+// a new "live" block attribute: turning guided discovery off is an
+// operational lever for a run that is misbehaving, not a decision a team
+// checks in and reviews the way estate, snapshot_path and snapshots are, so
+// it does not belong beside them in configuration.
+const guidedDiscoveryDisableEnvVar = "TOFU_DISABLE_GUIDED_DISCOVERY"
+
+// defaultAutoGuidedMaxAge is the GuidedMaxAge [statelessApplyGuidedDiscovery]
+// sets when it turns guided discovery on automatically: a snapshot hint has
+// up to a week to keep narrowing the estate-wide sweep before it is treated
+// as though it were never written at all, and discovery falls all the way
+// back to full enumeration (see [discovery.Result.GuidedFallback]). A week
+// is deliberately generous compared to [defaultGuidedMaxAge] in
+// internal/live/discovery/guided.go (24h, the fallback for a direct API
+// caller that sets Request.Guided with no GuidedMaxAge of its own): an
+// operator who explicitly turned a snapshot on already made the choice to
+// pay for it, and defaultAutoGuidedVerifyAge below is what keeps a week-old
+// hint from also meaning "drift can hide for a week" - the freshness ceiling
+// here only decides when a hint is too old to be worth reading at all.
+const defaultAutoGuidedMaxAge = 7 * 24 * time.Hour
+
+// defaultAutoGuidedVerifyAge is the GuidedVerifyAge
+// [statelessApplyGuidedDiscovery] sets: a hint that is still trusted (younger
+// than defaultAutoGuidedMaxAge) but has gone a full day without a fresh sweep
+// runs this pass as a full, verifying sweep anyway, exactly as
+// Request.GuidedVerify would. This is the policy's own safety valve - a
+// standing orphan of a hinted type can surface no later than a day after it
+// appears, under these defaults, no matter how generous defaultAutoGuidedMaxAge
+// is about trusting the hint for narrowing.
+const defaultAutoGuidedVerifyAge = 24 * time.Hour
+
+// statelessApplyGuidedDiscovery is issue #64's default-on policy: it turns
+// req.Guided on, with req.SnapshotPath, req.SnapshotBranchDir,
+// req.GuidedMaxAge and req.GuidedVerifyAge populated from the configuration's
+// own snapshot destination, whenever all of the following hold -
+//
+//   - the configuration's "live" block turns on an observational snapshot at
+//     all (snapshot_path, snapshots = true, or both - see [configs.Live]);
+//   - guidedDiscoveryDisableEnvVar is not set to a non-empty value.
+//
+// Nothing here invents a hint source: a configuration that never turned a
+// snapshot on leaves req untouched, and discovery.Discover behaves exactly as
+// it always has for it (Request.Guided's own zero value is false). The
+// snapshot fields it does populate are read from the same [configs.Live]
+// settings [statelessBegin] and [statelessRunner.PriorState] already read to
+// decide whether to write a snapshot in the first place (see live_mode.go),
+// so a run that writes a snapshot and a run that reads one back as a guided
+// hint always agree on where it lives - the branch carrier first when
+// "snapshots" is set, the file carrier as its fallback or on its own when
+// only "snapshot_path" is set, the same priority
+// [projection.Manager.writeSnapshotCarriers] gives the write side.
+//
+// See internal/live/discovery/guided.go's file doc comment for the full
+// policy statement from the discovery package's own side, including why its
+// defaults (defaultGuidedMaxAge, and no automatic GuidedVerifyAge at all) stay
+// unchanged for a direct caller of Discover.
+func statelessApplyGuidedDiscovery(config *configs.Config, req *discovery.Request) {
+	if os.Getenv(guidedDiscoveryDisableEnvVar) != "" {
+		return
+	}
+	if config == nil || config.Module == nil || config.Module.Live == nil {
+		return
+	}
+	settings := config.Module.Live
+	if settings.SnapshotPath == "" && !settings.Snapshots {
+		// No snapshot destination configured at all: there is no hint to
+		// guide anything, and today's full enumeration is exactly right.
+		return
+	}
+
+	req.Guided = true
+	req.SnapshotPath = settings.SnapshotPath
+	if settings.Snapshots {
+		// "." is the module directory every command in this package already
+		// loads configuration from, the same directory [statelessBegin]
+		// passes to [projection.Manager.EnableSnapshotBranch] for the write
+		// side.
+		req.SnapshotBranchDir = "."
+	}
+	req.GuidedMaxAge = defaultAutoGuidedMaxAge
+	req.GuidedVerifyAge = defaultAutoGuidedVerifyAge
+}
+
+// statelessProgressInterval is the minimum time between two heartbeat lines
+// [statelessProgress] forwards. Discovery reports every single type it
+// scans, which for a fast-listing provider can be many per second; printing
+// all of them would turn a heartbeat into a scrolling log, which is the
+// opposite of unobtrusive. Half a second is frequent enough that a large,
+// slow-listing estate never looks hung, and coarse enough that a small,
+// fast one prints once or twice and gets out of the way.
+const statelessProgressInterval = 500 * time.Millisecond
+
+// statelessProgress adapts a [views.StatelessPlan] into a
+// [discovery.ProgressFunc], throttling how often it actually renders a
+// heartbeat: [discovery.Discover] calls back after every resource type it
+// scans, which is finer-grained than anything worth printing, so this is
+// where the "how often" decision is made rather than in the discovery
+// package or the view. The first event always passes through unthrottled,
+// since that is a reader's first evidence the run has not hung, which
+// matters more than any timing rule.
+//
+// The view renders to stderr (see [views.StatelessPlanHuman.Progress]),
+// never stdout, so nothing this prints can end up in output a script reads
+// from this command - today that is everything live-plan writes on
+// success, since it has no -json mode yet.
+func statelessProgress(statelessView views.StatelessPlan) discovery.ProgressFunc {
+	var last time.Time
+	return func(ev discovery.ProgressEvent) {
+		now := time.Now()
+		if !last.IsZero() && now.Sub(last) < statelessProgressInterval {
+			return
+		}
+		last = now
+		statelessView.Progress(views.StatelessProgress{
+			TypeName:       ev.TypeName,
+			TypesScanned:   ev.TypesScanned,
+			ResourcesFound: ev.ResourcesFound,
+		})
+	}
 }
 
 // statelessEstateName establishes which estate this run is about.
@@ -603,7 +886,7 @@ func statelessEstateFor(ctx context.Context, flagValue string, config *configs.C
 // run stamped, and what it did not, is the record of whether the estate's
 // ownership is intact after this plan, and a caller that cannot see it cannot
 // check anything about it (audit finding C2).
-func statelessStamp(ctx context.Context, config *configs.Config, estateFlag string, schemas *tofu.Schemas, slotTable map[string]string, needsDiscovery map[string]bool) (*stamp.Result, tfdiags.Diagnostics) {
+func statelessStamp(ctx context.Context, config *configs.Config, estateFlag string, schemas *tofu.Schemas, slotTable map[string]string, needsDiscovery map[string]bool, policyUntag map[string]string) (*stamp.Result, tfdiags.Diagnostics) {
 	estate, declared, diags := statelessEstateFor(ctx, estateFlag, config)
 	if diags.HasErrors() {
 		return nil, diags
@@ -647,6 +930,7 @@ func statelessStamp(ctx context.Context, config *configs.Config, estateFlag stri
 		Schemas:        schemas,
 		Slots:          slotTable,
 		NeedsDiscovery: needsDiscovery,
+		PolicyUntag:    policyUntag,
 	})
 	diags = diags.Append(stampDiags)
 	return res, diags.Append(statelessStampGaps(res, needsDiscovery))
@@ -808,13 +1092,25 @@ func statelessEstateFromModule(ctx context.Context, cfg *configs.Config, seen ma
 	}
 }
 
-// statelessDiscoveryProvider is the provider configuration the discovery
-// pass lists through: the one the needs-discovery resources use. A
-// configuration whose needs-discovery resources span several provider
-// configurations is refused rather than listed through whichever one came
-// first, since a list against the wrong account or region would report an
-// estate as missing.
-func statelessDiscoveryProvider(config *configs.Config, needs []identity.Resolution) (addrs.AbsProviderConfig, tfdiags.Diagnostics) {
+// statelessNeedsDiscoveryProvider is the provider configuration marker
+// discovery's config-driven scan lists through: the one every needs-discovery
+// resolution's resource block agrees on. A configuration whose
+// needs-discovery resources span several provider configurations is refused
+// rather than listed through whichever one came first, since a list against
+// the wrong account or region would report an estate as missing rather than
+// as merely unreachable.
+//
+// This is deliberately unconditional, unlike the estate-wide sweep's own
+// provider selection (see [statelessManagedResourceProviders] and
+// [discovery.Merge]): a wrong-account sweep only narrows what a run can see,
+// but a wrong-account needs-discovery scan actively lies about whether a
+// resource exists, which is why issue #69 leaves this rule exactly as it
+// was rather than generalizing it too.
+//
+// The zero value, returned alongside no error, means nothing needs
+// discovery at all - a configuration entirely of client-named resources, for
+// instance - which tells the caller the sweep alone gets to pick a provider.
+func statelessNeedsDiscoveryProvider(config *configs.Config, needs []identity.Resolution) (addrs.AbsProviderConfig, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	seen := make(map[string]addrs.AbsProviderConfig)
@@ -830,32 +1126,21 @@ func statelessDiscoveryProvider(config *configs.Config, needs []identity.Resolut
 		addr := providerConfigAddr(rc, r.Addr.Module.Module())
 		seen[addr.String()] = addr
 	}
-	if len(seen) == 0 && len(needs) == 0 {
-		// Nothing is waiting to be found, and the pass is running for the
-		// sweep alone. Every managed resource's provider in the whole static
-		// module tree is a candidate then, and the same one-configuration
-		// rule applies for the same reason: a sweep issued against the wrong
-		// account would report an estate as holding nothing undeclared.
-		walkManagedResources(config, func(rc *configs.Resource, modPath addrs.Module) {
-			addr := providerConfigAddr(rc, modPath)
-			seen[addr.String()] = addr
-		})
-		if len(seen) == 0 {
-			return addrs.AbsProviderConfig{}, diags
-		}
-	}
 
 	switch len(seen) {
-	case 1:
-		for _, addr := range seen {
-			return addr, diags
-		}
 	case 0:
+		if len(needs) == 0 {
+			return addrs.AbsProviderConfig{}, diags
+		}
 		return addrs.AbsProviderConfig{}, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"No provider for marker discovery",
 			"Resource instances are waiting on marker discovery, but none of them could be traced back to a resource block in the configuration. The resolutions and the configuration come from different runs; this is a bug.",
 		))
+	case 1:
+		for _, addr := range seen {
+			return addr, diags
+		}
 	}
 
 	names := make([]string, 0, len(seen))
@@ -870,6 +1155,30 @@ func statelessDiscoveryProvider(config *configs.Config, needs []identity.Resolut
 			"The resources waiting on marker discovery use %s. Marker discovery v0 goes through one provider configuration per run, because a list issued against the wrong account or region would report an estate as missing rather than as unreachable. Split the configuration, or use -target to plan one provider's resources at a time.",
 			strings.Join(names, " and ")),
 	))
+}
+
+// statelessManagedResourceProviders is the estate-wide sweep's candidate
+// set: every distinct provider configuration among the configuration's
+// managed resources, sorted for a deterministic loop order. A configuration
+// with one entry here behaves exactly as it always has - a single call to
+// [discovery.Discover], no merge step at all. More than one is issue #69's
+// case: statelessDiscover loops the sweep once per entry and
+// [discovery.Merge] combines the results, rather than refusing the way this
+// package used to whenever an estate's managed resources spanned more than
+// one provider configuration regardless of whether marker discovery was
+// even implicated.
+func statelessManagedResourceProviders(config *configs.Config) []addrs.AbsProviderConfig {
+	seen := make(map[string]addrs.AbsProviderConfig)
+	walkManagedResources(config, func(rc *configs.Resource, modPath addrs.Module) {
+		addr := providerConfigAddr(rc, modPath)
+		seen[addr.String()] = addr
+	})
+	out := make([]addrs.AbsProviderConfig, 0, len(seen))
+	for _, addr := range seen {
+		out = append(out, addr)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].String() < out[j].String() })
+	return out
 }
 
 // statelessForeignReport converts the classification into the view's wire
@@ -987,6 +1296,55 @@ func statelessForeignReport(res *foreign.Result) views.StatelessForeign {
 		})
 	}
 	return rep
+}
+
+// statelessPlannedCreates is every address the plan actually proposes to
+// create, in the order [plans.Changes.Resources] carries them - the input
+// the lookalike guard needs, since it warns about the plan's own actions
+// rather than about what discovery merely left unbound. A replace (however
+// it is spelled: [plans.Replace], [plans.DeleteThenCreate],
+// [plans.CreateThenDelete], [plans.ForgetThenCreate]) is deliberately
+// excluded: the address already has a prior-state entry, so there is no
+// question of it duplicating a live resource nobody owns.
+func statelessPlannedCreates(plan *plans.Plan) []addrs.AbsResourceInstance {
+	if plan == nil || plan.Changes == nil {
+		return nil
+	}
+	var out []addrs.AbsResourceInstance
+	for _, rc := range plan.Changes.Resources {
+		if rc.Action == plans.Create {
+			out = append(out, rc.Addr)
+		}
+	}
+	return out
+}
+
+// statelessLookalikeReport converts the lookalike guard's findings into the
+// view's wire format, the same split [statelessForeignReport] and
+// [statelessUnownedReport] keep: data across the package boundary, never
+// rendered text.
+func statelessLookalikeReport(warnings []foreign.Lookalike) []views.StatelessLookalike {
+	if len(warnings) == 0 {
+		return nil
+	}
+	out := make([]views.StatelessLookalike, 0, len(warnings))
+	for _, w := range warnings {
+		matched := make([]views.StatelessTag, 0, len(w.Matched))
+		for _, m := range w.Matched {
+			matched = append(matched, views.StatelessTag{Key: m.Attr, Value: m.Value})
+		}
+		out = append(out, views.StatelessLookalike{
+			Addr:          w.Addr.String(),
+			TypeName:      w.TypeName,
+			LiveID:        w.LiveID,
+			DisplayName:   w.DisplayName,
+			Matched:       matched,
+			MarkerEstate:  w.MarkerEstate,
+			MarkerAddress: w.MarkerAddress,
+			Hint:          w.Hint,
+		})
+	}
+	return out
 }
 
 func statelessTags(tags []foreign.Tag) []views.StatelessTag {

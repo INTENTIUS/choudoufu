@@ -152,7 +152,7 @@ token per row.
 
 | Status | Meaning | Rows |
 |---|---|---|
-| `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | <!-- survey-gen:begin wired-count -->601<!-- survey-gen:end wired-count --> |
+| `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | <!-- survey-gen:begin wired-count -->763<!-- survey-gen:end wired-count --> |
 | `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 8 |
 | `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components | 0 |
 | `ops` | excluded by the rule, forwarded to the lifecycle layer | 3 |

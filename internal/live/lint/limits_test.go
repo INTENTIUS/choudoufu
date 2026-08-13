@@ -34,6 +34,7 @@ var enforcedLimits = map[string]Rule{
 	"local-exec":         RuleProvisioner,
 	"remote-exec":        RuleProvisioner,
 	"null-resource":      RuleLogicalResource,
+	"terraform-data":     RuleLogicalResource,
 	"local-file":         RuleLogicalResource,
 	"random-password":    RuleLogicalResource,
 	"time-sleep":         RuleLogicalResource,
@@ -85,25 +86,90 @@ func TestLimitsEnforced(t *testing.T) {
 	}
 }
 
+// logicalLimitsClasses pairs every logical-resource limits fixture with the
+// [LogicalClass] its one resource classifies as, so
+// TestLogicalLimitsDetailsRender can check that the class actually shows up
+// in the Detail an operator sees - not just that RuleLogicalResource fired
+// (TestLimitsEnforced already pins that), but that the new per-type
+// classification (GitHub issue #73's groundwork) reached the message.
+var logicalLimitsClasses = map[string]LogicalClass{
+	"null-resource":   ClassRecordAdmitted,
+	"terraform-data":  ClassRecordAdmitted,
+	"time-sleep":      ClassRecordAdmitted,
+	"random-password": ClassSecretRefused,
+	"local-file":      ClassOtherRefused,
+}
+
+// TestLogicalLimitsDetailsRender checks that every logical-resource limits
+// fixture's single issue carries the right class-specific wording in its
+// Detail: RECORD_ADMITTED and SECRET_REFUSED name their class outright and
+// carry the forwarding language specific to them (#73, and the secret
+// manager address, respectively), while OTHER_REFUSED carries neither by
+// design - its whole point is that the original, class-agnostic wording is
+// unchanged (TestLogicalResourceDetailsRenderByClass in lint_test.go pins
+// that wording byte-identical to the pre-table template).
+func TestLogicalLimitsDetailsRender(t *testing.T) {
+	for dir, class := range logicalLimitsClasses {
+		t.Run(dir, func(t *testing.T) {
+			cfg := loadConfigDir(t, filepath.Join(limitsDir(t), dir))
+			issues := CheckContext(t.Context(), cfg)
+
+			var logical []Issue
+			for _, issue := range issues {
+				if issue.Rule == RuleLogicalResource {
+					logical = append(logical, issue)
+				}
+			}
+			if len(logical) != 1 {
+				t.Fatalf("%s: got %d RuleLogicalResource issues, want exactly 1: %v", dir, len(logical), logical)
+			}
+
+			detail := logical[0].Detail
+			switch class {
+			case ClassRecordAdmitted:
+				if !strings.Contains(detail, string(class)) {
+					t.Errorf("%s: Detail = %q, want it to contain class %q", dir, detail, class)
+				}
+				if !strings.Contains(detail, "#73") {
+					t.Errorf("%s: RECORD_ADMITTED Detail = %q, want it to cite #73", dir, detail)
+				}
+			case ClassSecretRefused:
+				if !strings.Contains(detail, string(class)) {
+					t.Errorf("%s: Detail = %q, want it to contain class %q", dir, detail, class)
+				}
+				if !strings.Contains(detail, "secret manager") {
+					t.Errorf("%s: SECRET_REFUSED Detail = %q, want the secret-manager forwarding address", dir, detail)
+				}
+			case ClassOtherRefused:
+				if strings.Contains(detail, string(ClassRecordAdmitted)) || strings.Contains(detail, string(ClassSecretRefused)) {
+					t.Errorf("%s: OTHER_REFUSED Detail = %q, want no other class's wording (current wording preserved)", dir, detail)
+				}
+			}
+		})
+	}
+}
+
 // childModuleFixtureDetails is the substring each of the refused module
 // calls in live/e2e/limits/child-module/main.tf is expected to carry in its
 // Detail, keyed by the call's own name. #59 narrowed RuleChildModule to the
 // two shapes that stay refused - the same rule fires for a count-expanded
-// call and a for_each-expanded call, but each is refused for a different,
-// named reason (live/LIMITATIONS.md, "child-module"). The fixture's third
-// call, "network", is a static module call: 59b admitted the shape
-// entirely, so it carries no RuleChildModule issue at all and is not in
-// this table.
+// call and a non-statically-keyed for_each call, but each is refused for a
+// different, named reason (live/LIMITATIONS.md, "child-module"). The
+// fixture's other two calls, "network" (a static call) and "keyed-static" (a
+// for_each call whose keys are a literal set of strings), are both admitted
+// as of 59b and 59c respectively, so neither carries a RuleChildModule issue
+// and neither is in this table.
 var childModuleFixtureDetails = map[string]string{
 	"counted": "refused permanently",
-	"keyed":   "issue #59, phase 3",
+	"keyed":   "statically evaluable",
 }
 
 // TestChildModuleDichotomy checks that live/e2e/limits/child-module/, which
-// carries a static call, a count call and a for_each call in one tree, gets
-// exactly two RuleChildModule issues back - one for the count call and one
-// for the for_each call, each with the Detail that names its own reason -
-// and none at all for the static call, which 59b admitted.
+// carries a static call, a statically-keyed for_each call, a count call and
+// a non-statically-keyed for_each call in one tree, gets exactly two
+// RuleChildModule issues back - one for the count call and one for the
+// non-static for_each call, each with the Detail that names its own reason
+// - and none at all for the two admitted calls.
 func TestChildModuleDichotomy(t *testing.T) {
 	cfg := loadConfigDir(t, filepath.Join(limitsDir(t), "child-module"))
 	issues := CheckContext(t.Context(), cfg)
@@ -121,6 +187,9 @@ func TestChildModuleDichotomy(t *testing.T) {
 
 	if _, ok := got["network"]; ok {
 		t.Errorf("child-module: the static call \"network\" carries a RuleChildModule issue; 59b admitted static module calls")
+	}
+	if _, ok := got["keyed-static"]; ok {
+		t.Errorf("child-module: the statically-keyed for_each call \"keyed-static\" carries a RuleChildModule issue; 59c admitted a for_each module call whose keys are statically evaluable")
 	}
 
 	if len(got) != len(childModuleFixtureDetails) {

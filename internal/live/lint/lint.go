@@ -94,14 +94,26 @@ func CheckWith(ctx context.Context, cfg *configs.Config, lctx Context) []Issue {
 	}
 
 	var issues []Issue
-	checkConfig(ctx, cfg, lctx.Schemas, signal, &issues)
+	checkConfig(ctx, cfg, addrs.RootModuleInstance, lctx.Schemas, signal, &issues)
 	sortIssues(issues)
 	return issues
 }
 
 // checkConfig appends the issues found in one node of the module tree and then
 // recurses into its children.
-func checkConfig(ctx context.Context, cfg *configs.Config, schemas map[string]providers.Schema, signal *identity.ConfigSignal, issues *[]Issue) {
+//
+// modInst is the worst-case module instance leading to this node: unkeyed at
+// every step reached through a static module call, and - through a
+// for_each'd one (59c, issue #59 phase 3) - carrying the longest of that
+// call's own keys, chosen the same way [checkOverlongAddresses] already
+// picks a count block's highest index over enumerating every instance. It
+// is what lets that rule measure an escaped address's worst case at a node
+// nested under a keyed module without this pass enumerating every
+// combination of every ancestor's keys, which multiplies combinatorially
+// with tree depth for no more information than the longest one already
+// gives (a marker's length grows with a key's own length, not with which
+// key was chosen).
+func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleInstance, schemas map[string]providers.Schema, signal *identity.ConfigSignal, issues *[]Issue) {
 	if cfg == nil || cfg.Module == nil {
 		return
 	}
@@ -110,12 +122,12 @@ func checkConfig(ctx context.Context, cfg *configs.Config, schemas map[string]pr
 	path := cfg.Path
 
 	checkStateBackends(mod, path, issues)
-	checkChildModules(mod, path, issues)
+	checkChildModules(ctx, mod, path, issues)
 	checkMovedBlocks(mod, path, issues)
 	checkLivePolicy(mod, path, issues)
 	checkManagedResources(mod, path, schemas, signal, issues)
 	checkForEachKeys(ctx, mod, path, issues)
-	checkOverlongAddresses(ctx, mod, path, issues)
+	checkOverlongAddresses(ctx, mod, modInst, issues)
 	checkDataResources(mod, path, issues)
 	checkReceiptLeafRule(mod, path, issues)
 	checkReceiptValueRule(mod, path, issues)
@@ -127,8 +139,42 @@ func checkConfig(ctx context.Context, cfg *configs.Config, schemas map[string]pr
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		checkConfig(ctx, cfg.Children[name], schemas, signal, issues)
+		childInst := modInst.Child(name, worstCaseChildKey(ctx, mod, mod.ModuleCalls[name]))
+		checkConfig(ctx, cfg.Children[name], childInst, schemas, signal, issues)
 	}
+}
+
+// worstCaseChildKey is the instance key [checkConfig] descends a child
+// module call with for the overlong-address budget: [addrs.NoKey] for a
+// static call, and the longest of a for_each call's own keys otherwise -
+// ties broken lexicographically, purely for determinism, since two keys of
+// equal length produce equally long addresses either way. A for_each whose
+// keys this pass cannot enumerate (refused by RuleChildModule; see
+// checkChildModules) descends unkeyed: there is no better answer available,
+// and RuleChildModule is what stops the run over it, not this rule.
+func worstCaseChildKey(ctx context.Context, mod *configs.Module, call *configs.ModuleCall) addrs.InstanceKey {
+	if call == nil || call.ForEach == nil {
+		return addrs.NoKey
+	}
+	keys, diag := identity.ChildModuleKeys(ctx, mod, fmt.Sprintf("module %q", call.Name), call.ForEach)
+	if diag != nil {
+		return addrs.NoKey
+	}
+	var longest string
+	for _, k := range keys {
+		sk, ok := k.(addrs.StringKey)
+		if !ok {
+			continue
+		}
+		s := string(sk)
+		if len(s) > len(longest) || (len(s) == len(longest) && s > longest) {
+			longest = s
+		}
+	}
+	if longest == "" {
+		return addrs.NoKey
+	}
+	return addrs.StringKey(longest)
 }
 
 // checkStateBackends rejects backend and cloud blocks. Stateless mode has no
@@ -192,20 +238,13 @@ func checkManagedResources(mod *configs.Module, path addrs.Module, schemas map[s
 		// Type classification is managed-resources-only on purpose: a data
 		// source stores nothing and is re-read every operation, so it has no
 		// identity to recover and no admission question to answer.
-		if prefix, ok := logicalType(resource.Type); ok {
+		if lt, ok := ClassifyLogicalType(resource.Type); ok {
 			*issues = append(*issues, Issue{
 				Rule:      RuleLogicalResource,
 				Construct: addr,
 				Module:    path,
-				Detail: fmt.Sprintf(
-					"%q is a logical resource (%s*): it has no existence outside the record "+
-						"that OpenTofu keeps of it, so that record is the store live resource "+
-						"markers remove. Nothing can recover its value from the live system, because "+
-						"there is no live system holding it. Pass the value in as a variable or "+
-						"a local, or read it from a resource that really exists",
-					resource.Type, prefix,
-				),
-				Subject: resource.DeclRange,
+				Detail:    logicalResourceDetail(resource.Type, lt),
+				Subject:   resource.DeclRange,
 			})
 			// One verdict per resource: a logical type is already out, and
 			// telling the author it is also missing from the admission table
