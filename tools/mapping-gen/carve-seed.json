@@ -1,0 +1,400 @@
+{
+  "_provenance": [
+    "Vendored from chant packages/core/src/terraform/aws-resources.ts (AWS_CARVE_TYPES), the hand-curated AWS carve-out table for chant's carve advisor and carve emit (issue #43, tools/mapping-gen).",
+    "chant is a sibling checkout at ../chant relative to this repo's parent, not a dependency of this repo; this file is a data transcription, not an import.",
+    "78 entries transcribed by hand on 2026-08-12, one per AWS_CARVE_TYPES array element, in source order. identityAttr is null for the 27 entries whose chant row carries none.",
+    "Consumed by the row generator (a separate issue in this batch), not by mapping-gen's own join; it travels with the mapping artifact because both are keyed by tf_type."
+  ],
+  "entries": [
+    {
+      "tfType": "aws_s3_bucket",
+      "nativeType": "AWS::S3::Bucket",
+      "identityAttr": "bucket"
+    },
+    {
+      "tfType": "aws_dynamodb_table",
+      "nativeType": "AWS::DynamoDB::Table",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_efs_file_system",
+      "nativeType": "AWS::EFS::FileSystem",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_sns_topic",
+      "nativeType": "AWS::SNS::Topic",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_sqs_queue",
+      "nativeType": "AWS::SQS::Queue",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_iam_role",
+      "nativeType": "AWS::IAM::Role",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_iam_policy",
+      "nativeType": "AWS::IAM::ManagedPolicy",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_iam_instance_profile",
+      "nativeType": "AWS::IAM::InstanceProfile",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_ecr_repository",
+      "nativeType": "AWS::ECR::Repository",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_kms_key",
+      "nativeType": "AWS::KMS::Key",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_secretsmanager_secret",
+      "nativeType": "AWS::SecretsManager::Secret",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_ssm_parameter",
+      "nativeType": "AWS::SSM::Parameter",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_lambda_function",
+      "nativeType": "AWS::Lambda::Function",
+      "identityAttr": "function_name"
+    },
+    {
+      "tfType": "aws_ecs_service",
+      "nativeType": "AWS::ECS::Service",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_vpc",
+      "nativeType": "AWS::EC2::VPC",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_subnet",
+      "nativeType": "AWS::EC2::Subnet",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_security_group",
+      "nativeType": "AWS::EC2::SecurityGroup",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_route_table",
+      "nativeType": "AWS::EC2::RouteTable",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_internet_gateway",
+      "nativeType": "AWS::EC2::InternetGateway",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_eip",
+      "nativeType": "AWS::EC2::EIP",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_nat_gateway",
+      "nativeType": "AWS::EC2::NatGateway",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_route53_zone",
+      "nativeType": "AWS::Route53::HostedZone",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_cloudwatch_log_group",
+      "nativeType": "AWS::Logs::LogGroup",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_cloudwatch_metric_alarm",
+      "nativeType": "AWS::CloudWatch::Alarm",
+      "identityAttr": "alarm_name"
+    },
+    {
+      "tfType": "aws_cloudwatch_event_rule",
+      "nativeType": "AWS::Events::Rule",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_instance",
+      "nativeType": "AWS::EC2::Instance",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_launch_template",
+      "nativeType": "AWS::EC2::LaunchTemplate",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_autoscaling_group",
+      "nativeType": "AWS::AutoScaling::AutoScalingGroup",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_ecs_cluster",
+      "nativeType": "AWS::ECS::Cluster",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_ecs_task_definition",
+      "nativeType": "AWS::ECS::TaskDefinition",
+      "identityAttr": "family"
+    },
+    {
+      "tfType": "aws_ebs_volume",
+      "nativeType": "AWS::EC2::Volume",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_lb",
+      "nativeType": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_alb",
+      "nativeType": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_lb_target_group",
+      "nativeType": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_lb_listener",
+      "nativeType": "AWS::ElasticLoadBalancingV2::Listener",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_db_instance",
+      "nativeType": "AWS::RDS::DBInstance",
+      "identityAttr": "identifier"
+    },
+    {
+      "tfType": "aws_db_subnet_group",
+      "nativeType": "AWS::RDS::DBSubnetGroup",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_elasticache_cluster",
+      "nativeType": "AWS::ElastiCache::CacheCluster",
+      "identityAttr": "cluster_id"
+    },
+    {
+      "tfType": "aws_elasticache_replication_group",
+      "nativeType": "AWS::ElastiCache::ReplicationGroup",
+      "identityAttr": "replication_group_id"
+    },
+    {
+      "tfType": "aws_route53_record",
+      "nativeType": "AWS::Route53::RecordSet",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_api_gateway_rest_api",
+      "nativeType": "AWS::ApiGateway::RestApi",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_apigatewayv2_api",
+      "nativeType": "AWS::ApiGatewayV2::Api",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_iam_user",
+      "nativeType": "AWS::IAM::User",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_iam_group",
+      "nativeType": "AWS::IAM::Group",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_acm_certificate",
+      "nativeType": "AWS::CertificateManager::Certificate",
+      "identityAttr": "domain_name"
+    },
+    {
+      "tfType": "aws_kms_alias",
+      "nativeType": "AWS::KMS::Alias",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_sns_topic_subscription",
+      "nativeType": "AWS::SNS::Subscription",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_sfn_state_machine",
+      "nativeType": "AWS::StepFunctions::StateMachine",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_sqs_queue_policy",
+      "nativeType": "AWS::SQS::QueuePolicy",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_sns_topic_policy",
+      "nativeType": "AWS::SNS::TopicPolicy",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_kinesis_stream",
+      "nativeType": "AWS::Kinesis::Stream",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_kinesis_firehose_delivery_stream",
+      "nativeType": "AWS::KinesisFirehose::DeliveryStream",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_eks_cluster",
+      "nativeType": "AWS::EKS::Cluster",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_eks_node_group",
+      "nativeType": "AWS::EKS::Nodegroup",
+      "identityAttr": "node_group_name"
+    },
+    {
+      "tfType": "aws_lambda_permission",
+      "nativeType": "AWS::Lambda::Permission",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_lambda_event_source_mapping",
+      "nativeType": "AWS::Lambda::EventSourceMapping",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_lambda_alias",
+      "nativeType": "AWS::Lambda::Alias",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_lambda_layer_version",
+      "nativeType": "AWS::Lambda::LayerVersion",
+      "identityAttr": "layer_name"
+    },
+    {
+      "tfType": "aws_vpc_endpoint",
+      "nativeType": "AWS::EC2::VPCEndpoint",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_route_table_association",
+      "nativeType": "AWS::EC2::SubnetRouteTableAssociation",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_route",
+      "nativeType": "AWS::EC2::Route",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_egress_only_internet_gateway",
+      "nativeType": "AWS::EC2::EgressOnlyInternetGateway",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_vpc_peering_connection",
+      "nativeType": "AWS::EC2::VPCPeeringConnection",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_flow_log",
+      "nativeType": "AWS::EC2::FlowLog",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_key_pair",
+      "nativeType": "AWS::EC2::KeyPair",
+      "identityAttr": "key_name"
+    },
+    {
+      "tfType": "aws_cloudtrail",
+      "nativeType": "AWS::CloudTrail::Trail",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_cloudwatch_dashboard",
+      "nativeType": "AWS::CloudWatch::Dashboard",
+      "identityAttr": "dashboard_name"
+    },
+    {
+      "tfType": "aws_elasticache_subnet_group",
+      "nativeType": "AWS::ElastiCache::SubnetGroup",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_db_parameter_group",
+      "nativeType": "AWS::RDS::DBParameterGroup",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_rds_cluster",
+      "nativeType": "AWS::RDS::DBCluster",
+      "identityAttr": "cluster_identifier"
+    },
+    {
+      "tfType": "aws_lb_listener_rule",
+      "nativeType": "AWS::ElasticLoadBalancingV2::ListenerRule",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_api_gateway_stage",
+      "nativeType": "AWS::ApiGateway::Stage",
+      "identityAttr": "stage_name"
+    },
+    {
+      "tfType": "aws_api_gateway_deployment",
+      "nativeType": "AWS::ApiGateway::Deployment",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_apigatewayv2_stage",
+      "nativeType": "AWS::ApiGatewayV2::Stage",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_cognito_user_pool",
+      "nativeType": "AWS::Cognito::UserPool",
+      "identityAttr": "name"
+    },
+    {
+      "tfType": "aws_appautoscaling_target",
+      "nativeType": "AWS::ApplicationAutoScaling::ScalableTarget",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_efs_mount_target",
+      "nativeType": "AWS::EFS::MountTarget",
+      "identityAttr": null
+    },
+    {
+      "tfType": "aws_efs_access_point",
+      "nativeType": "AWS::EFS::AccessPoint",
+      "identityAttr": null
+    }
+  ]
+}
