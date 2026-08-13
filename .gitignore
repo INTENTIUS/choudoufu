@@ -48,6 +48,27 @@ site/public/
 
 # choudoufu build artifact and local agent state
 /choudoufu
-/survey-gen
-/mapping-gen
 /.claude/
+
+# tools/<name> binaries: `go build ./tools/<name>` (or `go build
+# ./tools/<name>/...`), run from the repo root with no -o, drops a
+# same-named binary here — one entry per tools/ subdirectory that is a
+# package main, so an accidental `go build`/`go install` from the repo
+# root never lands a multi-megabyte binary in `git status` again (issue:
+# an ~80MB tools/estate-gen build got committed by accident and had to be
+# stripped back out of a merge).
+/admission-pipeline
+/cloudcontrol-probe
+/estate-gen
+/find-dep-upgrades
+/find-pkg-importer
+/importdocs-gen
+/loggraphdiff
+/mapping-gen
+/protobuf-compile
+/registry-gen
+/rename-phase
+/row-gen
+/selected-go-version
+/survey-gen
+/tagverbs-gen
