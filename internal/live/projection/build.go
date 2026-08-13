@@ -173,12 +173,16 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 	})
 
 	sortUnowned(b.unownedList)
+	sort.Slice(b.policyList, func(i, j int) bool {
+		return b.policyList[i].Addr.String() < b.policyList[j].Addr.String()
+	})
 
 	res := &Result{
 		State:        b.state,
 		Materialized: b.materialized,
 		Omitted:      b.omissionList,
 		Unowned:      b.unownedList,
+		Policy:       b.policyList,
 	}
 	return res, diags.Append(b.diags)
 }
@@ -199,6 +203,7 @@ type builder struct {
 	omissionList []Omission
 	materialized []addrs.AbsResourceInstance
 	unownedList  []Unowned
+	policyList   []PolicyOutcome
 
 	// causes holds a short subordinate clause per omitted instance, for
 	// use inside another instance's explanation. Omission.Detail is a
@@ -624,7 +629,16 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 	// point is what "the estate owns this" means in practice - a prior-state
 	// entry the plan may update, and an orphan the plan may destroy once its
 	// block is gone - so this is the one place the check belongs.
-	if b.checkOwnership(addr, typeName, importID, schema, obj.Value) != ownershipOK {
+	// declared is deliberately not just "rc != nil": a surplus count member
+	// or a sweep orphan can sit inside a resource block that still exists
+	// (rc found by block address, not by this specific instance), and
+	// w.undeclared is the resolution's own word on whether this exact
+	// instance is one the configuration currently expands to. A surplus
+	// member is the one case this still approximates - discovery's bind()
+	// does not set Undeclared for it - and that is the same block-level
+	// coarsening internal/live/stamp's PolicyUntag already documents,
+	// rather than a new one.
+	if b.checkOwnership(addr, typeName, importID, schema, obj.Value, rc != nil && !w.undeclared) != ownershipOK {
 		return
 	}
 

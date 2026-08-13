@@ -14,6 +14,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/policy"
 )
 
 // Result is everything one discovery pass learned.
@@ -404,6 +405,13 @@ type OwnedResource struct {
 	// Withheld is why Removal is false: the one sentence an operator gets
 	// instead of a destroy. Empty when Removal is true.
 	Withheld string
+
+	// PolicyVerb is the GitHub issue #67 undeclared_tagged verb that decided
+	// this orphan's fate, when a policy block governed it. The zero value
+	// means no policy block was in play (today's fixed sweep) or this
+	// resource never reached policy at all (already withheld for a possible
+	// rename before policy ever saw it).
+	PolicyVerb policy.Verb
 }
 
 // String renders an owned-but-undeclared resource on one line.

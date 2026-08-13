@@ -29,6 +29,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/stamp"
 	"github.com/intentius/choudoufu/internal/plans"
@@ -289,17 +290,18 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 
 	// Resolved now that lint has passed and the estate name is settled, so
 	// that any verb here is already known valid for its quadrant (see
-	// internal/live/lint's checkLivePolicy). Nothing downstream reads this
-	// yet - GitHub issue #67's config/lint half only, see [statelessPolicy].
+	// internal/live/lint's checkLivePolicy).
+	var pol *policy.Policy
 	if config.Module != nil {
-		log.Printf("[TRACE] live: ownership policy: %s", statelessPolicy(config.Module.Live, estate))
+		pol = statelessPolicy(config.Module.Live, estate)
+		log.Printf("[TRACE] live: ownership policy: %s", pol)
 	}
 
 	// Marker discovery, when anything is waiting on it. Its output is a
 	// resolution list with the discovered instances made concrete, plus the
 	// unclaimed live resources the classifier below sorts out.
 	merged := resolutions.All()
-	disco, discoProvider, discoDiags := statelessDiscover(ctx, config, resolutions, estateFlag, provs)
+	disco, discoProvider, discoDiags := statelessDiscover(ctx, config, resolutions, estateFlag, provs, pol)
 	diags = diags.Append(discoDiags)
 	if discoDiags.HasErrors() {
 		// A marker problem means the estate's ownership records disagree with
@@ -312,9 +314,25 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		merged = disco.Resolutions
 	}
 
+	// GitHub issue #67's undeclared_untagged = "delete" scoped account
+	// reconciliation, when the policy asks for it. See live_mode.go's
+	// PriorState for why the roster merges in the same way a swept orphan
+	// does, and why a threshold refusal stops here after the report has a
+	// chance to show what tripped it.
+	reconcile, reconcileExtra, reconcileVerified, reconcileDiags := statelessPolicyReconcile(ctx, estate, pol, provs, discoProvider)
+	diags = diags.Append(reconcileDiags)
+	if len(reconcileExtra) > 0 {
+		merged = append(merged, reconcileExtra...)
+	}
+	if reconcileDiags.HasErrors() {
+		statelessView.Policy(statelessPolicyReport(nil, disco, nil, reconcile))
+		diags = diags.Append(provs.close(ctx))
+		return 1, false, diags
+	}
+
 	projResult, projDiags := projection.BuildWith(ctx, config, merged, provs, projection.Options{
 		UndeclaredProvider: discoProvider,
-		Ownership:          statelessOwnership(estate, disco),
+		Ownership:          statelessOwnershipWith(estate, disco, pol, reconcileVerified),
 	})
 	// The provider processes started for the projection have done their job
 	// by this point; the plan below starts its own from the same library.
@@ -327,8 +345,10 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	statelessView.Omissions(statelessOmissions(projResult))
 	statelessView.Unowned(statelessUnownedReport(projResult, estate))
 
+	var classified *foreign.Result
 	if disco != nil {
-		classified, foreignDiags := foreign.Classify(ctx, foreign.Request{
+		var foreignDiags tfdiags.Diagnostics
+		classified, foreignDiags = foreign.Classify(ctx, foreign.Request{
 			Estate:    disco.Estate,
 			Config:    config,
 			Discovery: disco,
@@ -374,12 +394,17 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// the configuration claims an ownership this run cannot honor, and
 	// planning past it would act on a resource whose owner is in dispute. So
 	// is a resource that only its marker could ever find going unstamped,
-	// which is why the resolutions travel into the pass.
-	_, stampDiags := statelessStamp(ctx, config, estateFlag, schemas, disco.SlotTable(), statelessNeedsDiscovery(resolutions))
+	// which is why the resolutions travel into the pass. policyUntag carries
+	// declared_tagged = "untag"'s released keys, worked out from the
+	// projection's own policy outcomes now that it has run.
+	policyUntag := statelessPolicyUntagMap(projResult.Policy, statelessPolicyTagKey(pol))
+	stampRes, stampDiags := statelessStamp(ctx, config, estateFlag, schemas, disco.SlotTable(), statelessNeedsDiscovery(resolutions), policyUntag)
 	diags = diags.Append(stampDiags)
 	if stampDiags.HasErrors() {
 		return 1, false, diags
 	}
+
+	statelessView.Policy(statelessPolicyReport(projResult, disco, stampRes, reconcile))
 
 	plan, planDiags := tfCtx.Plan(ctx, config, projResult.State, &tofu.PlanOpts{
 		Mode: plans.NormalMode,
@@ -437,7 +462,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 // The provider configuration it listed through is returned along with the
 // result, because a resource found by the sweep has no resource block to read
 // a provider from and must be read back through the one that found it.
-func statelessDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, estateFlag string, provs *statelessProviders) (*discovery.Result, addrs.AbsProviderConfig, tfdiags.Diagnostics) {
+func statelessDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, estateFlag string, provs *statelessProviders, pol *policy.Policy) (*discovery.Result, addrs.AbsProviderConfig, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	var noProvider addrs.AbsProviderConfig
 
@@ -477,6 +502,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		Region:           provs.region(providerAddr),
 		CollectUnclaimed: true,
 		Sweep:            true,
+		Policy:           pol,
 	})
 	diags = diags.Append(discoDiags)
 	if discoDiags.HasErrors() {
@@ -603,7 +629,7 @@ func statelessEstateFor(ctx context.Context, flagValue string, config *configs.C
 // run stamped, and what it did not, is the record of whether the estate's
 // ownership is intact after this plan, and a caller that cannot see it cannot
 // check anything about it (audit finding C2).
-func statelessStamp(ctx context.Context, config *configs.Config, estateFlag string, schemas *tofu.Schemas, slotTable map[string]string, needsDiscovery map[string]bool) (*stamp.Result, tfdiags.Diagnostics) {
+func statelessStamp(ctx context.Context, config *configs.Config, estateFlag string, schemas *tofu.Schemas, slotTable map[string]string, needsDiscovery map[string]bool, policyUntag map[string]string) (*stamp.Result, tfdiags.Diagnostics) {
 	estate, declared, diags := statelessEstateFor(ctx, estateFlag, config)
 	if diags.HasErrors() {
 		return nil, diags
@@ -647,6 +673,7 @@ func statelessStamp(ctx context.Context, config *configs.Config, estateFlag stri
 		Schemas:        schemas,
 		Slots:          slotTable,
 		NeedsDiscovery: needsDiscovery,
+		PolicyUntag:    policyUntag,
 	})
 	diags = diags.Append(stampDiags)
 	return res, diags.Append(statelessStampGaps(res, needsDiscovery))
