@@ -38,7 +38,11 @@ func loadAllForTest(t *testing.T) []proposal {
 	if err != nil {
 		t.Fatalf("loadCarveSeed: %v", err)
 	}
-	proposals, err := classifyAll(mapping, registry, survey, carveSeed)
+	importGrammar, err := loadImportGrammar(filepath.Join(root, importGrammarJSONRel))
+	if err != nil {
+		t.Fatalf("loadImportGrammar: %v", err)
+	}
+	proposals, err := classifyAll(mapping, registry, survey, carveSeed, importGrammar)
 	if err != nil {
 		t.Fatalf("classifyAll: %v", err)
 	}

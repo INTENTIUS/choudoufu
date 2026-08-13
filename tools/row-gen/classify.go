@@ -5,7 +5,10 @@
 
 package main
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // bucket is the four-way split the issue's acceptance counts are over. Every
 // row in the mapped set (live/mapping.json's via:name, via:alias and
@@ -213,6 +216,38 @@ func resolveArgName(tf, cfnProperty string, survey map[string]surveyEntry, carve
 		return arg, argSourceCarveSeed, true
 	}
 	return snakeCase(cfnProperty), argSourceGuessed, false
+}
+
+// applyImportGrammarDemotions is the automated rule-1 check issue #55
+// names: a type row-gen proposed server-assigned purely from the CFN
+// registry's read-only primaryIdentifier, whose provider Import
+// documentation shows an ID actually built from configuration arguments,
+// is not server-assigned - CloudFormation and the provider model the same
+// AWS API independently, and a composite documented import ID is exactly
+// the shape the Lambda pilot found by hand for aws_lambda_alias and
+// aws_lambda_layer_version_permission (see
+// internal/live/identity/table.go's "Rejected" comment). Those two rows
+// were kept out of DefaultTable manually; this is that same check, run
+// over every proposal instead of by a human reading two docs.
+//
+// Only bucketServerAssigned rows are ever touched - a client-named or
+// needs-hand-separator proposal has no server-assigned claim to correct,
+// and an evidence-only row is already not pastable. Mutates proposals in
+// place; importGrammar may be empty (loadImportGrammar's committed-file-
+// missing case), in which case this is a no-op.
+func applyImportGrammarDemotions(proposals []proposal, importGrammar map[string]importGrammarRow) {
+	for i := range proposals {
+		p := &proposals[i]
+		if p.Bucket != bucketServerAssigned {
+			continue
+		}
+		g, ok := importGrammar[p.TFType]
+		if !ok || g.ComposedOfArguments == nil || !*g.ComposedOfArguments {
+			continue
+		}
+		p.Bucket = bucketEvidenceOnly
+		p.Notes = append(p.Notes, fmt.Sprintf("import docs show argument-composed ID: %s", g.ImportIDExample))
+	}
 }
 
 // serviceOf pulls the namespace segment out of a CFN type name

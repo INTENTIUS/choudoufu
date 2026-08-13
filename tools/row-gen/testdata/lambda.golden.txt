@@ -29,23 +29,12 @@ line in each such block.
 service: Lambda (8 types)
 ================================================================
 
-## aws_lambda_alias -> AWS::Lambda::Alias [proposed: server-assigned]
+## aws_lambda_alias -> AWS::Lambda::Alias [evidence-only]
 rule: primaryIdentifier ⊆ readOnlyProperties
 registry fields read: primary_identifier=["AliasArn"] read_only_properties=["AliasArn"] create_only_properties=["Name", "FunctionName"]
 enumeration: parent-input ["FunctionName"]
-
---- paste into internal/live/lint/admission.go (admittedTypesV0) ---
-"aws_lambda_alias": {},
-
---- paste into internal/live/identity/table.go (DefaultTable) ---
-serverAssigned("aws_lambda_alias",
-	"the Lambda service assigns this identity at create time; no argument reconstructs it.", // TEMPLATED: rewrite or accept this reason during ratification
-	"ALIASARN", // TEMPLATED: registry primaryIdentifier name(s), not the provider's documented import syntax; verify
-	// IdentityAttrs intentionally omitted: whether this type's own "id"
-	// attribute equals the identity above is the id-alias inference row-gen
-	// does not make (issue #44 non-goals). Add "id" and any other alias
-	// only after confirming it against the provider schema or docs.
-),
+note: import docs show argument-composed ID: example/production
+no pastable row.
 
 ## aws_lambda_capacity_provider -> AWS::Lambda::CapacityProvider [proposed: client-named]
 rule: len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties
@@ -135,23 +124,12 @@ serverAssigned("aws_lambda_layer_version",
 	// only after confirming it against the provider schema or docs.
 ),
 
-## aws_lambda_layer_version_permission -> AWS::Lambda::LayerVersionPermission [proposed: server-assigned]
+## aws_lambda_layer_version_permission -> AWS::Lambda::LayerVersionPermission [evidence-only]
 rule: primaryIdentifier ⊆ readOnlyProperties
 registry fields read: primary_identifier=["Id"] read_only_properties=["Id"] create_only_properties=["OrganizationId", "Principal", "Action", "LayerVersionArn"]
 enumeration: parent-input ["LayerVersionArn"]
-
---- paste into internal/live/lint/admission.go (admittedTypesV0) ---
-"aws_lambda_layer_version_permission": {},
-
---- paste into internal/live/identity/table.go (DefaultTable) ---
-serverAssigned("aws_lambda_layer_version_permission",
-	"the Lambda service assigns this identity at create time; no argument reconstructs it.", // TEMPLATED: rewrite or accept this reason during ratification
-	"ID", // TEMPLATED: registry primaryIdentifier name(s), not the provider's documented import syntax; verify
-	// IdentityAttrs intentionally omitted: whether this type's own "id"
-	// attribute equals the identity above is the id-alias inference row-gen
-	// does not make (issue #44 non-goals). Add "id" and any other alias
-	// only after confirming it against the provider schema or docs.
-),
+note: import docs show argument-composed ID: arn:aws:lambda:us-west-2:123456789012:layer:shared_utilities,1
+no pastable row.
 
 ## aws_lambda_permission -> AWS::Lambda::Permission [needs hand separator]
 rule: len(primaryIdentifier) > 1 (composite; the separator is in no schema)

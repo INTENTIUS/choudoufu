@@ -35,10 +35,11 @@ import (
 // tools/mapping-gen/main.go's const blocks for why): every artifact this
 // tool reads, relative to the repository root. row-gen writes nothing.
 const (
-	registryJSONRel  = "live/registry.json"
-	mappingJSONRel   = "live/mapping.json"
-	surveyJSONRel    = "live/survey-full.json"
-	carveSeedJSONRel = "tools/mapping-gen/carve-seed.json"
+	registryJSONRel      = "live/registry.json"
+	mappingJSONRel       = "live/mapping.json"
+	surveyJSONRel        = "live/survey-full.json"
+	carveSeedJSONRel     = "tools/mapping-gen/carve-seed.json"
+	importGrammarJSONRel = "live/import-grammar.json"
 )
 
 // repoRoot resolves the checkout's root from this file's own location, the
@@ -89,8 +90,12 @@ func run(service string, out, errOut *os.File) error {
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", carveSeedJSONRel, err)
 	}
+	importGrammar, err := loadImportGrammar(filepath.Join(root, importGrammarJSONRel))
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", importGrammarJSONRel, err)
+	}
 
-	proposals, err := classifyAll(mapping, registry, survey, carveSeed)
+	proposals, err := classifyAll(mapping, registry, survey, carveSeed, importGrammar)
 	if err != nil {
 		return err
 	}
@@ -103,9 +108,11 @@ func run(service string, out, errOut *os.File) error {
 }
 
 // classifyAll runs every mapped-set row through classifyMapped or
-// classifyFold. cfn_type rows are classified first, since classifyFold needs
-// their results to answer "is the fold parent itself proposed".
-func classifyAll(rows []mappingRow, registry map[string]registryEntry, survey map[string]surveyEntry, carveSeed map[string]string) ([]proposal, error) {
+// classifyFold, then applies the import-grammar demotion pass
+// (applyImportGrammarDemotions). cfn_type rows are classified first, since
+// classifyFold needs their results to answer "is the fold parent itself
+// proposed".
+func classifyAll(rows []mappingRow, registry map[string]registryEntry, survey map[string]surveyEntry, carveSeed map[string]string, importGrammar map[string]importGrammarRow) ([]proposal, error) {
 	var mapped []proposal
 	var folds []mappingRow
 	for _, r := range rows {
@@ -131,5 +138,6 @@ func classifyAll(rows []mappingRow, registry map[string]registryEntry, survey ma
 		}
 		out = append(out, classifyFold(r.TFType, *r.FoldParent, mapped))
 	}
+	applyImportGrammarDemotions(out, importGrammar)
 	return out, nil
 }

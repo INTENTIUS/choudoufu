@@ -157,6 +157,80 @@ func TestEnumerationStory(t *testing.T) {
 	}
 }
 
+// TestApplyImportGrammarDemotions_LambdaAliasShape reproduces the Lambda
+// pilot's manual rejection (internal/live/identity/table.go's "Rejected"
+// comment): row-gen classifies aws_lambda_alias server-assigned from the
+// CFN registry's AliasArn (read-only there), but the provider's own Import
+// docs show "function_name/alias_name" - an argument-composed ID, not an
+// opaque one. Once live/import-grammar.json carries that evidence, the
+// demotion pass must turn the proposal evidence-only and leave a note
+// citing the doc's example, rather than a human catching it by hand every
+// batch.
+func TestApplyImportGrammarDemotions_LambdaAliasShape(t *testing.T) {
+	proposals := []proposal{
+		{TFType: "aws_lambda_alias", CFNType: "AWS::Lambda::Alias", Bucket: bucketServerAssigned},
+	}
+	composed := true
+	sep := "/"
+	grammar := map[string]importGrammarRow{
+		"aws_lambda_alias": {
+			TFType:              "aws_lambda_alias",
+			ImportIDExample:     "example/production",
+			ComposedOfArguments: &composed,
+			Separator:           &sep,
+		},
+	}
+
+	applyImportGrammarDemotions(proposals, grammar)
+
+	p := proposals[0]
+	if p.Bucket != bucketEvidenceOnly {
+		t.Fatalf("aws_lambda_alias bucket = %s, want %s (demoted by import-docs evidence)", p.Bucket, bucketEvidenceOnly)
+	}
+	wantNote := "import docs show argument-composed ID: example/production"
+	found := false
+	for _, n := range p.Notes {
+		if n == wantNote {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("Notes = %v, want it to include %q", p.Notes, wantNote)
+	}
+}
+
+// TestApplyImportGrammarDemotions_LeavesOpaqueAlone is the negative
+// control: a server-assigned proposal whose import-grammar row says
+// composed_of_arguments is false (or the row is simply absent) must not be
+// touched - the demotion is specifically for the argument-composed case,
+// not a blanket "if we have any evidence, downgrade it" rule.
+func TestApplyImportGrammarDemotions_LeavesOpaqueAlone(t *testing.T) {
+	opaqueFalse := false
+	proposals := []proposal{
+		{TFType: "aws_kms_key", CFNType: "AWS::KMS::Key", Bucket: bucketServerAssigned},
+		{TFType: "aws_no_grammar_row", CFNType: "AWS::Foo::Bar", Bucket: bucketServerAssigned},
+		{TFType: "aws_already_client_named", CFNType: "AWS::Foo::Baz", Bucket: bucketClientNamed},
+	}
+	composed := true
+	grammar := map[string]importGrammarRow{
+		"aws_kms_key": {TFType: "aws_kms_key", ComposedOfArguments: &opaqueFalse},
+		// aws_no_grammar_row deliberately absent.
+		"aws_already_client_named": {TFType: "aws_already_client_named", ComposedOfArguments: &composed},
+	}
+
+	applyImportGrammarDemotions(proposals, grammar)
+
+	if proposals[0].Bucket != bucketServerAssigned {
+		t.Errorf("aws_kms_key bucket = %s, want unchanged %s (composed_of_arguments is false)", proposals[0].Bucket, bucketServerAssigned)
+	}
+	if proposals[1].Bucket != bucketServerAssigned {
+		t.Errorf("aws_no_grammar_row bucket = %s, want unchanged %s (no import-grammar row at all)", proposals[1].Bucket, bucketServerAssigned)
+	}
+	if proposals[2].Bucket != bucketClientNamed {
+		t.Errorf("aws_already_client_named bucket = %s, want unchanged %s (not a server-assigned proposal to begin with)", proposals[2].Bucket, bucketClientNamed)
+	}
+}
+
 // TestClassifyFold pins the fold rule: a property-child always lands
 // evidence-only, and notes a parent-derived proposal only when the fold
 // parent's own TF type is itself proposed (server-assigned or
