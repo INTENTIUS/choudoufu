@@ -251,6 +251,26 @@ Renaming an already-adopted resource is a separate, narrower operation.
 `choudoufu live-mv <old-address> <new-address>` rewrites the `tofu-address`
 tag in place. It does not touch resources that were never adopted.
 
+**Compared to `import`, `moved`, and `removed` blocks.** Upstream needs
+those three one-shot constructs because state is authoritative and each one
+edits that record surgically: `import` writes a new entry, `moved` rewrites
+an entry's address, `removed` with `lifecycle { destroy = false }` deletes
+an entry without touching the object. With no file of record to edit, live
+resource markers do not need the constructs that edit one - adopting is the
+plan-visible marker stamp above (or `choudoufu live-import` for a bulk
+migration), renaming is `choudoufu live-mv`, and `moved` blocks are refused
+outright by lint. Forgetting without destroying is the one case where the
+parallel is not yet exact: deleting a resource block leaves its marker on
+the live object, and today the estate-wide sweep still destroys a marked,
+undeclared, taggable resource on the next plan, the same as upstream's own
+default absent a `removed` block. The live-markers equivalent of `destroy =
+false` - keep the marker, skip the sweep - is not yet a first-class
+operation; it takes stripping the tags by hand before deleting the block.
+`live/FAQ.md`'s "How does this relate to removed blocks / destroy = false?"
+has the full comparison, including the design in progress
+([issue #67](https://github.com/INTENTIUS/choudoufu/issues/67)) to make the
+sweep's behavior per ownership quadrant a policy choice instead of fixed.
+
 ## Concurrency
 
 The cloud serializes API calls, not workflows. Two simultaneous applies

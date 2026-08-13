@@ -192,6 +192,54 @@ the resources into a fresh state file with stock tooling. The marker tags
 can stay, since stock OpenTofu ignores them, or be deleted with your cloud
 CLI.
 
+## How does this relate to removed blocks / destroy = false?
+
+Upstream needs three one-shot constructs because state is authoritative and
+each of them edits that record surgically rather than replacing it: an
+`import` block writes a new state entry, a `moved` block rewrites an entry's
+address, and a `removed` block with `lifecycle { destroy = false }` deletes
+an entry while leaving the underlying object alone. All three exist to
+repair or extend a file of record without disturbing the object it describes.
+
+Choudoufu has no file of record, so it does not need the constructs that
+edit one. Bringing a resource under management is `choudoufu live-import`
+for a bulk migration off an existing state file, or the plan's `Adoptable`
+section plus its printed tag-write command for an ad hoc case - both
+plan-visible, both a marker stamp rather than a state write ("Migrating an
+Existing Estate" on the concept page has the walkthrough). Renaming is
+`choudoufu live-mv`, which rewrites the `tofu-address` tag in place and is
+the entire replacement for `moved` blocks; `moved` blocks themselves are
+refused by lint (`live/LIMITATIONS.md`, "moved-block").
+
+Forgetting without destroying is where the parallel stops being exact today.
+There is no state entry to mark "keep but stop tracking," so deleting the
+`resource` block is the whole gesture - but that gesture does not yet mean
+"forget." The marker stays on the live resource after the block is gone, and
+for a taggable, admitted type the estate-wide sweep on the next plan finds
+that marker with no declaring block behind it and plans a destroy
+(`internal/live/lifecycle/exactness_test.go` asserts exactly this: delete
+the block, get one destroy on plan and on apply). That is upstream's own
+default too - deleting a resource block destroys, unless a `removed` block
+says otherwise. The difference is upstream gives you that override and
+choudoufu, today, does not: the only way to delete the block without losing
+the resource is to strip its `tofu-estate`/`tofu-address` tags by hand with
+your cloud CLI first (the same manual path "Can I get back to stock OpenTofu
+later?" above describes), which makes the resource foreign to the estate
+before the sweep ever looks for it. There is no `choudoufu` command that
+does the untagging for you.
+
+That gap is design-in-progress, not a shipped feature: [issue
+#67](https://github.com/INTENTIUS/choudoufu/issues/67) proposes a
+configurable action per ownership quadrant (declared+marked,
+declared+unmarked, undeclared+marked, undeclared+unmarked) in place of
+today's fixed wiring (converge, refuse/offer adoption, sweep, ignore,
+respectively). An `undeclared+marked` resource set to `keep` instead of
+`sweep` is exactly "forget without destroy," made a policy instead of a
+manual tag edit. Until that lands, the honest answer is: choudoufu deletes
+the *category* of one-shot state-surgery constructs, but the specific
+behavior of upstream's `destroy = false` is not yet one of the choices, only
+a documented gap with a manual workaround.
+
 ## How does this relate to upstream OpenTofu?
 
 The fork was cut from
