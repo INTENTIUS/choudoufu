@@ -59,10 +59,16 @@
 
 <section class="docs-nav">
   <h2>Fork-unique docs</h2>
-  <ul>
-    {{range .Pages}}<li><a href="{{.Href}}">{{.Label}}</a></li>
+  <div class="docs-menu">
+    {{range .Sections}}<div class="docs-menu-group">
+      <h3>{{.Title}}</h3>
+      <ul>
+        {{range .Items}}<li>{{if .Soon}}<span class="soon">{{.Label}} <em>soon</em></span>{{else}}<a href="{{.Href}}">{{.Label}}</a>{{end}}</li>
+        {{end}}
+      </ul>
+    </div>
     {{end}}
-  </ul>
+  </div>
 </section>
 
 <section class="elsewhere">

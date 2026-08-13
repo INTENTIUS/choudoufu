@@ -1,7 +1,7 @@
 // Command site generates the static docs site for choudoufu: a landing
 // page plus rendered pages for the fork-unique docs (the FAQ, live
-// markers, the marker spec, limitations, the admission survey, receipts,
-// the e2e harness). It
+// markers, AWS provider coverage, the marker spec, limitations, the
+// admission survey, receipts, the e2e harness). It
 // is its own Go
 // module so the root module's go.mod/go.sum never change on its account.
 //
@@ -40,6 +40,7 @@ type docPage struct {
 	Slug       string // output basename, without .html
 	NavLabel   string
 	Title      string
+	Section    string // sidebar group the page is listed under
 	SourcePath string // relative to the repo root
 	IsMDX      bool   // needs frontmatter + admonition preprocessing
 }
@@ -49,60 +50,88 @@ var docPages = []docPage{
 		Slug:       "faq",
 		NavLabel:   "FAQ",
 		Title:      "FAQ",
+		Section:    "Start Here",
 		SourcePath: "live/FAQ.md",
 	},
 	{
 		Slug:       "live-markers",
 		NavLabel:   "Live Markers",
 		Title:      "Live Resource Markers",
+		Section:    "Guides",
 		SourcePath: "website/docs/language/live-markers.mdx",
 		IsMDX:      true,
 	},
 	{
+		Slug:       "aws",
+		NavLabel:   "AWS",
+		Title:      "AWS Provider Coverage",
+		Section:    "Providers",
+		SourcePath: "live/COVERAGE.md",
+	},
+	{
 		Slug:       "markers",
-		NavLabel:   "Spec",
+		NavLabel:   "Marker Spec",
 		Title:      "Marker Spec",
+		Section:    "Reference",
 		SourcePath: "live/MARKERS.md",
 	},
 	{
 		Slug:       "limitations",
 		NavLabel:   "Limitations",
 		Title:      "Limitations",
+		Section:    "Reference",
 		SourcePath: "live/LIMITATIONS.md",
 	},
 	{
 		Slug:       "survey",
-		NavLabel:   "Survey",
+		NavLabel:   "AWS Admission Survey",
 		Title:      "AWS Admission Survey",
+		Section:    "Operations",
 		SourcePath: "live/SURVEY.md",
 	},
 	{
 		Slug:       "receipts",
 		NavLabel:   "Receipts",
 		Title:      "Receipts",
+		Section:    "Operations",
 		SourcePath: "live/RECEIPTS.md",
 	},
 	{
 		Slug:       "e2e",
 		NavLabel:   "E2E Harness",
 		Title:      "The e2e harness",
+		Section:    "Operations",
 		SourcePath: "live/e2e/README.md",
 	},
 }
 
-// navItem is one entry in the site header nav.
+// navItem is one link in the sidebar or on the landing page. A Soon item
+// has no page yet and renders greyed out (the coming-soon providers).
 type navItem struct {
 	Href   string
 	Label  string
 	Active bool
+	Soon   bool
 }
 
-// layoutData is what templates/layout.html.tmpl renders.
+// comingSoonProviders render greyed out under the Providers section, so
+// the nav itself says AWS is the only provider today and what is next.
+var comingSoonProviders = []string{"Azure", "Google Cloud"}
+
+// sidebarSection is one titled group of doc links in the sidebar.
+type sidebarSection struct {
+	Title string
+	Items []navItem
+}
+
+// layoutData is what templates/layout.html.tmpl renders. A nil Sidebar
+// renders the full-width landing layout; a non-nil one renders the
+// two-column docs layout.
 type layoutData struct {
 	Title       string
 	AssetPrefix string // always "" — every output file lives directly under -out
 	CSSVersion  string // content hash of style.css, busts browser caches
-	Nav         []navItem
+	Sidebar     []sidebarSection
 	Content     template.HTML
 }
 
@@ -120,7 +149,7 @@ func cssVersion() string {
 // landingData is what templates/landing.html.tmpl renders, then gets
 // embedded as Content in layoutData.
 type landingData struct {
-	Pages []navItem
+	Sections []sidebarSection
 
 	// UpstreamVersion is the OpenTofu release this fork is built on, read
 	// from version/VERSION at build time so the landing page cannot drift
@@ -205,13 +234,12 @@ func run(root, out string) error {
 	if err != nil {
 		return err
 	}
-	if err := landingTmpl.Execute(&landingBody, landingData{Pages: docNavItems(), UpstreamVersion: upstream}); err != nil {
+	if err := landingTmpl.Execute(&landingBody, landingData{Sections: buildSidebar(""), UpstreamVersion: upstream}); err != nil {
 		return fmt.Errorf("rendering landing content: %w", err)
 	}
 	if err := writePage(out, "index.html", layoutTmpl, layoutData{
 		Title:      "choudoufu",
 		CSSVersion: cssVer,
-		Nav:        buildNav("index.html"),
 		Content:    template.HTML(landingBody.String()), //nolint:gosec // fixed, locally-authored template
 	}); err != nil {
 		return err
@@ -238,7 +266,7 @@ func run(root, out string) error {
 		if err := writePage(out, p.Slug+".html", layoutTmpl, layoutData{
 			Title:      p.Title,
 			CSSVersion: cssVer,
-			Nav:        buildNav(p.Slug + ".html"),
+			Sidebar:    buildSidebar(p.Slug + ".html"),
 			Content:    template.HTML(htmlOut), //nolint:gosec // rendered from repo-local trusted markdown
 		}); err != nil {
 			return err
@@ -342,25 +370,29 @@ func writePage(out, filename string, tmpl *template.Template, data layoutData) e
 	return nil
 }
 
-// docNavItems is the list of doc pages as landing-page links (relative,
-// no active state — the landing page is never "active" among them).
-func docNavItems() []navItem {
-	items := make([]navItem, 0, len(docPages))
-	for _, p := range docPages {
-		items = append(items, navItem{Href: p.Slug + ".html", Label: p.NavLabel})
-	}
-	return items
-}
-
-// buildNav returns the full header nav (Home + every doc page), marking
-// current as active by output filename.
-func buildNav(current string) []navItem {
-	items := []navItem{{Href: "index.html", Label: "Home", Active: current == "index.html"}}
+// buildSidebar groups the doc pages by section, in declaration order,
+// marking current as active by output filename. Pass "" for no active
+// page (the landing page's docs listing).
+func buildSidebar(current string) []sidebarSection {
+	var sections []sidebarSection
 	for _, p := range docPages {
 		href := p.Slug + ".html"
-		items = append(items, navItem{Href: href, Label: p.NavLabel, Active: href == current})
+		item := navItem{Href: href, Label: p.NavLabel, Active: href == current}
+		if n := len(sections); n > 0 && sections[n-1].Title == p.Section {
+			sections[n-1].Items = append(sections[n-1].Items, item)
+			continue
+		}
+		sections = append(sections, sidebarSection{Title: p.Section, Items: []navItem{item}})
 	}
-	return items
+	for i := range sections {
+		if sections[i].Title != "Providers" {
+			continue
+		}
+		for _, name := range comingSoonProviders {
+			sections[i].Items = append(sections[i].Items, navItem{Label: name, Soon: true})
+		}
+	}
+	return sections
 }
 
 // copyStatic writes every file embedded under static/ into out.
