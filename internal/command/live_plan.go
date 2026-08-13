@@ -8,6 +8,7 @@ package command
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -228,15 +229,6 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		return 1, false, diags
 	}
 
-	resolutions, idDiags := identity.Resolve(ctx, config)
-	diags = diags.Append(idDiags)
-	if idDiags.HasErrors() {
-		// Fatal on purpose. An identity map with holes in it produces a
-		// projection with holes in it, and the plan would propose creating
-		// objects that already exist.
-		return 1, false, diags
-	}
-
 	enc, encDiags := c.Encryption(ctx)
 	diags = diags.Append(encDiags)
 	if encDiags.HasErrors() {
@@ -252,6 +244,24 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	coreOpts.Encryption = enc
 
 	provs := newStatelessProviders(config, coreOpts.Plugins)
+
+	// Resolution runs ahead of the providers being configured, as it always
+	// has, and is handed their schemas: a resource type the hand table has
+	// never heard of resolves anyway when the provider's own identity schema
+	// describes it completely enough. See [identity.SynthesizeTypeIdentity].
+	// A run whose providers will not start gets no schemas and the hand
+	// table's answers, which is exactly what it got before.
+	resolutions, idDiags := identity.ResolveWith(ctx, config, identity.Context{
+		Schemas: provs.resourceSchemas(ctx),
+	})
+	diags = diags.Append(idDiags)
+	if idDiags.HasErrors() {
+		// Fatal on purpose. An identity map with holes in it produces a
+		// projection with holes in it, and the plan would propose creating
+		// objects that already exist.
+		diags = diags.Append(provs.close(ctx))
+		return 1, false, diags
+	}
 
 	// The estate name, read from the same two sources discovery and stamping
 	// read it from. Their diagnostics about it are raised below, in their own
@@ -1109,6 +1119,51 @@ func newStatelessProviders(config *configs.Config, lib plugins.Library) *statele
 		cache:      make(map[string]providers.Interface),
 		configVals: make(map[string]cty.Value),
 	}
+}
+
+// resourceSchemas is every managed resource type schema the providers this
+// configuration requires serve, merged, for identity resolution's schema
+// fallback ([identity.Context.Schemas]).
+//
+// It reads them from unconfigured plugins, which is the only reason it can
+// run this early: GetProviderSchema needs a plugin process, not a configured
+// one, and the manager memoizes the answer, so the projection's own schema
+// read a few steps later is the same one rather than a second launch.
+// Resolution itself stays what it has always been - no provider, no cloud,
+// nothing evaluated against a running plugin - and is handed a map.
+//
+// Every failure here is silent, and the result may be partial or empty. That
+// is the fallback's contract: absent schemas mean the hand table is all this
+// run knows, which is what every run did before the fallback existed. A
+// provider that will not start is reported properly a few steps later, with
+// the resource it was reading named, rather than as an aside about schemas.
+//
+// A type name two providers both serve is dropped rather than resolved by
+// order. Resolution is handed one map with no provider attached to each
+// entry, so it has nothing to choose with, and a schema from the wrong
+// provider would describe some other cloud's idea of the same name.
+func (p *statelessProviders) resourceSchemas(ctx context.Context) map[string]providers.Schema {
+	out := make(map[string]providers.Schema)
+	ambiguous := make(map[string]bool)
+
+	for _, addr := range p.config.ProviderTypes() {
+		schema, diags := p.mgr.GetProviderSchema(ctx, addr)
+		if diags.HasErrors() {
+			log.Printf("[TRACE] live: no schemas from %s for identity resolution: %s", addr, diags.Err())
+			continue
+		}
+		for name, resourceSchema := range schema.ResourceTypes {
+			if _, seen := out[name]; seen {
+				ambiguous[name] = true
+				continue
+			}
+			out[name] = resourceSchema
+		}
+	}
+	for name := range ambiguous {
+		delete(out, name)
+	}
+	return out
 }
 
 // region is the region a list call for one provider configuration should go

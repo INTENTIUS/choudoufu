@@ -916,9 +916,13 @@ func classifyOrphans(req Request, res *Result) tfdiags.Diagnostics {
 		}
 		_, declared := declaredBlocks[o.Addr.Resource.Resource.String()]
 		res.Resolutions = append(res.Resolutions, identity.Resolution{
-			Addr:       o.Addr,
-			Class:      identity.ClassConcrete,
+			Addr:  o.Addr,
+			Class: identity.ClassConcrete,
+			// Both forms travel: the string for every line an operator
+			// reads, and the provider's own identity object for the import
+			// itself. See [identity.Resolution.Identity].
 			ImportID:   o.ImportID,
+			Identity:   o.Identity,
 			Undeclared: !declared,
 		})
 	}
@@ -1166,6 +1170,7 @@ func bind(req Request, decl *declared, res *Result) tfdiags.Diagnostics {
 				Addr:     r.Addr,
 				Class:    identity.ClassConcrete,
 				ImportID: b.ImportID,
+				Identity: b.Identity,
 			}
 		}
 	}
@@ -1181,6 +1186,7 @@ func bind(req Request, decl *declared, res *Result) tfdiags.Diagnostics {
 			Addr:     s.Addr,
 			Class:    identity.ClassConcrete,
 			ImportID: s.ImportID,
+			Identity: s.Identity,
 		})
 	}
 	return diags

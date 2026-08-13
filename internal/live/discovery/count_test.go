@@ -128,6 +128,9 @@ func TestCountScaleDownDeletesTheHighestSlot(t *testing.T) {
 		if r.Class != identity.ClassConcrete || r.ImportID != "eipalloc-c" {
 			t.Errorf("the surplus resolution is %s, want CONCRETE eipalloc-c", r)
 		}
+		if r.Identity == cty.NilVal || r.Identity.IsNull() {
+			t.Error("the surplus resolution dropped the identity object the list call served with it")
+		}
 	}
 	if !found {
 		t.Errorf("the surplus member is not in the merged resolutions, so nothing will destroy it:\n%s", res)
