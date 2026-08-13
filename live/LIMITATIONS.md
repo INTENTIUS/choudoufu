@@ -528,11 +528,18 @@ creating one. `via: "tf-only"` in `live/mapping.json`.
 | 5 | a default_* adopter: brings an AWS-created default resource under management rather than creating one, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
 | 2 | a registration action: enrolls an account or resource into a feature, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
 | 1 | a confirmation waiter: flips a pending request to confirmed, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
+| 1 | a default_* adopter: brings the AWS-created default VPC under management rather than creating one; CloudFormation's AWS::EC2::VPC always creates a new VPC and has no adopt-the-existing-default semantics, so there is no CFN resource of its own to alias to |
+| 1 | a state-setter: starts/stops an existing aws_instance, no CFN resource of its own |
+| 1 | a status toggle for an existing aws_config_configuration_recorder: starts or stops recording via the Config API's Stop/StartConfigurationRecorder actions directly; AWS::Config::ConfigurationRecorder starts recording automatically once created (its own CFN doc: 'AWS CloudFormation starts the recorder as soon as the delivery channel is available... To stop the recorder without deleting it, call the StopConfigurationRecorder action... directly') and exposes no property for this control |
+| 1 | adopts an existing Cognito User Pool Client (e.g. one AWS auto-creates for Managed Login branding or an OpenSearch domain's Cognito authentication) rather than creating one - the provider's own docs say it 'does not create or delete this resource, but instead assumes management of it', the same default_*-adopter shape as aws_default_vpc; no CFN resource of its own |
 | 1 | an activation action: flips a pending registration to active, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
+| 1 | an aws_ami_copy-style copy operation: starts a cross-region/cross-account EBS volume copy and tracks the resulting volume's id; the destination is an ordinary AWS::EC2::Volume but CFN's Volume resource has no cross-region copy-source semantics, so the copy operation itself models nothing CFN provides |
 | 1 | an invocation action: triggers a call and records its result, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
+| 1 | an out-of-band tag manager: sets a single tag on an existing DynamoDB resource without owning it, no CFN resource of its own |
+| 1 | an out-of-band tag manager: sets a single tag on an existing EC2 resource without owning it, no CFN resource of its own |
 | 1 | waiter: records only that DNS validation finished; waiting belongs to the lifecycle layer, not a CFN resource of its own |
 
-**Total.** 34 Terraform AWS resource types that are provider-side constructs, not infrastructure - no CloudFormation counterpart is expected for any of them. Each row's own note is in `live/mapping.json`.
+**Total.** 41 Terraform AWS resource types that are provider-side constructs, not infrastructure - no CloudFormation counterpart is expected for any of them. Each row's own note is in `live/mapping.json`.
 <!-- survey-gen:end residue-tf-only -->
 
 #### CFN-unmodeled resources
@@ -546,8 +553,68 @@ empty until a sweep adds its first entry.
 <!-- survey-gen:begin residue-cfn-unmodeled -->
 | Count | Note |
 |---|---|
+| 6 | real Device Farm resource; live/registry.json has zero AWS::DeviceFarm::* types |
+| 4 | real DataExchange resource; live/registry.json has zero AWS::DataExchange::* types |
+| 3 | real CodeCatalyst resource; live/registry.json has zero AWS::CodeCatalyst::* types (service unmodeled by CFN entirely) |
+| 2 | real account-level Cost Optimization Hub setting; live/registry.json has zero AWS::CostOptimizationHub::* types |
+| 1 | a real DynamoDB item (data plane, not control plane) - the canonical cfn-unmodeled shape named in tools/mapping-gen/taxonomy.go's own doc comment alongside aws_s3_object; no AWS::DynamoDB::Item type exists |
+| 1 | a real customer data record (not a control-plane resource); live/registry.json's CustomerProfiles types (Domain, DomainObjectType, ObjectType, Integration, ...) model schema/config, not individual profile records - no Profile type |
+| 1 | real CloudWatch log subscription for a directory; live/registry.json's only AWS::DirectoryService types are MicrosoftAD and SimpleAD - no log-subscription type |
+| 1 | real Comprehend custom entity recognizer; live/registry.json's only AWS::Comprehend types are DocumentClassifier and Flywheel - no EntityRecognizer type |
+| 1 | real DNS conditional-forwarder resource for a directory; live/registry.json's only AWS::DirectoryService types are MicrosoftAD and SimpleAD - neither models sub-features like conditional forwarders |
+| 1 | real DataZone resource; live/registry.json's DataZone types (Connection, DataSource, Domain, DomainUnit, Environment, FormType, Project, ...) have no AssetType |
+| 1 | real DataZone resource; live/registry.json's DataZone types have no Glossary type |
+| 1 | real DataZone resource; live/registry.json's DataZone types have no GlossaryTerm type |
+| 1 | real DocumentDB resource; live/registry.json has no AWS::DocDB::DBClusterSnapshot type (CFN cannot create ad-hoc DocDB snapshots) |
+| 1 | real EBS resource; live/registry.json has no AWS::EC2::Snapshot type (only the unrelated AWS::EC2::SnapshotBlockPublicAccess account setting) - CFN cannot create ad-hoc EBS snapshots |
+| 1 | real EC2 resource (RDMA secondary network, a newer high-performance-networking feature) with its own ARN and identity; live/registry.json's EC2 types have no secondary-network type |
+| 1 | real EC2 resource (subnet within an RDMA secondary network) with its own ARN and identity; live/registry.json's EC2 types have no secondary-subnet type |
+| 1 | real Elastic Disaster Recovery resource (an actively supported service, not deprecated); live/registry.json has zero AWS::DRS::* types |
+| 1 | real MACsec CAK/CKN key association for a DX connection or LAG; live/registry.json's AWS::DirectConnect types have no MACsec key type |
+| 1 | real ML capacity-block purchase, a distinct API from regular Capacity Reservations; live/registry.json's only capacity-reservation types are AWS::EC2::CapacityReservation and CapacityReservationFleet - no capacity-block type |
+| 1 | real RADIUS MFA settings for a directory; live/registry.json's only AWS::DirectoryService types are MicrosoftAD and SimpleAD - no radius-settings type |
+| 1 | real RDS resource; live/registry.json has no AWS::RDS::DBClusterSnapshot type (CFN cannot create ad-hoc RDS snapshots) |
+| 1 | real RDS resource; live/registry.json has no AWS::RDS::DBSnapshot type (CFN cannot create ad-hoc RDS snapshots) |
+| 1 | real account-level AMI block-public-access setting; live/registry.json's EC2 types have no image-block-public-access type (the registry's only block-public-access types are SnapshotBlockPublicAccess and VPCBlockPublicAccessOptions/Exclusion, neither of which covers AMIs) |
+| 1 | real account-level AZ-group opt-in setting; live/registry.json's EC2 types have no availability-zone-group type |
+| 1 | real account-level Allowed AMIs setting; live/registry.json's EC2 types have no allowed-images-settings type |
+| 1 | real account-level Compute Optimizer setting; live/registry.json's only AWS::ComputeOptimizer type is AutomationRule - no enrollment/status type |
+| 1 | real account-level Config setting (evaluation-result retention period); live/registry.json's AWS::Config types have no RetentionConfiguration type |
+| 1 | real account-level DevOps Guru setting (cross-service integrations); live/registry.json's DevOpsGuru types have no service-integration type |
+| 1 | real account-level DevOps Guru setting (e.g. CloudTrail event source); live/registry.json's DevOpsGuru types (LogAnomalyDetectionIntegration, NotificationChannel, ResourceCollection) have no event-sources-config type |
+| 1 | real account-level EC2 Serial Console access setting; live/registry.json's EC2 types have no serial-console-access type |
+| 1 | real account/region-level EBS default-encryption-key setting; live/registry.json's EC2 types have no default-KMS-key type (unlike e.g. AWS::EC2::VPCBlockPublicAccessOptions, CFN does not model this particular EBS account default) |
+| 1 | real account/region-level EBS encryption-by-default setting; live/registry.json's EC2 types have no encryption-by-default type |
+| 1 | real account/region-level IMDS defaults setting; live/registry.json's EC2 types have no instance-metadata-defaults type |
+| 1 | real account/region-level default T-instance credit-specification setting; live/registry.json's EC2 types have no default-credit-specification type |
+| 1 | real account/resource-level Compute Optimizer setting; live/registry.json's only AWS::ComputeOptimizer type is AutomationRule - no preferences type |
+| 1 | real additional-replication-region resource for a MicrosoftAD directory; live/registry.json's AWS::DirectoryService::MicrosoftAD has no inline multi-region property and there is no dedicated Region type |
+| 1 | real cross-account proposal resource; AWS::DirectConnect::DirectConnectGatewayAssociation is a single-step CFN resource with no separate propose/accept pair, and live/registry.json has no Proposal type |
+| 1 | real cross-region automated-backup replication feature; live/registry.json's AWS::RDS::DBInstance has no property for this and there is no dedicated type |
+| 1 | real custom vocabulary resource for Contact Lens; live/registry.json's Connect types have no Vocabulary type |
+| 1 | real directory-sharing resource; live/registry.json's only AWS::DirectoryService types are MicrosoftAD and SimpleAD - no sharing type |
+| 1 | real per-AZ fast-snapshot-restore enablement for a snapshot; live/registry.json's EC2 types have no fast-snapshot-restore type |
+| 1 | real per-organization auto-enable setting for Detective; live/registry.json's Detective types (Graph, MemberInvitation, OrganizationAdmin) have no OrganizationConfiguration type |
+| 1 | real per-subnet CIDR reservation resource; live/registry.json's EC2 types have no subnet-cidr-reservation type |
+| 1 | real point-in-time export resource (ExportTableToPointInTime); live/registry.json's AWS::DynamoDB types (GlobalTable, Table) have no export type |
+| 1 | real resource (legacy AssociateBot API, Lex V1); live/registry.json's Connect types include only the generic IntegrationAssociation, which doesn't clearly correspond 1:1 to this legacy per-purpose association API - no dedicated BotAssociation type |
+| 1 | real resource (legacy AssociateLambdaFunction API); live/registry.json's Connect types include only the generic IntegrationAssociation, which doesn't clearly correspond 1:1 to this legacy per-purpose association API - no dedicated LambdaFunctionAssociation type |
+| 1 | real resource (repository trigger/notification config); live/registry.json's only AWS::CodeCommit type is Repository - no Trigger type |
+| 1 | real resource allocating a hosted connection to another account; live/registry.json's AWS::DirectConnect::Connection type is for the connection owner only - no dedicated hosted-connection allocation type |
+| 1 | real resource associating a claimed phone number with a contact flow; live/registry.json's Connect types have no dedicated association type for this pairing |
+| 1 | real resource associating a hosted connection with a LAG; live/registry.json's AWS::DirectConnect::Lag has no inline property for adding existing connections and there is no dedicated association type |
+| 1 | real resource designating an existing transit gateway route table as the TGW's default association route table; AWS::EC2::TransitGateway's own DefaultRouteTableAssociation property is a create-time enable/disable flag, not a pointer to a specific route table, so this action has no CFN property or type to fold into |
+| 1 | real resource designating an existing transit gateway route table as the TGW's default propagation route table; AWS::EC2::TransitGateway's own DefaultRouteTablePropagation property is a create-time enable/disable flag, not a pointer to a specific route table, so this action has no CFN property or type to fold into |
+| 1 | real resource importing an external disk image as an EBS snapshot; live/registry.json's EC2 types have no snapshot-import type |
+| 1 | real resource referencing a managed prefix list from a transit gateway route table; live/registry.json's EC2 types have no transit-gateway-prefix-list-reference type |
+| 1 | real resource registering third-party repo infrastructure (e.g. on-premises GitHub Enterprise Server); live/registry.json's AWS::CodeConnections types are Connection only - no Host type |
+| 1 | real resource registering third-party repo infrastructure (e.g. on-premises GitHub Enterprise Server); live/registry.json's AWS::CodeStarConnections types are Connection, RepositoryLink, SyncConfiguration - no Host type |
+| 1 | real resource-based policy set via PutResourcePolicy on a CodeBuild project or report group; AWS::CodeBuild::Project's CFN schema has no resource-policy property and live/registry.json has no separate CodeBuild policy type (only Fleet, Project, ReportGroup, SourceCredential) |
+| 1 | real resource; live/registry.json's only AWS::CodeCommit type is Repository - no ApprovalRuleTemplate type |
+| 1 | real resource; live/registry.json's only AWS::CodeCommit type is Repository - no association type for approval rule templates |
+| 1 | real trust-relationship resource between directories; live/registry.json's only AWS::DirectoryService types are MicrosoftAD and SimpleAD - no trust type |
 
-**Total.** 0 Terraform AWS resource types that are real infrastructure with no CloudFormation Registry model at all. Each row's own note is in `live/mapping.json`.
+**Total.** 71 Terraform AWS resource types that are real infrastructure with no CloudFormation Registry model at all. Each row's own note is in `live/mapping.json`.
 <!-- survey-gen:end residue-cfn-unmodeled -->
 
 #### Unclassified Terraform types
@@ -563,9 +630,9 @@ parent-derived) are unaffected and may still reach one.
 <!-- survey-gen:begin residue-unmapped -->
 | Count | Note |
 |---|---|
-| 713 | no CFN counterpart found by name or curated overlay |
+| 596 | no CFN counterpart found by name or curated overlay |
 
-**Total.** 713 Terraform AWS resource types with no CloudFormation Registry counterpart and no terminal classification yet - the count the family sweeps in issue #53's workplan burn down. Each row's own note is in `live/mapping.json`.
+**Total.** 596 Terraform AWS resource types with no CloudFormation Registry counterpart and no terminal classification yet - the count the family sweeps in issue #53's workplan burn down. Each row's own note is in `live/mapping.json`.
 <!-- survey-gen:end residue-unmapped -->
 
 #### Registry-laggard live services
@@ -591,9 +658,13 @@ excluding types already counted under "Deprecated or EOL services" above.
 | `aws_codebuild_project` | `AWS::CodeBuild::Project` |
 | `aws_codebuild_report_group` | `AWS::CodeBuild::ReportGroup` |
 | `aws_codebuild_source_credential` | `AWS::CodeBuild::SourceCredential` |
+| `aws_codebuild_webhook` | `AWS::CodeBuild::Project` |
 | `aws_codecommit_repository` | `AWS::CodeCommit::Repository` |
 | `aws_config_configuration_recorder` | `AWS::Config::ConfigurationRecorder` |
 | `aws_config_delivery_channel` | `AWS::Config::DeliveryChannel` |
+| `aws_config_organization_custom_policy_rule` | `AWS::Config::OrganizationConfigRule` |
+| `aws_config_organization_custom_rule` | `AWS::Config::OrganizationConfigRule` |
+| `aws_config_organization_managed_rule` | `AWS::Config::OrganizationConfigRule` |
 | `aws_dlm_lifecycle_policy` | `AWS::DLM::LifecyclePolicy` |
 | `aws_dms_replication_instance` | `AWS::DMS::ReplicationInstance` |
 | `aws_dms_replication_subnet_group` | `AWS::DMS::ReplicationSubnetGroup` |
@@ -604,6 +675,7 @@ excluding types already counted under "Deprecated or EOL services" above.
 | `aws_docdb_subnet_group` | `AWS::DocDB::DBSubnetGroup` |
 | `aws_ec2_client_vpn_authorization_rule` | `AWS::EC2::ClientVpnAuthorizationRule` |
 | `aws_ec2_client_vpn_endpoint` | `AWS::EC2::ClientVpnEndpoint` |
+| `aws_ec2_client_vpn_network_association` | `AWS::EC2::ClientVpnTargetNetworkAssociation` |
 | `aws_ec2_client_vpn_route` | `AWS::EC2::ClientVpnRoute` |
 | `aws_elasticsearch_domain` | `AWS::Elasticsearch::Domain` |
 | `aws_emr_cluster` | `AWS::EMR::Cluster` |
@@ -643,7 +715,7 @@ excluding types already counted under "Deprecated or EOL services" above.
 | `aws_ses_receipt_rule` | `AWS::SES::ReceiptRule` |
 | `aws_ses_receipt_rule_set` | `AWS::SES::ReceiptRuleSet` |
 
-**Total.** 60 types, covered only where the provider's own identity schema reaches (the union `live/survey-full.json` measures). A successor CFN type sometimes exists with working handlers - `AWS::Elasticsearch::Domain` above has no handlers, but its successor `AWS::OpenSearchService::Domain` does; `live/mapping.json` does not yet link `aws_opensearch_domain` to it.
+**Total.** 65 types, covered only where the provider's own identity schema reaches (the union `live/survey-full.json` measures). A successor CFN type sometimes exists with working handlers - `AWS::Elasticsearch::Domain` above has no handlers, but its successor `AWS::OpenSearchService::Domain` does; `live/mapping.json` does not yet link `aws_opensearch_domain` to it.
 <!-- survey-gen:end residue-laggard -->
 
 #### Emulator-blocked

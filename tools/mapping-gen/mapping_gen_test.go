@@ -488,6 +488,18 @@ func TestServiceAliasCrossHeuristicCollisions(t *testing.T) {
 		{"aws_alb_target_group", "aws_lb_target_group"}:                 true,
 		{"aws_ses_configuration_set", "aws_sesv2_configuration_set"}:    true,
 		{"aws_ses_email_identity", "aws_sesv2_email_identity"}:          true,
+		// issue #53's codeartifact..ec2 family sweep: a Direct Connect
+		// hosted virtual interface (allocated by the connection/LAG owner
+		// on behalf of another account) and an owner-created one are the
+		// same CFN resource type - AWS::DirectConnect::{Private,Public,Transit}VirtualInterface's
+		// own CFN docs say so explicitly ("Hosted virtual interfaces are
+		// supported by the CloudFormation resource for ... virtual
+		// interfaces") and each type carries an
+		// Allocate*VirtualInterfaceRoleArn property specifically for the
+		// hosted case, not a separate type.
+		{"aws_dx_hosted_private_virtual_interface", "aws_dx_private_virtual_interface"}: true,
+		{"aws_dx_hosted_public_virtual_interface", "aws_dx_public_virtual_interface"}:   true,
+		{"aws_dx_hosted_transit_virtual_interface", "aws_dx_transit_virtual_interface"}: true,
 	}
 	seen := map[[2]string]bool{}
 
