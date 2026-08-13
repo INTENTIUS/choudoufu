@@ -251,13 +251,7 @@ five packages downstream of lint - `identity`, `discovery`, `stamp`,
 inside a static module binds by its module-qualified address
 (`module.a.module.b.aws_x.y`) exactly as soundly as a root resource binds by
 its own. `RuleChildModule` reports nothing for a module call that sets
-neither `count` nor `for_each`. A `provider` block declared inside that
-static module is a separate, still-open question (per-module provider
-resolution, issue #70): it is neither supported nor refused today - the
-module's resources are silently served by the root configuration's own
-provider config instead - and `lint.CheckModuleProviders`
-(`internal/live/lint/module_provider.go`) only warns about it by name, once
-per run, rather than failing the run.
+neither `count` nor `for_each`.
 
 **A statically-keyed `for_each` module call is admitted.** As of issue #59,
 phase 3 ("59c"), a module call's `for_each` is evaluated the same way a
@@ -519,28 +513,6 @@ as a destroy, is asserted in `internal/live/lifecycle/exactness_test.go`.
 The unadmitted half holds by construction: `internal/live/discovery`
 builds the sweep universe from `identity.AdmittedTypes()`.)
 
-**A resource inside a keyed module is stamped by hand, not automatically.**
-Stamping cannot compute a per-instance marker for a resource declared
-inside a module call that sets `for_each` (directly, or through an
-ancestor module call, at any depth) - the module's several instances share
-one HCL body for the resource's `tags` argument, and there is no single
-literal `tofu-address` that is correct for all of them, nor a safe way to
-evaluate an expression that depends on a variable threaded from the module
-call's own `each.key` (`internal/configs`' static evaluator has no
-repetition data to evaluate one against). Such a resource is left alone
-with the `SkipModuleKeyed` reason (`MODULE_KEYED`): trusted as written when
-it already declares a `tags` argument, and the ordinary must-stamp error
-when it declares none and its type needs discovery to be found again. The
-operator writes the marker by hand instead, threading the module's own
-`each.key` through as a variable and interpolating it into the address -
-see "The keyed-module marker idiom" on the concept page
-(`website/docs/language/live-markers.mdx`) for the three-line pattern, and
-`live/e2e/estate-module-keyed/` for the fixture it comes from. This is not
-a lint refusal; a keyed module is admitted (see "child-module" above), and
-this is a standing property of what the stamping pass can and cannot
-inject into a shared configuration body. (`internal/live/stamp/stamp.go`,
-`SkipModuleKeyed` and `moduleKeyedResource`.)
-
 **Untaggable types carry no ownership marker of their own.** <!-- survey-gen:begin untaggable-admitted -->
 `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
 `aws_api_gateway_account`, `aws_api_gateway_base_path_mapping`,
@@ -580,8 +552,11 @@ inject into a shared configuration body. (`internal/live/stamp/stamp.go`,
 `aws_ec2_transit_gateway_route`,
 `aws_ec2_transit_gateway_route_table_association`,
 `aws_ec2_transit_gateway_route_table_propagation`,
-`aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
-`aws_ecr_replication_configuration`, `aws_ecrpublic_repository_policy`,
+`aws_ecr_lifecycle_policy`, `aws_ecr_pull_through_cache_rule`,
+`aws_ecr_pull_time_update_exclusion`, `aws_ecr_registry_policy`,
+`aws_ecr_registry_scanning_configuration`,
+`aws_ecr_replication_configuration`, `aws_ecr_repository_creation_template`,
+`aws_ecr_repository_policy`, `aws_ecrpublic_repository_policy`,
 `aws_ecs_cluster_capacity_providers`, `aws_eip_association`,
 `aws_eks_access_policy_association`, `aws_emr_security_configuration`,
 `aws_fsx_s3_access_point_attachment`,
@@ -604,6 +579,7 @@ inject into a shared configuration body. (`internal/live/stamp/stamp.go`,
 `aws_network_acl_rule`, `aws_network_interface_attachment`,
 `aws_network_interface_permission`,
 `aws_networkfirewall_logging_configuration`,
+`aws_networkmanager_core_network_policy_attachment`,
 `aws_networkmanager_customer_gateway_association`,
 `aws_networkmanager_link_association`,
 `aws_networkmanager_prefix_list_association`,
@@ -632,7 +608,8 @@ inject into a shared configuration body. (`internal/live/stamp/stamp.go`,
 `aws_sns_topic_policy`, `aws_sqs_queue_policy`, `aws_ssm_patch_group`,
 `aws_ssm_resource_data_sync`, `aws_ssm_service_setting`,
 `aws_ssoadmin_account_assignment`, `aws_ssoadmin_application_assignment`,
-`aws_ssoadmin_instance_access_control_attributes`, `aws_volume_attachment`,
+`aws_ssoadmin_instance_access_control_attributes`,
+`aws_transfer_web_app_customization`, `aws_volume_attachment`,
 `aws_vpc_dhcp_options_association`, `aws_vpc_endpoint_policy`,
 `aws_vpc_endpoint_private_dns`, `aws_vpc_endpoint_route_table_association`,
 `aws_vpc_endpoint_security_group_association`,
@@ -703,6 +680,8 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_ec2_transit_gateway_policy_table_association` | `aws_ec2_transit_gateway_policy_table` | no (report-only) |
 | `aws_ec2_transit_gateway_route_table_association` | `aws_ec2_transit_gateway_route_table` | no (report-only) |
 | `aws_ec2_transit_gateway_route_table_propagation` | `aws_ec2_transit_gateway_route_table` | no (report-only) |
+| `aws_ecr_lifecycle_policy` | `aws_ecr_repository` | no (report-only) |
+| `aws_ecr_repository_policy` | `aws_ecr_repository` | no (report-only) |
 | `aws_ecrpublic_repository_policy` | `aws_ecrpublic_repository` | no (report-only) |
 | `aws_eks_access_policy_association` | `aws_iam_policy` | no (report-only) |
 | `aws_emr_security_configuration` | `aws_api_gateway_domain_name` | no (report-only) |
@@ -729,6 +708,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_nat_gateway_eip_association` | `aws_nat_gateway` | no (report-only) |
 | `aws_network_acl_rule` | `aws_network_acl` | no (report-only) |
 | `aws_networkfirewall_logging_configuration` | `aws_networkfirewall_firewall` | no (report-only) |
+| `aws_networkmanager_core_network_policy_attachment` | `aws_networkmanager_core_network` | no (report-only) |
 | `aws_networkmanager_customer_gateway_association` | `aws_customer_gateway` | no (report-only) |
 | `aws_networkmanager_link_association` | `aws_networkmanager_link` | no (report-only) |
 | `aws_networkmanager_prefix_list_association` | `aws_ec2_managed_prefix_list` | no (report-only) |
@@ -762,6 +742,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_ssoadmin_account_assignment` | `aws_instance` | no (report-only) |
 | `aws_ssoadmin_application_assignment` | `aws_ssoadmin_application` | no (report-only) |
 | `aws_ssoadmin_instance_access_control_attributes` | `aws_instance` | no (report-only) |
+| `aws_transfer_web_app_customization` | `aws_transfer_web_app` | no (report-only) |
 | `aws_volume_attachment` | `aws_ebs_volume` | no (report-only) |
 | `aws_vpc_endpoint_policy` | `aws_vpc_endpoint` | no (report-only) |
 | `aws_vpc_endpoint_private_dns` | `aws_vpc_endpoint` | no (report-only) |
@@ -771,7 +752,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_vpc_ipam_pool_cidr` | `aws_vpc_ipam_pool` | no (report-only) |
 | `aws_wafv2_web_acl_rule` | `aws_wafv2_web_acl` | no (report-only) |
 
-**Total.** 106 types swept via a parent read.
+**Total.** 110 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
@@ -811,11 +792,12 @@ per-type reasoning as it stands.
 `aws_config_remediation_configuration`, `aws_controltower_control`,
 `aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
 `aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
-`aws_ec2_transit_gateway_route`, `aws_ecr_registry_policy`,
+`aws_ec2_transit_gateway_route`, `aws_ecr_pull_through_cache_rule`,
+`aws_ecr_pull_time_update_exclusion`, `aws_ecr_registry_policy`,
 `aws_ecr_registry_scanning_configuration`,
-`aws_ecr_replication_configuration`, `aws_ecs_cluster_capacity_providers`,
-`aws_eip_association`, `aws_globalaccelerator_endpoint_group`,
-`aws_globalaccelerator_listener`,
+`aws_ecr_replication_configuration`, `aws_ecr_repository_creation_template`,
+`aws_ecs_cluster_capacity_providers`, `aws_eip_association`,
+`aws_globalaccelerator_endpoint_group`, `aws_globalaccelerator_listener`,
 `aws_glue_data_catalog_encryption_settings`,
 `aws_guardduty_organization_admin_account`,
 `aws_inspector2_delegated_admin_account`,

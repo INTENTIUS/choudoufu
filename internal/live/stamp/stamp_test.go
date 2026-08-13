@@ -953,6 +953,16 @@ var (
 		"aws_sagemaker_studio_lifecycle_config",
 		"aws_sagemaker_user_profile",
 		"aws_sagemaker_workteam",
+		// Registry-ratified stragglers batch (#40, #44, issue #65's
+		// ratification campaign): reachable types earlier batches left
+		// outside their own named scope. Seven of this batch's types are
+		// untaggable instead - see below. See
+		// live/e2e/estates/stragglers/README.md.
+		"aws_transfer_certificate",
+		"aws_transfer_profile",
+		"aws_transfer_web_app",
+		"aws_transfer_agreement",
+		"aws_storagegateway_tape_pool",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -1260,6 +1270,25 @@ var (
 		// model_package_group_name, no tags block at all. See
 		// live/e2e/estates/sagemaker/README.md, "Untaggable types".
 		"aws_sagemaker_model_package_group_policy",
+		// Registry-ratified stragglers batch (#40, #44, issue #65): seven
+		// types with no tags argument at all, confirmed against the pinned
+		// v6.58.0 provider docs and the generated live/e2e/estates/stragglers
+		// fixture: aws_transfer_web_app_customization (Argument Reference:
+		// web_app_id, favicon_file, logo_file, title only) and
+		// aws_networkmanager_core_network_policy_attachment (Argument
+		// Reference: core_network_id, policy_document only) are both
+		// named-singleton-child folds, the same untaggable shape as
+		// aws_s3_bucket_policy; the five ECR types are all policy/rule
+		// documents or a name-prefix template, the same shape as
+		// aws_ecr_repository_policy's own siblings. See
+		// live/e2e/estates/stragglers/README.md, "Untaggable types".
+		"aws_transfer_web_app_customization",
+		"aws_networkmanager_core_network_policy_attachment",
+		"aws_ecr_lifecycle_policy",
+		"aws_ecr_pull_through_cache_rule",
+		"aws_ecr_pull_time_update_exclusion",
+		"aws_ecr_repository_creation_template",
+		"aws_ecr_repository_policy",
 	}
 )
 
@@ -2280,6 +2309,7 @@ func testSchemas() Schemas {
 		"aws_route53recoveryreadiness_readiness_check":              tagged("id", "arn", "readiness_check_name"),
 		"aws_route53recoveryreadiness_recovery_group":               tagged("id", "arn", "recovery_group_name"),
 		"aws_route53recoveryreadiness_resource_set":                 tagged("id", "arn", "resource_set_name", "resource_set_type"),
+
 		// Registry-ratified databases batch (#40, #44, issue #65).
 		// Taggable/untaggable per the real provider's documented Argument
 		// Reference for each type, confirmed against the generated
@@ -2384,6 +2414,21 @@ func testSchemas() Schemas {
 		"aws_sagemaker_studio_lifecycle_config":                   tagged("id", "arn", "studio_lifecycle_config_name"),
 		"aws_sagemaker_user_profile":                              tagged("arn", "domain_id", "user_profile_name"),
 		"aws_sagemaker_workteam":                                  tagged("id", "arn", "workteam_name"),
+		// Registry-ratified stragglers batch (#40, #44, issue #65). See
+		// live/e2e/estates/stragglers/README.md, "Untaggable types" for
+		// which of these carry no tags argument at all.
+		"aws_transfer_certificate":                          tagged("id", "arn", "certificate_id"),
+		"aws_transfer_profile":                              tagged("id", "arn", "profile_id"),
+		"aws_transfer_web_app":                              tagged("id", "arn", "web_app_id"),
+		"aws_transfer_web_app_customization":                untagged("id", "web_app_id"),
+		"aws_transfer_agreement":                            tagged("id", "arn", "server_id", "agreement_id"),
+		"aws_networkmanager_core_network_policy_attachment": untagged("id", "core_network_id", "state"),
+		"aws_storagegateway_tape_pool":                      tagged("id", "arn", "pool_name"),
+		"aws_ecr_lifecycle_policy":                          untagged("id", "repository", "registry_id"),
+		"aws_ecr_pull_through_cache_rule":                   untagged("id", "ecr_repository_prefix"),
+		"aws_ecr_pull_time_update_exclusion":                untagged("id", "principal_arn"),
+		"aws_ecr_repository_creation_template":              untagged("id", "prefix"),
+		"aws_ecr_repository_policy":                         untagged("id", "repository", "registry_id"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.

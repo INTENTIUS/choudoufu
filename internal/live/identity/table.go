@@ -9039,6 +9039,156 @@ var DefaultTable = buildTable(
 	//     resource, but it has no AWS::Comprehend::* registry entry
 	//     beyond DocumentClassifier (row-gen's own "Comprehend (1 types)"
 	//     count), so there is no CFN evidence for it to ratify against.
+
+	// ---- Registry-ratified (#40, #44, #65): stragglers batch (issue #65's
+	// ---- ratification campaign) ------------------------------------------
+	//
+	// Every row below is a type an earlier ratified batch's own cohort
+	// README named as reachable but left outside that batch's stated named
+	// scope. Same verification standard as every batch above: the pinned
+	// v6.58.0 provider docs (fetched directly from
+	// raw.githubusercontent.com/hashicorp/terraform-provider-aws at that
+	// tag) or live/import-grammar.json's own scrape of the same source, not
+	// the CFN registry's classification alone. Cohort estate:
+	// live/e2e/estates/stragglers.
+	//
+	// Transfer Family: the data-movement batch named servers, users,
+	// workflows and connectors only, leaving six more Transfer types
+	// reachable. Five ratify here; the sixth, aws_transfer_ssh_key, is
+	// rejected (see below).
+	serverAssigned("aws_transfer_certificate",
+		"the provider's Attribute Reference documents certificate_id as a resource-exported attribute, absent from the Argument Reference entirely (Required arguments are only certificate, usage; tags is Optional) - the documented import command uses certificate_id, which no configuration argument reconstructs.",
+		"CERTIFICATE_ID", "id", "arn"),
+	serverAssigned("aws_transfer_profile",
+		"the provider's Attribute Reference documents profile_id as a resource-exported attribute, absent from the Argument Reference entirely (Required arguments are only as2_id, profile_type; tags is Optional) - the documented import command uses profile_id, which no configuration argument reconstructs.",
+		"PROFILE_ID", "id", "arn"),
+	serverAssigned("aws_transfer_web_app",
+		"the provider's Attribute Reference documents web_app_id as a resource-exported attribute, absent from the Argument Reference entirely (the sole Required argument is the identity_provider_details block; tags is Optional) - the documented import command uses web_app_id, which no configuration argument reconstructs.",
+		"WEB_APP_ID", "id", "arn"),
+	TypeIdentity{
+		// A web app customization is a named singleton child: exactly one
+		// per web app, identified by the web app's own id. web_app_id is a
+		// Required argument in the provider's own Argument Reference (not
+		// merely an exported attribute), and the documented import command
+		// uses that same value verbatim - the same named-singleton-child
+		// shape as aws_s3_bucket_policy and
+		// aws_networkmanager_core_network_policy_attachment below. The
+		// provider ships no tags argument for this type at all.
+		Type:          "aws_transfer_web_app_customization",
+		Components:    []Component{attr("web_app_id")},
+		ImportSyntax:  "WEB_APP_ID",
+		IdentityAttrs: []string{"id", "web_app_id"},
+	},
+	serverAssigned("aws_transfer_agreement",
+		"the documented import composite is server_id/agreement_id; server_id is a real Required argument, but agreement_id is documented only in the Attribute Reference (\"The unique identifier for the AS2 agreement\"), absent from the Argument Reference entirely - no configuration argument reconstructs the full identity. tags is Optional, so the type is taggable.",
+		"SERVER_ID/AGREEMENT_ID", "id", "arn"),
+
+	// NetworkManager: row-gen marks aws_networkmanager_core_network_policy_attachment
+	// a property-child fold of AWS::NetworkManager::CoreNetwork with no
+	// pastable row - but the provider's own Argument Reference shows its
+	// sole identifying component, core_network_id, is a real Required
+	// argument, and the documented import command uses that value alone,
+	// with no separator. The same named-singleton-child shape as
+	// aws_s3_bucket_policy: at most one policy attachment per core network,
+	// concrete whenever the core network is. The provider ships no tags
+	// argument for this type (policy_document is the only other argument).
+	// Every other NetworkManager type row-gen proposes is already ratified
+	// by the networking-advanced batch; this is the sole straggler in the
+	// service.
+	TypeIdentity{
+		Type:          "aws_networkmanager_core_network_policy_attachment",
+		Components:    []Component{attr("core_network_id")},
+		ImportSyntax:  "CORE_NETWORK_ID",
+		IdentityAttrs: []string{"id", "core_network_id"},
+	},
+
+	// Storage Gateway: registry-present for exactly one type, TapePool
+	// (cfn-unmodeled beyond it - every other real Storage Gateway resource
+	// has no CFN Registry entry at all, per live/mapping.json's own sweep).
+	// The provider's documented import command uses the tape pool's ARN,
+	// which the Attribute Reference confirms is a resource-exported
+	// attribute (pool_name is the client-chosen argument, but the ARN's
+	// own pool-NNNNNNNN suffix is server-minted, not pool_name). tags is
+	// Optional, so the type is taggable.
+	serverAssigned("aws_storagegateway_tape_pool",
+		"the documented import id is the tape pool's ARN (arn:...:tapepool/pool-12345678); the Attribute Reference confirms arn is a resource-exported attribute, and the ARN's pool-NNNNNNNN suffix is server-minted, distinct from the client-chosen pool_name argument - no configuration argument reconstructs it.",
+		"ARN", "id", "arn"),
+
+	// ECR remainder: the IAM/ECR batch's own row-gen output classified all
+	// five of these evidence-only (per #44's non-goals, no pastable row was
+	// ever generated for any of them), not on any identity weakness -
+	// independent verification against the pinned provider docs supplies a
+	// clean, single-argument, Required-in-schema identity for each, the
+	// same registry-undersold shape earlier batches corrected repeatedly
+	// (aws_sns_topic_policy, aws_qldb_ledger, aws_memorydb_subnet_group).
+	// None of the five carries a tags argument.
+	TypeIdentity{
+		// Named singleton child of aws_ecr_repository: at most one lifecycle
+		// policy per repository, identified by the repository's own name
+		// (a real Required argument, confirmed against the provider's own
+		// Identity Schema: "repository - Name of the ECR repository").
+		Type:          "aws_ecr_lifecycle_policy",
+		Components:    []Component{attr("repository")},
+		ImportSyntax:  "REPOSITORY",
+		IdentityAttrs: []string{"id", "repository"},
+	},
+	TypeIdentity{
+		// ecr_repository_prefix is a Required, ForceNew argument, and the
+		// documented import command uses that value verbatim, with no
+		// separator - a plain client-named type, not a fold of anything.
+		Type:          "aws_ecr_pull_through_cache_rule",
+		Components:    []Component{attr("ecr_repository_prefix")},
+		ImportSyntax:  "ECR_REPOSITORY_PREFIX",
+		IdentityAttrs: []string{"id"},
+	},
+	TypeIdentity{
+		// principal_arn is a Required, ForceNew argument (the IAM principal
+		// excluded from image-pull-time recording), and the documented
+		// import command uses that value verbatim.
+		Type:          "aws_ecr_pull_time_update_exclusion",
+		Components:    []Component{attr("principal_arn")},
+		ImportSyntax:  "PRINCIPAL_ARN",
+		IdentityAttrs: []string{"id"},
+	},
+	TypeIdentity{
+		// prefix is a Required, ForceNew argument, and the documented
+		// import command uses that value verbatim; resource_tags (tags
+		// applied to repositories this template creates) is a distinct
+		// concept from a tags argument on the template resource itself,
+		// which does not exist.
+		Type:          "aws_ecr_repository_creation_template",
+		Components:    []Component{attr("prefix")},
+		ImportSyntax:  "PREFIX",
+		IdentityAttrs: []string{"id"},
+	},
+	TypeIdentity{
+		// Named singleton child of aws_ecr_repository, the same shape as
+		// aws_ecr_lifecycle_policy above and the same type the IAM/ECR
+		// batch's own devtools-batch follow-up (aws_ecrpublic_repository_policy)
+		// already cites as this type's deferred sibling.
+		Type:          "aws_ecr_repository_policy",
+		Components:    []Component{attr("repository")},
+		ImportSyntax:  "REPOSITORY",
+		IdentityAttrs: []string{"id", "repository"},
+	},
+
+	// ---- Rejected, stragglers batch --------------------------------------
+	//
+	// aws_transfer_ssh_key: the documented import composite is
+	// server_id/user_name/ssh_public_key_id. server_id and user_name are
+	// both real Required arguments, but ssh_public_key_id is absent from
+	// both the Argument Reference and the Attribute Reference entirely
+	// ("This resource exports no additional attributes") - it exists only
+	// inside the opaque id string the provider mints at create time. Unlike
+	// aws_transfer_web_app_customization above, server_id/user_name is not
+	// a singleton key either: a single user can hold more than one SSH key,
+	// so the pair does not uniquely determine the resource the way a
+	// bucket name determines its policy. The provider ships no tags
+	// argument for this type at all (Argument Reference: region, server_id,
+	// user_name, body only), so there is no marker path either. No
+	// admission path recovers it - the same genuine, unrecoverable gap as
+	// aws_qldb_stream and aws_elasticache_global_replication_group's own
+	// rejections, not a row-gen misclassification.
 )
 
 func buildTable(entries ...TypeIdentity) map[string]TypeIdentity {
