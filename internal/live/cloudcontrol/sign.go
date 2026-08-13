@@ -17,7 +17,9 @@ import (
 )
 
 // serviceName is Cloud Control's SigV4 service identifier, the segment that
-// appears in both the credential scope and the request's host.
+// appears in both the credential scope and the request's host. It is [New]'s
+// default for Client.service; [NewTagging] (tagging.go) sets a different
+// one.
 const serviceName = "cloudcontrolapi"
 
 // authenticate decides whether req can be signed and either signs it or
@@ -68,7 +70,7 @@ func (c *Client) sign(ctx context.Context, req *http.Request, body []byte, creds
 	hash := sha256.Sum256(body)
 	payloadHash := hex.EncodeToString(hash[:])
 	signer := v4.NewSigner()
-	return signer.SignHTTP(ctx, creds, req, payloadHash, serviceName, c.regionOrDefault(), c.clock())
+	return signer.SignHTTP(ctx, creds, req, payloadHash, c.service, c.regionOrDefault(), c.clock())
 }
 
 // applyRegionScope sets the unsigned placeholder Authorization header that
@@ -92,7 +94,7 @@ func (c *Client) applyRegionScope(req *http.Request) {
 	day := c.clock().UTC().Format("20060102")
 	req.Header.Set("Authorization", fmt.Sprintf(
 		"AWS4-HMAC-SHA256 Credential=unsigned/%s/%s/%s/aws4_request, SignedHeaders=host, Signature=unsigned",
-		day, region, serviceName,
+		day, region, c.service,
 	))
 }
 

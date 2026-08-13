@@ -502,6 +502,15 @@ const (
 
 	// ProblemListFailed is a provider error while listing a type.
 	ProblemListFailed ProblemKind = "LIST_FAILED"
+
+	// ProblemUncomposableIdentifier is a Cloud Control ListResources
+	// identifier this package refuses to hand out as an import ID: a
+	// multi-part ("|"-joined) identifier whose parts cannot be composed
+	// through the identity table's Components, either because the type has
+	// no table entry or because the table's components do not line up with
+	// the parts Cloud Control sent. The raw "|"-joined string is never used
+	// as a substitute - see [composeCloudControlIdentifier].
+	ProblemUncomposableIdentifier ProblemKind = "UNCOMPOSABLE_IDENTIFIER"
 )
 
 // Severity is the diagnostic severity a problem of this kind carries.
@@ -591,6 +600,24 @@ const (
 	ScopeAll Scope = "ALL"
 )
 
+// EnumerationSource is which mechanism a scan used to enumerate a type's
+// live population (issue #47).
+type EnumerationSource string
+
+const (
+	// SourceProvider is the provider's own native list resource - the
+	// primary source wherever it exists, because it returns the
+	// provider-shaped objects the rest of discovery already consumes.
+	SourceProvider EnumerationSource = "PROVIDER"
+
+	// SourceCloudControl is AWS Cloud Control's ListResources on the CFN
+	// type live/mapping.json joins the TF type to, used only when the
+	// provider offers no native list resource for the type and
+	// live/registry.json says the mapped CFN type is listable with no
+	// required input. See [registry.Roster.EnumerationSource].
+	SourceCloudControl EnumerationSource = "CLOUD_CONTROL"
+)
+
 // TypeScan is what happened for one resource type.
 type TypeScan struct {
 	// TypeName is the type that was listed.
@@ -627,6 +654,26 @@ type TypeScan struct {
 	// the provider resolved none. See [ProblemUnresolvedAccount].
 	AccountID string
 
+	// Source says which enumeration source this scan used: the provider's
+	// native list resource, or Cloud Control's ListResources on a mapped
+	// CFN type (issue #47). Empty for a scan that never started (the
+	// provider cannot list the type and no Cloud Control fallback applied);
+	// see [Result.Problems] for why.
+	Source EnumerationSource
+
+	// CFNType is the CFN type name Cloud Control was asked to list, set
+	// only when Source is [SourceCloudControl].
+	CFNType string
+
+	// Refined is the number of listed resources whose tags could not be
+	// read from Cloud Control's ResourceDescriptions.Properties directly
+	// (no Tags property came back with the list) and needed an individual
+	// GetResource call to refine - the cost the client-side tag-filtering
+	// rule in issue #47 says to surface rather than hide. Always zero for a
+	// native-provider scan, whose tags always ride along with the listed
+	// object.
+	Refined int
+
 	// Sweep is true when this scan is part of the estate-wide sweep: a type
 	// the configuration declares nothing of, listed anyway because this
 	// estate may still own resources of it. Such a scan looks for markers
@@ -642,8 +689,18 @@ func (s TypeScan) String() string {
 	if s.Sweep {
 		kind = " SWEEP"
 	}
-	return fmt.Sprintf("%s%s %s/%s declared=%d listed=%d bound=%d other-estate=%d unclaimed=%d",
-		s.TypeName, kind, s.Filtering, s.Scope, s.Declared, s.Listed, s.Bound, s.OtherEstate, s.Unclaimed)
+	source := ""
+	switch s.Source {
+	case SourceCloudControl:
+		source = fmt.Sprintf(" source=cloudcontrol(%s)", s.CFNType)
+		if s.Refined > 0 {
+			source += fmt.Sprintf(" refined=%d", s.Refined)
+		}
+	case SourceProvider:
+		source = " source=provider"
+	}
+	return fmt.Sprintf("%s%s %s/%s declared=%d listed=%d bound=%d other-estate=%d unclaimed=%d%s",
+		s.TypeName, kind, s.Filtering, s.Scope, s.Declared, s.Listed, s.Bound, s.OtherEstate, s.Unclaimed, source)
 }
 
 // BindingFor returns the binding for one declared instance.

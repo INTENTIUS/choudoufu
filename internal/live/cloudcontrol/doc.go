@@ -38,4 +38,17 @@
 // failure mode chant's regionScope comment documents. The placeholder is
 // not a signature — real AWS rejects it — it is only what an emulator
 // reads the region out of the way a real SDK would carry it.
+//
+// # Resource Groups Tagging API
+//
+// [NewTagging] builds a Client for a second service that speaks the same
+// AWS JSON 1.0 shape against a different host and target namespace:
+// tagging.<region>.amazonaws.com, ResourceGroupsTaggingAPI_20170126.
+// GetResources ([Client.GetResources]) is the estate-wide sweep primitive
+// issue #47 evaluated: one paginated call returns every ARN carrying an
+// estate's tofu-estate tag, in place of a ListResources call per admitted
+// type. It is not wired into internal/live/discovery's sweep - turning an
+// ARN back into the (resource type, identifier) pair a bind step needs is
+// scoped out, see the TODO on [Client.GetResources] - so today it exists as
+// a tested, callable primitive and nothing calls it yet.
 package cloudcontrol

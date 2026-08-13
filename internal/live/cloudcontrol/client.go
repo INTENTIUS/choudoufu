@@ -25,7 +25,9 @@ import (
 const defaultRegion = "us-east-1"
 
 // targetPrefix is the X-Amz-Target namespace Cloud Control's two operations
-// live under.
+// (ListResources, GetResource) live under. [New] is the only constructor
+// that uses it; [NewTagging] (tagging.go) configures a different one for the
+// Resource Groups Tagging API's GetResources.
 const targetPrefix = "CloudApiService"
 
 // Config configures a [Client]. The zero value is a client for real AWS in
@@ -74,12 +76,31 @@ type Client struct {
 	httpClient           *http.Client
 	now                  func() time.Time
 
+	// service is the SigV4 service identifier and host subdomain
+	// (<service>.<region>.amazonaws.com), and opTargetPrefix is the
+	// X-Amz-Target namespace requests carry. [New] sets Cloud Control's own
+	// values; [NewTagging] overrides both for the Resource Groups Tagging
+	// API, which speaks the same AWS JSON 1.0 shape against a different
+	// service.
+	service        string
+	opTargetPrefix string
+
 	fallbackOnce  sync.Once
 	fallbackCreds aws.CredentialsProvider
 }
 
-// New builds a Client from cfg.
+// New builds a Client from cfg, configured for Cloud Control's own two
+// operations (ListResources, GetResource).
 func New(cfg Config) *Client {
+	c := newClient(cfg)
+	c.service = serviceName
+	c.opTargetPrefix = targetPrefix
+	return c
+}
+
+// newClient builds the common parts every constructor in this package
+// shares; the caller sets service and opTargetPrefix.
+func newClient(cfg Config) *Client {
 	transport := cfg.RoundTripper
 	if transport == nil {
 		transport = http.DefaultTransport
@@ -136,7 +157,7 @@ func (c *Client) baseURL() string {
 	if region == "" {
 		region = defaultRegion
 	}
-	return fmt.Sprintf("https://%s.%s.amazonaws.com/", serviceName, region)
+	return fmt.Sprintf("https://%s.%s.amazonaws.com/", c.service, region)
 }
 
 // ResourceDescription is one live resource as Cloud Control describes it.
@@ -217,7 +238,7 @@ func (c *Client) call(ctx context.Context, operation string, payload any, out an
 		return fmt.Errorf("cloudcontrol: building the %s request: %w", operation, err)
 	}
 	req.Header.Set("Content-Type", "application/x-amz-json-1.0")
-	req.Header.Set("X-Amz-Target", targetPrefix+"."+operation)
+	req.Header.Set("X-Amz-Target", c.opTargetPrefix+"."+operation)
 
 	if err := c.authenticate(ctx, req, body); err != nil {
 		return fmt.Errorf("cloudcontrol: signing the %s request: %w", operation, err)
