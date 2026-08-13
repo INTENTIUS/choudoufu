@@ -6,8 +6,6 @@
 package lint
 
 import (
-	"strings"
-
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -1080,32 +1078,4 @@ func admitted(resourceType string, schemas map[string]providers.Schema, signal *
 	}
 	_, ok := identity.SynthesizeTypeIdentity(resourceType, schemas, signal)
 	return ok
-}
-
-// logicalTypePrefixes are the provider-local type prefixes whose resources
-// exist only inside the state file. Their value is generated once and then
-// remembered; the record of them IS the store that stateless mode removes, so
-// there is nothing to recover them from and no version of them that works
-// without authoritative state. See live/LIMITATIONS.md.
-//
-// Checked before the admission table so that a random_id gets the explanation
-// for why its whole family is out rather than the generic "not in the v0
-// table" message.
-var logicalTypePrefixes = []string{
-	"random_",
-	"tls_",
-	"time_",
-	"null_",
-	"local_",
-}
-
-// logicalType reports whether the given provider-local resource type is a
-// logical, store-only type, and returns the prefix that matched.
-func logicalType(resourceType string) (string, bool) {
-	for _, prefix := range logicalTypePrefixes {
-		if strings.HasPrefix(resourceType, prefix) {
-			return prefix, true
-		}
-	}
-	return "", false
 }

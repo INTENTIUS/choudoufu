@@ -64,6 +64,40 @@ using it is gone.
 and once for the connection block). Fixture at
 `live/e2e/limits/remote-exec/`.
 
+#### Logical resources: a three-way classification (GitHub issue #73)
+
+Every logical resource type in this family is refused today, and every one
+of them stays refused by this change - nothing below alters what a
+stateless run accepts. What changes is why a refusal reads the way it
+does. `internal/live/lint`'s per-type table (`logical_type.go`,
+`ClassifyLogicalType`) replaces the old family-prefix-only answer with a
+policy-grade classification, one of three:
+
+- **RECORD_ADMITTED** - `null_resource`, `terraform_data`, `time_static`,
+  `time_offset`, `time_rotating`, `time_sleep`, `random_id`, `random_pet`,
+  `random_shuffle`, `random_integer`. None of these generates or holds
+  secret material in any output, verified against each provider's own
+  documentation (see `logical_type.go`'s `logicalTypes` table for the
+  per-type citation). That makes each a candidate for #73's record-backed
+  identity: a persisted micro-state record standing in for the cloud
+  observation this fork otherwise requires. That support does not exist
+  yet, and a refusal for one of these types says so by name and cites #73.
+- **SECRET_REFUSED** - `random_password`, `random_bytes`, and the `tls_`
+  family (`tls_private_key`, `tls_self_signed_cert`,
+  `tls_locally_signed_cert`, `tls_cert_request`, and any future `tls_`
+  addition by default). Each generates, or requires as an argument, secret
+  material a live-markers run has nowhere safe to keep: no state file
+  today, and - per #73's own charter - no persisted micro-state record
+  either, since the no-secrets rule that already governs snapshots and
+  receipts forbids a record from carrying it too. Refused permanently, not
+  only until #73 lands.
+- **OTHER_REFUSED** - `local_*` and any other logical-family member this
+  table has no more specific opinion about. Refused for the original
+  reason, in the original wording: nobody has done the per-type
+  verification work for this group that the other two classes required, so
+  the honest default is "still refused, nothing more to say yet" rather
+  than a guess in either direction.
+
 ### null-resource
 
 **Construct.** `null_resource` with a `triggers` map.
@@ -76,11 +110,35 @@ attached to it. That record is the store. Logical-resource family, per
 **Forwarding address.** The receipts pattern. A declared, leaf resource
 whose value is a hash of inputs, read back to decide whether an effect needs
 to re-run, without any of `null_resource`'s implicit re-trigger machinery.
-Documented in `live/RECEIPTS.md`.
+Documented in `live/RECEIPTS.md`. Classified `RECORD_ADMITTED` (see above):
+GitHub issue #73's record-backed identity is a second forwarding address,
+once it exists.
 
-**Enforcement.** `RuleLogicalResource` (prefix `null_`),
-`internal/live/lint/admission.go` (`logicalType`). Fixture at
+**Enforcement.** `RuleLogicalResource`, classified `RECORD_ADMITTED`
+(`internal/live/lint/logical_type.go`, `ClassifyLogicalType`). Fixture at
 `live/e2e/limits/null-resource/`.
+
+### terraform-data
+
+**Construct.** `terraform_data`.
+
+**Why banned.** The same logical-resource story as `null_resource`: its
+`id` and `output` are minted once and remembered, not observed from
+anything live. Logical-resource family. It shares no type-name prefix with
+`null_resource` or any other logical type, so before this table it was
+missing from the admission code's prefix list entirely (GitHub issue #73's
+audit finding) and fell through to the generic "not in the v0 admission
+table" refusal (`unadmitted-type`) instead of this one. It is admitted to
+`internal/live/lint/logical_type.go`'s per-type table by exact type name
+rather than by a shared prefix, which is what closes that gap.
+
+**Forwarding address.** Same as `null_resource`: the receipts pattern
+today; GitHub issue #73's record-backed identity, once it lands. Classified
+`RECORD_ADMITTED` (see above).
+
+**Enforcement.** `RuleLogicalResource`, classified `RECORD_ADMITTED`
+(`internal/live/lint/logical_type.go`, `ClassifyLogicalType`). Fixture at
+`live/e2e/limits/terraform-data/`.
 
 ### local-file
 
@@ -94,8 +152,9 @@ Logical-resource family.
 a Makefile, a chant task) that produces the file on disk before OpenTofu
 runs, not as a resource OpenTofu tracks.
 
-**Enforcement.** `RuleLogicalResource` (prefix `local_`). Fixture at
-`live/e2e/limits/local-file/`.
+**Enforcement.** `RuleLogicalResource`, classified `OTHER_REFUSED` (see
+above; `internal/live/lint/logical_type.go`, `ClassifyLogicalType`).
+Fixture at `live/e2e/limits/local-file/`.
 
 ### random-password
 
@@ -108,9 +167,12 @@ A random value has no live twin. Logical-resource family.
 **Forwarding address.** A secret-store Op. Generate and store the secret
 in a secret manager (outside OpenTofu's model entirely), and have
 configuration reference it by ARN/path, never by value. The same forwarding
-applies to `tls_*`, banned for the same reason.
+applies to `tls_*`, banned for the same reason. Classified `SECRET_REFUSED`
+(see above): refused permanently, with no #73 forwarding address, unlike
+this family's `RECORD_ADMITTED` neighbors.
 
-**Enforcement.** `RuleLogicalResource` (prefix `random_`). Fixture at
+**Enforcement.** `RuleLogicalResource`, classified `SECRET_REFUSED`
+(`internal/live/lint/logical_type.go`, `ClassifyLogicalType`). Fixture at
 `live/e2e/limits/random-password/`.
 
 ### time-sleep
@@ -123,9 +185,12 @@ Logical-resource family.
 
 **Forwarding address.** Scheduling in the lifecycle layer. Sequence the
 delay in Ops/CI (a wait step, a dependency on an external readiness check),
-not as a resource in the graph.
+not as a resource in the graph. Classified `RECORD_ADMITTED` (see above):
+GitHub issue #73's record-backed identity is a second forwarding address,
+once it exists.
 
-**Enforcement.** `RuleLogicalResource` (prefix `time_`). Fixture at
+**Enforcement.** `RuleLogicalResource`, classified `RECORD_ADMITTED`
+(`internal/live/lint/logical_type.go`, `ClassifyLogicalType`). Fixture at
 `live/e2e/limits/time-sleep/`.
 
 ### remote-state
