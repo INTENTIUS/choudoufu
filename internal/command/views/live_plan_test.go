@@ -83,3 +83,40 @@ func TestStatelessPlan_unownedSectionEmpty(t *testing.T) {
 		t.Errorf("an empty unowned list rendered output:\n%s", got)
 	}
 }
+
+// TestStatelessPlan_guidedFallback pins the one-sentence note a configured
+// but fallen-back guided-discovery pass renders: the heading names what
+// happened, and discovery's own reason - passed through unedited - is the
+// body.
+func TestStatelessPlan_guidedFallback(t *testing.T) {
+	streams, done := terminal.StreamsForTesting(t)
+	v := NewStatelessPlan(NewView(streams).SetRunningInAutomation(true))
+
+	v.GuidedFallback("the snapshot hint at snapshot/estate.json is stale (72h0m0s old, over the 168h0m0s limit); falling back to full enumeration")
+
+	got := done(t).Stdout()
+	for _, want := range []string{
+		"Snapshot-guided discovery: fell back to a full sweep",
+		"the snapshot hint at snapshot/estate.json is stale",
+		"falling back to full enumeration",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the note does not contain %q:\n%s", want, got)
+		}
+	}
+}
+
+// TestStatelessPlan_guidedFallbackEmpty: an empty reason renders nothing,
+// which is the case for every pass that never configured guided discovery at
+// all and for every pass where it engaged successfully - neither is
+// something an operator needs told about on every run.
+func TestStatelessPlan_guidedFallbackEmpty(t *testing.T) {
+	streams, done := terminal.StreamsForTesting(t)
+	v := NewStatelessPlan(NewView(streams).SetRunningInAutomation(true))
+
+	v.GuidedFallback("")
+
+	if got := done(t).Stdout(); got != "" {
+		t.Errorf("an empty fallback reason rendered output:\n%s", got)
+	}
+}

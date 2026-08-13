@@ -354,6 +354,9 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		diags = diags.Append(provs.close(ctx))
 		return nil, diags
 	}
+	// GitHub issue #70's interim half: never fatal, so it rides alongside the
+	// subset check rather than gating on it. See [lint.CheckModuleProviders].
+	diags = diags.Append(lint.CheckModuleProviders(config))
 
 	// Resolved now that lint has passed and the estate name is settled, so
 	// that any verb here is already known valid for its quadrant.
@@ -378,7 +381,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	}
 
 	merged := resolutions.All()
-	disco, discoProvider, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy)
+	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy)
 	diags = diags.Append(discoDiags)
 	if discoDiags.HasErrors() {
 		// A marker problem means the estate's ownership records disagree with
@@ -411,6 +414,10 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// The provider the sweep listed through is the one a resource whose block
 	// was deleted is read back through: it has no block to name one, and the
 	// account and region it was found in are the account and region it is in.
+	// An estate whose managed resources span more than one provider
+	// configuration (issue #69) attributes each undeclared instance to its
+	// own provider via undeclaredProviders; discoProvider is the fallback
+	// and the single-provider case's only answer, unchanged.
 	//
 	// Ownership is the admission rule for the prior state itself: a live
 	// object enters it only when it carries this estate's marker, or when
@@ -420,8 +427,9 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// estate has never owned is left alone rather than adopted, unless a
 	// policy verb says otherwise.
 	projResult, projDiags := projection.BuildWith(ctx, config, merged, provs, projection.Options{
-		UndeclaredProvider: discoProvider,
-		Ownership:          statelessOwnershipWith(estate, disco, r.policy, reconcileVerified),
+		UndeclaredProvider:  discoProvider,
+		UndeclaredProviders: undeclaredProviders,
+		Ownership:           statelessOwnershipWith(estate, disco, r.policy, reconcileVerified),
 	})
 	// The provider processes started to read the live system have done their
 	// job by this point; the plan below starts its own from the same library.
@@ -452,6 +460,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 			return nil, diags
 		}
 		r.view.Foreign(statelessForeignReport(classified))
+		r.view.GuidedFallback(disco.GuidedFallback)
 	}
 
 	// The schemas are read before the plan rather than after it because

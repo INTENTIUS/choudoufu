@@ -78,24 +78,63 @@ duplicates.
 
 ## Can I manage my whole infrastructure with this?
 
-Almost certainly not yet, and the type list is not the main reason. The
-hard limits, in the order they will actually stop you:
+Closer than it used to be. Most mature Terraform estates are
+module-structured, and that used to be the single biggest excluder -
+today, module trees are admitted in the two shapes whose addresses stay
+stable, and refused in the one shape whose addresses do not.
 
-**Root module only.** A configuration that uses child modules is refused.
-Most mature Terraform estates are module-structured, which makes this the
-single biggest excluder today - no amount of resource-type coverage
-changes it, and flattening an estate to try the tool is real work.
+**Static module trees and statically-keyed `for_each` modules are
+supported.** A resource inside a plain `module "app" {}` call binds by
+its module-qualified address (`module.app.aws_x.y`) exactly as soundly as
+a root resource does, at any nesting depth. A module call expanded with
+`for_each` is admitted too, as long as its keys are statically evaluable -
+a literal collection, or one built from variables, locals, `path` and
+`terraform` values - because a key does not shift under insertion or
+removal the way a `count` index does, so `module.app["prod"]` stays a
+stable address for a marker to bind to no matter what happens to
+`module.app["staging"]`. Auto-stamping cannot reach inside a keyed
+module's own instances, though - its several instances share one
+configuration body for the `tags` argument, so there is no single literal
+address that is right for all of them. Build it by hand instead, threading
+the module's own `each.key` through as a variable, the ordinary way a
+value that must vary per instance reaches a child module:
+
+```hcl
+module "app" {
+  for_each = toset(["prod", "staging"])
+  key      = each.key                    # 1. pass each.key through
+}
+# inside the module:
+variable "key" { type = string }         # 2. receive it as a variable
+# tofu-address = "module.app[\"${var.key}\"].aws_x.y"  # 3. build the address by hand
+```
+
+**`count` on a module block is refused, permanently.** `count` renumbers
+every address beneath it positionally on every insertion or removal above
+the changed index, and a `tofu-address` marker records an address, not a
+position - a renumbering that moves addresses out from under their own
+markers is precisely the ambiguity markers exist to remove. Rewrite the
+block as a keyed `for_each` over your own stable names, move its resources
+into the root module, or give it an estate of its own.
+
+The remaining hard limits, in the order they will actually stop you:
+
+**It is experimental.** The admitted subset is real but partial, and the
+command surface can still change. This is not yet something to bet
+production infrastructure on without reading the rest of this list.
+
+**A large, and still growing, list of resource types.** The concept
+page's Contract section enumerates the current admitted list - it is
+rendered from the admission table itself, so it cannot go stale. It now
+covers EC2 instances, RDS, ECS/EKS clusters, and API Gateway alongside the
+core VPC networking, S3 and its children, the IAM core, the ALB stack,
+DynamoDB, KMS, Route53, ACM, CloudWatch basics, SQS/SNS, Lambda, and ECR
+that were there first. It does not yet cover everything - Secrets
+Manager, Cognito, WAF, and MSK are examples of families still missing.
 
 **AWS only, and no logical resources.** Multi-cloud estates can bring
 only their AWS portion, and configs leaning on `random_*`, `tls_*` or
 similar are refused with a family-level explanation.
-
-**A fixed, growing list of resource types.** The concept page's Contract
-section enumerates the current admitted list - it is rendered from the
-admission table itself, so it cannot go stale. Today it covers core VPC
-networking, S3 and its children, the IAM core, the ALB stack, DynamoDB,
-KMS, Route53, ACM, CloudWatch basics, SQS/SNS, Lambda, and ECR. It does
-not yet cover EC2 instances, RDS, ECS/EKS services, or API Gateway.
 
 Beyond those, the construct limits: no provisioners, no workspaces, no
 saved plan files. Each limit is documented with its reasoning and its

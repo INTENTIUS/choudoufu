@@ -36,11 +36,15 @@ func TestUnescapeAddress(t *testing.T) {
 		{`aws_subnet.this:us-east-1a`, `aws_subnet.this["us-east-1a"]`, true},
 		// Round-tripping is what the whole thing is for.
 		{`aws_cloudwatch_log_group.app`, `aws_cloudwatch_log_group.app`, true},
+		// A keyed module step (59c, issue #59 phase 3): decoded, not
+		// refused, and always as a string key - a module block's for_each
+		// is the only way this fork ever writes one, count on a module
+		// block being refused permanently (RuleChildModule).
+		{`module.subnets:a.aws_subnet.this`, `module.subnets["a"].aws_subnet.this`, true},
 
 		// Refused, each for its own reason.
 		{``, ``, false},
 		{`aws_vpc`, ``, false},
-		{`module.subnets:a.aws_subnet.this`, ``, false},
 		{`aws_subnet.this:`, ``, false},
 		{`not an address`, ``, false},
 	}
