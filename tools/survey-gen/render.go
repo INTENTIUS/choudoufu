@@ -55,14 +55,27 @@ var summaryOverrides = map[string]struct {
 		"taggable, so the survey's strongest-path classing is marker; the table shows the fork's list-plus-content wiring"},
 }
 
-// runRender is the -render entry point: read the committed artifact and the
-// committed doc, replace the marked spans, write the doc back.
+// runRender is the -render entry point: read the committed artifacts and
+// the committed docs, replace the marked spans, write the docs back. Two
+// docs are rendered this way: live/SURVEY.md (this function's original
+// scope) and live/LIMITATIONS.md's residue-roster spans (issue #49,
+// renderResidueRoster in residue_render.go), both from committed JSON with
+// no provider and no network.
 func runRender() error {
 	root, err := repoRoot()
 	if err != nil {
 		return err
 	}
 
+	if err := renderSurveyMD(root); err != nil {
+		return err
+	}
+	return renderLimitationsMD(root)
+}
+
+// renderSurveyMD rewrites live/SURVEY.md's raw-signals and summary spans
+// from the committed live/survey.json and the doc's own per-type table.
+func renderSurveyMD(root string) error {
 	data, err := os.ReadFile(filepath.Join(root, surveyJSONRel)) //nolint:gosec // a fixed path in the checkout
 	if err != nil {
 		return fmt.Errorf("reading %s (regenerate with `go run ./tools/survey-gen`): %w", surveyJSONRel, err)
@@ -100,11 +113,11 @@ func runRender() error {
 // renderSpans returns the doc with both marked spans replaced by their
 // rendered bodies. The rest of the file passes through byte-for-byte.
 func renderSpans(md string, survey Survey, rows []HandRow) (string, error) {
-	md, err := replaceSpan(md, spanRawSignals, renderRawSignals(survey.Counts))
+	md, err := replaceSpan(surveyMDRel, md, spanRawSignals, renderRawSignals(survey.Counts))
 	if err != nil {
 		return "", err
 	}
-	return replaceSpan(md, spanSummary, renderSummary(rows))
+	return replaceSpan(surveyMDRel, md, spanSummary, renderSummary(rows))
 }
 
 // renderRawSignals is the "Raw signals" headline sentence, in the exact
@@ -149,7 +162,9 @@ func renderSummary(rows []HandRow) string {
 	return b.String()
 }
 
-// spanMarkers returns the begin and end marker lines for a named span.
+// spanMarkers returns the begin and end marker lines for a named span. The
+// marker comment is "survey-gen" regardless of which doc it lives in - one
+// tool, one comment vocabulary, across every doc it renders spans into.
 func spanMarkers(name string) (begin, end string) {
 	return fmt.Sprintf("<!-- survey-gen:begin %s -->\n", name),
 		fmt.Sprintf("<!-- survey-gen:end %s -->", name)
@@ -157,37 +172,39 @@ func spanMarkers(name string) (begin, end string) {
 
 // replaceSpan swaps the text between a span's markers for body. Exactly one
 // begin and one end marker must exist, in order; anything else is an error
-// rather than a guess, because the renderer writes the doc in place.
-func replaceSpan(md, name, body string) (string, error) {
+// rather than a guess, because the renderer writes the doc in place. docRel
+// names the doc in error messages only; it does not affect which bytes are
+// replaced.
+func replaceSpan(docRel, md, name, body string) (string, error) {
 	begin, end := spanMarkers(name)
 	if n := strings.Count(md, begin); n != 1 {
-		return "", fmt.Errorf("%s: expected exactly one %q marker, found %d", surveyMDRel, strings.TrimSpace(begin), n)
+		return "", fmt.Errorf("%s: expected exactly one %q marker, found %d", docRel, strings.TrimSpace(begin), n)
 	}
 	if n := strings.Count(md, end); n != 1 {
-		return "", fmt.Errorf("%s: expected exactly one %q marker, found %d", surveyMDRel, end, n)
+		return "", fmt.Errorf("%s: expected exactly one %q marker, found %d", docRel, end, n)
 	}
 	i := strings.Index(md, begin) + len(begin)
 	j := strings.Index(md, end)
 	if j < i {
-		return "", fmt.Errorf("%s: the %q end marker precedes its begin marker", surveyMDRel, name)
+		return "", fmt.Errorf("%s: the %q end marker precedes its begin marker", docRel, name)
 	}
 	return md[:i] + body + md[j:], nil
 }
 
 // spanContent extracts the committed text between a span's markers, for the
-// drift test's per-span message.
-func spanContent(md, name string) (string, error) {
+// drift test's per-span message. See [replaceSpan] for docRel.
+func spanContent(docRel, md, name string) (string, error) {
 	begin, end := spanMarkers(name)
 	if n := strings.Count(md, begin); n != 1 {
-		return "", fmt.Errorf("%s: expected exactly one %q marker, found %d", surveyMDRel, strings.TrimSpace(begin), n)
+		return "", fmt.Errorf("%s: expected exactly one %q marker, found %d", docRel, strings.TrimSpace(begin), n)
 	}
 	if n := strings.Count(md, end); n != 1 {
-		return "", fmt.Errorf("%s: expected exactly one %q marker, found %d", surveyMDRel, end, n)
+		return "", fmt.Errorf("%s: expected exactly one %q marker, found %d", docRel, end, n)
 	}
 	i := strings.Index(md, begin) + len(begin)
 	j := strings.Index(md, end)
 	if j < i {
-		return "", fmt.Errorf("%s: the %q end marker precedes its begin marker", surveyMDRel, name)
+		return "", fmt.Errorf("%s: the %q end marker precedes its begin marker", docRel, name)
 	}
 	return md[i:j], nil
 }

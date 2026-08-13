@@ -50,7 +50,7 @@ func TestSurveyMDRenderedSpans(t *testing.T) {
 		{spanRawSignals, renderRawSignals(survey.Counts)},
 		{spanSummary, renderSummary(rows)},
 	} {
-		got, err := spanContent(md, span.name)
+		got, err := spanContent(surveyMDRel, md, span.name)
 		if err != nil {
 			t.Errorf("%v", err)
 			continue

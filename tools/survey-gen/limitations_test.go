@@ -18,11 +18,11 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
-// limitationsMDRel is the doc whose mechanical claims this file holds to
-// the committed survey artifact and the admission table. Prose reasoning
-// stays hand-written; the numbers, rosters, and example types below are
-// derivable, so drift in them is a test failure, not an editing chore.
-const limitationsMDRel = "live/LIMITATIONS.md"
+// limitationsMDRel (residue_render.go) is the doc whose mechanical claims
+// this file holds to the committed survey artifact and the admission
+// table. Prose reasoning stays hand-written; the numbers, rosters, and
+// example types below are derivable, so drift in them is a test failure,
+// not an editing chore.
 
 // TestLimitationsDocAgainstSurvey is the LIMITATIONS.md sibling of
 // TestSurveyJSONAgainstHandTable: ungated, no provider, two committed files
