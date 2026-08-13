@@ -40,7 +40,7 @@ func TestRefusalNamesRegistryLaggardCohort(t *testing.T) {
 }
 
 func TestRefusalNamesEmulatorBlockedCohort(t *testing.T) {
-	assertRefusalNamesCohort(t, "testdata/residue-emulator", "aws_db_instance.database", residue.CohortEmulatorBlocked)
+	assertRefusalNamesCohort(t, "testdata/residue-emulator", "aws_cloudfront_distribution.cdn", residue.CohortEmulatorBlocked)
 }
 
 // assertRefusalNamesCohort loads dir, runs CheckContext, and checks that

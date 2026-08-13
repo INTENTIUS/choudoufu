@@ -56,6 +56,16 @@ var admissionEvidenceExceptions = map[string]evidenceException{
 
 	// --- docs tier: no identity schema in v6.58.0 ---
 	"aws_ecs_cluster": {"no identity schema in v6.58.0; documented import grammar is the cluster name, and the provider sets id to the ARN"},
+	// RDS batch (issue #65's ratification campaign): no identity schema in
+	// v6.58.0; documented import grammar is the DB parameter group name.
+	"aws_db_parameter_group": {"no identity schema in v6.58.0; documented import grammar is the DB parameter group name"},
+
+	// --- name-prefix idiom (Optional+Computed identifying argument) ---
+	// RDS batch (issue #65's ratification campaign): name is
+	// Optional+Computed (name_prefix idiom, the same shape as aws_s3_bucket
+	// above); documented import grammar is the DB subnet group name, and the
+	// provider sets id to that same name.
+	"aws_db_subnet_group": {"name is Optional+Computed (name_prefix idiom); documented import grammar is the DB subnet group name"},
 }
 
 // admittedParents names the already-admitted parents each composite-wired

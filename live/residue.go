@@ -321,13 +321,41 @@ var EmulatorBlocked = []EmulatorBlockedType{
 	// aws_ecr_repository client-named) with no standing residue, so
 	// neither belongs in this roster at all, unlike aws_iam_role above,
 	// which is admitted but still carries one.
+	// aws_db_instance moved to Admitted: true in the fourth registry-ratified
+	// batch (#40, #44, issue #65's ratification campaign): its identity
+	// (client-named by the "identifier" argument, live/SURVEY.md's own
+	// recorded wrinkle) is sound independent of any one emulator's
+	// completeness, the same stance aws_sqs_queue's admission took in the
+	// messaging batch. It stays in this roster rather than leaving it,
+	// because the emulator gap itself has not closed: confirmed by
+	// inspection during that batch that neither the gated Go harness
+	// (internal/live/flocitest) nor the shell e2e harness
+	// (live/e2e/run.sh) nor any cohort README's "Verifying by hand" `docker
+	// run` command mounts the Docker socket lex00/floci#28 names.
 	{
 		Type:     "aws_db_instance",
-		Admitted: false,
+		Admitted: true,
 		// lex00/floci#28: RDS works end-to-end only when the docker
 		// socket is mounted into the emulator container, which this
 		// harness does not do today.
 		Reason: "RDS only works fully against floci when the docker socket is mounted into the emulator container, which this harness does not do (lex00/floci#28)",
+	},
+	// aws_cloudfront_distribution takes over this roster's sole "kept out of
+	// a wiring slice entirely" example from aws_db_instance above (issue
+	// #65's ratification campaign): aws_instance is deliberately not used
+	// here, despite being blocked-emulator too, because it is the fixed
+	// "surveyed but unadmitted, in no cohort" example
+	// TestRefusalSilentForTypeInNoCohort and live/LIMITATIONS.md's
+	// unadmitted-type entry both pin — adding it to this roster would move
+	// it into the emulator-blocked cohort and break both. live/SURVEY.md's
+	// per-type table already records this gap (floci serves no usable
+	// CloudFront distribution lifecycle; the lifecycle fix merged upstream
+	// 2026-08-12, lex00/floci#29, but no pullable harness image carries it
+	// yet).
+	{
+		Type:     "aws_cloudfront_distribution",
+		Admitted: false,
+		Reason:   "floci serves no usable CloudFront distribution lifecycle, and its resourcegroupstagging coverage does not reach CloudFront either (lex00/floci#29)",
 	},
 }
 
