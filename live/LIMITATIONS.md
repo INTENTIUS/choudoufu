@@ -383,8 +383,9 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 **Untaggable types cannot be removed by the sweep.** <!-- survey-gen:begin untaggable-admitted -->
 `aws_cloudwatch_dashboard`, `aws_ecr_registry_policy`,
 `aws_ecr_registry_scanning_configuration`,
-`aws_ecr_replication_configuration`, `aws_iam_role_policy`,
-`aws_iam_role_policy_attachment`, `aws_kms_alias`,
+`aws_ecr_replication_configuration`, `aws_glue_catalog_table`,
+`aws_glue_classifier`, `aws_glue_data_catalog_encryption_settings`,
+`aws_iam_role_policy`, `aws_iam_role_policy_attachment`, `aws_kms_alias`,
 `aws_lambda_layer_version`, `aws_lb_target_group_attachment`, `aws_route`,
 `aws_route53_record`, `aws_route_table_association`,
 `aws_s3_bucket_lifecycle_configuration`, `aws_s3_bucket_policy`,
