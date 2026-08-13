@@ -135,12 +135,9 @@ not as a resource in the graph.
 **Why banned.** It reads a state file, and a marker run has no state file
 to read. Named explicitly in "Banned, and why".
 
-**Forwarding address.** Live data sources. Read the producer estate's own
-live resource with a data source of its own type, filtered on its
-`tofu-estate`/`tofu-address` marker tags, or pass values across explicitly
-as variables or module outputs. `live/OUTPUTS.md` is this pattern's spec:
-issue #62's recorded decision, weighed against a first-class SSM-parameter
-output surface and declined in favor of this, plus the live demonstration.
+**Forwarding address.** Live data sources. Read the same live objects the
+other estate reads with a data source of their own type, or pass values
+across explicitly as variables or module outputs.
 
 **Enforcement.** `RuleRemoteState`, `internal/live/lint/lint.go`
 (`checkDataResources`). Fixture at `live/e2e/limits/remote-state/`.
@@ -162,47 +159,29 @@ rule").
 
 ### child-module
 
-**Construct.** A `module` block, at any depth. Every module block is refused
-today, but not for the same reason - #59 narrows this rule module call by
-module call, into three shapes with three different fates:
+**Construct.** A `module` block, at any depth.
 
-- **Static** (no `count`, no `for_each`). **Planned.** Refused today only
-  because nothing downstream of lint walks into a child module yet (issue
-  #59, phase 2, in progress). Once that traversal lands, a static module
-  call has no expansion and so no ambiguity about which instance a marker
-  belongs to - it is the shape with the shortest road to admission.
-- **Keyed `for_each`.** **Planned, after static.** Refused today because
-  nothing downstream of lint walks into a module's instances yet (issue
-  #59, phase 3, planned after the static traversal). A keyed instance does
-  not renumber the way a counted one does, which is what makes it worth
-  admitting once the traversal exists.
-- **`count`.** **Permanent.** Module expansion by `count` renumbers every
-  resource address inside the module positionally, on every insertion or
-  removal above the changed index, and a `tofu-address` marker records an
-  address, not a position. A renumbering that moves addresses out from
-  under their markers is not a gap this mode intends to close, so
-  count-expanded modules are refused for keeps, independent of how much of
-  the rest of the trichotomy ships.
+**Why banned.** Live markers v0 are a root-module mode. Identity
+resolution, discovery, marker stamping and the projection all stop at the
+root, and module expansion (`count` or `for_each` on a module block)
+changes every resource address inside the module, which is exactly what a
+`tofu-address` marker records. Binding markers under an expansion that can
+renumber them is the ambiguity the marker exists to remove.
 
 **Forwarding address.** Move the module's resources into the root module,
 or give the module an estate of its own, with its own directory, its own
 `live` block, and its own `estate` name. Two estates are two independent
-runs, which is the separation a child module was standing in for. For a
-`count`-expanded module specifically, this is the only forwarding address -
-there is no future traversal to wait for.
+runs, which is the separation a child module was standing in for.
 
 **Enforcement.** `RuleChildModule`, `internal/live/lint/child_module.go`
-(`checkChildModules`, detail text chosen by `childModuleDetail`). Fixture at
-`live/e2e/limits/child-module/`, which is a tree rather than a single file
-and needs `choudoufu get` before the rule can be reached, since an
-uninstalled module block is refused while the configuration is still being
-loaded, earlier than any marker code runs. The fixture carries all three
-shapes at once - a static call, a `count` call, and a `for_each` call - so
-one load exercises all three messages. The five packages downstream of lint
-(`identity`, `discovery`, `stamp`, `projection`, `mv`) each still refuse a
-configuration with children, but as a one-line internal invariant. Lint runs
-first in both commands, so reaching one of them with a child module means the
-pipeline ran out of order.
+(`checkChildModules`). Fixture at `live/e2e/limits/child-module/`, which is
+a tree rather than a single file and needs `choudoufu get` before the rule can
+be reached, since an uninstalled module block is refused while the
+configuration is still being loaded, earlier than any marker code runs.
+The five packages downstream of lint (`identity`, `discovery`, `stamp`,
+`projection`, `mv`) each still refuse a configuration with children, but as a
+one-line internal invariant. Lint runs first in both commands, so reaching one
+of them with a child module means the pipeline ran out of order.
 
 ### backend-block
 
@@ -402,15 +381,18 @@ The unadmitted half holds by construction: `internal/live/discovery`
 builds the sweep universe from `identity.AdmittedTypes()`.)
 
 **Untaggable types cannot be removed by the sweep.** <!-- survey-gen:begin untaggable-admitted -->
-`aws_cloudwatch_dashboard`, `aws_db_instance_role_association`,
-`aws_db_proxy_default_target_group`, `aws_ecr_registry_policy`,
-`aws_ecr_registry_scanning_configuration`,
+`aws_api_gateway_account`, `aws_api_gateway_base_path_mapping`,
+`aws_api_gateway_documentation_version`, `aws_api_gateway_gateway_response`,
+`aws_api_gateway_method`, `aws_api_gateway_model`,
+`aws_api_gateway_rest_api_policy`, `aws_api_gateway_usage_plan_key`,
+`aws_apigatewayv2_routing_rule`, `aws_cloudwatch_dashboard`,
+`aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
 `aws_ecr_replication_configuration`, `aws_iam_role_policy`,
 `aws_iam_role_policy_attachment`, `aws_kms_alias`,
-`aws_lambda_layer_version`, `aws_lb_target_group_attachment`,
-`aws_rds_cluster_role_association`, `aws_route`, `aws_route53_record`,
-`aws_route_table_association`, `aws_s3_bucket_lifecycle_configuration`,
-`aws_s3_bucket_policy`, `aws_s3_bucket_public_access_block`,
+`aws_lambda_layer_version`, `aws_lb_target_group_attachment`, `aws_route`,
+`aws_route53_record`, `aws_route_table_association`,
+`aws_s3_bucket_lifecycle_configuration`, `aws_s3_bucket_policy`,
+`aws_s3_bucket_public_access_block`,
 `aws_s3_bucket_server_side_encryption_configuration`,
 `aws_s3_bucket_versioning`, `aws_sns_topic_policy` and
 `aws_sqs_queue_policy`<!-- survey-gen:end untaggable-admitted --> carry no tags, so they can carry no
@@ -662,7 +644,6 @@ empty until a sweep adds its first entry.
 | 2 | searched the registry for an AWS::CloudHSM service: none exists anywhere in live/registry.json |
 | 1 | AWS::EC2::Snapshot itself has no CFN Registry resource type at all (registry search for 'snapshot' under EC2 finds only SnapshotBlockPublicAccess), so the CreateVolumePermission attribute TF exposes as a separate resource cannot be modeled either |
 | 1 | AWS::Lightsail::Disk exposes AttachedTo/AttachmentState/IsAttached only as Fn::GetAtt read-only attributes, not as settable Properties - the attach action itself is not something a CFN template can declare |
-| 1 | AWS::NetworkFirewall::* carries no ContainerAssociation type (confirmed by search of every AWS::NetworkFirewall::* type in live/registry.json: Firewall, FirewallPolicy, LoggingConfiguration, RuleGroup, TLSInspectionConfiguration, VpcEndpointAssociation - none models linking an ECS/EKS cluster's containers to a Network Firewall for dynamic IP-set resolution, which is what this TF resource's own docs describe) |
 | 1 | AWS::SWF has zero CFN Registry resource types at all (registry search for 'SWF' returns no matches) |
 | 1 | AWS::StorageGateway's current CFN Registry footprint (live/registry.json) is a single type, AWS::StorageGateway::TapePool; no Cache/Gateway/Volume/FileShare type is registered even though these are real, actively used Storage Gateway resources |
 | 1 | AWS::WorkMail has zero CFN Registry resource types at all (registry search for 'WorkMail' returns no matches) |
@@ -925,7 +906,7 @@ empty until a sweep adds its first entry.
 | 1 | uploads/manages an object's content in an S3 bucket - a data-plane operation (PutObject/DeleteObject), not account/control-plane infrastructure the CloudFormation Registry models. Deprecated by the provider in favor of aws_s3_object (identical functionality); see that row for the canonical evidence. |
 | 1 | uploads/manages an object's content in an S3 bucket - a real, live piece of data-plane activity, but not a control-plane resource the CloudFormation Registry models (there is no AWS::S3::Object type; S3's modeled types are AccessGrant, AccessGrantsInstance, AccessGrantsLocation, AccessPoint, Bucket, BucketPolicy, MultiRegionAccessPoint, MultiRegionAccessPointPolicy, StorageLens, StorageLensGroup only). |
 
-**Total.** 303 Terraform AWS resource types that are real infrastructure with no CloudFormation Registry model at all. Each row's own note is in `live/mapping.json`.
+**Total.** 302 Terraform AWS resource types that are real infrastructure with no CloudFormation Registry model at all. Each row's own note is in `live/mapping.json`.
 <!-- survey-gen:end residue-cfn-unmodeled -->
 
 #### Unclassified Terraform types
@@ -1015,10 +996,15 @@ excluding types already counted under "Deprecated or EOL services" above.
 | `aws_fsx_openzfs_volume` | `AWS::FSx::Volume` |
 | `aws_fsx_windows_file_system` | `AWS::FSx::FileSystem` |
 | `aws_glue_catalog_table` | `AWS::Glue::Table` |
+| `aws_glue_catalog_table_optimizer` | `AWS::Glue::TableOptimizer` |
+| `aws_glue_classifier` | `AWS::Glue::Classifier` |
 | `aws_glue_connection` | `AWS::Glue::Connection` |
+| `aws_glue_data_quality_ruleset` | `AWS::Glue::DataQualityRuleset` |
 | `aws_glue_dev_endpoint` | `AWS::Glue::DevEndpoint` |
 | `aws_glue_ml_transform` | `AWS::Glue::MLTransform` |
 | `aws_glue_partition` | `AWS::Glue::Partition` |
+| `aws_glue_security_configuration` | `AWS::Glue::SecurityConfiguration` |
+| `aws_glue_workflow` | `AWS::Glue::Workflow` |
 | `aws_iam_access_key` | `AWS::IAM::AccessKey` |
 | `aws_iam_group_membership` | `AWS::IAM::UserToGroupAddition` |
 | `aws_iot_policy_attachment` | `AWS::IoT::PolicyPrincipalAttachment` |
@@ -1045,11 +1031,12 @@ excluding types already counted under "Deprecated or EOL services" above.
 | `aws_service_discovery_http_namespace` | `AWS::ServiceDiscovery::HttpNamespace` |
 | `aws_service_discovery_instance` | `AWS::ServiceDiscovery::Instance` |
 | `aws_service_discovery_private_dns_namespace` | `AWS::ServiceDiscovery::PrivateDnsNamespace` |
+| `aws_service_discovery_public_dns_namespace` | `AWS::ServiceDiscovery::PublicDnsNamespace` |
 | `aws_ses_receipt_filter` | `AWS::SES::ReceiptFilter` |
 | `aws_ses_receipt_rule` | `AWS::SES::ReceiptRule` |
 | `aws_ses_receipt_rule_set` | `AWS::SES::ReceiptRuleSet` |
 
-**Total.** 76 types, covered only where the provider's own identity schema reaches (the union `live/survey-full.json` measures). A successor CFN type sometimes exists with working handlers - `AWS::Elasticsearch::Domain` above has no handlers, but its successor `AWS::OpenSearchService::Domain` does; `live/mapping.json` does not yet link `aws_opensearch_domain` to it.
+**Total.** 82 types, covered only where the provider's own identity schema reaches (the union `live/survey-full.json` measures). A successor CFN type sometimes exists with working handlers - `AWS::Elasticsearch::Domain` above has no handlers, but its successor `AWS::OpenSearchService::Domain` does; `live/mapping.json` does not yet link `aws_opensearch_domain` to it.
 <!-- survey-gen:end residue-laggard -->
 
 #### Emulator-blocked
@@ -1066,10 +1053,9 @@ from any artifact, so this roster is curated
 <!-- survey-gen:begin residue-emulator -->
 | Type | Admitted today | Reason |
 |---|---|---|
-| `aws_cloudfront_distribution` | no | floci serves no usable CloudFront distribution lifecycle, and its resourcegroupstagging coverage does not reach CloudFront either (lex00/floci#29) |
-| `aws_db_instance` | yes (standing e2e residue) | RDS only works fully against floci when the docker socket is mounted into the emulator container, which this harness does not do (lex00/floci#28) |
+| `aws_db_instance` | no | RDS only works fully against floci when the docker socket is mounted into the emulator container, which this harness does not do (lex00/floci#28) |
 | `aws_iam_role` | yes (standing e2e residue) | floci's iam:GetRole omits Tags, so the role's own marker never reads back and every plan reports it unowned |
 | `aws_s3_bucket_policy` | yes (standing e2e residue) | downstream of aws_iam_role's residue: its policy document embeds the unowned role's ARN, so its own plan never settles |
 
-**Total.** 4 types.
+**Total.** 3 types.
 <!-- survey-gen:end residue-emulator -->

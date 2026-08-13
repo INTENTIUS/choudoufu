@@ -247,6 +247,42 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_rds_global_cluster":            {},
 	"aws_rds_integration":               {},
 	"aws_rds_shard_group":               {},
+	// ---- Registry-ratified (#40, #44): fourth batch, API Gateway v1 and v2
+	// ---- (issue #65). Same tools/row-gen pipeline as the earlier batches,
+	// ---- cross-checked against live/import-grammar.json (the pinned
+	// ---- v6.58.0 provider docs) and, for several composites, against the
+	// ---- provider's Argument Reference and source directly — row-gen's own
+	// ---- "needs hand separator" output only says a primaryIdentifier has
+	// ---- more than one part, not whether every part is a configuration
+	// ---- argument, and several of API Gateway's are not. See
+	// ---- internal/live/identity/table.go for the per-type evidence and
+	// ---- rejections, and live/e2e/estates/apigateway/README.md for the
+	// ---- floci verification (including a provider crash reading
+	// ---- aws_api_gateway_api_key and the re-confirmed aws_api_gateway_rest_api
+	// ---- availability-waiter gap). 25 ApiGateway and 13 ApiGatewayV2 types
+	// ---- were in row-gen's scope; 16 and 5 respectively ratify here.
+	// ---- Cohort estate: live/e2e/estates/apigateway.
+	"aws_api_gateway_account":                        {},
+	"aws_api_gateway_api_key":                        {},
+	"aws_api_gateway_base_path_mapping":              {},
+	"aws_api_gateway_client_certificate":             {},
+	"aws_api_gateway_documentation_version":          {},
+	"aws_api_gateway_domain_name":                    {},
+	"aws_api_gateway_domain_name_access_association": {},
+	"aws_api_gateway_gateway_response":               {},
+	"aws_api_gateway_method":                         {},
+	"aws_api_gateway_model":                          {},
+	"aws_api_gateway_rest_api":                       {},
+	"aws_api_gateway_rest_api_policy":                {},
+	"aws_api_gateway_stage":                          {},
+	"aws_api_gateway_usage_plan":                     {},
+	"aws_api_gateway_usage_plan_key":                 {},
+	"aws_api_gateway_vpc_link":                       {},
+	"aws_apigatewayv2_api":                           {},
+	"aws_apigatewayv2_domain_name":                   {},
+	"aws_apigatewayv2_routing_rule":                  {},
+	"aws_apigatewayv2_stage":                         {},
+	"aws_apigatewayv2_vpc_link":                      {},
 }
 
 // admitted reports whether the given provider-local resource type may appear
