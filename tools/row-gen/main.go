@@ -21,9 +21,19 @@
 //
 //	go run ./tools/row-gen              # every service batch, full report
 //	go run ./tools/row-gen -service Lambda
+//
+// -convergence switches to a second mode entirely (rowgen-convergence): for
+// every type internal/live/identity.DefaultTable already admits, it diffs a
+// fresh proposal against the ratified entry and writes
+// live/rowgen-convergence.json, the one artifact this tool does write - a
+// measurement of its own proposals against ground truth, not a row for
+// live infrastructure. See convergence.go's own doc comment.
+//
+//	go run ./tools/row-gen -convergence
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -35,13 +45,16 @@ import (
 
 // Path literals, centralized on purpose (see tools/survey-gen/main.go's and
 // tools/mapping-gen/main.go's const blocks for why): every artifact this
-// tool reads, relative to the repository root. row-gen writes nothing.
+// tool reads, relative to the repository root. row-gen writes nothing
+// except, in -convergence mode, convergenceJSONRel itself.
 const (
 	registryJSONRel      = "live/registry.json"
 	mappingJSONRel       = "live/mapping.json"
 	surveyJSONRel        = "live/survey-full.json"
 	carveSeedJSONRel     = "tools/mapping-gen/carve-seed.json"
 	importGrammarJSONRel = "live/import-grammar.json"
+	annotationsJSONRel   = "tools/row-gen/annotations.json"
+	convergenceJSONRel   = "live/rowgen-convergence.json"
 )
 
 // repoRoot resolves the checkout's root from this file's own location, the
@@ -58,7 +71,16 @@ func repoRoot() (string, error) {
 
 func main() {
 	service := flag.String("service", "", "restrict the report to one CFN service batch (e.g. Lambda); empty prints every batch")
+	convergence := flag.Bool("convergence", false, "measure row-gen's fresh proposals against internal/live/identity.DefaultTable's ratified entries and write live/rowgen-convergence.json, instead of printing the pastable-row report")
 	flag.Parse()
+
+	if *convergence {
+		if err := runConvergence(os.Stdout, os.Stderr); err != nil {
+			fmt.Fprintf(os.Stderr, "row-gen: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	if err := run(*service, os.Stdout, os.Stderr); err != nil {
 		fmt.Fprintf(os.Stderr, "row-gen: %v\n", err)
@@ -75,43 +97,114 @@ func run(service string, out, errOut *os.File) error {
 	if err != nil {
 		return err
 	}
-
-	registry, err := loadRegistry(filepath.Join(root, registryJSONRel))
-	if err != nil {
-		return fmt.Errorf("reading %s: %w", registryJSONRel, err)
-	}
-	mapping, err := loadMapping(filepath.Join(root, mappingJSONRel))
-	if err != nil {
-		return fmt.Errorf("reading %s: %w", mappingJSONRel, err)
-	}
-	survey, err := loadSurvey(filepath.Join(root, surveyJSONRel))
-	if err != nil {
-		return fmt.Errorf("reading %s: %w", surveyJSONRel, err)
-	}
-	carveSeed, err := loadCarveSeed(filepath.Join(root, carveSeedJSONRel))
-	if err != nil {
-		return fmt.Errorf("reading %s: %w", carveSeedJSONRel, err)
-	}
-	importGrammar, err := loadImportGrammar(filepath.Join(root, importGrammarJSONRel))
-	if err != nil {
-		return fmt.Errorf("reading %s: %w", importGrammarJSONRel, err)
-	}
-
-	proposals, err := classifyAll(mapping, registry, survey, carveSeed, importGrammar)
+	proposals, err := loadProposals(root)
 	if err != nil {
 		return err
 	}
 
 	fmt.Fprint(out, renderReport(proposals, service))
 	counts := tally(proposals)
-	fmt.Fprintf(errOut, "row-gen: %d mapped types (%d server-assigned, %d client-named, %d needs-hand-separator, %d fold-child, %d evidence-only)\n",
-		len(proposals), counts.ServerAssigned, counts.ClientNamed, counts.NeedsHandSeparator, counts.FoldChild, counts.EvidenceOnly)
+	fmt.Fprintf(errOut, "row-gen: %d mapped types (%d server-assigned, %d client-named, %d composite, %d needs-hand-separator, %d fold-child, %d evidence-only)\n",
+		len(proposals), counts.ServerAssigned, counts.ClientNamed, counts.Composite, counts.NeedsHandSeparator, counts.FoldChild, counts.EvidenceOnly)
 	return nil
+}
+
+// loadProposals reads the five committed artifacts (the four
+// classifyAll always needed, plus live/import-grammar.json which
+// classifyAll's own precedence pass reads too) and returns the full,
+// classified mapped set - the shared entry point run and runConvergence
+// both build on, so the two modes can never see a differently-classified
+// proposal for the same type.
+func loadProposals(root string) ([]proposal, error) {
+	registry, err := loadRegistry(filepath.Join(root, registryJSONRel))
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", registryJSONRel, err)
+	}
+	mapping, err := loadMapping(filepath.Join(root, mappingJSONRel))
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", mappingJSONRel, err)
+	}
+	survey, err := loadSurvey(filepath.Join(root, surveyJSONRel))
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", surveyJSONRel, err)
+	}
+	carveSeed, err := loadCarveSeed(filepath.Join(root, carveSeedJSONRel))
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", carveSeedJSONRel, err)
+	}
+	importGrammar, err := loadImportGrammar(filepath.Join(root, importGrammarJSONRel))
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", importGrammarJSONRel, err)
+	}
+	return classifyAll(mapping, registry, survey, carveSeed, importGrammar)
+}
+
+// runConvergence is -convergence's entry point: loads the same mapped set
+// run() classifies, plus tools/row-gen/annotations.json's own rulings,
+// builds the comparison (convergence.go's buildConvergence), writes
+// live/rowgen-convergence.json, and prints the headline numbers - adopted-
+// unchanged % and the unannotated mismatch count - to out, the two metrics
+// the rowgen-convergence task names as what this tool's report output
+// should surface.
+func runConvergence(out, errOut *os.File) error {
+	root, err := repoRoot()
+	if err != nil {
+		return err
+	}
+	proposals, err := loadProposals(root)
+	if err != nil {
+		return err
+	}
+	annotations, err := loadAnnotations(filepath.Join(root, annotationsJSONRel))
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", annotationsJSONRel, err)
+	}
+
+	art := buildConvergence(proposals, annotations)
+
+	if problems := validateAnnotations(art, annotations); len(problems) > 0 {
+		for _, p := range problems {
+			fmt.Fprintf(errOut, "row-gen: annotations.json: %s\n", p)
+		}
+		return fmt.Errorf("%d stale or invalid annotation(s) in %s", len(problems), annotationsJSONRel)
+	}
+
+	data, err := json.MarshalIndent(art, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encoding %s: %w", convergenceJSONRel, err)
+	}
+	data = append(data, '\n')
+	if err := os.WriteFile(filepath.Join(root, convergenceJSONRel), data, 0o644); err != nil { //nolint:gosec // a fixed path inside the checkout
+		return fmt.Errorf("writing %s: %w", convergenceJSONRel, err)
+	}
+
+	fmt.Fprintf(out, "wrote %s\n", convergenceJSONRel)
+	fmt.Fprintf(errOut, "row-gen -convergence: %d/%d admitted types compared (%d not in the mapped set), %.2f%% adopted-unchanged, %d genuine mismatches (%d annotated, %d unannotated, %d scrape-gap)\n",
+		art.Summary.Compared, art.Summary.AdmittedTotal, art.Summary.NotInMappedSet,
+		art.Summary.AdoptedUnchangedPct, art.Summary.GenuineMismatches, art.Summary.Annotated, art.Summary.UnannotatedMismatches, art.Summary.ScrapeGapMismatches)
+	return nil
+}
+
+// indexByType is the small lookup both convergence.go's buildConvergence and
+// the test suite (loadAllForTest's callers) need over a classified mapped
+// set: last TFType wins, but classifyAll never produces two proposals for
+// the same TF type, so that never matters in practice.
+func indexByType(proposals []proposal) map[string]proposal {
+	m := make(map[string]proposal, len(proposals))
+	for _, p := range proposals {
+		m[p.TFType] = p
+	}
+	return m
 }
 
 // classifyAll runs every mapped-set row through classifyMapped or
 // classifyFold, then applies the import-grammar demotion pass
-// (applyImportGrammarDemotions). cfn_type rows are classified first, since
+// (applyImportGrammarDemotions) and, since rowgen-convergence, the
+// precedence pass (applyImportGrammarPrecedence) that resolves what the
+// demotion pass only used to flag: composites live/import-grammar.json's
+// own evidence structures, and registry-primaryIdentifier disagreements the
+// ratification batches were correcting by hand every time - see that
+// function's own doc comment. cfn_type rows are classified first, since
 // classifyFold needs their results to answer "is the fold parent itself
 // proposed" - and, since issue #68, also consults identity.AdmittedTypes()
 // to answer "is the fold parent already admitted", independent of what this
@@ -148,5 +241,6 @@ func classifyAll(rows []mappingRow, registry map[string]registryEntry, survey ma
 		out = append(out, classifyFold(r.TFType, *r.FoldParent, mapped, admitted))
 	}
 	applyImportGrammarDemotions(out, importGrammar)
+	applyImportGrammarPrecedence(out, importGrammar)
 	return out, nil
 }
