@@ -14,10 +14,11 @@ import (
 )
 
 func TestGetResourcesHitsTaggingTarget(t *testing.T) {
-	var gotTarget string
+	var gotTarget, gotContentType string
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotTarget = r.Header.Get("X-Amz-Target")
+		gotContentType = r.Header.Get("Content-Type")
 		_ = json.NewEncoder(w).Encode(map[string]any{"ResourceTagMappingList": []any{}})
 	}))
 	defer server.Close()
@@ -28,6 +29,35 @@ func TestGetResourcesHitsTaggingTarget(t *testing.T) {
 	}
 	if gotTarget != "ResourceGroupsTaggingAPI_20170126.GetResources" {
 		t.Errorf("X-Amz-Target = %q, want ResourceGroupsTaggingAPI_20170126.GetResources", gotTarget)
+	}
+	// Pins a real bug caught probing floci directly (issue #51): the
+	// Resource Groups Tagging API's real protocol version is JSON 1.1 (per
+	// botocore's own resourcegroupstaggingapi service model), not Cloud
+	// Control's 1.0, and floci refuses a GetResources call outright -
+	// UnknownOperationException - when the header says 1.0 even though
+	// X-Amz-Target already names the operation correctly.
+	if gotContentType != "application/x-amz-json-1.1" {
+		t.Errorf("Content-Type = %q, want application/x-amz-json-1.1 (the tagging API's real protocol version, not Cloud Control's 1.0)", gotContentType)
+	}
+}
+
+// TestNewCloudControlContentTypeUnaffectedByTagging pins the other half:
+// adding NewTagging's own protocol version must not change what [New]
+// sends.
+func TestNewCloudControlContentTypeUnaffectedByTagging(t *testing.T) {
+	var gotContentType string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotContentType = r.Header.Get("Content-Type")
+		_ = json.NewEncoder(w).Encode(map[string]any{"ResourceDescriptions": []any{}})
+	}))
+	defer server.Close()
+
+	c := New(Config{Endpoint: server.URL})
+	if _, err := c.ListResources(context.Background(), "AWS::EFS::FileSystem"); err != nil {
+		t.Fatalf("ListResources: %v", err)
+	}
+	if gotContentType != "application/x-amz-json-1.0" {
+		t.Errorf("Content-Type = %q, want application/x-amz-json-1.0", gotContentType)
 	}
 }
 

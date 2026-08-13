@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 )
 
 // The mapping artifact's via column vocabulary (tools/mapping-gen). Only
@@ -57,6 +58,15 @@ type Roster struct {
 	// "alias" only (see the package doc).
 	cfnType map[string]string
 
+	// tfTypeFor is cfn_type -> every tf_type live/mapping.json's "name" or
+	// "alias" rows map to it, [Roster.TFTypesForCFNType]'s index. Built from
+	// the same rows as cfnType, in the other direction: the ARN join (issue
+	// #51, internal/live/discovery/tagging.go) has a CFN type in hand and
+	// needs the TF type, not the other way around. Almost always one entry;
+	// more than one means the CFN type's TF mapping is not unique, which
+	// that join treats as ambiguous rather than picking one.
+	tfTypeFor map[string][]string
+
 	// listable is cfn_type -> whether live/registry.json's handlers.list is
 	// set with no required input (see the package doc's "What counts as
 	// listable"). A CFN type absent from live/registry.json - the mapping
@@ -101,16 +111,18 @@ func Parse(mappingJSON, registryJSON []byte) (*Roster, error) {
 	}
 
 	r := &Roster{
-		cfnType:  make(map[string]string, len(m.Rows)),
-		listable: make(map[string]bool, len(reg.Types)),
-		taggable: make(map[string]bool, len(reg.Types)),
-		arity:    make(map[string]int, len(reg.Types)),
+		cfnType:   make(map[string]string, len(m.Rows)),
+		tfTypeFor: make(map[string][]string, len(m.Rows)),
+		listable:  make(map[string]bool, len(reg.Types)),
+		taggable:  make(map[string]bool, len(reg.Types)),
+		arity:     make(map[string]int, len(reg.Types)),
 	}
 	for _, row := range m.Rows {
 		if (row.Via != viaName && row.Via != viaAlias) || row.CFNType == nil || *row.CFNType == "" {
 			continue
 		}
 		r.cfnType[row.TFType] = *row.CFNType
+		r.tfTypeFor[*row.CFNType] = append(r.tfTypeFor[*row.CFNType], row.TFType)
 	}
 	for _, e := range reg.Types {
 		r.listable[e.TypeName] = e.Handlers.List && len(e.Handlers.ListRequiredInput) == 0
@@ -130,6 +142,24 @@ func (r *Roster) CloudControlType(tfType string) (cfnType string, ok bool) {
 	}
 	cfnType, ok = r.cfnType[tfType]
 	return cfnType, ok
+}
+
+// TFTypesForCFNType returns every TF type live/mapping.json's "name" or
+// "alias" rows map to cfnType, sorted - the reverse of
+// [Roster.CloudControlType], for a caller that has a CFN type in hand and
+// wants the TF type it names (the ARN join, issue #51: an ARN's service and
+// resource segments join to a CFN type first, and only then to a TF type).
+// nil for a CFN type nothing maps to. A result with more than one entry
+// means the CFN type's TF mapping is not unique in the committed artifact;
+// today's live/mapping.json never produces one, but a caller doing a reverse
+// join must still treat it as ambiguous rather than picking the first.
+func (r *Roster) TFTypesForCFNType(cfnType string) []string {
+	if r == nil || len(r.tfTypeFor[cfnType]) == 0 {
+		return nil
+	}
+	out := append([]string(nil), r.tfTypeFor[cfnType]...)
+	sort.Strings(out)
+	return out
 }
 
 // Listable reports whether cfnType can be enumerated with Cloud Control's

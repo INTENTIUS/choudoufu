@@ -1,0 +1,536 @@
+// Copyright (c) The OpenTofu Authors
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2023 HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package discovery
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"sort"
+	"strings"
+
+	"github.com/zclconf/go-cty/cty"
+
+	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
+	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/registry"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+)
+
+// This file is issue #51's follow-up to #47: wiring
+// [cloudcontrol.Client.GetResources] (the Resource Groups Tagging API's
+// estate-wide sweep primitive, tagging.go's TODO) into the sweep behind
+// [Request.TaggingSweep].
+//
+// The piece #47 scoped out and #51 does is the join from one
+// TaggedResource's ResourceARN to the (TF type, identifier) pair
+// [scanTypeCloudControl]'s per-resource filing already knows what to do
+// with: parse the ARN ([cloudcontrol.ParseARN]), join its service and
+// resource-type segments to a CFN type ([joinARNToCFNType]), join that to a
+// TF type via live/mapping.json ([registry.Roster.TFTypesForCFNType]), and
+// hand the resource-id segment to the identity table's Components exactly
+// as [resolveCloudControlImportID] already does for a Cloud Control
+// ListResources identifier - or, for the types whose identity IS the ARN
+// (IdentityAttrs leading with "arn"), hand out the ARN itself, because that
+// genuinely is the identifier and composing it through Components would be
+// composing an already-final value.
+//
+// # Why a curated table, not a generic parse
+//
+// The #47 issue comment that filed this follow-up says why in one sentence:
+// "the ARN's service name isn't always the CFN service segment, and the
+// resource-id segment's shape varies enough per type that it needs its own
+// per-type table rather than a generic parse." acm's ARN service is "acm"
+// but its CFN service segment is CertificateManager; states/StepFunctions is
+// the same story. A generic normalize-and-match over live/registry.json's
+// ~1650 CFN types would also have to guess at cases a hand-curated table
+// instead states plainly: an EC2 security group rule's ARN
+// (security-group-rule/sgr-...) does not say whether it is an ingress or an
+// egress rule, and elasticloadbalancing's "loadbalancer" segment is shared
+// by the classic and v2 CFN services, distinguishable only by counting the
+// id's own "/"-separated parts - AWS's documented ARN grammar, not a guess.
+// [arnJoinTable] states each of these outcomes explicitly rather than
+// deriving them, the same way internal/live/identity/table.go states each
+// type's Components by hand instead of inferring them from a schema.
+
+// arnJoinEntry is what one (ARN service, ARN resource-type segment) pair
+// resolves to.
+type arnJoinEntry struct {
+	// resolve decides the CFN type(s) this entry's ARNs name: exactly one
+	// element is the resolvable case; zero means the id's shape matched
+	// none of the grammars this entry knows (elasticloadbalancing's
+	// "loadbalancer" is the only entry that can produce this); more than
+	// one is named ambiguity - nothing about the ARN says which - and both
+	// are reported as unresolved by [joinARNToCFNType], never guessed at.
+	resolve func(a cloudcontrol.ARN) []string
+
+	// coverage lists every CFN type this entry could ever produce,
+	// statically, whichever candidate resolve actually picks for one ARN.
+	// It is what [arnJoinCovers] checks a type's mapped CFN type against,
+	// so that a type the join table can never reach is reported as a sweep
+	// gap ([SweepGapNoARNJoin]) rather than silently, permanently absent
+	// from every tagging-sweep result.
+	coverage []string
+}
+
+// single is an [arnJoinEntry] whose ARN shape names exactly one CFN type,
+// unconditionally - the ordinary case, every entry in [arnJoinTable] but the
+// two named in their own doc comments.
+func single(cfnType string) arnJoinEntry {
+	return arnJoinEntry{
+		resolve:  func(cloudcontrol.ARN) []string { return []string{cfnType} },
+		coverage: []string{cfnType},
+	}
+}
+
+// ambiguous is an [arnJoinEntry] whose ARN shape names more than one CFN
+// type with nothing in the ARN itself saying which.
+func ambiguous(cfnTypes ...string) arnJoinEntry {
+	sorted := append([]string(nil), cfnTypes...)
+	sort.Strings(sorted)
+	return arnJoinEntry{
+		resolve:  func(cloudcontrol.ARN) []string { return sorted },
+		coverage: sorted,
+	}
+}
+
+// elbLoadBalancerEntry is elasticloadbalancing's "loadbalancer" segment,
+// shared by two CFN services and told apart by the one piece of real,
+// documented AWS ARN grammar this join table leans on rather than states
+// flatly: a classic ELB's id is just its name (loadbalancer/NAME, no
+// further "/"), while an ALB/NLB/GWLB's id is
+// loadbalancer/{app,net,gwy}/NAME/HASH - three "/"-separated parts. Neither
+// shape is a guess; a shape that matches neither (anything but zero or two
+// slashes in the id) resolves to nothing, named as unknown rather than
+// forced into one of the two.
+//
+// AWS::ElasticLoadBalancing::LoadBalancer (the classic case) has no row in
+// the committed live/mapping.json, so an ARN that resolves to it still ends
+// up reported as unresolved one step later, at the CFN-to-TF join - honestly
+// naming "no TF type maps this CFN type" rather than silently joining a
+// classic ELB's ARN to aws_lb, which is what a table with only one
+// "loadbalancer" entry would do.
+func elbLoadBalancerEntry() arnJoinEntry {
+	const v2, classic = "AWS::ElasticLoadBalancingV2::LoadBalancer", "AWS::ElasticLoadBalancing::LoadBalancer"
+	return arnJoinEntry{
+		resolve: func(a cloudcontrol.ARN) []string {
+			switch strings.Count(a.ResourceID, "/") {
+			case 2:
+				return []string{v2}
+			case 0:
+				return []string{classic}
+			default:
+				return nil
+			}
+		},
+		coverage: []string{v2, classic},
+	}
+}
+
+// arnJoinTable is the curated ARN-service-and-resource-type -> CFN-type
+// join, keyed by ARN service and then by the ARN's resource-type segment
+// (the empty string for a bare-id ARN with no type segment at all - an S3
+// bucket, an SNS topic). See this file's doc comment for why it is
+// hand-curated rather than derived from live/registry.json generically.
+//
+// Every entry here names a CFN type that is independently taggable and
+// carries its own ARN, which the Tagging API's GetResources requires by
+// construction - a composite identity (a route, a role-policy attachment, an
+// inline IAM policy) never has a standalone ARN to appear in a
+// TaggedResource at all, so none of identity/table.go's composite entries
+// need a row here.
+//
+// kms's "alias" segment is deliberately absent: a KMS alias's TF identity is
+// its full "alias/NAME" string (identity/table.go's aws_kms_alias entry
+// says so explicitly), and [cloudcontrol.ParseARN] has already cut the
+// "alias/" prefix into ResourceType by the time a rule here would see it.
+// Joining it correctly needs that prefix put back, which no other entry in
+// this table needs done for it; left for a follow-up rather than joined
+// wrong. The same is true of ssm's "parameter" segment, where the
+// parameter's own name conventionally starts with "/" and the ARN's
+// "parameter/" divider swallows exactly one of them.
+var arnJoinTable = map[string]map[string]arnJoinEntry{
+	"iam": {"role": single("AWS::IAM::Role")},
+	"s3":  {"": single("AWS::S3::Bucket")},
+	"sns": {"": single("AWS::SNS::Topic")},
+	"ec2": {
+		"vpc":              single("AWS::EC2::VPC"),
+		"subnet":           single("AWS::EC2::Subnet"),
+		"security-group":   single("AWS::EC2::SecurityGroup"),
+		"route-table":      single("AWS::EC2::RouteTable"),
+		"internet-gateway": single("AWS::EC2::InternetGateway"),
+		"elastic-ip":       single("AWS::EC2::EIP"),
+		"volume":           single("AWS::EC2::Volume"),
+		"launch-template":  single("AWS::EC2::LaunchTemplate"),
+		"instance":         single("AWS::EC2::Instance"),
+		// A security group rule's ARN does not say whether it is an ingress
+		// or an egress rule - both share this exact shape - so the join
+		// cannot pick one. See [ambiguous].
+		"security-group-rule": ambiguous("AWS::EC2::SecurityGroupIngress", "AWS::EC2::SecurityGroupEgress"),
+	},
+	"kms":     {"key": single("AWS::KMS::Key")},
+	"route53": {"hostedzone": single("AWS::Route53::HostedZone")},
+	// acm's ARN service is "acm"; the CFN service segment is
+	// CertificateManager. Exactly the mismatch this file's doc comment
+	// names.
+	"acm": {"certificate": single("AWS::CertificateManager::Certificate")},
+	// states's ARN service is "states"; the CFN service segment is
+	// StepFunctions. Same story as acm above.
+	"states":     {"stateMachine": single("AWS::StepFunctions::StateMachine")},
+	"logs":       {"log-group": single("AWS::Logs::LogGroup")},
+	"dynamodb":   {"table": single("AWS::DynamoDB::Table")},
+	"ecs":        {"cluster": single("AWS::ECS::Cluster")},
+	"cloudwatch": {"alarm": single("AWS::CloudWatch::Alarm")},
+	"lambda":     {"function": single("AWS::Lambda::Function")},
+	"elasticloadbalancing": {
+		"loadbalancer": elbLoadBalancerEntry(),
+		"targetgroup":  single("AWS::ElasticLoadBalancingV2::TargetGroup"),
+		"listener":     single("AWS::ElasticLoadBalancingV2::Listener"),
+	},
+}
+
+// arnJoinCoverage is every CFN type [arnJoinTable] could ever produce,
+// built once from the table above.
+var arnJoinCoverage = func() map[string]bool {
+	out := map[string]bool{}
+	for _, byResourceType := range arnJoinTable {
+		for _, entry := range byResourceType {
+			for _, cfnType := range entry.coverage {
+				out[cfnType] = true
+			}
+		}
+	}
+	return out
+}()
+
+// arnJoinCovers reports whether [arnJoinTable] could ever resolve some ARN
+// to cfnType.
+func arnJoinCovers(cfnType string) bool { return arnJoinCoverage[cfnType] }
+
+// joinARNToCFNType joins a parsed ARN's service and resource-type segment
+// against [arnJoinTable]. cfnType is set only when the join is unique;
+// candidates lists what it found instead when it was not (nil for "found
+// nothing at all", 2+ for genuine ambiguity) so the caller can name what it
+// saw.
+func joinARNToCFNType(a cloudcontrol.ARN) (cfnType string, candidates []string) {
+	byResourceType, ok := arnJoinTable[a.Service]
+	if !ok {
+		return "", nil
+	}
+	entry, ok := byResourceType[a.ResourceType]
+	if !ok {
+		return "", nil
+	}
+	got := entry.resolve(a)
+	if len(got) == 1 {
+		return got[0], nil
+	}
+	return "", got
+}
+
+// resourceSegmentLabel renders an ARN's resource-type segment for a
+// message, naming the bare-id shape explicitly rather than leaving it
+// looking like an accidental empty string.
+func resourceSegmentLabel(a cloudcontrol.ARN) string {
+	if a.ResourceType == "" {
+		return "(none - a bare identifier)"
+	}
+	return a.ResourceType
+}
+
+// arnJoinOutcome is what [joinTaggedResource] resolved one ResourceARN to,
+// or the reason it could not - named after the ARN's own service and
+// resource segments throughout, in the same voice as this package's other
+// refusals (see the package doc's "What this package refuses to guess").
+type arnJoinOutcome struct {
+	typeName     string
+	cfnType      string
+	importID     string
+	identityAttr string
+	ok           bool
+	reason       string
+}
+
+// joinTaggedResource is issue #51's join proper: one Tagging API ARN,
+// turned into the (TF type, identifier) pair the marker-bind step needs, or
+// an honest reason it could not be. See this file's doc comment for the
+// four steps and why the third (the CFN-type join) is a curated table
+// rather than a generic parse.
+func joinTaggedResource(roster *registry.Roster, arnStr string) arnJoinOutcome {
+	a, ok := cloudcontrol.ParseARN(arnStr)
+	if !ok {
+		return arnJoinOutcome{reason: fmt.Sprintf(
+			"%q does not have the arn:partition:service:region:account:resource shape",
+			arnStr)}
+	}
+
+	cfnType, candidates := joinARNToCFNType(a)
+	if cfnType == "" {
+		if len(candidates) > 1 {
+			return arnJoinOutcome{reason: fmt.Sprintf(
+				"ARN service %q and resource segment %q name more than one CFN type (%s), and nothing in the ARN says which",
+				a.Service, resourceSegmentLabel(a), strings.Join(candidates, ", "))}
+		}
+		return arnJoinOutcome{reason: fmt.Sprintf(
+			"no CFN type is known for ARN service %q and resource segment %q",
+			a.Service, resourceSegmentLabel(a))}
+	}
+
+	tfTypes := roster.TFTypesForCFNType(cfnType)
+	if len(tfTypes) == 0 {
+		return arnJoinOutcome{cfnType: cfnType, reason: fmt.Sprintf(
+			"CFN type %s (from ARN service %q, resource segment %q) has no live/mapping.json row naming a TF resource type",
+			cfnType, a.Service, resourceSegmentLabel(a))}
+	}
+	if len(tfTypes) > 1 {
+		return arnJoinOutcome{cfnType: cfnType, reason: fmt.Sprintf(
+			"CFN type %s (from ARN service %q, resource segment %q) is mapped from more than one TF type in live/mapping.json (%s), and the ARN alone does not say which",
+			cfnType, a.Service, resourceSegmentLabel(a), strings.Join(tfTypes, ", "))}
+	}
+	tfType := tfTypes[0]
+
+	ti, ok := identity.LookupType(tfType)
+	if !ok {
+		return arnJoinOutcome{cfnType: cfnType, typeName: tfType, reason: fmt.Sprintf(
+			"%s (CFN type %s) has no entry in internal/live/identity's table, so its ARN's resource id cannot be composed into an import ID",
+			tfType, cfnType)}
+	}
+
+	// The identity IS the ARN: hand it out directly, never through the
+	// composer - composing an already-final value would be pointless at
+	// best and wrong wherever the resource-id segment lost information
+	// ParseARN's type/id split does not preserve (an ARN's own account and
+	// region, for one).
+	if len(ti.IdentityAttrs) > 0 && ti.IdentityAttrs[0] == "arn" {
+		return arnJoinOutcome{cfnType: cfnType, typeName: tfType, importID: arnStr, identityAttr: "arn", ok: true}
+	}
+
+	// Every other type: the resource-id segment goes through the exact same
+	// composer [scanTypeCloudControl] uses for a Cloud Control ListResources
+	// identifier. An ARN's resource id never contains Cloud Control's "|"
+	// separator, so this always takes [resolveCloudControlImportID]'s
+	// single-part branch - used directly, needing no table entry - which is
+	// correct here for the same reason its own doc comment gives: a
+	// single-part identifier already is the whole of what a native list
+	// result's identity attribute would have been.
+	importID, composed := resolveCloudControlImportID(tfType, a.ResourceID)
+	if !composed {
+		return arnJoinOutcome{cfnType: cfnType, typeName: tfType, reason: fmt.Sprintf(
+			"%s's identity table entry could not compose an import ID from the ARN's resource id %q",
+			tfType, a.ResourceID)}
+	}
+	return arnJoinOutcome{cfnType: cfnType, typeName: tfType, importID: importID, identityAttr: "id", ok: true}
+}
+
+// ---------------------------------------------------------------------------
+// Wiring into the sweep
+// ---------------------------------------------------------------------------
+
+// taggedCandidate is one joined Tagging API result, grouped by TF type and
+// ready for [fileTaggingCandidate].
+type taggedCandidate struct {
+	importID     string
+	identityAttr string
+	tags         map[string]string
+}
+
+// sweepViaTagging is the sweep's Tagging API path (issue #51): one
+// GetResources call, filtered to this estate's tofu-estate tag, replaces
+// the per-type ListResources loop [sweepTypes] would otherwise drive. Each
+// returned ARN is joined to a (TF type, identifier) pair by
+// [joinTaggedResource] before it reaches the same per-resource filing rules
+// [scanTypeCloudControl] applies once a type's candidates are in hand:
+// malformed-marker checks, decl matching, orphan filing. Only the candidate
+// source changes; what a candidate means once found does not.
+//
+// Unlike the Cloud Control per-type path, tags always arrive with the
+// candidate - GetResources returns them inline - so there is no
+// GetResource-style refinement step here at all; [TypeScan.Refined] stays
+// zero for every scan this produces.
+func sweepViaTagging(ctx context.Context, req Request, decl *declared, res *Result) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+
+	universe := sweepTypes(req, decl)
+	if len(universe) == 0 {
+		return diags
+	}
+	inUniverse := make(map[string]bool, len(universe))
+	for _, t := range universe {
+		inUniverse[t] = true
+	}
+
+	tagged, err := req.Tagging.GetResources(ctx, nil, []cloudcontrol.TagFilter{
+		{Key: TagEstate, Values: []string{req.Estate}},
+	})
+	if err != nil {
+		for _, typeName := range universe {
+			diags = diags.Append(sweepGapDiag(res, SweepGap{
+				TypeName: typeName,
+				Reason:   SweepGapListFailed,
+				Detail: fmt.Sprintf(
+					"The estate-wide tag sweep's GetResources call failed, so the sweep could not look for %s resources this estate owns but no longer declares: %s.",
+					typeName, err),
+			}))
+		}
+		return diags
+	}
+
+	byType := make(map[string][]taggedCandidate)
+	for _, tr := range tagged {
+		out := joinTaggedResource(req.Roster, tr.ResourceARN)
+		if !out.ok {
+			diags = diags.Append(problemDiag(res, Problem{
+				Kind:    ProblemUnresolvedTaggedARN,
+				Marker:  tr.ResourceARN,
+				LiveIDs: liveIDs(tr.ResourceARN),
+				Detail: fmt.Sprintf(
+					"The estate-wide tag sweep found a resource carrying estate %q whose ARN could not be joined to a resource type: %s. ARN: %s.",
+					req.Estate, out.reason, tr.ResourceARN),
+			}))
+			continue
+		}
+		if !inUniverse[out.typeName] {
+			// A type the config-driven scan already covers (or that is not
+			// in the sweep's own universe for some other reason): not this
+			// pass's to file.
+			continue
+		}
+		byType[out.typeName] = append(byType[out.typeName], taggedCandidate{
+			importID:     out.importID,
+			identityAttr: out.identityAttr,
+			tags:         tr.Tags,
+		})
+	}
+
+	for _, typeName := range universe {
+		cfnType, mapped := req.Roster.CloudControlType(typeName)
+		switch {
+		case !mapped || !arnJoinCovers(cfnType):
+			diags = diags.Append(sweepGapDiag(res, SweepGap{
+				TypeName: typeName,
+				Reason:   SweepGapNoARNJoin,
+				Detail: fmt.Sprintf(
+					"%s has no CFN type the ARN join table (internal/live/discovery/tagging.go) recognizes, so the tag sweep cannot tell its resources apart from an ARN alone.",
+					typeName),
+			}))
+			continue
+		case !req.Roster.Taggable(cfnType):
+			diags = diags.Append(sweepGapDiag(res, SweepGap{
+				TypeName: typeName,
+				Reason:   SweepGapNotTaggable,
+				Detail: fmt.Sprintf(
+					"live/registry.json records %s (Cloud Control type %s) as untaggable, so it can carry no ownership marker and the sweep has nothing to search on.",
+					typeName, cfnType),
+			}))
+			continue
+		}
+
+		candidates := byType[typeName]
+		scan := TypeScan{
+			TypeName:  typeName,
+			Sweep:     true,
+			Source:    SourceTagging,
+			CFNType:   cfnType,
+			Filtering: FilterServerSide,
+			Scope:     ScopeEstate,
+			Listed:    len(candidates),
+		}
+		res.SweepCovered = append(res.SweepCovered, typeName)
+
+		log.Printf("[DEBUG] stateless/discovery: sweeping %s via the Tagging API (%s), %d resources", typeName, cfnType, len(candidates))
+
+		for _, c := range candidates {
+			diags = diags.Append(fileTaggingCandidate(req, decl, typeName, c, res))
+		}
+		res.Scans = append(res.Scans, scan)
+	}
+
+	return diags
+}
+
+// fileTaggingCandidate applies the same per-resource marker rules
+// [scanTypeCloudControl] applies to one Cloud Control ListResources result,
+// to one candidate [sweepViaTagging] already joined and grouped by type.
+func fileTaggingCandidate(req Request, decl *declared, typeName string, c taggedCandidate, res *Result) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+
+	if c.tags[TagEstate] != req.Estate {
+		// GetResources was called with a TagFilter naming this exact
+		// estate, so this should be unreachable; a candidate that somehow
+		// arrives here anyway is skipped rather than filed under the wrong
+		// estate.
+		return diags
+	}
+
+	raw := c.tags[TagAddress]
+	escaped := EscapeAddress(raw)
+	if !ValidMarkerAddress(escaped) {
+		what := "carries no tofu-address tag"
+		if raw != "" {
+			what = fmt.Sprintf("carries the tofu-address value %q, which is not a well-formed escaped address", raw)
+		}
+		return diags.Append(problemDiag(res, Problem{
+			Kind:     ProblemMalformedMarker,
+			TypeName: typeName,
+			Marker:   raw,
+			LiveIDs:  liveIDs(c.importID),
+			Detail: fmt.Sprintf(
+				"A live %s (via the tag sweep) claims estate %q but %s. Per live/MARKERS.md such a resource is malformed - neither owned nor foreign - and a human has to say which address it belongs to; discovery will not guess.",
+				typeName, req.Estate, what),
+		}))
+	}
+
+	if markerType := markerTypeOf(escaped); markerType != typeName {
+		return diags.Append(problemDiag(res, Problem{
+			Kind:     ProblemMalformedMarker,
+			TypeName: typeName,
+			Marker:   raw,
+			LiveIDs:  liveIDs(c.importID),
+			Detail: fmt.Sprintf(
+				"A live %s (via the tag sweep) claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. A marker names the resource it is written on (see live/MARKERS.md). Retag the resource with its own address, or remove the marker to disown it.",
+				typeName, req.Estate, raw, markerTypeLabel(markerType), typeName),
+		}))
+	}
+
+	claim := claimant{
+		importID:     c.importID,
+		identityAttr: c.identityAttr,
+		identity:     cty.NilVal,
+		marker:       raw,
+		escaped:      escaped,
+		normalized:   escaped != raw,
+		slot:         c.tags[TagSlot],
+		tags:         c.tags,
+		noIdentity:   c.importID == "",
+	}
+
+	if entry, ok := decl.types[typeName][escaped]; ok {
+		entry.claimants = append(entry.claimants, claim)
+		return diags
+	}
+	if decl.declares(typeName, escaped) {
+		return diags
+	}
+	if cb := countBlockFor(decl.counts[typeName], escaped); cb != nil {
+		cb.extra = append(cb.extra, claim)
+		return diags
+	}
+	if blk, ok := decl.blocks[typeName][escaped]; ok && blk.keyed {
+		blk.claimants = append(blk.claimants, claim)
+		return diags
+	}
+	res.Orphans = append(res.Orphans, OwnedResource{
+		TypeName:     typeName,
+		ImportID:     c.importID,
+		IdentityAttr: c.identityAttr,
+		Marker:       raw,
+		Normalized:   escaped,
+		Slot:         c.tags[TagSlot],
+		Tags:         c.tags,
+		Swept:        true,
+	})
+	return diags
+}

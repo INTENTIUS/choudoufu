@@ -94,6 +94,29 @@ type Request struct {
 	// non-nil CloudControl with a nil Roster finds no type mapped and
 	// behaves exactly as if CloudControl were nil too.
 	Roster *registry.Roster
+
+	// Tagging is the Resource Groups Tagging API client
+	// ([cloudcontrol.NewTagging]) the sweep uses instead of per-type
+	// listing when [Request.TaggingSweep] is set (issue #51). Nil disables
+	// the tagging sweep regardless of TaggingSweep, the same "absence is
+	// off" rule [Request.CloudControl] follows.
+	Tagging *cloudcontrol.Client
+
+	// TaggingSweep replaces the estate-wide sweep's per-type listing
+	// ([sweepTypes], one list call per admitted type not already covered by
+	// the config-driven scan) with one paginated GetResources call filtered
+	// to this estate's tofu-estate tag, joining each returned ARN back to a
+	// (TF type, identifier) pair ([joinTaggedResource]). Per-type
+	// refinement - the taggable check, the malformed-marker and collision
+	// rules, everything [scanTypeCloudControl] already does once a type's
+	// candidates are in hand - stays exactly as it is; only how the
+	// candidates are gathered changes, from N list calls to one.
+	//
+	// Requires both this and Tagging to be set, and Roster (the ARN join's
+	// CFN-type-to-TF-type step reads it). Default off: a caller that never
+	// sets it, or sets it with Tagging or Roster left nil, gets the pre-#51
+	// per-type sweep unchanged.
+	TaggingSweep bool
 }
 
 // Discover finds the live resources of an estate and binds them to the
@@ -167,8 +190,15 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	// The sweep runs after the config-driven scan so that a type appearing
 	// in both is scanned once, on the terms the configuration set.
 	if req.Sweep {
-		for _, typeName := range sweepTypes(req, decl) {
-			diags = diags.Append(scanType(ctx, req, schemas, decl, typeName, res, true))
+		if req.TaggingSweep && req.Tagging != nil && req.Roster != nil {
+			// Issue #51: one estate-wide GetResources call replaces the
+			// per-type loop below. See [sweepViaTagging] and
+			// [Request.TaggingSweep].
+			diags = diags.Append(sweepViaTagging(ctx, req, decl, res))
+		} else {
+			for _, typeName := range sweepTypes(req, decl) {
+				diags = diags.Append(scanType(ctx, req, schemas, decl, typeName, res, true))
+			}
 		}
 	}
 
@@ -1322,4 +1352,5 @@ var problemSummaries = map[ProblemKind]string{
 	ProblemUnresolvedAccount:      "No AWS account ID from the provider",
 	ProblemListFailed:             "Failed to list a resource type",
 	ProblemUncomposableIdentifier: "Cloud Control identifier could not be composed",
+	ProblemUnresolvedTaggedARN:    "Tagged resource's ARN could not be joined to a resource type",
 }

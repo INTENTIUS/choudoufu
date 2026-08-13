@@ -42,13 +42,16 @@
 // # Resource Groups Tagging API
 //
 // [NewTagging] builds a Client for a second service that speaks the same
-// AWS JSON 1.0 shape against a different host and target namespace:
-// tagging.<region>.amazonaws.com, ResourceGroupsTaggingAPI_20170126.
-// GetResources ([Client.GetResources]) is the estate-wide sweep primitive
-// issue #47 evaluated: one paginated call returns every ARN carrying an
-// estate's tofu-estate tag, in place of a ListResources call per admitted
-// type. It is not wired into internal/live/discovery's sweep - turning an
-// ARN back into the (resource type, identifier) pair a bind step needs is
-// scoped out, see the TODO on [Client.GetResources] - so today it exists as
-// a tested, callable primitive and nothing calls it yet.
+// AWS JSON RPC shape against a different host, target namespace and
+// protocol version: tagging.<region>.amazonaws.com,
+// ResourceGroupsTaggingAPI_20170126, Content-Type application/x-amz-json-1.1
+// rather than Cloud Control's 1.0 (see tagging.go's taggingContentType -
+// floci enforces the distinction even though X-Amz-Target alone already
+// names the operation). GetResources ([Client.GetResources]) is the
+// estate-wide sweep primitive issue #47 evaluated: one paginated call
+// returns every ARN carrying an estate's tofu-estate tag, in place of a
+// ListResources call per admitted type. Issue #51 wires it into
+// internal/live/discovery's sweep behind Request.TaggingSweep, joining each
+// returned ARN back to a (TF type, identifier) pair
+// (internal/live/discovery/tagging.go).
 package cloudcontrol

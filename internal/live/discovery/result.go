@@ -378,6 +378,15 @@ const (
 	// on. Its identity comes out of configuration, which means deleting its
 	// resource block deletes the only record of which resource it was.
 	SweepGapNotTaggable SweepGapReason = "TYPE_NOT_TAGGABLE"
+
+	// SweepGapNoARNJoin is a type the tagging sweep ([Request.TaggingSweep],
+	// issue #51) cannot recognize from an ARN alone: either live/mapping.json
+	// names no CFN type for it, or the ARN join table
+	// (internal/live/discovery/tagging.go) has no entry able to produce that
+	// CFN type. Specific to the tagging sweep - the per-type sweep this
+	// package runs otherwise has no such gap, because it lists by CFN type
+	// directly rather than joining backward from an ARN.
+	SweepGapNoARNJoin SweepGapReason = "NO_ARN_JOIN"
 )
 
 // SweepGap is one resource type the removal sweep could not cover.
@@ -511,6 +520,18 @@ const (
 	// the parts Cloud Control sent. The raw "|"-joined string is never used
 	// as a substitute - see [composeCloudControlIdentifier].
 	ProblemUncomposableIdentifier ProblemKind = "UNCOMPOSABLE_IDENTIFIER"
+
+	// ProblemUnresolvedTaggedARN is a resource the tagging sweep
+	// ([Request.TaggingSweep], issue #51) found carrying this estate's
+	// marker, whose ResourceARN could not be joined to a (TF type,
+	// identifier) pair: the ARN's service and resource segments name no CFN
+	// type the join table knows, name more than one and nothing in the ARN
+	// says which, or the CFN type they do name has no unique TF type in
+	// live/mapping.json. Named by the ARN's own segments - see
+	// [joinTaggedResource] - and never guessed at. A warning rather than an
+	// error: the resource simply stays outside this pass's removal
+	// coverage, the same safe direction a [SweepGap] fails in.
+	ProblemUnresolvedTaggedARN ProblemKind = "UNRESOLVED_TAGGED_ARN"
 )
 
 // Severity is the diagnostic severity a problem of this kind carries.
@@ -518,7 +539,7 @@ const (
 // the account-ID smoke alarm is a warning because the run in front of the
 // operator may be perfectly correct.
 func (k ProblemKind) Severity() Severity {
-	if k == ProblemUnresolvedAccount {
+	if k == ProblemUnresolvedAccount || k == ProblemUnresolvedTaggedARN {
 		return SeverityWarning
 	}
 	return SeverityError
@@ -616,6 +637,15 @@ const (
 	// live/registry.json says the mapped CFN type is listable with no
 	// required input. See [registry.Roster.EnumerationSource].
 	SourceCloudControl EnumerationSource = "CLOUD_CONTROL"
+
+	// SourceTagging is the Resource Groups Tagging API's GetResources,
+	// filtered to this estate's tofu-estate tag - the tagging sweep's
+	// candidate source ([Request.TaggingSweep], issue #51), reached only
+	// through the sweep and only when the flag is set. Unlike
+	// SourceCloudControl, one call covers every swept type at once; each
+	// type's own [TypeScan] still records what its share of that one call
+	// produced.
+	SourceTagging EnumerationSource = "TAGGING_API"
 )
 
 // TypeScan is what happened for one resource type.
@@ -696,6 +726,8 @@ func (s TypeScan) String() string {
 		if s.Refined > 0 {
 			source += fmt.Sprintf(" refined=%d", s.Refined)
 		}
+	case SourceTagging:
+		source = fmt.Sprintf(" source=tagging(%s)", s.CFNType)
 	case SourceProvider:
 		source = " source=provider"
 	}

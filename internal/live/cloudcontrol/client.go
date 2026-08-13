@@ -80,10 +80,22 @@ type Client struct {
 	// (<service>.<region>.amazonaws.com), and opTargetPrefix is the
 	// X-Amz-Target namespace requests carry. [New] sets Cloud Control's own
 	// values; [NewTagging] overrides both for the Resource Groups Tagging
-	// API, which speaks the same AWS JSON 1.0 shape against a different
-	// service.
+	// API, which speaks the same AWS JSON RPC shape against a different
+	// service and a different protocol version - see contentType.
 	service        string
 	opTargetPrefix string
+
+	// contentType is the Content-Type header every request carries:
+	// "application/x-amz-json-1.0" for Cloud Control, "1.1" for the
+	// Resource Groups Tagging API. The two AWS JSON RPC protocol versions
+	// differ only in this header, but an emulator that inspects it to route
+	// the request - floci does - refuses the call outright when it does
+	// not match the service's real one, X-Amz-Target notwithstanding
+	// (verified against floci 1.5.33: a GetResources call with "1.0" comes
+	// back UnknownOperationException; "1.1", the value botocore's own
+	// resourcegroupstaggingapi model sends, succeeds). [New] sets Cloud
+	// Control's "1.0"; [NewTagging] overrides it.
+	contentType string
 
 	fallbackOnce  sync.Once
 	fallbackCreds aws.CredentialsProvider
@@ -95,11 +107,12 @@ func New(cfg Config) *Client {
 	c := newClient(cfg)
 	c.service = serviceName
 	c.opTargetPrefix = targetPrefix
+	c.contentType = "application/x-amz-json-1.0"
 	return c
 }
 
 // newClient builds the common parts every constructor in this package
-// shares; the caller sets service and opTargetPrefix.
+// shares; the caller sets service, opTargetPrefix and contentType.
 func newClient(cfg Config) *Client {
 	transport := cfg.RoundTripper
 	if transport == nil {
@@ -237,7 +250,7 @@ func (c *Client) call(ctx context.Context, operation string, payload any, out an
 	if err != nil {
 		return fmt.Errorf("cloudcontrol: building the %s request: %w", operation, err)
 	}
-	req.Header.Set("Content-Type", "application/x-amz-json-1.0")
+	req.Header.Set("Content-Type", c.contentType)
 	req.Header.Set("X-Amz-Target", c.opTargetPrefix+"."+operation)
 
 	if err := c.authenticate(ctx, req, body); err != nil {

@@ -8,12 +8,21 @@ package cloudcontrol
 import "context"
 
 // The Resource Groups Tagging API's own SigV4 service/host segment and
-// X-Amz-Target namespace, for [NewTagging]. Same AWS JSON 1.0 shape as
-// Cloud Control (doc.go), different service: tagging.<region>.amazonaws.com
-// and ResourceGroupsTaggingAPI_20170126.<Operation>.
+// X-Amz-Target namespace, for [NewTagging]. Same AWS JSON RPC shape as
+// Cloud Control (doc.go), different service (tagging.<region>.amazonaws.com,
+// ResourceGroupsTaggingAPI_20170126.<Operation>) and a different protocol
+// version - see [Client.contentType].
 const (
 	taggingService      = "tagging"
 	taggingTargetPrefix = "ResourceGroupsTaggingAPI_20170126"
+	// taggingContentType is what botocore's own resourcegroupstaggingapi
+	// service model sends (confirmed against botocore's service-2.json:
+	// jsonVersion "1.1", vs. cloudcontrol's "1.0") and what floci requires
+	// to route a GetResources call at all - verified directly against
+	// floci 1.5.33: the identical request with "1.0" instead comes back
+	// UnknownOperationException even though X-Amz-Target names the
+	// operation correctly.
+	taggingContentType = "application/x-amz-json-1.1"
 )
 
 // NewTagging builds a Client for the Resource Groups Tagging API's
@@ -27,6 +36,7 @@ func NewTagging(cfg Config) *Client {
 	c := newClient(cfg)
 	c.service = taggingService
 	c.opTargetPrefix = taggingTargetPrefix
+	c.contentType = taggingContentType
 	return c
 }
 

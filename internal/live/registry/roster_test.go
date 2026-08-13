@@ -149,6 +149,62 @@ func TestIdentifierArityAndTaggable(t *testing.T) {
 	}
 }
 
+func TestTFTypesForCFNType(t *testing.T) {
+	r := testRoster(t)
+
+	tests := []struct {
+		cfnType string
+		want    []string
+	}{
+		{"AWS::EFS::FileSystem", []string{"aws_efs_file_system"}},
+		{"AWS::EC2::SubnetRouteTableAssociation", []string{"aws_route_table_association"}},
+		{"AWS::Not::Mapped", nil},
+	}
+	for _, tt := range tests {
+		got := r.TFTypesForCFNType(tt.cfnType)
+		if !equalStrings(got, tt.want) {
+			t.Errorf("TFTypesForCFNType(%q) = %v, want %v", tt.cfnType, got, tt.want)
+		}
+	}
+}
+
+// TestTFTypesForCFNTypeAmbiguous is the reverse-join hazard the ARN join
+// (issue #51) has to name rather than guess through: two TF types mapped to
+// the same CFN type in the artifact.
+func TestTFTypesForCFNTypeAmbiguous(t *testing.T) {
+	mapping := `{
+	  "generated_by": "test fixture",
+	  "counts": {},
+	  "rows": [
+	    {"tf_type": "aws_thing_a", "cfn_type": "AWS::Example::Thing", "via": "name", "fold_parent": null, "note": null},
+	    {"tf_type": "aws_thing_b", "cfn_type": "AWS::Example::Thing", "via": "alias", "fold_parent": null, "note": null}
+	  ]
+	}`
+	registryJSON := `{"pin": {}, "generated_by": "test fixture", "counts": {}, "types": []}`
+
+	r, err := Parse([]byte(mapping), []byte(registryJSON))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	got := r.TFTypesForCFNType("AWS::Example::Thing")
+	want := []string{"aws_thing_a", "aws_thing_b"}
+	if !equalStrings(got, want) {
+		t.Errorf("TFTypesForCFNType(ambiguous) = %v, want %v", got, want)
+	}
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func TestNilRosterIsInert(t *testing.T) {
 	var r *Roster
 	if _, ok := r.CloudControlType("aws_vpc"); ok {
@@ -165,6 +221,9 @@ func TestNilRosterIsInert(t *testing.T) {
 	}
 	if _, ok := r.EnumerationSource("aws_vpc"); ok {
 		t.Error("a nil Roster should offer no enumeration source")
+	}
+	if got := r.TFTypesForCFNType("AWS::EC2::VPC"); got != nil {
+		t.Errorf("a nil Roster should reverse-map nothing, got %v", got)
 	}
 }
 
