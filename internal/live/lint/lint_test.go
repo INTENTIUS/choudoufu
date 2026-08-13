@@ -238,19 +238,14 @@ func TestCheck(t *testing.T) {
 			},
 		},
 		{
-			// The module call is rejected in its own right (RuleChildModule),
-			// and the walk still goes into the child and names it, which is
-			// what makes a fix-one-then-rerun loop unnecessary: an operator
-			// sees the module block and everything wrong inside it at once.
-			name: "child module is refused, walked, and named",
+			// A static module call is admitted (59b: the five walkers traverse
+			// it, so there is nothing left for RuleChildModule to refuse), and
+			// the walk still goes into the child and names it, which is what
+			// makes a fix-one-then-rerun loop unnecessary: an operator sees
+			// everything wrong inside a module at once, module path included.
+			name: "static child module is admitted, walked, and named",
 			dir:  "testdata/child-module",
 			want: []wantIssue{
-				{
-					rule:      RuleChildModule,
-					construct: `module "compute"`,
-					file:      "testdata/child-module/main.tf",
-					line:      8,
-				},
 				{
 					rule:      RuleUnadmittedType,
 					construct: "aws_customer_gateway.web",

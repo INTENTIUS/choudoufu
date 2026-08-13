@@ -513,7 +513,7 @@ func fileTaggingCandidate(req Request, decl *declared, typeName string, c tagged
 			LiveIDs:  liveIDs(c.importID),
 			Detail: fmt.Sprintf(
 				"A live %s (via the tag sweep) claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. A marker names the resource it is written on (see live/MARKERS.md). Retag the resource with its own address, or remove the marker to disown it.",
-				typeName, req.Estate, raw, markerTypeLabel(markerType), typeName),
+				typeName, req.Estate, raw, markerType, typeName),
 		}))
 	}
 

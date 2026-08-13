@@ -103,26 +103,6 @@ func resolveWith(ctx context.Context, cfg *configs.Config, rctx Context) (*Resul
 		})
 		return newResult(), diags
 	}
-	if len(cfg.Children) > 0 {
-		// Defense in depth, not the user's explanation: lint's RuleChildModule
-		// rejects module calls with a range and a forwarding address, and it
-		// runs before this in both commands. Reaching here means the pipeline
-		// ran out of order.
-		names := make([]string, 0, len(cfg.Children))
-		for name := range cfg.Children {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		diags = diags.Append(&hcl.Diagnostic{
-			Severity: hcl.DiagError,
-			Summary:  "Configuration with child modules reached identity resolution",
-			Detail: fmt.Sprintf(
-				"Live resource markers v0 cover the root module only, and this configuration calls %s. Lint rejects module calls before this point, so this is a bug in the live-markers pipeline.",
-				strings.Join(quoteAll(names), ", "),
-			),
-		})
-		return newResult(), diags
-	}
 	if cfg.Module.StaticEvaluator == nil {
 		diags = diags.Append(&hcl.Diagnostic{
 			Severity: hcl.DiagError,
@@ -135,23 +115,39 @@ func resolveWith(ctx context.Context, cfg *configs.Config, rctx Context) (*Resul
 	r := newResolver(ctx, cfg, rctx)
 
 	result := newResult()
-	// Collected for the whole configuration before anything is classified,
-	// and for every type rather than only the admitted ones. Two reasons: the
-	// config-side naming signal is what says which types could join the
-	// table, so a type the table has never heard of is the interesting case
-	// (signal.go); and the fallback that lets such a type resolve at all
-	// consults the signal for its verdict, which has to be the whole
-	// configuration's answer rather than however much of it the walk happens
-	// to have reached. See [SynthesizeTypeIdentity].
+	// Collected for the whole configuration tree before anything is
+	// classified, and for every type rather than only the admitted ones.
+	// Two reasons: the config-side naming signal is what says which types
+	// could join the table, so a type the table has never heard of is the
+	// interesting case (signal.go); and the fallback that lets such a type
+	// resolve at all consults the signal for its verdict, which has to be
+	// the whole configuration's answer rather than however much of it the
+	// walk happens to have reached. See [SynthesizeTypeIdentity].
 	result.signal = r.collectSignal(cfg)
 	r.signal = result.signal
+	r.walkModule(cfg, result)
+
+	r.checkCollisions(result)
+
+	return result, r.diags
+}
+
+// walkModule classifies every managed resource instance in one node of the
+// static module tree, then recurses into its children in name order.
+//
+// Recursion is depth-first and each call re-enters its own module before
+// touching anything, so a resource reference resolved partway through one
+// module's instances never observes another module's [resolver.mod] -
+// see [resolver.enterModule].
+func (r *resolver) walkModule(cfg *configs.Config, result *Result) {
+	r.enterModule(cfg)
 	for _, rc := range sortedResources(cfg.Module.ManagedResources) {
 		exp, ok := r.expansionFor(rc)
 		if !ok {
 			continue
 		}
 		for _, key := range exp.keys {
-			addr := rc.Addr().Instance(key).Absolute(addrs.RootModuleInstance)
+			addr := rc.Addr().Instance(key).Absolute(r.modInst)
 			res, ok := r.instance(addr, rc.DeclRange)
 			if !ok {
 				continue
@@ -159,10 +155,9 @@ func resolveWith(ctx context.Context, cfg *configs.Config, rctx Context) (*Resul
 			result.add(res)
 		}
 	}
-
-	r.checkCollisions(result)
-
-	return result, r.diags
+	for _, name := range SortedChildNames(cfg.Children) {
+		r.walkModule(cfg.Children[name], result)
+	}
 }
 
 // checkCollisions reports two instances of the same type that resolve to
@@ -191,8 +186,10 @@ func (r *resolver) checkCollisions(result *Result) {
 		}
 
 		rng := hcl.Range{}
-		if rc := r.mod.ResourceByAddr(res.Addr.Resource.Resource); rc != nil {
-			rng = rc.DeclRange
+		if r.enterModuleFor(res.Addr.Module) {
+			if rc := r.mod.ResourceByAddr(res.Addr.Resource.Resource); rc != nil {
+				rng = rc.DeclRange
+			}
 		}
 		r.errorf(rng, "Two resources with the same identity",
 			"%s and %s both resolve to the identity %q. Both would bind to the same live resource, so one of them has to change: an identity is what tells a live-markers run which cloud object a configuration block owns.",
@@ -201,15 +198,11 @@ func (r *resolver) checkCollisions(result *Result) {
 }
 
 func newResolver(ctx context.Context, cfg *configs.Config, rctx Context) *resolver {
-	return &resolver{
-		ctx:     ctx,
-		mod:     cfg.Module,
-		cloud:   rctx.Cloud,
-		schemas: rctx.Schemas,
-		// Pure on purpose: an identity is a claim about which cloud object a
-		// block owns, and a function that answers differently every time it
-		// is called cannot make that claim. See impure.go.
-		eval:       cfg.Module.StaticEvaluator.Pure(),
+	r := &resolver{
+		ctx:        ctx,
+		rootCfg:    cfg,
+		cloud:      rctx.Cloud,
+		schemas:    rctx.Schemas,
 		expansions: make(map[string]*expansion),
 		expFailed:  make(map[string]bool),
 		expVisit:   make(map[string]bool),
@@ -218,12 +211,29 @@ func newResolver(ctx context.Context, cfg *configs.Config, rctx Context) *resolv
 		instVisit:  make(map[string]bool),
 		synth:      make(map[string]*TypeIdentity),
 	}
+	r.enterModule(cfg)
+	return r
 }
 
 type resolver struct {
-	ctx   context.Context
-	mod   *configs.Module
-	eval  *configs.StaticEvaluator
+	ctx context.Context
+
+	// rootCfg is the configuration [Resolve] was given, kept so that a
+	// parent-derived reference or a resolved instance address can look up
+	// any node of the static module tree by its module path. See
+	// [resolver.enterModuleFor].
+	rootCfg *configs.Config
+
+	// mod, modInst and eval are the module currently being worked on: the
+	// module whose resources [resolver.expansionFor] and
+	// [resolver.resolveInstance] are reading. They are mutated by
+	// [resolver.enterModule] as the walk moves between modules, so nothing
+	// in this package may cache them across a call that might change
+	// modules.
+	mod     *configs.Module
+	modInst addrs.ModuleInstance
+	eval    *configs.StaticEvaluator
+
 	cloud CloudContext
 	diags tfdiags.Diagnostics
 
@@ -242,15 +252,50 @@ type resolver struct {
 	// enough". See [SynthesizeTypeIdentity].
 	synth map[string]*TypeIdentity
 
-	// Expansion memo, keyed by resource address (no instance key).
+	// Expansion memo, keyed by the module instance and the resource address
+	// (no instance key) - two resource blocks with the same local address in
+	// different modules must not share an entry.
 	expansions map[string]*expansion
 	expFailed  map[string]bool
 	expVisit   map[string]bool
 
-	// Instance resolution memo, keyed by absolute instance address.
+	// Instance resolution memo, keyed by absolute instance address, which is
+	// already module-qualified.
 	insts      map[string]Resolution
 	instFailed map[string]bool
 	instVisit  map[string]bool
+}
+
+// enterModule points the resolver at one node of the static module tree,
+// setting the module, its instance path, and its own static evaluator. Every
+// entry point that is about to read [resolver.mod] or [resolver.eval] calls
+// this first, rather than trusting whatever a previous call left behind.
+func (r *resolver) enterModule(cfg *configs.Config) {
+	r.mod = cfg.Module
+	r.modInst = ModuleInstance(cfg)
+	// Pure on purpose: an identity is a claim about which cloud object a
+	// block owns, and a function that answers differently every time it is
+	// called cannot make that claim. See impure.go.
+	r.eval = cfg.Module.StaticEvaluator.Pure()
+}
+
+// enterModuleFor is [resolver.enterModule] by module instance path, for the
+// call sites - resolving a reference's parent, most of all - that have an
+// address rather than a *configs.Config in hand. It reports false when the
+// path names no module in this configuration's tree.
+func (r *resolver) enterModuleFor(modInst addrs.ModuleInstance) bool {
+	cfg, ok := ConfigForModule(r.rootCfg, modInst)
+	if !ok || cfg.Module == nil {
+		return false
+	}
+	r.enterModule(cfg)
+	return true
+}
+
+// expKey builds the expansion memo's key: the module instance a resource
+// block belongs to, plus its own address within that module.
+func (r *resolver) expKey(rc *configs.Resource) string {
+	return r.modInst.String() + "\x00" + rc.Addr().String()
 }
 
 // lookupType is [LookupType] with the schema fallback behind it: a type the
@@ -309,6 +354,13 @@ func (r *resolver) instance(addr addrs.AbsResourceInstance, rng hcl.Range) (Reso
 
 func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range) (Resolution, bool) {
 	resAddr := addr.Resource.Resource
+
+	if !r.enterModuleFor(addr.Module) {
+		r.errorf(rng, "Reference to a module instance that does not exist",
+			"%s is in %s, which is not part of this configuration's static module tree, so its identity cannot be resolved.",
+			addr.String(), addr.Module.String())
+		return Resolution{}, false
+	}
 
 	rc := r.mod.ResourceByAddr(resAddr)
 	if rc == nil {
@@ -607,7 +659,7 @@ func (r *resolver) resolveTraversal(trav hcl.Traversal, scope instScope, ident c
 				traversalString(trav), ident.Subject)
 			return nil, false
 		}
-		parent := scope.eachParent.Instance(scope.key).Absolute(addrs.RootModuleInstance)
+		parent := scope.eachParent.Instance(scope.key).Absolute(r.modInst)
 		return r.parentPart(parent, attrStep.Name, rng, ident)
 	}
 
@@ -649,7 +701,7 @@ func (r *resolver) resolveTraversal(trav hcl.Traversal, scope instScope, ident c
 		return nil, false
 	}
 
-	return r.parentPart(instAddr.Absolute(addrs.RootModuleInstance), attrStep.Name, rng, ident)
+	return r.parentPart(instAddr.Absolute(r.modInst), attrStep.Name, rng, ident)
 }
 
 func (r *resolver) parentPart(parent addrs.AbsResourceInstance, attrName string, rng hcl.Range, ident configs.StaticIdentifier) ([]Part, bool) {
@@ -799,7 +851,7 @@ func (r *resolver) stringValue(val cty.Value, expr hcl.Expression, ident configs
 
 func (r *resolver) identifier(addr addrs.AbsResourceInstance, attrName string, rng hcl.Range) configs.StaticIdentifier {
 	return configs.StaticIdentifier{
-		Module:    addrs.RootModule,
+		Module:    addr.Module.Module(),
 		Subject:   fmt.Sprintf("%s.%s", addr.String(), attrName),
 		DeclRange: rng,
 	}
@@ -899,7 +951,7 @@ type instScope struct {
 }
 
 func (r *resolver) expansionFor(rc *configs.Resource) (*expansion, bool) {
-	key := rc.Addr().String()
+	key := r.expKey(rc)
 	if exp, ok := r.expansions[key]; ok {
 		return exp, true
 	}
@@ -1110,7 +1162,7 @@ func (r *resolver) forEachOverResource(rc *configs.Resource) (*expansion, bool) 
 
 func (r *resolver) moduleIdentifier(subject string, rng hcl.Range) configs.StaticIdentifier {
 	return configs.StaticIdentifier{
-		Module:    addrs.RootModule,
+		Module:    r.modInst.Module(),
 		Subject:   subject,
 		DeclRange: rng,
 	}

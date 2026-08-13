@@ -379,6 +379,20 @@ const (
 	// resource block deletes the only record of which resource it was.
 	SweepGapNotTaggable SweepGapReason = "TYPE_NOT_TAGGABLE"
 
+	// SweepGapObjectUntagged is an admitted, schema-taggable type
+	// ([markerCapable] said yes) that nonetheless listed at least one live
+	// object carrying no readable tags at all - a provider or emulator bug
+	// on that specific object, distinct from [SweepGapNotTaggable]'s
+	// type-wide "this type has no tags argument at all". Downgraded from a
+	// hard [Problem] to a gap only for the estate-wide sweep: a type
+	// nothing in configuration declares is best-effort coverage by
+	// definition, so one malformed object in it must not abort a plan that
+	// depends on none of it, the same reasoning [SweepGapListFailed]
+	// already applies to a list call that errors outright. A declared
+	// instance hitting the identical condition stays a hard Problem,
+	// because the operator's own configuration is waiting on it.
+	SweepGapObjectUntagged SweepGapReason = "OBJECT_UNTAGGED"
+
 	// SweepGapNoARNJoin is a type the tagging sweep ([Request.TaggingSweep],
 	// issue #51) cannot recognize from an ARN alone: either live/mapping.json
 	// names no CFN type for it, or the ARN join table
