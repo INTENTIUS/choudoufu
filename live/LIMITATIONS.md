@@ -423,6 +423,7 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_api_gateway_method`, `aws_api_gateway_model`,
 `aws_api_gateway_rest_api_policy`, `aws_api_gateway_usage_plan_key`,
 `aws_apigatewayv2_routing_rule`, `aws_appflow_connector_profile`,
+`aws_bedrockagentcore_resource_policy`,
 `aws_cloudfront_monitoring_subscription`,
 `aws_cloudfront_origin_access_control`,
 `aws_cloudfront_realtime_log_config`, `aws_cloudwatch_dashboard`,
@@ -463,7 +464,8 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_inspector2_delegated_admin_account`,
 `aws_inspector2_member_association`, `aws_kms_alias`,
 `aws_lambda_layer_version`, `aws_lb_target_group_attachment`,
-`aws_lightsail_lb_certificate`, `aws_lightsail_static_ip`,
+`aws_lexv2models_bot_locale`, `aws_lightsail_lb_certificate`,
+`aws_lightsail_static_ip`, `aws_location_tracker_association`,
 `aws_macie2_organization_admin_account`, `aws_msk_configuration`,
 `aws_nat_gateway_eip_association`, `aws_network_acl_rule`,
 `aws_network_interface_attachment`, `aws_network_interface_permission`,
@@ -565,8 +567,10 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_iam_user_policy_attachment` | `aws_iam_user` | no (report-only) |
 | `aws_kms_alias` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_lb_target_group_attachment` | `aws_lb_target_group` | no (report-only) |
+| `aws_lexv2models_bot_locale` | `aws_lexv2models_bot` | no (report-only) |
 | `aws_lightsail_lb_certificate` | `aws_lightsail_lb` | no (report-only) |
 | `aws_lightsail_static_ip` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_location_tracker_association` | `aws_location_tracker` | no (report-only) |
 | `aws_nat_gateway_eip_association` | `aws_nat_gateway` | no (report-only) |
 | `aws_network_acl_rule` | `aws_network_acl` | no (report-only) |
 | `aws_route` | `aws_route_table` | no (report-only) |
@@ -598,7 +602,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_vpc_ipam_pool_cidr` | `aws_vpc_ipam_pool` | no (report-only) |
 | `aws_wafv2_web_acl_rule` | `aws_wafv2_web_acl` | no (report-only) |
 
-**Total.** 83 types swept via a parent read.
+**Total.** 85 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
@@ -627,10 +631,11 @@ per-type reasoning as it stands.
 
 **The residue.** <!-- survey-gen:begin untaggable-residue -->
 `aws_acmpca_policy`, `aws_api_gateway_account`,
-`aws_apigatewayv2_routing_rule`, `aws_cloudfront_origin_access_control`,
-`aws_cloudwatch_dashboard`, `aws_cloudwatch_event_permission`,
-`aws_cloudwatch_log_account_policy`, `aws_cloudwatch_log_resource_policy`,
-`aws_cloudwatch_otel_enrichment`, `aws_cloudwatch_query_definition`,
+`aws_apigatewayv2_routing_rule`, `aws_bedrockagentcore_resource_policy`,
+`aws_cloudfront_origin_access_control`, `aws_cloudwatch_dashboard`,
+`aws_cloudwatch_event_permission`, `aws_cloudwatch_log_account_policy`,
+`aws_cloudwatch_log_resource_policy`, `aws_cloudwatch_otel_enrichment`,
+`aws_cloudwatch_query_definition`,
 `aws_codeartifact_repository_permissions_policy`, `aws_codebuild_webhook`,
 `aws_codedeploy_deployment_config`, `aws_cognito_user_pool_domain`,
 `aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
