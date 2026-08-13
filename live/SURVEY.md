@@ -204,11 +204,10 @@ these rows rejoin their wiring lanes.
 the mechanism it was waiting for: `internal/live/identity`'s
 `CloudContext` substitutes an account and a region into an identity
 template, and a run with neither classifies the instance as needing
-discovery rather than failing. F2 is wired on it; F1 and F3 are blocked by
-the emulator rather than by the mechanism, in different places; and F4
-turned out not to be an account-derivation problem at all. The token stays
-in the vocabulary because the next provider survey may find rows that need
-it again.
+discovery rather than failing. F1 and F2 are wired on it; F3 is blocked by
+the emulator rather than by the mechanism; and F4 turned out not to be an
+account-derivation problem at all. The token stays in the vocabulary
+because the next provider survey may find rows that need it again.
 
 `blocked-emulator` was empty in the first pass and holds twenty rows now,
 all of them found by wiring lanes probing against floci rather than by a
@@ -260,7 +259,7 @@ identity argument were derived like every other row's.
 | aws_route53_record | client-named | wired | zone_id + name + type, plus set_identifier for weighted and latency sets; the fork wires it as a composite through the aws_route53_zone marker, since the Z-ID is the zone's server-assigned identity (see the wrinkles below) | survey note; schema |
 | aws_kms_key | marker | wired | server-assigned key ID (a UUID); the alias is a separate resource | survey note; schema |
 | aws_iam_policy | client-named | blocked-emulator | name + path, but the required import attribute is the policy ARN; the account-derived mechanism builds it, and floci's iam:GetPolicy omits Tags so the row cannot be proven live (choudoufu#26) | survey note; schema |
-| aws_sqs_queue | client-named | wired | name, and the required import attribute is the queue URL; the account-derived template builds it and registry-ratified (#40, #44) despite the gap this row was blocked on — floci still reports a queue's URL as its own endpoint rather than the amazonaws.com form the provider's importer parses, so the marker path a context-less run takes still cannot complete (choudoufu#26), but a plain apply against floci creates and destroys the type cleanly regardless — see live/e2e/estates/messaging/README.md | survey note, registry; schema |
+| aws_sqs_queue | account-derived | wired | name, wrapped in the run's region and account as https://sqs.REGION.amazonaws.com/ACCOUNT/NAME; registry-ratified (#40, #44) despite the gap this row was blocked on — floci still reports a queue's URL as its own endpoint rather than the amazonaws.com form the provider's importer parses, so the marker path a context-less run takes still cannot complete (choudoufu#26), but a plain apply against floci creates and destroys the type cleanly regardless — see live/e2e/estates/messaging/README.md | survey note, registry; schema |
 | aws_sns_topic | account-derived | wired | name, wrapped in the run's region and account as arn:aws:sns:REGION:ACCOUNT:NAME | survey note; schema |
 | aws_instance | marker | blocked-emulator | server-assigned instance ID (i-...); floci jumps a new instance straight to `terminated` and the provider's create waits for `running` (lex00/floci#32, closed 2026-08-12; blocked until a pullable harness image carries the fix — reprobed the same evening, the published image still terminates; choudoufu#26) | survey note; schema |
 | aws_cloudfront_distribution | marker | blocked-emulator | server-assigned distribution ID; floci serves no usable CloudFront distribution lifecycle (choudoufu#26); lifecycle fix merged upstream 2026-08-12 (lex00/floci#29), awaiting a republished image — and floci's resourcegroupstagging covers no CloudFront, so the wiring lane must verify the provider's list resource reaches ListDistributions + ListTagsForResource rather than GetResources before flipping this row | survey note; schema |
@@ -336,11 +335,12 @@ all. The row is `blocked-emulator` today (floci needs the Docker socket
 mounted to serve RDS, lex00/floci#28), and when that unblocks it wires
 client-named by `identifier`.
 
-A fourth is the `account-derived` token itself. `aws_sns_topic` is
-client-named in the survey's own classing and stays counted that way in the
-summary, while the table shows it under the path the fork implements - the
-same treatment `aws_eip` gets. `aws_sqs_queue` is the same shape and keeps
-`client-named`, because the fork implements nothing for it yet.
+A fourth is the `account-derived` token itself. `aws_sns_topic` and
+`aws_sqs_queue` are both client-named in the survey's own classing and stay
+counted that way in the summary, while the table shows each under the path
+the fork implements - the same treatment `aws_eip` gets, now that the
+messaging batch wired the queue's identity table entry the same
+account/region-template way as the topic's.
 
 ### How the roster was reconstructed
 
@@ -401,15 +401,17 @@ outcome, so only the shape of the finding is worth repeating here.
 
 The account-derived mechanism `internal/live/identity`'s
 `CloudContext` provides is exact for the two rows whose identity is a
-configured name wrapped in an account and a region, and only one of them is
-wired. `aws_sns_topic` is: its ARN is canonical from every angle. The
-queue's URL is canonical too, and the emulator's is not - floci reports
+configured name wrapped in an account and a region, and both are wired
+today. `aws_sns_topic`'s ARN is canonical from every angle. The queue's URL
+is canonical too, and the emulator's is not - floci reports
 `http://localhost:4566/ACCOUNT/NAME`, the AWS provider's importer parses
 only the `amazonaws.com` form, and marker discovery hands the import the
-one string it will refuse. Since no run in this fork can supply a
-`CloudContext` yet, marker discovery is the path a queue actually takes, so
-`aws_sqs_queue` is `blocked-emulator` rather than wired. Real AWS has no
-such gap.
+one string it will refuse. No run in this fork can yet supply a
+`CloudContext`, so a context-less run still reaches a queue through its
+marker rather than the account-derived template, and that marker path is
+where the emulator gap bites (choudoufu#26) - but a plain apply against
+floci creates and destroys the type cleanly regardless, which is what let
+the messaging batch wire `aws_sqs_queue` anyway. Real AWS has no such gap.
 
 The mechanism did not close `aws_iam_policy` either, and there too the
 emulator is the obstacle rather than the mechanism: the template expresses
@@ -436,13 +438,13 @@ cohorts:
 | Cohort | Count |
 |---|---|
 | Name-prefix idiom (Optional+Computed identifying argument) | 12 |
-| Account-derived import identity, not yet wired | 3 |
+| Account-derived import identity, not yet wired | 2 |
 | Docs tier (no identity schema in v6.58.0) | 5 |
 | Fork-wiring wrinkle (deliberate, permanent) | 4 |
 | Parent component the survey keeps client-named | 1 |
-| **Total** | **25** |
+| **Total** | **24** |
 
-25 is the number to watch: it should shrink release by release as the
+24 is the number to watch: it should shrink release by release as the
 provider adds the identity schemas opentofu#2854 tracks, and
 `TestExceptionCohortCounts` fails the moment `pathExceptions` moves without
 this table following it. The per-type detail - which attribute, which
