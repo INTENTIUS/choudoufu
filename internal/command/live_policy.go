@@ -14,9 +14,11 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/stamp"
+	"github.com/intentius/choudoufu/internal/live/untag"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -265,5 +267,58 @@ func statelessPolicyReport(projResult *projection.Result, disco *discovery.Resul
 		}
 	}
 
+	return rep
+}
+
+// statelessUntagTargets narrows discovery's withheld undeclared_tagged
+// orphans to the ones this run's policy actually named "untag" - not
+// "keep" or "report", which are also withheld from the sweep but have
+// nothing for [untag.Release] to do - and turns each into the identity
+// evidence [untag.Release] needs to import and read it fresh. See
+// [statelessRunner.AfterApply] for why this runs during PriorState and the
+// result is only acted on later, from AfterApply.
+func statelessUntagTargets(disco *discovery.Result) []untag.Target {
+	if disco == nil {
+		return nil
+	}
+	var out []untag.Target
+	for _, o := range disco.Orphans {
+		if o.PolicyVerb != policy.Untag {
+			continue
+		}
+		out = append(out, untag.Target{
+			TypeName:    o.TypeName,
+			ImportID:    o.ImportID,
+			Identity:    o.Identity,
+			Marker:      o.Normalized,
+			DisplayName: o.DisplayName,
+		})
+	}
+	return out
+}
+
+// statelessReleasedReport turns one [untag.Result] - the apply-time record
+// of what [statelessRunner.AfterApply] actually did to every
+// undeclared_tagged = "untag" target - into the stateless view's own
+// shape. Nil-safe: AfterApply skips calling [untag.Release] at all when
+// there was nothing to release, and this function mirrors that by
+// returning an empty report.
+func statelessReleasedReport(result *untag.Result) views.StatelessPolicyReport {
+	var rep views.StatelessPolicyReport
+	if result == nil {
+		return rep
+	}
+	for _, o := range result.Outcomes {
+		rep.Released = append(rep.Released, views.StatelessReleased{
+			TypeName:     o.TypeName,
+			LiveID:       o.ImportID,
+			DisplayName:  o.DisplayName,
+			Marker:       o.Marker,
+			Key:          result.Key,
+			EstateMarker: result.Key == markers.TagEstate,
+			OK:           o.OK,
+			Detail:       o.Detail,
+		})
+	}
 	return rep
 }

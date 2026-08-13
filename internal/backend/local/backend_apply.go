@@ -325,10 +325,28 @@ func (b *Local) opApply(
 		return
 	}
 
+	if b.Stateless != nil {
+		// A real apply just finished changing the live system with no
+		// errors - the one moment [StatelessRun.AfterApply] exists for. See
+		// its own doc comment for why this can never fire from a plan-only
+		// operation: opPlan never reaches this line, because it never calls
+		// lr.Core.Apply at all.
+		//
+		// A per-resource failure reported here (GitHub issue #67's untag
+		// verb could not release a tag from some undeclared orphan, say) is
+		// never a reason to roll anything back - the graph's own changes
+		// already landed and are reported above - but it is real: the
+		// operation's own result reflects it via ReportResult below rather
+		// than only printing a diagnostic and returning success anyway.
+		diags = diags.Append(b.Stateless.AfterApply(ctx))
+	}
+
 	// If we've accumulated any warnings along the way then we'll show them
 	// here just before we show the summary and next steps. If we encountered
-	// errors then we would've returned early at some other point above.
-	op.View.Diagnostics(diags)
+	// errors then we would've returned early at some other point above,
+	// except for a stateless run's AfterApply, whose own failure is reported
+	// through the result here rather than by an early return - see above.
+	op.ReportResult(runningOp, diags)
 }
 
 // backupStateForError is called in a scenario where we're unable to persist the

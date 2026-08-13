@@ -12,6 +12,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/backend"
 	backendLocal "github.com/intentius/choudoufu/internal/backend/local"
 	"github.com/intentius/choudoufu/internal/command/arguments"
@@ -24,6 +25,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/untag"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plugins"
 	"github.com/intentius/choudoufu/internal/states"
@@ -288,6 +290,20 @@ type statelessRunner struct {
 	// methods reads it yet. See [statelessPolicy].
 	policy *policy.Policy
 
+	// untagTargets, untagKey, untagProvider and untagConfig are GitHub issue
+	// #67's undeclared_tagged = "untag" verb's apply-time work, captured by
+	// PriorState and consumed by AfterApply. They cannot be worked out
+	// inside AfterApply itself: by the time it runs, the providers
+	// PriorState listed through are already closed (see this file's "The
+	// provider double-launch" doc comment), and the orphans that need
+	// releasing were only known once discovery and the policy pass had run.
+	// Empty on any run with nothing for the untag verb to do, which is
+	// every run with no policy block and most runs with one.
+	untagTargets  []untag.Target
+	untagKey      string
+	untagProvider addrs.AbsProviderConfig
+	untagConfig   *configs.Config
+
 	lib  plugins.Library
 	mgr  *projection.Manager
 	view views.StatelessPlan
@@ -479,7 +495,59 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 
 	r.view.Policy(statelessPolicyReport(projResult, disco, stampRes, reconcile))
 
+	// GitHub issue #67's undeclared_tagged = "untag" verb: the resources
+	// applyOrphanPolicy withheld from the sweep because a non-default verb
+	// governs them, narrowed to the ones this run's policy actually named
+	// "untag" rather than "keep" or "report". Captured here, for
+	// AfterApply, rather than acted on now: this method also runs for a
+	// plan, and a plan must never write to the live system.
+	r.untagTargets = statelessUntagTargets(disco)
+	r.untagKey = statelessPolicyTagKey(r.policy)
+	r.untagProvider = discoProvider
+	r.untagConfig = config
+
 	return projResult.State, diags
+}
+
+// AfterApply implements [backendLocal.StatelessRun]: the untag verb's
+// apply-time release, run once a real apply - never a plan - has finished
+// changing the live system. See this type's untagTargets field for why the
+// work was captured during PriorState rather than computed here, and
+// internal/live/untag for the release itself.
+//
+// The providers PriorState listed through are already closed by the time
+// this runs (see this file's "The provider double-launch" doc comment), so
+// this launches its own, exactly the way [statelessPolicyReconcile]'s
+// caller already does for the same reason - and closes it again before
+// returning, since nothing after this point needs it.
+func (r *statelessRunner) AfterApply(ctx context.Context) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if len(r.untagTargets) == 0 {
+		return diags
+	}
+
+	provs := newStatelessProviders(r.untagConfig, r.lib)
+	provider, err := provs.ConfiguredProvider(ctx, r.untagProvider)
+	if err != nil {
+		diags = diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"Provider unavailable for the apply-time tag release",
+			fmt.Sprintf(
+				"GitHub issue #67's undeclared_tagged = \"untag\" verb has %d resource(s) to release %q from, but provider %s could not be used to release it: %s. Nothing was changed; the resources involved are still live and still carry the tag.",
+				len(r.untagTargets), r.untagKey, r.untagProvider, err,
+			),
+		))
+		diags = diags.Append(provs.close(ctx))
+		return diags
+	}
+
+	result, releaseDiags := untag.Release(ctx, provider, r.untagKey, r.untagTargets)
+	diags = diags.Append(releaseDiags)
+	diags = diags.Append(provs.close(ctx))
+
+	r.view.Policy(statelessReleasedReport(result))
+
+	return diags
 }
 
 // estateName settles which estate this run is about, from the stateless

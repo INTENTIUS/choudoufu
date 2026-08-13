@@ -283,6 +283,29 @@ type StatelessUntagged struct {
 	EstateMarker bool
 }
 
+// StatelessReleased is one owned-but-undeclared resource GitHub issue #67's
+// undeclared_tagged = "untag" verb released a tag key from for real, during
+// apply - internal/live/untag.Outcome, in this package's own shape.
+//
+// Distinct from [StatelessUntagged]: that type reports a declared_tagged
+// block's tag removal from the plan that proposes it, since the ordinary
+// apply graph performs the write and a plan showing it is a true
+// prediction. This resource has no configuration block and no graph node,
+// so there is nothing to predict - only [statelessRunner.AfterApply]'s own
+// report, after a real apply, of what actually happened. OK false means
+// the resource was left exactly as it was found; nothing here ever falls
+// back to destroying it.
+type StatelessReleased struct {
+	TypeName     string
+	LiveID       string
+	DisplayName  string
+	Marker       string
+	Key          string
+	EstateMarker bool
+	OK           bool
+	Detail       string
+}
+
 // StatelessReconcileCandidate is one live resource GitHub issue #67's
 // undeclared_untagged = "delete" scoped account reconciliation would
 // destroy - discovery.ReconcileCandidate, rendered with identity evidence
@@ -320,12 +343,13 @@ type StatelessPolicyReport struct {
 	Declared  []StatelessPolicyDeclared
 	Withheld  []StatelessPolicyWithheld
 	Untagged  []StatelessUntagged
+	Released  []StatelessReleased
 	Reconcile StatelessReconcile
 }
 
 // Empty reports whether there is nothing to render.
 func (r StatelessPolicyReport) Empty() bool {
-	return len(r.Declared) == 0 && len(r.Withheld) == 0 && len(r.Untagged) == 0 && !r.Reconcile.Ran
+	return len(r.Declared) == 0 && len(r.Withheld) == 0 && len(r.Untagged) == 0 && len(r.Released) == 0 && !r.Reconcile.Ran
 }
 
 // StatelessPlan renders the parts of live-plan's output that have no
@@ -694,6 +718,8 @@ const statelessPolicyWithheldIntro = `These live resources carry this estate's o
 
 const statelessUntaggedIntro = `declared_tagged = "untag" released the named tag key from these resources' desired configuration. Each is otherwise stamped and managed exactly as it would be under converge; only the named key is affected. A resource marked "leaves management" released its own tofu-estate marker: this run's marker discovery can no longer find it by that marker, so a later plan will treat it as declared_untagged rather than converging it.`
 
+const statelessReleasedIntro = `undeclared_tagged = "untag" released the named tag key from these live resources after a real apply changed the cloud - an orphan has no configuration block for the ordinary plan graph to hang an update off of, so this happens once, outside the graph, and is reported here rather than predicted in the plan above. RELEASED means the tag is confirmed gone by a read that followed the write; the resource itself was never destroyed or replaced. FAILED means the resource was left exactly as it was found - read the detail line for why.`
+
 const statelessReconcileIntro = `undeclared_untagged = "delete" is scoped account reconciliation: every live resource of an admitted, enumerable type in this policy's scope that carries no estate marker and no preservation tag is planned for destruction, individually, with its identity evidence. This list is never a claim that the account is clean - see the gaps below for what this pass could not look at.`
 
 // Policy renders GitHub issue #67's policy report as its own section,
@@ -755,6 +781,35 @@ func (v *StatelessPlanHuman) Policy(rep StatelessPolicyReport) {
 				status = " [LEAVES MANAGEMENT]"
 			}
 			colored("  [bold]%s[reset] releases %q%s\n", u.Addr, u.Key, status)
+		}
+	}
+
+	if len(rep.Released) > 0 {
+		failed := 0
+		for _, u := range rep.Released {
+			if !u.OK {
+				failed++
+			}
+		}
+		if failed > 0 {
+			colored("\n[reset][bold]Policy untag (applied): %d of %d %s NOT released[reset]\n\n",
+				failed, len(rep.Released), noun(len(rep.Released), "resource", "resources"))
+		} else {
+			colored("\n[reset][bold]Policy untag (applied): %d %s released a tag[reset]\n\n",
+				len(rep.Released), noun(len(rep.Released), "resource", "resources"))
+		}
+		wrapped(statelessReleasedIntro, 0)
+		out("\n")
+		for _, u := range rep.Released {
+			status := "[bold][green]RELEASED[reset]"
+			if !u.OK {
+				status = "[bold][red]FAILED[reset]"
+			}
+			colored("  %s [bold]%s %s[reset]%s releases %q\n",
+				status, u.TypeName, liveIDOrNone(u.LiveID), displaySuffix(u.DisplayName, u.LiveID), u.Key)
+			if u.Detail != "" {
+				wrapped(u.Detail, 6)
+			}
 		}
 	}
 
