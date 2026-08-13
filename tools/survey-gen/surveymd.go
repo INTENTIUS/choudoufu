@@ -28,9 +28,8 @@ type HandRow struct {
 
 // readRoster parses SURVEY.md's per-type table. The table is the only place
 // in the file where a row's first cell is a resource type name, which is
-// what keeps this parser from reading the summary, flag or cross-cloud
-// tables: those never open with an `aws_` cell (the flag table's first cell
-// is F1..F6).
+// what keeps this parser from reading the file's other tables: the summary
+// and status tables never open with an `aws_` cell.
 func readRoster(path string) ([]HandRow, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // a fixed path inside the checkout
 	if err != nil {
