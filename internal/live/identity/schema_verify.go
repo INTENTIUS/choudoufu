@@ -288,6 +288,14 @@ func checkArguments(entry TypeIdentity, schema providers.Schema) []Finding {
 // which the schema requires none and the table picks whichever the config
 // uses). And a component is checked against the identity schema's whole
 // attribute set, required and optional together, for the same reason.
+//
+// [SynthesizeTypeIdentity] leans on the same asymmetry from the other
+// direction: a hand entry is free to build the rest of the identity from
+// optional attributes because a human wrote it and can see the schema, but
+// synthesis has to refuse the moment optional-for-import means anything
+// other than context, because inferring which alternative applies is
+// exactly what it cannot do. aws_route is the type that makes both sides of
+// this concrete.
 func checkIdentity(entry TypeIdentity, schema providers.Schema) []Finding {
 	required, optional := identityAttrs(schema.IdentitySchema)
 	all := append(append([]string{}, required...), optional...)

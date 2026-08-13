@@ -47,6 +47,50 @@ func fallbackSchemas() map[string]providers.Schema {
 	})
 }
 
+// routeSchema is aws_route's own shape, stood up as a fake schema so
+// SynthesizeTypeIdentity can be asked about aws_route directly: one
+// required identity attribute, route_table_id, plus the three destination_*
+// arguments the real AWS provider marks optional for import. Going through
+// Resolve instead would find DefaultTable's hand row for aws_route before
+// synthesis ever ran, which is why this schema exists rather than reusing
+// [fallbackSchemas].
+func routeSchema() map[string]providers.Schema {
+	return fakeProviderSchemas(map[string]fakeType{
+		"aws_route": {
+			args: map[string]string{
+				"route_table_id":              "req",
+				"destination_cidr_block":      "opt",
+				"destination_ipv6_cidr_block": "opt",
+				"destination_prefix_list_id":  "opt",
+			},
+			identity: map[string]string{
+				"route_table_id":              "req",
+				"destination_cidr_block":      "opt",
+				"destination_ipv6_cidr_block": "opt",
+				"destination_prefix_list_id":  "opt",
+			},
+		},
+	})
+}
+
+// TestSynthesizeTypeIdentityRefusesRoute pins #39: a single required
+// identity attribute is not a complete identity when the schema also marks
+// something other than the context pair (account_id, region) optional for
+// import. aws_route's route_table_id passes the old "one attribute" bar on
+// its own, and a synthesized entry keyed on it alone would name the route
+// table, not the route - every route in the table would resolve to the
+// same identity. The hand row in DefaultTable covers this today; this test
+// is what stops synthesis from covering it wrongly if that row is ever
+// deleted.
+func TestSynthesizeTypeIdentityRefusesRoute(t *testing.T) {
+	signal := scanFixture(t, "schema-fallback-route")
+	schemas := routeSchema()
+
+	if entry, ok := SynthesizeTypeIdentity("aws_route", schemas, signal); ok {
+		t.Fatalf("aws_route was synthesized from route_table_id alone: %#v", entry)
+	}
+}
+
 func resolveFallback(t *testing.T, fixture string, schemas map[string]providers.Schema) (*Result, string) {
 	t.Helper()
 

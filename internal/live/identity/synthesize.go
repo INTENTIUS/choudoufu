@@ -41,6 +41,16 @@ import (
 //     that addresses nothing. Composites stay in the hand table, which is
 //     where that inference is written down and checked (see
 //     [VerifyTable]).
+//   - The required attribute has to be the *whole* identity. If the schema
+//     also marks something other than the context pair (account_id,
+//     region) optional for import, the required attribute names only part
+//     of what identifies an instance. aws_route is exactly this shape:
+//     route_table_id is the only required identity attribute, and the
+//     schema also lists the three destination_* arguments as
+//     optional-for-import alternatives - so a synthesized entry keyed on
+//     route_table_id alone would name a route table, not a route. See
+//     [checkIdentity] in schema_verify.go for the same asymmetry, read
+//     from the table-checking side.
 //
 // The synthesized entry names exactly one attribute on each side: the
 // argument the identity is read from, and the attribute another resource may
@@ -70,6 +80,18 @@ func SynthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema
 	if len(d.IdentityAttrs) != 1 {
 		// A composite identity needs a separator this package will not
 		// invent. See the doc comment.
+		return TypeIdentity{}, false
+	}
+	if !onlyContext(d.Context) {
+		// The one required attribute is not the whole identity: the schema
+		// also marks something other than the context pair optional for
+		// import. aws_route is exactly this shape - route_table_id is the
+		// only required identity attribute, but the schema also lists the
+		// three destination_* arguments as optional-for-import
+		// alternatives, and a route table's ID is not a route's identity.
+		// [checkIdentity] in schema_verify.go documents the same
+		// asymmetry from the table-checking side; this is the synthesis
+		// side of it.
 		return TypeIdentity{}, false
 	}
 
@@ -123,6 +145,27 @@ func (r *resolver) schemaRefusal(typeName string) string {
 	return fmt.Sprintf(
 		" The provider's identity schema for %s is a composite of %s, and the character that joins them into an import ID is in no schema, so that inference has to be written down in the table.",
 		typeName, orList(admitted[0].IdentityAttrs))
+}
+
+// contextAttrs are the identity attributes the provider fills in itself
+// rather than reading from configuration - the account and the region - so
+// their presence among a schema's optional-for-import attributes says
+// nothing about whether a required attribute is the whole identity. Any
+// other name in that optional set means it is not: an alternative the
+// configuration might supply (aws_route's destination_*) or a value the
+// provider fills in under some other name, either way something
+// [SynthesizeTypeIdentity] cannot infer.
+var contextAttrs = map[string]bool{"account_id": true, "region": true}
+
+// onlyContext reports whether every name in an identity schema's
+// optional-for-import set is the context pair. See [contextAttrs].
+func onlyContext(names []string) bool {
+	for _, name := range names {
+		if !contextAttrs[name] {
+			return false
+		}
+	}
+	return true
 }
 
 func pluralThem(n int) string {
