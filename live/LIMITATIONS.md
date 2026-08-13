@@ -528,11 +528,17 @@ creating one. `via: "tf-only"` in `live/mapping.json`.
 | 5 | a default_* adopter: brings an AWS-created default resource under management rather than creating one, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
 | 2 | a registration action: enrolls an account or resource into a feature, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
 | 1 | a confirmation waiter: flips a pending request to confirmed, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
+| 1 | a generic tag escape-hatch: sets one tag key/value on an existing Transfer Family resource's ARN (for resources tagged outside Terraform, or tag keys requiring the aws: prefix), with no CFN resource of its own |
+| 1 | a preview/dry-run action: shows the next CIDR an IPAM pool would allocate without allocating it, with no CFN resource of its own |
+| 1 | a verification waiter: polls until a domain identity's DNS verification record is detected, the same shape as the base overlay's aws_acm_certificate_validation - the provider's own docs say it 'doesn't represent an actual AWS entity' |
+| 1 | a verification waiter: starts and tracks AWS::EC2::VPCEndpointService's private-DNS verification (StartVpcEndpointServicePrivateDnsVerification), with no CFN resource or property of its own - VPCEndpointService's property list carries no verification-status field |
 | 1 | an activation action: flips a pending registration to active, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
+| 1 | an activation setting: designates which existing AWS::SES::ReceiptRuleSet is the account's active rule set (SetActiveReceiptRuleSet), with no CFN property of its own - AWS::SES::ReceiptRuleSet has no Active property and ships no update handler |
+| 1 | an aws_ami_copy-style one-shot operation: starts a code-signing job against an S3 object and records its completed, immutable result, with no CFN resource of its own (registry has no AWS::Signer::SigningJob type; only SigningProfile and ProfilePermission) |
 | 1 | an invocation action: triggers a call and records its result, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
 | 1 | waiter: records only that DNS validation finished; waiting belongs to the lifecycle layer, not a CFN resource of its own |
 
-**Total.** 34 Terraform AWS resource types that are provider-side constructs, not infrastructure - no CloudFormation counterpart is expected for any of them. Each row's own note is in `live/mapping.json`.
+**Total.** 40 Terraform AWS resource types that are provider-side constructs, not infrastructure - no CloudFormation counterpart is expected for any of them. Each row's own note is in `live/mapping.json`.
 <!-- survey-gen:end residue-tf-only -->
 
 #### CFN-unmodeled resources
@@ -546,8 +552,44 @@ empty until a sweep adds its first entry.
 <!-- survey-gen:begin residue-cfn-unmodeled -->
 | Count | Note |
 |---|---|
+| 8 | same registry gap as aws_storagegateway_cache - AWS::StorageGateway's only registered CFN type is TapePool |
+| 4 | AWS::WorkMail has zero CFN Registry resource types at all - same evidence as aws_workmail_default_domain |
+| 3 | no AWS::ServiceQuotas::* type exists in the registry at all - same registry-search evidence as aws_servicequotas_auto_management |
+| 1 | AWS::EC2::Snapshot itself has no CFN Registry resource type at all (registry search for 'snapshot' under EC2 finds only SnapshotBlockPublicAccess), so the CreateVolumePermission attribute TF exposes as a separate resource cannot be modeled either |
+| 1 | AWS::SWF has zero CFN Registry resource types at all (registry search for 'SWF' returns no matches) |
+| 1 | AWS::StorageGateway's current CFN Registry footprint (live/registry.json) is a single type, AWS::StorageGateway::TapePool; no Cache/Gateway/Volume/FileShare type is registered even though these are real, actively used Storage Gateway resources |
+| 1 | AWS::WorkMail has zero CFN Registry resource types at all (registry search for 'WorkMail' returns no matches) |
+| 1 | an AWS Management Console personalization setting (account color, visible regions/services); no CFN resource models console UI preferences |
+| 1 | no AWS::ServiceQuotas::* type exists in the registry at all (confirmed by search; the only 'Quota' match anywhere in live/registry.json is the unrelated AWS::Batch::QuotaShare) |
+| 1 | real AWS Organizations-wide IPAM delegated-admin enrollment with no CFN model - an org-level setting, not a property of any AWS::EC2::IPAM* type |
+| 1 | real EC2 account-wide spot datafeed S3 subscription with no CFN model - no matching AWS::EC2::* type in the registry |
+| 1 | real EC2 single-instance spot request (RequestSpotInstances, the discouraged legacy API) with no CFN model - the registry's only spot-related EC2 type is AWS::EC2::SpotFleet, which models fleets, not a single instance request |
+| 1 | real IAM Identity Center multi-region provisioning (adds/removes a Region from an instance) with no CFN model - no AWS::SSO::Region type exists in the registry's 6 AWS::SSO::* types |
+| 1 | real IAM Identity Center trusted OIDC token issuer with no CFN model - no AWS::SSO::TrustedTokenIssuer type exists in the registry's 6 AWS::SSO::* types |
+| 1 | real SES account/identity config (SetIdentityNotificationTopic) with no CFN model - AWS::SES::EmailIdentity's property list (ConfigurationSetAttributes, DkimAttributes, DkimSigningAttributes, FeedbackAttributes, MailFromAttributes, Tags per its CFN docs) carries no notification-topic property, and no other AWS::SES::* type covers it |
+| 1 | real SES sending-authorization policy (PutIdentityPolicy) with no CFN model - not a property of AWS::SES::EmailIdentity, and no AWS::SES::*Policy* type exists in the registry's 21 SES types |
+| 1 | real SESv2 account-wide suppression-list config with no CFN model - no AWS::SES::Account* type exists in the registry |
+| 1 | real SESv2 action (PutDedicatedIpInPool, assigning one IP to a pool) with no CFN model - AWS::SES::DedicatedIpPool's CFN properties are only PoolName, ScalingMode and Tags; it carries no member-IP list to attach to |
+| 1 | real SNS account-wide SMS preferences (default SMS type, spend limit, etc.) with no CFN model - not a property of AWS::SNS::Topic, and no dedicated CFN type exists |
+| 1 | real SNS mobile-push PlatformApplication resource with no CFN model - the registry's 4 AWS::SNS::* types (Subscription, Topic, TopicInlinePolicy, TopicPolicy) carry no PlatformApplication |
+| 1 | real SSO application access-scope config (PutApplicationAccessScope) with no CFN model - AWS::SSO::Application's CFN properties (ApplicationProviderArn, Description, InstanceArn, Name, PortalOptions, Status, Tags per its CFN docs) carry no access-scope field |
+| 1 | real SSO application assignment-required toggle (PutApplicationAssignmentConfiguration) with no CFN model - not among AWS::SSO::Application's CFN properties (see aws_ssoadmin_application_access_scope's evidence) |
+| 1 | real Shield Advanced account subscription/enrollment (1-year commitment, auto-renew) with no CFN model - the registry's 4 AWS::Shield::* types (DRTAccess, ProactiveEngagement, Protection, ProtectionGroup) have none for the subscription itself |
+| 1 | real Transcribe resource with no CFN model - same registry gap as aws_transcribe_language_model (only VocabularyFilter is registered) |
+| 1 | real Transcribe resource with no CFN model - same registry gap as aws_transcribe_language_model (only VocabularyFilter is registered, not the base Vocabulary type) |
+| 1 | real Transcribe resource with no CFN model - the registry's only AWS::Transcribe::* type is VocabularyFilter; no LanguageModel type exists |
+| 1 | real Transfer Family custom SFTP host key (ImportHostKey) with no CFN model - not among AWS::Transfer::Server's CFN properties (Certificate, Domain, EndpointDetails, EndpointType, IdentityProviderDetails, IdentityProviderType, IpAddressType, LoggingRole, PostAuthenticationLoginBanner, PreAuthenticationLoginBanner, ProtocolDetails, Protocols, S3StorageOptions, SecurityPolicyName, StructuredLogDestinations, Tags, WorkflowDetails per its CFN docs) |
+| 1 | real Transfer Family resource (an external-identity-group landing directory, CreateAccess) with no CFN model - not among AWS::Transfer::Server's CFN properties and no dedicated AWS::Transfer::Access type is registered |
+| 1 | real VPC Lattice target registration (RegisterTargets) with no CFN model - AWS::VpcLattice::TargetGroup's CFN properties are Name, Type, Config/* and Tags only; no Targets list to attach to |
+| 1 | real WAFv2 API key (for CAPTCHA/Challenge JS integration) with no CFN model - the registry's 6 AWS::WAFv2::* types (IPSet, LoggingConfiguration, RegexPatternSet, RuleGroup, WebACL, WebACLAssociation) carry no ApiKey type |
+| 1 | real WorkSpaces directory registration with no CFN model - the registry's 4 AWS::WorkSpaces::* types (ConnectionAlias, Workspace, WorkspaceIpGroup, WorkspacesPool) carry no Directory type |
+| 1 | real X-Ray account/region KMS encryption setting with no CFN model - not among the registry's 4 AWS::XRay::* types (Group, ResourcePolicy, SamplingRule, TransactionSearchConfig) |
+| 1 | real X-Ray account/region trace-segment destination setting (XRay vs CloudWatchLogs) with no CFN model - not among the registry's 4 AWS::XRay::* types |
+| 1 | real per-connection DNS-resolution/options config with no CFN model - AWS::EC2::VPCPeeringConnection's CFN properties (AssumeRoleRegion, PeerOwnerId, PeerRegion, PeerRoleArn, PeerVpcId, Tags, VpcId per its CFN docs) carry no peering-options field |
+| 1 | real, per-rule X-Ray sampling/indexing rule with no CFN model - distinct from the account-wide singleton AWS::XRay::TransactionSearchConfig (whose only property is IndexingPercentage, with AccountId as primary identifier); no per-rule IndexingRule type is registered |
+| 1 | same as aws_ses_identity_policy: a sending-authorization policy on an identity, not a property of AWS::SES::EmailIdentity and not modeled by any other AWS::SES::* type |
 
-**Total.** 0 Terraform AWS resource types that are real infrastructure with no CloudFormation Registry model at all. Each row's own note is in `live/mapping.json`.
+**Total.** 48 Terraform AWS resource types that are real infrastructure with no CloudFormation Registry model at all. Each row's own note is in `live/mapping.json`.
 <!-- survey-gen:end residue-cfn-unmodeled -->
 
 #### Unclassified Terraform types
@@ -563,9 +605,9 @@ parent-derived) are unaffected and may still reach one.
 <!-- survey-gen:begin residue-unmapped -->
 | Count | Note |
 |---|---|
-| 713 | no CFN counterpart found by name or curated overlay |
+| 600 | no CFN counterpart found by name or curated overlay |
 
-**Total.** 713 Terraform AWS resource types with no CloudFormation Registry counterpart and no terminal classification yet - the count the family sweeps in issue #53's workplan burn down. Each row's own note is in `live/mapping.json`.
+**Total.** 600 Terraform AWS resource types with no CloudFormation Registry counterpart and no terminal classification yet - the count the family sweeps in issue #53's workplan burn down. Each row's own note is in `live/mapping.json`.
 <!-- survey-gen:end residue-unmapped -->
 
 #### Registry-laggard live services
