@@ -488,6 +488,14 @@ func TestServiceAliasCrossHeuristicCollisions(t *testing.T) {
 		{"aws_alb_target_group", "aws_lb_target_group"}:                 true,
 		{"aws_ses_configuration_set", "aws_sesv2_configuration_set"}:    true,
 		{"aws_ses_email_identity", "aws_sesv2_email_identity"}:          true,
+		// aws_cloudwatch_event_bus_policy manages a whole EventBridge bus
+		// policy document (PutBusPolicy); aws_cloudwatch_event_permission
+		// manages one statement within that same document (PutPermission) -
+		// two TF-side granularities over the one CFN resource,
+		// AWS::Events::EventBusPolicy, the same shape as the alb/lb pairs
+		// above (issue #53 family sweep A, verified against both resources'
+		// own provider docs).
+		{"aws_cloudwatch_event_bus_policy", "aws_cloudwatch_event_permission"}: true,
 	}
 	seen := map[[2]string]bool{}
 
