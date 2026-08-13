@@ -18,6 +18,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/flocitest"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -401,57 +402,28 @@ func TestDiagnostics(t *testing.T) {
 	}
 }
 
-// TestAdmissionTableCoversEstate is a guard on the table itself rather than on
-// the check: every managed resource type in the estate fixture must be
-// admitted, stated once as a list so that dropping an entry from the table
-// fails here with a clear message rather than only through the estate walk.
+// TestAdmissionTableCoversEstate is a guard on the table itself rather than
+// on the check: every managed resource type used by a fixture must be
+// admitted. The universe is not just the demo estate but its union with
+// every per-cohort verification estate under live/e2e/estates (#48, phase 3
+// of #38's decision) - table == union(estate, estates/*), read straight off
+// the fixtures rather than pinned as a hand-maintained list, so that adding
+// a estates/<cohort> directory extends the pin with no test-file edits.
 func TestAdmissionTableCoversEstate(t *testing.T) {
-	estateTypes := []string{
-		"aws_vpc",
-		"aws_subnet",
-		"aws_security_group",
-		"aws_route_table",
-		"aws_internet_gateway",
-		"aws_route",
-		"aws_route_table_association",
-		"aws_s3_bucket",
-		"aws_s3_bucket_policy",
-		"aws_iam_role",
-		"aws_iam_role_policy_attachment",
-		"aws_cloudwatch_log_group",
-		"aws_eip",
-		"aws_ssm_parameter",
-		"aws_dynamodb_table",
-		"aws_ecs_cluster",
-		"aws_kms_key",
-		"aws_route53_zone",
-		"aws_s3_bucket_versioning",
-		"aws_s3_bucket_public_access_block",
-		"aws_s3_bucket_server_side_encryption_configuration",
-		"aws_s3_bucket_lifecycle_configuration",
-		"aws_iam_role_policy",
-		"aws_kms_alias",
-		"aws_route53_record",
-		"aws_cloudwatch_metric_alarm",
-		"aws_lb",
-		"aws_lb_target_group",
-		"aws_lb_listener",
-		"aws_lb_target_group_attachment",
-		"aws_sns_topic",
-		"aws_vpc_security_group_ingress_rule",
-		"aws_vpc_security_group_egress_rule",
-		"aws_launch_template",
-		"aws_acm_certificate",
-		"aws_sfn_state_machine",
-		"aws_ebs_volume",
-	}
-	for _, resourceType := range estateTypes {
-		if !admitted(resourceType) {
-			t.Errorf("%s is used by the estate fixture but is missing from the v0 admission table", resourceType)
+	fixtureTypes := map[string]bool{}
+	for _, dir := range flocitest.FixtureDirs(t) {
+		cfg := loadConfigDir(t, dir)
+		for _, rc := range cfg.Module.ManagedResources {
+			fixtureTypes[rc.Type] = true
 		}
 	}
-	if got, want := len(admittedTypesV0), len(estateTypes); got != want {
-		t.Errorf("v0 admission table has %d types, want exactly the estate's %d", got, want)
+	for resourceType := range fixtureTypes {
+		if !admitted(resourceType) {
+			t.Errorf("%s is used by a fixture but is missing from the v0 admission table", resourceType)
+		}
+	}
+	if got, want := len(admittedTypesV0), len(fixtureTypes); got != want {
+		t.Errorf("v0 admission table has %d types, want exactly the fixtures' %d", got, want)
 	}
 }
 

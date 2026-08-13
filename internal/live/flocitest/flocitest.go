@@ -33,6 +33,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -86,6 +87,51 @@ func EstateDir(t *testing.T) string {
 func LimitsDir(t *testing.T) string {
 	t.Helper()
 	return fixtureDir(t, filepath.Join("live", "e2e", "limits"))
+}
+
+// EstatesDir returns the path of the per-cohort verification estates
+// directory, live/e2e/estates: one subdirectory per ratification batch,
+// exercised only in the gated tier (#48, phase 3 of #38). Unlike EstateDir,
+// a missing directory here is not a fixture error - CohortDirs treats it as
+// an empty cohort set rather than failing the test.
+func EstatesDir(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(RepoRoot(t), "live", "e2e", "estates")
+}
+
+// CohortDirs returns the path of every per-cohort verification estate under
+// live/e2e/estates, sorted. Adding a estates/<cohort> directory picks it up
+// here with no test-file edits, which is the union pin's whole point.
+func CohortDirs(t *testing.T) []string {
+	t.Helper()
+
+	entries, err := os.ReadDir(EstatesDir(t))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		t.Fatalf("reading the per-cohort estates directory: %v", err)
+	}
+
+	var dirs []string
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		dirs = append(dirs, filepath.Join(EstatesDir(t), entry.Name()))
+	}
+	sort.Strings(dirs)
+	return dirs
+}
+
+// FixtureDirs returns the demo estate plus every per-cohort verification
+// estate under live/e2e/estates - the union a table-equals-fixture pin now
+// covers, generalized from table == estate to table == union(estate,
+// estates/*) (#48). The demo estate is always first and always present;
+// cohorts follow in sorted order.
+func FixtureDirs(t *testing.T) []string {
+	t.Helper()
+	return append([]string{EstateDir(t)}, CohortDirs(t)...)
 }
 
 func fixtureDir(t *testing.T, rel string) string {
