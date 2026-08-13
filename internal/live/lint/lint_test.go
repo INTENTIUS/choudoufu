@@ -206,7 +206,7 @@ func TestCheck(t *testing.T) {
 			want: []wantIssue{
 				{
 					rule:      RuleUnadmittedType,
-					construct: "aws_customer_gateway.web",
+					construct: "aws_cloudwatch_event_rule.web",
 					file:      "testdata/unadmitted/main.tf",
 					line:      5,
 				},
@@ -278,13 +278,13 @@ func TestCheck(t *testing.T) {
 				},
 				{
 					rule:      RuleUnadmittedType,
-					construct: "aws_customer_gateway.web",
+					construct: "aws_cloudwatch_event_rule.web",
 					file:      "testdata/multiple/main.tf",
 					line:      11,
 				},
 				{
 					rule:      RuleProvisioner,
-					construct: `provisioner "local-exec" on aws_customer_gateway.web`,
+					construct: `provisioner "local-exec" on aws_cloudwatch_event_rule.web`,
 					file:      "testdata/multiple/main.tf",
 					line:      14,
 				},
@@ -324,7 +324,7 @@ func TestCheck(t *testing.T) {
 				},
 				{
 					rule:      RuleUnadmittedType,
-					construct: "aws_customer_gateway.web",
+					construct: "aws_cloudwatch_event_rule.web",
 					module:    "module.compute",
 					file:      "testdata/child-module/child/main.tf",
 					line:      1,
