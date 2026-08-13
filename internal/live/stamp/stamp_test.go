@@ -2134,6 +2134,11 @@ func tagFunctions() map[string]function.Function {
 		// language's own implementation, so evaluating a stamped tag here is
 		// evaluating what the plan will.
 		"merge": stdlib.MergeFunc,
+		// substr is issue #71's addition: a per-instance address long enough
+		// to need continuation tags is split with n independent substr()
+		// calls (stamp.templateChunkMarkers). Same reasoning as the two
+		// above.
+		"substr": stdlib.SubstrFunc,
 	}
 }
 

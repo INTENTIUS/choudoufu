@@ -18,6 +18,7 @@
 package markers
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -44,10 +45,108 @@ const (
 )
 
 // MaxTagValue is the AWS hard limit on a tag value, in Unicode characters.
-// An escaped address longer than this cannot be stored as a marker at all,
-// so a value at the limit is suspicious enough to report as malformed
-// rather than to compare.
+// A single marker tag - tofu-address itself, or one continuation tag - can
+// carry no more than this.
 const MaxTagValue = 256
+
+// MaxContinuations is the highest number of tag values one tofu-address may
+// span (issue #71's k). tofu-address carries the first MaxTagValue
+// characters of the escaped address; tofu-address-2 through
+// tofu-address-<MaxContinuations> carry the rest, in order. See
+// live/MARKERS.md, "tofu-address continuation tags".
+const MaxContinuations = 4
+
+// MaxAddressLen is the longest escaped address a resource's markers may
+// carry in total, across tofu-address and every continuation tag. An
+// address longer than this is refused at lint time (RuleOverlongAddress) -
+// the same refusal a value over a single MaxTagValue got before
+// continuation tags existed, just at a wider ceiling.
+const MaxAddressLen = MaxTagValue * MaxContinuations
+
+// ContinuationTag names the n-th continuation tag key, for n in
+// [2, MaxContinuations]. n=1 is TagAddress itself, which has no
+// continuation form; a caller that wants "the key holding chunk i" for any
+// 0-based i, including 0, wants [AddressTagKey] instead.
+func ContinuationTag(n int) string {
+	return fmt.Sprintf("%s-%d", TagAddress, n)
+}
+
+// AddressTagKey names the tag key that carries the i-th (0-based) chunk of
+// a split tofu-address value: TagAddress for i=0, the (i+1)-th continuation
+// tag otherwise. It is the indexing [SplitAddress] and [GatherAddress]
+// agree on.
+func AddressTagKey(i int) string {
+	if i == 0 {
+		return TagAddress
+	}
+	return ContinuationTag(i + 1)
+}
+
+// SplitAddress divides an escaped address into the ordered chunks its
+// markers would carry: chunk 0 is the TagAddress value, chunk 1 is
+// tofu-address-2, and so on ([AddressTagKey] names each chunk's tag key). A
+// value that fits in one tag returns a single chunk, unchanged - the common
+// case, and the only one before continuation tags existed. It never returns
+// more than MaxContinuations chunks; a caller with a longer value has one
+// lint's RuleOverlongAddress already refuses to admit.
+func SplitAddress(escaped string) []string {
+	runes := []rune(escaped)
+	if len(runes) <= MaxTagValue {
+		return []string{escaped}
+	}
+	chunks := make([]string, 0, MaxContinuations)
+	for len(runes) > 0 && len(chunks) < MaxContinuations {
+		n := MaxTagValue
+		if n > len(runes) {
+			n = len(runes)
+		}
+		chunks = append(chunks, string(runes[:n]))
+		runes = runes[n:]
+	}
+	return chunks
+}
+
+// GatherAddress reads a marker's tofu-address value back off a tag map,
+// concatenating any continuation tags (tofu-address-2, tofu-address-3, ...)
+// in order. It is the read-side twin of [SplitAddress]: a value SplitAddress
+// wrote across several tags comes back as the one string it started from. A
+// tag map with no continuation tags at all - every marker before issue #71,
+// and every marker whose address fits in one tag today - reads back exactly
+// as tags[TagAddress] always did.
+//
+// The second return is true when the continuation chain has a gap: some
+// tofu-address-n is present while tofu-address-(n-1) (or tofu-address
+// itself, for n=2) is missing. That can only happen by hand-editing tags -
+// deleting one continuation out of a set this package always writes as a
+// whole - and it is reported the same way any other malformed marker is:
+// loud and named, rather than silently read as the address up to the gap.
+// It is never set merely because tags[TagAddress] itself is absent; that is
+// the ordinary "no marker at all" case every existing caller already
+// handles by getting back an empty string.
+func GatherAddress(tags map[string]string) (raw string, corrupt bool) {
+	primary, ok := tags[TagAddress]
+	if !ok {
+		return "", false
+	}
+
+	var b strings.Builder
+	b.WriteString(primary)
+
+	n := 2
+	for ; n <= MaxContinuations; n++ {
+		v, present := tags[ContinuationTag(n)]
+		if !present {
+			break
+		}
+		b.WriteString(v)
+	}
+	for m := n + 1; m <= MaxContinuations; m++ {
+		if _, present := tags[ContinuationTag(m)]; present {
+			return "", true
+		}
+	}
+	return b.String(), false
+}
 
 // estateNamePattern is the tofu-estate grammar from the marker spec:
 // a lowercase ASCII letter followed by up to 127 letters, digits or hyphens.
@@ -94,8 +193,14 @@ func EscapeAddress(addr string) string {
 // enough to be compared. A value that is not is the marker spec's
 // "unparseable tofu-address": malformed, and a named error rather than a
 // resource treated as unowned.
+//
+// The length bound is MaxAddressLen, not MaxTagValue: every caller hands
+// this the logical address - the declared value before splitting, or the
+// value [GatherAddress] already concatenated back together - never one raw
+// tag's worth on its own, so the wider continuation-tag budget is the right
+// ceiling here.
 func ValidMarkerAddress(escaped string) bool {
-	if escaped == "" || len([]rune(escaped)) > MaxTagValue {
+	if escaped == "" || len([]rune(escaped)) > MaxAddressLen {
 		return false
 	}
 	return escapedAddress.MatchString(escaped)

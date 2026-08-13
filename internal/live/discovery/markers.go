@@ -34,6 +34,14 @@ const (
 	// MaxTagValue is the AWS hard limit on a tag value, in Unicode
 	// characters.
 	MaxTagValue = markers.MaxTagValue
+
+	// MaxContinuations is the highest number of tag values one tofu-address
+	// may span (issue #71's k).
+	MaxContinuations = markers.MaxContinuations
+
+	// MaxAddressLen is the longest escaped address a resource's markers may
+	// carry in total, across tofu-address and every continuation tag.
+	MaxAddressLen = markers.MaxAddressLen
 )
 
 // ValidEstateName reports whether s is a well-formed estate name.
@@ -50,4 +58,22 @@ func ValidMarkerAddress(escaped string) bool { return markers.ValidMarkerAddress
 // address, and reports whether it could.
 func UnescapeAddress(escaped string) (addrs.AbsResourceInstance, bool) {
 	return markers.UnescapeAddress(escaped)
+}
+
+// ContinuationTag names the n-th continuation tag key, for n in
+// [2, MaxContinuations].
+func ContinuationTag(n int) string { return markers.ContinuationTag(n) }
+
+// AddressTagKey names the tag key that carries the i-th (0-based) chunk of a
+// split tofu-address value.
+func AddressTagKey(i int) string { return markers.AddressTagKey(i) }
+
+// SplitAddress divides an escaped address into the ordered chunks its
+// markers would carry.
+func SplitAddress(escaped string) []string { return markers.SplitAddress(escaped) }
+
+// GatherAddress reads a marker's tofu-address value back off a tag map,
+// concatenating any continuation tags in order. See [markers.GatherAddress].
+func GatherAddress(tags map[string]string) (raw string, corrupt bool) {
+	return markers.GatherAddress(tags)
 }

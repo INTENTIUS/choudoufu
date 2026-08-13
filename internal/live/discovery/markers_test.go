@@ -169,7 +169,7 @@ func TestHostileMarkerValuesAreMalformedAndNothingElse(t *testing.T) {
 		"empty name":          `aws_vpc.`,
 		"json fragment":       `{"type":"aws_vpc","name":"main"}`,
 		"shell interpolation": `$(aws_vpc.main)`,
-		"overlong":            "aws_vpc." + strings.Repeat("x", 300),
+		"overlong":            "aws_vpc." + strings.Repeat("x", 1100), // past MaxAddressLen (1024, issue #71)
 	} {
 		t.Run(name, func(t *testing.T) {
 			cloud := newFakeCloud()
@@ -205,6 +205,48 @@ func TestHostileMarkerValuesAreMalformedAndNothingElse(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestContinuationGapIsMalformed is the issue #71 sibling of
+// TestHostileMarkerValuesAreMalformedAndNothingElse: a tofu-address
+// continuation chain with a hole in it - tofu-address-3 present while
+// tofu-address-2 is not - cannot be concatenated into anything, and
+// discovery reports it the same way any other unparseable tofu-address is
+// reported: malformed, neither owned nor foreign, never a removal
+// candidate. It can only happen by hand-editing tags (deleting one
+// continuation out of a set stamp always writes as a whole), which is
+// exactly why it is loud rather than silently read as the address up to the
+// gap.
+func TestContinuationGapIsMalformed(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.obj("aws_vpc", "vpc-gap", map[string]string{
+		TagEstate:          estateName,
+		TagAddress:         strings.Repeat("a", 256),
+		ContinuationTag(3): strings.Repeat("b", 10), // tofu-address-2 is missing.
+	})
+
+	res, diags := discoverFixture(t, cloud, Request{})
+	if !diags.HasErrors() {
+		t.Fatalf("a gapped continuation chain produced no error:\n%s", res)
+	}
+	problems := res.ProblemsOfKind(ProblemMalformedMarker)
+	if len(problems) != 1 {
+		t.Fatalf("a gapped continuation chain is not reported as exactly one malformed marker:\n%s", res)
+	}
+	if !strings.Contains(problems[0].Detail, "continuation") {
+		t.Errorf("the malformed-marker detail does not mention the continuation gap: %q", problems[0].Detail)
+	}
+	if len(res.Bindings) != 0 {
+		t.Errorf("a gapped continuation chain bound to something:\n%s", res)
+	}
+	if len(res.Unclaimed) != 0 {
+		t.Errorf("a gapped continuation chain was also collected as unclaimed:\n%s", res)
+	}
+	for _, o := range res.Orphans {
+		if o.Removal {
+			t.Errorf("a gapped continuation chain produced a removal candidate: %s", o)
+		}
 	}
 }
 

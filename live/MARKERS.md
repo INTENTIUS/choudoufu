@@ -15,20 +15,24 @@ marker-managed estate, whether or not it has ever heard of OpenTofu.
 
 ## Tag keys
 
-Three tag keys are defined. All three are plain resource tags, stamped on
-every taggable resource the mode manages.
+Three tag keys are defined, plus an optional fourth family. All are plain
+resource tags, stamped on every taggable resource the mode manages.
 
 | Key | Meaning | Present on |
 |---|---|---|
 | `tofu-estate` | The estate that owns the resource. | Every managed resource. |
-| `tofu-address` | The resource's canonical config address. | Every managed resource. |
+| `tofu-address` | The resource's canonical config address, or its first chunk. | Every managed resource. |
+| `tofu-address-2`, `tofu-address-3`, `tofu-address-4` | The rest of `tofu-address`, in order, when it does not fit in one tag. | Only a resource whose escaped address is longer than one tag value. |
 | `tofu-slot` | A stable, opaque cardinality slot. | `count` instances only. |
 
 A resource carrying `tofu-estate` and `tofu-address` is fully identified by
 an estate and a place within that estate's configuration. `tofu-slot` is
 additional information layered on top for resources that come from a
 `count` block. It does not replace `tofu-address`, which still carries the
-full indexed address (see below).
+full indexed address (see below). `tofu-address-2` through `tofu-address-4`
+are additional information of a different kind: they do not stand on their
+own, and exist only to carry the rest of a `tofu-address` value one tag
+could not hold. See "tofu-address continuation tags" below.
 
 ## AWS tag constraints
 
@@ -122,10 +126,58 @@ index runs to the next `.` or the end of the string.
 | `aws_eip.this[2]` | `aws_eip.this:2` |
 | `module.subnets["a"].aws_subnet.this` | `module.subnets:a.aws_subnet.this` |
 
-The full escaped value must be at most 256 characters (the AWS hard cap on
-tag values). An address that does not fit is a lint-time error, not a
-truncation. Silently truncating an ownership key is worse than refusing to
-admit the resource.
+A single tag value holds at most 256 characters (the AWS hard cap on tag
+values). An escaped address that does not fit is carried across several
+tags instead - see "tofu-address continuation tags", directly below - up to
+a total of 1024 characters. Past that wider ceiling, the original rule
+still holds without exception: an address that does not fit is a lint-time
+error, not a truncation. Silently truncating an ownership key is worse than
+refusing to admit the resource.
+
+### `tofu-address` continuation tags
+
+Deep module trees and long `for_each` keys can produce an escaped address
+longer than one 256-character tag value holds. Rather than refuse every
+such address outright, `tofu-address` carries the first 256 characters and
+up to three more tags - `tofu-address-2`, `tofu-address-3`,
+`tofu-address-4` - carry the rest, in order, 256 characters at a time. A
+reader concatenates `tofu-address`, then `tofu-address-2` if present, then
+`tofu-address-3`, then `tofu-address-4`, and the result is the one escaped
+address that would not fit in a single tag. This is the only sanctioned way
+to read a split address; the continuation tags are never meaningful on
+their own, individually or out of order.
+
+This raises the effective limit to 1024 characters (four tags of 256), not
+an unbounded one. An address that does not fit in four tags is still a
+lint-time error - RuleOverlongAddress, `internal/live/lint/overlong_address.go`
+- for the same reason the original 256-character refusal existed:
+truncating an ownership key is worse than refusing to admit the resource,
+and a fourth tier of continuation would just move the same question further
+out without answering it. Four tags is deliberately generous headroom
+against the 50-tag-per-resource AWS limit (minus whatever tags the
+configuration's own `tags` block already uses) while staying a small, fixed
+number rather than a knob a configuration can turn.
+
+A resource whose address fits in 256 characters - the overwhelming common
+case, and every marker written before this addition existed - carries only
+`tofu-address` and no continuation tags at all, exactly as before. Nothing
+about a short address changes.
+
+**Reading a corrupt chain.** A continuation tag can only exist because
+something wrote the whole set together; the three tags below `tofu-address`
+are never independently meaningful. A tag map where `tofu-address-3` is
+present but `tofu-address-2` is not - the middle of the chain deleted by a
+hand edit, a tag policy misfire, or two racing writes - cannot be
+concatenated into anything, and per "Ownership semantics" below it is
+malformed: reported loudly and by name, never silently read as the address
+up to the gap and never treated as unowned.
+
+**Writing one.** A tool that stamps markers and encounters an address over
+256 characters splits it the same way: the first 256 characters into
+`tofu-address`, the next 256 into `tofu-address-2`, and so on, stopping at
+whichever tag holds the last of the address (a shorter final chunk is
+normal and is not padded). A tool that only ever writes addresses under 256
+characters never has to think about this section at all.
 
 **Known limitation, left for the lint layer to enforce, not this spec to
 paper over.** The escaping is lossy in two ways, both by design rather than
@@ -209,7 +261,10 @@ change in the number of live instances mints or retires slots.
   error surfaced to the operator, the same way a binding ambiguity is (two
   live resources claiming one address). It is never guessed at, and never
   silently treated as either "belongs to no one" or "belongs to whichever
-  address looks close enough."
+  address looks close enough." A `tofu-address` continuation chain with a
+  gap in it - a `tofu-address-3` present while `tofu-address-2` is not - is
+  the same malformed case: it cannot be concatenated into anything, so it
+  is reported rather than read as the address up to the gap.
 - Two resources carrying the same `tofu-estate` and the same
   `tofu-address` at once is also a named error. The marker admission path
   assumes at most one live resource per address per estate, and a
@@ -237,7 +292,11 @@ special-casing renames in the plan engine.
 
 Old markers never linger. There is exactly one `tofu-address` value on a
 resource at any time, and after a rewrite that value is the new address,
-not a history of addresses it once had.
+not a history of addresses it once had. This holds for continuation tags
+too: a rename onto a shorter address writes fewer `tofu-address-*` tags
+than the old one carried, and a rename tool is expected to delete whichever
+continuation tags the new address does not reach rather than leave a stale
+tag that a later read would concatenate onto the new value.
 
 ## Versioning
 
@@ -251,7 +310,17 @@ A change is additive (no version bump) if every marker already written
 under the current spec still parses and means the same thing under the new
 one. Documenting a previously implicit rule more precisely qualifies, as
 does adding a new optional tag key that absence-tolerant readers can
-ignore.
+ignore. The `tofu-address` continuation tags are exactly this: every marker
+written before they existed has no `tofu-address-*` tag and reads exactly
+as it always did, so no existing marker is invalidated. The asymmetry runs
+the other way instead - a reader built only against spec version 1's single
+`tofu-address` tag will read a NEW split marker's first 256 characters as
+the whole address, silently, rather than erroring. That is a real gap for
+anything that has not been updated to read continuation tags, and it is
+accepted rather than papered over with a version bump, because the
+definition above is about old data under new code, not new data under old
+code; the versioning number cannot help with the latter no matter which way
+it is called.
 
 A change is breaking (version bump required) if it invalidates that
 guarantee. Renaming a tag key, changing the escaping rule, changing what

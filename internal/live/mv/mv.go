@@ -331,11 +331,11 @@ func checkMarkers(res *Result) tfdiags.Diagnostics {
 		addr   addrs.AbsResourceInstance
 		marker string
 	}{{res.Old, res.OldMarker}, {res.New, res.NewMarker}} {
-		if len([]rune(m.marker)) > discovery.MaxTagValue {
+		if len([]rune(m.marker)) > discovery.MaxAddressLen {
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
 				"Address too long to carry an ownership marker",
-				fmt.Sprintf("The address %s escapes to %d characters, over the %d-character AWS tag value limit, so no live resource can carry it as a tofu-address marker. See live/MARKERS.md.", m.addr, len([]rune(m.marker)), discovery.MaxTagValue),
+				fmt.Sprintf("The address %s escapes to %d characters, over the %d-character ceiling tofu-address and its continuation tags allow (live/MARKERS.md, \"tofu-address continuation tags\"), so no live resource can carry it as a marker.", m.addr, len([]rune(m.marker)), discovery.MaxAddressLen),
 			))
 			continue
 		}
@@ -586,10 +586,19 @@ func (m *mover) sweep(ctx context.Context, ts listclient.TypeSchema) ([]listed, 
 		if tags[discovery.TagEstate] != m.req.Estate {
 			continue
 		}
+		raw, corrupt := discovery.GatherAddress(tags)
+		if corrupt {
+			// A malformed marker (a gap in its continuation tags) is not a
+			// claim on any address; it neither matches the address being
+			// renamed away from nor collides with the one being renamed
+			// onto, the same way an unparseable tofu-address already did
+			// before continuation tags existed.
+			continue
+		}
 		mine = append(mine, listed{
 			liveID:      importIdentity(m.res.TypeName, r),
 			displayName: r.DisplayName,
-			marker:      discovery.EscapeAddress(tags[discovery.TagAddress]),
+			marker:      discovery.EscapeAddress(raw),
 			identity:    r.Identity,
 		})
 	}
@@ -739,9 +748,18 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 	}
 
 	estate := tags[discovery.TagEstate]
-	marker := discovery.EscapeAddress(tags[discovery.TagAddress])
+	raw, corrupt := discovery.GatherAddress(tags)
+	marker := discovery.EscapeAddress(raw)
 
 	switch {
+	case corrupt:
+		return nil, diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"Malformed ownership marker",
+			fmt.Sprintf(
+				"The live %s at %s carries a tofu-address marker whose continuation tags (tofu-address-2, tofu-address-3, ...) have a gap in them, so this run cannot tell what address it names. See live/MARKERS.md, \"tofu-address continuation tags\"; a human has to resolve this before it can be renamed.",
+				m.res.TypeName, m.res.LiveID),
+		))
 	case marker == m.res.OldMarker && estate == m.req.Estate:
 		// Found it.
 		return obj, diags

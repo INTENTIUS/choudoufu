@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/gocty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
@@ -439,8 +440,8 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 	wantAddr, addrDisplay, perInstance := addressExpr(rc, modInst)
 	markers := []marker{
 		{key: TagEstate, expr: &hclsyntax.LiteralValueExpr{Val: cty.StringVal(s.req.Estate), SrcRange: rc.DeclRange}, want: s.req.Estate},
-		{key: TagAddress, expr: wantAddr, want: addrDisplay, perInstance: perInstance},
 	}
+	markers = append(markers, s.splitAddressMarker(ctx, rc, modInst, wantAddr, addrDisplay, perInstance)...)
 	if slotExpr, slotDisplay, ok := s.slotExpr(rc); ok {
 		markers = append(markers, marker{key: TagSlot, expr: slotExpr, want: slotDisplay, perInstance: true})
 	}
@@ -628,7 +629,7 @@ func (s *stamper) verifyValue(rc *configs.Resource, m marker, got string) (verdi
 		}
 		return verifyConflict, fmt.Sprintf(
 			"%s has %s, so each instance owns a different address, but its %s tag is the constant %q. Write it as %q, or remove the tag and let this run stamp it.",
-			addr, instanceKeyword(rc), TagAddress, got, m.want)
+			addr, instanceKeyword(rc), m.key, got, m.want)
 	}
 
 	if got == m.want {
@@ -640,10 +641,18 @@ func (s *stamper) verifyValue(rc *configs.Resource, m marker, got string) (verdi
 		return verifyConflict, fmt.Sprintf(
 			"%s declares %s = %q and this run is stamping the estate %q. A plan never overwrites a marker naming another estate: pass -estate=%s if that is the estate this run is for, or drop the flag and let the configuration's own value stand.",
 			addr, TagEstate, got, m.want, got)
-	default:
+	case TagAddress:
 		return verifyConflict, fmt.Sprintf(
 			"%s declares %s = %q, but its address in this configuration is %q. A marker naming another address is a rename: run `choudoufu live-mv %s %s`, or fix the tag. See live/MARKERS.md, \"The rename rule\".",
 			addr, TagAddress, got, m.want, got, m.want)
+	default:
+		// A continuation tag (tofu-address-2, tofu-address-3, ...): part of
+		// a longer address, not an address by itself, so neither of the two
+		// messages above fits it. See live/MARKERS.md, "tofu-address
+		// continuation tags".
+		return verifyConflict, fmt.Sprintf(
+			"%s declares %s = %q, a tofu-address continuation tag, but this run would write a different value there. Continuation tags are written automatically alongside %s and are never edited by hand; remove %s and let this run rewrite the whole set, or run `choudoufu live-mv <old-address> <new-address>` if the resource's address is actually changing. See live/MARKERS.md, \"tofu-address continuation tags\".",
+			addr, m.key, got, TagAddress, m.key)
 	}
 }
 
@@ -892,6 +901,265 @@ func addressExpr(rc *configs.Resource, modInst addrs.ModuleInstance) (hclsyntax.
 		escaped := discovery.EscapeAddress(base)
 		return &hclsyntax.LiteralValueExpr{Val: cty.StringVal(escaped), SrcRange: rng}, escaped, false
 	}
+}
+
+// ---------------------------------------------------------------------------
+// tofu-address continuation tags (issue #71)
+// ---------------------------------------------------------------------------
+
+// splitAddressMarker turns [addressExpr]'s single tofu-address value into
+// the marker entries that carry it: one entry, unchanged, for an address
+// that fits a single tag value - the only case before continuation tags
+// existed, and still the overwhelming common one - or several, in order
+// (tofu-address, tofu-address-2, ...), for one that does not. See
+// live/MARKERS.md, "tofu-address continuation tags".
+//
+// The two shapes addressExpr can return are split two different ways. A
+// constant address (no count, no for_each) is split exactly, from its own
+// known length: [constantAddressMarkers]. A per-instance address is a
+// template over count.index or each.key, and no single instance's length is
+// known until the plan evaluates it, so the block's longest possible
+// instance decides how many chunks the WHOLE block's tags argument carries -
+// [stamper.chunkCount], mirroring internal/live/lint's own static read of
+// the same count or for_each expression - and every chunk beyond the first
+// is a substr() window over that one template, wrapped once per chunk in
+// [templateChunkMarkers]. A shorter instance in the same block simply gets
+// empty-string continuations, which [discovery.GatherAddress] safely
+// contributes nothing to on read.
+func (s *stamper) splitAddressMarker(ctx context.Context, rc *configs.Resource, modInst addrs.ModuleInstance, full hclsyntax.Expression, display string, perInstance bool) []marker {
+	rng := rc.DeclRange
+
+	if !perInstance {
+		lit, ok := full.(*hclsyntax.LiteralValueExpr)
+		if !ok {
+			// addressExpr's non-perInstance branch always returns a literal;
+			// this is a defensive fallback, not a reachable case.
+			return []marker{{key: TagAddress, expr: full, want: display}}
+		}
+		return constantAddressMarkers(lit.Val.AsString(), rng)
+	}
+
+	n := s.chunkCount(ctx, rc, modInst)
+	if n <= 1 {
+		return []marker{{key: TagAddress, expr: full, want: display, perInstance: true}}
+	}
+	return templateChunkMarkers(full, display, n, rng)
+}
+
+// constantAddressMarkers is [stamper.splitAddressMarker] for a resource with
+// neither count nor for_each: the address is a compile-time constant, so
+// splitting it is exact rather than a worst-case estimate - one literal
+// chunk per tag, no substr(), and a short address (still the common case)
+// comes back exactly as it always did: one marker, unchanged.
+func constantAddressMarkers(escaped string, rng hcl.Range) []marker {
+	chunks := discovery.SplitAddress(escaped)
+	out := make([]marker, 0, len(chunks))
+	for i, chunk := range chunks {
+		out = append(out, marker{
+			key:  discovery.AddressTagKey(i),
+			expr: &hclsyntax.LiteralValueExpr{Val: cty.StringVal(chunk), SrcRange: rng},
+			want: chunk,
+		})
+	}
+	return out
+}
+
+// templateChunkMarkers is [stamper.splitAddressMarker] for a per-instance
+// address whose longest instance needs n > 1 tags. full is reused unmodified
+// as the first argument of n independent substr() calls, one per
+// markers.MaxTagValue-sized window; sharing the one hclsyntax node across
+// them is safe because this tree is only ever evaluated (Value(ctx)), never
+// mutated or re-serialized to source - see stamp/doc.go, "The seam:
+// configuration synthesis, before the plan runs". The last chunk's window
+// has no upper bound (length -1, "the rest of the string") rather than
+// another fixed MaxTagValue, so a shorter instance's trailing chunks come
+// back empty rather than error: cty's substr() clamps an out-of-range
+// offset to "", it does not fail.
+func templateChunkMarkers(full hclsyntax.Expression, display string, n int, rng hcl.Range) []marker {
+	out := make([]marker, 0, n)
+	for i := 0; i < n; i++ {
+		length := discovery.MaxTagValue
+		if i == n-1 {
+			length = -1
+		}
+		out = append(out, marker{
+			key: discovery.AddressTagKey(i),
+			expr: &hclsyntax.FunctionCallExpr{
+				Name: "substr",
+				Args: []hclsyntax.Expression{
+					full,
+					&hclsyntax.LiteralValueExpr{Val: cty.NumberIntVal(int64(i * discovery.MaxTagValue)), SrcRange: rng},
+					&hclsyntax.LiteralValueExpr{Val: cty.NumberIntVal(int64(length)), SrcRange: rng},
+				},
+				NameRange:       rng,
+				OpenParenRange:  rng,
+				CloseParenRange: rng,
+			},
+			want:        fmt.Sprintf("%s (chunk %d of %d)", display, i+1, n),
+			perInstance: true,
+		})
+	}
+	return out
+}
+
+// chunkCount is how many tofu-address tags a per-instance resource's longest
+// instance needs, mirroring internal/live/lint's own static read of the same
+// count or for_each expression (lint's staticCount and staticForEachKeys):
+// lint's RuleOverlongAddress has already refused anything the static
+// evaluator agrees is over markers.MaxAddressLen by the time a configuration
+// reaches this package. An expression this pass cannot evaluate here - the
+// same "skip rather than guess" boundary lint itself practices for it -
+// returns 1, the pre-#71 behavior: a single tofu-address template, exactly
+// as before continuation tags existed. That is a known, pre-existing gap
+// shared with lint's own overlong check, not a new one this package opens.
+func (s *stamper) chunkCount(ctx context.Context, rc *configs.Resource, modInst addrs.ModuleInstance) int {
+	base := addrs.ConfigResource{Module: modInst.Module(), Resource: rc.Addr()}.String()
+
+	var prefix string
+	var longest int
+	switch {
+	case rc.Count != nil:
+		n, ok := s.staticCount(ctx, rc)
+		if !ok || n < 1 {
+			return 1
+		}
+		prefix = discovery.EscapeAddress(base + "[")
+		longest = len(strconv.Itoa(n - 1))
+	case rc.ForEach != nil:
+		keys, ok := s.staticForEachKeys(ctx, rc)
+		if !ok {
+			return 1
+		}
+		prefix = discovery.EscapeAddress(base + `["`)
+		for _, k := range keys {
+			if l := len([]rune(k)); l > longest {
+				longest = l
+			}
+		}
+	default:
+		return 1
+	}
+	return chunksFor(len([]rune(prefix)) + longest)
+}
+
+// chunksFor is how many markers.MaxTagValue-sized tags an escaped value of n
+// characters needs, capped at markers.MaxContinuations: lint's
+// RuleOverlongAddress has already refused anything past
+// markers.MaxContinuations*markers.MaxTagValue characters by the time a
+// configuration reaches this package, so the cap here is a defensive
+// backstop, not a decision this package makes on its own.
+func chunksFor(n int) int {
+	c := (n + discovery.MaxTagValue - 1) / discovery.MaxTagValue
+	if c < 1 {
+		c = 1
+	}
+	if c > discovery.MaxContinuations {
+		c = discovery.MaxContinuations
+	}
+	return c
+}
+
+// staticCount is stamp's own copy of the question lint's staticCount asks:
+// the value of a count expression, or "not computable here". Two
+// independent implementations of the same narrow static-evaluation
+// question, matching the precedent this package and lint already set for it
+// ([stamper.staticValue] here, lint's own evalStatic there) rather than a
+// shared package neither imports.
+func (s *stamper) staticCount(ctx context.Context, rc *configs.Resource) (int, bool) {
+	if rc.Count == nil || s.mod == nil || s.mod.StaticEvaluator == nil {
+		return 0, false
+	}
+	for _, trav := range rc.Count.Variables() {
+		switch trav.RootName() {
+		case "var", "local", "path", "terraform":
+			// Evaluable in a static scope.
+		default:
+			return 0, false
+		}
+	}
+
+	val, ok := s.evalStatic(ctx, rc.Count, "count")
+	if !ok || val == cty.NilVal || val.IsNull() || !val.IsWhollyKnown() || val.IsMarked() {
+		return 0, false
+	}
+
+	var n int
+	if err := gocty.FromCtyValue(val, &n); err != nil {
+		return 0, false
+	}
+	return n, true
+}
+
+// staticForEachKeys is stamp's own copy of lint's staticForEachKeys: the
+// instance keys a for_each expression produces, or "not computable here".
+// See [stamper.staticCount]'s doc comment for why this duplicates rather
+// than imports.
+func (s *stamper) staticForEachKeys(ctx context.Context, rc *configs.Resource) ([]string, bool) {
+	if rc.ForEach == nil || s.mod == nil || s.mod.StaticEvaluator == nil {
+		return nil, false
+	}
+	for _, trav := range rc.ForEach.Variables() {
+		switch trav.RootName() {
+		case "var", "local", "path", "terraform":
+			// Evaluable in a static scope.
+		default:
+			return nil, false
+		}
+	}
+
+	val, ok := s.evalStatic(ctx, rc.ForEach, "for_each")
+	if !ok || val == cty.NilVal || val.IsNull() || !val.IsWhollyKnown() || val.IsMarked() {
+		return nil, false
+	}
+
+	ty := val.Type()
+	var keys []string
+	switch {
+	case ty.IsMapType(), ty.IsObjectType():
+		for it := val.ElementIterator(); it.Next(); {
+			k, _ := it.Element()
+			if k.Type() != cty.String || k.IsNull() {
+				return nil, false
+			}
+			keys = append(keys, k.AsString())
+		}
+	case ty.IsSetType(), ty.IsListType(), ty.IsTupleType():
+		for it := val.ElementIterator(); it.Next(); {
+			_, v := it.Element()
+			if v.Type() != cty.String || v.IsNull() {
+				return nil, false
+			}
+			keys = append(keys, v.AsString())
+		}
+	default:
+		return nil, false
+	}
+	return keys, true
+}
+
+// evalStatic evaluates an expression through the module's static evaluator,
+// degrading to "cannot check" instead of erroring - the same recover lint's
+// own evalStatic has, for the same reason: the static scope's data source
+// panics rather than errors for a reference class the traversal pre-filters
+// in [stamper.staticCount] and [stamper.staticForEachKeys] did not already
+// turn away.
+func (s *stamper) evalStatic(ctx context.Context, expr hcl.Expression, subject string) (val cty.Value, ok bool) {
+	defer func() {
+		if recover() != nil {
+			val, ok = cty.NilVal, false
+		}
+	}()
+
+	ident := configs.StaticIdentifier{
+		Module:    s.modInst.Module(),
+		Subject:   subject,
+		DeclRange: expr.Range(),
+	}
+	v, diags := s.mod.StaticEvaluator.Evaluate(ctx, expr, ident)
+	if diags.HasErrors() {
+		return cty.NilVal, false
+	}
+	return v, true
 }
 
 // slotExpr builds the tofu-slot value for a count block: a lookup into the

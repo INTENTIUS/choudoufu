@@ -348,13 +348,19 @@ passing lint still cannot mint a marker nothing can read back. Fixture at
 
 ### overlong-address
 
-**Construct.** A resource whose escaped `tofu-address` would exceed 256
-characters (an absurdly long resource label).
+**Construct.** A resource whose escaped `tofu-address` would exceed 1024
+characters (an absurdly long resource label, `for_each` key, or nesting of
+both).
 
-**Why bounded.** AWS caps a tag value at 256 Unicode characters, a hard
-limit stated directly in `live/MARKERS.md`. "An address that does not fit
-is a lint-time error, not a truncation. Silently truncating an ownership
-key is worse than refusing to admit the resource."
+**Why bounded.** AWS caps a single tag value at 256 Unicode characters, a
+hard limit stated directly in `live/MARKERS.md`. Since issue #71, an
+address that does not fit one tag is split across up to four ordered tags -
+`tofu-address`, `tofu-address-2`, `tofu-address-3`, `tofu-address-4` - and
+concatenated back into one value on read, so the enforced budget is
+`MaxContinuations x MaxTagValue` = 4 x 256 = 1024 characters, not 256. Past
+that wider budget, the same rule as before still applies: "An address that
+does not fit is a lint-time error, not a truncation. Silently truncating an
+ownership key is worse than refusing to admit the resource."
 
 **Forwarding address.** Shorten the resource address, with a shorter label
 or a shorter instance key.
@@ -362,8 +368,8 @@ or a shorter instance key.
 **Enforcement.** `RuleOverlongAddress`, `internal/live/lint/overlong_address.go`
 (`checkOverlongAddresses`). It escapes each instance address exactly as the
 stamped marker would be escaped (per `live/MARKERS.md`, `[` becomes `:`
-and `]` and `"` are dropped) and rejects anything past 256 Unicode
-characters. A plain resource is measured directly, a `for_each` resource is
+and `]` and `"` are dropped) and rejects anything past the 1024-character
+budget. A plain resource is measured directly, a `for_each` resource is
 measured once per statically evaluable key under the same boundary as
 `foreach-dotted-key`, and a `count` resource is measured at its highest
 index when the count is statically evaluable. Fixture at

@@ -139,7 +139,10 @@ func TestValidMarkerAddress(t *testing.T) {
 		`not an address`,
 		`:2`,
 		`aws_subnet.this:a:b`,
-		strings.Repeat("a", 130) + "." + strings.Repeat("b", 130),
+		// Past MaxAddressLen (MaxContinuations x MaxTagValue = 1024): the
+		// budget continuation tags widened it to (issue #71), not the
+		// pre-#71 single-tag 256.
+		strings.Repeat("a", 520) + "." + strings.Repeat("b", 520),
 	}
 	for _, s := range invalid {
 		if ValidMarkerAddress(s) {

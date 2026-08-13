@@ -23,12 +23,18 @@ import (
 //
 // A resource's canonical config address becomes the tofu-address marker on
 // the live resource, escaped per live/MARKERS.md ("[" becomes ":", "]"
-// and `"` are dropped; markers.EscapeAddress is that rule in code), and AWS
-// caps a tag value at 256 Unicode characters (markers.MaxTagValue).
-// MARKERS.md is explicit about which side gives: "An address that does not
-// fit is a lint-time error, not a truncation. Silently truncating an
-// ownership key is worse than refusing to admit the resource." This rule is
-// that lint-time error.
+// and `"` are dropped; markers.EscapeAddress is that rule in code). AWS
+// caps a single tag value at 256 Unicode characters (markers.MaxTagValue),
+// but an address that does not fit in one tag is not refused outright any
+// more: it is split across up to markers.MaxContinuations tags -
+// tofu-address, tofu-address-2, ... - concatenated back into one value on
+// read (markers.GatherAddress). See live/MARKERS.md, "tofu-address
+// continuation tags". The budget this rule enforces is therefore
+// markers.MaxAddressLen (MaxContinuations x MaxTagValue), not MaxTagValue
+// alone. MARKERS.md is explicit about which side gives past that wider
+// ceiling: "An address that does not fit is a lint-time error, not a
+// truncation. Silently truncating an ownership key is worse than refusing
+// to admit the resource." This rule is that lint-time error.
 //
 // What is measured is the escaped instance address, one per instance the
 // rule can see:
@@ -85,7 +91,7 @@ func checkOverlongAddresses(ctx context.Context, mod *configs.Module, path addrs
 // not fit in a tag value.
 func reportOverlongAddress(addr string, subject hcl.Range, path addrs.Module, issues *[]Issue) {
 	length := utf8.RuneCountInString(markers.EscapeAddress(addr))
-	if length <= markers.MaxTagValue {
+	if length <= markers.MaxAddressLen {
 		return
 	}
 	*issues = append(*issues, Issue{
@@ -93,13 +99,15 @@ func reportOverlongAddress(addr string, subject hcl.Range, path addrs.Module, is
 		Construct: addr,
 		Module:    path,
 		Detail: fmt.Sprintf(
-			"the escaped tofu-address for this instance is %d characters, and a tag value "+
-				"holds at most %d (the AWS hard cap, live/MARKERS.md). The address becomes "+
-				"the tofu-address marker on the live resource, and that marker is the only record "+
-				"of ownership a stateless run has, so an address that does not fit is refused here "+
-				"rather than truncated: silently truncating an ownership key is worse than refusing "+
-				"to admit the resource. Shorten the resource label or the instance key",
-			length, markers.MaxTagValue,
+			"the escaped tofu-address for this instance is %d characters, and this fork carries "+
+				"an address across at most %d tag values of %d characters each (live/MARKERS.md, "+
+				"\"tofu-address continuation tags\"), a ceiling of %d characters in total. The "+
+				"address becomes the tofu-address marker (and its continuation tags) on the live "+
+				"resource, and that marker is the only record of ownership a stateless run has, so "+
+				"an address that does not fit is refused here rather than truncated: silently "+
+				"truncating an ownership key is worse than refusing to admit the resource. Shorten "+
+				"the resource label, the instance key, or the module nesting",
+			length, markers.MaxContinuations, markers.MaxTagValue, markers.MaxAddressLen,
 		),
 		Subject: subject,
 	})

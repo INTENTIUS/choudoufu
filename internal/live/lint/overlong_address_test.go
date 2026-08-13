@@ -11,10 +11,11 @@ import (
 )
 
 // TestOverlongAddressRule covers the three ways an instance address is
-// measured against the 256-character marker cap (a plain resource, a
-// for_each key, a count index), plus the two silences the fixture pins: an
-// address inside the cap, and a long-labeled resource whose for_each is not
-// statically evaluable, which the rule skips rather than guesses at.
+// measured against the 1024-character marker budget - MaxContinuations x
+// MaxTagValue, issue #71 - (a plain resource, a for_each key, a count
+// index), plus the two silences the fixture pins: an address inside the
+// budget, and a long-labeled resource whose for_each is not statically
+// evaluable, which the rule skips rather than guesses at.
 func TestOverlongAddressRule(t *testing.T) {
 	cfg := loadConfigDir(t, "testdata/overlong-address")
 	issues := CheckContext(t.Context(), cfg)
@@ -22,21 +23,21 @@ func TestOverlongAddressRule(t *testing.T) {
 	assertIssues(t, issues, []wantIssue{
 		{
 			rule:      RuleOverlongAddress,
-			construct: "aws_s3_bucket." + strings.Repeat("x", 250),
+			construct: "aws_s3_bucket." + strings.Repeat("x", 1011),
 			file:      "testdata/overlong-address/main.tf",
-			line:      13,
+			line:      16,
 		},
 		{
 			rule:      RuleOverlongAddress,
-			construct: `aws_subnet.wide["` + strings.Repeat("k", 250) + `"]`,
+			construct: `aws_subnet.wide["` + strings.Repeat("k", 1009) + `"]`,
 			file:      "testdata/overlong-address/main.tf",
-			line:      21,
+			line:      24,
 		},
 		{
 			rule:      RuleOverlongAddress,
-			construct: "aws_vpc." + strings.Repeat("y", 250) + "[1]",
+			construct: "aws_vpc." + strings.Repeat("y", 1015) + "[1]",
 			file:      "testdata/overlong-address/main.tf",
-			line:      29,
+			line:      32,
 		},
 	})
 }
