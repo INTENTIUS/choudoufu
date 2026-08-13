@@ -612,6 +612,39 @@ func TestCloudControlListResourcesFailure(t *testing.T) {
 	}
 }
 
+// TestCloudControlContinuationGapIsMalformed is the Cloud Control path's
+// sibling of markers_test.go's TestContinuationGapIsMalformed: this path
+// duplicates scanType's gap check (see cloudcontrol.go's own GatherAddress
+// call) rather than sharing it, so a gapped continuation chain arriving
+// through Cloud Control has to be pinned here too - a fix to one copy is
+// not a fix to both.
+func TestCloudControlContinuationGapIsMalformed(t *testing.T) {
+	srv := newCCServer(t)
+	srv.listResources["AWS::EFS::FileSystem"] = []ccResource{
+		{identifier: "fs-gap", properties: map[string]any{
+			"Tags": []map[string]string{
+				{"Key": TagEstate, "Value": ccEstate},
+				{"Key": TagAddress, "Value": strings.Repeat("a", 256)},
+				{"Key": ContinuationTag(3), "Value": "b"}, // tofu-address-2 is missing.
+			},
+		}},
+	}
+	server := srv.start()
+	defer server.Close()
+
+	res := runCCDiscovery(t, srv, server, "aws_efs_file_system", "AWS::EFS::FileSystem")
+	problems := res.ProblemsOfKind(ProblemMalformedMarker)
+	if len(problems) != 1 {
+		t.Fatalf("want exactly one malformed-marker problem for the gapped chain, got %d:\n%s", len(problems), res)
+	}
+	if !strings.Contains(problems[0].Detail, "continuation") {
+		t.Errorf("the malformed-marker detail does not mention the continuation gap: %q", problems[0].Detail)
+	}
+	if len(res.Bindings) != 0 {
+		t.Errorf("a gapped continuation chain bound to something:\n%s", res)
+	}
+}
+
 func TestCloudControlSweepGapNotTaggable(t *testing.T) {
 	srv := newCCServer(t)
 	server := srv.start()

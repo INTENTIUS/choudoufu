@@ -7,6 +7,7 @@ package foreign
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/flocitest"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	residue "github.com/intentius/choudoufu/live"
 )
 
 // Every test classifies against the P0.1 estate fixture, so the declared
@@ -215,6 +217,72 @@ func TestClassifyAdoptionHintIsPasteable(t *testing.T) {
 			" --tags 'Key=tofu-estate,Value=stateless-e2e' 'Key=tofu-address,Value=aws_security_group.main'"
 		if got := res.Candidates[0].Hint; got != want {
 			t.Errorf("adoption hint is\n  %q\nwant\n  %q", got, want)
+		}
+	})
+}
+
+// TestTagPairsSplitsOverlongAddressAcrossContinuationTags is issue #71's
+// foreign-package case, tested directly against tagPairs rather than through
+// the full Classify pipeline (which would need a fixture resource whose
+// declared name is itself over 256 characters just to exercise this).
+//
+// The adoption hint's whole job is to write a command an operator can paste
+// that a later discovery pass reads back as owning the resource. Before
+// continuation tags, tagPairs always wrote exactly one Key=tofu-address
+// pair. A resource whose address needs a second tag now needs a second
+// Key=tofu-address-2 pair in the same command - a hint that only wrote the
+// first chunk would tag the resource with a truncated address:
+// ValidMarkerAddress would likely still accept it (it is shorter, still
+// well-formed), so the resource would silently bind to the wrong,
+// truncated name instead of failing loudly.
+func TestTagPairsSplitsOverlongAddressAcrossContinuationTags(t *testing.T) {
+	addr := mustAddr(t, "aws_security_group."+strings.Repeat("x", 300))
+	escaped := discovery.EscapeAddress(addr.String())
+	chunks := discovery.SplitAddress(escaped)
+	if len(chunks) != 2 {
+		t.Fatalf("test setup: the escaped address is %d characters and split into %d chunks, want 2 (adjust the fixture)", len(escaped), len(chunks))
+	}
+
+	req := Request{Estate: "acme"}
+
+	t.Run("list shape", func(t *testing.T) {
+		tv := residue.TagVerb{TagsShape: "list", TagKeyField: "Key", TagValueField: "Value"}
+		got, ok := tagPairs(tv, req, addr)
+		if !ok {
+			t.Fatalf("tagPairs returned ok=false for a known TagsShape")
+		}
+		want := strings.Join([]string{
+			shellQuote("Key=tofu-estate,Value=acme"),
+			shellQuote(fmt.Sprintf("Key=tofu-address,Value=%s", chunks[0])),
+			shellQuote(fmt.Sprintf("Key=tofu-address-2,Value=%s", chunks[1])),
+		}, " ")
+		if got != want {
+			t.Errorf("tagPairs(list) =\n  %q\nwant\n  %q", got, want)
+		}
+	})
+
+	t.Run("map shape", func(t *testing.T) {
+		tv := residue.TagVerb{TagsShape: "map"}
+		got, ok := tagPairs(tv, req, addr)
+		if !ok {
+			t.Fatalf("tagPairs returned ok=false for a known TagsShape")
+		}
+		want := shellQuote(fmt.Sprintf("tofu-estate=acme,tofu-address=%s,tofu-address-2=%s", chunks[0], chunks[1]))
+		if got != want {
+			t.Errorf("tagPairs(map) =\n  %q\nwant\n  %q", got, want)
+		}
+	})
+
+	t.Run("a short address still writes exactly one tofu-address pair", func(t *testing.T) {
+		short := mustAddr(t, "aws_security_group.main")
+		tv := residue.TagVerb{TagsShape: "map"}
+		got, ok := tagPairs(tv, req, short)
+		if !ok {
+			t.Fatalf("tagPairs returned ok=false for a known TagsShape")
+		}
+		want := shellQuote("tofu-estate=acme,tofu-address=aws_security_group.main")
+		if got != want {
+			t.Errorf("tagPairs(map) for a short address =\n  %q\nwant\n  %q (no continuation pair for an address that fits in one tag)", got, want)
 		}
 	})
 }
