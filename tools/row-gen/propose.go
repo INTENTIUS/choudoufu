@@ -6,10 +6,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -24,8 +24,8 @@ import (
 // whose every historical instance - re-run today against
 // internal/live/identity.DefaultTable - reproduced exactly what a human
 // independently ratified, with zero exceptions, over a sample too large to
-// be a lucky streak, AND whose candidate is not itself named in any existing
-// "Rejected" note. See proposeContractHeader below for the contract this
+// be a lucky streak, AND whose candidate is not itself recorded in the
+// rejection ledger. See proposeContractHeader below for the contract this
 // stage states in its own output, and live/COVERAGE.md for the docs mirror.
 //
 // Two measurements, both over data already in the checkout:
@@ -38,7 +38,7 @@ import (
 //     Matched semantics live/rowgen-convergence.json already commits to, so
 //     PROPOSE's confidence claim is the same one that artifact's own ratchet
 //     test polices, not a second, looser measure.
-//  2. scanRejectedMentions is a second, independent, deliberately
+//  2. loadRejectedTypes is a second, independent, deliberately
 //     over-inclusive safety net: a rule class can reach a spotless matched
 //     record among the types that WERE admitted while still having a
 //     rejected sibling under the same rule - a type a batch looked at by
@@ -47,9 +47,9 @@ import (
 //     (the Lambda batch's aws_lambda_alias and aws_lambda_layer_version_
 //     permission are exactly this shape, though a later demotion pass moved
 //     both out of the server-assigned bucket entirely - see
-//     applyImportGrammarDemotions). Any type ever named near a "Rejected"
-//     heading in table.go or admission.go is excluded from candidacy
-//     outright, regardless of what its rule class's numbers say.
+//     applyImportGrammarDemotions). Any type recorded in
+//     tools/row-gen/rejected.json is excluded from candidacy outright,
+//     regardless of what its rule class's numbers say.
 //
 // A rule class must clear both to produce a proposal, and even then only for
 // types not already admitted.
@@ -179,95 +179,53 @@ func sortedRuleKeys[V any](m map[ruleKey]V) []ruleKey {
 	return out
 }
 
-// tfTypeRE matches one TF resource type token - the same "aws_" + lowercase
-// shape every type name in this repo already follows.
-var tfTypeRE = regexp.MustCompile(`aws_[a-z0-9_]+`)
+// rejectedTypesJSONRel is the ledger of types a ratification batch considered
+// and did not admit. It replaces a scan that grepped the identity and
+// admission tables' own Go comment prose for the word "Rejected" and harvested
+// every type token near it: those tables are generated in full now (issue
+// #96), so there is no prose there to grep, and a generator taking a human's
+// comment wording as an input was the coupling that made the tables
+// hand-maintained in the first place. A rejection is a ruling, and a ruling
+// belongs in a machine-readable ledger.
+const rejectedTypesJSONRel = "tools/row-gen/rejected.json"
 
-// rejectedScanGlobs match the source files the identity table's and the
-// admission table's own "Rejected, and deliberately absent from this table:"
-// (and its several worded variants - "Rejected outright", "Rejected on
-// independent verification", "Rejected, not deferred") notes live in.
+// rejectedTypesArtifact is rejected.json's shape. Only the key set is read;
+// the per-type object carries provenance for a human tracing a ruling back
+// through git history, not anything PROPOSE branches on.
+type rejectedTypesArtifact struct {
+	Note     string                     `json:"note"`
+	Rejected map[string]rejectedTypeRow `json:"rejected"`
+}
+
+type rejectedTypeRow struct {
+	RecoveredFrom []string `json:"recovered_from"`
+}
+
+// loadRejectedTypes is PROPOSE's second safety net: the veto set of types
+// already ruled out by name. Never used as positive evidence, only ever to
+// veto a candidate ruleAdoption's numbers alone would have allowed.
 //
-// These were two fixed paths until the per-cohort split (see
-// contributing/LIVE-TABLES.md), which moved every batch's rows - and the
-// comments recording what that batch rejected - out of table.go and
-// admission.go and into the cohort's own fragment. A rejection recorded in a
-// fragment has to veto a candidate exactly as one recorded in the core
-// literal does, so the scan globs the fragments instead of naming two files
-// that no longer hold most of the history.
-var rejectedScanGlobs = []string{
-	filepath.Join("internal", "live", "identity", "table*.go"),
-	filepath.Join("internal", "live", "lint", "admission*.go"),
-}
-
-// rejectedScanWindow is how many lines scanFileForRejected reads forward
-// from a "Rejected" comment line before giving up on the block - generous on
-// purpose (see this file's own doc comment: over-inclusion here only ever
-// makes PROPOSE more conservative, by excluding a type it did not need to).
-const rejectedScanWindow = 60
-
-// scanRejectedMentions is PROPOSE's second safety net: every TF type token
-// mentioned within rejectedScanWindow lines of a "Rejected" comment heading
-// in any matched source file, deliberately over-inclusive (a type merely
-// mentioned near a rejection note, not itself rejected, is excluded from
-// candidacy too - a false exclusion, which costs nothing but a possible
-// proposal; a missed real rejection would cost a wrong one, which this repo
-// treats as far worse - see this file's own doc comment). Never used as
-// positive evidence, only ever to veto a candidate ruleAdoption's numbers
-// alone would have allowed.
-func scanRejectedMentions(root string) (map[string]bool, error) {
-	out := map[string]bool{}
-	for _, pat := range rejectedScanGlobs {
-		matches, err := filepath.Glob(filepath.Join(root, pat))
-		if err != nil {
-			return nil, fmt.Errorf("globbing %s for recorded rejections: %w", pat, err)
-		}
-		// An empty match means the tables moved or were renamed. Failing
-		// here is the point: silently scanning nothing would hand PROPOSE
-		// an empty veto set and let it propose types a batch had already
-		// rejected by name.
-		if len(matches) == 0 {
-			return nil, fmt.Errorf("scanning for recorded rejections: no file matched %s", pat)
-		}
-		for _, path := range matches {
-			if err := scanFileForRejected(path, out); err != nil {
-				return nil, fmt.Errorf("scanning %s for recorded rejections: %w", path, err)
-			}
-		}
-	}
-	return out, nil
-}
-
-func scanFileForRejected(path string, out map[string]bool) error {
+// A missing or empty ledger is an error rather than an empty veto set, the
+// same discipline the old scan held itself to: silently vetoing nothing would
+// let PROPOSE re-propose every type a batch had already rejected.
+func loadRejectedTypes(root string) (map[string]bool, error) {
+	path := filepath.Join(root, rejectedTypesJSONRel)
 	data, err := os.ReadFile(path) //nolint:gosec // a fixed path inside the checkout
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("reading %s for recorded rejections: %w", rejectedTypesJSONRel, err)
 	}
-	lines := strings.Split(string(data), "\n")
-	for i := 0; i < len(lines); i++ {
-		trimmed := strings.TrimSpace(lines[i])
-		if !strings.HasPrefix(trimmed, "//") || !strings.Contains(lines[i], "Rejected") {
-			continue
-		}
-		end := i
-		windowEnd := i + rejectedScanWindow
-		if windowEnd > len(lines) {
-			windowEnd = len(lines)
-		}
-		for end < windowEnd {
-			t := strings.TrimSpace(lines[end])
-			if t != "//" && t != "" && !strings.HasPrefix(t, "//") {
-				break // the comment block (and so this Rejected note) has ended
-			}
-			end++
-		}
-		for _, l := range lines[i:end] {
-			for _, m := range tfTypeRE.FindAllString(l, -1) {
-				out[m] = true
-			}
-		}
+	var art rejectedTypesArtifact
+	if err := json.Unmarshal(data, &art); err != nil {
+		return nil, fmt.Errorf("decoding %s: %w", rejectedTypesJSONRel, err)
 	}
-	return nil
+	if len(art.Rejected) == 0 {
+		return nil, fmt.Errorf("%s records no rejections; an empty veto set would let PROPOSE re-propose types a batch already ruled out", rejectedTypesJSONRel)
+	}
+	out := make(map[string]bool, len(art.Rejected))
+	for tf := range art.Rejected {
+		out[tf] = true
+	}
+	return out, nil
 }
 
 // proposeCandidate is one not-yet-admitted proposal PROPOSE selected: the
@@ -326,7 +284,7 @@ func buildProposeReport(root string) (report, summary string, err error) {
 	stats := ruleAdoption(art.Types)
 	qualifying := qualifyingRules(stats)
 
-	rejected, err := scanRejectedMentions(root)
+	rejected, err := loadRejectedTypes(root)
 	if err != nil {
 		return "", "", err
 	}

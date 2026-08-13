@@ -10,6 +10,7 @@ import (
 	"go/format"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -17,68 +18,60 @@ import (
 
 // This file is -emit's whole implementation (issue #96): where every other
 // mode of this tool only prints - a human pastes, edits and ratifies every
-// block (see this package's own doc comment) - emit mode writes Go source
-// directly, ending the 846-and-counting hand-paste cycle for the two tables
-// this task scopes: [identity.DefaultTable] and internal/live/lint's
-// admittedTypesV0. tools/estate-gen/overrides.go (Apply closures) and the
-// stamp tables are explicitly out of scope; see main.go's flag help text.
+// block (see this package's own doc comment) - emit mode writes the two
+// tables outright. [identity.DefaultTable] and internal/live/lint's
+// admittedTypesV0 are each declared, in full, by a file this mode owns end to
+// end. Nothing hand-written participates in building either one: no per-cohort
+// fragment, no init(), no core literal a batch appends to, and no assembly
+// statement in a hand-edited file that unions generated pieces together. That
+// last one matters as much as the rest - a human-maintained line that says
+// "and here is how the generated parts become the table" is the same paste
+// cycle in a smaller font.
 //
-// The bar is byte-identical: the two generated files this mode writes for
-// each table, once their contents are unioned, must reconstruct the exact
-// map [identity.DefaultTable] (and admittedTypesV0) already holds today - not
-// an approximation, not a near-miss with a differently-worded Reason string.
-// That rules out re-deriving a row's fields from row-gen's own fresh
-// classification: renderServerAssignedEntry's Reason text is deliberately
-// TEMPLATED boilerplate a human is meant to rewrite during ratification
-// (reportHeader's own non-goals), and reconstructing it mechanically would
-// silently diverge from whatever prose actually got ratified. So every field
-// of every emitted entry - Reason and ImportSyntax included, not just the
-// four fields rowgen-convergence's compareOne checks - is copied verbatim
-// from [identity.DefaultTable], the ground truth this binary already reads
-// (classifyAll's own admitted-set seed does the same). What row-gen's fresh
-// classifyAll run actually contributes is the PARTITION: which types its
-// registry-evidence classifier reproduces well enough that compareOne calls
-// it a match (the "generated" file renderIdentityFile/renderLintFile write),
-// and which types needed a
-// human's correction (the "override" file - the visible, measurable debt a
-// later effort shrinks by improving classify.go's rules, not by hand-editing
-// either generated file).
+// tools/estate-gen/overrides.go (Apply closures) and the stamp tables are
+// explicitly out of scope; see main.go's flag help text.
 //
-// Both generated vars in each package are deliberately NOT wired into
-// DefaultTable / admittedTypesV0 by an init() call yet: the 86 per-cohort
-// fragment files (table_cohort_*.go, admission_cohort_*.go,
-// table_recordbacked.go) already build those tables today, and
-// registerCohortTable/registerCohortAdmitted panic on any duplicate key - so
-// wiring both sets of sources for the same 846 types at once would panic on
-// package load for every one of them. Retiring the fragment files in favor
-// of these two generated files per package is exactly the follow-up this
-// mode stages for, not this task's job - see issue #96.
+// The bar is byte-identity: the file this mode writes must reconstruct the
+// exact map [identity.DefaultTable] already holds - not an approximation, not
+// a near-miss with a differently-worded Reason string. That rules out
+// re-deriving a row's fields from row-gen's own fresh classification:
+// renderServerAssignedEntry's Reason text is deliberately TEMPLATED
+// boilerplate a human is meant to rewrite during ratification (reportHeader's
+// own non-goals), and reconstructing it mechanically would silently diverge
+// from whatever prose actually got ratified. So every field of every emitted
+// row is copied verbatim from [identity.DefaultTable], the ground truth this
+// binary already reads (classifyAll's own admitted-set seed does the same).
+// Once the fragments are gone that ground truth is this mode's own previous
+// output, which makes -emit a fixed point: running it twice changes nothing.
+//
+// What row-gen's fresh classifyAll run contributes is the MEASUREMENT: which
+// types its registry-evidence classifier reproduces on its own and which
+// still need a human's correction. That number is the visible debt a later
+// effort shrinks by improving classify.go's rules, and it is reported to
+// live/rowgen-convergence.json rather than by splitting the table into two
+// Go variables - the table's shape should not encode how well the classifier
+// happens to be doing this week.
 const emitGeneratedByComment = "// Code generated by tools/row-gen -emit. DO NOT EDIT."
 
 const (
-	identityGeneratedRel = "internal/live/identity/table_generated.go"
-	identityOverrideRel  = "internal/live/identity/table_override.go"
-	lintGeneratedRel     = "internal/live/lint/admission_generated.go"
-	lintOverrideRel      = "internal/live/lint/admission_override.go"
+	identityTableRel = "internal/live/identity/table_generated.go"
+	lintTableRel     = "internal/live/lint/admission_generated.go"
 )
 
-// emitPartition is one type's placement: generated when a fresh row-gen
-// classification matches the ratified [identity.DefaultTable] entry on
-// compareOne's four fields, override otherwise - including every admitted
-// type rowgen-convergence's own summary counts as "not in the mapped set",
-// which by construction has no fresh proposal to match with at all.
+// emitPartition is the convergence measurement: which admitted types a fresh
+// row-gen classification reproduces (Generated) and which it does not
+// (Override). Both halves are emitted into the same table - this is a count,
+// not a partition of the source.
 type emitPartition struct {
 	Generated []string // TF types, sorted
 	Override  []string // TF types, sorted
 }
 
 // runEmit is -emit's entry point: builds the same classified mapped set and
-// convergence comparison -convergence measures, partitions every admitted
-// type by compareOne's Matched verdict, and writes the four generated files
-// - two per table, matching internal/live/identity's [identity.DefaultTable]
-// and internal/live/lint's admittedTypesV0 byte-for-byte once unioned. See
-// this file's own doc comment for why the values come from
-// [identity.DefaultTable] itself rather than from the fresh proposal.
+// convergence comparison -convergence measures, then writes the two files
+// that declare [identity.DefaultTable] and admittedTypesV0. See this file's
+// own doc comment for why the values come from [identity.DefaultTable] itself
+// rather than from the fresh proposal.
 func runEmit(out, errOut *os.File) error {
 	root, err := repoRoot()
 	if err != nil {
@@ -105,22 +98,21 @@ func runEmit(out, errOut *os.File) error {
 		fmt.Fprintf(out, "wrote %s\n", rel)
 	}
 
-	fmt.Fprintf(errOut, "row-gen -emit: identity: %d generated, %d override (%d total); lint: %d generated, %d override (%d total)\n",
-		len(identityPart.Generated), len(identityPart.Override), len(identityPart.Generated)+len(identityPart.Override),
-		len(lintPart.Generated), len(lintPart.Override), len(lintPart.Generated)+len(lintPart.Override))
+	fmt.Fprintf(errOut, "row-gen -emit: identity: %d types (%d reproduced by classifier, %d still corrected); lint: %d types (%d reproduced, %d corrected)\n",
+		len(identityPart.Generated)+len(identityPart.Override), len(identityPart.Generated), len(identityPart.Override),
+		len(lintPart.Generated)+len(lintPart.Override), len(lintPart.Generated), len(lintPart.Override))
 	return nil
 }
 
-// emitFileOrder is the four generated files' write order, and the key set
+// emitFileOrder is the two generated files' write order, and the key set
 // buildEmitFiles' returned map always has exactly.
-var emitFileOrder = []string{identityGeneratedRel, identityOverrideRel, lintGeneratedRel, lintOverrideRel}
+var emitFileOrder = []string{identityTableRel, lintTableRel}
 
-// buildEmitFiles is -emit's pure computation, split out from runEmit so
-// tests can exercise it without writing to the checkout: given a fresh
-// classifyAll run and annotations.json's rulings, it returns the four
-// generated files' contents by repo-relative path, plus the two partitions
-// (identity's 846-wide one and admittedTypesV0's RecordBacked-filtered
-// 836-wide one) the summary line and tests both want the counts of.
+// buildEmitFiles is -emit's pure computation, split out from runEmit so tests
+// can exercise it without writing to the checkout: given a fresh classifyAll
+// run and annotations.json's rulings, it returns the two generated files'
+// contents by repo-relative path, plus the two convergence measurements the
+// summary line and tests both want the counts of.
 func buildEmitFiles(proposals []proposal, annotations map[string]annotation) (files map[string][]byte, identityPart, lintPart emitPartition, err error) {
 	art := buildConvergence(proposals, annotations)
 
@@ -130,51 +122,30 @@ func buildEmitFiles(proposals []proposal, annotations map[string]annotation) (fi
 	}
 
 	identityPart = partitionAdmitted(matched)
-
-	identitySrc, err := renderIdentityFile(identityGeneratedByComment("the row-gen-reproduced identity rows"), "identityTableGenerated", identityPart.Generated)
-	if err != nil {
-		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", identityGeneratedRel, err)
-	}
-	identityOverrideSrc, err := renderIdentityFile(identityGeneratedByComment("the override ledger: identity rows a fresh row-gen classification does not reproduce"), "identityTableOverride", identityPart.Override)
-	if err != nil {
-		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", identityOverrideRel, err)
-	}
-
 	lintGenerated, lintOverride := splitNonRecordBacked(identityPart)
 	lintPart = emitPartition{Generated: lintGenerated, Override: lintOverride}
-	lintSrc, err := renderLintFile(lintGeneratedByComment("the row-gen-reproduced admission rows"), "admittedTypesGenerated", lintPart.Generated)
+
+	identitySrc, err := renderIdentityFile(identity.AdmittedTypes())
 	if err != nil {
-		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", lintGeneratedRel, err)
+		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", identityTableRel, err)
 	}
-	lintOverrideSrc, err := renderLintFile(lintGeneratedByComment("the override ledger: admission rows a fresh row-gen classification does not reproduce"), "admittedTypesOverride", lintPart.Override)
+	lintSrc, err := renderLintFile(admittedNonRecordBacked())
 	if err != nil {
-		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", lintOverrideRel, err)
+		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", lintTableRel, err)
 	}
 
 	return map[string][]byte{
-		identityGeneratedRel: identitySrc,
-		identityOverrideRel:  identityOverrideSrc,
-		lintGeneratedRel:     lintSrc,
-		lintOverrideRel:      lintOverrideSrc,
+		identityTableRel: identitySrc,
+		lintTableRel:     lintSrc,
 	}, identityPart, lintPart, nil
-}
-
-func identityGeneratedByComment(what string) string {
-	return fmt.Sprintf("// identityTableGenerated/identityTableOverride hold %s.\n", what)
-}
-
-func lintGeneratedByComment(what string) string {
-	return fmt.Sprintf("// admittedTypesGenerated/admittedTypesOverride hold %s.\n", what)
 }
 
 // partitionAdmitted walks every type in [identity.DefaultTable] - the same
 // ground truth classifyAll's own admitted-set seed reads - and splits it by
 // matched, the fresh convergence comparison's verdict. A type absent from
 // matched entirely (rowgen-convergence's "not in the mapped set": no fresh
-// proposal exists to compare) is treated as unmatched, the same as a type
-// whose proposal actively disagrees: either way, nothing in this run's own
-// classification independently reproduces the ratified row, so it belongs in
-// the override ledger, not the generated file.
+// proposal exists to compare) counts as unreproduced, the same as a type
+// whose proposal actively disagrees.
 func partitionAdmitted(matched map[string]bool) emitPartition {
 	var part emitPartition
 	for _, t := range identity.AdmittedTypes() {
@@ -187,16 +158,11 @@ func partitionAdmitted(matched map[string]bool) emitPartition {
 	return part
 }
 
-// splitNonRecordBacked derives admittedTypesV0's own two partitions from the
+// splitNonRecordBacked derives admittedTypesV0's own measurement from the
 // identity table's: a RECORD_ADMITTED type ([identity.TypeIdentity.RecordBacked])
 // is never a member of admittedTypesV0 at all - internal/live/lint refuses it
-// before resolution ever runs (table_recordbacked.go's own doc comment) - so
-// every such type is dropped here regardless of which identity partition it
-// landed in. This is the whole of admittedTypesV0's relationship to
-// [identity.DefaultTable]: its key set is exactly DefaultTable's own keys
-// minus the ten RecordBacked rows, verified once at commit time by the dump
-// harness this task's proof used and by tools/row-gen/emit_test.go's own
-// -emit coverage.
+// before resolution ever runs - so every such type is dropped here regardless
+// of which half it landed in.
 func splitNonRecordBacked(part emitPartition) (generated, override []string) {
 	for _, t := range part.Generated {
 		if !identity.DefaultTable[t].RecordBacked {
@@ -211,37 +177,66 @@ func splitNonRecordBacked(part emitPartition) (generated, override []string) {
 	return generated, override
 }
 
-// renderIdentityFile renders one internal/live/identity generated file:
-// header, doc comment, and a buildTable(...) call over the named types'
-// verbatim [identity.DefaultTable] entries, gofmt-formatted.
-func renderIdentityFile(doc, varName string, types []string) ([]byte, error) {
+// admittedNonRecordBacked is admittedTypesV0's key set: [identity.DefaultTable]'s
+// own keys minus the RecordBacked rows. This is the whole of admittedTypesV0's
+// relationship to the identity table, which is why it is derived here rather
+// than tracked as a list of its own.
+func admittedNonRecordBacked() []string {
+	var out []string
+	for _, t := range identity.AdmittedTypes() {
+		if !identity.DefaultTable[t].RecordBacked {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// renderIdentityFile renders internal/live/identity's whole table: the
+// [identity.DefaultTable] declaration itself, over the named types' verbatim
+// entries, gofmt-formatted. The result is self-contained - a plain map
+// literal that calls no constructor and references no hand-written helper or
+// constant - so that nothing outside this generator participates in building
+// the table.
+func renderIdentityFile(types []string) ([]byte, error) {
 	var b strings.Builder
 	b.WriteString(licenseHeader)
 	b.WriteString("\n")
 	b.WriteString(emitGeneratedByComment)
 	b.WriteString("\n\n")
 	b.WriteString("package identity\n\n")
-	b.WriteString(doc)
-	fmt.Fprintf(&b, "var %s = buildTable(\n", varName)
+	b.WriteString(defaultTableDoc)
+	b.WriteString("var DefaultTable = map[string]TypeIdentity{\n")
 	for _, t := range types {
-		b.WriteString(renderTypeIdentity(identity.DefaultTable[t]))
-		b.WriteString(",\n")
+		fmt.Fprintf(&b, "%q: %s,\n", t, renderStruct(reflect.ValueOf(identity.DefaultTable[t])))
 	}
-	b.WriteString(")\n")
+	b.WriteString("}\n")
 	return format.Source([]byte(b.String()))
 }
 
-// renderLintFile renders one internal/live/lint generated file: header, doc
-// comment, and a map[string]struct{}{} literal over the named types.
-func renderLintFile(doc, varName string, types []string) ([]byte, error) {
+// defaultTableDoc is DefaultTable's own doc comment. It travels with the
+// generator because the declaration does: the table's meaning is a fact about
+// this generator's output, not a note a maintainer keeps beside it.
+const defaultTableDoc = `// DefaultTable is the v0 identity table: every AWS resource type the
+// stateless subset admits, keyed by provider-local type name. A type absent
+// from this table is outside the subset and resolving it is an error.
+//
+// Every row is derived by tools/row-gen from the provider's own schema, the
+// CloudFormation Registry's primaryIdentifier, and the provider documentation's
+// import grammar. Corrections belong in the generator's rules or in its
+// annotation ledger (tools/row-gen/annotations.json), never here: this file is
+// overwritten in full on every run.
+`
+
+// renderLintFile renders internal/live/lint's admittedTypesV0 declaration.
+func renderLintFile(types []string) ([]byte, error) {
 	var b strings.Builder
 	b.WriteString(licenseHeader)
 	b.WriteString("\n")
 	b.WriteString(emitGeneratedByComment)
 	b.WriteString("\n\n")
 	b.WriteString("package lint\n\n")
-	b.WriteString(doc)
-	fmt.Fprintf(&b, "var %s = map[string]struct{}{\n", varName)
+	b.WriteString(admittedTypesDoc)
+	b.WriteString("var admittedTypesV0 = map[string]struct{}{\n")
 	for _, t := range types {
 		fmt.Fprintf(&b, "%q: {},\n", t)
 	}
@@ -249,113 +244,86 @@ func renderLintFile(doc, varName string, types []string) ([]byte, error) {
 	return format.Source([]byte(b.String()))
 }
 
-// licenseHeader matches every other file in this repository (see e.g.
-// internal/live/identity/table.go's own first four lines).
+// admittedTypesDoc is admittedTypesV0's own doc comment, carried by the
+// generator for the same reason defaultTableDoc is.
+const admittedTypesDoc = `// admittedTypesV0 is every provider-local resource type a stateless
+// configuration may name. It is exactly internal/live/identity's DefaultTable
+// key set minus the RECORD_ADMITTED types, which lint refuses before identity
+// resolution ever runs.
+//
+// Keyed by provider-local type name (the first label of a resource block), not
+// by fully-qualified provider address, because that is what a configuration
+// author writes and what the error message has to name back to them.
+`
+
+// renderStruct renders one struct value as a Go composite literal, field by
+// field, by reflection - never by a field list written out here. That is the
+// point: [identity.TypeIdentity] gaining, losing or renaming a field changes
+// this generator not at all, where a hand-listed renderer would have to be
+// edited in lockstep and would silently drop the new field until someone
+// noticed. Zero-valued fields are omitted, which is exactly as faithful as
+// spelling them out and considerably shorter; a nil slice and an empty one
+// are distinguished, because [identity.TypeIdentity.IdentityAttrs] gives them
+// different meanings (see its doc comment).
+func renderStruct(v reflect.Value) string {
+	t := v.Type()
+	var parts []string
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		if f.PkgPath != "" {
+			continue // unexported
+		}
+		fv := v.Field(i)
+		if isZero(fv) {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s: %s", f.Name, renderValue(fv)))
+	}
+	return "{" + strings.Join(parts, ", ") + "}"
+}
+
+// renderValue renders one value as a Go literal. The element type of a slice
+// is elided ([]Component{{...}} rather than []Component{Component{...}}),
+// matching this repository's own gofmt -s style rather than the fully-spelled
+// form most Go source generators with no simplify pass produce.
+func renderValue(v reflect.Value) string {
+	switch v.Kind() {
+	case reflect.String:
+		return fmt.Sprintf("%q", v.String())
+	case reflect.Bool:
+		return fmt.Sprintf("%t", v.Bool())
+	case reflect.Slice:
+		var elems []string
+		for i := 0; i < v.Len(); i++ {
+			e := v.Index(i)
+			if e.Kind() == reflect.Struct {
+				elems = append(elems, renderStruct(e))
+			} else {
+				elems = append(elems, renderValue(e))
+			}
+		}
+		return fmt.Sprintf("[]%s{%s}", v.Type().Elem().Name(), strings.Join(elems, ", "))
+	case reflect.Struct:
+		return renderStruct(v)
+	default:
+		panic(fmt.Sprintf("row-gen -emit: no rendering for %s (kind %s) - teach renderValue about it", v.Type(), v.Kind()))
+	}
+}
+
+// isZero reports whether a field should be omitted from the rendered literal.
+// It is reflect.Value.IsZero for everything except slices, where a nil slice
+// is omitted but an empty non-nil one is not: the two mean different things
+// in [identity.TypeIdentity], and collapsing them would not round-trip.
+func isZero(v reflect.Value) bool {
+	if v.Kind() == reflect.Slice {
+		return v.IsNil()
+	}
+	return v.IsZero()
+}
+
+// licenseHeader matches every other file in this repository.
 const licenseHeader = `// Copyright (c) The OpenTofu Authors
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2023 HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 `
-
-// renderTypeIdentity renders one [identity.TypeIdentity] as a Go composite
-// literal, field by field, verbatim off the value's own contents - never off
-// a fresh row-gen proposal. Synthesized and Admits are never set here:
-// neither field is ever non-zero on a hand-written [identity.DefaultTable]
-// entry (both exist only for [identity.SynthesizeTypeIdentity]'s runtime
-// output), so leaving them unset and letting Go's own zero value stand is
-// exactly as byte-identical as spelling out the zero value would be, and
-// shorter.
-func renderTypeIdentity(ti identity.TypeIdentity) string {
-	var b strings.Builder
-	b.WriteString("TypeIdentity{\n")
-	fmt.Fprintf(&b, "Type: %q,\n", ti.Type)
-	if ti.ServerAssigned {
-		b.WriteString("ServerAssigned: true,\n")
-	}
-	if ti.Reason != "" {
-		fmt.Fprintf(&b, "Reason: %q,\n", ti.Reason)
-	}
-	if ti.RecordBacked {
-		b.WriteString("RecordBacked: true,\n")
-	}
-	if ti.Components != nil {
-		if len(ti.Components) == 0 {
-			b.WriteString("Components: []Component{},\n")
-		} else {
-			b.WriteString("Components: []Component{\n")
-			for _, c := range ti.Components {
-				b.WriteString(renderComponentFields(c))
-				b.WriteString(",\n")
-			}
-			b.WriteString("},\n")
-		}
-	}
-	if ti.ImportSyntax != "" {
-		fmt.Fprintf(&b, "ImportSyntax: %q,\n", ti.ImportSyntax)
-	}
-	if ti.IdentityAttrs != nil {
-		if len(ti.IdentityAttrs) == 0 {
-			b.WriteString("IdentityAttrs: []string{},\n")
-		} else {
-			fmt.Fprintf(&b, "IdentityAttrs: []string{%s},\n", quoteArgs(ti.IdentityAttrs))
-		}
-	}
-	b.WriteString("}")
-	return b.String()
-}
-
-// renderComponentFields renders one [identity.Component]'s fields, field by
-// field, the same verbatim standard renderTypeIdentity holds every other
-// field to. The element type itself is left for the caller to spell (or, as
-// renderTypeIdentity does, to elide - []Component{{...}, {...}} - matching
-// this repository's own gofmt -s style rather than the fully-spelled
-// []Component{Component{...}, Component{...}} every other Go source
-// generator with no simplify pass tends to produce).
-func renderComponentFields(c identity.Component) string {
-	var parts []string
-	if c.Literal != "" {
-		parts = append(parts, fmt.Sprintf("Literal: %q", c.Literal))
-	}
-	if c.Attrs != nil {
-		if len(c.Attrs) == 0 {
-			parts = append(parts, "Attrs: []string{}")
-		} else {
-			parts = append(parts, fmt.Sprintf("Attrs: []string{%s}", quoteArgs(c.Attrs)))
-		}
-	}
-	if c.Cloud != identity.CloudNone {
-		parts = append(parts, fmt.Sprintf("Cloud: %s", renderCloudValue(c.Cloud)))
-	}
-	if c.IdentityAttr != "" {
-		parts = append(parts, fmt.Sprintf("IdentityAttr: %s", renderIdentityAttr(c.IdentityAttr)))
-	}
-	return "{" + strings.Join(parts, ", ") + "}"
-}
-
-// renderCloudValue spells a [identity.CloudValue] as the exported constant
-// name when it is one of the two [identity.CloudContext] carries (see
-// [identity.CloudValue]'s own doc comment on why the set is closed), and as
-// an explicit conversion otherwise - defensive against the set growing
-// without this renderer being updated in lockstep, not a case any entry in
-// today's table reaches.
-func renderCloudValue(v identity.CloudValue) string {
-	switch v {
-	case identity.CloudAccountID:
-		return "CloudAccountID"
-	case identity.CloudRegion:
-		return "CloudRegion"
-	default:
-		return fmt.Sprintf("CloudValue(%q)", string(v))
-	}
-}
-
-// renderIdentityAttr spells a [identity.Component.IdentityAttr] as the
-// exported [identity.SameNameIdentity] constant when it is that sentinel,
-// and as a quoted literal otherwise (the inAttr(...) case: a component that
-// names an explicit identity attribute of its own).
-func renderIdentityAttr(v string) string {
-	if v == identity.SameNameIdentity {
-		return "SameNameIdentity"
-	}
-	return fmt.Sprintf("%q", v)
-}

@@ -7,7 +7,6 @@ package main
 
 import (
 	"os"
-	"strings"
 	"testing"
 )
 
@@ -144,157 +143,48 @@ func TestSelectProposeCandidates_Deterministic(t *testing.T) {
 	}
 }
 
-// TestScanFileForRejected_SyntheticBlock exercises the line-window scanner
-// against a small synthetic Go source rather than the real, large table.go -
-// so this test pins the parsing rule itself (block start, block end, what
-// counts as "still inside the comment") independent of that file's own
-// prose ever changing shape.
-func TestScanFileForRejected_SyntheticBlock(t *testing.T) {
-	dir := t.TempDir()
-	path := dir + "/fixture.go"
-	src := `package fixture
-
-var x = 1
-
-	// Rejected, and deliberately absent from this table:
-	//
-	//   - aws_one: some reason naming aws_two in passing.
-	//   - aws_three: another reason.
-	//
-
-	serverAssigned("aws_four", ...)
-
-	// a later, unrelated comment mentioning aws_five is not near any
-	// Rejected heading and must not be captured.
-`
-	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	out := map[string]bool{}
-	if err := scanFileForRejected(path, out); err != nil {
-		t.Fatalf("scanFileForRejected: %v", err)
-	}
-
-	for _, want := range []string{"aws_one", "aws_two", "aws_three"} {
-		if !out[want] {
-			t.Errorf("scanFileForRejected did not capture %q from inside the Rejected block: %+v", want, out)
-		}
-	}
-	for _, notWant := range []string{"aws_four", "aws_five"} {
-		if out[notWant] {
-			t.Errorf("scanFileForRejected captured %q, which is outside the Rejected comment block: %+v", notWant, out)
-		}
-	}
-}
-
-// TestScanRejectedMentions_FindsKnownLambdaRejections is the regression tie
-// to real history: aws_lambda_alias and aws_lambda_layer_version_permission
-// are the identity table's own worked "Rejected, and deliberately absent from
-// this table" example (see the comment just above the Lambda batch's
-// serverAssigned calls, in table_cohort_lambda.go since the per-cohort
-// split). If a future edit reshapes that comment, or moves it somewhere
-// rejectedScanGlobs does not reach, this fails loudly instead of silently
-// losing the safety net for the one case it was built to catch.
-func TestScanRejectedMentions_FindsKnownLambdaRejections(t *testing.T) {
+// TestLoadRejectedTypes_LedgerIsIntact is the regression tie to real history:
+// aws_lambda_alias and aws_lambda_layer_version_permission were the identity
+// table's own worked "Rejected, and deliberately absent from this table"
+// example, recorded in prose in table_cohort_lambda.go until issue #96
+// generated that table in full and moved every such ruling into
+// rejected.json. If a future edit drops rows from the ledger, this fails
+// loudly instead of silently losing the safety net.
+func TestLoadRejectedTypes_LedgerIsIntact(t *testing.T) {
 	root, err := repoRoot()
 	if err != nil {
 		t.Fatal(err)
 	}
-	rejected, err := scanRejectedMentions(root)
+	rejected, err := loadRejectedTypes(root)
 	if err != nil {
-		t.Fatalf("scanRejectedMentions: %v", err)
+		t.Fatalf("loadRejectedTypes: %v", err)
 	}
 	for _, want := range []string{"aws_lambda_alias", "aws_lambda_layer_version_permission"} {
 		if !rejected[want] {
-			t.Errorf("scanRejectedMentions did not find %q, the identity table's own worked Rejected example", want)
+			t.Errorf("loadRejectedTypes did not find %q, the identity table's own worked Rejected example", want)
 		}
 	}
-}
-
-// TestRenderProposeReport_NoCandidates checks the explicit zero-candidates
-// framing: PROPOSE must say why there is nothing to propose, not just print
-// an empty section a reader could mistake for a tool that ran and found
-// nothing to look for.
-func TestRenderProposeReport_NoCandidates(t *testing.T) {
-	stats := map[ruleKey]ruleStats{
-		{Bucket: bucketServerAssigned, Rule: "r"}: {Compared: 10, Matched: 9},
-	}
-	out := renderProposeReport(stats, map[ruleKey]ruleStats{}, nil)
-	if !strings.Contains(out, "0 logical types proposed") {
-		t.Errorf("renderProposeReport with no candidates: want an explicit zero statement, got:\n%s", out)
-	}
-	if !strings.Contains(out, "No rule class currently clears the bar") {
-		t.Errorf("renderProposeReport with no qualifying rules: want the near-miss framing, got:\n%s", out)
-	}
-	if !strings.Contains(out, "SPOT-CHECK CONTRACT") {
-		t.Errorf("renderProposeReport: want the contract header even with zero candidates, got:\n%s", out)
+	// The ledger was recovered wholesale from the deleted fragments' prose;
+	// a drop well below that count means rows were lost, not curated.
+	if len(rejected) < 140 {
+		t.Errorf("rejected.json carries %d types, want at least the 147 recovered from the pre-#96 fragments", len(rejected))
 	}
 }
 
-// TestRenderProposeReport_WithCandidate checks a populated report carries
-// the rule's own track record next to the pasted block, and the pasted
-// block itself is renderProposal's own output (reused verbatim).
-func TestRenderProposeReport_WithCandidate(t *testing.T) {
-	rule := ruleKey{Bucket: bucketServerAssigned, Rule: "primaryIdentifier ⊆ readOnlyProperties"}
-	stats := map[ruleKey]ruleStats{rule: {Compared: 7, Matched: 7}}
-	qualifying := stats
-	p := proposal{
-		TFType:            "aws_widget_gadget",
-		CFNType:           "AWS::Widget::Gadget",
-		Service:           "Widget",
-		Bucket:            bucketServerAssigned,
-		Rule:              rule.Rule,
-		PrimaryIdentifier: []string{"Arn"},
-		ReadOnly:          []string{"Arn"},
-		Enumeration:       "list-free",
-	}
-	candidates := []proposeCandidate{{Proposal: p, Rule: rule, Stats: stats[rule]}}
-
-	out := renderProposeReport(stats, qualifying, candidates)
-
-	if !strings.Contains(out, "1 logical type(s) proposed") {
-		t.Errorf("renderProposeReport: want the 1-candidate summary line, got:\n%s", out)
-	}
-	if !strings.Contains(out, "7/7 (100%)") {
-		t.Errorf("renderProposeReport: want the candidate's own rule track record (7/7), got:\n%s", out)
-	}
-	if !strings.Contains(out, "aws_widget_gadget") {
-		t.Errorf("renderProposeReport: want the candidate's TF type, got:\n%s", out)
-	}
-	if !strings.Contains(out, "paste into internal/live/lint/admission_cohort_<cohort>.go") {
-		t.Errorf("renderProposeReport: want the reused renderProposal pastable block, got:\n%s", out)
-	}
-	if !strings.Contains(out, "spot-check:") {
-		t.Errorf("renderProposeReport: want the per-candidate spot-check reminder, got:\n%s", out)
-	}
-}
-
-// TestBuildProposeReport_AgainstRealRepo is a loose integration check: no
-// error, a well-formed summary line, and internal consistency (the
-// candidate count in the summary matches the printed report) against
-// whatever the real, current checkout's data says today. Deliberately does
-// not assert an exact qualifying-class count - that number is expected to
-// change as more ratification batches land, and pinning it here would make
-// this test fail on every batch merge for a reason unrelated to what it is
-// checking. TestRuleStats_Qualifies and TestSelectProposeCandidates already
-// pin the selection logic itself against synthetic, stable fixtures.
-func TestBuildProposeReport_AgainstRealRepo(t *testing.T) {
-	root, err := repoRoot()
-	if err != nil {
+// TestLoadRejectedTypes_RefusesEmptyLedger pins the fail-closed rule: an
+// absent or empty ledger is an error, never an empty veto set.
+func TestLoadRejectedTypes_RefusesEmptyLedger(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(dir+"/tools/row-gen", 0o755); err != nil {
 		t.Fatal(err)
 	}
-	report, summary, err := buildProposeReport(root)
-	if err != nil {
-		t.Fatalf("buildProposeReport: %v", err)
+	if err := os.WriteFile(dir+"/tools/row-gen/rejected.json", []byte(`{"rejected":{}}`), 0o644); err != nil {
+		t.Fatal(err)
 	}
-	if !strings.HasPrefix(summary, "row-gen -propose: ") {
-		t.Errorf("summary = %q, want the row-gen -propose: prefix", summary)
+	if _, err := loadRejectedTypes(dir); err == nil {
+		t.Error("loadRejectedTypes accepted an empty ledger; it must fail closed")
 	}
-	if !strings.Contains(report, "SPOT-CHECK CONTRACT") {
-		t.Error("report is missing the spot-check contract header")
-	}
-	if !strings.Contains(report, "rule-class ledger") {
-		t.Error("report is missing the rule-class ledger")
+	if _, err := loadRejectedTypes(t.TempDir()); err == nil {
+		t.Error("loadRejectedTypes accepted a missing ledger; it must fail closed")
 	}
 }

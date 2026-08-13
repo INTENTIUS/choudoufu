@@ -1,0 +1,762 @@
+{
+  "note": "Types a ratification batch considered and did not admit. PROPOSE reads this as a veto set so it never re-proposes a type already ruled out by name. Recovered at commit 5d1666e3a from the 'Rejected' prose comments in the per-cohort identity and admission fragments, which issue #96 deleted; recovered_from names the fragment each type was mentioned in, for tracing back through git history. Over-inclusion here is safe by design - it only makes PROPOSE more conservative.",
+  "rejected": {
+    "aws_amplify_branch": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_compute_platforms.go"
+      ]
+    },
+    "aws_amplify_domain_association": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_compute_platforms.go"
+      ]
+    },
+    "aws_amplify_webhook": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_compute_platforms.go"
+      ]
+    },
+    "aws_api_gateway_authorizer": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_apigateway.go"
+      ]
+    },
+    "aws_api_gateway_deployment": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_apigateway.go"
+      ]
+    },
+    "aws_api_gateway_documentation_part": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_apigateway.go"
+      ]
+    },
+    "aws_api_gateway_request_validator": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_apigateway.go"
+      ]
+    },
+    "aws_api_gateway_resource": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_apigateway.go"
+      ]
+    },
+    "aws_apigatewayv2_api_mapping": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_apigateway.go"
+      ]
+    },
+    "aws_apigatewayv2_authorizer": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_apigateway.go"
+      ]
+    },
+    "aws_apigatewayv2_deployment": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_apigateway.go"
+      ]
+    },
+    "aws_apigatewayv2_integration": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_apigateway.go"
+      ]
+    },
+    "aws_apigatewayv2_integration_response": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_apigateway.go"
+      ]
+    },
+    "aws_apigatewayv2_model": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_apigateway.go"
+      ]
+    },
+    "aws_apigatewayv2_route": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_apigateway.go"
+      ]
+    },
+    "aws_apigatewayv2_route_response": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_apigateway.go"
+      ]
+    },
+    "aws_appsync_api": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_streaming.go"
+      ]
+    },
+    "aws_appsync_api_cache": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_streaming.go"
+      ]
+    },
+    "aws_appsync_api_key": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_streaming.go"
+      ]
+    },
+    "aws_appsync_domain_name_api_association": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_streaming.go"
+      ]
+    },
+    "aws_appsync_function": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_streaming.go"
+      ]
+    },
+    "aws_athena_named_query": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_data.go"
+      ]
+    },
+    "aws_backup_framework": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_storage.go"
+      ]
+    },
+    "aws_backup_restore_testing_selection": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_storage.go"
+      ]
+    },
+    "aws_backup_selection": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_storage.go"
+      ]
+    },
+    "aws_bedrock_guardrail_version": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_stragglers.go"
+      ]
+    },
+    "aws_bedrockagent_agent_action_group": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_stragglers.go"
+      ]
+    },
+    "aws_bedrockagent_agent_alias": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_stragglers.go"
+      ]
+    },
+    "aws_bedrockagent_agent_collaborator": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_stragglers.go"
+      ]
+    },
+    "aws_bedrockagent_agent_knowledge_base_association": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_stragglers.go"
+      ]
+    },
+    "aws_bedrockagent_data_source": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_stragglers.go"
+      ]
+    },
+    "aws_bedrockagentcore_agent_runtime_endpoint": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_stragglers.go"
+      ]
+    },
+    "aws_bedrockagentcore_gateway_target": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_stragglers.go"
+      ]
+    },
+    "aws_bedrockagentcore_memory_strategy": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_stragglers.go"
+      ]
+    },
+    "aws_bedrockagentcore_workload_identity": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_stragglers.go"
+      ]
+    },
+    "aws_cloudwatch_alarm_mute_rule": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_messaging.go"
+      ]
+    },
+    "aws_cloudwatch_event_rule": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ecs_eks.go",
+        "internal/live/identity/table_cohort_messaging.go",
+        "internal/live/identity/table_cohort_streaming.go"
+      ]
+    },
+    "aws_codebuild_report_group": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_devtools.go"
+      ]
+    },
+    "aws_codebuild_source_credential": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_devtools.go",
+        "internal/live/identity/table_cohort_iot.go"
+      ]
+    },
+    "aws_cognito_managed_login_branding": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_identity.go"
+      ]
+    },
+    "aws_cognito_risk_configuration": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_identity.go"
+      ]
+    },
+    "aws_cognito_user_pool_client": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_identity.go"
+      ]
+    },
+    "aws_cognito_user_pool_ui_customization": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_identity.go"
+      ]
+    },
+    "aws_db_cluster_snapshot": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_rds.go"
+      ]
+    },
+    "aws_db_proxy_default_target_group": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_rds.go"
+      ]
+    },
+    "aws_db_proxy_target": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ec2_networking.go",
+        "internal/live/identity/table_cohort_rds.go"
+      ]
+    },
+    "aws_db_snapshot": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_rds.go"
+      ]
+    },
+    "aws_dynamodb_contributor_insights": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_dynamodb_elasticache.go"
+      ]
+    },
+    "aws_dynamodb_global_secondary_index": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_dynamodb_elasticache.go"
+      ]
+    },
+    "aws_dynamodb_kinesis_streaming_destination": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_dynamodb_elasticache.go"
+      ]
+    },
+    "aws_dynamodb_table": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_dynamodb_elasticache.go"
+      ]
+    },
+    "aws_ec2_client_vpn_authorization_rule": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ec2_networking.go"
+      ]
+    },
+    "aws_ec2_client_vpn_network_association": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ec2_networking.go"
+      ]
+    },
+    "aws_ec2_instance_connect_endpoint": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ec2_core.go"
+      ]
+    },
+    "aws_ec2_transit_gateway_multicast_domain_association": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ec2_networking.go"
+      ]
+    },
+    "aws_ec2_transit_gateway_multicast_group_member": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ec2_networking.go"
+      ]
+    },
+    "aws_ec2_transit_gateway_multicast_group_source": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ec2_networking.go"
+      ]
+    },
+    "aws_ecr_lifecycle_policy": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_devtools.go"
+      ]
+    },
+    "aws_ecr_pull_through_cache_rule": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_devtools.go"
+      ]
+    },
+    "aws_ecr_pull_time_update_exclusion": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_devtools.go"
+      ]
+    },
+    "aws_ecr_registry_policy": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_data.go",
+        "internal/live/identity/table_cohort_dynamodb_elasticache.go",
+        "internal/live/identity/table_cohort_route53_cloudfront.go"
+      ]
+    },
+    "aws_ecr_repository_creation_template": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_devtools.go"
+      ]
+    },
+    "aws_ecr_repository_policy": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_devtools.go"
+      ]
+    },
+    "aws_ecs_capacity_provider": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ecs_eks.go"
+      ]
+    },
+    "aws_ecs_cluster": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ecs_eks.go"
+      ]
+    },
+    "aws_ecs_daemon_task_definition": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ecs_eks.go"
+      ]
+    },
+    "aws_ecs_express_gateway_service": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ecs_eks.go"
+      ]
+    },
+    "aws_ecs_service": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ecs_eks.go"
+      ]
+    },
+    "aws_ecs_task_definition": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ecs_eks.go"
+      ]
+    },
+    "aws_ecs_task_set": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ecs_eks.go"
+      ]
+    },
+    "aws_efs_file_system": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ecs_eks.go",
+        "internal/live/identity/table_cohort_storage.go"
+      ]
+    },
+    "aws_efs_mount_target": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_security.go",
+        "internal/live/identity/table_cohort_storage.go"
+      ]
+    },
+    "aws_eks_identity_provider_config": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ecs_eks.go"
+      ]
+    },
+    "aws_elastic_beanstalk_application_version": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_compute_platforms.go"
+      ]
+    },
+    "aws_elastic_beanstalk_configuration_template": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_compute_platforms.go"
+      ]
+    },
+    "aws_elasticache_global_replication_group": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_databases.go",
+        "internal/live/identity/table_cohort_dynamodb_elasticache.go",
+        "internal/live/identity/table_cohort_remainder.go"
+      ]
+    },
+    "aws_elasticache_user": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_dynamodb_elasticache.go"
+      ]
+    },
+    "aws_elasticache_user_group": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_dynamodb_elasticache.go"
+      ]
+    },
+    "aws_elasticache_user_group_association": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_dynamodb_elasticache.go"
+      ]
+    },
+    "aws_emr_cluster": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_compute_platforms.go"
+      ]
+    },
+    "aws_emr_instance_fleet": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_compute_platforms.go"
+      ]
+    },
+    "aws_emr_instance_group": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_compute_platforms.go"
+      ]
+    },
+    "aws_emr_managed_scaling_policy": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_compute_platforms.go"
+      ]
+    },
+    "aws_emr_studio_session_mapping": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_compute_platforms.go"
+      ]
+    },
+    "aws_glue_catalog": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_data.go"
+      ]
+    },
+    "aws_glue_catalog_database": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_data.go"
+      ]
+    },
+    "aws_glue_catalog_table": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_data.go"
+      ]
+    },
+    "aws_glue_catalog_table_optimizer": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_data.go"
+      ]
+    },
+    "aws_glue_data_catalog_encryption_settings": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_data.go"
+      ]
+    },
+    "aws_glue_data_quality_ruleset": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_data.go"
+      ]
+    },
+    "aws_glue_dev_endpoint": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_data.go"
+      ]
+    },
+    "aws_glue_partition": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_data.go"
+      ]
+    },
+    "aws_glue_registry": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_data.go"
+      ]
+    },
+    "aws_glue_schema": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_data.go"
+      ]
+    },
+    "aws_glue_security_configuration": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_data.go"
+      ]
+    },
+    "aws_glue_user_defined_function": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_data.go"
+      ]
+    },
+    "aws_glue_workflow": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_data.go"
+      ]
+    },
+    "aws_iam_access_key": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_iam_ecr.go",
+        "internal/live/identity/table_cohort_identity.go",
+        "internal/live/identity/table_cohort_iot.go"
+      ]
+    },
+    "aws_iam_group": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_iam_ecr.go"
+      ]
+    },
+    "aws_iam_group_membership": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_identity.go"
+      ]
+    },
+    "aws_iam_policy": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_iam_ecr.go",
+        "internal/live/identity/table_cohort_storage.go"
+      ]
+    },
+    "aws_iam_role_policy": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_storage.go"
+      ]
+    },
+    "aws_iam_saml_provider": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_iam_ecr.go",
+        "internal/live/identity/table_cohort_identity.go"
+      ]
+    },
+    "aws_iam_virtual_mfa_device": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_iam_ecr.go",
+        "internal/live/identity/table_cohort_identity.go"
+      ]
+    },
+    "aws_identitystore_group": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_identity.go"
+      ]
+    },
+    "aws_identitystore_group_membership": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_identity.go"
+      ]
+    },
+    "aws_iot_ca_certificate": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_iot.go"
+      ]
+    },
+    "aws_iot_certificate": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_iot.go"
+      ]
+    },
+    "aws_iot_policy_attachment": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_iot.go"
+      ]
+    },
+    "aws_iot_thing_principal_attachment": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_iot.go"
+      ]
+    },
+    "aws_key_pair": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ec2_core.go"
+      ]
+    },
+    "aws_kinesis_analytics_application": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_data.go"
+      ]
+    },
+    "aws_kinesis_resource_policy": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_data.go"
+      ]
+    },
+    "aws_kinesis_video_stream": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_data.go"
+      ]
+    },
+    "aws_kinesisanalyticsv2_application": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_data.go"
+      ]
+    },
+    "aws_lambda_alias": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_iam_ecr.go",
+        "internal/live/identity/table_cohort_lambda.go",
+        "internal/live/identity/table_cohort_messaging.go",
+        "internal/live/identity/table_cohort_storage.go"
+      ]
+    },
+    "aws_lambda_layer_version": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_iam_ecr.go",
+        "internal/live/identity/table_cohort_messaging.go"
+      ]
+    },
+    "aws_lambda_layer_version_permission": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_lambda.go"
+      ]
+    },
+    "aws_lexv2models_bot_locale": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_stragglers.go"
+      ]
+    },
+    "aws_lexv2models_bot_version": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_stragglers.go"
+      ]
+    },
+    "aws_lexv2models_intent": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_stragglers.go"
+      ]
+    },
+    "aws_lexv2models_slot": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_stragglers.go"
+      ]
+    },
+    "aws_lexv2models_slot_type": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_stragglers.go"
+      ]
+    },
+    "aws_nat_gateway": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ec2_core.go"
+      ]
+    },
+    "aws_nat_gateway_eip_association": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ec2_core.go"
+      ]
+    },
+    "aws_network_acl_association": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ec2_networking.go"
+      ]
+    },
+    "aws_network_interface": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ec2_core.go"
+      ]
+    },
+    "aws_network_interface_sg_attachment": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ec2_core.go"
+      ]
+    },
+    "aws_placement_group": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ec2_core.go"
+      ]
+    },
+    "aws_qldb_stream": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_databases.go",
+        "internal/live/identity/table_cohort_remainder.go"
+      ]
+    },
+    "aws_rds_cluster_endpoint": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_rds.go"
+      ]
+    },
+    "aws_route53_cidr_collection": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_route53_cloudfront.go"
+      ]
+    },
+    "aws_route53_cidr_location": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_route53_cloudfront.go"
+      ]
+    },
+    "aws_route53_query_log": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_route53_cloudfront.go"
+      ]
+    },
+    "aws_route53_record": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ecs_eks.go",
+        "internal/live/identity/table_cohort_storage.go"
+      ]
+    },
+    "aws_route53_zone": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_route53_cloudfront.go"
+      ]
+    },
+    "aws_route53recoverycontrolconfig_routing_control": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_route53_cloudfront.go"
+      ]
+    },
+    "aws_scheduler_schedule": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_streaming.go"
+      ]
+    },
+    "aws_secretsmanager_secret_version": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_iot.go"
+      ]
+    },
+    "aws_sns_topic": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_iam_ecr.go"
+      ]
+    },
+    "aws_sns_topic_subscription": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_messaging.go"
+      ]
+    },
+    "aws_ssoadmin_permission_set": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_identity.go"
+      ]
+    },
+    "aws_transfer_ssh_key": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_remainder.go"
+      ]
+    },
+    "aws_transfer_web_app_customization": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_remainder.go"
+      ]
+    },
+    "aws_vpc_endpoint_connection_notification": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ec2_networking.go"
+      ]
+    },
+    "aws_vpc_endpoint_service_allowed_principal": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ec2_networking.go"
+      ]
+    },
+    "aws_vpc_ipam_pool_cidr_allocation": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ec2_networking.go",
+        "internal/live/identity/table_cohort_stragglers.go"
+      ]
+    }
+  }
+}
