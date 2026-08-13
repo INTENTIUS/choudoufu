@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -89,8 +91,47 @@ type Overlay struct {
 	ServiceAliases map[string][]string `json:"service_aliases"`
 }
 
-// loadOverlay reads and validates tools/mapping-gen/overlay.json.
+// loadOverlay reads and validates tools/mapping-gen/overlay.json, merged
+// with any fragment files under tools/mapping-gen/overlay.d/*.json beside
+// it. Fragments carry the same schema and exist so that family sweeps
+// (issue #53) can land in parallel without contending for one file; a key
+// defined twice anywhere across the base and the fragments is refused, so
+// a fragment can only ever add.
 func loadOverlay(path string) (Overlay, error) {
+	ov, err := decodeOverlay(path)
+	if err != nil {
+		return Overlay{}, err
+	}
+
+	fragDir := filepath.Join(filepath.Dir(path), "overlay.d")
+	entries, err := os.ReadDir(fragDir)
+	if err != nil && !os.IsNotExist(err) {
+		return Overlay{}, fmt.Errorf("reading %s: %w", fragDir, err)
+	}
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".json") {
+			names = append(names, e.Name())
+		}
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		fragPath := filepath.Join(fragDir, name)
+		frag, err := decodeOverlay(fragPath)
+		if err != nil {
+			return Overlay{}, err
+		}
+		if err := mergeOverlay(&ov, frag, fragPath); err != nil {
+			return Overlay{}, err
+		}
+	}
+
+	return validateOverlay(ov, path)
+}
+
+// decodeOverlay reads one overlay-schema file without validating it; the
+// merged result is validated once, in loadOverlay.
+func decodeOverlay(path string) (Overlay, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // a fixed path inside the checkout
 	if err != nil {
 		return Overlay{}, err
@@ -99,6 +140,57 @@ func loadOverlay(path string) (Overlay, error) {
 	if err := json.Unmarshal(data, &ov); err != nil {
 		return Overlay{}, fmt.Errorf("decoding %s: %w", path, err)
 	}
+	return ov, nil
+}
+
+// mergeOverlay adds frag's entries to base, refusing any key either side
+// already holds - across fragments a type or prefix has exactly one home.
+func mergeOverlay(base *Overlay, frag Overlay, fragPath string) error {
+	merge := func(dst *map[string]string, src map[string]string, table string) error {
+		if len(src) == 0 {
+			return nil
+		}
+		if *dst == nil {
+			*dst = map[string]string{}
+		}
+		for k, v := range src {
+			if _, ok := (*dst)[k]; ok {
+				return fmt.Errorf("%s: %s entry %q is already defined by the base overlay or an earlier fragment", fragPath, table, k)
+			}
+			(*dst)[k] = v
+		}
+		return nil
+	}
+	if err := merge(&base.Aliases, frag.Aliases, "aliases"); err != nil {
+		return err
+	}
+	if err := merge(&base.Folds, frag.Folds, "folds"); err != nil {
+		return err
+	}
+	if err := merge(&base.Nones, frag.Nones, "nones"); err != nil {
+		return err
+	}
+	if err := merge(&base.TFOnly, frag.TFOnly, "tf_only"); err != nil {
+		return err
+	}
+	if err := merge(&base.CFNUnmodeled, frag.CFNUnmodeled, "cfn_unmodeled"); err != nil {
+		return err
+	}
+	for prefix, services := range frag.ServiceAliases {
+		if _, ok := base.ServiceAliases[prefix]; ok {
+			return fmt.Errorf("%s: service_aliases prefix %q is already defined by the base overlay or an earlier fragment", fragPath, prefix)
+		}
+		if base.ServiceAliases == nil {
+			base.ServiceAliases = map[string][]string{}
+		}
+		base.ServiceAliases[prefix] = services
+	}
+	return nil
+}
+
+// validateOverlay holds the merged overlay to the invariants the table
+// doc comment above states.
+func validateOverlay(ov Overlay, path string) (Overlay, error) {
 
 	seen := map[string]string{}
 	for _, table := range []struct {
