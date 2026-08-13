@@ -94,18 +94,24 @@ named reach, left untouched here:
   NetworkManager attachment types generically). Unchanged by this batch.
 - **API Gateway's method/response property-children**
   (`aws_api_gateway_integration`, `aws_api_gateway_integration_response`,
-  `aws_api_gateway_method_response`, `aws_api_gateway_method_settings`),
-  Lightsail's second-tier child folds, EMR's `aws_emr_managed_scaling_policy`
-  and `aws_emr_studio_session_mapping`, Amplify's `aws_amplify_domain_association`,
-  and CodeGuru's `aws_codeguruprofiler_profiling_group` /
+  `aws_api_gateway_method_response`, `aws_api_gateway_method_settings`) and
+  the APS family (`aws_prometheus_workspace`, `aws_prometheus_scraper`,
+  `aws_prometheus_alert_manager_definition`,
+  `aws_prometheus_query_logging_configuration`,
+  `aws_prometheus_scraper_logging_configuration`) were exactly the
+  multi-component-fold gap this note originally flagged as unratified —
+  issue #68's fold-children mechanism landed on `main` independently while
+  this batch was in flight and now admits all nine (merged into this
+  branch along with everything else `main` gained meanwhile; not this
+  batch's own work). Left genuinely unratified: Lightsail's second-tier
+  child folds, EMR's `aws_emr_managed_scaling_policy` and
+  `aws_emr_studio_session_mapping`, Amplify's
+  `aws_amplify_domain_association`, and CodeGuru's
+  `aws_codeguruprofiler_profiling_group` /
   `aws_codegurureviewer_repository_association` — each has a clean-looking
-  composite or singleton identity per its own cohort README, but ratifying
-  any of them needs either a genuinely new admission mechanism (a
-  multi-component fold keyed on a parent's own identity, not just the
-  child's own arguments — the same gap `aws_prometheus_alert_manager_definition`
-  is waiting on upstream) or independent verification this batch's own
-  reach (Transfer, NetworkManager, ECR) did not extend to. Left as
-  documented candidates, not attempted here.
+  identity per its own cohort README, but independent verification this
+  batch's own reach (Transfer, NetworkManager, ECR) did not extend to.
+  Left as documented candidates, not attempted here.
 
 ## Provenance
 
