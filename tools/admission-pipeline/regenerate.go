@@ -62,10 +62,10 @@ func (r *RegenerateResult) runFor(name string) *StageRun {
 }
 
 // Regenerate runs every *-gen tool in dependency order: survey-gen -all,
-// registry-gen, mapping-gen, importdocs-gen, row-gen (captured to a file,
-// not streamed - its report runs to thousands of lines), then survey-gen
-// -render to refresh live/SURVEY.md's derived spans from the artifacts just
-// written.
+// registry-gen, mapping-gen, importdocs-gen, tagverbs-gen, row-gen (captured
+// to a file, not streamed - its report runs to thousands of lines), then
+// survey-gen -render to refresh live/SURVEY.md's derived spans from the
+// artifacts just written.
 //
 // Every tool is its own package main (see main.go's package doc), so each
 // step shells out to `go run ./tools/<name>` rather than calling a library
@@ -88,6 +88,7 @@ func Regenerate(root string, accept bool, log io.Writer) (*RegenerateResult, err
 		{"registry-gen", nil},
 		{"mapping-gen", nil},
 		{"importdocs-gen", acceptArgs()},
+		{"tagverbs-gen", acceptArgs()},
 	}
 	for _, s := range steps {
 		run, err := goRunTool(root, s.pkg, s.args, log, true)

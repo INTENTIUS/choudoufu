@@ -21,9 +21,9 @@ Non-goals (also true of every block below, not just this header):
 Every Reason string in a server-assigned block is flagged TEMPLATED: it names
 the CFN service and asserts server assignment, nothing more specific.
 Every client-named block whose argument name could only be GUESSED (a
-snake-cased CFN property name, backed by neither a provider identity schema
-nor the carve seed) is evidence-only, not a proposal - see the argument
-line in each such block.
+snake-cased CFN property name, backed by neither a provider identity schema,
+live/import-grammar.json, nor the carve seed) is evidence-only, not a
+proposal - see the argument line in each such block.
 
 ================================================================
 service: Lambda (8 types)
