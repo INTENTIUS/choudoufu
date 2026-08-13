@@ -453,6 +453,16 @@ var (
 		"aws_cloudwatch_composite_alarm",
 		"aws_cloudwatch_metric_stream",
 		"aws_sqs_queue",
+		// Registry-ratified DynamoDB periphery and ElastiCache batch (#40,
+		// #44, issue #65). Taggable per the real provider's documented
+		// Argument Reference for each type.
+		"aws_elasticache_cluster",
+		"aws_elasticache_parameter_group",
+		"aws_elasticache_replication_group",
+		"aws_elasticache_serverless_cache",
+		"aws_elasticache_subnet_group",
+		"aws_elasticache_user",
+		"aws_elasticache_user_group",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -484,6 +494,12 @@ var (
 		"aws_cloudwatch_dashboard",
 		"aws_sns_topic_policy",
 		"aws_sqs_queue_policy",
+		// Registry-ratified DynamoDB periphery and ElastiCache batch (#40,
+		// #44, issue #65): both types' Argument Reference names no tags
+		// block at all. See live/e2e/estates/dynamodb-elasticache/README.md,
+		// "Untaggable types".
+		"aws_dynamodb_global_table",
+		"aws_dynamodb_resource_policy",
 	}
 )
 
@@ -911,6 +927,21 @@ func testSchemas() Schemas {
 		"aws_sns_topic_policy":           untagged("id", "arn", "policy"),
 		"aws_sqs_queue":                  tagged("id", "arn", "url", "name"),
 		"aws_sqs_queue_policy":           untagged("id", "queue_url", "policy"),
+
+		// Registry-ratified DynamoDB periphery and ElastiCache batch (#40,
+		// #44, issue #65). Taggable/untaggable per the real provider's
+		// documented Argument Reference for each type: the two DynamoDB
+		// types carry no tags argument at all, the seven ElastiCache types
+		// all do.
+		"aws_dynamodb_global_table":         untagged("id", "name"),
+		"aws_dynamodb_resource_policy":      untagged("id", "resource_arn", "policy"),
+		"aws_elasticache_cluster":           tagged("id", "arn", "cluster_id", "engine"),
+		"aws_elasticache_parameter_group":   tagged("id", "arn", "name", "family"),
+		"aws_elasticache_replication_group": tagged("id", "arn", "replication_group_id"),
+		"aws_elasticache_serverless_cache":  tagged("id", "arn", "name", "engine"),
+		"aws_elasticache_subnet_group":      tagged("id", "arn", "name"),
+		"aws_elasticache_user":              tagged("id", "arn", "user_id", "user_name"),
+		"aws_elasticache_user_group":        tagged("id", "arn", "user_group_id"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.
