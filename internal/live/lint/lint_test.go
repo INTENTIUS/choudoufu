@@ -441,7 +441,6 @@ func TestAdmissionTableCoversEstate(t *testing.T) {
 		"aws_vpc_security_group_ingress_rule",
 		"aws_vpc_security_group_egress_rule",
 		"aws_launch_template",
-		"aws_nat_gateway",
 		"aws_acm_certificate",
 		"aws_sfn_state_machine",
 		"aws_ebs_volume",

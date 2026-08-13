@@ -280,7 +280,6 @@ func TestDiscoverAgainstFloci(t *testing.T) {
 		`aws_lb_listener.app`,
 		`aws_lb_target_group.app`,
 		`aws_lb_target_group_attachment.app`,
-		`aws_nat_gateway.main`,
 		`aws_route.internet_gateway`,
 		`aws_route53_record.app`,
 		`aws_route53_zone.main`,

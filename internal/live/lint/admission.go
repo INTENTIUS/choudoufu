@@ -58,23 +58,25 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_lb_target_group": {},
 	"aws_lb_listener":     {},
 	// Third slice of the survey's marker cohort (#20), probed end to end
-	// against floci through the provider before wiring. All seven are
-	// taggable, all seven are listable through the provider's list protocol
-	// — the four EC2 types with a server-side tag filter, the ACM and Step
-	// Functions pair by region with client-side filtering — and none has an
-	// import ID constructible from configuration: EC2 mints the rule,
-	// template, gateway and volume IDs, and ACM and Step Functions mint
-	// ARNs. The per-rule security group resources are one resource per
-	// rule, which is what makes each rule individually ownable. Two of the
+	// against floci through the provider before wiring. All six are
+	// taggable, all six are listable through the provider's list protocol
+	// — the three EC2 types with a server-side tag filter, the ACM and
+	// Step Functions pair by region with client-side filtering — and none
+	// has an import ID constructible from configuration: EC2 mints the
+	// rule, template and volume IDs, and ACM and Step Functions mint ARNs.
+	// The per-rule security group resources are one resource per rule,
+	// which is what makes each rule individually ownable. Three of the
 	// survey's marker rows were probed and did not make this slice:
 	// aws_api_gateway_rest_api creates but floci serves no status for it,
-	// so the provider's availability waiter dies (blocked-emulator), and
-	// aws_efs_file_system has no list resource in provider v6.58.0 at all,
-	// so marker discovery could never enumerate it.
+	// so the provider's availability waiter dies (blocked-emulator);
+	// aws_nat_gateway imports but the provider reads subnet_id out of the
+	// NatGatewayAddresses list, which floci returns empty, so every plan
+	// proposes replacement (blocked-emulator); and aws_efs_file_system has
+	// no list resource in provider v6.58.0 at all, so marker discovery
+	// could never enumerate it.
 	"aws_vpc_security_group_ingress_rule": {},
 	"aws_vpc_security_group_egress_rule":  {},
 	"aws_launch_template":                 {},
-	"aws_nat_gateway":                     {},
 	"aws_acm_certificate":                 {},
 	"aws_sfn_state_machine":               {},
 	"aws_ebs_volume":                      {},

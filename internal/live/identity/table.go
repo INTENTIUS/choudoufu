@@ -245,7 +245,7 @@ var DefaultTable = buildTable(
 	serverAssigned("aws_lb_listener",
 		"ELBv2 assigns the listener ARN at create time; a listener has no name argument at all, only a port and a protocol, which do not identify it either.",
 		"LISTENERARN", "arn", "id"),
-	// Third slice of the survey's marker cohort (#20). The four EC2 types
+	// Third slice of the survey's marker cohort (#20). The three EC2 types
 	// follow the aws_vpc shape exactly: a server-minted ID and nothing in
 	// configuration that names it. The security group rules are one
 	// resource per rule — the resource type exists precisely so that each
@@ -263,9 +263,6 @@ var DefaultTable = buildTable(
 	serverAssigned("aws_launch_template",
 		"EC2 assigns the launch template ID (lt-…) at create time; the name argument is client-chosen but the provider's identity schema requires the ID.",
 		"lt-ID", "id"),
-	serverAssigned("aws_nat_gateway",
-		"EC2 assigns the NAT gateway ID (nat-…) at create time; a NAT gateway has no name argument, only a subnet and a connectivity type.",
-		"nat-ID", "id"),
 	serverAssigned("aws_acm_certificate",
 		"ACM assigns the certificate ARN at create time; the domain name is not an identity, and several certificates may cover the same domain.",
 		"CERTIFICATEARN", "arn", "id"),

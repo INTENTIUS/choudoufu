@@ -105,17 +105,3 @@ resource "aws_vpc_security_group_egress_rule" "all" {
     tofu-address = "aws_vpc_security_group_egress_rule.all"
   }
 }
-
-# Coverage: marker path (aws_nat_gateway — EC2 mints the nat- ID; nothing in
-# the block names it). Same slice (#20). connectivity_type is "private" so
-# the gateway needs no EIP allocation — a public NAT gateway would couple
-# this row to the fungible EIP pool for no coverage gain.
-resource "aws_nat_gateway" "main" {
-  subnet_id         = aws_subnet.this["a"].id
-  connectivity_type = "private"
-
-  tags = {
-    tofu-estate  = local.estate_tag
-    tofu-address = "aws_nat_gateway.main"
-  }
-}

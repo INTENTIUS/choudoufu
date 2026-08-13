@@ -210,7 +210,6 @@ func TestBuildAgainstFloci(t *testing.T) {
 		`aws_vpc_security_group_ingress_rule.https`: ReasonNeedsDiscovery,
 		`aws_vpc_security_group_egress_rule.all`:    ReasonNeedsDiscovery,
 		`aws_launch_template.app`:                   ReasonNeedsDiscovery,
-		`aws_nat_gateway.main`:                      ReasonNeedsDiscovery,
 		`aws_acm_certificate.app`:                   ReasonNeedsDiscovery,
 		`aws_sfn_state_machine.pipeline`:            ReasonNeedsDiscovery,
 		`aws_ebs_volume.data`:                       ReasonNeedsDiscovery,

@@ -295,13 +295,12 @@ outcomes at all. They are named below.
 
 ## The Contract
 
-- **AWS only, 38 resource types, root module only.** The v0 admission table
+- **AWS only, 37 resource types, root module only.** The v0 admission table
   (`internal/live/lint/admission.go`) is the whole subset. It holds
   `aws_vpc`, `aws_subnet`, `aws_security_group`,
   `aws_vpc_security_group_ingress_rule`,
   `aws_vpc_security_group_egress_rule`, `aws_route_table`,
-  `aws_internet_gateway`, `aws_nat_gateway`, `aws_launch_template`,
-  `aws_ebs_volume`, `aws_kms_key`, `aws_kms_alias`,
+  `aws_internet_gateway`, `aws_launch_template`, `aws_ebs_volume`, `aws_kms_key`, `aws_kms_alias`,
   `aws_route53_zone`, `aws_route53_record`, `aws_acm_certificate`,
   `aws_sfn_state_machine`, `aws_lb`,
   `aws_lb_target_group`, `aws_lb_listener`,

@@ -107,11 +107,9 @@ type Request struct {
 // rule refuses rather than resolves. The per-rule security group resources
 // are refuse-only for the listener's reason — a port range, a protocol and a
 // CIDR describe one rule of a group whose identity is a live sg- ID this
-// package has no configuration value for. aws_nat_gateway is the route
-// table's shape (it is "the one in this subnet", and subnet_id is a live
-// ID), and aws_ebs_volume is the EIP's: a size and an availability zone
-// distinguish nothing, and adopting one of several identical volumes would
-// be a guess.
+// package has no configuration value for, and aws_ebs_volume for the
+// EIP's: a size and an availability zone distinguish nothing, and adopting
+// one of several identical volumes would be a guess.
 var matchTable = map[string][]string{
 	"aws_security_group": {"name"},
 	"aws_vpc":            {"cidr_block"},
@@ -150,7 +148,7 @@ var matchTable = map[string][]string{
 // route53:ChangeTagsForResource, an ELBv2 object with elasticloadbalancing:
 // AddTags, a queue with sqs:TagQueue and a topic with sns:TagResource. Each
 // has its own flag spelling and none is an ec2 create-tags call. The third
-// marker slice (#20) put five more EC2 types in the subset, and all five
+// marker slice (#20) put four more EC2 types in the subset, and all four
 // take the same create-tags call the VPC does; ACM and Step Functions tag
 // with acm:AddTagsToCertificate and states:TagResource and stay out.
 var ec2Types = map[string]bool{
@@ -163,7 +161,6 @@ var ec2Types = map[string]bool{
 	"aws_vpc_security_group_ingress_rule": true,
 	"aws_vpc_security_group_egress_rule":  true,
 	"aws_launch_template":                 true,
-	"aws_nat_gateway":                     true,
 	"aws_ebs_volume":                      true,
 }
 

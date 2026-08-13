@@ -37,7 +37,7 @@ func estateDir(t *testing.T) string {
 
 const estateName = "stateless-e2e"
 
-// The twenty-two needs-discovery instances the fixture declares, sorted the
+// The twenty-one needs-discovery instances the fixture declares, sorted the
 // way discovery reports them.
 var allDiscovered = []string{
 	`aws_acm_certificate.app`,
@@ -51,7 +51,6 @@ var allDiscovered = []string{
 	`aws_lb.main`,
 	`aws_lb_listener.app`,
 	`aws_lb_target_group.app`,
-	`aws_nat_gateway.main`,
 	`aws_route53_zone.main`,
 	`aws_route_table.main`,
 	`aws_security_group.main`,
@@ -89,7 +88,6 @@ func ownAllDiscovered(cloud *fakeCloud) map[string]string {
 		{"aws_vpc_security_group_ingress_rule", "sgr-in-1", `aws_vpc_security_group_ingress_rule.https`, `aws_vpc_security_group_ingress_rule.https`},
 		{"aws_vpc_security_group_egress_rule", "sgr-out-1", `aws_vpc_security_group_egress_rule.all`, `aws_vpc_security_group_egress_rule.all`},
 		{"aws_launch_template", "lt-1", `aws_launch_template.app`, `aws_launch_template.app`},
-		{"aws_nat_gateway", "nat-1", `aws_nat_gateway.main`, `aws_nat_gateway.main`},
 		{"aws_acm_certificate", "arn:acm:app", `aws_acm_certificate.app`, `aws_acm_certificate.app`},
 		{"aws_sfn_state_machine", "arn:sfn:pipeline", `aws_sfn_state_machine.pipeline`, `aws_sfn_state_machine.pipeline`},
 		{"aws_ebs_volume", "vol-1", `aws_ebs_volume.data`, `aws_ebs_volume.data`},
@@ -169,7 +167,7 @@ func TestValidEstateName(t *testing.T) {
 
 // TestDiscoverBindsWholeEstate is the happy path over the real fixture:
 // every needs-discovery instance the estate declares, one live resource per
-// instance carrying spec-conformant markers, twenty-two bindings and
+// instance carrying spec-conformant markers, twenty-one bindings and
 // nothing else.
 func TestDiscoverBindsWholeEstate(t *testing.T) {
 	cloud := newFakeCloud()
@@ -186,15 +184,15 @@ func TestDiscoverBindsWholeEstate(t *testing.T) {
 		t.Errorf("problems:\n%s", res)
 	}
 
-	// The output resolution list is the whole estate: the twenty-two
+	// The output resolution list is the whole estate: the twenty-one
 	// discovered instances are now concrete, and everything static rides
 	// through.
 	byAddr := map[string]identity.Resolution{}
 	for _, r := range res.Resolutions {
 		byAddr[r.Addr.String()] = r
 	}
-	if got := len(res.Resolutions); got != 44 {
-		t.Errorf("Resolutions holds %d entries, want the fixture's 44", got)
+	if got := len(res.Resolutions); got != 43 {
+		t.Errorf("Resolutions holds %d entries, want the fixture's 43", got)
 	}
 	for _, addr := range allDiscovered {
 		r, ok := byAddr[addr]
@@ -850,7 +848,7 @@ func newFakeCloud() *fakeCloud {
 			// block, plus the ACM/Step Functions pair without one.
 			"aws_vpc_security_group_ingress_rule",
 			"aws_vpc_security_group_egress_rule",
-			"aws_launch_template", "aws_nat_gateway", "aws_ebs_volume",
+			"aws_launch_template", "aws_ebs_volume",
 			"aws_acm_certificate", "aws_sfn_state_machine",
 		},
 		// None of these list schemas carries a filter block in the real
