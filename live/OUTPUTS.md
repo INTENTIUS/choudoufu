@@ -2,10 +2,15 @@
 
 This file answers issue #62. "Split into independent estates" is the
 forwarding advice both for an estate that has grown too large (#52) and for
-a child module that has to leave (#59 phase 3), and once that split
-happens, the two estates need a way to share values: a network estate's VPC
-ID, an IAM estate's role ARN. `terraform_remote_state` is banned, correctly,
-because a live-markers run has no state file for it to read
+a module that has to leave. As of issue #59's phases 1-2, that is no
+longer most modules - a static module tree or a statically-keyed `for_each`
+module binds in place, same as the root - but a `count`-expanded module
+block is refused permanently and still has to leave, and a genuinely
+independent module may still be split out by choice rather than necessity
+(#59 phase 3). Once that split happens, the two estates need a way to
+share values: a network estate's VPC ID, an IAM estate's role ARN.
+`terraform_remote_state` is banned, correctly, because a live-markers run
+has no state file for it to read
 (`internal/live/lint/lint.go`'s `checkDataResources`, `live/LIMITATIONS.md`'s
 "remote-state" entry). This file is the answer to what replaces the
 output-passing it used to provide.

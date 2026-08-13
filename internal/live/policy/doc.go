@@ -14,10 +14,12 @@
 // today, internal/live/lint (validation) and internal/command (construction
 // for the live commands' setup) - by copying the handful of fields across.
 //
-// This package is issue #67's config/lint half only. Nothing in this fork
-// reads a [Policy] value yet: the quadrant behavior itself - which verb runs
-// against which resource, in discovery, projection, lifecycle and stamp -
-// lands behind #59b and #60, per the issue's Sequencing section. Until then,
-// this package exists so that work starts from an agreed, already-validated
-// shape instead of parsing the live block's policy block a second time.
+// This package started as issue #67's config/lint half only, with the
+// quadrant behavior itself following once #59b and #60 landed. It has: the
+// two declared quadrants are read in internal/live/projection, the two
+// undeclared quadrants in internal/live/discovery, and the declared+tagged
+// untag verb's marker suppression in internal/live/stamp. Every consumer
+// reads a [Policy] built once, in internal/command, from the same
+// [configs.Live] block that internal/live/lint validated, so a verb none of
+// them ever sees is a verb lint would already have refused.
 package policy

@@ -35,6 +35,19 @@
 // can exercise the five walkers' module traversal end to end, the same
 // resources either way; see live/e2e/estate-module/ for the fixture this
 // flag built.
+//
+// -module-keys (issue #59, 59c) adds to -module-wrap rather than replacing
+// it: given a comma-separated list of instance keys, the module call
+// carries for_each over that literal set instead of being static, the
+// wrapped module gains a "key" variable, and each taggable resource's
+// tofu-address becomes a template that reads var.key rather than a fixed
+// literal - the ordinary way a value that must vary per module instance
+// reaches a child module (see gen.go's tofuAddressLiteral). Two keys is
+// the common case: 59c's sibling-stability e2e proof needs exactly two
+// instances of one resource so that removing one key's config can be shown
+// to propose destroying only that instance's live resource, untouched by
+// the other; see live/e2e/estate-module-keyed/ for the fixture this flag
+// built.
 package main
 
 import (
@@ -81,17 +94,31 @@ func main() {
 	initBin := flag.String("init-bin", defaultInitBin, "binary that downloads the pinned provider (terraform, tofu or choudoufu)")
 	fmtBin := flag.String("fmt-bin", defaultFmtBin, "binary that formats the generated *.tf files (terraform, tofu or choudoufu)")
 	moduleWrap := flag.Bool("module-wrap", false, "wrap the cohort's resources in one static module call (module \"wrapped\") instead of writing them at the estate root, to exercise issue #59's traversal")
+	moduleKeys := flag.String("module-keys", "", "comma-separated instance keys; requires -module-wrap, and switches it from a static module call to a for_each over these keys (issue #59, 59c). Two keys is the common case for the sibling-stability e2e fixture.")
 	flag.Parse()
 
-	if err := run(*cohort, *types, *out, *count, *initBin, *fmtBin, *moduleWrap); err != nil {
+	var keys []string
+	if *moduleKeys != "" {
+		for _, k := range strings.Split(*moduleKeys, ",") {
+			k = strings.TrimSpace(k)
+			if k != "" {
+				keys = append(keys, k)
+			}
+		}
+	}
+
+	if err := run(*cohort, *types, *out, *count, *initBin, *fmtBin, *moduleWrap, keys); err != nil {
 		fmt.Fprintf(os.Stderr, "estate-gen: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(cohort, typesFlag, out string, count int, initBin, fmtBin string, moduleWrap bool) error {
+func run(cohort, typesFlag, out string, count int, initBin, fmtBin string, moduleWrap bool, moduleKeys []string) error {
 	if cohort == "" {
 		return fmt.Errorf("-cohort is required")
+	}
+	if len(moduleKeys) > 0 && !moduleWrap {
+		return fmt.Errorf("-module-keys requires -module-wrap")
 	}
 	root, err := repoRoot()
 	if err != nil {
@@ -150,7 +177,7 @@ func run(cohort, typesFlag, out string, count int, initBin, fmtBin string, modul
 		return nil
 	}
 
-	if err := writeCohort(out, cohort, requested, g, moduleWrap); err != nil {
+	if err := writeCohort(out, cohort, requested, g, moduleWrap, moduleKeys); err != nil {
 		return err
 	}
 
@@ -241,13 +268,23 @@ const wrappedModuleDir = "wrapped"
 // block of its own inherits the root's default (unaliased) "aws"
 // configuration, the ordinary rule, and repeating it in the child would
 // only invite the two copies drifting apart.
-func writeCohort(out, cohort string, requested []string, g *generator, moduleWrap bool) error {
+//
+// With moduleKeys also set (59c, issue #59 phase 3), the module call
+// carries for_each over those keys instead of being static
+// ([moduleWrapKeyedMainTF]), and the wrapped module gains a variables.tf
+// declaring the "key" variable the call passes each.key through as - the
+// wiring [gen.go's tofuAddressLiteral] leans on to write a tofu-address
+// that reads correctly for whichever instance evaluates it.
+func writeCohort(out, cohort string, requested []string, g *generator, moduleWrap bool, moduleKeys []string) error {
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
 	}
 
 	if moduleWrap {
 		g.modulePrefix = "module." + wrappedModuleDir + "."
+	}
+	if len(moduleKeys) > 0 {
+		g.moduleKeyVar = "key"
 	}
 
 	var coverage, supporting []string
@@ -267,7 +304,14 @@ func writeCohort(out, cohort string, requested []string, g *generator, moduleWra
 		if err := os.MkdirAll(contentDir, 0o755); err != nil {
 			return err
 		}
-		if err := os.WriteFile(filepath.Join(out, "main.tf"), []byte(moduleWrapMainTF()), 0o644); err != nil { //nolint:gosec // a committed fixture, not a secret
+		mainTF := moduleWrapMainTF()
+		if len(moduleKeys) > 0 {
+			mainTF = moduleWrapKeyedMainTF(moduleKeys, g.moduleKeyVar)
+			if err := os.WriteFile(filepath.Join(contentDir, "variables.tf"), []byte(wrappedVariablesTF(g.moduleKeyVar)), 0o644); err != nil { //nolint:gosec // a committed fixture, not a secret
+				return err
+			}
+		}
+		if err := os.WriteFile(filepath.Join(out, "main.tf"), []byte(mainTF), 0o644); err != nil { //nolint:gosec // a committed fixture, not a secret
 			return err
 		}
 	}
@@ -290,16 +334,16 @@ func writeCohort(out, cohort string, requested []string, g *generator, moduleWra
 			return err
 		}
 	}
-	readme := readmeMD(cohort, requested, g, moduleWrap)
+	readme := readmeMD(cohort, requested, g, moduleWrap, moduleKeys)
 	if err := os.WriteFile(filepath.Join(out, "README.md"), []byte(readme), 0o644); err != nil { //nolint:gosec // a committed fixture, not a secret
 		return err
 	}
 	return nil
 }
 
-// moduleWrapMainTF is the root main.tf a -module-wrap run writes: the one
-// module call, admitted outright by 59b's traversal since it sets neither
-// count nor for_each.
+// moduleWrapMainTF is the root main.tf a static -module-wrap run writes:
+// the one module call, admitted outright by 59b's traversal since it sets
+// neither count nor for_each.
 func moduleWrapMainTF() string {
 	return fmt.Sprintf(`# Generated by tools/estate-gen -module-wrap (issue #59, 59b). Every
 # resource this cohort declares lives in ./%s instead of here, so that the
@@ -311,6 +355,36 @@ module %q {
   source = "./%s"
 }
 `, wrappedModuleDir, wrappedModuleDir, wrappedModuleDir)
+}
+
+// moduleWrapKeyedMainTF is the root main.tf a -module-wrap -module-keys run
+// writes: a for_each module call over a literal set of strings, still
+// admitted outright (59c, issue #59 phase 3 narrowed RuleChildModule to
+// refuse only count and a non-statically-keyed for_each; a literal
+// toset(...) is the most static a for_each expression can be). keyVar
+// passes each.key through to the wrapped module under that name, which is
+// the only way anything inside the module can ever learn its own instance's
+// key - see gen.go's doc on [generator.moduleKeyVar].
+func moduleWrapKeyedMainTF(keys []string, keyVar string) string {
+	quoted := make([]string, len(keys))
+	for i, k := range keys {
+		quoted[i] = fmt.Sprintf("%q", k)
+	}
+	return fmt.Sprintf(`# Generated by tools/estate-gen -module-wrap -module-keys (issue #59, 59c).
+# Every resource this cohort declares lives in ./%s instead of here, so that
+# the five walkers' traversal into a keyed module is what this estate
+# exercises. The for_each is a literal set of strings, the most static a
+# for_each expression can be, so RuleChildModule admits it; each.key is
+# passed through as the "%s" variable, which is the only way a resource
+# inside the module can learn its own instance's key (see
+# %s/variables.tf).
+
+module %q {
+  source   = "./%s"
+  for_each = toset([%s])
+  %s      = each.key
+}
+`, wrappedModuleDir, keyVar, wrappedModuleDir, wrappedModuleDir, wrappedModuleDir, strings.Join(quoted, ", "), keyVar)
 }
 
 func runCombined(name string, args ...string) ([]byte, error) {

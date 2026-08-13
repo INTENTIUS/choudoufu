@@ -85,7 +85,30 @@ type Options struct {
 	// implies in the root module, which is right whenever the configuration
 	// has one unaliased provider - the shape stateless mode v0 discovers
 	// through anyway.
+	//
+	// [Options.UndeclaredProviders] takes precedence over this field per
+	// instance, when it has an entry; this field is then only the fallback
+	// for an undeclared instance the map does not name. A single-provider
+	// caller can keep setting only this field, exactly as every caller did
+	// before issue #69.
 	UndeclaredProvider addrs.AbsProviderConfig
+
+	// UndeclaredProviders overrides UndeclaredProvider per resolved instance
+	// address (keyed by [addrs.AbsResourceInstance.String]), for an estate
+	// whose managed resources span more than one provider configuration
+	// (issue #69, aliased providers - typically multi-region). A sweep run
+	// once per distinct provider configuration
+	// ([internal/command/live_plan.go]'s statelessDiscover,
+	// [discovery.Merge]) attributes each undeclared resource it finds to the
+	// provider configuration that found it, because that account and region
+	// is where the resource actually lives and any other provider
+	// configuration would read the wrong place.
+	//
+	// Nil for a single-provider estate, which is what keeps
+	// UndeclaredProvider alone sufficient and this package's behavior
+	// byte-identical to before issue #69 whenever there is only one provider
+	// configuration to begin with.
+	UndeclaredProviders map[string]addrs.AbsProviderConfig
 
 	// Ownership is the rule deciding which live objects may enter the prior
 	// state. Nil means no check, which is what a caller that has no estate
@@ -165,12 +188,16 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 	})
 
 	sortUnowned(b.unownedList)
+	sort.Slice(b.policyList, func(i, j int) bool {
+		return b.policyList[i].Addr.String() < b.policyList[j].Addr.String()
+	})
 
 	res := &Result{
 		State:        b.state,
 		Materialized: b.materialized,
 		Omitted:      b.omissionList,
 		Unowned:      b.unownedList,
+		Policy:       b.policyList,
 	}
 	return res, diags.Append(b.diags)
 }
@@ -191,6 +218,7 @@ type builder struct {
 	omissionList []Omission
 	materialized []addrs.AbsResourceInstance
 	unownedList  []Unowned
+	policyList   []PolicyOutcome
 
 	// causes holds a short subordinate clause per omitted instance, for
 	// use inside another instance's explanation. Omission.Detail is a
@@ -566,7 +594,7 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 		return
 	}
 
-	providerAddr, providerOK := b.providerFor(rc, modPath, typeName)
+	providerAddr, providerOK := b.providerFor(rc, modPath, typeName, addr)
 	if !providerOK {
 		detail := fmt.Sprintf(
 			"%s is a resource this estate owns whose resource block is no longer in the configuration, and nothing in the configuration says which provider to read a %s through: it declares no provider that could serve the type and the run supplied none. The resource is left alone rather than read.",
@@ -620,7 +648,16 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 	// point is what "the estate owns this" means in practice - a prior-state
 	// entry the plan may update, and an orphan the plan may destroy once its
 	// block is gone - so this is the one place the check belongs.
-	if b.checkOwnership(addr, typeName, importID, schema, obj.Value) != ownershipOK {
+	// declared is deliberately not just "rc != nil": a surplus count member
+	// or a sweep orphan can sit inside a resource block that still exists
+	// (rc found by block address, not by this specific instance), and
+	// w.undeclared is the resolution's own word on whether this exact
+	// instance is one the configuration currently expands to. A surplus
+	// member is the one case this still approximates - discovery's bind()
+	// does not set Undeclared for it - and that is the same block-level
+	// coarsening internal/live/stamp's PolicyUntag already documents,
+	// rather than a new one.
+	if b.checkOwnership(addr, typeName, importID, schema, obj.Value, rc != nil && !w.undeclared) != ownershipOK {
 		return
 	}
 
@@ -838,17 +875,26 @@ func pickImported(imported []providers.ImportedResource, typeName string) (*prov
 // - the one the run supplied, falling back to the provider the resource type
 // implies in the root module.
 //
-// The fallback is the ordinary implied-provider rule ("aws_vpc" means the
-// module's "aws" provider), with no alias, because an alias is a property of
-// the resource block and the block is what is missing. A configuration whose
-// deleted block used an aliased provider in a different account is therefore
-// the one case this cannot serve, and it reports rather than reads through
-// the wrong account: [statelessDiscoveryProvider] already refuses to
-// discover across several provider configurations, so a run that got this
-// far has exactly one.
-func (b *builder) providerFor(rc *configs.Resource, modPath addrs.Module, typeName string) (addrs.AbsProviderConfig, bool) {
+// For an undeclared instance, [Options.UndeclaredProviders] is checked
+// first, keyed by addr: an estate whose managed resources span more than
+// one provider configuration (issue #69) attributes each undeclared
+// instance to the specific provider configuration whose sweep found it,
+// because that account and region is where the resource actually lives.
+// [Options.UndeclaredProvider] is the fallback for whichever undeclared
+// instances the map does not name (every one of them, for a single-provider
+// caller, which is what keeps this byte-identical to before issue #69). The
+// implied-provider rule below ("aws_vpc" means the module's "aws"
+// provider), with no alias, is the last resort when neither says anything:
+// an alias is a property of the resource block and the block is what is
+// missing, so a deleted block whose provider this run never listed through
+// at all is the one case nothing here can serve, and it reports rather than
+// reads through the wrong account.
+func (b *builder) providerFor(rc *configs.Resource, modPath addrs.Module, typeName string, addr addrs.AbsResourceInstance) (addrs.AbsProviderConfig, bool) {
 	if rc != nil {
 		return providerConfigAddr(rc, modPath), true
+	}
+	if p, ok := b.opts.UndeclaredProviders[addr.String()]; ok && p.Provider.Type != "" {
+		return p, true
 	}
 	if b.opts.UndeclaredProvider.Provider.Type != "" {
 		return b.opts.UndeclaredProvider, true
@@ -977,8 +1023,9 @@ func discoveryReason(r identity.Resolution) string {
 }
 
 // providerConfigAddr is the absolute provider configuration a resource
-// block uses. Only the root module exists in stateless mode v0, so the
-// module path is always the root.
+// block uses, modPath being the static module the block itself is declared
+// in (addrs.RootModule for a root resource, issue #59's child-module
+// traversal for anything deeper).
 func providerConfigAddr(rc *configs.Resource, modPath addrs.Module) addrs.AbsProviderConfig {
 	return addrs.AbsProviderConfig{
 		Module:   modPath,

@@ -73,18 +73,23 @@ config block owns this resource". The entire binding mechanism for the
 marker admission path (path 2) rests on this value matching an address that
 exists in configuration.
 
-**Grammar vs. what ships today.** The grammar and the `module.` segment
-below describe the address format in full generality, because a marker
-written under this spec has to remain readable by whatever eventually reads
-module-qualified addresses. Nothing in the fork writes one yet. The subset
-lint refuses every module call outright, with "Child modules are not
-available under live resource markers", before anything reads the live system
-(`RuleChildModule`, `internal/live/lint/child_module.go`). Identity
-resolution, projection, discovery, stamping and the rename each still
-refuse a configuration with children, but as an internal invariant. Lint
-runs first, so reaching one of them means the pipeline ran out of order.
-Every `tofu-address` value a current build stamps is a root-module address.
-The `module.` segment is forward-looking spec, not shipped behavior.
+**Grammar vs. what ships today.** The `module.` segment below is shipped,
+not forward-looking: identity resolution, projection, discovery, stamping
+and the rename all traverse `cfg.Children`, and a `tofu-address` value
+carries the full module-qualified address for a resource inside a static
+module tree or a `for_each`-keyed module call with statically-evaluable
+keys, at any nesting depth (issue #59, phases 1-2 / "59b"/"59c"). The one
+segment shape this grammar allows but no build ever produces is a `count`
+instance key on a `module.` segment - a module block expanded with `count`
+is refused outright before anything reads the live system, permanently,
+because the position-based renumbering it causes is exactly the ambiguity
+a `tofu-address` marker exists to remove (`RuleChildModule`,
+`internal/live/lint/child_module.go`; `live/LIMITATIONS.md`,
+"child-module"). A resource inside a `for_each`-keyed module's own
+instances is not auto-written even though its address is shipped: stamping
+cannot inject a marker into a shared configuration body, so that address is
+built by hand instead (`live/LIMITATIONS.md`'s "keyed module" behavioral
+limit; the concept page's "Modules" section has the idiom).
 
 The unescaped grammar, in informal EBNF matching OpenTofu's own address
 syntax.
@@ -97,12 +102,14 @@ quoted-key = '"' key-chars '"' ;
 ```
 
 Some examples of unescaped addresses follow. The last one is spec-only,
-see above.
+see above: a `count` key on a `module.` segment, refused permanently.
 
 - `aws_vpc.this`
 - `aws_subnet.this["a"]`
 - `aws_eip.this[2]`
-- `module.subnets["a"].aws_subnet.this` (not produced by any shipped build)
+- `module.subnets["a"].aws_subnet.this`
+- `module.subnets[2].aws_subnet.this` (spec-only; a count-expanded module
+  is refused permanently, see above)
 
 ### Escaping rule
 
@@ -269,7 +276,13 @@ change in the number of live instances mints or retires slots.
   `tofu-address` at once is also a named error. The marker admission path
   assumes at most one live resource per address per estate, and a
   collision means something upstream (a manual tag edit, a botched
-  `live-mv`) needs a human to resolve it.
+  `live-mv`) needs a human to resolve it. This holds regardless of region
+  or provider configuration: an address is unique estate-wide, not
+  estate-wide-per-region, so two live resources in two different regions
+  both carrying one estate's marker for one address are the same named
+  collision as two in one region, not two legitimate resources that happen
+  to sit in different places. A multi-provider estate (issue #69) reports
+  it the same way, naming every region involved.
 
 ## The rename rule
 

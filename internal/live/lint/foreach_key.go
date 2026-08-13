@@ -16,6 +16,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markerkey"
 )
 
@@ -85,20 +86,31 @@ func DescribeForEachKeyRune(r rune) string {
 }
 
 // checkForEachKeys reports every for_each key this rule can see that falls
-// outside the marker character set.
+// outside the marker character set, on a resource's own for_each and on a
+// module call's for_each alike (59c, issue #59 phase 3): a module instance
+// key becomes part of every address beneath it exactly as a resource
+// instance key becomes part of its own, so the same character-set rule
+// applies to both.
 //
 // "Can see" is the honest boundary. A for_each expression is checked when its
 // keys are computable from the static scope alone — a literal collection, or
-// one built from variables, locals, path and terraform values. Two other
-// shapes are skipped rather than guessed at:
+// one built from variables, locals, path and terraform values. Other shapes
+// are skipped rather than guessed at:
 //
 //   - for_each over another managed resource (for_each = aws_subnet.this),
 //     the estate fixture's own route-table-association idiom. Its keys are
 //     the other block's keys, and that block is checked in its own right, so
-//     checking it here would only duplicate the finding.
+//     checking it here would only duplicate the finding. Module calls have
+//     no equivalent idiom - for_each on a module block only ever iterates a
+//     map, an object or a set of strings - so this shape is resource-only.
 //   - anything the static scope cannot evaluate, including a reference to a
 //     data source. Identity resolution refuses those outright ("for_each is
-//     not statically knowable"), so they never reach a marker.
+//     not statically knowable"), so they never reach a marker. For a module
+//     call the same non-staticness is [checkChildModules]'s own refusal
+//     (RuleChildModule), which runs independently of this rule - a module
+//     for_each this pass cannot evaluate is simply not checked here, exactly
+//     as an unevaluable resource for_each is not, and RuleChildModule is
+//     what stops the run.
 func checkForEachKeys(ctx context.Context, mod *configs.Module, path addrs.Module, issues *[]Issue) {
 	for _, resource := range mod.ManagedResources {
 		if resource.ForEach == nil {
@@ -109,30 +121,58 @@ func checkForEachKeys(ctx context.Context, mod *configs.Module, path addrs.Modul
 			continue
 		}
 		addr := resource.Addr().String()
-		for _, key := range keys {
-			bad, isBad := InvalidForEachKeyRune(key)
-			if !isBad {
-				continue
-			}
-			*issues = append(*issues, Issue{
-				Rule:      RuleForEachKey,
-				Construct: fmt.Sprintf("for_each key %q in %s", key, addr),
-				Module:    path,
-				Detail: fmt.Sprintf(
-					"the for_each key %q contains %s, which cannot survive the trip through a "+
-						"tofu-address marker. An instance key becomes part of the resource's address, the "+
-						"address becomes the marker on the live resource, and that marker is the only record "+
-						"of ownership a live-markers run has (live/MARKERS.md). A key may contain letters, "+
-						"digits, space, and %s: the AWS tag-value character set, less \".\" and \":\", which "+
-						"separate the segments of an escaped address and so cannot appear inside one. This is "+
-						"caught here rather than at apply on purpose: a key like this applies cleanly and "+
-						"wedges every run after it, with no way back that does not go outside OpenTofu. "+
-						"Rename the key",
-					key, DescribeForEachKeyRune(bad), quotedRuneList(markerkey.Extras),
-				),
-				Subject: resource.ForEach.Range(),
-			})
+		reportBadForEachKeys(keys, addr, addr, resource.ForEach.Range(), path, issues)
+	}
+	for name, call := range mod.ModuleCalls {
+		if call.ForEach == nil {
+			continue
 		}
+		instKeys, diag := identity.ChildModuleKeys(ctx, mod, fmt.Sprintf("module %q", name), call.ForEach)
+		if diag != nil {
+			// checkChildModules (RuleChildModule) is what refuses a module
+			// for_each this pass cannot enumerate; nothing to check here.
+			continue
+		}
+		keys := make([]string, 0, len(instKeys))
+		for _, k := range instKeys {
+			if sk, ok := k.(addrs.StringKey); ok {
+				keys = append(keys, string(sk))
+			}
+		}
+		modLabel := fmt.Sprintf("module %q", name)
+		reportBadForEachKeys(keys, modLabel, modLabel, call.ForEach.Range(), path, issues)
+	}
+}
+
+// reportBadForEachKeys is [checkForEachKeys]'s shared per-key check, over
+// either a resource's own keys or a module call's. where names the block a
+// key was found on ("aws_eip.pool" or "module \"wrapped\""), used both in
+// the issue's Construct label and in its prose.
+func reportBadForEachKeys(keys []string, where, addr string, subject hcl.Range, path addrs.Module, issues *[]Issue) {
+	for _, key := range keys {
+		bad, isBad := InvalidForEachKeyRune(key)
+		if !isBad {
+			continue
+		}
+		*issues = append(*issues, Issue{
+			Rule:      RuleForEachKey,
+			Construct: fmt.Sprintf("for_each key %q in %s", key, where),
+			Module:    path,
+			Detail: fmt.Sprintf(
+				"the for_each key %q contains %s, which cannot survive the trip through a "+
+					"tofu-address marker. An instance key becomes part of the address of every "+
+					"resource at or beneath %s, the address becomes the marker on the live "+
+					"resource, and that marker is the only record of ownership a live-markers "+
+					"run has (live/MARKERS.md). A key may contain letters, digits, space, and "+
+					"%s: the AWS tag-value character set, less \".\" and \":\", which separate the "+
+					"segments of an escaped address and so cannot appear inside one. This is "+
+					"caught here rather than at apply on purpose: a key like this applies cleanly and "+
+					"wedges every run after it, with no way back that does not go outside OpenTofu. "+
+					"Rename the key",
+				key, DescribeForEachKeyRune(bad), addr, quotedRuneList(markerkey.Extras),
+			),
+			Subject: subject,
+		})
 	}
 }
 

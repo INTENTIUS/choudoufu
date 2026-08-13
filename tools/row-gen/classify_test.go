@@ -260,17 +260,22 @@ func TestApplyImportGrammarDemotions_LeavesOpaqueAlone(t *testing.T) {
 	}
 }
 
-// TestClassifyFold pins the fold rule: a property-child always lands
-// evidence-only, and notes a parent-derived proposal only when the fold
-// parent's own TF type is itself proposed (server-assigned or
-// client-named).
+// TestClassifyFold pins the fold rule (issue #68): a property-child is
+// bucketFoldChild whenever its fold parent is either already admitted or
+// itself proposed server-assigned/client-named by this run, and
+// bucketEvidenceOnly otherwise.
 func TestClassifyFold(t *testing.T) {
 	mapped := []proposal{
 		{TFType: "aws_s3_bucket", CFNType: "AWS::S3::Bucket", Bucket: bucketClientNamed},
+		{TFType: "aws_api_gateway_method", CFNType: "AWS::ApiGateway::Method", Bucket: bucketNeedsHandSeparator},
 	}
-	p := classifyFold("aws_s3_bucket_versioning", "AWS::S3::Bucket", mapped)
-	if p.Bucket != bucketEvidenceOnly {
-		t.Fatalf("fold bucket = %s, want %s", p.Bucket, bucketEvidenceOnly)
+
+	// The parent is proposed (client-named) but not (in this synthetic
+	// call) known to be admitted: bucketFoldChild via the weaker,
+	// mapped-parent check.
+	p := classifyFold("aws_s3_bucket_versioning", "AWS::S3::Bucket", mapped, nil)
+	if p.Bucket != bucketFoldChild {
+		t.Fatalf("fold bucket = %s, want %s", p.Bucket, bucketFoldChild)
 	}
 	if !p.ParentKnown || p.ParentTFType != "aws_s3_bucket" {
 		t.Fatalf("expected the fold parent resolved to aws_s3_bucket, got %+v", p)
@@ -279,10 +284,35 @@ func TestClassifyFold(t *testing.T) {
 		t.Fatalf("expected exactly one note proposing parent-derived admission, got %v", p.Notes)
 	}
 
+	// The parent's own registry-only classification is
+	// bucketNeedsHandSeparator - not server-assigned or client-named - but
+	// it is already admitted (a human hand-ratified it, the
+	// aws_api_gateway_method shape): bucketFoldChild via the admitted
+	// check, not the mapped-bucket one.
+	admitted := map[string]bool{"aws_api_gateway_method": true}
+	p3 := classifyFold("aws_api_gateway_integration", "AWS::ApiGateway::Method", mapped, admitted)
+	if p3.Bucket != bucketFoldChild {
+		t.Fatalf("fold bucket = %s, want %s (parent is admitted despite its own needs-hand-separator classification)", p3.Bucket, bucketFoldChild)
+	}
+	if !p3.ParentKnown || p3.ParentTFType != "aws_api_gateway_method" {
+		t.Fatalf("expected the fold parent resolved to aws_api_gateway_method, got %+v", p3)
+	}
+
+	// Without the admitted map, the same row falls back to the weaker
+	// mapped-bucket check, which does not fire for needs-hand-separator:
+	// evidence-only.
+	p4 := classifyFold("aws_api_gateway_integration", "AWS::ApiGateway::Method", mapped, nil)
+	if p4.Bucket != bucketEvidenceOnly {
+		t.Fatalf("fold bucket = %s, want %s (parent neither admitted nor proposed server-assigned/client-named)", p4.Bucket, bucketEvidenceOnly)
+	}
+
 	// A fold whose parent is not itself proposed (or not found at all)
 	// gets a note saying so, not a parent-derived proposal.
-	p2 := classifyFold("aws_orphan_child", "AWS::Nothing::Here", mapped)
+	p2 := classifyFold("aws_orphan_child", "AWS::Nothing::Here", mapped, nil)
 	if p2.ParentKnown {
 		t.Fatalf("expected no parent match for an unmapped fold_parent, got %+v", p2)
+	}
+	if p2.Bucket != bucketEvidenceOnly {
+		t.Fatalf("fold bucket = %s, want %s", p2.Bucket, bucketEvidenceOnly)
 	}
 }

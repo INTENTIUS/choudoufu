@@ -6,8 +6,6 @@
 package lint
 
 import (
-	"strings"
-
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -574,6 +572,28 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_flow_log":                                     {},
 	"aws_nat_gateway":                                  {},
 	"aws_nat_gateway_eip_association":                  {},
+	// ---- Fold-children (issue #68): declared property-children of an
+	// ---- admitted parent, admitted the same way live/mapping.json's other
+	// ---- ~170 "fold" rows will be as this path picks them up in future
+	// ---- batches. See internal/live/identity/table.go's own "Fold-children
+	// ---- (issue #68)" section comment for the per-type evidence and the
+	// ---- two sub-shapes (API Gateway's four duplicate an already-admitted
+	// ---- parent's own composite identity; the APS three key on a single
+	// ---- parent argument, the same named-singleton-child shape
+	// ---- aws_s3_bucket_policy and aws_sns_topic_policy already ratify).
+	// ---- Cohort estate: live/e2e/estates/apigateway (the API Gateway four)
+	// ---- and live/e2e/estates/aps (the APS three plus their two new
+	// ---- parents, aws_prometheus_workspace and aws_prometheus_scraper,
+	// ---- neither previously admitted).
+	"aws_api_gateway_integration":                  {},
+	"aws_api_gateway_integration_response":         {},
+	"aws_api_gateway_method_response":              {},
+	"aws_api_gateway_method_settings":              {},
+	"aws_prometheus_workspace":                     {},
+	"aws_prometheus_scraper":                       {},
+	"aws_prometheus_alert_manager_definition":      {},
+	"aws_prometheus_query_logging_configuration":   {},
+	"aws_prometheus_scraper_logging_configuration": {},
 
 	// ---- Registry-ratified (#40, #44, #65): fifth batch, compute
 	// ---- platforms (Batch, EMR remainder, App Runner, Elastic
@@ -1009,6 +1029,53 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_dms_replication_task":                      {},
 	"aws_appintegrations_data_integration":          {},
 	"aws_appintegrations_event_integration":         {},
+	// ---- Registry-ratified (#40, #44, #65): sixth batch, databases beyond
+	// ---- RDS/DynamoDB/ElastiCache (issue #65's own recipe: Redshift,
+	// ---- OpenSearch/OpenSearchServerless, Neptune, DocDB, Timestream, QLDB,
+	// ---- MemoryDB, Cassandra/Keyspaces). Same tools/row-gen pipeline as the
+	// ---- batches above, cross-checked against live/import-grammar.json's
+	// ---- scraped Import sections (the pinned v6.58.0 provider docs
+	// ---- fetched directly) rather than accepted on the CFN registry's
+	// ---- classification alone — several of these rows correct a row-gen
+	// ---- "evidence-only" demotion the same way earlier batches corrected
+	// ---- aws_sns_topic_policy and aws_qldb_ledger and aws_memorydb_subnet_group
+	// ---- do here. Per-service scope is deliberately narrow, matching issue
+	// ---- #65's own sub-lists rather than every row-gen proposal in each
+	// ---- service: see internal/live/identity/table.go for the per-type
+	// ---- evidence, the rejection, and the out-of-scope proposals this batch
+	// ---- left for later. Cohort estate: live/e2e/estates/databases.
+	"aws_redshift_cluster":                      {},
+	"aws_redshift_parameter_group":              {},
+	"aws_redshift_subnet_group":                 {},
+	"aws_redshift_snapshot_schedule":            {},
+	"aws_redshiftserverless_namespace":          {},
+	"aws_redshiftserverless_workgroup":          {},
+	"aws_opensearch_domain":                     {},
+	"aws_elasticsearch_domain":                  {},
+	"aws_opensearchserverless_collection":       {},
+	"aws_opensearchserverless_collection_group": {},
+	"aws_opensearchserverless_access_policy":    {},
+	"aws_opensearchserverless_lifecycle_policy": {},
+	"aws_opensearchserverless_security_policy":  {},
+	"aws_neptune_cluster_parameter_group":       {},
+	"aws_neptune_parameter_group":               {},
+	"aws_neptune_subnet_group":                  {},
+	"aws_docdb_event_subscription":              {},
+	"aws_docdbelastic_cluster":                  {},
+	"aws_timestreamwrite_database":              {},
+	"aws_timestreamwrite_table":                 {},
+	"aws_timestreaminfluxdb_db_cluster":         {},
+	"aws_timestreaminfluxdb_db_instance":        {},
+	"aws_timestreamquery_scheduled_query":       {},
+	"aws_qldb_ledger":                           {},
+	"aws_memorydb_acl":                          {},
+	"aws_memorydb_cluster":                      {},
+	"aws_memorydb_multi_region_cluster":         {},
+	"aws_memorydb_parameter_group":              {},
+	"aws_memorydb_user":                         {},
+	"aws_memorydb_subnet_group":                 {},
+	"aws_keyspaces_keyspace":                    {},
+	"aws_keyspaces_table":                       {},
 }
 
 // admitted reports whether the given provider-local resource type may appear
@@ -1033,32 +1100,4 @@ func admitted(resourceType string, schemas map[string]providers.Schema, signal *
 	}
 	_, ok := identity.SynthesizeTypeIdentity(resourceType, schemas, signal)
 	return ok
-}
-
-// logicalTypePrefixes are the provider-local type prefixes whose resources
-// exist only inside the state file. Their value is generated once and then
-// remembered; the record of them IS the store that stateless mode removes, so
-// there is nothing to recover them from and no version of them that works
-// without authoritative state. See live/LIMITATIONS.md.
-//
-// Checked before the admission table so that a random_id gets the explanation
-// for why its whole family is out rather than the generic "not in the v0
-// table" message.
-var logicalTypePrefixes = []string{
-	"random_",
-	"tls_",
-	"time_",
-	"null_",
-	"local_",
-}
-
-// logicalType reports whether the given provider-local resource type is a
-// logical, store-only type, and returns the prefix that matched.
-func logicalType(resourceType string) (string, bool) {
-	for _, prefix := range logicalTypePrefixes {
-		if strings.HasPrefix(resourceType, prefix) {
-			return prefix, true
-		}
-	}
-	return "", false
 }

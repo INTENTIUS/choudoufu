@@ -120,6 +120,19 @@ func EstateModuleDir(t *testing.T) string {
 	return fixtureDir(t, filepath.Join("live", "e2e", "estate-module"))
 }
 
+// EstateModuleKeyedDir returns the path of the keyed-module estate fixture
+// (issue #59, 59c): one resource, wrapped in a for_each-expanded module
+// call over two instance keys, standing next to EstateModuleDir's static
+// counterpart for the same reason that one stands apart from
+// live/e2e/estates/ - it is applied against floci by a named test
+// (internal/live/lifecycle/module_keyed_live_test.go), not swept
+// generically by CohortDirs/FixtureDirs, which load fixtures with a walker
+// that fails on any module call.
+func EstateModuleKeyedDir(t *testing.T) string {
+	t.Helper()
+	return fixtureDir(t, filepath.Join("live", "e2e", "estate-module-keyed"))
+}
+
 // ImportFixtureDir returns the path of the live-import fixture (issue #61):
 // a small, deliberately marker-free configuration standing in for an estate
 // that has run under ordinary state-backed OpenTofu/Terraform and never used

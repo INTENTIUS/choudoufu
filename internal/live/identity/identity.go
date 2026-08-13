@@ -33,6 +33,27 @@ const (
 	// only be recovered by marker discovery; Resolution.Reason says why.
 	// Admission path 2.
 	ClassNeedsDiscovery Class = "NEEDS_DISCOVERY"
+
+	// ClassRecordBacked means the identity IS the record: a logical
+	// resource type (GitHub issue #73's RECORD_ADMITTED lint
+	// classification, internal/live/lint) whose whole existence is the
+	// persisted micro-state record, not a cloud object. There is no cloud
+	// observation to make for an instance of this class, ever - not "not
+	// yet discovered," the way ClassNeedsDiscovery's marker sweep resolves
+	// in time, but structurally absent, the same way [ClassNeedsDiscovery]'s
+	// marker path never applies to it either: a marker is a tag on a cloud
+	// resource, and a record-backed instance has no cloud resource to tag.
+	// Its identity comes from the record store instead (SSM/S3/local file,
+	// per #73's design ruling), which this package does not read.
+	//
+	// Declared here as groundwork only. No resolver in this package
+	// produces it yet: a record-admitted type's resources are refused by
+	// lint (internal/live/lint's RuleLogicalResource) before resolution
+	// ever runs, so a Resolution's Class is never this value today. The
+	// projection work #73 stages next is what will start producing it,
+	// additively: existing callers that switch on Class need no change
+	// until they choose to handle this one.
+	ClassRecordBacked Class = "RECORD_BACKED"
 )
 
 // Resolution is what this package knows about one managed resource

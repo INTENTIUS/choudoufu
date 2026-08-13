@@ -354,10 +354,12 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		diags = diags.Append(provs.close(ctx))
 		return nil, diags
 	}
+	// GitHub issue #70's interim half: never fatal, so it rides alongside the
+	// subset check rather than gating on it. See [lint.CheckModuleProviders].
+	diags = diags.Append(lint.CheckModuleProviders(config))
 
 	// Resolved now that lint has passed and the estate name is settled, so
-	// that any verb here is already known valid for its quadrant. Nothing
-	// below reads r.policy yet - see its doc comment.
+	// that any verb here is already known valid for its quadrant.
 	if config.Module != nil {
 		r.policy = statelessPolicy(config.Module.Live, estate)
 	}
@@ -379,7 +381,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	}
 
 	merged := resolutions.All()
-	disco, discoProvider, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs)
+	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy)
 	diags = diags.Append(discoDiags)
 	if discoDiags.HasErrors() {
 		// A marker problem means the estate's ownership records disagree with
@@ -391,19 +393,43 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		merged = disco.Resolutions
 	}
 
+	// GitHub issue #67's undeclared_untagged = "delete" scoped account
+	// reconciliation, when the policy asks for it. Its roster is merged in
+	// exactly like a swept orphan: a resolution with no matching declared
+	// address is proposed for destruction by the plan engine's ordinary
+	// orphan handling, with no synthetic configuration needed. A threshold
+	// refusal stops the run here, after the report below has a chance to
+	// show the roster that tripped it.
+	reconcile, reconcileExtra, reconcileVerified, reconcileDiags := statelessPolicyReconcile(ctx, estate, r.policy, provs, discoProvider)
+	diags = diags.Append(reconcileDiags)
+	if len(reconcileExtra) > 0 {
+		merged = append(merged, reconcileExtra...)
+	}
+	if reconcileDiags.HasErrors() {
+		r.view.Policy(statelessPolicyReport(nil, disco, nil, reconcile))
+		diags = diags.Append(provs.close(ctx))
+		return nil, diags
+	}
+
 	// The provider the sweep listed through is the one a resource whose block
 	// was deleted is read back through: it has no block to name one, and the
 	// account and region it was found in are the account and region it is in.
+	// An estate whose managed resources span more than one provider
+	// configuration (issue #69) attributes each undeclared instance to its
+	// own provider via undeclaredProviders; discoProvider is the fallback
+	// and the single-provider case's only answer, unchanged.
 	//
 	// Ownership is the admission rule for the prior state itself: a live
 	// object enters it only when it carries this estate's marker, or when
 	// discovery already bound it by one. An apply is the path where that
 	// matters most - the prior state here is what a destroy is planned
 	// against - and it is why a resource this configuration names but this
-	// estate has never owned is left alone rather than adopted.
+	// estate has never owned is left alone rather than adopted, unless a
+	// policy verb says otherwise.
 	projResult, projDiags := projection.BuildWith(ctx, config, merged, provs, projection.Options{
-		UndeclaredProvider: discoProvider,
-		Ownership:          statelessOwnership(estate, disco),
+		UndeclaredProvider:  discoProvider,
+		UndeclaredProviders: undeclaredProviders,
+		Ownership:           statelessOwnershipWith(estate, disco, r.policy, reconcileVerified),
 	})
 	// The provider processes started to read the live system have done their
 	// job by this point; the plan below starts its own from the same library.
@@ -416,8 +442,10 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	r.view.Omissions(statelessOmissions(projResult))
 	r.view.Unowned(statelessUnownedReport(projResult, estate))
 
+	var classified *foreign.Result
 	if disco != nil {
-		classified, foreignDiags := foreign.Classify(ctx, foreign.Request{
+		var foreignDiags tfdiags.Diagnostics
+		classified, foreignDiags = foreign.Classify(ctx, foreign.Request{
 			Estate:    disco.Estate,
 			Config:    config,
 			Discovery: disco,
@@ -447,12 +475,17 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// read. A marker conflict is fatal: the configuration claims an ownership
 	// this run cannot honor. So is a resource whose identity the provider
 	// assigns going unstamped - this is the apply path, so an unmarked create
-	// here is a resource lost to every future run.
-	_, stampDiags := statelessStamp(ctx, config, estate, schemas, disco.SlotTable(), statelessNeedsDiscovery(resolutions))
+	// here is a resource lost to every future run. policyUntag carries
+	// declared_tagged = "untag"'s released keys, worked out from the
+	// projection's own policy outcomes now that it has run.
+	policyUntag := statelessPolicyUntagMap(projResult.Policy, statelessPolicyTagKey(r.policy))
+	stampRes, stampDiags := statelessStamp(ctx, config, estate, schemas, disco.SlotTable(), statelessNeedsDiscovery(resolutions), policyUntag)
 	diags = diags.Append(stampDiags)
 	if stampDiags.HasErrors() {
 		return nil, diags
 	}
+
+	r.view.Policy(statelessPolicyReport(projResult, disco, stampRes, reconcile))
 
 	return projResult.State, diags
 }

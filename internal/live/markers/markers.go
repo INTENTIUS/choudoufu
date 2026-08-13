@@ -228,14 +228,19 @@ func ValidMarkerAddress(escaped string) bool {
 //
 // A root-module address is the two trailing segments: type, then
 // name(+key). Anything before them has to be a run of "module", "<name>"
-// pairs with no key of their own - the module.a.module.b prefix a static
-// module call contributes to the address - or the value is refused rather
-// than guessed at. A keyed module step ("module.a:x") is well-formed
-// (escapedAddress does not distinguish module segments from the resource
-// segment) but is not decoded: nothing this fork admits today writes one -
-// phase 1 covers static module calls only, and a keyed module instance is
-// phase 2's concern (issue #59, 59c) - so a value carrying one is refused
-// the same way an unrecognized shape is, rather than silently accepted.
+// pairs, each name optionally carrying its own key - the
+// module.a.module.b["x"] prefix a static or for_each-keyed module call
+// contributes to the address (issue #59: 59b for the unkeyed form, 59c for
+// the keyed one) - or the value is refused rather than guessed at.
+//
+// A module step's key, unlike a resource instance's, is never ambiguous
+// between a count index and a quoted string of the same digits: count on a
+// module block is refused permanently (RuleChildModule; live/LIMITATIONS.md,
+// "child-module"), so every module instance key this fork ever writes came
+// from a for_each, which only ever produces string keys. A module step's
+// key therefore always decodes as [addrs.StringKey], with no digit-string
+// special case - unlike the trailing resource segment just below, where
+// count and for_each really do collide on the wire.
 func UnescapeAddress(escaped string) (addrs.AbsResourceInstance, bool) {
 	var zero addrs.AbsResourceInstance
 	if !ValidMarkerAddress(escaped) {
@@ -261,11 +266,18 @@ func UnescapeAddress(escaped string) (addrs.AbsResourceInstance, bool) {
 		if prefix[i] != "module" {
 			return zero, false
 		}
-		modName := prefix[i+1]
-		if modName == "" || strings.Contains(modName, ":") {
+		modName, modKey, modHasKey := strings.Cut(prefix[i+1], ":")
+		if modName == "" {
 			return zero, false
 		}
-		modInst = append(modInst, addrs.ModuleInstanceStep{Name: modName, InstanceKey: addrs.NoKey})
+		step := addrs.ModuleInstanceStep{Name: modName, InstanceKey: addrs.NoKey}
+		if modHasKey {
+			if modKey == "" || strings.ContainsAny(modKey, ".:") {
+				return zero, false
+			}
+			step.InstanceKey = addrs.StringKey(modKey)
+		}
+		modInst = append(modInst, step)
 	}
 
 	res := addrs.Resource{
