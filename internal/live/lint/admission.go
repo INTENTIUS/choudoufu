@@ -513,6 +513,87 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_cloudfront_realtime_log_config":                   {},
 	"aws_cloudfront_trust_store":                           {},
 	"aws_cloudfront_vpc_origin":                            {},
+
+	// ---- Registry-ratified (#40, #44, #65): fifth batch, compute
+	// ---- platforms (Batch, EMR remainder, App Runner, Elastic
+	// ---- Beanstalk, Amplify, Lightsail). Same tools/row-gen pipeline as
+	// ---- the earlier batches, cross-checked against the AWS provider's
+	// ---- documented import behaviour (its own Argument/Attribute/Import
+	// ---- sections, fetched from the pinned v6.58.0 tag) and, where
+	// ---- row-gen's registry-only evidence was silent on recoverability
+	// ---- or wrong about the argument, against live/tag-verbs.json,
+	// ---- live/survey-full.json's mechanical per-type signals, and
+	// ---- live/import-grammar.json's docs-derived evidence — not
+	// ---- accepted on row-gen's classification alone. Two reclassified
+	// ---- rows (aws_batch_job_definition, aws_amplify_app) and one
+	// ---- corrected wrong guess (aws_elastic_beanstalk_environment) are
+	// ---- the notable catches; see internal/live/identity/table.go for
+	// ---- the per-type evidence and for the rejected and deferred
+	// ---- proposals. Cohort estate: live/e2e/estates/compute-platforms.
+	"aws_batch_compute_environment":                    {},
+	"aws_batch_job_definition":                         {},
+	"aws_batch_job_queue":                              {},
+	"aws_batch_scheduling_policy":                      {},
+	"aws_emr_cluster":                                  {},
+	"aws_emr_security_configuration":                   {},
+	"aws_emr_studio":                                   {},
+	"aws_emrcontainers_virtual_cluster":                {},
+	"aws_emrserverless_application":                    {},
+	"aws_apprunner_auto_scaling_configuration_version": {},
+	"aws_apprunner_observability_configuration":        {},
+	"aws_apprunner_service":                            {},
+	"aws_apprunner_vpc_connector":                      {},
+	"aws_apprunner_vpc_ingress_connection":             {},
+	"aws_elastic_beanstalk_application":                {},
+	"aws_elastic_beanstalk_environment":                {},
+	"aws_amplify_app":                                  {},
+	"aws_amplify_branch":                               {},
+	"aws_lightsail_bucket":                             {},
+	"aws_lightsail_certificate":                        {},
+	"aws_lightsail_container_service":                  {},
+	"aws_lightsail_database":                           {},
+	"aws_lightsail_disk":                               {},
+	"aws_lightsail_distribution":                       {},
+	"aws_lightsail_instance":                           {},
+	"aws_lightsail_lb":                                 {},
+	"aws_lightsail_lb_certificate":                     {},
+	"aws_lightsail_static_ip":                          {},
+
+	// ---- Registry-ratified (#40, #44, #65): fifth batch, developer tools
+	// ---- (CodeArtifact, CodeBuild, CodeCommit, CodeConnections and its
+	// ---- CodeStarConnections predecessor, CodeStarNotifications,
+	// ---- CodeDeploy, CodePipeline, and the ECR-public leftover from the
+	// ---- IAM/ECR batch's own ECR section). Same tools/row-gen pipeline as
+	// ---- the batches above, cross-checked against the AWS provider's
+	// ---- documented Argument/Attribute/Import sections fetched from the
+	// ---- pinned v6.58.0 tag directly — several of these types' row-gen
+	// ---- classification does not survive that check, including three
+	// ---- CodeBuild types and CodeCommit whose CFN Registry ships every
+	// ---- handler false, a corroboration gap row-gen's own schema-only
+	// ---- evidence cannot see. See internal/live/identity/table.go for the
+	// ---- per-type evidence, the one rejection, and the CodeGuru pair this
+	// ---- batch left outside issue #65's named scope. Cohort estate:
+	// ---- live/e2e/estates/devtools.
+	"aws_codeartifact_domain":                        {},
+	"aws_codeartifact_domain_permissions_policy":     {},
+	"aws_codeartifact_repository":                    {},
+	"aws_codeartifact_repository_permissions_policy": {},
+	"aws_codebuild_fleet":                            {},
+	"aws_codebuild_project":                          {},
+	"aws_codebuild_report_group":                     {},
+	"aws_codebuild_webhook":                          {},
+	"aws_codecommit_repository":                      {},
+	"aws_codeconnections_connection":                 {},
+	"aws_codestarconnections_connection":             {},
+	"aws_codestarnotifications_notification_rule":    {},
+	"aws_codedeploy_app":                             {},
+	"aws_codedeploy_deployment_config":               {},
+	"aws_codedeploy_deployment_group":                {},
+	"aws_codepipeline":                               {},
+	"aws_codepipeline_custom_action_type":            {},
+	"aws_codepipeline_webhook":                       {},
+	"aws_ecrpublic_repository":                       {},
+	"aws_ecrpublic_repository_policy":                {},
 }
 
 // admitted reports whether the given provider-local resource type may appear
