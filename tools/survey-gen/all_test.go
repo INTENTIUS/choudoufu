@@ -124,14 +124,14 @@ func TestWriteSurveysCuratedBytesIndependentOfAll(t *testing.T) {
 	}
 
 	var log bytes.Buffer
-	if err := writeSurveys(rootWithout, schemas, roster, false, &log); err != nil {
+	if err := writeSurveys(rootWithout, schemas, roster, false, false, "", &log); err != nil {
 		t.Fatalf("writeSurveys without -all: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(rootWithout, surveyFullJSONRel)); !os.IsNotExist(err) {
 		t.Errorf("writeSurveys without -all must not write %s (stat err: %v)", surveyFullJSONRel, err)
 	}
 
-	if err := writeSurveys(rootWith, schemas, roster, true, &log); err != nil {
+	if err := writeSurveys(rootWith, schemas, roster, true, false, "", &log); err != nil {
 		t.Fatalf("writeSurveys with -all: %v", err)
 	}
 
@@ -161,5 +161,59 @@ func TestWriteSurveysCuratedBytesIndependentOfAll(t *testing.T) {
 	const wantGeneratedBy = "tools/survey-gen (go run ./tools/survey-gen -all)"
 	if full.GeneratedBy != wantGeneratedBy {
 		t.Errorf("%s's generated_by = %q, want %q", surveyFullJSONRel, full.GeneratedBy, wantGeneratedBy)
+	}
+}
+
+// TestWriteSurveysAcceptStampsHeader is issue #37 increment 1's own bar:
+// the accepted field is written only when a human passes -accept, both
+// artifacts get the same date, and leaving -accept off leaves the field
+// out of the header rather than guessing a date forward.
+func TestWriteSurveysAcceptStampsHeader(t *testing.T) {
+	schemas := providers.GetProviderSchemaResponse{
+		ResourceTypes: map[string]providers.Schema{
+			"aws_curated_one": fakeAllSchema(true),
+		},
+	}
+	roster := []HandRow{{Type: "aws_curated_one"}}
+
+	rootAccepted, rootUnaccepted := t.TempDir(), t.TempDir()
+	for _, root := range []string{rootAccepted, rootUnaccepted} {
+		if err := os.MkdirAll(filepath.Join(root, "live"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var log bytes.Buffer
+	const today = "2026-08-12"
+	if err := writeSurveys(rootAccepted, schemas, roster, true, true, today, &log); err != nil {
+		t.Fatalf("writeSurveys with -accept: %v", err)
+	}
+	if err := writeSurveys(rootUnaccepted, schemas, roster, true, false, "", &log); err != nil {
+		t.Fatalf("writeSurveys without -accept: %v", err)
+	}
+
+	for _, tc := range []struct {
+		root, rel string
+		wantDate  string
+	}{
+		{rootAccepted, surveyJSONRel, today},
+		{rootAccepted, surveyFullJSONRel, today},
+		{rootUnaccepted, surveyJSONRel, ""},
+		{rootUnaccepted, surveyFullJSONRel, ""},
+	} {
+		data, err := os.ReadFile(filepath.Join(tc.root, tc.rel))
+		if err != nil {
+			t.Fatalf("reading %s: %v", tc.rel, err)
+		}
+		var s Survey
+		if err := json.Unmarshal(data, &s); err != nil {
+			t.Fatalf("decoding %s: %v", tc.rel, err)
+		}
+		if s.Accepted != tc.wantDate {
+			t.Errorf("%s (accept=%v): accepted = %q, want %q", tc.rel, tc.wantDate != "", s.Accepted, tc.wantDate)
+		}
+		if tc.wantDate == "" && bytes.Contains(data, []byte(`"accepted"`)) {
+			t.Errorf("%s: an unaccepted run must omit the accepted field entirely, not write it empty", tc.rel)
+		}
 	}
 }

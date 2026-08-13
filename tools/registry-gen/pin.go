@@ -58,7 +58,14 @@ type SpecPin struct {
 	// Resources is how many resource types the pinned archive contained.
 	Resources int `json:"resources"`
 	// Accepted is the ISO date the pin was accepted, so a bump reads as a
-	// decision rather than one opaque hash replacing another.
+	// decision rather than one opaque hash replacing another. This tool's
+	// Accepted is source-committed, edited by hand when a human pastes
+	// AssertPinned's printed block; tools/survey-gen's own accepted field
+	// (issue #37, increment 1) is written by that generator instead, only
+	// when a human passes -accept, since survey-gen has no committed
+	// source constant to edit - the vocabulary and the "so a diff reads
+	// as a decision" reasoning are shared even though the two mechanisms
+	// differ.
 	Accepted string `json:"accepted"`
 }
 

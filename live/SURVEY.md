@@ -390,6 +390,34 @@ taggable for. The two parent-component rows are unchanged:
 UUID in its ARN has no source in configuration and the type takes no tags,
 which leaves only a list-plus-content match on protocol and endpoint.
 
+## What the classifier does not settle
+
+`tools/survey-gen/survey_gen_test.go`'s `pathExceptions` table names every
+row above where the schema-derived classifier and this file's hand-written
+Path column disagree for a documented reason. It is the measured size of
+the opentofu#2854 gap: the AWS provider has not yet shipped identity
+schemas precise enough for the strict client-named rule to prove some of
+these types by schema alone, so the hand row's judgment stands in. Five
+cohorts:
+
+| Cohort | Count |
+|---|---|
+| Name-prefix idiom (Optional+Computed identifying argument) | 12 |
+| Account-derived import identity, not yet wired | 3 |
+| Docs tier (no identity schema in v6.58.0) | 5 |
+| Fork-wiring wrinkle (deliberate, permanent) | 4 |
+| Parent component the survey keeps client-named | 1 |
+| **Total** | **25** |
+
+25 is the number to watch: it should shrink release by release as the
+provider adds the identity schemas opentofu#2854 tracks, and
+`TestExceptionCohortCounts` fails the moment `pathExceptions` moves without
+this table following it. The per-type detail - which attribute, which
+flag - stays in the test; each row there also carries a `choudoufu#NN`
+tracking reference or an explicit `permanent` marker, so a reader can tell
+which exceptions should shrink the count and which are fork design that
+will not (`TestExceptionTracking`).
+
 ## The three the rule excludes
 
 Exactly three of the 68 fail the admission rule, and they fail it

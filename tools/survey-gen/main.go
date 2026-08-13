@@ -43,6 +43,19 @@
 //	go run ./tools/survey-gen -render
 //
 // See render.go.
+//
+// A -accept flag stamps the written artifact's header with today's date
+// (the "accepted" field), the only way that field is ever written -
+// reusing tools/registry-gen/pin.go's SpecPin.Accepted vocabulary so a
+// provider bump reads as a decision rather than one opaque regeneration
+// replacing another (issue #37, increment 1):
+//
+//	go run ./tools/survey-gen -accept
+//
+// Regenerating without it leaves the field out of the artifact, so an
+// unreviewed bump shows up in the diff as the accepted date disappearing.
+// It combines with -all: `go run ./tools/survey-gen -accept -all` stamps
+// both live/survey.json and live/survey-full.json with the same date.
 package main
 
 import (
@@ -52,6 +65,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -104,6 +118,8 @@ func main() {
 		"rewrite live/SURVEY.md's derived spans from the committed live/survey.json instead of regenerating the artifact (needs no provider)")
 	all := flag.Bool("all", false,
 		"also classify the provider's entire resource-type roster and write live/survey-full.json (issue #41); live/survey.json is still written unchanged")
+	accept := flag.Bool("accept", false,
+		"stamp the artifact header's accepted field with today's date, ratifying the regenerated rows for review (tools/registry-gen/pin.go's SpecPin.Accepted vocabulary); omit to regenerate without ratifying, which drops any previously accepted date out of the diff")
 	flag.Parse()
 
 	if *render {
@@ -113,13 +129,13 @@ func main() {
 		}
 		return
 	}
-	if err := run(*initBin, *all); err != nil {
+	if err := run(*initBin, *all, *accept); err != nil {
 		fmt.Fprintf(os.Stderr, "survey-gen: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(initBin string, all bool) error {
+func run(initBin string, all, accept bool) error {
 	root, err := repoRoot()
 	if err != nil {
 		return err
@@ -142,7 +158,8 @@ func run(initBin string, all bool) error {
 		return err
 	}
 
-	return writeSurveys(root, schemas, roster, all, os.Stderr)
+	today := time.Now().UTC().Format("2006-01-02")
+	return writeSurveys(root, schemas, roster, all, accept, today, os.Stderr)
 }
 
 // writeSurveys writes live/survey.json from the curated roster and, when
@@ -155,8 +172,16 @@ func run(initBin string, all bool) error {
 // #41 describes: buildSurvey already classifies provider-wide once given
 // every type name) is testable against fake schemas, with no provider and
 // no network.
-func writeSurveys(root string, schemas providers.GetProviderSchemaResponse, roster []HandRow, all bool, log io.Writer) error {
+//
+// accept and today govern the Accepted header field (issue #37, increment
+// 1): when accept is true, both written artifacts carry today verbatim in
+// their accepted field; when it is false, today is unused and the field is
+// left unset, which is how an unreviewed regeneration surfaces in the diff.
+func writeSurveys(root string, schemas providers.GetProviderSchemaResponse, roster []HandRow, all, accept bool, today string, log io.Writer) error {
 	survey := buildSurvey(schemas, rosterTypes(roster))
+	if accept {
+		survey.Accepted = today
+	}
 	data, err := survey.marshal()
 	if err != nil {
 		return err
@@ -166,8 +191,8 @@ func writeSurveys(root string, schemas providers.GetProviderSchemaResponse, rost
 	if err := os.WriteFile(out, data, 0o644); err != nil { //nolint:gosec // a committed artifact, not a secret
 		return err
 	}
-	fmt.Fprintf(log, "survey-gen: wrote %s (%d types: %d taggable, %d with list resources, %d with identity schemas)\n",
-		surveyJSONRel, len(survey.Types), survey.Counts.Taggable, survey.Counts.ListResource, survey.Counts.IdentitySchema)
+	fmt.Fprintf(log, "survey-gen: wrote %s (%d types: %d taggable, %d with list resources, %d with identity schemas)%s\n",
+		surveyJSONRel, len(survey.Types), survey.Counts.Taggable, survey.Counts.ListResource, survey.Counts.IdentitySchema, acceptedSuffix(survey.Accepted))
 
 	if !all {
 		return nil
@@ -175,6 +200,9 @@ func writeSurveys(root string, schemas providers.GetProviderSchemaResponse, rost
 
 	full := buildSurvey(schemas, allResourceTypeNames(schemas))
 	full.GeneratedBy = "tools/survey-gen (go run ./tools/survey-gen -all)"
+	if accept {
+		full.Accepted = today
+	}
 	fullData, err := full.marshal()
 	if err != nil {
 		return err
@@ -184,7 +212,16 @@ func writeSurveys(root string, schemas providers.GetProviderSchemaResponse, rost
 	if err := os.WriteFile(fullOut, fullData, 0o644); err != nil { //nolint:gosec // a committed artifact, not a secret
 		return err
 	}
-	fmt.Fprintf(log, "survey-gen: wrote %s (%d types: %d taggable, %d with list resources, %d with identity schemas)\n",
-		surveyFullJSONRel, len(full.Types), full.Counts.Taggable, full.Counts.ListResource, full.Counts.IdentitySchema)
+	fmt.Fprintf(log, "survey-gen: wrote %s (%d types: %d taggable, %d with list resources, %d with identity schemas)%s\n",
+		surveyFullJSONRel, len(full.Types), full.Counts.Taggable, full.Counts.ListResource, full.Counts.IdentitySchema, acceptedSuffix(full.Accepted))
 	return nil
+}
+
+// acceptedSuffix renders ", accepted <date>" for a log line when accepted
+// is set, or nothing when the run did not pass -accept.
+func acceptedSuffix(accepted string) string {
+	if accepted == "" {
+		return ""
+	}
+	return ", accepted " + accepted
 }
