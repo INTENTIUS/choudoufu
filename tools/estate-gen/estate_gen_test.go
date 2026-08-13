@@ -95,6 +95,13 @@ func TestDefaultCohortTypesUnknown(t *testing.T) {
 // wrote.
 func generateCohort(t *testing.T, cohort string, types []string, out string) *generator {
 	t.Helper()
+	return generateCohortWith(t, cohort, types, out, false)
+}
+
+// generateCohortWith is [generateCohort] with the -module-wrap switch, for
+// the tests that need the wrapped shape.
+func generateCohortWith(t *testing.T, cohort string, types []string, out string, moduleWrap bool) *generator {
+	t.Helper()
 	flocitest.Gate(t, "estate-gen schema acquisition")
 	flocitest.RequireBinary(t, defaultInitBin)
 
@@ -106,7 +113,7 @@ func generateCohort(t *testing.T, cohort string, types []string, out string) *ge
 	if err != nil {
 		t.Fatalf("planCohort(%s): %v", cohort, err)
 	}
-	if err := writeCohort(out, cohort, types, g); err != nil {
+	if err := writeCohort(out, cohort, types, g, moduleWrap); err != nil {
 		t.Fatalf("writeCohort: %v", err)
 	}
 	if _, err := exec.LookPath(defaultFmtBin); err == nil {
@@ -151,20 +158,28 @@ func TestDeterminism(t *testing.T) {
 // TestValidateGeneratedCohorts is the issue's headline verification bar: a
 // regenerated lambda cohort and a second cohort of already-admitted types
 // (s3) both `terraform validate` clean against the pinned provider release.
+//
+// The third case, "s3-module-wrap", is 59b's own bar for the -module-wrap
+// flag: the same s3 types, generated wrapped, validate clean too - proving
+// the generated module call and the child module's own files are legal
+// HCL together, independent of whether stateless mode can plan them (that
+// is live/e2e/estate-module/'s job, gated on floci).
 func TestValidateGeneratedCohorts(t *testing.T) {
 	flocitest.Gate(t, "estate-gen terraform validate")
 	flocitest.RequireBinary(t, defaultInitBin)
 
 	for _, tc := range []struct {
-		cohort string
-		types  []string
+		cohort     string
+		types      []string
+		moduleWrap bool
 	}{
-		{"lambda", lambdaTypes},
-		{"s3", s3Types},
+		{cohort: "lambda", types: lambdaTypes},
+		{cohort: "s3", types: s3Types},
+		{cohort: "s3-module-wrap", types: s3Types, moduleWrap: true},
 	} {
 		t.Run(tc.cohort, func(t *testing.T) {
 			out := filepath.Join(t.TempDir(), tc.cohort)
-			generateCohort(t, tc.cohort, tc.types, out)
+			generateCohortWith(t, tc.cohort, tc.types, out, tc.moduleWrap)
 
 			run := func(args ...string) {
 				t.Helper()
