@@ -192,7 +192,16 @@ func ParentReadRemovable(typeName string) bool {
 
 // parentByTypeName reports the longest eligible admitted type whose name,
 // plus an underscore, prefixes typeName's own - rule 1 of [ParentOf]'s doc
-// comment.
+// comment. Searching only the eligible subset (rather than every admitted
+// type) is deliberate here: typeName's prefix chain is a real is-a
+// hierarchy (aws_iam_role_policy_attachment's name extends both the
+// untaggable aws_iam_role_policy and, one segment shorter, aws_iam_role
+// itself), so when the longest match is ineligible, the next-shortest
+// eligible prefix is still guaranteed to be a genuine ancestor, not a
+// guess - see [TestParentOfDisambiguatesByEligibility]. The equal-length
+// tie-break (alphabetically first wins) exists only so two prefixes of the
+// same length never pick differently across runs; the admitted table has
+// no such tie today.
 func parentByTypeName(typeName string, parents map[string]bool) (string, bool) {
 	best := ""
 	for t := range parents {
@@ -202,7 +211,10 @@ func parentByTypeName(typeName string, parents map[string]bool) (string, bool) {
 		if _, ok := DefaultTable[t]; !ok {
 			continue
 		}
-		if strings.HasPrefix(typeName, t+"_") && len(t) > len(best) {
+		if !strings.HasPrefix(typeName, t+"_") {
+			continue
+		}
+		if best == "" || len(t) > len(best) || (len(t) == len(best) && t < best) {
 			best = t
 		}
 	}
@@ -232,14 +244,31 @@ func attrFor(self TypeIdentity, parent string) (string, bool) {
 	return "", false
 }
 
-// parentByConvention reports the eligible admitted type an argument name
-// follows the AWS foreign-key convention for: strip a trailing _id, _arn or
-// _url (or leave the name whole, for the bare-noun style "bucket" and
-// "role" use), then look for an eligible type whose own name is exactly
-// "aws_" plus what is left, or ends with an underscore plus it. Several
-// candidates ending the same way is resolved by shortest name, the same
-// tie-break tools/survey-gen/classify.go's parentRef uses over the whole
-// provider roster - rule 2 of [ParentOf]'s doc comment.
+// parentByConvention reports the admitted type an argument name follows the
+// AWS foreign-key convention for: strip a trailing _id, _arn or _url (or
+// leave the name whole, for the bare-noun style "bucket" and "role" use),
+// then look for the admitted type whose own name is exactly "aws_" plus
+// what is left, or - failing that - ends with an underscore plus it,
+// shortest name winning when several do (the same tie-break
+// tools/survey-gen/classify.go's parentRef uses over the whole provider
+// roster - rule 2 of [ParentOf]'s doc comment).
+//
+// Unlike [parentByTypeName]'s prefix chain, the types an argument name can
+// match this way are not hierarchically related to each other at all - an
+// argument named "group" matching aws_iam_group, aws_security_group and
+// aws_eks_node_group is three unrelated coincidences of the same English
+// word, not three ancestors of increasing specificity. So the search for
+// "what does this argument name" runs over every admitted type, eligible or
+// not, and picks the single best (shortest, most specific) match on that
+// question alone; only once that one type is fixed does eligibility decide
+// whether the answer is usable. Requiring eligibility during the search
+// itself, as [parentByTypeName] does, would let this rule silently accept
+// a same-suffix stranger whenever the true target is ineligible -
+// concretely, aws_iam_group_policy_attachment's own "group" argument names
+// aws_iam_group (untaggable: IAM has no TagGroup API), and reports no
+// parent link on that argument at all, never aws_security_group or
+// aws_eks_node_group, which only happen to share the "_group" suffix. See
+// [TestParentOfRefusesUnrelatedSuffixMatch].
 func parentByConvention(attr, self string, parents map[string]bool) (string, bool) {
 	base := attr
 	for _, suf := range []string{"_id", "_arn", "_url"} {
@@ -252,20 +281,26 @@ func parentByConvention(attr, self string, parents map[string]bool) (string, boo
 		return "", false
 	}
 
+	if exact := "aws_" + base; exact != self {
+		if _, ok := DefaultTable[exact]; ok {
+			return exact, parents[exact]
+		}
+	}
+
 	best := ""
-	for t := range parents {
-		if !parents[t] || t == self {
+	for t := range DefaultTable {
+		if t == self {
 			continue
 		}
-		if _, ok := DefaultTable[t]; !ok {
+		if !strings.HasSuffix(t, "_"+base) {
 			continue
 		}
-		if t == "aws_"+base {
-			return t, true
-		}
-		if strings.HasSuffix(t, "_"+base) && (best == "" || len(t) < len(best)) {
+		if best == "" || len(t) < len(best) || (len(t) == len(best) && t < best) {
 			best = t
 		}
 	}
-	return best, best != ""
+	if best == "" {
+		return "", false
+	}
+	return best, parents[best]
 }

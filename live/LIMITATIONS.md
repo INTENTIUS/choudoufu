@@ -479,7 +479,12 @@ inject into a shared configuration body. (`internal/live/stamp/stamp.go`,
 `aws_cloudfront_realtime_log_config`, `aws_cloudwatch_dashboard`,
 `aws_codeartifact_domain_permissions_policy`,
 `aws_codeartifact_repository_permissions_policy`, `aws_codebuild_webhook`,
-`aws_codedeploy_deployment_config`, `aws_db_instance_role_association`,
+`aws_codedeploy_deployment_config`,
+`aws_cognito_identity_pool_provider_principal_tag`,
+`aws_cognito_identity_pool_roles_attachment`,
+`aws_cognito_identity_provider`, `aws_cognito_resource_server`,
+`aws_cognito_user`, `aws_cognito_user_group`, `aws_cognito_user_in_group`,
+`aws_cognito_user_pool_domain`, `aws_db_instance_role_association`,
 `aws_db_proxy_default_target_group`, `aws_dynamodb_global_table`,
 `aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
 `aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
@@ -488,20 +493,23 @@ inject into a shared configuration body. (`internal/live/stamp/stamp.go`,
 `aws_eks_access_policy_association`, `aws_emr_security_configuration`,
 `aws_fsx_s3_access_point_attachment`, `aws_glue_catalog_table`,
 `aws_glue_classifier`, `aws_glue_data_catalog_encryption_settings`,
-`aws_iam_group`, `aws_iam_role_policy`, `aws_iam_role_policy_attachment`,
-`aws_kms_alias`, `aws_lambda_layer_version`,
-`aws_lb_target_group_attachment`, `aws_lightsail_lb_certificate`,
-`aws_lightsail_static_ip`, `aws_network_interface_attachment`,
-`aws_network_interface_permission`, `aws_rds_cluster_role_association`,
-`aws_route`, `aws_route53_hosted_zone_dnssec`,
-`aws_route53_key_signing_key`, `aws_route53_record`,
-`aws_route53_resolver_firewall_rule`,
+`aws_iam_group`, `aws_iam_group_policy`, `aws_iam_group_policy_attachment`,
+`aws_iam_role_policy`, `aws_iam_role_policy_attachment`,
+`aws_iam_user_policy`, `aws_iam_user_policy_attachment`, `aws_kms_alias`,
+`aws_lambda_layer_version`, `aws_lb_target_group_attachment`,
+`aws_lightsail_lb_certificate`, `aws_lightsail_static_ip`,
+`aws_network_interface_attachment`, `aws_network_interface_permission`,
+`aws_rds_cluster_role_association`, `aws_route`,
+`aws_route53_hosted_zone_dnssec`, `aws_route53_key_signing_key`,
+`aws_route53_record`, `aws_route53_resolver_firewall_rule`,
 `aws_route53_resolver_rule_association`, `aws_route53_zone_association`,
 `aws_route_table_association`, `aws_s3_bucket_lifecycle_configuration`,
 `aws_s3_bucket_policy`, `aws_s3_bucket_public_access_block`,
 `aws_s3_bucket_server_side_encryption_configuration`,
-`aws_s3_bucket_versioning`, `aws_sns_topic_policy`, `aws_sqs_queue_policy`
-and `aws_volume_attachment`<!-- survey-gen:end untaggable-admitted --> carry no tags, so a marker-based sweep
+`aws_s3_bucket_versioning`, `aws_sns_topic_policy`, `aws_sqs_queue_policy`,
+`aws_ssoadmin_account_assignment`, `aws_ssoadmin_application_assignment`,
+`aws_ssoadmin_instance_access_control_attributes` and
+`aws_volume_attachment`<!-- survey-gen:end untaggable-admitted --> carry no tags, so a marker-based sweep
 has nothing to search on for any of them. Their identity is built from
 their own configuration, which is a problem the moment a resource block is
 removed rather than destroyed: with no marker to search on and no
@@ -537,17 +545,27 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_cloudfront_monitoring_subscription` | `aws_lightsail_distribution` | no (report-only) |
 | `aws_cloudfront_realtime_log_config` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_codeartifact_domain_permissions_policy` | `aws_codeartifact_domain` | no (report-only) |
-| `aws_codeartifact_repository_permissions_policy` | `aws_codeartifact_repository` | no (report-only) |
+| `aws_cognito_identity_pool_provider_principal_tag` | `aws_cognito_identity_pool` | no (report-only) |
+| `aws_cognito_identity_pool_roles_attachment` | `aws_cognito_identity_pool` | no (report-only) |
+| `aws_cognito_identity_provider` | `aws_cognito_user_pool` | no (report-only) |
+| `aws_cognito_resource_server` | `aws_cognito_user_pool` | no (report-only) |
+| `aws_cognito_user` | `aws_cognito_user_pool` | no (report-only) |
+| `aws_cognito_user_group` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_cognito_user_in_group` | `aws_cognito_user_pool` | no (report-only) |
 | `aws_dynamodb_global_table` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_ecrpublic_repository_policy` | `aws_ecrpublic_repository` | no (report-only) |
-| `aws_eks_access_policy_association` | `aws_batch_scheduling_policy` | no (report-only) |
+| `aws_eks_access_policy_association` | `aws_iam_policy` | no (report-only) |
 | `aws_emr_security_configuration` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_fsx_s3_access_point_attachment` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_glue_catalog_table` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_glue_classifier` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_iam_group` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_iam_group_policy` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_iam_group_policy_attachment` | `aws_iam_policy` | no (report-only) |
 | `aws_iam_role_policy` | `aws_iam_role` | no (report-only) |
 | `aws_iam_role_policy_attachment` | `aws_iam_role` | no (report-only) |
+| `aws_iam_user_policy` | `aws_iam_user` | no (report-only) |
+| `aws_iam_user_policy_attachment` | `aws_iam_user` | no (report-only) |
 | `aws_kms_alias` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_lb_target_group_attachment` | `aws_lb_target_group` | no (report-only) |
 | `aws_lightsail_lb_certificate` | `aws_lightsail_lb` | no (report-only) |
@@ -565,9 +583,12 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_s3_bucket_versioning` | `aws_s3_bucket` | no (report-only) |
 | `aws_sns_topic_policy` | `aws_sns_topic` | no (report-only) |
 | `aws_sqs_queue_policy` | `aws_sqs_queue` | no (report-only) |
+| `aws_ssoadmin_account_assignment` | `aws_instance` | no (report-only) |
+| `aws_ssoadmin_application_assignment` | `aws_ssoadmin_application` | no (report-only) |
+| `aws_ssoadmin_instance_access_control_attributes` | `aws_instance` | no (report-only) |
 | `aws_volume_attachment` | `aws_ebs_volume` | no (report-only) |
 
-**Total.** 39 types swept via a parent read.
+**Total.** 52 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
@@ -597,7 +618,8 @@ per-type reasoning as it stands.
 **The residue.** <!-- survey-gen:begin untaggable-residue -->
 `aws_api_gateway_account`, `aws_apigatewayv2_routing_rule`,
 `aws_cloudfront_origin_access_control`, `aws_cloudwatch_dashboard`,
-`aws_codebuild_webhook`, `aws_codedeploy_deployment_config`,
+`aws_codeartifact_repository_permissions_policy`, `aws_codebuild_webhook`,
+`aws_codedeploy_deployment_config`, `aws_cognito_user_pool_domain`,
 `aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
 `aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
 `aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
