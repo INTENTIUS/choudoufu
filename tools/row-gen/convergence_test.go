@@ -36,17 +36,34 @@ import (
 // (241 total: 158 scrape-gap, up from 125; 83 non-scrape-gap, up from 82).
 // This lines up with REMAINDER's own README, whose "Corrections made (35
 // types...)" section is the same shape of deliberate row-gen disagreement
-// this ratchet measures. This is a reviewed bump reflecting that backlog,
-// not a quality regression introduced by this merge - see
-// tools/row-gen/annotations.json's own doc comment for why none of the 241
-// is annotated yet. Lower this constant to match
+// this ratchet measures.
+//
+// Merging importdocs-widen then moved it back down, which is the direction
+// this ratchet is built to travel. That branch is the "wider
+// importdocs-gen scrape" the paragraph below already anticipated: its
+// widened parse plus the new row-gen import-precedence rules (rules 1-9,
+// tools/row-gen/importprecedence.go) landed deliberately *after*
+// ratify-remainder, so one final regeneration applied them across the
+// whole admitted set rather than only the part that predated the batch.
+// Measured over all 846 admitted types (836 hand-written entries in
+// internal/live/identity/table.go plus the 10 record-backed types in
+// table_recordbacked.go), that closed 26 of REMAINDER's mismatches
+// outright - 241 down to 215, of which 117 are scrape-gap, down from 158 -
+// and lifted adopted-unchanged from 70.79% to 73.94%. So 215 is a measured
+// floor read straight off live/rowgen-convergence.json's own committed
+// summary, not a bump: the three batches that contributed to it are
+// ratify-remainder (+184 admitted types), the eight concurrently-landed
+// batches named above, and importdocs-widen (-26 mismatches).
+//
+// See tools/row-gen/annotations.json's own doc comment for why none of the
+// 215 is annotated yet. Lower this constant to match
 // live/rowgen-convergence.json's own committed count whenever a future
 // change (a wider importdocs-gen scrape, a fold-child Components rule,
 // annotations.json gaining real rulings) closes some of the gap. Raising
 // it back up again needs its own reviewed reason, not a silent increase -
 // TestUnannotatedMismatchRatchet below fails the build the moment a
 // regeneration would do that.
-const unannotatedMismatchRatchetMax = 241
+const unannotatedMismatchRatchetMax = 215
 
 // TestUnannotatedMismatchRatchet reads the committed live/rowgen-
 // convergence.json directly (not a fresh regeneration - see
