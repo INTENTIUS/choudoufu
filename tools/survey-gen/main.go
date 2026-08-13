@@ -36,10 +36,10 @@ import (
 	"runtime"
 )
 
-// Path literals and pins, centralized on purpose: a later approved phase
-// renames stateless/ to live/ and the module path to
-// github.com/intentius/choudoufu, and this block is the one place in this
-// tool that rename touches.
+// Path literals and pins, centralized on purpose: the rename phase that
+// moved stateless/ to live/ and the module path to
+// github.com/intentius/choudoufu had this block as its one stop in this
+// tool, and a later path move should stay just as cheap.
 const (
 	// surveyJSONRel is where the generated artifact is committed, relative
 	// to the repository root.

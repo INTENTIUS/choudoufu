@@ -49,6 +49,16 @@ const (
 	// no such attribute. Breaking: a reference to it resolves against
 	// nothing.
 	FindingAttributeNotInSchema FindingKind = "attribute-not-in-schema"
+
+	// FindingIdentityAttrNotInSchema: a component claims to supply a named
+	// attribute of the type's identity object, and the provider's identity
+	// schema has no attribute by that name. The per-attribute half of
+	// FindingComponentOutsideIdentity, and the one that decides whether this
+	// type can be imported by identity at all: an identity object built from
+	// a component like this would carry an attribute the provider will not
+	// decode. Not breaking, because the import-ID string the same components
+	// build is unaffected and is what the run falls back to.
+	FindingIdentityAttrNotInSchema FindingKind = "identity-attribute-not-in-schema"
 )
 
 // Finding is one disagreement, with both sides named: what the hand table
@@ -114,6 +124,18 @@ type Verification struct {
 	// schemas: the admitted types, and the ones a configuration could admit
 	// with the arguments it would have to set. See [DerivabilityReport].
 	Report DerivabilityReport
+
+	// IdentityImportable lists the table's types whose components supply
+	// every attribute the provider requires to import one, sorted: the types
+	// a run asks the provider for by identity object rather than by a
+	// separator-joined string. See [TypeIdentity.ComposesIdentity], and
+	// internal/live/projection/build.go for what is done with the answer.
+	//
+	// The complement is not a failure. aws_route_table_association is
+	// identified by an ID the configuration does not hold, and a run reaches
+	// it by the documented import string, which is the right answer and the
+	// only one.
+	IdentityImportable []string
 }
 
 // VerifyTable checks [DefaultTable] against the resource schemas one
@@ -187,6 +209,10 @@ func verifyTable(table map[string]TypeIdentity, resourceTypes map[string]provide
 			findings = append(findings, checkIdentity(entry, schema)...)
 			if len(findings) == 0 {
 				v.Agreed = append(v.Agreed, typeName)
+			}
+			required, _ := identityAttrs(schema.IdentitySchema)
+			if entry.ComposesIdentity(required) {
+				v.IdentityImportable = append(v.IdentityImportable, typeName)
 			}
 		}
 
@@ -288,6 +314,41 @@ func checkIdentity(entry TypeIdentity, schema providers.Schema) []Finding {
 		})
 	}
 
+	// The per-attribute half of the check: an entry that says which identity
+	// attribute each component supplies is asserting something the schema can
+	// answer directly, name by name.
+	inSchema := make(map[string]bool, len(all))
+	for _, name := range all {
+		inSchema[name] = true
+	}
+	var claimed []string
+	seenClaim := make(map[string]bool)
+	for _, c := range entry.Components {
+		if c.IdentityAttr == "" || c.IdentityAttr == SameNameIdentity {
+			// Nothing named, or named by the same-name rule, which the
+			// component check below already covers over the whole
+			// alternative list.
+			continue
+		}
+		if inSchema[c.IdentityAttr] || seenClaim[c.IdentityAttr] {
+			continue
+		}
+		seenClaim[c.IdentityAttr] = true
+		claimed = append(claimed, c.IdentityAttr)
+	}
+	for _, name := range claimed {
+		findings = append(findings, Finding{
+			Type:       entry.Type,
+			Kind:       FindingIdentityAttrNotInSchema,
+			TableSide:  name,
+			SchemaSide: strings.Join(all, ", "),
+			Detail: fmt.Sprintf(
+				"The identity table builds %s's %q identity attribute out of its configuration, and the provider's identity schema for %s has no attribute by that name - it has %s. An identity object built from this entry would carry an attribute the provider will not decode, so the run falls back to the import-ID string the same components build.",
+				entry.Type, name, entry.Type, joinQuoted(all, ", "),
+			),
+		})
+	}
+
 	for _, c := range entry.Components {
 		if len(c.Attrs) == 0 || containsAny(all, c.Attrs) {
 			continue
@@ -379,8 +440,9 @@ func (v Verification) Summary() string {
 		}
 	}
 	return fmt.Sprintf(
-		"%d table entries confirmed, %d unverifiable, %d divergences (%d breaking); %d types admit themselves (%d of them only because this configuration names them), %d of those not in the table; %d more would admit themselves against a configuration that sets their identity arguments",
+		"%d table entries confirmed, %d unverifiable, %d divergences (%d breaking); %d import by identity object rather than by a joined string; %d types admit themselves (%d of them only because this configuration names them), %d of those not in the table; %d more would admit themselves against a configuration that sets their identity arguments",
 		len(v.Agreed), len(v.Skipped), len(v.Findings), breaking,
+		len(v.IdentityImportable),
 		len(v.Derivable), byConfig, newly, v.Report.Counts.NeedsConfigSignal,
 	)
 }

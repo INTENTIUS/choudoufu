@@ -203,6 +203,12 @@ func TestDiscoverBindsWholeEstate(t *testing.T) {
 		if r.Class != identity.ClassConcrete || r.ImportID == "" {
 			t.Errorf("%s is %s in the merged resolutions, want CONCRETE with an import ID", addr, r)
 		}
+		// The provider's own identity object rides through alongside the
+		// string, so the projection can import by it rather than by one
+		// attribute of it flattened back into text.
+		if r.Identity == cty.NilVal || r.Identity.IsNull() {
+			t.Errorf("%s came out of discovery with no identity object, only the import ID %q", addr, r.ImportID)
+		}
 	}
 	if r := byAddr[`aws_s3_bucket.data`]; r.Class != identity.ClassConcrete || r.ImportID != "tofu-stateless-e2e-data" {
 		t.Errorf("a statically resolved instance was rewritten: %s", r)

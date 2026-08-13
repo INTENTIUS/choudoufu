@@ -473,7 +473,7 @@ func (m *mover) find(ctx context.Context) (*states.ResourceInstanceObject, tfdia
 					m.res.TypeName, discoveryReason(resolution), m.res.OldMarker, m.res.TypeName),
 			))
 		}
-		liveID, listDiags := m.locateByList(ctx, ts)
+		liveID, liveIdentity, listDiags := m.locateByList(ctx, ts)
 		diags = diags.Append(listDiags)
 		if listDiags.HasErrors() {
 			return nil, diags
@@ -482,6 +482,7 @@ func (m *mover) find(ctx context.Context) (*states.ResourceInstanceObject, tfdia
 			Addr:     m.res.Anchor,
 			Class:    identity.ClassConcrete,
 			ImportID: liveID,
+			Identity: liveIdentity,
 		})
 		return obj, diags.Append(matDiags)
 	}
@@ -508,6 +509,12 @@ type listed struct {
 	liveID      string
 	displayName string
 	marker      string
+
+	// identity is the identity object the provider attached to the list
+	// result, so that the import that follows can ask for the resource the
+	// way the provider names it rather than by one attribute of that name
+	// flattened into a string. Null when the provider sent none.
+	identity cty.Value
 }
 
 // sweep enumerates every live resource of the type and keeps the ones this
@@ -556,6 +563,7 @@ func (m *mover) sweep(ctx context.Context, ts listclient.TypeSchema) ([]listed, 
 			liveID:      importIdentity(m.res.TypeName, r),
 			displayName: r.DisplayName,
 			marker:      discovery.EscapeAddress(tags[discovery.TagAddress]),
+			identity:    r.Identity,
 		})
 	}
 	return mine, len(results), diags
@@ -610,10 +618,10 @@ func (m *mover) destinationDiags(claimNew []listed) tfdiags.Diagnostics {
 // locateByList enumerates the type and picks the one resource carrying this
 // estate's tag and the old address. It is the marker admission path, for the
 // instances whose identity is nowhere in configuration.
-func (m *mover) locateByList(ctx context.Context, ts listclient.TypeSchema) (string, tfdiags.Diagnostics) {
+func (m *mover) locateByList(ctx context.Context, ts listclient.TypeSchema) (string, cty.Value, tfdiags.Diagnostics) {
 	mine, listed, diags := m.sweep(ctx, ts)
 	if diags.HasErrors() {
-		return "", diags
+		return "", cty.NilVal, diags
 	}
 
 	claimOld := claimants(mine, m.res.OldMarker)
@@ -623,9 +631,9 @@ func (m *mover) locateByList(ctx context.Context, ts listclient.TypeSchema) (str
 	case 1:
 		// The one answer this whole function exists for.
 	case 0:
-		return "", diags.Append(notFoundDiag(m.res, listed, len(mine), len(claimNew) > 0))
+		return "", cty.NilVal, diags.Append(notFoundDiag(m.res, listed, len(mine), len(claimNew) > 0))
 	default:
-		return "", diags.Append(tfdiags.Sourceless(
+		return "", cty.NilVal, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Two live resources claiming one address",
 			fmt.Sprintf(
@@ -636,7 +644,7 @@ func (m *mover) locateByList(ctx context.Context, ts listclient.TypeSchema) (str
 
 	found := claimOld[0]
 	if found.liveID == "" {
-		return "", diags.Append(tfdiags.Sourceless(
+		return "", cty.NilVal, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Listed resource with no identity",
 			fmt.Sprintf("The live %s carrying the marker %q came back from the list call with no usable identity, so there is no import ID to read it or write it back with.", m.res.TypeName, m.res.OldMarker),
@@ -647,9 +655,9 @@ func (m *mover) locateByList(ctx context.Context, ts listclient.TypeSchema) (str
 	m.res.DisplayName = found.displayName
 
 	if destDiags := m.destinationDiags(claimNew); destDiags.HasErrors() {
-		return "", diags.Append(destDiags)
+		return "", cty.NilVal, diags.Append(destDiags)
 	}
-	return found.liveID, diags
+	return found.liveID, found.identity, diags
 }
 
 // notFoundDiag distinguishes the two shapes of "not found" a swept type can

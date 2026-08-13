@@ -255,7 +255,7 @@ func ScanConfig(ctx context.Context, cfg *configs.Config) (*ConfigSignal, tfdiag
 		return newConfigSignal(), diags
 	}
 
-	r := newResolver(ctx, cfg, CloudContext{})
+	r := newResolver(ctx, cfg, Context{})
 	signal := r.collectSignal(cfg)
 	return signal, r.diags
 }

@@ -159,6 +159,31 @@ func lineContaining(t *testing.T, path, want string) (string, bool) {
 	return "", false
 }
 
+// TestReadmeUpstreamVersion holds the README's "built on OpenTofu X"
+// claim to version/VERSION. The site landing reads that file at build
+// time (site/main.go's upstreamVersion) and the release workflow derives
+// the same number for its notes, so the README is the only copy a human
+// has to keep true.
+func TestReadmeUpstreamVersion(t *testing.T) {
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(root, "version", "VERSION")) //nolint:gosec // a fixed path in the checkout
+	if err != nil {
+		t.Fatalf("reading version/VERSION: %v", err)
+	}
+	upstream := strings.TrimSuffix(strings.TrimSpace(string(raw)), "-dev")
+
+	readme, err := os.ReadFile(filepath.Join(root, "README.md")) //nolint:gosec // a fixed path in the checkout
+	if err != nil {
+		t.Fatalf("reading README.md: %v", err)
+	}
+	if want := fmt.Sprintf("**OpenTofu %s**", upstream); !strings.Contains(string(readme), want) {
+		t.Errorf("README.md does not say %q; version/VERSION reads %s", want, upstream)
+	}
+}
+
 // contractMDXRel is the concept page whose Contract section is the one
 // place that both counts and enumerates the admitted types. Every other
 // doc refers to it rather than restating a number that moves with each

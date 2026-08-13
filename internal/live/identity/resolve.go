@@ -20,6 +20,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/lang"
+	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -38,7 +39,42 @@ import (
 // call, i.e. whatever the caller passed to the loader, falling back to
 // declared defaults.
 func Resolve(ctx context.Context, cfg *configs.Config) (*Result, tfdiags.Diagnostics) {
-	return ResolveIn(ctx, cfg, CloudContext{})
+	return ResolveWith(ctx, cfg, Context{})
+}
+
+// Context is everything a caller may tell resolution about the world outside
+// the configuration. Every field is optional and the zero value is what
+// [Resolve] passes: nothing here is ever fetched, discovered, or guessed, and
+// a caller with none of it gets the same answers this package has always
+// given.
+//
+// The two fields are the same shape of escape hatch for the same reason. A
+// configuration does not say which account it will be applied to, and it does
+// not carry the provider's account of what identifies each resource type;
+// both live behind a running provider, and resolution runs in front of one.
+// So each is handed in by a caller that already has it, and its absence is an
+// ordinary answer rather than an error.
+type Context struct {
+	// Cloud is the account and region the run is against. See
+	// [CloudContext].
+	Cloud CloudContext
+
+	// Schemas are the provider's managed resource type schemas, keyed by
+	// type name, as GetProviderSchema returns them. They let a type absent
+	// from [DefaultTable] resolve anyway, when the provider's own resource
+	// identity schema describes it completely enough. See
+	// [SynthesizeTypeIdentity] for the rule and for what it refuses.
+	//
+	// Nil is the default and means the hand table is the whole of what this
+	// run knows, which is what every caller running before a plugin has
+	// started passes.
+	Schemas map[string]providers.Schema
+}
+
+// ResolveWith is [Resolve] told everything the caller knows that the
+// configuration does not carry. See [Context].
+func ResolveWith(ctx context.Context, cfg *configs.Config, rctx Context) (*Result, tfdiags.Diagnostics) {
+	return resolveWith(ctx, cfg, rctx)
 }
 
 // ResolveIn is [Resolve] told which cloud the run is against, so that the
@@ -53,6 +89,10 @@ func Resolve(ctx context.Context, cfg *configs.Config) (*Result, tfdiags.Diagnos
 // exist at all without making the package need a provider - nothing here
 // ever fetches a cloud property, and nothing here fails for want of one.
 func ResolveIn(ctx context.Context, cfg *configs.Config, cloud CloudContext) (*Result, tfdiags.Diagnostics) {
+	return resolveWith(ctx, cfg, Context{Cloud: cloud})
+}
+
+func resolveWith(ctx context.Context, cfg *configs.Config, rctx Context) (*Result, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	if cfg == nil || cfg.Module == nil {
@@ -92,20 +132,24 @@ func ResolveIn(ctx context.Context, cfg *configs.Config, cloud CloudContext) (*R
 		return newResult(), diags
 	}
 
-	r := newResolver(ctx, cfg, cloud)
+	r := newResolver(ctx, cfg, rctx)
 
 	result := newResult()
-	result.signal = newConfigSignal()
+	// Collected for the whole configuration before anything is classified,
+	// and for every type rather than only the admitted ones. Two reasons: the
+	// config-side naming signal is what says which types could join the
+	// table, so a type the table has never heard of is the interesting case
+	// (signal.go); and the fallback that lets such a type resolve at all
+	// consults the signal for its verdict, which has to be the whole
+	// configuration's answer rather than however much of it the walk happens
+	// to have reached. See [SynthesizeTypeIdentity].
+	result.signal = r.collectSignal(cfg)
+	r.signal = result.signal
 	for _, rc := range sortedResources(cfg.Module.ManagedResources) {
 		exp, ok := r.expansionFor(rc)
 		if !ok {
 			continue
 		}
-		// Recorded before the instances are classified, and for every type
-		// rather than only the admitted ones: the config-side naming signal
-		// is what says which types could join the table, so a type the
-		// table has never heard of is the interesting case. See signal.go.
-		r.signalFor(result.signal, rc, exp)
 		for _, key := range exp.keys {
 			addr := rc.Addr().Instance(key).Absolute(addrs.RootModuleInstance)
 			res, ok := r.instance(addr, rc.DeclRange)
@@ -156,11 +200,12 @@ func (r *resolver) checkCollisions(result *Result) {
 	}
 }
 
-func newResolver(ctx context.Context, cfg *configs.Config, cloud CloudContext) *resolver {
+func newResolver(ctx context.Context, cfg *configs.Config, rctx Context) *resolver {
 	return &resolver{
-		ctx:   ctx,
-		mod:   cfg.Module,
-		cloud: cloud,
+		ctx:     ctx,
+		mod:     cfg.Module,
+		cloud:   rctx.Cloud,
+		schemas: rctx.Schemas,
 		// Pure on purpose: an identity is a claim about which cloud object a
 		// block owns, and a function that answers differently every time it
 		// is called cannot make that claim. See impure.go.
@@ -171,6 +216,7 @@ func newResolver(ctx context.Context, cfg *configs.Config, cloud CloudContext) *
 		insts:      make(map[string]Resolution),
 		instFailed: make(map[string]bool),
 		instVisit:  make(map[string]bool),
+		synth:      make(map[string]*TypeIdentity),
 	}
 }
 
@@ -181,6 +227,21 @@ type resolver struct {
 	cloud CloudContext
 	diags tfdiags.Diagnostics
 
+	// schemas are the provider's resource type schemas when the caller had
+	// them, and nil when it did not. See [Context.Schemas].
+	schemas map[string]providers.Schema
+
+	// signal is the whole configuration's naming signal, collected before
+	// classification starts because the schema fallback's verdict depends on
+	// it. Nil for the signal-only walk of [ScanConfig], which classifies
+	// nothing.
+	signal *ConfigSignal
+
+	// synth memoizes the schema fallback per type, including its refusals: a
+	// nil entry means "asked, and the schemas do not describe this type well
+	// enough". See [SynthesizeTypeIdentity].
+	synth map[string]*TypeIdentity
+
 	// Expansion memo, keyed by resource address (no instance key).
 	expansions map[string]*expansion
 	expFailed  map[string]bool
@@ -190,6 +251,30 @@ type resolver struct {
 	insts      map[string]Resolution
 	instFailed map[string]bool
 	instVisit  map[string]bool
+}
+
+// lookupType is [LookupType] with the schema fallback behind it: a type the
+// hand table does not cover still resolves when the provider's own identity
+// schema describes it completely and the caller supplied the schemas. A
+// caller that supplied none gets [LookupType] exactly.
+func (r *resolver) lookupType(typeName string) (TypeIdentity, bool) {
+	if entry, ok := LookupType(typeName); ok {
+		return entry, true
+	}
+	if memo, asked := r.synth[typeName]; asked {
+		if memo == nil {
+			return TypeIdentity{}, false
+		}
+		return *memo, true
+	}
+
+	entry, ok := SynthesizeTypeIdentity(typeName, r.schemas, r.signal)
+	if !ok {
+		r.synth[typeName] = nil
+		return TypeIdentity{}, false
+	}
+	r.synth[typeName] = &entry
+	return entry, true
 }
 
 // instance resolves one managed resource instance, memoizing the result.
@@ -246,12 +331,12 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		return Resolution{}, false
 	}
 
-	entry, ok := LookupType(resAddr.Type)
+	entry, ok := r.lookupType(resAddr.Type)
 	if !ok {
 		r.errorf(rng, "Resource type outside the live-markers subset",
 			"There is no identity knowledge for resource type %q, so %s cannot be admitted to a live-markers projection. "+
-				"The v0 identity table covers: %s. See the roadmap's \"The admission rule\".",
-			resAddr.Type, addr.String(), strings.Join(AdmittedTypes(), ", "))
+				"The v0 identity table covers: %s.%s See the roadmap's \"The admission rule\".",
+			resAddr.Type, addr.String(), strings.Join(AdmittedTypes(), ", "), r.schemaRefusal(resAddr.Type))
 		return Resolution{}, false
 	}
 
@@ -282,15 +367,36 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 
 	scope := exp.scope(addr.Resource.Key)
 	var parts []Part
+	// The same pieces again, split by the identity attribute each component
+	// supplies. It is what makes an import ask the provider for
+	// {"role": …, "policy_arn": …} rather than for the two joined by a "/"
+	// that only this table knows about. Attributes are kept in component
+	// order so that a rendered formula reads the way the import syntax does.
+	byAttr := make(map[string][]Part)
+	var attrOrder []string
+	addTo := func(name string, got []Part) {
+		if name == "" {
+			return
+		}
+		if _, seen := byAttr[name]; !seen {
+			attrOrder = append(attrOrder, name)
+		}
+		byAttr[name] = append(byAttr[name], got...)
+	}
+
 	for _, comp := range entry.Components {
 		if comp.Cloud != CloudNone {
 			// Present: missingCloudValue already refused the alternative.
 			v, _ := r.cloud.value(comp.Cloud)
-			parts = append(parts, Part{Literal: v})
+			got := []Part{{Literal: v}}
+			parts = append(parts, got...)
+			addTo(comp.identityAttrFor(""), got)
 			continue
 		}
 		if len(comp.Attrs) == 0 {
-			parts = append(parts, Part{Literal: comp.Literal})
+			got := []Part{{Literal: comp.Literal}}
+			parts = append(parts, got...)
+			addTo(comp.identityAttrFor(""), got)
 			continue
 		}
 		attr := firstPresent(attrs, comp.Attrs)
@@ -306,15 +412,29 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			return Resolution{}, false
 		}
 		parts = append(parts, got...)
+		addTo(comp.identityAttrFor(attr.Name), got)
 	}
 
-	parts = coalesce(parts)
-	return classify(addr, parts), true
+	return classify(addr, coalesce(parts), attrFormulas(byAttr, attrOrder)), true
+}
+
+// attrFormulas turns the per-attribute part lists into the ordered form a
+// [Formula] carries, each one coalesced the way the whole import ID is.
+func attrFormulas(byAttr map[string][]Part, order []string) []AttrFormula {
+	if len(order) == 0 {
+		return nil
+	}
+	out := make([]AttrFormula, 0, len(order))
+	for _, name := range order {
+		out = append(out, AttrFormula{Name: name, Parts: coalesce(byAttr[name])})
+	}
+	return out
 }
 
 // classify turns a resolved part list into a Resolution: concrete if every
-// part is a literal, parent-derived if any part waits on a live value.
-func classify(addr addrs.AbsResourceInstance, parts []Part) Resolution {
+// part is a literal, parent-derived if any part waits on a live value. The
+// per-attribute split follows the same fork, since it is the same parts.
+func classify(addr addrs.AbsResourceInstance, parts []Part, attrs []AttrFormula) Resolution {
 	var parents []addrs.AbsResourceInstance
 	seen := make(map[string]bool)
 	for _, p := range parts {
@@ -333,10 +453,22 @@ func classify(addr addrs.AbsResourceInstance, parts []Part) Resolution {
 		for _, p := range parts {
 			buf.WriteString(p.Literal)
 		}
+		var values map[string]string
+		if len(attrs) > 0 {
+			values = make(map[string]string, len(attrs))
+			for _, a := range attrs {
+				var v strings.Builder
+				for _, p := range a.Parts {
+					v.WriteString(p.Literal)
+				}
+				values[a.Name] = v.String()
+			}
+		}
 		return Resolution{
-			Addr:     addr,
-			Class:    ClassConcrete,
-			ImportID: buf.String(),
+			Addr:           addr,
+			Class:          ClassConcrete,
+			ImportID:       buf.String(),
+			IdentityValues: values,
 		}
 	}
 
@@ -348,6 +480,7 @@ func classify(addr addrs.AbsResourceInstance, parts []Part) Resolution {
 		Class: ClassParentDerived,
 		Formula: &Formula{
 			Parts:   parts,
+			Attrs:   attrs,
 			Parents: parents,
 		},
 	}
@@ -528,7 +661,7 @@ func (r *resolver) parentPart(parent addrs.AbsResourceInstance, attrName string,
 		return nil, false
 	}
 
-	entry, _ := LookupType(parent.Resource.Resource.Type)
+	entry, _ := r.lookupType(parent.Resource.Resource.Type)
 	if !entry.hasIdentityAttr(attrName) {
 		detail := fmt.Sprintf(
 			"%s reads %s.%s, but %q is not an identity attribute of %s. ",

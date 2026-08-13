@@ -1108,12 +1108,21 @@ func (c *statelessTestCloud) provider() providers.Interface {
 	}
 
 	p.ImportResourceStateFn = func(req providers.ImportResourceStateRequest) (resp providers.ImportResourceStateResponse) {
-		key := req.TypeName + "/" + req.Target.ID
+		// Both forms, because a real provider serving an identity schema
+		// gets both: an identity object where the run has one, and the
+		// import-ID string otherwise. The two are exclusive on the wire
+		// (providers.ImportTarget), and every type in this caricature is
+		// identified by its id, so they name the same object.
+		id := req.Target.ID
+		if req.Target.IsIdentityBased() {
+			id = req.Target.Identity.GetAttr("id").AsString()
+		}
+		key := req.TypeName + "/" + id
 		c.imports = append(c.imports, key)
 		schema := statelessTestSchemas()[req.TypeName]
 		resp.ImportedResources = []providers.ImportedResource{{
 			TypeName: req.TypeName,
-			State:    statelessTestObject(schema, map[string]string{"id": req.Target.ID}),
+			State:    statelessTestObject(schema, map[string]string{"id": id}),
 		}}
 		return resp
 	}

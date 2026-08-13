@@ -229,15 +229,165 @@ func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
 	}
 
 	for _, r := range concrete {
-		b.materialize(ctx, r.Addr, r.ImportID, r.Undeclared)
+		b.materialize(ctx, wanted{
+			addr:       r.Addr,
+			importID:   r.ImportID,
+			identity:   r.Identity,
+			values:     r.IdentityValues,
+			undeclared: r.Undeclared,
+		})
 	}
 	for _, r := range derived {
-		id, ok := b.renderFormula(r)
+		id, values, ok := b.renderFormula(r)
 		if !ok {
 			continue
 		}
-		b.materialize(ctx, r.Addr, id, r.Undeclared)
+		b.materialize(ctx, wanted{
+			addr:       r.Addr,
+			importID:   id,
+			identity:   r.Identity,
+			values:     values,
+			undeclared: r.Undeclared,
+		})
 	}
+}
+
+// wanted is one instance's identity in every form this run holds it, which is
+// the input [builder.materialize] works from.
+//
+// The forms are not alternatives to choose between up front. The string is
+// what every operator-facing line prints and what a marker rewrite records,
+// so it is always carried; whether either identity form can be used at all is
+// a question about the provider's schema, which is not known until a plugin
+// is on the line. So all of them travel here and [importTarget] decides per
+// resource, once the schema has arrived.
+type wanted struct {
+	addr addrs.AbsResourceInstance
+
+	// importID is the provider's import-ID string. Always populated.
+	importID string
+
+	// identity is the provider's own resource identity object, when
+	// something served one: a marker sweep's list results carry it. Null
+	// otherwise.
+	identity cty.Value
+
+	// values is the identity the configuration supplies, one string per
+	// identity attribute, which is importID unjoined. Nil for a type whose
+	// entry does not say which attribute each component feeds. See
+	// [identity.Resolution.IdentityValues].
+	values map[string]string
+
+	undeclared bool
+}
+
+// importTarget picks the form this instance's import is asked in.
+//
+// There are three sources and they rank in this order:
+//
+//   - The provider's own identity object, when a list call served one. It is
+//     the provider's account of what names this resource, unaltered.
+//   - The identity the configuration supplies, attribute by attribute, when
+//     it covers every attribute the provider requires for import. This is
+//     the same information the import-ID string holds, minus the separator
+//     characters that only the string has - and the separators are the half
+//     of the identity table that no schema can back.
+//   - The import-ID string. Not a lesser answer: it is the only form
+//     available for a type the provider serves no identity schema for, and
+//     the only one for a type whose identity is something the configuration
+//     does not hold (aws_route_table_association).
+//
+// The first two are exclusive with the third on the wire:
+// [providers.ImportTarget.IsIdentityBased] decides, and both plugin protocols
+// error rather than falling back when they are handed an identity for a type
+// with no identity schema. So the choice is made here, where the schema is in
+// hand, and exactly one field is set.
+func importTarget(w wanted, schema providers.Schema) providers.ImportTarget {
+	byID := providers.ImportTarget{ID: w.importID}
+
+	if schema.IdentitySchema == nil {
+		return byID
+	}
+
+	if w.identity != cty.NilVal && !w.identity.IsNull() {
+		val, err := convert.Convert(w.identity, schema.IdentitySchema.ImpliedType())
+		if err == nil && !val.IsNull() && val.IsWhollyKnown() {
+			return providers.ImportTarget{Identity: val}
+		}
+		// The provider served an identity its own schema does not describe,
+		// which is a provider bug rather than anything this run can act on.
+		// The import ID came off the same list result, so there is a working
+		// answer and no reason to fail.
+		log.Printf("[WARN] projection: %s came back with an identity that does not fit %s's identity schema (%v); falling back",
+			w.addr, w.addr.Resource.Resource.Type, err)
+	}
+
+	if val, ok := identityFromValues(w, schema); ok {
+		return providers.ImportTarget{Identity: val}
+	}
+	return byID
+}
+
+// identityFromValues builds an identity object out of what the configuration
+// said, checked against the provider's identity schema rather than asserted.
+//
+// Two bars, and both are about the schema being the authority. Every
+// attribute the provider requires for import has to be one the configuration
+// supplied, because an identity missing a required attribute names nothing;
+// and every attribute the configuration supplied has to be one the schema
+// has, because a table entry that maps an argument onto an attribute this
+// provider version does not carry is a stale inference and the import ID it
+// also produced is the safe reading of it. Failing either drops to the
+// string, which is what every run did before this existed.
+//
+// Optional attributes the configuration says nothing about are left null on
+// purpose: in the AWS provider they are account_id and region, the context
+// the provider fills in from its own configuration, and filling them in from
+// here would be this package guessing which account a run is against - the
+// thing [identity.CloudContext] exists to refuse.
+func identityFromValues(w wanted, schema providers.Schema) (cty.Value, bool) {
+	if len(w.values) == 0 {
+		return cty.NilVal, false
+	}
+	body := schema.IdentitySchema
+
+	vals := make(map[string]cty.Value, len(body.Attributes))
+	for name, at := range body.Attributes {
+		if at.NestedType != nil {
+			// No AWS identity schema has one, and a string per attribute is
+			// the only shape the identity table can express, so an identity
+			// with structure in it is one this cannot build rather than one
+			// to approximate.
+			log.Printf("[TRACE] projection: %s's identity attribute %q has a nested type, which an identity built from configuration cannot fill; importing by ID %q",
+				w.addr.Resource.Resource.Type, name, w.importID)
+			return cty.NilVal, false
+		}
+		raw, supplied := w.values[name]
+		if !supplied {
+			if at.Required {
+				log.Printf("[TRACE] projection: %s supplies no %q, which %s's identity schema requires; importing by ID %q",
+					w.addr, name, w.addr.Resource.Resource.Type, w.importID)
+				return cty.NilVal, false
+			}
+			vals[name] = cty.NullVal(at.Type)
+			continue
+		}
+		val, err := convert.Convert(cty.StringVal(raw), at.Type)
+		if err != nil {
+			log.Printf("[WARN] projection: %s's %q is %q, which is not a %s; importing by ID %q",
+				w.addr, name, raw, at.Type.FriendlyName(), w.importID)
+			return cty.NilVal, false
+		}
+		vals[name] = val
+	}
+	for name := range w.values {
+		if _, ok := body.Attributes[name]; !ok {
+			log.Printf("[TRACE] projection: the identity table supplies %q for %s and the provider's identity schema has no such attribute; importing by ID %q",
+				name, w.addr.Resource.Resource.Type, w.importID)
+			return cty.NilVal, false
+		}
+	}
+	return cty.ObjectVal(vals), true
 }
 
 // orderWork splits the resolutions into the work lists Build runs, in the
@@ -311,15 +461,16 @@ func orderWork(resolutions []identity.Resolution) (concrete, derived, needsDisco
 	return concrete, derived, needsDiscovery, cyclic
 }
 
-// renderFormula turns a parent-derived resolution into a concrete import
-// ID by reading its parents' live values out of the projection built so
-// far. It records an omission and returns false when it cannot.
-func (b *builder) renderFormula(r identity.Resolution) (string, bool) {
+// renderFormula turns a parent-derived resolution into a concrete import ID -
+// and into the same identity attribute by attribute, when the formula carries
+// that split - by reading its parents' live values out of the projection
+// built so far. It records an omission and returns false when it cannot.
+func (b *builder) renderFormula(r identity.Resolution) (string, map[string]string, bool) {
 	if r.Formula == nil {
 		detail := fmt.Sprintf("Identity resolution classified %s as parent-derived but attached no formula.", r.Addr)
 		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Parent-derived identity with no formula", detail))
 		b.omit(r.Addr, ReasonFailed, detail, "identity resolution gave it no formula to render.")
-		return "", false
+		return "", nil, false
 	}
 
 	// Check every parent first, so that the reason names the parent rather
@@ -335,11 +486,11 @@ func (b *builder) renderFormula(r identity.Resolution) (string, bool) {
 			),
 			fmt.Sprintf("its own parent %s is not in the projection.", p),
 		)
-		return "", false
+		return "", nil, false
 	}
 
 	var lookupDiags tfdiags.Diagnostics
-	id, ok := r.Formula.Render(func(parent addrs.AbsResourceInstance, attr string) (string, bool) {
+	lookup := func(parent addrs.AbsResourceInstance, attr string) (string, bool) {
 		val, ok := b.live[parent.String()]
 		if !ok {
 			return "", false
@@ -357,7 +508,16 @@ func (b *builder) renderFormula(r identity.Resolution) (string, bool) {
 			return "", false
 		}
 		return s, true
-	})
+	}
+
+	id, ok := r.Formula.Render(lookup)
+	var values map[string]string
+	if ok {
+		// The same lookups again over the same parts; both renders succeed
+		// or neither does, since the attribute parts are a subset of the
+		// whole.
+		values, ok = r.Formula.RenderAttrs(lookup)
+	}
 	if !ok {
 		b.diags = b.diags.Append(lookupDiags)
 		detail := fmt.Sprintf("The identity formula for %s could not be rendered from its parents' live values.", r.Addr)
@@ -365,9 +525,9 @@ func (b *builder) renderFormula(r identity.Resolution) (string, bool) {
 			detail = lookupDiags[0].Description().Detail
 		}
 		b.omit(r.Addr, ReasonFailed, detail, "its identity formula could not be rendered from its parents' live values.")
-		return "", false
+		return "", nil, false
 	}
-	return id, true
+	return id, values, true
 }
 
 // causeFor renders why a parent instance is not in the projection, in a
@@ -394,11 +554,13 @@ func (b *builder) causeFor(parent addrs.AbsResourceInstance) string {
 // resource block and a dependency set read off its arguments; see
 // [Options.UndeclaredProvider] for the first, and [builder.dependencies] for
 // why the second is empty rather than guessed.
-func (b *builder) materialize(ctx context.Context, addr addrs.AbsResourceInstance, importID string, undeclared bool) {
+func (b *builder) materialize(ctx context.Context, w wanted) {
+	addr := w.addr
+	importID := w.importID
 	typeName := addr.Resource.Resource.Type
 
 	rc, ok := b.cfg.Module.ManagedResources[addr.Resource.Resource.String()]
-	if !ok && !undeclared {
+	if !ok && !w.undeclared {
 		detail := fmt.Sprintf(
 			"Identity resolution produced %s, but that resource block is not in the configuration the projection was given. The configuration and the resolutions do not match.",
 			addr,
@@ -435,7 +597,7 @@ func (b *builder) materialize(ctx context.Context, addr addrs.AbsResourceInstanc
 		return
 	}
 
-	obj, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importID)
+	obj, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), importID)
 	b.diags = b.diags.Append(matDiags)
 
 	switch status {
@@ -498,29 +660,35 @@ const (
 
 // importAndRead is the whole provider conversation for one instance, and
 // is the reason this package exists rather than calling into a graph walk:
-// ImportResourceState to turn an identity string into a stub object, then
+// ImportResourceState to turn an identity into a stub object, then
 // ReadResource to fill that stub in from the live system.
+//
+// target is the form the import is asked in - an identity object or an
+// import-ID string, never both, see [importTarget]. importID is carried
+// alongside whichever form was chosen because it is what every sentence here
+// names the resource by: an operator reading "no aws_subnet exists with
+// identity …" needs the string whether or not the wire carried it.
 //
 // It mirrors graphNodeImportState/graphNodeImportStateSub and
 // NodeAbstractResourceInstance.refresh in internal/tofu, minus hooks, the
 // evaluation context, and the already-in-state check, and with one
 // deliberate semantic difference: where import treats a nonexistent remote
 // object as a hard error, a projection treats it as an ordinary absence.
-func importAndRead(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName, importID string) (*states.ResourceInstanceObject, materializeStatus, tfdiags.Diagnostics) {
+func importAndRead(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName string, target providers.ImportTarget, importID string) (*states.ResourceInstanceObject, materializeStatus, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
-	if importID == "" {
+	if !target.IsIdentityBased() && !target.IsIDBased() {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Empty import identity",
-			fmt.Sprintf("An empty string was computed as the import identity for a %s. Identity resolution should never produce one.", typeName),
+			fmt.Sprintf("Nothing was computed as the import identity for a %s: no identity object and an empty import ID. Identity resolution should never produce one.", typeName),
 		))
 		return nil, statusFailed, diags
 	}
 
 	importResp := provider.ImportResourceState(ctx, providers.ImportResourceStateRequest{
 		TypeName: typeName,
-		Target:   providers.ImportTarget{ID: importID},
+		Target:   target,
 	})
 	if importResp.Diagnostics.HasErrors() {
 		// The provider could not answer the question. That is different

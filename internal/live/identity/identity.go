@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/zclconf/go-cty/cty"
+
 	"github.com/intentius/choudoufu/internal/addrs"
 )
 
@@ -50,6 +52,41 @@ type Resolution struct {
 	// ImportID is the provider's import identity string, populated only
 	// for ClassConcrete. It is ready to hand to the import path as-is.
 	ImportID string
+
+	// Identity is the provider's own resource identity object for this
+	// instance, when something already had one: a marker sweep's list result
+	// carries the identity the provider attached to it, and handing that back
+	// unchanged is strictly better than handing back a string read out of one
+	// of its attributes. Null (the zero value) whenever nothing served one,
+	// which is every resolution [Resolve] produces - a configuration carries
+	// arguments, not identity objects.
+	//
+	// It never replaces ImportID. The string is what every operator-facing
+	// line prints, what a marker rewrite records, and what the import path
+	// falls back to for a type the provider serves no identity schema for.
+	// Both travel together and the projection builder picks per resource; see
+	// internal/live/projection/build.go.
+	Identity cty.Value
+
+	// IdentityValues is the identity the *configuration* supplies, one string
+	// per identity attribute, populated for ClassConcrete alongside ImportID.
+	//
+	// It is the same information ImportID holds, unjoined: where ImportID is
+	// "rolename/arn:aws:iam::aws:policy/ReadOnlyAccess", this is
+	// {"role": "rolename", "policy_arn": "arn:…"}. The separator between the
+	// two is the part that only exists in the string, and it is the part no
+	// provider schema carries - which is why splitting the two apart here is
+	// what lets an import ask by identity object rather than by a grammar
+	// this package had to know.
+	//
+	// Nil when the type's entry does not say which identity attribute each
+	// component supplies, which is the honest answer for
+	// aws_route_table_association: the provider identifies one by the
+	// rtbassoc- ID it assigns, and this package builds the documented import
+	// string out of a subnet and a route table instead. Whether what is here
+	// is a *whole* identity is not decided here either: that is a question
+	// about the provider's identity schema, answered in the projection.
+	IdentityValues map[string]string
 
 	// Formula is the symbolic identity, populated only for
 	// ClassParentDerived. Render it with the parents' live IDs to get an
@@ -109,10 +146,33 @@ type Formula struct {
 	// Parts are the pieces of the import ID, in order.
 	Parts []Part
 
+	// Attrs is the same formula split by identity attribute: the pieces of
+	// each attribute of the provider's identity object, in order, for the
+	// attributes this type's entry says which component supplies. Nil when
+	// the entry says of none of them, which is [Resolution.IdentityValues]'s
+	// case for a rendered formula rather than a concrete one.
+	//
+	// It is not a second formula. Every part in it is a part of Parts too;
+	// what is missing from it are the separator characters between two
+	// attributes, which belong to the import-ID string and to no identity.
+	Attrs []AttrFormula
+
 	// Parents lists every parent instance referenced by Parts, deduplicated
 	// and sorted by address. It is the dependency set: P1.3 must know all
 	// of these live IDs before this instance's identity exists.
 	Parents []addrs.AbsResourceInstance
+}
+
+// AttrFormula is one identity attribute's share of a [Formula]: the pieces
+// that concatenate into that attribute's value once the parents' live IDs are
+// known.
+type AttrFormula struct {
+	// Name is the identity attribute, as the provider's identity schema
+	// names it.
+	Name string
+
+	// Parts concatenate, in order, exactly as [Formula.Parts] do.
+	Parts []Part
 }
 
 // String renders the formula in OpenTofu interpolation syntax, e.g.
@@ -141,8 +201,32 @@ func (f *Formula) String() string {
 // returns ok == false and the caller must not use the string: a formula
 // with a hole in it is not an identity.
 func (f *Formula) Render(lookup func(parent addrs.AbsResourceInstance, attr string) (string, bool)) (string, bool) {
+	return renderParts(f.Parts, lookup)
+}
+
+// RenderAttrs is [Formula.Render] per identity attribute: the identity object
+// this instance's configuration supplies, once the parents' live IDs are
+// known, in the same form [Resolution.IdentityValues] holds for a concrete
+// instance. It returns nil when the formula carries no per-attribute split,
+// and ok == false on the same unknown-parent condition Render fails on.
+func (f *Formula) RenderAttrs(lookup func(parent addrs.AbsResourceInstance, attr string) (string, bool)) (map[string]string, bool) {
+	if len(f.Attrs) == 0 {
+		return nil, true
+	}
+	out := make(map[string]string, len(f.Attrs))
+	for _, a := range f.Attrs {
+		s, ok := renderParts(a.Parts, lookup)
+		if !ok {
+			return nil, false
+		}
+		out[a.Name] = s
+	}
+	return out, true
+}
+
+func renderParts(parts []Part, lookup func(parent addrs.AbsResourceInstance, attr string) (string, bool)) (string, bool) {
 	var buf strings.Builder
-	for _, p := range f.Parts {
+	for _, p := range parts {
 		if p.Parent == nil {
 			buf.WriteString(p.Literal)
 			continue
