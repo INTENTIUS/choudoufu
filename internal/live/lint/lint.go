@@ -304,8 +304,10 @@ func checkDataResources(mod *configs.Module, path addrs.Module, issues *[]Issue)
 			Construct: resource.Addr().String(),
 			Module:    path,
 			Detail: "this data source reads a state file, and a live-markers run has no state to " +
-				"read. Pass the values across explicitly, as variables or outputs of a " +
-				"module call, or read the live resource with a data source of its own type",
+				"read. Read the producer's own live resource with a data source of its own " +
+				"type, filtered on its tofu-estate/tofu-address marker tags (live/OUTPUTS.md " +
+				"is the recorded decision and this pattern's spec), or pass values across " +
+				"explicitly as variables or outputs of a module call",
 			Subject: resource.DeclRange,
 		})
 	}

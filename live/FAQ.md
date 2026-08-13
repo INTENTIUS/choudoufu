@@ -163,6 +163,20 @@ fingerprint of an effect's declared inputs, so the plan diff becomes the
 reviewable signal that the effect needs to run again. OpenTofu never runs
 the effect itself.
 
+## How do two split estates share a value, with no remote state?
+
+`terraform_remote_state` is refused for the same reason everything else in
+`live/LIMITATIONS.md` is: it reads a state file, and there is none. The
+answer, specified in `live/OUTPUTS.md`, is a plain data source: the
+consuming estate reads the producing estate's live resource with a data
+source of its own type, filtered on that resource's `tofu-estate`/
+`tofu-address` marker tags (`live/MARKERS.md`). A first-class "estate
+output" surface, outputs mirrored into SSM parameters under an estate
+namespace, was considered and declined. `live/OUTPUTS.md`'s "Why not
+outputs-as-receipts" has the reasoning, in short that a mirrored value is a
+second copy that can go stale, which is exactly the failure mode removing
+the state file was meant to retire.
+
 ## Is it production ready?
 
 No. It is experimental, the command surface can still change, and the
