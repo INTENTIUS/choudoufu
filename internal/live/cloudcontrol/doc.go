@@ -39,6 +39,39 @@
 // not a signature — real AWS rejects it — it is only what an emulator
 // reads the region out of the way a real SDK would carry it.
 //
+// # Retries
+//
+// Every call ([Client.ListResources]'s per-page calls, [Client.GetResource],
+// [Client.GetResources]) retries under one policy, stated here because
+// issue #64 asked for a stated policy rather than an implicit one:
+//
+//   - Only a ThrottlingException response is retried. Every other failure -
+//     a different *[APIError] code (ResourceNotFoundException,
+//     ValidationException, UnsupportedOperation, ...), a transport error, a
+//     response this client could not parse - returns to the caller straight
+//     from the first attempt. Retrying a validation error or a
+//     resource-not-found result would not change the outcome; it would only
+//     delay reporting it.
+//   - Exponential backoff with full jitter: attempt N's delay (before
+//     attempt N+1) is drawn uniformly from [0, min(RetryMaxDelay,
+//     RetryBaseDelay*2^(N-1))). Full jitter - not a fixed curve - is AWS's
+//     own documented recommendation for avoiding synchronized retry storms,
+//     which matters here because discovery issues its GetResource calls
+//     concurrently: a fixed curve would have every one of them retry in
+//     lockstep against the same throttled API.
+//   - Bounded attempts: [Config.MaxAttempts] (default 5, counting the first
+//     try) caps the total, so a call that keeps getting throttled fails
+//     rather than retrying forever.
+//   - Context-respecting: a retry's sleep ([retrySleep]) selects on
+//     ctx.Done() alongside its timer, so a canceled or deadline-exceeded
+//     context stops the retry loop immediately - mid-sleep, if that is where
+//     it is - rather than finishing out the backoff curve first.
+//
+// [Config.RetryBaseDelay] (default 200ms) and [Config.RetryMaxDelay]
+// (default 5s) tune the curve; [Config.RetrySleep] overrides the sleep
+// function itself, which is how a unit test gets a deterministic, instant
+// backoff instead of a real one (internal/live/cloudcontrol/retry_test.go).
+//
 // # Resource Groups Tagging API
 //
 // [NewTagging] builds a Client for a second service that speaks the same

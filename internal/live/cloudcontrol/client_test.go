@@ -148,7 +148,11 @@ func TestErrorCodeMapping(t *testing.T) {
 			}))
 			defer server.Close()
 
-			c := New(Config{Endpoint: server.URL})
+			// MaxAttempts: 1 - this test is about error-code classification,
+			// not the retry policy (that is retry_test.go's job), so the
+			// ThrottlingException case must not sit through real backoff
+			// sleeps here.
+			c := New(Config{Endpoint: server.URL, MaxAttempts: 1})
 			_, err := c.GetResource(context.Background(), "AWS::EC2::Instance", "i-0123")
 			if err == nil {
 				t.Fatal("expected an error, got nil")
