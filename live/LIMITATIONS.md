@@ -424,29 +424,32 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_apigatewayv2_routing_rule`, `aws_cloudfront_monitoring_subscription`,
 `aws_cloudfront_origin_access_control`,
 `aws_cloudfront_realtime_log_config`, `aws_cloudwatch_dashboard`,
-`aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
-`aws_dynamodb_global_table`, `aws_dynamodb_resource_policy`,
-`aws_ebs_snapshot_block_public_access`, `aws_ec2_client_vpn_route`,
-`aws_ec2_managed_prefix_list_entry`,
+`aws_codeartifact_domain_permissions_policy`,
+`aws_codeartifact_repository_permissions_policy`, `aws_codebuild_webhook`,
+`aws_codedeploy_deployment_config`, `aws_db_instance_role_association`,
+`aws_db_proxy_default_target_group`, `aws_dynamodb_global_table`,
+`aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
+`aws_ec2_client_vpn_route`, `aws_ec2_managed_prefix_list_entry`,
 `aws_ec2_transit_gateway_metering_policy_entry`,
 `aws_ec2_transit_gateway_policy_table_association`,
 `aws_ec2_transit_gateway_route`,
 `aws_ec2_transit_gateway_route_table_association`,
 `aws_ec2_transit_gateway_route_table_propagation`,
 `aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
-`aws_ecr_replication_configuration`, `aws_ecs_cluster_capacity_providers`,
-`aws_eip_association`, `aws_eks_access_policy_association`,
-`aws_emr_security_configuration`, `aws_fsx_s3_access_point_attachment`,
-`aws_glue_catalog_table`, `aws_glue_classifier`,
-`aws_glue_data_catalog_encryption_settings`, `aws_iam_group`,
-`aws_iam_role_policy`, `aws_iam_role_policy_attachment`, `aws_kms_alias`,
-`aws_lambda_layer_version`, `aws_lb_target_group_attachment`,
-`aws_lightsail_lb_certificate`, `aws_lightsail_static_ip`,
-`aws_nat_gateway_eip_association`, `aws_network_acl_rule`,
-`aws_network_interface_attachment`, `aws_network_interface_permission`,
-`aws_rds_cluster_role_association`, `aws_route`,
-`aws_route53_hosted_zone_dnssec`, `aws_route53_key_signing_key`,
-`aws_route53_record`, `aws_route53_resolver_firewall_rule`,
+`aws_ecr_replication_configuration`, `aws_ecrpublic_repository_policy`,
+`aws_ecs_cluster_capacity_providers`, `aws_eip_association`,
+`aws_eks_access_policy_association`, `aws_emr_security_configuration`,
+`aws_fsx_s3_access_point_attachment`, `aws_glue_catalog_table`,
+`aws_glue_classifier`, `aws_glue_data_catalog_encryption_settings`,
+`aws_iam_group`, `aws_iam_role_policy`, `aws_iam_role_policy_attachment`,
+`aws_kms_alias`, `aws_lambda_layer_version`,
+`aws_lb_target_group_attachment`, `aws_lightsail_lb_certificate`,
+`aws_lightsail_static_ip`, `aws_nat_gateway_eip_association`,
+`aws_network_acl_rule`, `aws_network_interface_attachment`,
+`aws_network_interface_permission`, `aws_rds_cluster_role_association`,
+`aws_route`, `aws_route53_hosted_zone_dnssec`,
+`aws_route53_key_signing_key`, `aws_route53_record`,
+`aws_route53_resolver_firewall_rule`,
 `aws_route53_resolver_rule_association`, `aws_route53_zone_association`,
 `aws_route_table_association`, `aws_s3_bucket_lifecycle_configuration`,
 `aws_s3_bucket_policy`, `aws_s3_bucket_public_access_block`,
@@ -491,6 +494,8 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_api_gateway_usage_plan_key` | `aws_api_gateway_usage_plan` | no (report-only) |
 | `aws_cloudfront_monitoring_subscription` | `aws_lightsail_distribution` | no (report-only) |
 | `aws_cloudfront_realtime_log_config` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_codeartifact_domain_permissions_policy` | `aws_codeartifact_domain` | no (report-only) |
+| `aws_codeartifact_repository_permissions_policy` | `aws_codeartifact_repository` | no (report-only) |
 | `aws_dynamodb_global_table` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_ec2_client_vpn_route` | `aws_ec2_client_vpn_endpoint` | no (report-only) |
 | `aws_ec2_managed_prefix_list_entry` | `aws_ec2_managed_prefix_list` | no (report-only) |
@@ -498,6 +503,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_ec2_transit_gateway_policy_table_association` | `aws_ec2_transit_gateway_policy_table` | no (report-only) |
 | `aws_ec2_transit_gateway_route_table_association` | `aws_ec2_transit_gateway_route_table` | no (report-only) |
 | `aws_ec2_transit_gateway_route_table_propagation` | `aws_ec2_transit_gateway_route_table` | no (report-only) |
+| `aws_ecrpublic_repository_policy` | `aws_ecrpublic_repository` | no (report-only) |
 | `aws_eks_access_policy_association` | `aws_batch_scheduling_policy` | no (report-only) |
 | `aws_emr_security_configuration` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_fsx_s3_access_point_attachment` | `aws_api_gateway_domain_name` | no (report-only) |
@@ -533,7 +539,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_vpc_endpoint_subnet_association` | `aws_vpc_endpoint` | no (report-only) |
 | `aws_vpc_ipam_pool_cidr` | `aws_vpc_ipam_pool` | no (report-only) |
 
-**Total.** 50 types swept via a parent read.
+**Total.** 53 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
@@ -563,6 +569,7 @@ per-type reasoning as it stands.
 **The residue.** <!-- survey-gen:begin untaggable-residue -->
 `aws_api_gateway_account`, `aws_apigatewayv2_routing_rule`,
 `aws_cloudfront_origin_access_control`, `aws_cloudwatch_dashboard`,
+`aws_codebuild_webhook`, `aws_codedeploy_deployment_config`,
 `aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
 `aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
 `aws_ec2_transit_gateway_route`, `aws_ecr_registry_policy`,
