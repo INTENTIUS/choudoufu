@@ -411,8 +411,10 @@ control policy is a guardrail on what IAM principals in an organization's
 it never grants anything, it can `Deny` an action outright, and - per that
 same page - it has no effect on the management account or on any
 principal outside the organization. Denying the tag-removal actions for
-the three marker keys, with an exception for whichever principal runs
-`choudoufu`, is the closest thing to a real backstop:
+the marker keys - `tofu-estate`, `tofu-slot`, and `tofu-address` together
+with its `tofu-address-2` through `tofu-address-4` continuation tags -
+with an exception for whichever principal runs `choudoufu`, is the closest
+thing to a real backstop:
 
 ```json
 {
@@ -433,7 +435,7 @@ the three marker keys, with an exception for whichever principal runs
       ],
       "Condition": {
         "ForAnyValue:StringEquals": {
-          "aws:TagKeys": ["tofu-estate", "tofu-address", "tofu-slot"]
+          "aws:TagKeys": ["tofu-estate", "tofu-address", "tofu-address-2", "tofu-address-3", "tofu-address-4", "tofu-slot"]
         },
         "ArnNotLike": {
           "aws:PrincipalArn": ["arn:aws:iam::*:role/choudoufu-automation"]
@@ -444,6 +446,17 @@ the three marker keys, with an exception for whichever principal runs
   ]
 }
 ```
+
+The key list is every marker key this fork ever writes as of issue #71's
+`tofu-address` continuation tags, not just the three literal keys a run
+without a long address ever needs: `aws:TagKeys` in an SCP condition is a
+set-membership check, with no prefix wildcard for "any `tofu-address-*`
+key," so a policy that lists only the bare `tofu-address` leaves
+`tofu-address-2` through `tofu-address-4` unprotected on any resource whose
+escaped address needed them - stripping just the continuation tags corrupts
+the same ownership record as stripping `tofu-address` itself, since a
+reader that cannot gather every chunk cannot reconstruct the address at
+all. See "`tofu-address` continuation tags," above.
 
 That action list is illustrative, not exhaustive or verified for every
 admitted type - it has to be, since this fork tracks each type's tagging

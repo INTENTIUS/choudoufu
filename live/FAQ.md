@@ -367,8 +367,9 @@ one beside the orphaned first.
 `live/MARKERS.md`'s "Protecting the markers" section has the full answer:
 what an AWS Organizations tag policy can and cannot do here (it enforces
 tag *values*, not tag *survival*, and does not block untagging at all), an
-SCP snippet that denies the untagging actions on the three marker keys to
-everyone but the automation principal, with the caveats that make it
+SCP snippet that denies the untagging actions on the marker keys (including
+`tofu-address`'s continuation tags) to everyone but the automation
+principal, with the caveats that make it
 honest rather than a false sense of safety, and the plan-time backstop -
 every create of an admitted type gets checked against the estate's unowned
 live resources of the same type, and a match earns a `[POSSIBLE
