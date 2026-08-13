@@ -281,7 +281,7 @@ func TestGRPCProviderV6_ListResource_typeNotListable(t *testing.T) {
 		p, _ := newListProvider(t, listProtoSchema(), listIdentitySchemas())
 		// No ListResource expectation: reaching the RPC at all is a failure.
 		resp := p.ListResource(context.Background(), providers.ListResourceRequest{TypeName: "test_other"})
-		assertListNotSupported(t, resp, "cannot list this resource type")
+		assertListNotSupported(t, resp, "supports listing, but not for")
 	})
 
 	t.Run("provider lists nothing", func(t *testing.T) {
