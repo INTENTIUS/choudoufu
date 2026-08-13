@@ -1,0 +1,10 @@
+{
+  "heuristic_overrides": {
+    "aws_lex_bot": "the plain name heuristic hits AWS::Lex::Bot, but that CFN type's own docs (\"Amazon Lex V2 is the only supported version in CloudFormation\") state it models Lex V2 only; aws_lex_bot is the legacy V1 bot, already correctly claimed by aws_lexv2models_bot's overlay alias - see the cfn_unmodeled entry below for aws_lex_bot's actual classification",
+    "aws_lex_bot_alias": "same V2-only gap as aws_lex_bot above: the plain name heuristic hits AWS::Lex::BotAlias, but that CFN type's own docs carry the identical \"Amazon Lex V2 is the only supported version in CloudFormation\" note (BotId's pattern/length constraints match V2's opaque bot IDs, not V1's numeric bot name+version scheme) - aws_lex_bot_alias is the legacy V1 bot alias, and the provider ships no aws_lexv2models_bot_alias to claim the V2 type instead"
+  },
+  "cfn_unmodeled": {
+    "aws_lex_bot": "Lex V1 has no registry model; AWS::Lex::Bot is V2-only per its own docs, corresponding to aws_lexv2models_bot",
+    "aws_lex_bot_alias": "Lex V1 has no registry model; AWS::Lex::BotAlias is V2-only per its own docs (same note as AWS::Lex::Bot), and the provider has no V2 bot-alias resource to claim it instead"
+  }
+}

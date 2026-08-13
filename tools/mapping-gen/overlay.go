@@ -16,10 +16,13 @@ import (
 
 // Overlay is the curated file at tools/mapping-gen/overlay.json: the hand
 // asserted facts the name heuristic in heuristic.go cannot derive on its
-// own. Six tables. Five - Aliases, Folds, Nones, TFOnly, CFNUnmodeled - are
-// disjoint and keyed by TF type; the sixth - ServiceAliases - is keyed by TF
+// own. Seven tables. Five - Aliases, Folds, Nones, TFOnly, CFNUnmodeled -
+// are mutually disjoint and keyed by TF type; ServiceAliases is keyed by TF
 // type *prefix* (a different domain, so it cannot collide with the other
-// five) and drives the service-scoped heuristic in servicealias.go:
+// five) and drives the service-scoped heuristic in servicealias.go; the
+// seventh, HeuristicOverrides, is keyed by TF type like the first five but
+// deliberately is NOT one more disjoint slot - see its own doc comment for
+// which of the five it may and may not share a key with:
 //
 //   - Aliases pairs a TF type straight to its CFN type when the two names
 //     just do not correspond - a legacy TF name (aws_cloudwatch_event_rule),
@@ -58,6 +61,15 @@ import (
 //     -> Route53Resolver). One entry converts a whole family at once; see
 //     servicealias.go for how a prefix, once matched, is turned into a CFN
 //     type match scoped to that service alone.
+//   - HeuristicOverrides names a TF type whose plain-name heuristic HIT is
+//     simply wrong (issue #58) - the first five tables above all cover a
+//     heuristic MISS (nothing to find, or the wrong shape entirely); this
+//     one covers the rarer case where the heuristic finds a CFN type by
+//     name and that CFN type is real, but its own docs say it does not
+//     model what this TF type is (aws_lex_bot, the legacy Lex V1 bot,
+//     name-matches AWS::Lex::Bot, whose CFN docs say plainly it models Lex
+//     V2 only). See its own doc comment below for the disjointness rule
+//     against the other five.
 //
 // A TF type appearing in more than one of the first five tables is almost
 // certainly a curation mistake (the loader below refuses it), and every
@@ -89,6 +101,38 @@ type Overlay struct {
 	// name(s) - as they appear in the registry's AWS::<Service>::<Resource>
 	// type names - that prefix's TF types belong to.
 	ServiceAliases map[string][]string `json:"service_aliases"`
+
+	// HeuristicOverrides maps tf_type -> the reason the plain name
+	// heuristic's hit for that type must not be trusted (issue #58): the
+	// type is listed here not because it lacks a CFN counterpart on its own
+	// (that is what TFOnly/CFNUnmodeled/Nones are for), but because the
+	// counterpart the heuristic *finds* is the wrong one - a real CFN type
+	// whose own documentation says it does not model what this TF type is
+	// (aws_lex_bot's heuristic hit, AWS::Lex::Bot, models Lex V2 only; the
+	// legacy V1 bot aws_lex_bot itself has no CFN model at all). classifyRow
+	// consults this table immediately before the name heuristic - after
+	// Aliases, Folds, TFOnly, CFNUnmodeled and Nones, all five of which
+	// already win outright over the heuristic on their own regardless of
+	// this table's contents: a listed type never takes the heuristic's hit,
+	// and instead falls through to whatever the rest of the pipeline (the
+	// service-alias heuristic, former2, issue #53's mechanical classifiers,
+	// or a reasoned via:none) can make of it.
+	//
+	// Disjointness: an entry here must NOT share a key with Aliases or
+	// Folds. Both of those tables already assert the correct CFN
+	// counterpart (or parent) outright; if the right answer is known,
+	// it belongs there directly; pairing it with a HeuristicOverrides entry
+	// too would be a self-contradiction (the loader below refuses it) -
+	// "the heuristic's guess is wrong" is meaningless noise once a
+	// different, correct answer is already on record. An entry here MAY -
+	// and typically does - share a key with TFOnly, CFNUnmodeled or Nones:
+	// those three assert there is no CFN counterpart at all, exactly the
+	// shape an overridden heuristic hit usually resolves to, so a type
+	// commonly carries both a HeuristicOverrides entry (documenting that
+	// the heuristic's own guess must be distrusted, and why) and one of
+	// those three's terminal entry (supplying the actual classification)
+	// together, in the same overlay fragment.
+	HeuristicOverrides map[string]string `json:"heuristic_overrides"`
 }
 
 // loadOverlay reads and validates tools/mapping-gen/overlay.json, merged
@@ -176,6 +220,9 @@ func mergeOverlay(base *Overlay, frag Overlay, fragPath string) error {
 	if err := merge(&base.CFNUnmodeled, frag.CFNUnmodeled, "cfn_unmodeled"); err != nil {
 		return err
 	}
+	if err := merge(&base.HeuristicOverrides, frag.HeuristicOverrides, "heuristic_overrides"); err != nil {
+		return err
+	}
 	for prefix, services := range frag.ServiceAliases {
 		if _, ok := base.ServiceAliases[prefix]; ok {
 			return fmt.Errorf("%s: service_aliases prefix %q is already defined by the base overlay or an earlier fragment", fragPath, prefix)
@@ -212,6 +259,24 @@ func validateOverlay(ov Overlay, path string) (Overlay, error) {
 					path, tfType, prior, table.name)
 			}
 			seen[tfType] = table.name
+		}
+	}
+
+	// HeuristicOverrides is deliberately not part of the mutual-disjointness
+	// loop above - it is allowed, even expected, to share a key with
+	// TFOnly/CFNUnmodeled/Nones (see the field's own doc comment) - but it
+	// still may not share a key with Aliases or Folds, both of which
+	// already assert the correct answer outright, making an override entry
+	// for the same type a self-contradiction.
+	for tfType, reason := range ov.HeuristicOverrides {
+		if reason == "" {
+			return Overlay{}, fmt.Errorf("%s: overlay heuristic_overrides entry for %s has an empty value", path, tfType)
+		}
+		if _, ok := ov.Aliases[tfType]; ok {
+			return Overlay{}, fmt.Errorf("%s: %s appears in both heuristic_overrides and aliases - an alias already asserts the correct CFN type, so overriding the heuristic's (different) guess for the same TF type is a contradiction", path, tfType)
+		}
+		if _, ok := ov.Folds[tfType]; ok {
+			return Overlay{}, fmt.Errorf("%s: %s appears in both heuristic_overrides and folds - a fold already asserts the correct parent CFN type, so overriding the heuristic's guess for the same TF type is a contradiction", path, tfType)
 		}
 	}
 
