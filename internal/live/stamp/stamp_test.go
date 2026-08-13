@@ -853,6 +853,40 @@ var (
 		"aws_rekognition_collection",
 		"aws_rekognition_project",
 		"aws_rekognition_stream_processor",
+		// Registry-ratified Connect and end-user computing batch (#40, #44,
+		// issue #65). Every type below carries a real tags argument,
+		// confirmed against the provider's Argument Reference for each.
+		// aws_connect_user_hierarchy_structure, this batch's one
+		// Components-built (not marker-path) admission, carries no tags
+		// argument at all and is pinned untaggable below instead;
+		// aws_connect_instance_storage_config, this batch's one rejected
+		// proposal, is untaggable too and never reached the admission table.
+		// See live/e2e/estates/connect-euc/README.md.
+		"aws_connect_instance",
+		"aws_connect_phone_number",
+		"aws_connect_contact_flow",
+		"aws_connect_contact_flow_module",
+		"aws_connect_hours_of_operation",
+		"aws_connect_queue",
+		"aws_connect_quick_connect",
+		"aws_connect_routing_profile",
+		"aws_connect_security_profile",
+		"aws_connect_user",
+		"aws_connect_user_hierarchy_group",
+		"aws_workspaces_connection_alias",
+		"aws_workspaces_ip_group",
+		"aws_workspaces_pool",
+		"aws_workspaces_workspace",
+		"aws_workspacesweb_browser_settings",
+		"aws_workspacesweb_data_protection_settings",
+		"aws_workspacesweb_identity_provider",
+		"aws_workspacesweb_ip_access_settings",
+		"aws_workspacesweb_network_settings",
+		"aws_workspacesweb_portal",
+		"aws_workspacesweb_session_logger",
+		"aws_workspacesweb_trust_store",
+		"aws_workspacesweb_user_access_logging_settings",
+		"aws_workspacesweb_user_settings",
 		// Registry-ratified data-movement batch (#40, #44, issue #65): all
 		// twenty-seven types this batch ratified carry a top-level tags
 		// argument in the pinned provider's own wire schema, confirmed
@@ -1254,6 +1288,27 @@ var (
 		"aws_bedrockagentcore_resource_policy",
 		"aws_lexv2models_bot_locale",
 		"aws_location_tracker_association",
+		// Registry-ratified Connect and end-user computing batch (#40, #44,
+		// issue #65): aws_connect_user_hierarchy_structure's Argument
+		// Reference names no tags block at all — it is this batch's one
+		// Components-built entry (instance_id alone), not a marker-path
+		// admission, so untaggability does not block it. See
+		// live/e2e/estates/connect-euc/README.md, "Untaggable types".
+		"aws_connect_user_hierarchy_structure",
+		// Same batch: WorkSpacesWeb's eight *_association fold-children of
+		// AWS::WorkSpacesWeb::Portal, ratified once issue #68's fold-child
+		// path was found merged mid-batch. Each Argument Reference lists
+		// only its own settings-type ARN, portal_arn and region — no tags
+		// block, confirmed against every one of the eight individually.
+		// See live/e2e/estates/connect-euc/README.md, "Untaggable types".
+		"aws_workspacesweb_browser_settings_association",
+		"aws_workspacesweb_data_protection_settings_association",
+		"aws_workspacesweb_ip_access_settings_association",
+		"aws_workspacesweb_network_settings_association",
+		"aws_workspacesweb_session_logger_association",
+		"aws_workspacesweb_trust_store_association",
+		"aws_workspacesweb_user_access_logging_settings_association",
+		"aws_workspacesweb_user_settings_association",
 		// Registry-ratified databases batch (#40, #44, issue #65): the
 		// three OpenSearchServerless policy types (access, lifecycle,
 		// security) carry only a name/type/policy document, the same
@@ -2429,6 +2484,45 @@ func testSchemas() Schemas {
 		"aws_ecr_pull_time_update_exclusion":                untagged("id", "principal_arn"),
 		"aws_ecr_repository_creation_template":              untagged("id", "prefix"),
 		"aws_ecr_repository_policy":                         untagged("id", "repository", "registry_id"),
+		// Registry-ratified Connect and end-user computing batch (#40, #44,
+		// issue #65). Taggable/untaggable per the real provider's documented
+		// Argument Reference for each type: aws_connect_user_hierarchy_structure
+		// carries no tags argument at all (this batch's one Components-built,
+		// not marker-path, entry).
+		"aws_connect_instance":                                       tagged("id", "arn", "instance_alias"),
+		"aws_connect_phone_number":                                   tagged("id", "arn", "target_arn"),
+		"aws_connect_contact_flow":                                   tagged("id", "arn", "instance_id", "name"),
+		"aws_connect_contact_flow_module":                            tagged("id", "arn", "instance_id", "name"),
+		"aws_connect_hours_of_operation":                             tagged("id", "arn", "instance_id", "name"),
+		"aws_connect_queue":                                          tagged("id", "arn", "instance_id", "name"),
+		"aws_connect_quick_connect":                                  tagged("id", "arn", "instance_id", "name"),
+		"aws_connect_routing_profile":                                tagged("id", "arn", "instance_id", "name"),
+		"aws_connect_security_profile":                               tagged("id", "arn", "instance_id", "name"),
+		"aws_connect_user":                                           tagged("id", "arn", "instance_id", "name"),
+		"aws_connect_user_hierarchy_group":                           tagged("id", "arn", "instance_id", "name"),
+		"aws_connect_user_hierarchy_structure":                       untagged("id", "instance_id"),
+		"aws_workspaces_connection_alias":                            tagged("id", "connection_string"),
+		"aws_workspaces_ip_group":                                    tagged("id", "arn", "name"),
+		"aws_workspaces_pool":                                        tagged("id", "pool_arn", "pool_id", "pool_name"),
+		"aws_workspaces_workspace":                                   tagged("id", "user_name", "directory_id"),
+		"aws_workspacesweb_browser_settings":                         tagged("browser_settings_arn"),
+		"aws_workspacesweb_data_protection_settings":                 tagged("data_protection_settings_arn"),
+		"aws_workspacesweb_identity_provider":                        tagged("identity_provider_arn", "portal_arn"),
+		"aws_workspacesweb_ip_access_settings":                       tagged("ip_access_settings_arn"),
+		"aws_workspacesweb_network_settings":                         tagged("network_settings_arn"),
+		"aws_workspacesweb_portal":                                   tagged("portal_arn"),
+		"aws_workspacesweb_session_logger":                           tagged("session_logger_arn"),
+		"aws_workspacesweb_trust_store":                              tagged("trust_store_arn"),
+		"aws_workspacesweb_user_access_logging_settings":             tagged("user_access_logging_settings_arn"),
+		"aws_workspacesweb_user_settings":                            tagged("user_settings_arn"),
+		"aws_workspacesweb_browser_settings_association":             untagged("browser_settings_arn", "portal_arn"),
+		"aws_workspacesweb_data_protection_settings_association":     untagged("data_protection_settings_arn", "portal_arn"),
+		"aws_workspacesweb_ip_access_settings_association":           untagged("ip_access_settings_arn", "portal_arn"),
+		"aws_workspacesweb_network_settings_association":             untagged("network_settings_arn", "portal_arn"),
+		"aws_workspacesweb_session_logger_association":               untagged("session_logger_arn", "portal_arn"),
+		"aws_workspacesweb_trust_store_association":                  untagged("trust_store_arn", "portal_arn"),
+		"aws_workspacesweb_user_access_logging_settings_association": untagged("user_access_logging_settings_arn", "portal_arn"),
+		"aws_workspacesweb_user_settings_association":                untagged("user_settings_arn", "portal_arn"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.

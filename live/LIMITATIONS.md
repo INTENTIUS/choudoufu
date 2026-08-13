@@ -251,7 +251,13 @@ five packages downstream of lint - `identity`, `discovery`, `stamp`,
 inside a static module binds by its module-qualified address
 (`module.a.module.b.aws_x.y`) exactly as soundly as a root resource binds by
 its own. `RuleChildModule` reports nothing for a module call that sets
-neither `count` nor `for_each`.
+neither `count` nor `for_each`. A `provider` block declared inside that
+static module is a separate, still-open question (per-module provider
+resolution, issue #70): it is neither supported nor refused today - the
+module's resources are silently served by the root configuration's own
+provider config instead - and `lint.CheckModuleProviders`
+(`internal/live/lint/module_provider.go`) only warns about it by name, once
+per run, rather than failing the run.
 
 **A statically-keyed `for_each` module call is admitted.** As of issue #59,
 phase 3 ("59c"), a module call's `for_each` is evaluated the same way a
@@ -513,6 +519,28 @@ as a destroy, is asserted in `internal/live/lifecycle/exactness_test.go`.
 The unadmitted half holds by construction: `internal/live/discovery`
 builds the sweep universe from `identity.AdmittedTypes()`.)
 
+**A resource inside a keyed module is stamped by hand, not automatically.**
+Stamping cannot compute a per-instance marker for a resource declared
+inside a module call that sets `for_each` (directly, or through an
+ancestor module call, at any depth) - the module's several instances share
+one HCL body for the resource's `tags` argument, and there is no single
+literal `tofu-address` that is correct for all of them, nor a safe way to
+evaluate an expression that depends on a variable threaded from the module
+call's own `each.key` (`internal/configs`' static evaluator has no
+repetition data to evaluate one against). Such a resource is left alone
+with the `SkipModuleKeyed` reason (`MODULE_KEYED`): trusted as written when
+it already declares a `tags` argument, and the ordinary must-stamp error
+when it declares none and its type needs discovery to be found again. The
+operator writes the marker by hand instead, threading the module's own
+`each.key` through as a variable and interpolating it into the address -
+see "The keyed-module marker idiom" on the concept page
+(`website/docs/language/live-markers.mdx`) for the three-line pattern, and
+`live/e2e/estate-module-keyed/` for the fixture it comes from. This is not
+a lint refusal; a keyed module is admitted (see "child-module" above), and
+this is a standing property of what the stamping pass can and cannot
+inject into a shared configuration body. (`internal/live/stamp/stamp.go`,
+`SkipModuleKeyed` and `moduleKeyedResource`.)
+
 **Untaggable types carry no ownership marker of their own.** <!-- survey-gen:begin untaggable-admitted -->
 `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
 `aws_api_gateway_account`, `aws_api_gateway_base_path_mapping`,
@@ -542,7 +570,8 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_cognito_user`, `aws_cognito_user_group`, `aws_cognito_user_in_group`,
 `aws_cognito_user_pool_domain`, `aws_config_conformance_pack`,
 `aws_config_organization_conformance_pack`,
-`aws_config_remediation_configuration`, `aws_controltower_control`,
+`aws_config_remediation_configuration`,
+`aws_connect_user_hierarchy_structure`, `aws_controltower_control`,
 `aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
 `aws_dynamodb_global_table`, `aws_dynamodb_resource_policy`,
 `aws_ebs_snapshot_block_public_access`, `aws_ec2_client_vpn_route`,
@@ -615,7 +644,14 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_vpc_endpoint_security_group_association`,
 `aws_vpc_endpoint_subnet_association`, `aws_vpc_ipam_pool_cidr`,
 `aws_vpclattice_auth_policy`, `aws_vpclattice_resource_policy`,
-`aws_wafv2_web_acl_rule` and `aws_xray_resource_policy`<!-- survey-gen:end untaggable-admitted --> carry no tags, so a marker-based sweep
+`aws_wafv2_web_acl_rule`, `aws_workspacesweb_browser_settings_association`,
+`aws_workspacesweb_data_protection_settings_association`,
+`aws_workspacesweb_ip_access_settings_association`,
+`aws_workspacesweb_network_settings_association`,
+`aws_workspacesweb_session_logger_association`,
+`aws_workspacesweb_trust_store_association`,
+`aws_workspacesweb_user_access_logging_settings_association`,
+`aws_workspacesweb_user_settings_association` and `aws_xray_resource_policy`<!-- survey-gen:end untaggable-admitted --> carry no tags, so a marker-based sweep
 has nothing to search on for any of them. Their identity is built from
 their own configuration, which is a problem the moment a resource block is
 removed rather than destroyed: with no marker to search on and no
@@ -751,8 +787,16 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_vpc_endpoint_subnet_association` | `aws_vpc_endpoint` | no (report-only) |
 | `aws_vpc_ipam_pool_cidr` | `aws_vpc_ipam_pool` | no (report-only) |
 | `aws_wafv2_web_acl_rule` | `aws_wafv2_web_acl` | no (report-only) |
+| `aws_workspacesweb_browser_settings_association` | `aws_workspacesweb_browser_settings` | no (report-only) |
+| `aws_workspacesweb_data_protection_settings_association` | `aws_workspacesweb_data_protection_settings` | no (report-only) |
+| `aws_workspacesweb_ip_access_settings_association` | `aws_workspacesweb_ip_access_settings` | no (report-only) |
+| `aws_workspacesweb_network_settings_association` | `aws_workspacesweb_network_settings` | no (report-only) |
+| `aws_workspacesweb_session_logger_association` | `aws_workspacesweb_session_logger` | no (report-only) |
+| `aws_workspacesweb_trust_store_association` | `aws_workspacesweb_trust_store` | no (report-only) |
+| `aws_workspacesweb_user_access_logging_settings_association` | `aws_workspacesweb_user_access_logging_settings` | no (report-only) |
+| `aws_workspacesweb_user_settings_association` | `aws_workspacesweb_user_settings` | no (report-only) |
 
-**Total.** 110 types swept via a parent read.
+**Total.** 118 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
@@ -789,7 +833,8 @@ per-type reasoning as it stands.
 `aws_codeartifact_domain_permissions_policy`,
 `aws_codeartifact_repository_permissions_policy`, `aws_codebuild_webhook`,
 `aws_codedeploy_deployment_config`, `aws_cognito_user_pool_domain`,
-`aws_config_remediation_configuration`, `aws_controltower_control`,
+`aws_config_remediation_configuration`,
+`aws_connect_user_hierarchy_structure`, `aws_controltower_control`,
 `aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
 `aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
 `aws_ec2_transit_gateway_route`, `aws_ecr_pull_through_cache_rule`,
