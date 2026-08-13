@@ -199,17 +199,18 @@ var pathExceptions = map[string]pathException{
 // The raw-signal headline figures, both sides pinned so drift in either
 // file is a failure that names the numbers.
 //
-// SURVEY.md's "Raw signals" section hand-recorded 49/61/64 for the original
-// roster. Its own reconstruction footnote concedes the committed 68-row
-// roster yields 47 taggable and 61 with identity schemas, and the
-// 2026-08-12 re-run could not recheck the list signal at all (the schema
-// JSON dump has no list-resource section). The schemas, read in-process,
-// settle it: 47 taggable, 58 with native list resources, 61 with identity
-// schemas. The list figure was the generator's one new finding, and
-// SURVEY.md now carries the corrected 58, so only the taggable and
-// identity-schema figures still differ - both deltas the file documents.
+// SURVEY.md's "Raw signals" section originally hand-recorded 49/61/64;
+// the file's reconstruction footnote keeps that record. Since the headline
+// sentence became a rendered span (`go run ./tools/survey-gen -render`,
+// increment 3), it carries the committed roster's figures read off the
+// schemas in process - 47 taggable, 58 with native list resources, 61 with
+// identity schemas - so the two pins below are now the same numbers on
+// purpose. TestSurveyMDRenderedSpans holds the span to the artifact
+// byte-for-byte; these pins hold both files to the figures a human last
+// reviewed, so a provider bump that moves them is a visible failure here
+// too.
 var (
-	handHeadlineCounts = Counts{Types: 68, Taggable: 49, ListResource: 58, IdentitySchema: 64}
+	handHeadlineCounts = Counts{Types: 68, Taggable: 47, ListResource: 58, IdentitySchema: 61}
 	generatedCounts    = Counts{Types: 68, Taggable: 47, ListResource: 58, IdentitySchema: 61}
 )
 

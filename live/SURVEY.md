@@ -73,6 +73,13 @@ is what the flag list after the table applies.
 
 ## Summary
 
+The table between the markers is rendered by `go run ./tools/survey-gen
+-render`: a tally of the per-type table's own Path column, counting
+`account-derived` under client-named and applying the two wrinkle rows the
+prose below records (`aws_iam_role_policy_attachment` and `aws_eip` count
+under the survey's classing, not the table's).
+
+<!-- survey-gen:begin summary -->
 | Path | Count |
 |---|---|
 | Client-named identity | 36 |
@@ -81,6 +88,7 @@ is what the flag list after the table applies.
 | List + content match | 1 |
 | Moves to Ops (excluded by the rule) | 3 |
 | Residue needing a store | 0 |
+<!-- survey-gen:end summary -->
 
 65 of 68 (96%) admitted in the resource model. Nothing in the top set
 requires memory, so the residual-store row is empty, which is the result the
@@ -90,8 +98,16 @@ documented below with their forwarding addresses.
 
 ## Raw signals
 
-On the 68 curated types: 49 are taggable, 58 have native list resources, 64
+The sentence between the markers is rendered by `go run ./tools/survey-gen
+-render` from `live/survey.json`'s counts, so these figures are the
+committed roster's, read off the provider's schemas in process. The
+original pass hand-recorded 49 taggable and 64 with identity schemas; the
+reconstruction footnote below keeps that record and the delta.
+
+<!-- survey-gen:begin raw-signals -->
+On the 68 curated types: 47 are taggable, 58 have native list resources, 61
 have provider identity schemas.
+<!-- survey-gen:end raw-signals -->
 
 Provider-wide, two substrate findings worth keeping. The provider now ships
 `resource_identity_schemas` for 468 types and growing: a per-type
