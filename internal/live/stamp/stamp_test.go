@@ -884,6 +884,38 @@ var (
 		"aws_memorydb_subnet_group",
 		"aws_keyspaces_keyspace",
 		"aws_keyspaces_table",
+		// SageMaker batch (issue #65): 26 of its 27 ratified types carry a
+		// tags argument, confirmed against each type's documented Argument
+		// Reference at the pinned v6.58.0 tag; see
+		// live/e2e/estates/sagemaker/README.md, "Untaggable types" for the
+		// one exception (aws_sagemaker_model_package_group_policy, in
+		// untaggableAdmittedTypes below).
+		"aws_sagemaker_algorithm",
+		"aws_sagemaker_app",
+		"aws_sagemaker_app_image_config",
+		"aws_sagemaker_code_repository",
+		"aws_sagemaker_data_quality_job_definition",
+		"aws_sagemaker_device_fleet",
+		"aws_sagemaker_domain",
+		"aws_sagemaker_endpoint",
+		"aws_sagemaker_endpoint_configuration",
+		"aws_sagemaker_feature_group",
+		"aws_sagemaker_hub",
+		"aws_sagemaker_image",
+		"aws_sagemaker_mlflow_app",
+		"aws_sagemaker_mlflow_tracking_server",
+		"aws_sagemaker_model",
+		"aws_sagemaker_model_card",
+		"aws_sagemaker_model_package_group",
+		"aws_sagemaker_monitoring_schedule",
+		"aws_sagemaker_notebook_instance",
+		"aws_sagemaker_notebook_instance_lifecycle_configuration",
+		"aws_sagemaker_pipeline",
+		"aws_sagemaker_project",
+		"aws_sagemaker_space",
+		"aws_sagemaker_studio_lifecycle_config",
+		"aws_sagemaker_user_profile",
+		"aws_sagemaker_workteam",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -1175,6 +1207,12 @@ var (
 		"aws_opensearchserverless_access_policy",
 		"aws_opensearchserverless_lifecycle_policy",
 		"aws_opensearchserverless_security_policy",
+		// SageMaker batch (issue #65): the one untaggable type this batch
+		// ratifies — a named-singleton-child of aws_sagemaker_model_package_group
+		// whose Argument Reference names only region and
+		// model_package_group_name, no tags block at all. See
+		// live/e2e/estates/sagemaker/README.md, "Untaggable types".
+		"aws_sagemaker_model_package_group_policy",
 	}
 )
 
@@ -2226,6 +2264,37 @@ func testSchemas() Schemas {
 		"aws_servicecatalogappregistry_attribute_group_association": untagged("id", "application_id", "attribute_group_id"),
 		"aws_auditmanager_assessment":                               tagged("id", "arn", "name", "framework_id"),
 		"aws_auditmanager_framework":                                tagged("id", "arn", "name"),
+		// SageMaker batch (issue #65). Taggable per the real provider's
+		// documented Argument Reference for each type, except
+		// aws_sagemaker_model_package_group_policy, whose Argument
+		// Reference names only region and model_package_group_name.
+		"aws_sagemaker_algorithm":                                 tagged("id", "algorithm_name", "arn"),
+		"aws_sagemaker_app":                                       tagged("id", "arn", "app_name", "app_type", "domain_id"),
+		"aws_sagemaker_app_image_config":                          tagged("id", "app_image_config_name", "arn"),
+		"aws_sagemaker_code_repository":                           tagged("id", "code_repository_name", "arn"),
+		"aws_sagemaker_data_quality_job_definition":               tagged("id", "arn", "name", "role_arn"),
+		"aws_sagemaker_device_fleet":                              tagged("id", "device_fleet_name", "arn", "role_arn"),
+		"aws_sagemaker_domain":                                    tagged("id", "arn", "domain_name", "auth_mode"),
+		"aws_sagemaker_endpoint":                                  tagged("id", "arn", "name", "endpoint_config_name"),
+		"aws_sagemaker_endpoint_configuration":                    tagged("id", "arn", "name"),
+		"aws_sagemaker_feature_group":                             tagged("id", "arn", "feature_group_name", "role_arn"),
+		"aws_sagemaker_hub":                                       tagged("id", "arn", "hub_name"),
+		"aws_sagemaker_image":                                     tagged("id", "arn", "image_name", "role_arn"),
+		"aws_sagemaker_mlflow_app":                                tagged("arn", "name", "role_arn"),
+		"aws_sagemaker_mlflow_tracking_server":                    tagged("id", "arn", "tracking_server_name", "role_arn"),
+		"aws_sagemaker_model":                                     tagged("id", "arn", "name", "execution_role_arn"),
+		"aws_sagemaker_model_card":                                tagged("id", "arn", "model_card_name"),
+		"aws_sagemaker_model_package_group":                       tagged("id", "arn", "model_package_group_name"),
+		"aws_sagemaker_model_package_group_policy":                untagged("id", "model_package_group_name", "resource_policy"),
+		"aws_sagemaker_monitoring_schedule":                       tagged("id", "arn", "name"),
+		"aws_sagemaker_notebook_instance":                         tagged("id", "arn", "name", "role_arn", "instance_type"),
+		"aws_sagemaker_notebook_instance_lifecycle_configuration": tagged("id", "arn", "name"),
+		"aws_sagemaker_pipeline":                                  tagged("id", "arn", "pipeline_name"),
+		"aws_sagemaker_project":                                   tagged("id", "arn", "project_name"),
+		"aws_sagemaker_space":                                     tagged("id", "arn", "domain_id", "space_name"),
+		"aws_sagemaker_studio_lifecycle_config":                   tagged("id", "arn", "studio_lifecycle_config_name"),
+		"aws_sagemaker_user_profile":                              tagged("arn", "domain_id", "user_profile_name"),
+		"aws_sagemaker_workteam":                                  tagged("id", "arn", "workteam_name"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.

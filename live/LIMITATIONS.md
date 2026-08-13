@@ -559,8 +559,8 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_route_table_association`, `aws_s3_bucket_lifecycle_configuration`,
 `aws_s3_bucket_policy`, `aws_s3_bucket_public_access_block`,
 `aws_s3_bucket_server_side_encryption_configuration`,
-`aws_s3_bucket_versioning`, `aws_secretsmanager_secret_policy`,
-`aws_secretsmanager_secret_rotation`,
+`aws_s3_bucket_versioning`, `aws_sagemaker_model_package_group_policy`,
+`aws_secretsmanager_secret_policy`, `aws_secretsmanager_secret_rotation`,
 `aws_securityhub_configuration_policy_association`,
 `aws_securityhub_member`, `aws_securityhub_organization_admin_account`,
 `aws_securityhub_standards_control`,
@@ -686,6 +686,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_s3_bucket_public_access_block` | `aws_s3_bucket` | no (report-only) |
 | `aws_s3_bucket_server_side_encryption_configuration` | `aws_s3_bucket` | no (report-only) |
 | `aws_s3_bucket_versioning` | `aws_s3_bucket` | no (report-only) |
+| `aws_sagemaker_model_package_group_policy` | `aws_sagemaker_model_package_group` | no (report-only) |
 | `aws_secretsmanager_secret_policy` | `aws_secretsmanager_secret` | no (report-only) |
 | `aws_secretsmanager_secret_rotation` | `aws_secretsmanager_secret` | no (report-only) |
 | `aws_servicecatalog_portfolio_share` | `aws_servicecatalog_portfolio` | no (report-only) |
@@ -706,7 +707,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_vpc_ipam_pool_cidr` | `aws_vpc_ipam_pool` | no (report-only) |
 | `aws_wafv2_web_acl_rule` | `aws_wafv2_web_acl` | no (report-only) |
 
-**Total.** 103 types swept via a parent read.
+**Total.** 104 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
