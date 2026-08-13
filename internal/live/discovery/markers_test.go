@@ -250,6 +250,42 @@ func TestContinuationGapIsMalformed(t *testing.T) {
 	}
 }
 
+// TestSplitMarkerAcrossContinuationTagsBindsNormally is
+// TestContinuationGapIsMalformed's positive twin: a tofu-address split
+// across a primary tag and one continuation tag - with no gap - is gathered
+// back into the one address it names and bound exactly the way an
+// unsplit, single-tag marker naming the same address would be. Discovery
+// does not care why a value arrived split (in production only an address
+// over MaxTagValue characters ever is; here the split is of a short address
+// purely to keep the fixture readable), only that GatherAddress's output
+// feeds the rest of scanType the same as tags[TagAddress] always did.
+func TestSplitMarkerAcrossContinuationTagsBindsNormally(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.obj("aws_vpc", "vpc-split", map[string]string{
+		TagEstate:          estateName,
+		TagAddress:         "aws_vpc.ma",
+		ContinuationTag(2): "in", // "aws_vpc.ma" + "in" = "aws_vpc.main"
+	})
+
+	res, diags := discoverFixture(t, cloud, Request{})
+	if diags.HasErrors() {
+		t.Fatalf("a validly split marker produced an error:\n%s", renderDiags(diags))
+	}
+	if len(res.ProblemsOfKind(ProblemMalformedMarker)) != 0 {
+		t.Fatalf("a validly split marker was reported as malformed:\n%s", res)
+	}
+	b, bound := res.BindingFor(mustAddr(t, "aws_vpc.main"))
+	if !bound {
+		t.Fatalf("aws_vpc.main did not bind to the split marker:\n%s", res)
+	}
+	if b.ImportID != "vpc-split" {
+		t.Errorf("aws_vpc.main bound to %q, want vpc-split", b.ImportID)
+	}
+	if len(res.Bindings) != 1 {
+		t.Errorf("got %d bindings, want exactly 1:\n%s", len(res.Bindings), res)
+	}
+}
+
 // TestNormalizedMarkerValuesAreNotMalformed is the other side of the same
 // coin, and the reason the list above does not contain the two values one
 // would reach for first. A tag carrying an UNESCAPED address -

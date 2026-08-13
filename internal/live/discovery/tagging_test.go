@@ -378,6 +378,54 @@ func TestTaggingSweepFindsDeletedBlock(t *testing.T) {
 	}
 }
 
+// TestTaggingSweepContinuationGapIsMalformed is the tag-sweep path's
+// sibling of markers_test.go's TestContinuationGapIsMalformed and
+// cloudcontrol_test.go's TestCloudControlContinuationGapIsMalformed:
+// fileTaggingCandidate (this file) has its own copy of the same corrupt
+// check scanType and scanTypeCloudControl each carry, so a gapped
+// continuation chain arriving through the estate-wide tag sweep has to be
+// pinned independently too.
+func TestTaggingSweepContinuationGapIsMalformed(t *testing.T) {
+	cloud := newFakeCloud()
+	ownWholeEstate(cloud)
+
+	arn := "arn:aws:logs:us-east-1:123456789012:log-group:/estate/gapped"
+	srv := &taggingServer{
+		arns: []string{arn},
+		tags: map[string]map[string]string{
+			arn: {
+				TagEstate:          estateName,
+				TagAddress:         strings.Repeat("a", 256),
+				ContinuationTag(3): strings.Repeat("b", 10), // tofu-address-2 is missing.
+			},
+		},
+	}
+	server := srv.start(t)
+	defer server.Close()
+
+	req := Request{
+		Sweep:        true,
+		Tagging:      cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: server.URL}),
+		TaggingSweep: true,
+		Roster:       taggingRoster(t, "aws_cloudwatch_log_group", "AWS::Logs::LogGroup", true),
+	}
+	res, diags := discoverFixture(t, cloud, req)
+	if !diags.HasErrors() {
+		t.Fatalf("a gapped continuation chain arriving via the tag sweep produced no error:\n%s", res)
+	}
+	problems := res.ProblemsOfKind(ProblemMalformedMarker)
+	if len(problems) != 1 {
+		t.Fatalf("want exactly one malformed-marker problem for the gapped chain, got %d:\n%s", len(problems), res)
+	}
+	if !strings.Contains(problems[0].Detail, "continuation") {
+		t.Errorf("the malformed-marker detail does not mention the continuation gap: %q", problems[0].Detail)
+	}
+	rm := removalsByAddr(res)
+	if _, ok := rm[`aws_cloudwatch_log_group.gapped`]; ok {
+		t.Error("a gapped continuation chain was treated as a removal candidate rather than malformed")
+	}
+}
+
 // TestTaggingSweepReportsUnresolvedARN: a resource carrying this estate's
 // marker whose ARN the join table cannot place is named, not silently
 // dropped.
