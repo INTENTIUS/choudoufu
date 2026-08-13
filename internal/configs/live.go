@@ -6,6 +6,8 @@
 package configs
 
 import (
+	"fmt"
+	"math/big"
 	"path"
 	"strings"
 
@@ -128,6 +130,128 @@ type Live struct {
 	// about the block as a whole points at - a backend beside it, or a
 	// stateless refusal that has no more specific argument to name.
 	DeclRange hcl.Range
+
+	// Policy is the optional nested "policy" block: one verb per ownership
+	// quadrant (declared-in-source x carries-the-tag), plus the tag those
+	// quadrants read and the delete quadrant's safety rails. Nil when the
+	// live block sets no policy block at all, which must mean today's fixed
+	// behavior (issue #67's "existing estates change nothing").
+	//
+	// This struct is the raw decode only - the literal string an author
+	// wrote for each attribute, or its zero value with the matching *Set
+	// flag false when they left it out. It deliberately knows nothing about
+	// which verbs are valid for which quadrant: that is
+	// internal/live/policy's ValidVerbs matrix, enforced at lint time by
+	// internal/live/lint, the same layering every other semantic rule about
+	// this fork's configuration follows (compare Estate above, whose own
+	// grammar is checked by internal/live/discovery.ValidEstateName rather
+	// than here).
+	Policy *LivePolicy
+}
+
+// LivePolicy is the "policy" block nested inside a live block. See [Live.Policy].
+type LivePolicy struct {
+	// DeclaredTagged, DeclaredUntagged, UndeclaredTagged and
+	// UndeclaredUntagged are the four quadrant verbs, named for their
+	// policy-block attribute: "declared_tagged" and so on. Each is the
+	// literal string an author wrote - "converge", "delete", or whatever
+	// they typed, valid or not; a typo is caught by
+	// internal/live/lint.checkLivePolicy, not here, because deciding
+	// validity needs the per-quadrant matrix and this package does not
+	// depend on it. The matching *Set field distinguishes an omitted
+	// attribute (which resolves to today's fixed behavior for that
+	// quadrant) from one written out.
+	DeclaredTagged      string
+	DeclaredTaggedSet   bool
+	DeclaredTaggedRange hcl.Range
+
+	DeclaredUntagged      string
+	DeclaredUntaggedSet   bool
+	DeclaredUntaggedRange hcl.Range
+
+	UndeclaredTagged      string
+	UndeclaredTaggedSet   bool
+	UndeclaredTaggedRange hcl.Range
+
+	UndeclaredUntagged      string
+	UndeclaredUntaggedSet   bool
+	UndeclaredUntaggedRange hcl.Range
+
+	// TagKey and TagValue name the tag every quadrant's "tagged" half is
+	// read against. Both are optional; omitted, they default to the estate
+	// marker (internal/live/policy.Build fills in markers.TagEstate and
+	// this estate's name), which is the reading every quadrant had before
+	// this block existed. A configuration sets them to use a preservation
+	// tag distinct from the estate marker instead - issue #67's "one
+	// semantic question for the maintainer to confirm".
+	TagKey      string
+	TagKeySet   bool
+	TagKeyRange hcl.Range
+
+	TagValue      string
+	TagValueSet   bool
+	TagValueRange hcl.Range
+
+	// Scope narrows a delete-quadrant verb's reach. Nil when the policy
+	// block sets no scope block. internal/live/lint refuses a quadrant
+	// explicitly assigned "delete" with no scope block at all - "an
+	// unscoped account-wide purge is a lint refusal, not a default" per
+	// issue #67 - so a Policy that later carries a delete verb and a nil
+	// Scope can only happen if that check was skipped.
+	Scope *LivePolicyScope
+
+	// Threshold is the delete quadrant's first-run guard: a policy whose
+	// delete quadrant would touch more resources than this refuses to
+	// apply. Parsed and validated as a non-negative literal integer here;
+	// enforcing it against an actual roster is the behavioral half's job
+	// (issue #67, "First-run protection"), not this package's.
+	Threshold      int
+	ThresholdSet   bool
+	ThresholdRange hcl.Range
+
+	// DeclRange is the "policy" block's own header.
+	DeclRange hcl.Range
+}
+
+// LivePolicyScope is the "scope" block nested inside a policy block. See
+// [LivePolicy.Scope].
+type LivePolicyScope struct {
+	// Services, Types and Regions each narrow what a delete-quadrant verb
+	// may reach: provider service namespaces, resource type names, and
+	// regions, respectively. Every one is optional and any combination may
+	// be set; an empty list is indistinguishable from an absent attribute,
+	// because in both cases nothing was named to narrow by, so
+	// internal/live/lint requires at least one of the three to be
+	// non-empty in a scope block that accompanies a delete quadrant.
+	Services []string
+	Types    []string
+	Regions  []string
+
+	// DeclRange is the "scope" block's own header.
+	DeclRange hcl.Range
+}
+
+var livePolicyScopeSchema = &hcl.BodySchema{
+	Attributes: []hcl.AttributeSchema{
+		{Name: "services"},
+		{Name: "types"},
+		{Name: "regions"},
+	},
+}
+
+var livePolicySchema = &hcl.BodySchema{
+	Attributes: []hcl.AttributeSchema{
+		{Name: "declared_tagged"},
+		{Name: "declared_untagged"},
+		{Name: "undeclared_tagged"},
+		{Name: "undeclared_untagged"},
+		{Name: "tag_key"},
+		{Name: "tag_value"},
+		{Name: "threshold"},
+	},
+	Blocks: []hcl.BlockHeaderSchema{
+		{Type: "scope"},
+	},
 }
 
 var liveBlockSchema = &hcl.BodySchema{
@@ -135,6 +259,9 @@ var liveBlockSchema = &hcl.BodySchema{
 		{Name: "estate"},
 		{Name: "snapshots"},
 		{Name: "snapshot_path"},
+	},
+	Blocks: []hcl.BlockHeaderSchema{
+		{Type: "policy"},
 	},
 }
 
@@ -230,7 +357,218 @@ func decodeLiveBlock(block *hcl.Block) (*Live, hcl.Diagnostics) {
 		}
 	}
 
+	switch len(content.Blocks) {
+	case 0:
+		// No policy block: Policy stays nil, which internal/live/policy.Build
+		// reads as "every quadrant defaults to today's fixed behavior" -
+		// issue #67's "existing estates change nothing".
+	case 1:
+		policy, policyDiags := decodePolicyBlock(content.Blocks[0])
+		diags = append(diags, policyDiags...)
+		s.Policy = policy
+	default:
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Duplicate policy block",
+			Detail:   "A live block may have at most one policy block.",
+			Subject:  content.Blocks[1].DefRange.Ptr(),
+		})
+		policy, policyDiags := decodePolicyBlock(content.Blocks[0])
+		diags = append(diags, policyDiags...)
+		s.Policy = policy
+	}
+
 	return s, diags
+}
+
+// decodePolicyBlock decodes a live block's nested "policy" block: the four
+// quadrant verbs, the optional tag_key/tag_value, the optional nested scope
+// block, and the optional threshold. See [LivePolicy].
+func decodePolicyBlock(block *hcl.Block) (*LivePolicy, hcl.Diagnostics) {
+	p := &LivePolicy{DeclRange: block.DefRange}
+
+	content, diags := block.Body.Content(livePolicySchema)
+
+	for _, f := range []struct {
+		name  string
+		label string
+		val   *string
+		set   *bool
+		rng   *hcl.Range
+	}{
+		{"declared_tagged", "declared_tagged", &p.DeclaredTagged, &p.DeclaredTaggedSet, &p.DeclaredTaggedRange},
+		{"declared_untagged", "declared_untagged", &p.DeclaredUntagged, &p.DeclaredUntaggedSet, &p.DeclaredUntaggedRange},
+		{"undeclared_tagged", "undeclared_tagged", &p.UndeclaredTagged, &p.UndeclaredTaggedSet, &p.UndeclaredTaggedRange},
+		{"undeclared_untagged", "undeclared_untagged", &p.UndeclaredUntagged, &p.UndeclaredUntaggedSet, &p.UndeclaredUntaggedRange},
+		{"tag_key", "tag_key", &p.TagKey, &p.TagKeySet, &p.TagKeyRange},
+		{"tag_value", "tag_value", &p.TagValue, &p.TagValueSet, &p.TagValueRange},
+	} {
+		attr, exists := content.Attributes[f.name]
+		if !exists {
+			continue
+		}
+		*f.rng = attr.Range
+		val, valDiags := decodeLiteralString(attr, f.label)
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			*f.val = val
+			*f.set = true
+		}
+	}
+
+	if attr, exists := content.Attributes["threshold"]; exists {
+		p.ThresholdRange = attr.Range
+		val, valDiags := attr.Expr.Value(nil)
+		diags = append(diags, valDiags...)
+		switch {
+		case valDiags.HasErrors():
+			// attr.Expr.Value(nil) already names the variable or function
+			// that makes this non-literal.
+		case val.IsNull() || !val.IsWhollyKnown() || val.Type() != cty.Number:
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Invalid threshold",
+				Detail:   "The \"threshold\" argument is the delete quadrant's first-run guard and must be a literal number.",
+				Subject:  attr.Expr.Range().Ptr(),
+			})
+		default:
+			n, acc := val.AsBigFloat().Int64()
+			if acc != big.Exact || n < 0 {
+				diags = append(diags, &hcl.Diagnostic{
+					Severity: hcl.DiagError,
+					Summary:  "Invalid threshold",
+					Detail:   "The \"threshold\" argument must be a non-negative whole number: it exists to be raised deliberately once a delete quadrant's roster has been reviewed, not to be fractional or negative.",
+					Subject:  attr.Expr.Range().Ptr(),
+				})
+			} else {
+				p.Threshold = int(n)
+				p.ThresholdSet = true
+			}
+		}
+	}
+
+	switch len(content.Blocks) {
+	case 0:
+		// No scope block: Scope stays nil. internal/live/lint refuses this
+		// when a quadrant is explicitly assigned "delete".
+	case 1:
+		scope, scopeDiags := decodePolicyScopeBlock(content.Blocks[0])
+		diags = append(diags, scopeDiags...)
+		p.Scope = scope
+	default:
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Duplicate scope block",
+			Detail:   "A policy block may have at most one scope block.",
+			Subject:  content.Blocks[1].DefRange.Ptr(),
+		})
+		scope, scopeDiags := decodePolicyScopeBlock(content.Blocks[0])
+		diags = append(diags, scopeDiags...)
+		p.Scope = scope
+	}
+
+	return p, diags
+}
+
+// decodePolicyScopeBlock decodes a policy block's nested "scope" block: the
+// services, types and regions lists that narrow a delete-quadrant verb's
+// reach. See [LivePolicyScope].
+func decodePolicyScopeBlock(block *hcl.Block) (*LivePolicyScope, hcl.Diagnostics) {
+	s := &LivePolicyScope{DeclRange: block.DefRange}
+
+	content, diags := block.Body.Content(livePolicyScopeSchema)
+
+	for _, f := range []struct {
+		name string
+		val  *[]string
+	}{
+		{"services", &s.Services},
+		{"types", &s.Types},
+		{"regions", &s.Regions},
+	} {
+		attr, exists := content.Attributes[f.name]
+		if !exists {
+			continue
+		}
+		list, listDiags := decodeLiteralStringList(attr, f.name)
+		diags = append(diags, listDiags...)
+		*f.val = list
+	}
+
+	return s, diags
+}
+
+// decodeLiteralString reads attr as a required-literal-string argument,
+// exactly the rule [decodeLiveBlock] applies to "estate" and "snapshot_path":
+// the value must be a literal (no variables or functions) and a string. label
+// names the argument in the diagnostics this produces.
+func decodeLiteralString(attr *hcl.Attribute, label string) (string, hcl.Diagnostics) {
+	var diags hcl.Diagnostics
+	val, valDiags := attr.Expr.Value(nil)
+	diags = append(diags, valDiags...)
+	if valDiags.HasErrors() {
+		// attr.Expr.Value(nil) already names the variable or function that
+		// makes this non-literal.
+		return "", diags
+	}
+	if val.IsNull() || !val.IsWhollyKnown() || val.Type() != cty.String {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  fmt.Sprintf("Invalid %s", label),
+			Detail:   fmt.Sprintf("The %q argument must be a literal string.", label),
+			Subject:  attr.Expr.Range().Ptr(),
+		})
+		return "", diags
+	}
+	return val.AsString(), diags
+}
+
+// decodeLiteralStringList reads attr as a required-literal list-of-strings
+// argument, the same literal-only rule as [decodeLiteralString] extended to a
+// list: every element must be a known, non-null string, and the list itself
+// must not be built from a variable or function call. label names the
+// argument in the diagnostics this produces.
+func decodeLiteralStringList(attr *hcl.Attribute, label string) ([]string, hcl.Diagnostics) {
+	var diags hcl.Diagnostics
+	val, valDiags := attr.Expr.Value(nil)
+	diags = append(diags, valDiags...)
+	if valDiags.HasErrors() {
+		return nil, diags
+	}
+	if val.IsNull() || !val.IsWhollyKnown() {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  fmt.Sprintf("Invalid %s", label),
+			Detail:   fmt.Sprintf("The %q argument must be a literal list of strings.", label),
+			Subject:  attr.Expr.Range().Ptr(),
+		})
+		return nil, diags
+	}
+	ty := val.Type()
+	if !ty.IsTupleType() && !ty.IsListType() && !ty.IsSetType() {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  fmt.Sprintf("Invalid %s", label),
+			Detail:   fmt.Sprintf("The %q argument must be a literal list of strings.", label),
+			Subject:  attr.Expr.Range().Ptr(),
+		})
+		return nil, diags
+	}
+	var out []string
+	for it := val.ElementIterator(); it.Next(); {
+		_, ev := it.Element()
+		if ev.IsNull() || !ev.IsKnown() || ev.Type() != cty.String {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Invalid %s", label),
+				Detail:   fmt.Sprintf("Every element of the %q argument must be a literal string.", label),
+				Subject:  attr.Expr.Range().Ptr(),
+			})
+			continue
+		}
+		out = append(out, ev.AsString())
+	}
+	return out, diags
 }
 
 // validateSnapshotPath returns the reason a snapshot_path may not be used, or

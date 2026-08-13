@@ -94,6 +94,77 @@ func TestCheck(t *testing.T) {
 			},
 		},
 		{
+			// GitHub issue #67: "delete" is not in declared+tagged's valid
+			// set (see internal/live/policy.ValidVerbs).
+			name: "policy verb invalid for its quadrant",
+			dir:  "testdata/policy-invalid-verb",
+			want: []wantIssue{
+				{
+					rule:      RulePolicyVerb,
+					construct: `policy.declared_tagged = "delete"`,
+					file:      "testdata/policy-invalid-verb/main.tf",
+					line:      8,
+				},
+			},
+		},
+		{
+			// GitHub issue #67: the maintainer's own example, minus the
+			// scope block a delete quadrant needs.
+			name: "policy delete quadrant with no scope block",
+			dir:  "testdata/policy-unscoped-delete",
+			want: []wantIssue{
+				{
+					rule:      RulePolicyScope,
+					construct: `policy.undeclared_untagged = "delete"`,
+					file:      "testdata/policy-unscoped-delete/main.tf",
+					line:      8,
+				},
+			},
+		},
+		{
+			name: "policy threshold not positive",
+			dir:  "testdata/policy-bad-threshold",
+			want: []wantIssue{
+				{
+					rule:      RulePolicyThreshold,
+					construct: "policy.threshold = 0",
+					file:      "testdata/policy-bad-threshold/main.tf",
+					line:      9,
+				},
+			},
+		},
+		{
+			// A scope block that narrows nothing is the same refusal as no
+			// scope block at all.
+			name: "policy delete quadrant with an empty scope block",
+			dir:  "testdata/policy-empty-scope",
+			want: []wantIssue{
+				{
+					rule:      RulePolicyScope,
+					construct: `policy.undeclared_untagged = "delete"`,
+					file:      "testdata/policy-empty-scope/main.tf",
+					line:      8,
+				},
+			},
+		},
+		{
+			// Every verb is valid for its quadrant, and the delete quadrant
+			// carries a scope block: checkLivePolicy has nothing to refuse.
+			name: "policy block, lint-clean",
+			dir:  "testdata/policy-valid",
+			want: nil,
+		},
+		{
+			// Only one quadrant is set. The other three - including
+			// undeclared_tagged, whose default is "delete", today's
+			// unscoped sweep - resolve to internal/live/policy.DefaultVerb
+			// and are not treated as if the configuration had written
+			// "delete" itself, so this fixture needs no scope block.
+			name: "policy block, quadrants left to their default",
+			dir:  "testdata/policy-default-omitted",
+			want: nil,
+		},
+		{
 			name: "logical resources, one per banned prefix",
 			dir:  "testdata/logical",
 			want: []wantIssue{

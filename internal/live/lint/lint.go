@@ -112,6 +112,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, schemas map[string]pr
 	checkStateBackends(mod, path, issues)
 	checkChildModules(mod, path, issues)
 	checkMovedBlocks(mod, path, issues)
+	checkLivePolicy(mod, path, issues)
 	checkManagedResources(mod, path, schemas, signal, issues)
 	checkForEachKeys(ctx, mod, path, issues)
 	checkOverlongAddresses(ctx, mod, path, issues)

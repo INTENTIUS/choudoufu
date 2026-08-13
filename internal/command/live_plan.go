@@ -286,6 +286,14 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// has to know the estate before anything is materialized.
 	estate, _, _ := statelessEstateFor(ctx, estateFlag, config)
 
+	// Resolved now that lint has passed and the estate name is settled, so
+	// that any verb here is already known valid for its quadrant (see
+	// internal/live/lint's checkLivePolicy). Nothing downstream reads this
+	// yet - GitHub issue #67's config/lint half only, see [statelessPolicy].
+	if config.Module != nil {
+		log.Printf("[TRACE] live: ownership policy: %s", statelessPolicy(config.Module.Live, estate))
+	}
+
 	// Marker discovery, when anything is waiting on it. Its output is a
 	// resolution list with the discovered instances made concrete, plus the
 	// unclaimed live resources the classifier below sorts out.
