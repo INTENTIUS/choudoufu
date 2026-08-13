@@ -540,6 +540,69 @@ var typeOverrides = map[string]typeOverride{
 			body.SetAttributeRaw("authorization", exprTokens(`"NONE"`))
 		},
 	},
+	// The three fold-children below (issue #68) all key on the same
+	// (rest_api_id, resource_id, http_method) triple aws_api_gateway_method
+	// above already does, since each duplicates the method's own composite
+	// identity verbatim (internal/live/identity/table.go's "Fold-children"
+	// section comment) - parentRef mis-wires rest_api_id the same way as
+	// aws_api_gateway_documentation_version above (its only same-named
+	// candidate is aws_api_gateway_rest_api_policy.app, whose own identity
+	// happens to self-name "rest_api_id" too), and has no candidate at all
+	// for resource_id, http_method or status_code, the same gap
+	// aws_api_gateway_method's own override closes.
+	"aws_api_gateway_integration": {
+		Reasons: []string{
+			`rest_api_id/resource_id/http_method mis-wired or left as the generic placeholder the same way aws_api_gateway_method's were, for the same reason - corrected to the same REST API root resource and GET method aws_api_gateway_method.app already targets, so this integration is the method's own; type is a fixed enum (validate: "expected type to be one of [...]"), set to MOCK, the shape floci's PutIntegration/GetIntegration round-trip cleanly (verified by hand)`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if restAPI, ok := g.byType["aws_api_gateway_rest_api"]; ok {
+				body.SetAttributeRaw("rest_api_id", exprTokens(fmt.Sprintf("%s.id", restAPI)))
+				body.SetAttributeRaw("resource_id", exprTokens(fmt.Sprintf("%s.root_resource_id", restAPI)))
+			}
+			body.SetAttributeRaw("http_method", exprTokens(`"GET"`))
+			body.SetAttributeRaw("type", exprTokens(`"MOCK"`))
+		},
+	},
+	"aws_api_gateway_integration_response": {
+		Reasons: []string{
+			`rest_api_id/resource_id/http_method mis-wired or left as the generic placeholder the same way aws_api_gateway_integration's were above, and for the same reason - status_code is left schema-Required-but-unvalidated by terraform validate, but the provider expects a real HTTP status string, set to the aws_api_gateway_method_response.app row below's own value so the two agree`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if restAPI, ok := g.byType["aws_api_gateway_rest_api"]; ok {
+				body.SetAttributeRaw("rest_api_id", exprTokens(fmt.Sprintf("%s.id", restAPI)))
+				body.SetAttributeRaw("resource_id", exprTokens(fmt.Sprintf("%s.root_resource_id", restAPI)))
+			}
+			body.SetAttributeRaw("http_method", exprTokens(`"GET"`))
+			body.SetAttributeRaw("status_code", exprTokens(`"200"`))
+		},
+	},
+	"aws_api_gateway_method_response": {
+		Reasons: []string{
+			`rest_api_id/resource_id/http_method/status_code, the same corrections as aws_api_gateway_integration_response above and for the same reason`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if restAPI, ok := g.byType["aws_api_gateway_rest_api"]; ok {
+				body.SetAttributeRaw("rest_api_id", exprTokens(fmt.Sprintf("%s.id", restAPI)))
+				body.SetAttributeRaw("resource_id", exprTokens(fmt.Sprintf("%s.root_resource_id", restAPI)))
+			}
+			body.SetAttributeRaw("http_method", exprTokens(`"GET"`))
+			body.SetAttributeRaw("status_code", exprTokens(`"200"`))
+		},
+	},
+	"aws_api_gateway_method_settings": {
+		Reasons: []string{
+			`rest_api_id mis-wired the same way as aws_api_gateway_documentation_version above; stage_name has no identity-table candidate to auto-wire from (aws_api_gateway_stage's own identity is the two-component rest_api_id/stage_name pair, not a single self-named argument, so identityArgName never fires on it, the same gap aws_api_gateway_method_settings's own fold parent has), wired to the stage this cohort renders instead of the generic placeholder; method_path left as the generic placeholder is not a real method path, set to the */* wildcard the provider docs use for "every method of every resource in the stage"`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if restAPI, ok := g.byType["aws_api_gateway_rest_api"]; ok {
+				body.SetAttributeRaw("rest_api_id", exprTokens(fmt.Sprintf("%s.id", restAPI)))
+			}
+			if stage, ok := g.byType["aws_api_gateway_stage"]; ok {
+				body.SetAttributeRaw("stage_name", exprTokens(fmt.Sprintf("%s.stage_name", stage)))
+			}
+			body.SetAttributeRaw("method_path", exprTokens(`"*/*"`))
+		},
+	},
 	"aws_api_gateway_model": {
 		Reasons: []string{
 			`rest_api_id mis-wired the same way as aws_api_gateway_documentation_version above; content_type and schema left as the generic placeholder would not be valid JSON, set to a minimal real value`,
@@ -627,6 +690,89 @@ var typeOverrides = map[string]typeOverride{
 					blk.Body().SetAttributeRaw("endpoint_type", exprTokens(`"REGIONAL"`))
 					blk.Body().SetAttributeRaw("security_policy", exprTokens(`"TLS_1_2"`))
 				}
+			}
+		},
+	},
+	// The three APS fold-children below (issue #68) all need their parent
+	// reference wired by hand, the same reason aws_api_gateway_base_path_mapping
+	// above does: aws_prometheus_workspace and aws_prometheus_scraper are
+	// both server-assigned, so identityArgName never fires on them and
+	// parentRef has no candidate to propose - even though each child's own
+	// identity happens to self-name the same argument
+	// (workspace_id/scraper_id) its parent's id lives under, valueExpr's
+	// own-identity tier (3) fires first and fills in a placeholder name
+	// instead of a reference, the same shape as aws_s3_bucket_policy or
+	// aws_sns_topic_policy would hit had their own parents been
+	// server-assigned instead of client-named/account-derived.
+	"aws_prometheus_alert_manager_definition": {
+		Reasons: []string{
+			`workspace_id left as a generic placeholder name instead of a reference (aws_prometheus_workspace is server-assigned, so parentRef never proposes it); wired to the workspace this cohort renders. definition is a required string the provider expects as YAML Alertmanager configuration; the generic placeholder is not valid YAML`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if ws, ok := g.byType["aws_prometheus_workspace"]; ok {
+				body.SetAttributeRaw("workspace_id", exprTokens(fmt.Sprintf("%s.id", ws)))
+			}
+			body.SetAttributeRaw("definition", exprTokens(`<<-EOT
+    route:
+      receiver: default
+    receivers:
+      - name: default
+  EOT
+  `))
+		},
+	},
+	"aws_prometheus_query_logging_configuration": {
+		Reasons: []string{
+			`workspace_id left as a generic placeholder name instead of a reference, the same reason and correction as aws_prometheus_alert_manager_definition above. destination is a required block the schema marks optional-in-shape but the provider requires present, and its own nested filters block is required in turn (validate: "Block destination[0].filters must have a configuration value")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if ws, ok := g.byType["aws_prometheus_workspace"]; ok {
+				body.SetAttributeRaw("workspace_id", exprTokens(fmt.Sprintf("%s.id", ws)))
+			}
+			dest := body.AppendNewBlock("destination", nil)
+			cwl := dest.Body().AppendNewBlock("cloudwatch_logs", nil)
+			cwl.Body().SetAttributeRaw("log_group_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:logs:us-east-1:000000000000:log-group:/aws/prometheus/tofu-%s-cohort:*"`, g.cohort)))
+			filters := dest.Body().AppendNewBlock("filters", nil)
+			filters.Body().SetAttributeRaw("qsp_threshold", exprTokens(`0`))
+		},
+	},
+	"aws_prometheus_scraper_logging_configuration": {
+		Reasons: []string{
+			`scraper_id left as a generic placeholder name instead of a reference (aws_prometheus_scraper is server-assigned, so parentRef never proposes it); wired to the scraper this cohort renders. logging_destination is a required block the schema marks optional-in-shape but the provider requires present`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if sc, ok := g.byType["aws_prometheus_scraper"]; ok {
+				body.SetAttributeRaw("scraper_id", exprTokens(fmt.Sprintf("%s.id", sc)))
+			}
+			dest := body.AppendNewBlock("logging_destination", nil)
+			cwl := dest.Body().AppendNewBlock("cloudwatch_logs", nil)
+			cwl.Body().SetAttributeRaw("log_group_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:logs:us-east-1:000000000000:log-group:/aws/prometheus/scraper/tofu-%s-cohort:*"`, g.cohort)))
+		},
+	},
+	"aws_prometheus_scraper": {
+		Reasons: []string{
+			`schema requires only scrape_configuration; the provider also requires the source and destination blocks (validate: "Missing required argument"), each with their own nested required arguments (an EKS-shaped source, an AMP workspace ARN destination) the generic pass has no schema signal for`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("scrape_configuration", exprTokens(`<<-EOT
+    global:
+      scrape_interval: 30s
+    scrape_configs:
+      - job_name: placeholder
+  EOT
+  `))
+			src := body.AppendNewBlock("source", nil)
+			eks := src.Body().AppendNewBlock("eks", nil)
+			eks.Body().SetAttributeRaw("cluster_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:eks:us-east-1:000000000000:cluster/tofu-%s-cohort"`, g.cohort)))
+			eks.Body().SetAttributeRaw("subnet_ids", exprTokens(`["subnet-0123456789abcdef0"]`))
+
+			dest := body.AppendNewBlock("destination", nil)
+			amp := dest.Body().AppendNewBlock("amp", nil)
+			if ws, ok := g.byType["aws_prometheus_workspace"]; ok {
+				amp.Body().SetAttributeRaw("workspace_arn", exprTokens(fmt.Sprintf("%s.arn", ws)))
 			}
 		},
 	},

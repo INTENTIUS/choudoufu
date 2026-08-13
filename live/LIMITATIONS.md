@@ -399,7 +399,9 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 **Untaggable types carry no ownership marker of their own.** <!-- survey-gen:begin untaggable-admitted -->
 `aws_api_gateway_account`, `aws_api_gateway_base_path_mapping`,
 `aws_api_gateway_documentation_version`, `aws_api_gateway_gateway_response`,
-`aws_api_gateway_method`, `aws_api_gateway_model`,
+`aws_api_gateway_integration`, `aws_api_gateway_integration_response`,
+`aws_api_gateway_method`, `aws_api_gateway_method_response`,
+`aws_api_gateway_method_settings`, `aws_api_gateway_model`,
 `aws_api_gateway_rest_api_policy`, `aws_api_gateway_usage_plan_key`,
 `aws_apigatewayv2_routing_rule`, `aws_cloudfront_monitoring_subscription`,
 `aws_cloudfront_origin_access_control`,
@@ -415,10 +417,13 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_iam_group`, `aws_iam_role_policy`, `aws_iam_role_policy_attachment`,
 `aws_kms_alias`, `aws_lambda_layer_version`,
 `aws_lb_target_group_attachment`, `aws_network_interface_attachment`,
-`aws_network_interface_permission`, `aws_rds_cluster_role_association`,
-`aws_route`, `aws_route53_hosted_zone_dnssec`,
-`aws_route53_key_signing_key`, `aws_route53_record`,
-`aws_route53_resolver_firewall_rule`,
+`aws_network_interface_permission`,
+`aws_prometheus_alert_manager_definition`,
+`aws_prometheus_query_logging_configuration`,
+`aws_prometheus_scraper_logging_configuration`,
+`aws_rds_cluster_role_association`, `aws_route`,
+`aws_route53_hosted_zone_dnssec`, `aws_route53_key_signing_key`,
+`aws_route53_record`, `aws_route53_resolver_firewall_rule`,
 `aws_route53_resolver_rule_association`, `aws_route53_zone_association`,
 `aws_route_table_association`, `aws_s3_bucket_lifecycle_configuration`,
 `aws_s3_bucket_policy`, `aws_s3_bucket_public_access_block`,
@@ -453,7 +458,11 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_api_gateway_base_path_mapping` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_api_gateway_documentation_version` | `aws_api_gateway_rest_api` | no (report-only) |
 | `aws_api_gateway_gateway_response` | `aws_api_gateway_rest_api` | no (report-only) |
+| `aws_api_gateway_integration` | `aws_api_gateway_rest_api` | no (report-only) |
+| `aws_api_gateway_integration_response` | `aws_api_gateway_rest_api` | no (report-only) |
 | `aws_api_gateway_method` | `aws_api_gateway_rest_api` | no (report-only) |
+| `aws_api_gateway_method_response` | `aws_api_gateway_rest_api` | no (report-only) |
+| `aws_api_gateway_method_settings` | `aws_api_gateway_rest_api` | no (report-only) |
 | `aws_api_gateway_model` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_api_gateway_rest_api_policy` | `aws_api_gateway_rest_api` | no (report-only) |
 | `aws_api_gateway_usage_plan_key` | `aws_api_gateway_usage_plan` | no (report-only) |
@@ -468,6 +477,9 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_iam_role_policy_attachment` | `aws_iam_role` | no (report-only) |
 | `aws_kms_alias` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_lb_target_group_attachment` | `aws_lb_target_group` | no (report-only) |
+| `aws_prometheus_alert_manager_definition` | `aws_prometheus_workspace` | no (report-only) |
+| `aws_prometheus_query_logging_configuration` | `aws_prometheus_workspace` | no (report-only) |
+| `aws_prometheus_scraper_logging_configuration` | `aws_prometheus_scraper` | no (report-only) |
 | `aws_route` | `aws_route_table` | no (report-only) |
 | `aws_route53_key_signing_key` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_route53_record` | `aws_api_gateway_domain_name` | no (report-only) |
@@ -483,7 +495,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_sqs_queue_policy` | `aws_sqs_queue` | no (report-only) |
 | `aws_volume_attachment` | `aws_ebs_volume` | no (report-only) |
 
-**Total.** 32 types swept via a parent read.
+**Total.** 39 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
