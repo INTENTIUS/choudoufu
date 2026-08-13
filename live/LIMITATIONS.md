@@ -435,13 +435,13 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_fsx_s3_access_point_attachment`, `aws_glue_catalog_table`,
 `aws_glue_classifier`, `aws_glue_data_catalog_encryption_settings`,
 `aws_iam_group`, `aws_iam_role_policy`, `aws_iam_role_policy_attachment`,
-`aws_kms_alias`, `aws_lambda_layer_version`,
-`aws_lb_target_group_attachment`, `aws_lightsail_lb_certificate`,
-`aws_lightsail_static_ip`, `aws_network_interface_attachment`,
-`aws_network_interface_permission`, `aws_rds_cluster_role_association`,
-`aws_route`, `aws_route53_hosted_zone_dnssec`,
-`aws_route53_key_signing_key`, `aws_route53_record`,
-`aws_route53_resolver_firewall_rule`,
+`aws_iot_thing`, `aws_iot_topic_rule_destination`, `aws_kms_alias`,
+`aws_lambda_layer_version`, `aws_lb_target_group_attachment`,
+`aws_lightsail_lb_certificate`, `aws_lightsail_static_ip`,
+`aws_network_interface_attachment`, `aws_network_interface_permission`,
+`aws_rds_cluster_role_association`, `aws_route`,
+`aws_route53_hosted_zone_dnssec`, `aws_route53_key_signing_key`,
+`aws_route53_record`, `aws_route53_resolver_firewall_rule`,
 `aws_route53_resolver_rule_association`, `aws_route53_zone_association`,
 `aws_route_table_association`, `aws_s3_bucket_lifecycle_configuration`,
 `aws_s3_bucket_policy`, `aws_s3_bucket_public_access_block`,
@@ -486,7 +486,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_codeartifact_repository_permissions_policy` | `aws_codeartifact_repository` | no (report-only) |
 | `aws_dynamodb_global_table` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_ecrpublic_repository_policy` | `aws_ecrpublic_repository` | no (report-only) |
-| `aws_eks_access_policy_association` | `aws_batch_scheduling_policy` | no (report-only) |
+| `aws_eks_access_policy_association` | `aws_iot_policy` | no (report-only) |
 | `aws_emr_security_configuration` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_fsx_s3_access_point_attachment` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_glue_catalog_table` | `aws_api_gateway_domain_name` | no (report-only) |
@@ -494,6 +494,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_iam_group` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_iam_role_policy` | `aws_iam_role` | no (report-only) |
 | `aws_iam_role_policy_attachment` | `aws_iam_role` | no (report-only) |
+| `aws_iot_thing` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_kms_alias` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_lb_target_group_attachment` | `aws_lb_target_group` | no (report-only) |
 | `aws_lightsail_lb_certificate` | `aws_lightsail_lb` | no (report-only) |
@@ -513,7 +514,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_sqs_queue_policy` | `aws_sqs_queue` | no (report-only) |
 | `aws_volume_attachment` | `aws_ebs_volume` | no (report-only) |
 
-**Total.** 39 types swept via a parent read.
+**Total.** 40 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
@@ -549,9 +550,10 @@ per-type reasoning as it stands.
 `aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
 `aws_ecr_replication_configuration`, `aws_ecs_cluster_capacity_providers`,
 `aws_eip_association`, `aws_glue_data_catalog_encryption_settings`,
-`aws_lambda_layer_version`, `aws_network_interface_attachment`,
-`aws_network_interface_permission`, `aws_rds_cluster_role_association`,
-`aws_route53_hosted_zone_dnssec` and `aws_route53_resolver_rule_association`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
+`aws_iot_topic_rule_destination`, `aws_lambda_layer_version`,
+`aws_network_interface_attachment`, `aws_network_interface_permission`,
+`aws_rds_cluster_role_association`, `aws_route53_hosted_zone_dnssec` and
+`aws_route53_resolver_rule_association`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
 parent-readable: the three ECR registry types are account-level singletons
 with no admitted parent resource to read at all, and the dashboard, the
 KMS alias and the Lambda layer version are each client-named on their own
