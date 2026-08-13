@@ -195,6 +195,7 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 
 	diags = diags.Append(c.providerDevOverrideRuntimeWarnings())
 	diags = diags.Append(c.liveStateFileNote())
+	diags = diags.Append(c.checkAWSProviderVersionSkew())
 
 	statelessView := views.NewStatelessPlan(c.View)
 

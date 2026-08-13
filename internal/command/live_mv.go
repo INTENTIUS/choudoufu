@@ -83,6 +83,7 @@ func (c *LiveMvCommand) Run(rawArgs []string) int {
 	c.Meta.input = false
 
 	diags = diags.Append(c.providerDevOverrideRuntimeWarnings())
+	diags = diags.Append(c.checkAWSProviderVersionSkew())
 
 	res, moveDiags := c.liveMv(ctx, liveMvArgs{
 		old:          oldAddr,

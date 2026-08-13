@@ -138,6 +138,7 @@ func (c *ApplyCommand) Run(rawArgs []string) int {
 	if statelessCfg != nil && !diags.HasErrors() {
 		diags = diags.Append(statelessBegin(be, opReq, statelessCfg, c.View,
 			statelessRejections(args.Operation, args.State, args.ViewOptions, "", "", args.PlanPath)))
+		diags = diags.Append(c.checkAWSProviderVersionSkew())
 	}
 
 	// Before we delegate to the backend, we'll print any warning diagnostics
