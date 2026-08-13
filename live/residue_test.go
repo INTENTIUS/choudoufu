@@ -20,7 +20,12 @@ func TestLookupCohorts(t *testing.T) {
 		{"aws_pinpoint_app", CohortDeprecated, true},
 		{"aws_db_instance", CohortEmulatorBlocked, true},
 		{"aws_codebuild_project", CohortRegistryLaggard, true},
-		{"aws_accessanalyzer_archive_rule", CohortUnmapped, true},
+		// aws_cloudformation_type: issue #53 family sweep A left this one
+		// unclassified on purpose (via:"none") - it manages a CFN Registry
+		// type VERSION, but the Registry itself splits that concept across
+		// four different types depending on the extension kind, so no
+		// single cfn_type/fold_parent is correct without further work.
+		{"aws_cloudformation_type", CohortUnmapped, true},
 		// aws_waf_rule_group: via:"deprecated-service" in live/mapping.json
 		// itself (issue #53's mechanical classifier), reaching
 		// CohortDeprecated the same way aws_pinpoint_app above does (via
