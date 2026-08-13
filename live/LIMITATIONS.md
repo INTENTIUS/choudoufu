@@ -417,3 +417,182 @@ The estate fixture leaves both at their defaults for exactly this reason
 (`live/e2e/estate/keys.tf`, `dns.tf`). If you need a non-default
 value for one of these, a marker run will re-propose it on every plan;
 that is the cost, and it is visible rather than silent.
+
+## Exclusion cohorts
+
+The residue roster (issue #49): the entries above are what *is* implemented
+and enforced. This section names what is not, as a set instead of an
+implication — every cohort a resource type can be excluded by, with a
+count and a one-sentence reason each, so that "not covered" answers a
+per-type question without reading code. `live/residue.go` is the source:
+every count below is either computed straight from `live/mapping.json`
+(issue #43) and `live/registry.json` (issue #42), or, where a table cannot
+carry the judgment, curated data with its evidence in that file's own
+comments, the same way `internal/live/lint/admission.go`'s `opsExcluded`
+carries the credential and waiter judgments above. A type in none of these
+cohorts and also outside the v0 admission table is simply not wired yet —
+the scoping boundary the unadmitted-type entry above already describes,
+not an exclusion.
+
+When a refused type falls in one of these cohorts, `internal/live/lint`'s
+admission refusal names it: one more sentence, in the schema clause's own
+voice, appended to the base "not in the table" message. A type in no
+cohort gets nothing appended. `internal/live/lint/residue_test.go` pins one
+such refusal per cohort below that a TF configuration can actually name;
+`CFN-only constructs` cannot be, since no Terraform type maps to a
+CloudFormation-only construct, so that cohort is doc-only.
+
+#### Deprecated or EOL services
+
+Seven AWS services this fork holds out of scope by policy: retired,
+end-of-life, or being wound down. The service list and its judgment are
+curated (`live/residue.go`'s `DeprecatedServices`); each service's
+registry-side footprint is computed against `live/registry.json`.
+
+<!-- survey-gen:begin residue-deprecated -->
+| Service | TF prefix | CFN registry types | Reason |
+|---|---|---|---|
+| Pinpoint | `aws_pinpoint_` | 19 | a service AWS is retiring (end-of-support October 30, 2026) |
+| Greengrass V1 | `aws_greengrass_` | 16 | a service AWS has superseded with Greengrass V2, shipping no new features for V1 |
+| WAF Classic | `aws_waf_` | 7 | a service AWS has superseded with the unified WAFv2 API |
+| WAF Classic Regional | `aws_wafregional_` | 11 | a service AWS has superseded with the unified WAFv2 API, same as WAF Classic |
+| App Mesh | `aws_appmesh_` | 7 | a service AWS has closed to new customers and is winding down |
+| AppStream 2.0 | `aws_appstream_` | 13 | a service this fork holds out of scope by policy |
+| DAX | `aws_dax_` | 3 | a service (DynamoDB Accelerator) this fork holds out of scope by policy |
+
+**Total.** 76 CloudFormation Registry types across 7 services.
+<!-- survey-gen:end residue-deprecated -->
+
+#### CloudFormation-only constructs
+
+CloudFormation Registry types that are CloudFormation's own template and
+stack mechanics, not AWS infrastructure — the CFN-side mirror of this
+fork's logical-resource family above (`null_resource`, `local_file`,
+`random_password`, `time_sleep`): a construct whose whole value is
+something a template-processing engine tracks, with no live twin any
+provider could read back. The list is curated
+(`live/residue.go`'s `CFNOnlyConstructs`); the "no TF counterpart" claim
+that goes with it is computed, checked against `live/mapping.json` at
+package load and again by `tools/survey-gen`'s drift test.
+
+<!-- survey-gen:begin residue-cfn-only -->
+| CFN type | Reason |
+|---|---|
+| `AWS::CloudFormation::WaitCondition` | a template-internal signal that a stack step finished, not an AWS resource |
+| `AWS::CloudFormation::WaitConditionHandle` | the pre-signed URL a WaitCondition polls, existing only to be written to |
+| `AWS::CloudFormation::Macro` | registers a template preprocessor for CloudFormation's own macro transform, not infrastructure |
+| `AWS::CloudFormation::CustomResource` | a template escape hatch to an arbitrary Lambda-backed handler, with no AWS resource of its own |
+
+**Total.** 4 constructs, none counted against coverage: no Terraform configuration can name a CloudFormation-only type, so none can ever be refused either.
+<!-- survey-gen:end residue-cfn-only -->
+
+#### Unmapped Terraform types
+
+Every `via: "none"` row of `live/mapping.json`: a Terraform AWS resource
+type the join found no CloudFormation Registry counterpart for, by name or
+by the curated overlay. Entirely computed — grouped by the row's own note,
+since the same note covers all but one of them. The registry-backed
+admission path (issue #40) cannot reach any type in this cohort by
+definition; the survey's other admission paths (client-named,
+parent-derived) are unaffected and may still reach one.
+
+<!-- survey-gen:begin residue-unmapped -->
+| Count | Note |
+|---|---|
+| 899 | no CFN counterpart found by name or curated overlay |
+| 1 | waiter: records only that DNS validation finished; waiting belongs to the lifecycle layer, not a CFN resource of its own |
+
+**Total.** 900 Terraform AWS resource types with no CloudFormation Registry counterpart. Each row's own note is in `live/mapping.json`.
+<!-- survey-gen:end residue-unmapped -->
+
+#### Registry-laggard live services
+
+Terraform types the join *did* map to a CloudFormation type, where that
+CloudFormation Registry entry ships no working handler at all (`create`,
+`read`, `update`, `delete` and `list` all false) — the registry-backed
+admission path resolves the identity question but has nothing to read or
+list against. Covered only where the provider's own identity schema
+reaches, which is what the union `live/survey-full.json` measures.
+Entirely computed against `live/mapping.json` and `live/registry.json`,
+excluding types already counted under "Deprecated or EOL services" above.
+
+<!-- survey-gen:begin residue-laggard -->
+| TF type | CFN type |
+|---|---|
+| `aws_appsync_api_cache` | `AWS::AppSync::ApiCache` |
+| `aws_appsync_api_key` | `AWS::AppSync::ApiKey` |
+| `aws_autoscalingplans_scaling_plan` | `AWS::AutoScalingPlans::ScalingPlan` |
+| `aws_budgets_budget` | `AWS::Budgets::Budget` |
+| `aws_cloud9_environment_ec2` | `AWS::Cloud9::EnvironmentEC2` |
+| `aws_codebuild_project` | `AWS::CodeBuild::Project` |
+| `aws_codebuild_report_group` | `AWS::CodeBuild::ReportGroup` |
+| `aws_codebuild_source_credential` | `AWS::CodeBuild::SourceCredential` |
+| `aws_codecommit_repository` | `AWS::CodeCommit::Repository` |
+| `aws_config_configuration_recorder` | `AWS::Config::ConfigurationRecorder` |
+| `aws_config_delivery_channel` | `AWS::Config::DeliveryChannel` |
+| `aws_dlm_lifecycle_policy` | `AWS::DLM::LifecyclePolicy` |
+| `aws_dms_replication_instance` | `AWS::DMS::ReplicationInstance` |
+| `aws_dms_replication_subnet_group` | `AWS::DMS::ReplicationSubnetGroup` |
+| `aws_dms_replication_task` | `AWS::DMS::ReplicationTask` |
+| `aws_ec2_client_vpn_authorization_rule` | `AWS::EC2::ClientVpnAuthorizationRule` |
+| `aws_ec2_client_vpn_endpoint` | `AWS::EC2::ClientVpnEndpoint` |
+| `aws_ec2_client_vpn_route` | `AWS::EC2::ClientVpnRoute` |
+| `aws_elasticsearch_domain` | `AWS::Elasticsearch::Domain` |
+| `aws_emr_cluster` | `AWS::EMR::Cluster` |
+| `aws_glue_classifier` | `AWS::Glue::Classifier` |
+| `aws_glue_connection` | `AWS::Glue::Connection` |
+| `aws_glue_data_quality_ruleset` | `AWS::Glue::DataQualityRuleset` |
+| `aws_glue_dev_endpoint` | `AWS::Glue::DevEndpoint` |
+| `aws_glue_ml_transform` | `AWS::Glue::MLTransform` |
+| `aws_glue_partition` | `AWS::Glue::Partition` |
+| `aws_glue_security_configuration` | `AWS::Glue::SecurityConfiguration` |
+| `aws_glue_workflow` | `AWS::Glue::Workflow` |
+| `aws_iam_access_key` | `AWS::IAM::AccessKey` |
+| `aws_iot_thing_principal_attachment` | `AWS::IoT::ThingPrincipalAttachment` |
+| `aws_kinesis_analytics_application` | `AWS::KinesisAnalytics::Application` |
+| `aws_lakeformation_data_lake_settings` | `AWS::LakeFormation::DataLakeSettings` |
+| `aws_lakeformation_permissions` | `AWS::LakeFormation::Permissions` |
+| `aws_lakeformation_resource` | `AWS::LakeFormation::Resource` |
+| `aws_media_convert_queue` | `AWS::MediaConvert::Queue` |
+| `aws_media_store_container` | `AWS::MediaStore::Container` |
+| `aws_medialive_channel` | `AWS::MediaLive::Channel` |
+| `aws_medialive_input` | `AWS::MediaLive::Input` |
+| `aws_medialive_input_security_group` | `AWS::MediaLive::InputSecurityGroup` |
+| `aws_qldb_ledger` | `AWS::QLDB::Ledger` |
+| `aws_route53_record` | `AWS::Route53::RecordSet` |
+| `aws_sagemaker_code_repository` | `AWS::SageMaker::CodeRepository` |
+| `aws_sagemaker_notebook_instance` | `AWS::SageMaker::NotebookInstance` |
+| `aws_sagemaker_workteam` | `AWS::SageMaker::Workteam` |
+| `aws_service_discovery_http_namespace` | `AWS::ServiceDiscovery::HttpNamespace` |
+| `aws_service_discovery_instance` | `AWS::ServiceDiscovery::Instance` |
+| `aws_service_discovery_private_dns_namespace` | `AWS::ServiceDiscovery::PrivateDnsNamespace` |
+| `aws_service_discovery_public_dns_namespace` | `AWS::ServiceDiscovery::PublicDnsNamespace` |
+| `aws_ses_receipt_filter` | `AWS::SES::ReceiptFilter` |
+| `aws_ses_receipt_rule` | `AWS::SES::ReceiptRule` |
+| `aws_ses_receipt_rule_set` | `AWS::SES::ReceiptRuleSet` |
+
+**Total.** 51 types, covered only where the provider's own identity schema reaches (the union `live/survey-full.json` measures). A successor CFN type sometimes exists with working handlers - `AWS::Elasticsearch::Domain` above has no handlers, but its successor `AWS::OpenSearchService::Domain` does; `live/mapping.json` does not yet link `aws_opensearch_domain` to it.
+<!-- survey-gen:end residue-laggard -->
+
+#### Emulator-blocked
+
+Types wireable against real AWS but not provable against the floci
+emulator today (issue #26). Two are already admitted and carry standing
+e2e residue (`live/e2e/run.sh`'s `RESIDUE_UNOWNED` and `RESIDUE_CHANGED`);
+three were kept out of a wiring slice entirely because the emulator gap
+leaves nothing to prove admission against. Which floci behavior blocks
+which type is read off the harness and the admission table, not derivable
+from any artifact, so this roster is curated
+(`live/residue.go`'s `EmulatorBlocked`).
+
+<!-- survey-gen:begin residue-emulator -->
+| Type | Admitted today | Reason |
+|---|---|---|
+| `aws_db_instance` | no | RDS only works fully against floci when the docker socket is mounted into the emulator container, which this harness does not do (lex00/floci#28) |
+| `aws_ecr_repository` | no | floci's ECR emulation needs a docker daemon the current harness image does not carry (lex00/floci#23) |
+| `aws_iam_role` | yes (standing e2e residue) | floci's iam:GetRole omits Tags, so the role's own marker never reads back and every plan reports it unowned |
+| `aws_iam_user` | no | dropped from its wiring slice by the same floci IAM tag gap as aws_iam_role (lex00/floci#22) |
+| `aws_s3_bucket_policy` | yes (standing e2e residue) | downstream of aws_iam_role's residue: its policy document embeds the unowned role's ARN, so its own plan never settles |
+
+**Total.** 5 types.
+<!-- survey-gen:end residue-emulator -->

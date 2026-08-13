@@ -14,6 +14,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/providers"
+	residue "github.com/intentius/choudoufu/live"
 )
 
 // remoteStateDataType is the data source that reads a state file. Its whole
@@ -229,6 +230,20 @@ func checkManagedResources(mod *configs.Module, path addrs.Module, schemas map[s
 			// refusal and a resolution refusal never disagree about why.
 			if refusal := identity.SchemaRefusal(resource.Type, schemas, signal); refusal != "" {
 				detail += "." + refusal
+			}
+			// The residue roster's second consumer (issue #49): when the
+			// refused type falls in a named exclusion cohort - a
+			// deprecated service, a TF type live/mapping.json's join
+			// found no CFN counterpart for, a type mapped to a CFN type
+			// the Registry ships no working handler for, or a type
+			// blocked from e2e proof by a floci emulator gap - say so in
+			// one more sentence, in the same voice as the schema clause
+			// above. A type in no cohort (most of them: simply not wired
+			// yet, the scoping boundary live/LIMITATIONS.md's
+			// unadmitted-type entry already describes) gets nothing more,
+			// so the base message above is unchanged for it.
+			if _, sentence, ok := residue.Lookup(resource.Type); ok {
+				detail += " " + sentence
 			}
 			*issues = append(*issues, Issue{
 				Rule:      RuleUnadmittedType,
