@@ -95,6 +95,8 @@ func renderProposal(p proposal) string {
 		fmt.Fprintf(&b, "## %s -> %s [proposed: client-named]\n", p.TFType, p.CFNType)
 	case bucketNeedsHandSeparator:
 		fmt.Fprintf(&b, "## %s -> %s [needs hand separator]\n", p.TFType, p.CFNType)
+	case bucketComposite:
+		fmt.Fprintf(&b, "## %s -> %s [proposed: composite]\n", p.TFType, p.CFNType)
 	case bucketFoldChild:
 		fmt.Fprintf(&b, "## %s -> (property-child of %s) [fold-child: parent %s]\n", p.TFType, p.FoldParent, p.ParentTFType)
 	case bucketEvidenceOnly:
@@ -118,6 +120,9 @@ func renderProposal(p proposal) string {
 	if p.Bucket == bucketClientNamed || (p.Bucket == bucketEvidenceOnly && p.ArgName != "" && p.FoldParent == "") {
 		fmt.Fprintf(&b, "argument: %s (source: %s)\n", p.ArgName, p.ArgSource)
 	}
+	if p.Bucket == bucketComposite {
+		fmt.Fprintf(&b, "components: %s joined by %q (source: %s)\n", quoteList(p.CompositeArgs), p.CompositeSep, p.ArgSource)
+	}
 	for _, n := range p.Notes {
 		fmt.Fprintf(&b, "note: %s\n", n)
 	}
@@ -133,6 +138,11 @@ func renderProposal(p proposal) string {
 		b.WriteString(renderAdmissionLine(p.TFType))
 		b.WriteString("\n--- paste into internal/live/identity/table.go (DefaultTable) ---\n")
 		b.WriteString(renderClientNamedEntry(p))
+	case bucketComposite:
+		b.WriteString("\n--- paste into internal/live/lint/admission.go (admittedTypesV0) ---\n")
+		b.WriteString(renderAdmissionLine(p.TFType))
+		b.WriteString("\n--- paste into internal/live/identity/table.go (DefaultTable) ---\n")
+		b.WriteString(renderCompositeEntry(p))
 	case bucketNeedsHandSeparator:
 		b.WriteString("no pastable row: the composite separator is not registry evidence; a human chooses it.\n")
 	case bucketFoldChild:
@@ -150,11 +160,19 @@ func quoteList(names []string) string {
 	if len(names) == 0 {
 		return "[]"
 	}
+	return "[" + quoteArgs(names) + "]"
+}
+
+// quoteArgs renders a string slice as bare, quoted, comma-separated Go
+// expressions - "a", "b" rather than quoteList's bracketed ["a", "b"] -
+// which is what a variadic call site like serverAssigned's identityAttrs
+// parameter needs pasted directly, not a slice literal.
+func quoteArgs(names []string) string {
 	quoted := make([]string, len(names))
 	for i, n := range names {
 		quoted[i] = fmt.Sprintf("%q", n)
 	}
-	return "[" + strings.Join(quoted, ", ") + "]"
+	return strings.Join(quoted, ", ")
 }
 
 // renderAdmissionLine is the ready-to-paste admittedTypesV0 map entry.
@@ -163,22 +181,79 @@ func renderAdmissionLine(tfType string) string {
 }
 
 // renderServerAssignedEntry is the ready-to-paste serverAssigned(...) call
-// for DefaultTable. importSyntax is a documentation-only best-effort string
-// built off the registry's own primaryIdentifier names, flagged the same as
-// the reason since neither is provider-documentation-verified.
+// for DefaultTable. importSyntax is, by default, a documentation-only
+// best-effort string built off the registry's own primaryIdentifier names,
+// flagged the same as the reason since neither is provider-documentation-
+// verified - unless applyImportGrammarPrecedence set DerivedImportSyntax,
+// in which case pinned import-grammar evidence already disagreed with the
+// registry and won (see importprecedence.go's tryArnVsIDOverride,
+// tryOpaqueOverride and tryCompoundArnImportSyntax), and
+// DerivedIdentityAttrs is pasted too - the one case row-gen does propose an
+// IdentityAttrs value despite issue #44's general non-goal, because this
+// specific correction (which exported attribute, not whether one exists) is
+// exactly what the pinned evidence settles.
 func renderServerAssignedEntry(p proposal) string {
 	service := p.Service
 	reason := fmt.Sprintf("the %s service assigns this identity at create time; no argument reconstructs it.", service)
+
 	importSyntax := strings.ToUpper(strings.Join(p.PrimaryIdentifier, "-"))
+	importSyntaxComment := "TEMPLATED: registry primaryIdentifier name(s), not the provider's documented import syntax; verify"
+	if p.DerivedImportSyntax != "" {
+		importSyntax = p.DerivedImportSyntax
+		importSyntaxComment = "import-grammar precedence: registry primaryIdentifier disagreed with the documented import example; this is the documented shape - still verify"
+	}
+
+	if len(p.DerivedIdentityAttrs) > 0 {
+		return fmt.Sprintf(`serverAssigned(%q,
+	%q, // TEMPLATED: rewrite or accept this reason during ratification
+	%q, // %s
+	%s, // import-grammar precedence: identity attribute recovered from the documented example - still verify
+),
+`, p.TFType, reason, importSyntax, importSyntaxComment, quoteArgs(p.DerivedIdentityAttrs))
+	}
+
 	return fmt.Sprintf(`serverAssigned(%q,
 	%q, // TEMPLATED: rewrite or accept this reason during ratification
-	%q, // TEMPLATED: registry primaryIdentifier name(s), not the provider's documented import syntax; verify
+	%q, // %s
 	// IdentityAttrs intentionally omitted: whether this type's own "id"
 	// attribute equals the identity above is the id-alias inference row-gen
 	// does not make (issue #44 non-goals). Add "id" and any other alias
 	// only after confirming it against the provider schema or docs.
 ),
-`, p.TFType, reason, importSyntax)
+`, p.TFType, reason, importSyntax, importSyntaxComment)
+}
+
+// renderCompositeEntry is the ready-to-paste multi-component TypeIdentity{}
+// literal for DefaultTable: applyImportGrammarPrecedence's bucketComposite
+// result, an attr()/sep() chain built from CompositeArgs and CompositeSep -
+// the composite shape bucketNeedsHandSeparator could never propose because
+// the separator was, until this pass, never registry evidence.
+// IdentityAttrs is left nil: whether the composite's own concatenation also
+// equals an exported attribute is the id-alias inference issue #44 keeps as
+// a human call (see aws_networkmanager_customer_gateway_association's
+// ratified entry, whose comment states the type exports no single attribute
+// equal to its comma-joined id, "hand out nothing rather than something
+// that happens to look right" - exactly the standard this leaves to the
+// ratifier).
+func renderCompositeEntry(p proposal) string {
+	var comps strings.Builder
+	var syn []string
+	for i, arg := range p.CompositeArgs {
+		if i > 0 {
+			fmt.Fprintf(&comps, "\n\t\tsep(%q),", p.CompositeSep)
+		}
+		fmt.Fprintf(&comps, "\n\t\tattr(%q),", arg)
+		syn = append(syn, strings.ToUpper(arg))
+	}
+	importSyntax := strings.Join(syn, strings.ToUpper(p.CompositeSep))
+	return fmt.Sprintf(`TypeIdentity{
+	Type: %q,
+	Components: []Component{%s
+	},
+	ImportSyntax:  %q,
+	IdentityAttrs: nil, // id-alias inference intentionally left to the ratifier; see issue #44 non-goals
+},
+`, p.TFType, comps.String(), importSyntax)
 }
 
 // renderClientNamedEntry is the ready-to-paste TypeIdentity{...} literal for
@@ -200,8 +275,8 @@ func renderClientNamedEntry(p proposal) string {
 func summaryCounts(proposals []proposal) string {
 	counts := tally(proposals)
 	return fmt.Sprintf(
-		"summary (mapped set: %d types)\n  proposed server-assigned:  %d\n  proposed client-named:     %d\n  needs hand separator:      %d\n  fold-child (issue #68):    %d\n  evidence-only:             %d\n",
-		len(proposals), counts.ServerAssigned, counts.ClientNamed, counts.NeedsHandSeparator, counts.FoldChild, counts.EvidenceOnly)
+		"summary (mapped set: %d types)\n  proposed server-assigned:  %d\n  proposed client-named:     %d\n  proposed composite:        %d\n  needs hand separator:      %d\n  fold-child (issue #68):    %d\n  evidence-only:             %d\n",
+		len(proposals), counts.ServerAssigned, counts.ClientNamed, counts.Composite, counts.NeedsHandSeparator, counts.FoldChild, counts.EvidenceOnly)
 }
 
 // summary is the acceptance counts, shared by main.go's stderr line and the
@@ -209,6 +284,7 @@ func summaryCounts(proposals []proposal) string {
 type summary struct {
 	ServerAssigned     int
 	ClientNamed        int
+	Composite          int
 	NeedsHandSeparator int
 	FoldChild          int
 	EvidenceOnly       int
@@ -222,6 +298,8 @@ func tally(proposals []proposal) summary {
 			s.ServerAssigned++
 		case bucketClientNamed:
 			s.ClientNamed++
+		case bucketComposite:
+			s.Composite++
 		case bucketNeedsHandSeparator:
 			s.NeedsHandSeparator++
 		case bucketFoldChild:

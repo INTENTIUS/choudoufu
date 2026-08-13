@@ -106,18 +106,40 @@ TypeIdentity{
 	IdentityAttrs: []string{"function_name"}, // "id" intentionally omitted; see issue #44 non-goals
 },
 
-## aws_lambda_function_event_invoke_config -> AWS::Lambda::EventInvokeConfig [needs hand separator]
-rule: len(primaryIdentifier) > 1 (composite; the separator is in no schema)
+## aws_lambda_function_event_invoke_config -> AWS::Lambda::EventInvokeConfig [proposed: server-assigned]
+rule: import-grammar precedence: the registry's composite primaryIdentifier does not reconstruct the documented example string under any known separator; the provider's own Import section shows a single opaque value instead
 registry fields read: primary_identifier=["FunctionName", "Qualifier"] read_only_properties=[] create_only_properties=["FunctionName", "Qualifier"]
 enumeration: parent-input ["FunctionName"]
-no pastable row: the composite separator is not registry evidence; a human chooses it.
+note: import docs example "arn:aws:lambda:us-east-1:123456789012:function:example" is a single value, not the registry's 2-part composite primaryIdentifier ["FunctionName", "Qualifier"]
 
-## aws_lambda_function_url -> AWS::Lambda::Url [evidence-only]
-rule: primaryIdentifier ⊆ readOnlyProperties
+--- paste into internal/live/lint/admission.go (admittedTypesV0) ---
+"aws_lambda_function_event_invoke_config": {},
+
+--- paste into internal/live/identity/table.go (DefaultTable) ---
+serverAssigned("aws_lambda_function_event_invoke_config",
+	"the Lambda service assigns this identity at create time; no argument reconstructs it.", // TEMPLATED: rewrite or accept this reason during ratification
+	"ARN", // import-grammar precedence: registry primaryIdentifier disagreed with the documented import example; this is the documented shape - still verify
+	"arn", // import-grammar precedence: identity attribute recovered from the documented example - still verify
+),
+
+## aws_lambda_function_url -> AWS::Lambda::Url [proposed: client-named]
+rule: import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string
 registry fields read: primary_identifier=["FunctionArn"] read_only_properties=["FunctionUrl", "FunctionArn"] create_only_properties=["TargetFunctionArn", "Qualifier"]
 enumeration: parent-input ["TargetFunctionArn"]
+argument: function_name (source: import grammar (live/import-grammar.json))
 note: import docs show argument-composed ID: example
-no pastable row.
+note: import docs pin a single-argument composed ID (example), superseding the registry-only classification
+
+--- paste into internal/live/lint/admission.go (admittedTypesV0) ---
+"aws_lambda_function_url": {},
+
+--- paste into internal/live/identity/table.go (DefaultTable) ---
+TypeIdentity{
+	Type:          "aws_lambda_function_url",
+	Components:    []Component{attr("function_name")},
+	ImportSyntax:  "FUNCTION_NAME",
+	IdentityAttrs: []string{"function_name"}, // "id" intentionally omitted; see issue #44 non-goals
+},
 
 ## aws_lambda_layer_version -> AWS::Lambda::LayerVersion [proposed: server-assigned]
 rule: primaryIdentifier ⊆ readOnlyProperties

@@ -45,6 +45,21 @@ const (
 	// internal/live/identity/table.go's "Fold-children (issue #68)" section
 	// comment documents for the first slice.
 	bucketFoldChild bucket = "fold-child"
+	// bucketComposite: a composite identity (two or more parts) whose
+	// separator AND argument order this run recovered from pinned evidence
+	// rather than a human's hand - the rowgen-convergence gap #39's
+	// "needs-hand-separator, never pastable" rule left open. Built either
+	// from live/import-grammar.json's own composed_of_arguments/arguments/
+	// separator fields (confirmed against the documented example string's
+	// own arity, the same discipline that keeps aws_route out of this
+	// bucket - see tryGrammarComposite), or, when the registry's composite
+	// primaryIdentifier is the arity signal and the grammar row carries no
+	// structured argument list of its own, by splitting the documented
+	// example on a candidate separator and matching each segment back to a
+	// primaryIdentifier property by name (see tryRegistryComposite). Unlike
+	// bucketNeedsHandSeparator, this IS pastable: CompositeArgs and
+	// CompositeSep carry what render.go needs.
+	bucketComposite bucket = "composite"
 )
 
 // argSource names where a client-named proposal's TF argument name came
@@ -83,6 +98,26 @@ type proposal struct {
 	// Client-named only.
 	ArgName   string
 	ArgSource argSource
+
+	// bucketComposite only: the components' TF argument names and the
+	// literal separator between them, both recovered by
+	// applyImportGrammarPrecedence - see that function and bucketComposite's
+	// own doc comment.
+	CompositeArgs []string
+	CompositeSep  string
+
+	// DerivedImportSyntax and DerivedIdentityAttrs are
+	// applyImportGrammarPrecedence's narrow, evidence-gated corrections to
+	// a bucketServerAssigned proposal's placeholder text and identity-
+	// attribute guess - set only when pinned import-grammar evidence
+	// disagrees with the registry's own primaryIdentifier name (VPC
+	// Lattice's short ids over the registry's opaque Arn, NetworkManager's
+	// device/site/link ARN over the registry's composite primaryIdentifier,
+	// DataSync's compound ARN#ARN grammars) or refines a compound-ARN
+	// placeholder. Empty means the baseline registry-only guess in
+	// renderServerAssignedEntry stands unchanged.
+	DerivedImportSyntax  string
+	DerivedIdentityAttrs []string
 
 	// Fold rows only.
 	FoldParent   string

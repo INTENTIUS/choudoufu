@@ -153,21 +153,13 @@ func TestKnownComposites_NotSimpleClientNamed(t *testing.T) {
 func TestSummaryCountsSumToMappedSetSize(t *testing.T) {
 	proposals := loadAllForTest(t)
 	counts := tally(proposals)
-	sum := counts.ServerAssigned + counts.ClientNamed + counts.NeedsHandSeparator + counts.FoldChild + counts.EvidenceOnly
+	sum := counts.ServerAssigned + counts.ClientNamed + counts.Composite + counts.NeedsHandSeparator + counts.FoldChild + counts.EvidenceOnly
 	if sum != len(proposals) {
 		t.Errorf("bucket counts sum to %d, want %d (the mapped set size)", sum, len(proposals))
 	}
-	if counts.ServerAssigned == 0 || counts.ClientNamed == 0 || counts.NeedsHandSeparator == 0 || counts.FoldChild == 0 || counts.EvidenceOnly == 0 {
+	if counts.ServerAssigned == 0 || counts.ClientNamed == 0 || counts.Composite == 0 || counts.NeedsHandSeparator == 0 || counts.FoldChild == 0 || counts.EvidenceOnly == 0 {
 		t.Errorf("expected every bucket to be non-empty over the full mapped set, got %+v", counts)
 	}
-}
-
-func indexByType(proposals []proposal) map[string]proposal {
-	m := make(map[string]proposal, len(proposals))
-	for _, p := range proposals {
-		m[p.TFType] = p
-	}
-	return m
 }
 
 // TestMappedSetIsSorted is a small determinism check: loadMapping sorts by
