@@ -125,7 +125,7 @@ func resolveWith(ctx context.Context, cfg *configs.Config, rctx Context) (*Resul
 	// walk happens to have reached. See [SynthesizeTypeIdentity].
 	result.signal = r.collectSignal(cfg)
 	r.signal = result.signal
-	r.walkModule(cfg, result)
+	r.walkModule(cfg, addrs.RootModuleInstance, result)
 
 	r.checkCollisions(result)
 
@@ -133,14 +133,24 @@ func resolveWith(ctx context.Context, cfg *configs.Config, rctx Context) (*Resul
 }
 
 // walkModule classifies every managed resource instance in one node of the
-// static module tree, then recurses into its children in name order.
+// static module tree, at the given module instance, then recurses into its
+// children in name order.
+//
+// modInst is the instance this call of cfg belongs to, chosen by the
+// caller: [addrs.RootModuleInstance] for the root, or - for a for_each
+// child - one [addrs.ModuleInstance.Child] call per key the enclosing
+// module's for_each expands to (see the loop below). cfg.Path can no longer
+// answer this by itself once a for_each module is in the tree, because
+// cfg.Children holds one node per module CALL, not per instance: two
+// instances of a for_each'd module share the same *configs.Config and are
+// told apart only by the modInst each walkModule call carries.
 //
 // Recursion is depth-first and each call re-enters its own module before
 // touching anything, so a resource reference resolved partway through one
 // module's instances never observes another module's [resolver.mod] -
-// see [resolver.enterModule].
-func (r *resolver) walkModule(cfg *configs.Config, result *Result) {
-	r.enterModule(cfg)
+// see [resolver.enterModuleAt].
+func (r *resolver) walkModule(cfg *configs.Config, modInst addrs.ModuleInstance, result *Result) {
+	r.enterModuleAt(cfg, modInst)
 	for _, rc := range sortedResources(cfg.Module.ManagedResources) {
 		exp, ok := r.expansionFor(rc)
 		if !ok {
@@ -156,8 +166,27 @@ func (r *resolver) walkModule(cfg *configs.Config, result *Result) {
 		}
 	}
 	for _, name := range SortedChildNames(cfg.Children) {
-		r.walkModule(cfg.Children[name], result)
+		child := cfg.Children[name]
+		var forEach hcl.Expression
+		if call, ok := r.mod.ModuleCalls[name]; ok && call != nil {
+			forEach = call.ForEach
+		}
+		keys, diag := ChildModuleKeys(r.ctx, r.mod, childSubject(name), forEach)
+		if diag != nil {
+			r.diags = r.diags.Append(diag)
+			continue
+		}
+		for _, key := range keys {
+			r.walkModule(child, modInst.Child(name, key), result)
+		}
 	}
+}
+
+// childSubject names a module call for a diagnostic about its own for_each
+// expression: "module \"wrapped\"", matching how a resource's own for_each
+// diagnostics name the resource.
+func childSubject(name string) string {
+	return fmt.Sprintf("module %q", name)
 }
 
 // checkCollisions reports two instances of the same type that resolve to
@@ -267,28 +296,53 @@ type resolver struct {
 }
 
 // enterModule points the resolver at one node of the static module tree,
-// setting the module, its instance path, and its own static evaluator. Every
-// entry point that is about to read [resolver.mod] or [resolver.eval] calls
-// this first, rather than trusting whatever a previous call left behind.
+// with its self instance ([ModuleInstance]) as the module instance: the
+// unkeyed reading that is lossless for the root and for a static module
+// call, and the entry point for every caller that has not been told a more
+// specific instance to use. See [resolver.enterModuleAt].
 func (r *resolver) enterModule(cfg *configs.Config) {
+	r.enterModuleAt(cfg, ModuleInstance(cfg))
+}
+
+// enterModuleAt points the resolver at one node of the static module tree
+// as one specific instance of it, setting the module, that instance path,
+// and its own static evaluator. Every entry point that is about to read
+// [resolver.mod] or [resolver.eval] calls this (or [resolver.enterModule])
+// first, rather than trusting whatever a previous call left behind.
+//
+// modInst is taken as given, never recomputed from cfg.Path: cfg.Path names
+// the module CALL, and a for_each'd call's several instances all share one
+// *configs.Config node, so cfg.Path alone cannot tell two of them apart (59c,
+// keyed for_each on module blocks). [resolver.walkModule] is what supplies a
+// keyed instance; every other caller passes the same instance
+// [ModuleInstance] would compute, through [resolver.enterModule].
+func (r *resolver) enterModuleAt(cfg *configs.Config, modInst addrs.ModuleInstance) {
 	r.mod = cfg.Module
-	r.modInst = ModuleInstance(cfg)
+	r.modInst = modInst
 	// Pure on purpose: an identity is a claim about which cloud object a
 	// block owns, and a function that answers differently every time it is
 	// called cannot make that claim. See impure.go.
 	r.eval = cfg.Module.StaticEvaluator.Pure()
 }
 
-// enterModuleFor is [resolver.enterModule] by module instance path, for the
-// call sites - resolving a reference's parent, most of all - that have an
-// address rather than a *configs.Config in hand. It reports false when the
-// path names no module in this configuration's tree.
+// enterModuleFor is [resolver.enterModuleAt] by module instance path, for
+// the call sites - resolving a reference's parent, most of all - that have
+// an address rather than a *configs.Config in hand. It reports false when
+// the path names no module in this configuration's tree.
+//
+// The instance it enters is modInst exactly as given, keys included:
+// [ConfigForModule] ignores keys on the way down to find the right
+// *configs.Config (one node per call, not per instance, same reason
+// [resolver.enterModuleAt] gives), but the resolver's own idea of "which
+// instance is this" must not lose them, or two different instances of one
+// for_each'd module would share an expansion and instance memo key (see
+// [resolver.expKey]) and each would silently return the other's answer.
 func (r *resolver) enterModuleFor(modInst addrs.ModuleInstance) bool {
 	cfg, ok := ConfigForModule(r.rootCfg, modInst)
 	if !ok || cfg.Module == nil {
 		return false
 	}
-	r.enterModule(cfg)
+	r.enterModuleAt(cfg, modInst)
 	return true
 }
 
@@ -799,8 +853,36 @@ func (r *resolver) evalStatic(expr hcl.Expression, scope instScope, ident config
 // argument that will not evaluate is a resolution failure; the config-side
 // naming signal (signal.go) discards them, because an argument it cannot
 // read is still an argument the configuration sets.
-func (r *resolver) evalPure(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) (cty.Value, tfdiags.Diagnostics) {
-	var diags tfdiags.Diagnostics
+//
+// The recover guards against a panic this package's own traversal filter
+// cannot see coming: a var.* reference inside a module reached through a
+// for_each'd ancestor call (59c, issue #59 phase 3) can resolve, several
+// layers down inside [configs.StaticEvaluator]'s own variable-resolution
+// machinery, to an expression that itself references the ancestor's own
+// each.key or each.value - and internal/configs' static scope has no
+// repetition data to answer that with; it panics ("Not Available in Static
+// Context") rather than erroring. This package never evaluates such an
+// expression on purpose (see [ChildModuleKeys]'s doc: a module call's own
+// for_each is evaluated in its parent's scope, never a child's variables),
+// but nothing stops a resource argument from referencing one anyway, and a
+// crash here would take the whole run down over one identity component this
+// package was always going to refuse. Degrading to a clean "cannot
+// evaluate" is the same choice [lint.evalStatic] already makes for the
+// class of panic it guards against.
+func (r *resolver) evalPure(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) (val cty.Value, diags tfdiags.Diagnostics) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			val = cty.NilVal
+			diags = tfdiags.Diagnostics{}.Append(&hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Expression not evaluable here",
+				Detail: fmt.Sprintf(
+					"%s could not be evaluated: %v. This is most often a reference that, several layers down, depends on a for_each key this package does not propagate across a module boundary (issue #59, 59c) - see live/LIMITATIONS.md, \"child-module\".",
+					ident.Subject, rec),
+				Subject: expr.Range().Ptr(),
+			})
+		}
+	}()
 
 	var travs []hcl.Traversal
 	for _, trav := range expr.Variables() {

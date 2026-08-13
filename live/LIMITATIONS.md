@@ -250,9 +250,10 @@ rule").
 
 ### child-module
 
-**Construct.** A `module` block, at any depth, expanded with `count` or
-`for_each`. A static module call (neither) is not this limitation: see
-below.
+**Construct.** A `module` block, at any depth, expanded with `count`, or
+expanded with `for_each` whose keys cannot be enumerated from configuration
+alone. A static module call, and a `for_each` module call whose keys *can*
+be so enumerated, are not this limitation: see below.
 
 **Why banned.** Module expansion by `count` renumbers every resource
 address inside the module positionally, on every insertion or removal
@@ -262,9 +263,13 @@ markers is not a gap this mode intends to close, so `count`-expanded
 modules are refused permanently. `for_each` on a module block does not
 renumber the way `count` does - a key is stable under insertion and
 removal, the same reason `RuleForEachKey`-disciplined resource keys are
-admitted - which is what makes it worth admitting; it is refused only
-because nothing downstream of lint walks into a module's *instances* yet
-(issue #59, phase 3 / "59c").
+admitted - which is what makes it worth admitting at all (issue #59, phase
+3 / "59c"). What is still refused is a `for_each` whose keys this pass
+cannot compute before anything is read from the cloud: an instance key
+becomes part of every address inside the module, and an address that is
+not knowable yet cannot become part of a marker yet either, the same reason
+a resource's own non-static `for_each` is refused (by identity resolution,
+not lint - see below).
 
 **A static module call is admitted.** As of issue #59, phase 2 ("59b"), the
 five packages downstream of lint - `identity`, `discovery`, `stamp`,
@@ -272,26 +277,59 @@ five packages downstream of lint - `identity`, `discovery`, `stamp`,
 inside a static module binds by its module-qualified address
 (`module.a.module.b.aws_x.y`) exactly as soundly as a root resource binds by
 its own. `RuleChildModule` reports nothing for a module call that sets
-neither `count` nor `for_each`.
+neither `count` nor `for_each`. A `provider` block declared inside that
+static module is a separate, still-open question (per-module provider
+resolution, issue #70): it is neither supported nor refused today - the
+module's resources are silently served by the root configuration's own
+provider config instead - and `lint.CheckModuleProviders`
+(`internal/live/lint/module_provider.go`) only warns about it by name, once
+per run, rather than failing the run.
 
-**Forwarding address.** For a `count`- or `for_each`-expanded module: move
-the module's resources into the root module, or give the module an estate
-of its own, with its own directory, its own `live` block, and its own
-`estate` name. Two estates are two independent runs, which is the
-separation an expanded child module is standing in for. For `count`
-specifically this is the only forwarding address - there is no future
-traversal to wait for; `for_each` gets the same advice until 59c ships.
+**A statically-keyed `for_each` module call is admitted.** As of issue #59,
+phase 3 ("59c"), a module call's `for_each` is evaluated the same way a
+resource's own `for_each` is: a literal collection, or one built from
+variables, locals, `path` and `terraform` values. When every key is
+knowable that way, `RuleChildModule` reports nothing, and the five packages
+traverse each instance - `module.app["prod"].aws_x.y` binds exactly as
+soundly as `module.app.aws_x.y` does. Two further, separate rules apply to
+a module call this one admits, mirroring the rules a resource's own
+`for_each` is already held to: `RuleForEachKey` rejects an individual key
+that cannot survive the trip through a `tofu-address` marker (a `.` or a
+`:`, or anything outside the AWS tag-value character set), and
+`RuleOverlongAddress` rejects an expanded instance whose escaped address
+does not fit in a 256-character tag value. A `for_each` this pass cannot
+evaluate at all - a reference to a resource, a data source, or anything
+else outside the static scope - is refused by `RuleChildModule` itself,
+worded like a resource's own non-static `for_each` refusal.
+
+**Forwarding address.** For a `count`-expanded module, or a `for_each`
+module whose keys are not statically knowable: move the module's resources
+into the root module, or give the module an estate of its own, with its own
+directory, its own `live` block, and its own `estate` name. Two estates are
+two independent runs, which is the separation an expanded child module is
+standing in for. For `count` this is the only forwarding address - there is
+no future traversal to wait for. For a non-static `for_each`, rewriting the
+expression to a literal collection or a value derived from variables,
+locals, `path` or `terraform` is the other way out, the same as it is for a
+resource's own `for_each`.
 
 **Enforcement.** `RuleChildModule`, `internal/live/lint/child_module.go`
 (`checkChildModules`, detail text chosen by `childModuleDetail`, which
-reports nothing for a static call). Fixture at
-`live/e2e/limits/child-module/`, which is a tree rather than a single file
-and needs `choudoufu get` before the rule can be reached, since an
-uninstalled module block is refused while the configuration is still being
-loaded, earlier than any marker code runs. The fixture carries all three
-shapes at once - a static call ("network", admitted), a `count` call, and a
-`for_each` call - so one load proves the static call passes clean while the
-other two still fail.
+reports nothing for a static call or a statically-keyed `for_each` call).
+The key evaluation itself is `identity.ChildModuleKeys`
+(`internal/live/identity/modulepath.go`), shared with `resolve.go`'s own
+module walk so that lint's admission verdict and identity resolution's
+traversal never disagree about which keys a module call expands to.
+Fixture at `live/e2e/limits/child-module/`, which is a tree rather than a
+single file and needs `choudoufu get` before the rule can be reached, since
+an uninstalled module block is refused while the configuration is still
+being loaded, earlier than any marker code runs. The fixture carries four
+module calls - a static call ("network", admitted), a statically-keyed
+`for_each` call ("keyed-static", admitted), a `count` call ("counted",
+refused permanently), and a `for_each` call whose keys reference another
+resource ("keyed", refused as non-static) - so one load proves both
+admitted shapes pass clean while the other two still fail, each for its own
+named reason.
 
 ### backend-block
 
@@ -445,10 +483,39 @@ characters (an absurdly long resource label).
 **Why bounded.** AWS caps a tag value at 256 Unicode characters, a hard
 limit stated directly in `live/MARKERS.md`. "An address that does not fit
 is a lint-time error, not a truncation. Silently truncating an ownership
-key is worse than refusing to admit the resource."
+key is worse than refusing to admit the resource." This is a budget for
+`tofu-address` alone: the separate `tofu-estate` tag has its own,
+independent 128-character budget (also in `live/MARKERS.md`), and the two
+never compete for the same characters.
 
-**Forwarding address.** Shorten the resource address, with a shorter label
-or a shorter instance key.
+**The budget math.** The whole escaped address - module path, resource
+type, label, and any `for_each`/`count` instance key - shares the one
+256-character allowance, and module nesting is the part most likely to push
+a previously-fitting address over it, because it costs characters the
+resource's own label never touches. Each level of static module nesting
+adds a literal `module.` (7 characters), the module's own name, and a `.`
+separator before the next segment - `len("module.") + len(name) + 1` per
+level, paid up front before the resource address is even considered.
+Three levels of 20-character module names alone spend
+`3 * (7 + 20 + 1) = 84` characters, leaving only 172 - not 256 - for the
+resource type, label and instance key combined. A single 250-character
+resource label already exceeds the budget on its own (`aws_s3_bucket.` is
+14 characters, so `aws_s3_bucket.` + a 250-character label escapes to 264,
+already 8 over with no module path involved at all); nested three levels
+deep behind even modest module names, a much shorter label can trip the
+same limit. The refusal this rule raises reports the exact split for the
+instance at hand - how many characters its own module path spent and how
+many were left for the rest - rather than only the total, so which half of
+the address to shorten is never a guess.
+
+**Forwarding address.** Whichever side of the split above is spending too
+much: shorten the module names in the path, flatten a level of module
+nesting so one fewer `module.<name>.` prefix is paid at all, shorten the
+resource label, or pick a shorter `for_each` key. If the resource already
+carries a live marker and the address only grew because it moved deeper
+into the module tree, `choudoufu live-mv` rewrites the marker to a new,
+shorter address in place rather than requiring the resource to be
+re-adopted from scratch.
 
 **Enforcement.** `RuleOverlongAddress`, `internal/live/lint/overlong_address.go`
 (`checkOverlongAddresses`). It escapes each instance address exactly as the
@@ -507,11 +574,35 @@ as a destroy, is asserted in `internal/live/lifecycle/exactness_test.go`.
 The unadmitted half holds by construction: `internal/live/discovery`
 builds the sweep universe from `identity.AdmittedTypes()`.)
 
+**A resource inside a keyed module is stamped by hand, not automatically.**
+Stamping cannot compute a per-instance marker for a resource declared
+inside a module call that sets `for_each` (directly, or through an
+ancestor module call, at any depth) - the module's several instances share
+one HCL body for the resource's `tags` argument, and there is no single
+literal `tofu-address` that is correct for all of them, nor a safe way to
+evaluate an expression that depends on a variable threaded from the module
+call's own `each.key` (`internal/configs`' static evaluator has no
+repetition data to evaluate one against). Such a resource is left alone
+with the `SkipModuleKeyed` reason (`MODULE_KEYED`): trusted as written when
+it already declares a `tags` argument, and the ordinary must-stamp error
+when it declares none and its type needs discovery to be found again. The
+operator writes the marker by hand instead, threading the module's own
+`each.key` through as a variable and interpolating it into the address -
+see "The keyed-module marker idiom" on the concept page
+(`website/docs/language/live-markers.mdx`) for the three-line pattern, and
+`live/e2e/estate-module-keyed/` for the fixture it comes from. This is not
+a lint refusal; a keyed module is admitted (see "child-module" above), and
+this is a standing property of what the stamping pass can and cannot
+inject into a shared configuration body. (`internal/live/stamp/stamp.go`,
+`SkipModuleKeyed` and `moduleKeyedResource`.)
+
 **Untaggable types carry no ownership marker of their own.** <!-- survey-gen:begin untaggable-admitted -->
 `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
 `aws_api_gateway_account`, `aws_api_gateway_base_path_mapping`,
 `aws_api_gateway_documentation_version`, `aws_api_gateway_gateway_response`,
-`aws_api_gateway_method`, `aws_api_gateway_model`,
+`aws_api_gateway_integration`, `aws_api_gateway_integration_response`,
+`aws_api_gateway_method`, `aws_api_gateway_method_response`,
+`aws_api_gateway_method_settings`, `aws_api_gateway_model`,
 `aws_api_gateway_rest_api_policy`, `aws_api_gateway_usage_plan_key`,
 `aws_apigatewayv2_routing_rule`, `aws_appflow_connector_profile`,
 `aws_cloudfront_monitoring_subscription`,
@@ -566,6 +657,12 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_networkmanager_link_association`,
 `aws_networkmanager_prefix_list_association`,
 `aws_networkmanager_transit_gateway_registration`,
+`aws_opensearchserverless_access_policy`,
+`aws_opensearchserverless_lifecycle_policy`,
+`aws_opensearchserverless_security_policy`,
+`aws_prometheus_alert_manager_definition`,
+`aws_prometheus_query_logging_configuration`,
+`aws_prometheus_scraper_logging_configuration`,
 `aws_rds_cluster_role_association`, `aws_route`,
 `aws_route53_hosted_zone_dnssec`, `aws_route53_key_signing_key`,
 `aws_route53_record`, `aws_route53_resolver_firewall_rule`,
@@ -618,7 +715,11 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_api_gateway_base_path_mapping` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_api_gateway_documentation_version` | `aws_api_gateway_rest_api` | no (report-only) |
 | `aws_api_gateway_gateway_response` | `aws_api_gateway_rest_api` | no (report-only) |
+| `aws_api_gateway_integration` | `aws_api_gateway_rest_api` | no (report-only) |
+| `aws_api_gateway_integration_response` | `aws_api_gateway_rest_api` | no (report-only) |
 | `aws_api_gateway_method` | `aws_api_gateway_rest_api` | no (report-only) |
+| `aws_api_gateway_method_response` | `aws_api_gateway_rest_api` | no (report-only) |
+| `aws_api_gateway_method_settings` | `aws_api_gateway_rest_api` | no (report-only) |
 | `aws_api_gateway_model` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_api_gateway_rest_api_policy` | `aws_api_gateway_rest_api` | no (report-only) |
 | `aws_api_gateway_usage_plan_key` | `aws_api_gateway_usage_plan` | no (report-only) |
@@ -633,7 +734,6 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_cloudwatch_log_stream` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_cloudwatch_log_subscription_filter` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_cloudwatch_log_transformer` | `aws_cloudwatch_log_group` | no (report-only) |
-| `aws_codeartifact_domain_permissions_policy` | `aws_codeartifact_domain` | no (report-only) |
 | `aws_cognito_identity_pool_provider_principal_tag` | `aws_cognito_identity_pool` | no (report-only) |
 | `aws_cognito_identity_pool_roles_attachment` | `aws_cognito_identity_pool` | no (report-only) |
 | `aws_cognito_identity_provider` | `aws_cognito_user_pool` | no (report-only) |
@@ -675,6 +775,12 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_networkmanager_link_association` | `aws_networkmanager_link` | no (report-only) |
 | `aws_networkmanager_prefix_list_association` | `aws_ec2_managed_prefix_list` | no (report-only) |
 | `aws_networkmanager_transit_gateway_registration` | `aws_ec2_transit_gateway` | no (report-only) |
+| `aws_opensearchserverless_access_policy` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_opensearchserverless_lifecycle_policy` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_opensearchserverless_security_policy` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_prometheus_alert_manager_definition` | `aws_grafana_workspace` | no (report-only) |
+| `aws_prometheus_query_logging_configuration` | `aws_grafana_workspace` | no (report-only) |
+| `aws_prometheus_scraper_logging_configuration` | `aws_prometheus_scraper` | no (report-only) |
 | `aws_route` | `aws_route_table` | no (report-only) |
 | `aws_route53_key_signing_key` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_route53_record` | `aws_api_gateway_domain_name` | no (report-only) |
@@ -704,7 +810,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_vpc_ipam_pool_cidr` | `aws_vpc_ipam_pool` | no (report-only) |
 | `aws_wafv2_web_acl_rule` | `aws_wafv2_web_acl` | no (report-only) |
 
-**Total.** 89 types swept via a parent read.
+**Total.** 98 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
@@ -737,6 +843,7 @@ per-type reasoning as it stands.
 `aws_cloudwatch_dashboard`, `aws_cloudwatch_event_permission`,
 `aws_cloudwatch_log_account_policy`, `aws_cloudwatch_log_resource_policy`,
 `aws_cloudwatch_otel_enrichment`, `aws_cloudwatch_query_definition`,
+`aws_codeartifact_domain_permissions_policy`,
 `aws_codeartifact_repository_permissions_policy`, `aws_codebuild_webhook`,
 `aws_codedeploy_deployment_config`, `aws_cognito_user_pool_domain`,
 `aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,

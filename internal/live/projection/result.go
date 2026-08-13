@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/states"
 )
 
@@ -50,6 +51,15 @@ type Result struct {
 	// no entry here had no prior record, so write-back opens with
 	// expectedVersion "" - the store's own create/absence convention.
 	RecordVersions []RecordVersion
+
+	// Policy lists every declared instance whose admission or tag handling
+	// GitHub issue #67's policy governed with a verb other than that
+	// quadrant's [policy.DefaultVerb] - so a run with no policy block, or
+	// one that only ever names default verbs, always produces an empty
+	// list here, which is what makes "omitted policy = byte-identical
+	// current behavior" checkable directly against this field. See
+	// [builder.checkPolicy].
+	Policy []PolicyOutcome
 }
 
 // RecordVersion pairs one record-backed resource instance with the version
@@ -57,6 +67,34 @@ type Result struct {
 type RecordVersion struct {
 	Addr    addrs.AbsResourceInstance
 	Version string
+}
+
+// PolicyOutcome is one declared instance whose admission or tag handling a
+// non-default policy verb changed.
+type PolicyOutcome struct {
+	// Addr is the resource instance.
+	Addr addrs.AbsResourceInstance
+
+	// TypeName is the resource type.
+	TypeName string
+
+	// Tagged is whether the live object carried this estate's ownership
+	// marker (declared_tagged when true, declared_untagged when false) -
+	// see [checkOwnership]'s doc comment for why this reads TagEstate
+	// rather than the policy's own TagKey/TagValue.
+	Tagged bool
+
+	// Verb is the policy verb that governed this instance.
+	Verb policy.Verb
+}
+
+// String renders a policy outcome on one line.
+func (p PolicyOutcome) String() string {
+	quadrant := "declared_untagged"
+	if p.Tagged {
+		quadrant = "declared_tagged"
+	}
+	return p.Addr.String() + " " + quadrant + "=" + string(p.Verb)
 }
 
 // Omission is one instance that the projection does not contain.

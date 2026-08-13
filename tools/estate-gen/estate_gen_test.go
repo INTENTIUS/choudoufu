@@ -95,12 +95,13 @@ func TestDefaultCohortTypesUnknown(t *testing.T) {
 // wrote.
 func generateCohort(t *testing.T, cohort string, types []string, out string) *generator {
 	t.Helper()
-	return generateCohortWith(t, cohort, types, out, false)
+	return generateCohortWith(t, cohort, types, out, false, nil)
 }
 
-// generateCohortWith is [generateCohort] with the -module-wrap switch, for
-// the tests that need the wrapped shape.
-func generateCohortWith(t *testing.T, cohort string, types []string, out string, moduleWrap bool) *generator {
+// generateCohortWith is [generateCohort] with the -module-wrap and
+// -module-keys switches, for the tests that need the wrapped (static or
+// keyed, 59c) shape.
+func generateCohortWith(t *testing.T, cohort string, types []string, out string, moduleWrap bool, moduleKeys []string) *generator {
 	t.Helper()
 	flocitest.Gate(t, "estate-gen schema acquisition")
 	flocitest.RequireBinary(t, defaultInitBin)
@@ -113,7 +114,7 @@ func generateCohortWith(t *testing.T, cohort string, types []string, out string,
 	if err != nil {
 		t.Fatalf("planCohort(%s): %v", cohort, err)
 	}
-	if err := writeCohort(out, cohort, types, g, moduleWrap); err != nil {
+	if err := writeCohort(out, cohort, types, g, moduleWrap, moduleKeys); err != nil {
 		t.Fatalf("writeCohort: %v", err)
 	}
 	if _, err := exec.LookPath(defaultFmtBin); err == nil {
@@ -163,7 +164,10 @@ func TestDeterminism(t *testing.T) {
 // flag: the same s3 types, generated wrapped, validate clean too - proving
 // the generated module call and the child module's own files are legal
 // HCL together, independent of whether stateless mode can plan them (that
-// is live/e2e/estate-module/'s job, gated on floci).
+// is live/e2e/estate-module/'s job, gated on floci). The fourth,
+// "s3-module-keyed", is 59c's own bar for -module-keys: the same shape,
+// keyed over two instances, validating clean with the wrapped module's
+// variables.tf and the root's for_each module call both present.
 func TestValidateGeneratedCohorts(t *testing.T) {
 	flocitest.Gate(t, "estate-gen terraform validate")
 	flocitest.RequireBinary(t, defaultInitBin)
@@ -172,14 +176,16 @@ func TestValidateGeneratedCohorts(t *testing.T) {
 		cohort     string
 		types      []string
 		moduleWrap bool
+		moduleKeys []string
 	}{
 		{cohort: "lambda", types: lambdaTypes},
 		{cohort: "s3", types: s3Types},
 		{cohort: "s3-module-wrap", types: s3Types, moduleWrap: true},
+		{cohort: "s3-module-keyed", types: s3Types, moduleWrap: true, moduleKeys: []string{"a", "b"}},
 	} {
 		t.Run(tc.cohort, func(t *testing.T) {
 			out := filepath.Join(t.TempDir(), tc.cohort)
-			generateCohortWith(t, tc.cohort, tc.types, out, tc.moduleWrap)
+			generateCohortWith(t, tc.cohort, tc.types, out, tc.moduleWrap, tc.moduleKeys)
 
 			run := func(args ...string) {
 				t.Helper()

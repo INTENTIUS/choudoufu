@@ -256,16 +256,19 @@ type mover struct {
 
 // checkAddresses rejects the pairs of addresses that describe no move: the
 // same address twice, two different resource types, anything that is not a
-// managed resource, and either address passing through a keyed module
+// managed resource, and either address passing through a count-keyed module
 // instance.
 //
-// A root address and a static-module address are both fine, and so is one
-// of each: crossing the module boundary either way - flattening an estate
-// into its root, or moving a resource into a module another config tree
-// declares - is an ordinary rename once both ends are legal addresses,
-// because a marker records an address, not which side of a module call
-// wrote it (see mv.go's package doc, "the migration path for estates that
-// flattened to try v0").
+// A root address, a static-module address, and a for_each-keyed module
+// address (59c, issue #59 phase 3) are all fine, and so is any mix of them:
+// crossing a module boundary at all - flattening an estate into its root,
+// moving a resource into a module another config tree declares, or renaming
+// across two module instances - is an ordinary rename once both ends are
+// legal addresses, because a marker records an address, not which side of a
+// module call wrote it (see mv.go's package doc, "the migration path for
+// estates that flattened to try v0"). Only a count-keyed step stays
+// refused, because count modules stay refused outright (RuleChildModule;
+// live/LIMITATIONS.md, "child-module").
 func checkAddresses(req Request) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
@@ -293,27 +296,35 @@ func checkAddresses(req Request) tfdiags.Diagnostics {
 				"%s is a %s and %s is a %s. A rename rewrites the marker on one live resource; it does not turn one kind of cloud object into another. See live/MARKERS.md, \"The rename rule\".",
 				req.Old, oldRes.Type, req.New, newRes.Type),
 		))
-	case hasKeyedModuleStep(req.Old.Module) || hasKeyedModuleStep(req.New.Module):
+	case hasCountKeyedModuleStep(req.Old.Module) || hasCountKeyedModuleStep(req.New.Module):
 		// Unlike the guard at the top of Move, this one is about the two
 		// addresses on the command line rather than about the configuration,
 		// so lint cannot have caught it and it stays a full explanation.
 		return diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
-			"Keyed module instances are not available under live resource markers",
-			fmt.Sprintf("%s or %s passes through a module instance carrying a count or for_each key, and live resource markers admit only static module calls today. See live/LIMITATIONS.md, \"child-module\".", req.Old, req.New),
+			"Count-keyed module instances are not available under live resource markers",
+			fmt.Sprintf("%s or %s passes through a module instance carrying a count key, and count-expanded module blocks are refused permanently. See live/LIMITATIONS.md, \"child-module\".", req.Old, req.New),
 		))
 	}
 	return diags
 }
 
-// hasKeyedModuleStep reports whether a module instance path carries an
-// instance key anywhere in it: a module expanded with count or for_each,
-// neither of which live resource markers admit yet (count permanently,
-// for_each pending 59c). A static path - every step's key is
-// [addrs.NoKey] - is fine at any depth.
-func hasKeyedModuleStep(modInst addrs.ModuleInstance) bool {
+// hasCountKeyedModuleStep reports whether a module instance path carries a
+// count-style (integer) instance key anywhere in it: a module expanded with
+// count, which live resource markers refuse permanently (RuleChildModule;
+// live/LIMITATIONS.md, "child-module") because count renumbers every
+// address beneath it on every insertion or removal above the changed
+// index, moving addresses out from under their markers. A string-keyed step
+// - a for_each-expanded module, issue #59's 59c - is fine at any depth,
+// exactly like an unkeyed one: its key does not shift under insertion or
+// removal, so a marker naming it stays valid the same way a root or
+// static-module address does. See mv.go's package doc, "the migration path
+// for estates that flattened to try v0", for why crossing a module
+// boundary at all - static, keyed, or a mix - is an ordinary rename once
+// both ends are legal addresses.
+func hasCountKeyedModuleStep(modInst addrs.ModuleInstance) bool {
 	for _, step := range modInst {
-		if step.InstanceKey != addrs.NoKey {
+		if _, isCount := step.InstanceKey.(addrs.IntKey); isCount {
 			return true
 		}
 	}

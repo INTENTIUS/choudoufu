@@ -12,15 +12,18 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/command/workdir"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/terminal"
@@ -958,6 +961,98 @@ func TestLivePlan_markerConflictIsFatal(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Issue #69: an estate whose managed resources span more than one provider
+// configuration.
+// ---------------------------------------------------------------------------
+
+// TestLivePlan_multiProviderSweepSucceeds is issue #69's own command-level
+// proof, the unit-test twin of internal/live/discovery/alias_live_test.go's
+// real floci e2e: two client-named aws_s3_bucket resources, one under the
+// default provider and one under an aliased "west" provider, neither
+// needing marker discovery. Before this issue's fix, live-plan refused any
+// configuration whose managed resources spanned more than one provider
+// configuration at all - this asserts that refusal is gone and both
+// buckets plan clean, each read through its own provider configuration.
+func TestLivePlan_multiProviderSweepSucceeds(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-plan-multi-provider"), td)
+	t.Chdir(td)
+
+	cloud := newStatelessTestCloud()
+	cloud.allowRegion("us-west-2")
+	cloud.putMarked("aws_s3_bucket", "tofu-multi-provider-east", "multi-provider-unit", "aws_s3_bucket.east", map[string]string{
+		"id": "tofu-multi-provider-east", "bucket": "tofu-multi-provider-east",
+	})
+	cloud.putMarked("aws_s3_bucket", "tofu-multi-provider-west", "multi-provider-unit", "aws_s3_bucket.west", map[string]string{
+		"id": "tofu-multi-provider-west", "bucket": "tofu-multi-provider-west",
+	})
+
+	c, done := newLivePlanCommand(t, cloud)
+
+	code := c.Run([]string{"-no-color", "-estate=multi-provider-unit"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0 - a multi-provider estate must not be refused before it reaches discovery\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+
+	stdout := output.Stdout()
+	if strings.Contains(stdout, "Marker discovery across several provider configurations") {
+		t.Errorf("the old blanket multi-provider refusal fired:\n%s", stdout)
+	}
+	for _, addr := range []string{"aws_s3_bucket.east", "aws_s3_bucket.west"} {
+		if strings.Contains(stdout, addr+" will be created") {
+			t.Errorf("%s is proposed as a create; it already exists and carries this estate's marker:\n%s", addr, stdout)
+		}
+	}
+	if !strings.Contains(stdout, "No changes.") {
+		t.Errorf("both buckets are owned and unchanged; want a clean plan:\n%s", stdout)
+	}
+	if !cloud.imported("aws_s3_bucket", "tofu-multi-provider-east") {
+		t.Error("the east bucket was never read from the live system")
+	}
+	if !cloud.imported("aws_s3_bucket", "tofu-multi-provider-west") {
+		t.Error("the west bucket was never read from the live system")
+	}
+}
+
+// TestLivePlan_needsDiscoveryAcrossProvidersIsRefused pins the rule issue
+// #69 leaves unchanged on purpose: an estate whose *needs-discovery*
+// resolutions (not merely its managed resources generally) span more than
+// one provider configuration is still refused, because a list against the
+// wrong account or region for a type actually waiting on marker discovery
+// would misreport an estate as missing rather than merely unreachable -
+// see statelessNeedsDiscoveryProvider's own doc comment. Only the
+// estate-wide sweep gained provider-awareness; this hazard is unrelated to
+// it and is not something issue #69 touches.
+func TestLivePlan_needsDiscoveryAcrossProvidersIsRefused(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-plan-multi-provider-needs-discovery"), td)
+	t.Chdir(td)
+
+	cloud := newStatelessTestCloud()
+	cloud.allowRegion("us-west-2")
+
+	c, done := newLivePlanCommand(t, cloud)
+
+	code := c.Run([]string{"-no-color", "-estate=multi-provider-unit"})
+	output := done(t)
+	if code != 1 {
+		t.Fatalf("exit code %d, want 1 - needs-discovery across providers must still be refused\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+	stderr := output.Stderr()
+	if !strings.Contains(stderr, "Marker discovery across several provider configurations") {
+		t.Errorf("the needs-discovery refusal did not fire:\n%s", stderr)
+	}
+	// The message names the provider configurations in conflict, not the
+	// resource addresses waiting on them - it names the default provider by
+	// its bare provider[...] address and the aliased one with ".west"
+	// appended.
+	if !strings.Contains(stderr, `provider["registry.opentofu.org/hashicorp/aws"]`) || !strings.Contains(stderr, ".west") {
+		t.Errorf("the refusal does not name both provider configurations:\n%s", stderr)
+	}
+}
+
 func statelessTestLoadConfig(t *testing.T, dir string) *configs.Config {
 	t.Helper()
 
@@ -1029,6 +1124,22 @@ type statelessTestCloud struct {
 	// apply test reads to check that the markers stamping injected actually
 	// reached the cloud rather than only the rendered plan.
 	applied map[string]map[string]string
+
+	// allowedRegions is what the mock provider's ConfigureProviderFn insists
+	// a provider block's region argument be, one of. Every test but the
+	// multi-provider ones only ever configures one provider - see
+	// allowRegion - and us-east-1 is the region every existing fixture's
+	// provider block already names, so a fresh cloud accepting only it
+	// keeps every one of those tests' own check ("the command evaluated the
+	// provider block") exactly as strict as it always was.
+	allowedRegions map[string]bool
+}
+
+// allowRegion widens the set of regions this cloud's mock provider accepts
+// being configured with, for a test whose fixture declares more than one
+// provider configuration (issue #69's multi-provider sweep).
+func (c *statelessTestCloud) allowRegion(region string) {
+	c.allowedRegions[region] = true
 }
 
 // statelessTestListed is one live resource as the list protocol serves it.
@@ -1041,10 +1152,11 @@ type statelessTestListed struct {
 
 func newStatelessTestCloud() *statelessTestCloud {
 	return &statelessTestCloud{
-		objects: make(map[string]map[string]string),
-		tags:    make(map[string]map[string]string),
-		listed:  make(map[string][]statelessTestListed),
-		applied: make(map[string]map[string]string),
+		objects:        make(map[string]map[string]string),
+		tags:           make(map[string]map[string]string),
+		listed:         make(map[string][]statelessTestListed),
+		applied:        make(map[string]map[string]string),
+		allowedRegions: map[string]bool{"us-east-1": true},
 	}
 }
 
@@ -1220,9 +1332,11 @@ func (c *statelessTestCloud) provider() providers.Interface {
 	p.ConfigureProviderFn = func(req providers.ConfigureProviderRequest) (resp providers.ConfigureProviderResponse) {
 		// The command has to evaluate the provider block before it can read
 		// anything, so a provider that insists on its configuration is the
-		// check that it did.
+		// check that it did. allowedRegions is one entry (us-east-1) for
+		// every ordinary fixture and widened by allowRegion for a
+		// multi-provider one.
 		region := req.Config.GetAttr("region")
-		if region.IsNull() || region.AsString() != "us-east-1" {
+		if region.IsNull() || !c.allowedRegions[region.AsString()] {
 			resp.Diagnostics = resp.Diagnostics.Append(fmt.Errorf("provider was configured with region %#v", region))
 		}
 		return resp
@@ -1332,4 +1446,55 @@ func statelessTestObjectWithTags(schema providers.Schema, attrs, tags map[string
 		}
 	}
 	return cty.ObjectVal(vals)
+}
+
+// progressRecordingView is a minimal views.StatelessPlan stub that records
+// every call to Progress and discards everything else, for testing
+// statelessProgress's throttling in isolation from any real rendering.
+type progressRecordingView struct {
+	progress []views.StatelessProgress
+}
+
+var _ views.StatelessPlan = (*progressRecordingView)(nil)
+
+func (v *progressRecordingView) Progress(p views.StatelessProgress) {
+	v.progress = append(v.progress, p)
+}
+func (v *progressRecordingView) Omissions([]views.StatelessOmission)   {}
+func (v *progressRecordingView) Unowned([]views.StatelessUnowned)      {}
+func (v *progressRecordingView) Foreign(views.StatelessForeign)        {}
+func (v *progressRecordingView) Policy(views.StatelessPolicyReport)    {}
+func (v *progressRecordingView) GuidedFallback(string)                 {}
+func (v *progressRecordingView) Lookalikes([]views.StatelessLookalike) {}
+
+// TestStatelessProgress_throttlesButAlwaysShowsTheFirstEvent pins
+// statelessProgress's whole job: discovery reports every type it scans,
+// which for a fast-listing provider is too fine-grained to print, so this
+// is where "how often" is decided. The first event has to pass through
+// unthrottled - it is a reader's first evidence the run has not hung - and
+// anything arriving within statelessProgressInterval of the last one shown
+// has to be dropped.
+func TestStatelessProgress_throttlesButAlwaysShowsTheFirstEvent(t *testing.T) {
+	rec := &progressRecordingView{}
+	report := statelessProgress(rec)
+
+	report(discovery.ProgressEvent{TypeName: "aws_vpc", TypesScanned: 1, ResourcesFound: 1})
+	report(discovery.ProgressEvent{TypeName: "aws_subnet", TypesScanned: 2, ResourcesFound: 3})
+
+	if len(rec.progress) != 1 {
+		t.Fatalf("got %d events immediately after the first, want 1 (the second is inside the throttle window): %+v", len(rec.progress), rec.progress)
+	}
+	if rec.progress[0].TypeName != "aws_vpc" {
+		t.Errorf("the event that passed through is %q, want the first one", rec.progress[0].TypeName)
+	}
+
+	time.Sleep(statelessProgressInterval + 50*time.Millisecond)
+	report(discovery.ProgressEvent{TypeName: "aws_eip", TypesScanned: 3, ResourcesFound: 5})
+
+	if len(rec.progress) != 2 {
+		t.Fatalf("got %d events after the throttle window elapsed, want 2: %+v", len(rec.progress), rec.progress)
+	}
+	if rec.progress[1].TypeName != "aws_eip" {
+		t.Errorf("the second event that passed through is %q, want aws_eip", rec.progress[1].TypeName)
+	}
 }
