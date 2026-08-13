@@ -152,12 +152,25 @@ token per row.
 
 | Status | Meaning | Rows |
 |---|---|---|
-| `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | 37 |
+| `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | 42 |
 | `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 8 |
 | `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components | 0 |
 | `ops` | excluded by the rule, forwarded to the lifecycle layer | 3 |
-| `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 20 |
+| `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 19 |
 | `unknown` | path not determined | 0 |
+
+`wired`'s count is the admission table's global size, not a tally of this
+table's own rows: 38 of the 42 are rows below, classified and wired the way
+every batch before #40 was, and the other 5 are the first registry-ratified
+batch (#40, #44) — `aws_lambda_capacity_provider`,
+`aws_lambda_code_signing_config`, `aws_lambda_event_source_mapping`,
+`aws_lambda_layer_version`, plus `aws_lambda_function`, already a row below
+and reclassified `wired` in the same batch. Four of the five have no row in
+this table at all: they are outside the curated 68 this survey measures,
+reached by `live/registry.json` and `tools/row-gen` (#44) rather than by
+this file's own provider-schema path. Extending this roster and
+`live/survey.json` to the full registry-backed universe is #40's own
+follow-on work, not this batch's.
 
 The `blocked-emulator` rows were found by the #19 and #20 wiring lanes, by
 probing each candidate end to end through the provider against the harness's
@@ -221,7 +234,7 @@ identity argument were derived like every other row's.
 | aws_dynamodb_table | client-named | wired | name | survey note; schema |
 | aws_ecs_cluster | client-named | wired | name; the provider sets id to the cluster ARN, so only name carries the import ID | roster fit; docs |
 | aws_iam_user | client-named | blocked-emulator | name; blocked: floci's iam:GetUser omits Tags, the GetRole gap family, so ownership can never read back (choudoufu#26) | survey note; schema |
-| aws_lambda_function | client-named | blocked-emulator | function_name; blocked: floci cannot create Lambda functions (lex00/floci#26) | survey note; schema |
+| aws_lambda_function | client-named | wired | function_name; registry-ratified (#40, #44) rather than reached by this survey's own provider-schema path — floci's current image creates and destroys it cleanly, so the earlier blocked-emulator note (lex00/floci#26) no longer holds | survey note, registry; schema |
 | aws_lambda_permission | client-named | blocked-emulator | function_name + statement_id, optionally qualifier; blocked: needs a live parent function, which floci cannot create (lex00/floci#26) | survey note; schema |
 | aws_eks_cluster | client-named | blocked-emulator | name; blocked: floci cannot create EKS clusters (lex00/floci#27) | survey note; schema |
 | aws_route53_record | client-named | wired | zone_id + name + type, plus set_identifier for weighted and latency sets; the fork wires it as a composite through the aws_route53_zone marker, since the Z-ID is the zone's server-assigned identity (see the wrinkles below) | survey note; schema |

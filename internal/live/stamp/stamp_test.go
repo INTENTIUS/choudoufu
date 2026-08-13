@@ -432,6 +432,11 @@ var (
 		"aws_acm_certificate",
 		"aws_sfn_state_machine",
 		"aws_ebs_volume",
+		// Registry-ratified Lambda batch (#40, #44).
+		"aws_lambda_capacity_provider",
+		"aws_lambda_code_signing_config",
+		"aws_lambda_event_source_mapping",
+		"aws_lambda_function",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -447,6 +452,24 @@ var (
 		"aws_route53_record",
 		"aws_lb_target_group_attachment",
 	}
+	// untaggableOutsideCuratedSurvey is untaggableAdmittedTypes' sibling for
+	// admitted types outside live/survey.json's curated 68 - the roster
+	// tools/survey-gen/limitations_test.go's TestLimitationsDocAgainstSurvey
+	// derives live/LIMITATIONS.md's "Untaggable types cannot be removed by
+	// the sweep" entry from. A type here is genuinely untaggable and is
+	// checked as such below, exactly like untaggableAdmittedTypes, but it is
+	// deliberately excluded from TestUntaggableTypesMatchLimitationsDoc's
+	// comparison: adding it to the doc would make that test's derivation
+	// (scoped to the curated 68) fail instead, since the type was never in
+	// scope for it. Until tools/survey-gen's derivation extends past the
+	// curated 68 to the full registry roster (live/survey-full.json), this
+	// is the honest split - the doc undercounts real untaggable types rather
+	// than either test lying about what it checked. See
+	// live/e2e/estates/lambda/README.md, "Untaggable types", for the same
+	// note against the first type to land here.
+	untaggableOutsideCuratedSurvey = []string{
+		"aws_lambda_layer_version",
+	}
 )
 
 // TestTaggableSetCoversAdmissionTable is the taggability half of lint's
@@ -461,11 +484,11 @@ var (
 // TestTaggableSetAgainstRealSchemas in stamp_live_test.go is the same pin
 // against the schema the real provider serves.
 func TestTaggableSetCoversAdmissionTable(t *testing.T) {
-	pinned := make(map[string]bool, len(taggableAdmittedTypes)+len(untaggableAdmittedTypes))
+	pinned := make(map[string]bool, len(taggableAdmittedTypes)+len(untaggableAdmittedTypes)+len(untaggableOutsideCuratedSurvey))
 	for _, resourceType := range taggableAdmittedTypes {
 		pinned[resourceType] = true
 	}
-	for _, resourceType := range untaggableAdmittedTypes {
+	for _, resourceType := range append(append([]string{}, untaggableAdmittedTypes...), untaggableOutsideCuratedSurvey...) {
 		if pinned[resourceType] {
 			t.Errorf("%s is pinned as both taggable and untaggable", resourceType)
 		}
@@ -496,6 +519,7 @@ func TestTaggableSetCoversAdmissionTable(t *testing.T) {
 	}
 	check(taggableAdmittedTypes, true)
 	check(untaggableAdmittedTypes, false)
+	check(untaggableOutsideCuratedSurvey, false)
 }
 
 // TestUntaggableTypesMatchLimitationsDoc: live/LIMITATIONS.md tells the
@@ -841,6 +865,16 @@ func testSchemas() Schemas {
 		"aws_ebs_volume":                                     tagged("id", "arn", "availability_zone", "size"),
 
 		"aws_lb_target_group_attachment": untagged("id", "target_group_arn", "target_id", "port"),
+
+		// Registry-ratified Lambda batch (#40, #44). Taggable per the real
+		// provider's documented Argument Reference; aws_lambda_layer_version
+		// is the batch's one untaggable type — its Argument Reference names
+		// no tags block at all.
+		"aws_lambda_capacity_provider":    tagged("id", "arn", "name"),
+		"aws_lambda_code_signing_config":  tagged("id", "arn", "config_id"),
+		"aws_lambda_event_source_mapping": tagged("id", "uuid", "arn", "function_arn"),
+		"aws_lambda_function":             tagged("id", "arn", "function_name"),
+		"aws_lambda_layer_version":        untagged("id", "arn", "layer_arn", "layer_name", "version"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.

@@ -295,7 +295,7 @@ outcomes at all. They are named below.
 
 ## The Contract
 
-- **AWS only, 37 resource types, root module only.** The v0 admission table
+- **AWS only, 42 resource types, root module only.** The v0 admission table
   (`internal/live/lint/admission.go`) is the whole subset. It holds
   `aws_vpc`, `aws_subnet`, `aws_security_group`,
   `aws_vpc_security_group_ingress_rule`,
@@ -312,8 +312,10 @@ outcomes at all. They are named below.
   `aws_s3_bucket_lifecycle_configuration`, `aws_iam_role`,
   `aws_cloudwatch_log_group`, `aws_cloudwatch_metric_alarm`,
   `aws_ssm_parameter`, `aws_dynamodb_table`, `aws_ecs_cluster`,
-  `aws_sns_topic`, and `aws_eip`. Nothing else, no other AWS type, no
-  other provider. A `module` block calling into a child module is refused
+  `aws_sns_topic`, `aws_eip`, `aws_lambda_capacity_provider`,
+  `aws_lambda_code_signing_config`, `aws_lambda_event_source_mapping`,
+  `aws_lambda_function`, and `aws_lambda_layer_version`. Nothing else, no
+  other AWS type, no other provider. A `module` block calling into a child module is refused
   outright. The
   subset lint rejects every module call with "Child modules are not
   available under live resource markers", pointing at the `module` block itself,
