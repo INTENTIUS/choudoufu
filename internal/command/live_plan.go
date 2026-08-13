@@ -311,7 +311,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// resolution list with the discovered instances made concrete, plus the
 	// unclaimed live resources the classifier below sorts out.
 	merged := resolutions.All()
-	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estateFlag, provs, pol)
+	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estateFlag, provs, pol, statelessView)
 	diags = diags.Append(discoDiags)
 	if discoDiags.HasErrors() {
 		// A marker problem means the estate's ownership records disagree with
@@ -526,7 +526,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 // answer, and the third return value is what a caller uses instead for
 // materializing undeclared instances correctly, per-address, regardless of
 // which provider found them.
-func statelessDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, estateFlag string, provs *statelessProviders, pol *policy.Policy) (*discovery.Result, addrs.AbsProviderConfig, map[string]addrs.AbsProviderConfig, tfdiags.Diagnostics) {
+func statelessDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, estateFlag string, provs *statelessProviders, pol *policy.Policy, statelessView views.StatelessPlan) (*discovery.Result, addrs.AbsProviderConfig, map[string]addrs.AbsProviderConfig, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	var noProvider addrs.AbsProviderConfig
 
@@ -555,7 +555,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		providerAddr := sweepProviders[0]
 		// No ScopeProvider: the single-provider path is the exact call
 		// every caller made before issue #69 existed.
-		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, addrs.AbsProviderConfig{}, provs, pol)
+		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, addrs.AbsProviderConfig{}, provs, pol, statelessView)
 		diags = diags.Append(discoDiags)
 		if discoDiags.HasErrors() {
 			return nil, noProvider, nil, diags
@@ -578,7 +578,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 	// else's declared, owned resource rather than an orphan to remove.
 	passes := make([]discovery.Pass, 0, len(sweepProviders))
 	for _, providerAddr := range sweepProviders {
-		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, providerAddr, provs, pol)
+		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, providerAddr, provs, pol, statelessView)
 		diags = diags.Append(discoDiags)
 		if discoDiags.HasErrors() {
 			return nil, noProvider, nil, diags
@@ -608,7 +608,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 // path and each iteration of its multi-provider loop. scopeProvider is
 // [discovery.Request.ScopeProvider]; its zero value means unscoped, which is
 // what the single-provider path passes.
-func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutions []identity.Resolution, estate string, providerAddr, scopeProvider addrs.AbsProviderConfig, provs *statelessProviders, pol *policy.Policy) (*discovery.Result, tfdiags.Diagnostics) {
+func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutions []identity.Resolution, estate string, providerAddr, scopeProvider addrs.AbsProviderConfig, provs *statelessProviders, pol *policy.Policy, statelessView views.StatelessPlan) (*discovery.Result, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	provider, err := provs.ConfiguredProvider(ctx, providerAddr)
@@ -630,6 +630,7 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 		Sweep:            true,
 		Policy:           pol,
 		ScopeProvider:    scopeProvider,
+		Progress:         statelessProgress(statelessView),
 	}
 	statelessApplyGuidedDiscovery(config, &req)
 
@@ -727,6 +728,44 @@ func statelessApplyGuidedDiscovery(config *configs.Config, req *discovery.Reques
 	}
 	req.GuidedMaxAge = defaultAutoGuidedMaxAge
 	req.GuidedVerifyAge = defaultAutoGuidedVerifyAge
+}
+
+// statelessProgressInterval is the minimum time between two heartbeat lines
+// [statelessProgress] forwards. Discovery reports every single type it
+// scans, which for a fast-listing provider can be many per second; printing
+// all of them would turn a heartbeat into a scrolling log, which is the
+// opposite of unobtrusive. Half a second is frequent enough that a large,
+// slow-listing estate never looks hung, and coarse enough that a small,
+// fast one prints once or twice and gets out of the way.
+const statelessProgressInterval = 500 * time.Millisecond
+
+// statelessProgress adapts a [views.StatelessPlan] into a
+// [discovery.ProgressFunc], throttling how often it actually renders a
+// heartbeat: [discovery.Discover] calls back after every resource type it
+// scans, which is finer-grained than anything worth printing, so this is
+// where the "how often" decision is made rather than in the discovery
+// package or the view. The first event always passes through unthrottled,
+// since that is a reader's first evidence the run has not hung, which
+// matters more than any timing rule.
+//
+// The view renders to stderr (see [views.StatelessPlanHuman.Progress]),
+// never stdout, so nothing this prints can end up in output a script reads
+// from this command - today that is everything live-plan writes on
+// success, since it has no -json mode yet.
+func statelessProgress(statelessView views.StatelessPlan) discovery.ProgressFunc {
+	var last time.Time
+	return func(ev discovery.ProgressEvent) {
+		now := time.Now()
+		if !last.IsZero() && now.Sub(last) < statelessProgressInterval {
+			return
+		}
+		last = now
+		statelessView.Progress(views.StatelessProgress{
+			TypeName:       ev.TypeName,
+			TypesScanned:   ev.TypesScanned,
+			ResourcesFound: ev.ResourcesFound,
+		})
+	}
 }
 
 // statelessEstateName establishes which estate this run is about.

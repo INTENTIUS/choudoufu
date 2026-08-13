@@ -36,8 +36,8 @@ when a configuration opts in.
 ## Where do I download it?
 
 From the [releases page](https://github.com/INTENTIUS/choudoufu/releases).
-Every tagged release carries prebuilt binaries for macOS and Linux on amd64
-and arm64, with a `SHA256SUMS` file. The README's Install section has a
+Every tagged release carries prebuilt binaries for macOS, Linux and Windows
+on amd64 and arm64, with a `SHA256SUMS` file. The README's Install section has a
 copy-paste download snippet. Building from source is still one command,
 `go build ./cmd/choudoufu`, which is what the demo harness does unless you
 point `TOFU_BIN` at a downloaded binary.
@@ -59,6 +59,49 @@ The estate name is the unit of ownership, and every resource this
 configuration manages gets tagged with it. The concept page
 (`website/docs/language/live-markers.mdx`, rendered on the docs site)
 walks through a full example.
+
+## Will my editor or linters choke on the live block?
+
+Yes, if they parse the `terraform` block strictly against upstream's
+schema, and no if they only tokenize HCL without validating it against a
+schema. Tested directly: stock Terraform (not this fork) rejects a
+configuration containing a `live` block outright, both `terraform init`
+and `terraform validate`, with
+
+```
+Error: Unsupported block type
+
+  on main.tf line 6, in terraform:
+   6:   live {
+
+Blocks of type "live" are not expected here.
+```
+
+exit code 1. This is expected, not a bug to work around: `live` is this
+fork's own addition to the `terraform` block's schema
+(`internal/configs/live.go`), and nothing about it is signaled to a tool
+that never heard of it. `tofu validate` from stock, unmodified OpenTofu
+would refuse the same configuration the same way, for the same reason -
+this was not tested directly (no `tofu` binary was available to test
+against), but the schema mismatch it would hit is identical.
+
+Any tool that decodes the `terraform` block's schema this strictly will
+have the same problem: `tflint` was not available to test against either,
+but it decodes HCL through OpenTofu's own configuration-loading libraries,
+which do exactly this schema check, so expect the same rejection until
+`tflint` (or your fork of it) knows about this fork's schema. A tool that
+only tokenizes or partially parses HCL - most syntax highlighters, `hclfmt`,
+generic HCL linters that check formatting rather than block schemas - has
+no problem with `live`, since nothing about its shape (an ordinary nested
+block with attributes and one nested `policy` block) is unusual HCL.
+
+There is no workaround that keeps a `live`-bearing configuration validating
+against stock tooling today: the block either exists in the schema the tool
+decodes against, or it does not. The practical options are running
+`choudoufu validate` (this fork's own binary, which does know the schema)
+in CI instead of stock `terraform validate`, or keeping the `live` block
+isolated to a small root module that stock tooling never has reason to
+touch.
 
 ## What happens to my existing state file?
 
@@ -141,6 +184,36 @@ saved plan files. Each limit is documented with its reasoning and its
 enforcing lint rule in `live/LIMITATIONS.md`, and the lint refuses a
 config outside the subset up front - naming the specific reason per
 resource - rather than failing halfway through an apply.
+
+## What do I get instead of a saved plan, for a plan-approve-apply workflow?
+
+No saved plan file, ever - `-out` is refused everywhere a live-markers run
+appears, on `choudoufu live-plan` and on plain `choudoufu plan` and `apply`
+once a configuration carries a `live` block, and applying a saved plan
+file is refused the same way. There is no separate `live-apply` command
+either: an ordinary `choudoufu apply` is what applies a live-markers
+configuration, made stateless by the same hook `plan` uses. What that
+means concretely, read from the code rather than assumed: every `apply`
+re-reads the live system, re-runs lint and discovery, and rebuilds the
+plan from scratch immediately before applying it - and that freshly built
+plan is rendered and confirmed the same way any ordinary `apply`'s plan is
+(the standard "do you want to perform these actions?" prompt), not applied
+silently. `-auto-approve` skips the prompt exactly as it always has.
+
+The honest gap this leaves, compared to a saved-plan workflow: the plan a
+human reviews and the plan that gets applied are the same plan only when
+nothing else touches the estate between the two, because there is no
+artifact recording what was reviewed for a later step to check against.
+Terraform/OpenTofu's usual plan-approve-apply split - produce a plan file,
+have a person or a gate approve it, apply exactly that file later,
+possibly from a different process or machine - is not available here even
+in spirit: an `apply` always plans again right before it applies, and there
+is no way to say "apply this specific, already-reviewed diff and refuse if
+the live system has moved since." For a single interactive run this is no
+different from approving any ordinary `apply`'s prompt; for a CI pipeline
+built around a separate plan and apply stage with a gate in between, it is
+a real, currently-unfilled gap, not a documented feature under another
+name.
 
 ## Will my estate's resource types ever be covered?
 

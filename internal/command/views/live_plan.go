@@ -357,11 +357,32 @@ func (r StatelessPolicyReport) Empty() bool {
 	return len(r.Declared) == 0 && len(r.Withheld) == 0 && len(r.Untagged) == 0 && !r.Reconcile.Ran
 }
 
+// StatelessProgress is one discovery heartbeat, already throttled by the
+// caller: how many resource types have been scanned in total and how many
+// live resources scanning has found, as of the type named in TypeName. It
+// mirrors [discovery.ProgressEvent] rather than importing that package,
+// the same way every other type in this file carries the projection and
+// foreign packages' data across without importing them - see this file's
+// other Stateless* types.
+type StatelessProgress struct {
+	TypeName       string
+	TypesScanned   int
+	ResourcesFound int
+}
+
 // StatelessPlan renders the parts of live-plan's output that have no
 // equivalent in a stock plan. The plan itself is rendered by the ordinary
 // [Plan] view, so that live-plan and plan produce identical output for
 // the part they have in common.
 type StatelessPlan interface {
+	// Progress reports one discovery heartbeat. It is the only method on
+	// this interface that writes to stderr rather than stdout: a heartbeat
+	// exists to prove a slow, silent sweep is still running, not to become
+	// part of the plan's own output, and it must never appear in anything a
+	// script reads from this command's stdout. The caller decides how often
+	// to call it; every call here is rendered.
+	Progress(p StatelessProgress)
+
 	// Omissions reports the instances that are missing from the projection,
 	// which is why the plan that follows proposes to create them.
 	Omissions(oms []StatelessOmission)
@@ -418,6 +439,27 @@ type StatelessPlanHuman struct {
 }
 
 var _ StatelessPlan = (*StatelessPlanHuman)(nil)
+
+// Progress writes one heartbeat line to stderr, dark-grey like the
+// horizontal rules elsewhere in this package (see format.HorizontalRule) so
+// it reads as ambient status rather than as a result. It is deliberately
+// plain: no section header, no word wrap, one line that a scrolling
+// terminal simply carries away - the throttling that keeps this from
+// becoming a log is the caller's job, not this method's.
+func (v *StatelessPlanHuman) Progress(p StatelessProgress) {
+	noun := "resource"
+	if p.ResourcesFound != 1 {
+		noun = "resources"
+	}
+	typeNoun := "type"
+	if p.TypesScanned != 1 {
+		typeNoun = "types"
+	}
+	v.view.streams.Eprint(v.view.colorize.Color(fmt.Sprintf(
+		"[dark_gray]discovering: %d %s scanned, %d live %s found (%s)[reset]\n",
+		p.TypesScanned, typeNoun, p.ResourcesFound, noun, p.TypeName,
+	)))
+}
 
 const statelessOmissionsIntro = `A live-markers run builds prior state by reading the live system. It could not read the following resource instances, so they are absent from the prior state and the plan below proposes to create them. This is not a claim that they do not exist: each line says why the instance could not be read.`
 

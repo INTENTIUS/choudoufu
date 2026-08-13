@@ -12,15 +12,18 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/command/workdir"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/terminal"
@@ -1443,4 +1446,55 @@ func statelessTestObjectWithTags(schema providers.Schema, attrs, tags map[string
 		}
 	}
 	return cty.ObjectVal(vals)
+}
+
+// progressRecordingView is a minimal views.StatelessPlan stub that records
+// every call to Progress and discards everything else, for testing
+// statelessProgress's throttling in isolation from any real rendering.
+type progressRecordingView struct {
+	progress []views.StatelessProgress
+}
+
+var _ views.StatelessPlan = (*progressRecordingView)(nil)
+
+func (v *progressRecordingView) Progress(p views.StatelessProgress) {
+	v.progress = append(v.progress, p)
+}
+func (v *progressRecordingView) Omissions([]views.StatelessOmission)   {}
+func (v *progressRecordingView) Unowned([]views.StatelessUnowned)      {}
+func (v *progressRecordingView) Foreign(views.StatelessForeign)        {}
+func (v *progressRecordingView) Policy(views.StatelessPolicyReport)    {}
+func (v *progressRecordingView) GuidedFallback(string)                 {}
+func (v *progressRecordingView) Lookalikes([]views.StatelessLookalike) {}
+
+// TestStatelessProgress_throttlesButAlwaysShowsTheFirstEvent pins
+// statelessProgress's whole job: discovery reports every type it scans,
+// which for a fast-listing provider is too fine-grained to print, so this
+// is where "how often" is decided. The first event has to pass through
+// unthrottled - it is a reader's first evidence the run has not hung - and
+// anything arriving within statelessProgressInterval of the last one shown
+// has to be dropped.
+func TestStatelessProgress_throttlesButAlwaysShowsTheFirstEvent(t *testing.T) {
+	rec := &progressRecordingView{}
+	report := statelessProgress(rec)
+
+	report(discovery.ProgressEvent{TypeName: "aws_vpc", TypesScanned: 1, ResourcesFound: 1})
+	report(discovery.ProgressEvent{TypeName: "aws_subnet", TypesScanned: 2, ResourcesFound: 3})
+
+	if len(rec.progress) != 1 {
+		t.Fatalf("got %d events immediately after the first, want 1 (the second is inside the throttle window): %+v", len(rec.progress), rec.progress)
+	}
+	if rec.progress[0].TypeName != "aws_vpc" {
+		t.Errorf("the event that passed through is %q, want the first one", rec.progress[0].TypeName)
+	}
+
+	time.Sleep(statelessProgressInterval + 50*time.Millisecond)
+	report(discovery.ProgressEvent{TypeName: "aws_eip", TypesScanned: 3, ResourcesFound: 5})
+
+	if len(rec.progress) != 2 {
+		t.Fatalf("got %d events after the throttle window elapsed, want 2: %+v", len(rec.progress), rec.progress)
+	}
+	if rec.progress[1].TypeName != "aws_eip" {
+		t.Errorf("the second event that passed through is %q, want aws_eip", rec.progress[1].TypeName)
+	}
 }

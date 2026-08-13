@@ -232,6 +232,37 @@ type Request struct {
 	// discovery on automatically - the "drift never hides longer than a
 	// day" half of that policy is this field, not GuidedMaxAge.
 	GuidedVerifyAge time.Duration
+
+	// Progress, when set, is called once after every resource type this
+	// pass scans - both the config-driven scan and the estate-wide sweep -
+	// with a cumulative count of types scanned and live resources found so
+	// far. It exists so a caller working against a large estate can render
+	// a heartbeat while discovery runs, which otherwise stays silent for as
+	// long as the sweep takes: the admission table can run to hundreds of
+	// types, each a separate list call. Nil (the default) disables it, and
+	// every existing caller behaves exactly as it always has.
+	//
+	// The callback runs synchronously on the discovery goroutine, in
+	// between list calls, so it must not block - a caller wanting to
+	// throttle how often it actually prints something owns that decision
+	// itself, since Discover reports every scan and does no throttling of
+	// its own.
+	Progress ProgressFunc
+}
+
+// ProgressFunc is a discovery progress callback. See Request.Progress.
+type ProgressFunc func(ProgressEvent)
+
+// ProgressEvent is one discovery heartbeat, cumulative since Discover
+// started: the resource type just scanned, how many types have been
+// scanned in total so far, and how many live resources scanning has found
+// so far. Sweep is true when the type just scanned came from the
+// estate-wide sweep rather than the config-driven scan.
+type ProgressEvent struct {
+	TypeName       string
+	Sweep          bool
+	TypesScanned   int
+	ResourcesFound int
 }
 
 // Discover finds the live resources of an estate and binds them to the
@@ -291,8 +322,13 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		return res, diags
 	}
 
+	// typesScanned and resourcesFound are progress's running totals across
+	// both loops below, reported through Request.Progress after each type -
+	// see scanTypeReporting.
+	var typesScanned, resourcesFound int
+
 	for _, typeName := range decl.typeNames() {
-		diags = diags.Append(scanType(ctx, req, schemas, decl, typeName, res, false))
+		diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, false, &typesScanned, &resourcesFound))
 	}
 
 	// The sweep runs after the config-driven scan so that a type appearing
@@ -301,7 +337,9 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		if req.TaggingSweep && req.Tagging != nil && req.Roster != nil {
 			// Issue #51: one estate-wide GetResources call replaces the
 			// per-type loop below. See [sweepViaTagging] and
-			// [Request.TaggingSweep].
+			// [Request.TaggingSweep]. It is one round trip rather than one
+			// per type, so it gets no progress events of its own - there is
+			// nothing to report between, only before and after.
 			diags = diags.Append(sweepViaTagging(ctx, req, decl, res))
 		} else {
 			// #64's guided leg: guidedSweepUniverse returns sweepTypes(req,
@@ -314,7 +352,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			res.GuidedFallback = fallback
 			res.GuidedSweepSkipped = skipped
 			for _, typeName := range universe {
-				diags = diags.Append(scanType(ctx, req, schemas, decl, typeName, res, true))
+				diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, true, &typesScanned, &resourcesFound))
 			}
 		}
 	}
@@ -734,6 +772,35 @@ func (d *declared) walkCountBlocks(ctx context.Context, cfg *configs.Config, mod
 // ---------------------------------------------------------------------------
 // Scanning one type
 // ---------------------------------------------------------------------------
+
+// scanTypeReporting calls scanType and, when req.Progress is set, reports a
+// [ProgressEvent] afterward with the running totals updated in place.
+//
+// The count comes from res.Scans rather than from scanType's return value,
+// because every return path inside scanType (and its Cloud Control cousin,
+// [scanTypeCloudControl]) appends exactly one [TypeScan] before returning,
+// whether the call resolved into a listed count or refused with a gap - that
+// slice is already the one source of truth for "how many resources did this
+// type contribute," so reading it back here needs no second bookkeeping path
+// that could drift from the first.
+func scanTypeReporting(ctx context.Context, req Request, schemas listclient.Schemas, decl *declared, typeName string, res *Result, sweep bool, typesScanned, resourcesFound *int) tfdiags.Diagnostics {
+	before := len(res.Scans)
+	diags := scanType(ctx, req, schemas, decl, typeName, res, sweep)
+	if req.Progress == nil || len(res.Scans) <= before {
+		return diags
+	}
+	for _, scan := range res.Scans[before:] {
+		*resourcesFound += scan.Listed
+	}
+	*typesScanned++
+	req.Progress(ProgressEvent{
+		TypeName:       typeName,
+		Sweep:          sweep,
+		TypesScanned:   *typesScanned,
+		ResourcesFound: *resourcesFound,
+	})
+	return diags
+}
 
 // scanType lists one resource type and files what comes back.
 //

@@ -457,10 +457,39 @@ characters (an absurdly long resource label).
 **Why bounded.** AWS caps a tag value at 256 Unicode characters, a hard
 limit stated directly in `live/MARKERS.md`. "An address that does not fit
 is a lint-time error, not a truncation. Silently truncating an ownership
-key is worse than refusing to admit the resource."
+key is worse than refusing to admit the resource." This is a budget for
+`tofu-address` alone: the separate `tofu-estate` tag has its own,
+independent 128-character budget (also in `live/MARKERS.md`), and the two
+never compete for the same characters.
 
-**Forwarding address.** Shorten the resource address, with a shorter label
-or a shorter instance key.
+**The budget math.** The whole escaped address - module path, resource
+type, label, and any `for_each`/`count` instance key - shares the one
+256-character allowance, and module nesting is the part most likely to push
+a previously-fitting address over it, because it costs characters the
+resource's own label never touches. Each level of static module nesting
+adds a literal `module.` (7 characters), the module's own name, and a `.`
+separator before the next segment - `len("module.") + len(name) + 1` per
+level, paid up front before the resource address is even considered.
+Three levels of 20-character module names alone spend
+`3 * (7 + 20 + 1) = 84` characters, leaving only 172 - not 256 - for the
+resource type, label and instance key combined. A single 250-character
+resource label already exceeds the budget on its own (`aws_s3_bucket.` is
+14 characters, so `aws_s3_bucket.` + a 250-character label escapes to 264,
+already 8 over with no module path involved at all); nested three levels
+deep behind even modest module names, a much shorter label can trip the
+same limit. The refusal this rule raises reports the exact split for the
+instance at hand - how many characters its own module path spent and how
+many were left for the rest - rather than only the total, so which half of
+the address to shorten is never a guess.
+
+**Forwarding address.** Whichever side of the split above is spending too
+much: shorten the module names in the path, flatten a level of module
+nesting so one fewer `module.<name>.` prefix is paid at all, shorten the
+resource label, or pick a shorter `for_each` key. If the resource already
+carries a live marker and the address only grew because it moved deeper
+into the module tree, `choudoufu live-mv` rewrites the marker to a new,
+shorter address in place rather than requiring the resource to be
+re-adopted from scratch.
 
 **Enforcement.** `RuleOverlongAddress`, `internal/live/lint/overlong_address.go`
 (`checkOverlongAddresses`). It escapes each instance address exactly as the

@@ -12,6 +12,35 @@ import (
 	"github.com/intentius/choudoufu/internal/terminal"
 )
 
+// TestStatelessPlan_progressGoesToStderr pins the property the "sweep
+// progress" feature depends on: a heartbeat is stderr-only, never stdout,
+// so it can never end up in anything a script reads from this command's
+// output - today that is everything live-plan prints on success, since it
+// has no -json mode. It also checks the line names the type just scanned
+// and both running counts, since those are what makes it a heartbeat rather
+// than decoration.
+func TestStatelessPlan_progressGoesToStderr(t *testing.T) {
+	streams, done := terminal.StreamsForTesting(t)
+	v := NewStatelessPlan(NewView(streams).SetRunningInAutomation(true))
+
+	v.Progress(StatelessProgress{
+		TypeName:       "aws_cloudwatch_log_group",
+		TypesScanned:   12,
+		ResourcesFound: 37,
+	})
+
+	out := done(t)
+	if got := out.Stdout(); got != "" {
+		t.Errorf("a progress heartbeat wrote to stdout: %q", got)
+	}
+	stderr := out.Stderr()
+	for _, want := range []string{"12", "37", "aws_cloudwatch_log_group"} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("stderr does not contain %q:\n%s", want, stderr)
+		}
+	}
+}
+
 // TestStatelessPlan_unownedSection renders one of each disposition and pins
 // the shape: the heading with its at-a-glance split, the copyable adoption
 // line with the exact tag values, and the in-the-way entries naming what
