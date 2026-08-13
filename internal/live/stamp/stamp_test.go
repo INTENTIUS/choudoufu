@@ -453,6 +453,25 @@ var (
 		"aws_cloudwatch_composite_alarm",
 		"aws_cloudwatch_metric_stream",
 		"aws_sqs_queue",
+		// Registry-ratified storage batch (#40, #44, issue #65): EFS, FSx,
+		// Backup. See live/e2e/estates/storage/README.md.
+		"aws_efs_access_point",
+		"aws_efs_file_system",
+		"aws_fsx_lustre_file_system",
+		"aws_fsx_ontap_file_system",
+		"aws_fsx_windows_file_system",
+		"aws_fsx_openzfs_file_system",
+		"aws_fsx_ontap_storage_virtual_machine",
+		"aws_fsx_ontap_volume",
+		"aws_fsx_openzfs_volume",
+		"aws_fsx_openzfs_snapshot",
+		"aws_fsx_data_repository_association",
+		"aws_backup_plan",
+		"aws_backup_vault",
+		"aws_backup_framework",
+		"aws_backup_report_plan",
+		"aws_backup_restore_testing_plan",
+		"aws_backup_logically_air_gapped_vault",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -484,6 +503,11 @@ var (
 		"aws_cloudwatch_dashboard",
 		"aws_sns_topic_policy",
 		"aws_sqs_queue_policy",
+		// Registry-ratified storage batch (#40, #44, issue #65): the one
+		// untaggable type this batch ratified — a client-named FSx
+		// attachment with no tags argument at all. See
+		// live/e2e/estates/storage/README.md, "Untaggable types".
+		"aws_fsx_s3_access_point_attachment",
 	}
 )
 
@@ -911,6 +935,30 @@ func testSchemas() Schemas {
 		"aws_sns_topic_policy":           untagged("id", "arn", "policy"),
 		"aws_sqs_queue":                  tagged("id", "arn", "url", "name"),
 		"aws_sqs_queue_policy":           untagged("id", "queue_url", "policy"),
+
+		// Registry-ratified storage batch (#40, #44, issue #65): EFS, FSx,
+		// Backup. Taggable/untaggable per the real provider's documented
+		// Argument Reference for each type; aws_fsx_s3_access_point_attachment
+		// is the batch's one untaggable type — its Argument Reference names
+		// no tags block at all.
+		"aws_efs_file_system":                   tagged("id", "arn", "creation_token"),
+		"aws_efs_access_point":                  tagged("id", "arn", "file_system_id"),
+		"aws_fsx_lustre_file_system":            tagged("id", "arn", "subnet_ids"),
+		"aws_fsx_ontap_file_system":             tagged("id", "arn", "subnet_ids", "deployment_type", "preferred_subnet_id", "storage_capacity"),
+		"aws_fsx_windows_file_system":           tagged("id", "arn", "subnet_ids", "throughput_capacity"),
+		"aws_fsx_openzfs_file_system":           tagged("id", "arn", "subnet_ids", "deployment_type", "throughput_capacity"),
+		"aws_fsx_ontap_storage_virtual_machine": tagged("id", "arn", "file_system_id", "name"),
+		"aws_fsx_ontap_volume":                  tagged("id", "arn", "name", "storage_virtual_machine_id"),
+		"aws_fsx_openzfs_volume":                tagged("id", "arn", "name", "parent_volume_id"),
+		"aws_fsx_openzfs_snapshot":              tagged("id", "arn", "name", "volume_id"),
+		"aws_fsx_data_repository_association":   tagged("id", "arn", "association_id", "file_system_id", "file_system_path", "data_repository_path"),
+		"aws_fsx_s3_access_point_attachment":    untagged("name", "type", "s3_access_point_arn", "s3_access_point_alias"),
+		"aws_backup_plan":                       tagged("id", "arn", "name", "version"),
+		"aws_backup_vault":                      tagged("id", "arn", "name"),
+		"aws_backup_framework":                  tagged("id", "arn", "name"),
+		"aws_backup_report_plan":                tagged("id", "arn", "name"),
+		"aws_backup_restore_testing_plan":       tagged("arn", "name", "schedule_expression"),
+		"aws_backup_logically_air_gapped_vault": tagged("id", "arn", "name", "min_retention_days", "max_retention_days"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.
