@@ -2,20 +2,21 @@
   "generated_by": "tools/mapping-gen (go run ./tools/mapping-gen)",
   "counts": {
     "types": 1691,
-    "mapped": 919,
-    "fold": 18,
-    "tf_only": 34,
-    "cfn_unmodeled": 0,
+    "mapped": 955,
+    "fold": 50,
+    "tf_only": 36,
+    "cfn_unmodeled": 48,
     "deprecated_service": 7,
-    "unclassified": 713,
+    "unclassified": 595,
     "by_via": {
-      "alias": 32,
+      "alias": 54,
+      "cfn-unmodeled": 48,
       "deprecated-service": 7,
-      "fold": 18,
-      "former2": 48,
+      "fold": 50,
+      "former2": 47,
       "name": 742,
-      "service-alias": 97,
-      "tf-only": 34
+      "service-alias": 112,
+      "tf-only": 36
     }
   },
   "former2_contradictions": [
@@ -6209,9 +6210,9 @@
     {
       "tf_type": "aws_lb_cookie_stickiness_policy",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "note": null
     },
     {
       "tf_type": "aws_lb_listener",
@@ -6237,9 +6238,9 @@
     {
       "tf_type": "aws_lb_ssl_negotiation_policy",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "note": null
     },
     {
       "tf_type": "aws_lb_target_group",
@@ -6286,65 +6287,65 @@
     {
       "tf_type": "aws_lex_intent",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "Lex V1 intent. AWS::Lex::Bot's own CFN doc states plainly: \"Amazon Lex V2 is the only supported version in CloudFormation\" - the registry's four Lex types (Bot, BotAlias, BotVersion, ResourcePolicy) are all V2-shaped (BotLocales/Intents/Slots are properties of AWS::Lex::Bot, not importable types); V1's standalone intent has no CFN counterpart at any version"
     },
     {
       "tf_type": "aws_lex_slot_type",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "Lex V1 slot type - same V2-only CFN gap as aws_lex_intent above"
     },
     {
       "tf_type": "aws_lexv2models_bot",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Lex::Bot",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_lexv2models_bot_locale",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::Lex::Bot",
+      "note": null
     },
     {
       "tf_type": "aws_lexv2models_bot_version",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Lex::BotVersion",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_lexv2models_intent",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::Lex::Bot",
+      "note": null
     },
     {
       "tf_type": "aws_lexv2models_slot",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::Lex::Bot",
+      "note": null
     },
     {
       "tf_type": "aws_lexv2models_slot_type",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::Lex::Bot",
+      "note": null
     },
     {
       "tf_type": "aws_licensemanager_association",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "associates a License Manager configuration with an existing resource (AMI, launch template, EC2 host) via UpdateLicenseSpecificationsForResource; registry search: AWS::LicenseManager only has Grant, License and LicenseAssetRuleSet, no association/specification type"
     },
     {
       "tf_type": "aws_licensemanager_grant",
@@ -6363,9 +6364,9 @@
     {
       "tf_type": "aws_licensemanager_license_configuration",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a License Configuration (the license-counting-rules object). registry search: AWS::LicenseManager has no LicenseConfiguration type (only Grant, License, LicenseAssetRuleSet)"
     },
     {
       "tf_type": "aws_lightsail_bucket",
@@ -6377,16 +6378,16 @@
     {
       "tf_type": "aws_lightsail_bucket_access_key",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "generated S3-compatible access-key credential for a Lightsail bucket. AWS::Lightsail::Bucket's full property list (AccessRules, BucketName, BundleId, ObjectVersioning, ReadOnlyAccessAccounts, ResourcesReceivingAccess, Tags) has no AccessKeys property - unlike AWS::IAM::AccessKey, Lightsail bucket keys are not CFN-declarable"
     },
     {
       "tf_type": "aws_lightsail_bucket_resource_access",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::Lightsail::Bucket",
+      "note": null
     },
     {
       "tf_type": "aws_lightsail_certificate",
@@ -6397,17 +6398,17 @@
     },
     {
       "tf_type": "aws_lightsail_container_service",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Lightsail::Container",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_lightsail_container_service_deployment_version",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::Lightsail::Container",
+      "note": null
     },
     {
       "tf_type": "aws_lightsail_database",
@@ -6426,9 +6427,9 @@
     {
       "tf_type": "aws_lightsail_disk_attachment",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "AWS::Lightsail::Disk exposes AttachedTo/AttachmentState/IsAttached only as Fn::GetAtt read-only attributes, not as settable Properties - the attach action itself is not something a CFN template can declare"
     },
     {
       "tf_type": "aws_lightsail_distribution",
@@ -6447,9 +6448,9 @@
     {
       "tf_type": "aws_lightsail_domain_entry",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::Lightsail::Domain",
+      "note": null
     },
     {
       "tf_type": "aws_lightsail_instance",
@@ -6461,58 +6462,58 @@
     {
       "tf_type": "aws_lightsail_instance_public_ports",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::Lightsail::Instance",
+      "note": null
     },
     {
       "tf_type": "aws_lightsail_key_pair",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "registry search: no AWS::Lightsail::KeyPair type exists at all (the 15 Lightsail registry types are Alarm, Bucket, Certificate, Container, Database, DatabaseSnapshot, Disk, DiskSnapshot, Distribution, Domain, Instance, InstanceSnapshot, LoadBalancer, LoadBalancerTlsCertificate, StaticIp)"
     },
     {
       "tf_type": "aws_lightsail_lb",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Lightsail::LoadBalancer",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_lightsail_lb_attachment",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::Lightsail::LoadBalancer",
+      "note": null
     },
     {
       "tf_type": "aws_lightsail_lb_certificate",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Lightsail::LoadBalancerTlsCertificate",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_lightsail_lb_certificate_attachment",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::Lightsail::LoadBalancerTlsCertificate",
+      "note": null
     },
     {
       "tf_type": "aws_lightsail_lb_https_redirection_policy",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::Lightsail::LoadBalancerTlsCertificate",
+      "note": null
     },
     {
       "tf_type": "aws_lightsail_lb_stickiness_policy",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::Lightsail::LoadBalancer",
+      "note": null
     },
     {
       "tf_type": "aws_lightsail_static_ip",
@@ -6524,30 +6525,30 @@
     {
       "tf_type": "aws_lightsail_static_ip_attachment",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::Lightsail::StaticIp",
+      "note": null
     },
     {
       "tf_type": "aws_load_balancer_backend_server_policy",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "note": null
     },
     {
       "tf_type": "aws_load_balancer_listener_policy",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "note": null
     },
     {
       "tf_type": "aws_load_balancer_policy",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "note": null
     },
     {
       "tf_type": "aws_location_geofence_collection",
@@ -6586,10 +6587,10 @@
     },
     {
       "tf_type": "aws_location_tracker_association",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Location::TrackerConsumer",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_m2_application",
@@ -6614,38 +6615,38 @@
     },
     {
       "tf_type": "aws_macie2_account",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Macie::Session",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_macie2_classification_export_configuration",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "per-account setting for where Macie writes classification results. registry search: AWS::Macie only has AllowList, CustomDataIdentifier, FindingsFilter, Session - no export-configuration type"
     },
     {
       "tf_type": "aws_macie2_classification_job",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "registry search: AWS::Macie has no ClassificationJob type"
     },
     {
       "tf_type": "aws_macie2_custom_data_identifier",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Macie::CustomDataIdentifier",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_macie2_findings_filter",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Macie::FindingsFilter",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_macie2_invitation_accepter",
@@ -6657,44 +6658,44 @@
     {
       "tf_type": "aws_macie2_member",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "Macie member-account association. registry search: AWS::Macie has no Member type"
     },
     {
       "tf_type": "aws_macie2_organization_admin_account",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "registry search: AWS::Macie has no OrganizationAdminAccount type"
     },
     {
       "tf_type": "aws_macie2_organization_configuration",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "registry search: AWS::Macie has no OrganizationConfiguration type"
     },
     {
       "tf_type": "aws_mailmanager_rule_set",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::SES::MailManagerRuleSet",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_mailmanager_traffic_policy",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::SES::MailManagerTrafficPolicy",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_main_route_table_association",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "designates an existing route table as a VPC's main route table (EC2's ReplaceRouteTableAssociation on the implicit main association). AWS::EC2::VPC carries no MainRouteTableId-style property, and the registry has no resource type for this association (only AWS::EC2::SubnetRouteTableAssociation exists, for subnet-level associations) - a well-known CloudFormation gap"
     },
     {
       "tf_type": "aws_media_convert_queue",
@@ -6712,10 +6713,10 @@
     },
     {
       "tf_type": "aws_media_packagev2_channel_group",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::MediaPackageV2::ChannelGroup",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_media_store_container",
@@ -6727,9 +6728,9 @@
     {
       "tf_type": "aws_media_store_container_policy",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::MediaStore::Container",
+      "note": null
     },
     {
       "tf_type": "aws_medialive_channel",
@@ -6797,9 +6798,9 @@
     {
       "tf_type": "aws_memorydb_snapshot",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "registry search: AWS::MemoryDB has ACL, Cluster, MultiRegionCluster, ParameterGroup, SubnetGroup, User - no Snapshot type"
     },
     {
       "tf_type": "aws_memorydb_subnet_group",
@@ -6817,17 +6818,17 @@
     },
     {
       "tf_type": "aws_mq_broker",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::AmazonMQ::Broker",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_mq_configuration",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::AmazonMQ::Configuration",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_msk_cluster",
@@ -6859,10 +6860,10 @@
     },
     {
       "tf_type": "aws_msk_scram_secret_association",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::MSK::BatchScramSecret",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_msk_serverless_cluster",
@@ -6873,10 +6874,10 @@
     },
     {
       "tf_type": "aws_msk_single_scram_secret_association",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::MSK::BatchScramSecret",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_msk_topic",
@@ -6894,24 +6895,24 @@
     },
     {
       "tf_type": "aws_mskconnect_connector",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::KafkaConnect::Connector",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_mskconnect_custom_plugin",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::KafkaConnect::CustomPlugin",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_mskconnect_worker_configuration",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::KafkaConnect::WorkerConfiguration",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_mwaa_environment",
@@ -6930,9 +6931,9 @@
     {
       "tf_type": "aws_nat_gateway_eip_association",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::EC2::NatGateway",
+      "note": null
     },
     {
       "tf_type": "aws_neptune_cluster",
@@ -6944,9 +6945,9 @@
     {
       "tf_type": "aws_neptune_cluster_endpoint",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a custom/reader endpoint on a Neptune cluster. registry search: AWS::Neptune has DBCluster, DBClusterParameterGroup, DBInstance, DBParameterGroup, DBSubnetGroup, EventSubscription, GlobalCluster - no ClusterEndpoint type"
     },
     {
       "tf_type": "aws_neptune_cluster_instance",
@@ -6965,9 +6966,9 @@
     {
       "tf_type": "aws_neptune_cluster_snapshot",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "registry search: AWS::Neptune has no DBClusterSnapshot type"
     },
     {
       "tf_type": "aws_neptune_event_subscription",
@@ -7013,10 +7014,10 @@
     },
     {
       "tf_type": "aws_network_acl_association",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::SubnetNetworkAclAssociation",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_network_acl_rule",
@@ -7041,17 +7042,17 @@
     },
     {
       "tf_type": "aws_network_interface_permission",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::NetworkInterfacePermission",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_network_interface_sg_attachment",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::EC2::NetworkInterface",
+      "note": null
     },
     {
       "tf_type": "aws_networkfirewall_firewall",
@@ -7084,9 +7085,9 @@
     {
       "tf_type": "aws_networkfirewall_resource_policy",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "cross-account resource-based policy attached to a Firewall/FirewallPolicy/RuleGroup ARN via PutResourcePolicy. registry search: AWS::NetworkFirewall has Firewall, FirewallPolicy, LoggingConfiguration, RuleGroup, TLSInspectionConfiguration, VpcEndpointAssociation - no ResourcePolicy type"
     },
     {
       "tf_type": "aws_networkfirewall_rule_group",
@@ -7119,9 +7120,9 @@
     {
       "tf_type": "aws_networkflowmonitor_scope",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "registry search: AWS::NetworkFlowMonitor has only a Monitor type, no Scope type"
     },
     {
       "tf_type": "aws_networkmanager_attachment_accepter",
@@ -7154,9 +7155,9 @@
     {
       "tf_type": "aws_networkmanager_connection",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "the classic (non-Cloud-WAN) device-to-device Connection object within a global network. registry search: AWS::NetworkManager's 16 types (ConnectAttachment, ConnectPeer, CoreNetwork*, CustomerGatewayAssociation, Device, DirectConnectGatewayAttachment, GlobalNetwork, Link, LinkAssociation, Site, SiteToSiteVpnAttachment, TransitGateway*, VpcAttachment) include no Connection type"
     },
     {
       "tf_type": "aws_networkmanager_core_network",
@@ -7168,9 +7169,9 @@
     {
       "tf_type": "aws_networkmanager_core_network_policy_attachment",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::NetworkManager::CoreNetwork",
+      "note": null
     },
     {
       "tf_type": "aws_networkmanager_customer_gateway_association",
@@ -7188,10 +7189,10 @@
     },
     {
       "tf_type": "aws_networkmanager_dx_gateway_attachment",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::NetworkManager::DirectConnectGatewayAttachment",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_networkmanager_global_network",
@@ -7216,10 +7217,10 @@
     },
     {
       "tf_type": "aws_networkmanager_prefix_list_association",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::NetworkManager::CoreNetworkPrefixListAssociation",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_networkmanager_site",
@@ -7238,9 +7239,9 @@
     {
       "tf_type": "aws_networkmanager_transit_gateway_connect_peer_association",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "registers an already-existing Transit Gateway Connect peer with a device/link in a global network (confirmed via provider docs: \"Associates a transit gateway Connect peer with a device\"). registry search: AWS::NetworkManager has a ConnectPeer type (for creating SD-WAN Connect peers) but no separate association type for registering a TGW Connect peer"
     },
     {
       "tf_type": "aws_networkmanager_transit_gateway_peering",
@@ -7273,16 +7274,16 @@
     {
       "tf_type": "aws_networkmonitor_monitor",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "registry search: no AWS::NetworkMonitor::* type exists at all (distinct from AWS::NetworkFlowMonitor, which is a different service)"
     },
     {
       "tf_type": "aws_networkmonitor_probe",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "same as aws_networkmonitor_monitor - no AWS::NetworkMonitor::* type in the registry"
     },
     {
       "tf_type": "aws_notifications_channel_association",
@@ -7336,9 +7337,9 @@
     {
       "tf_type": "aws_notifications_organizations_access",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "enables the User Notifications service's organizational access (trusted-access-style toggle). registry search: AWS::Notifications' 9 types (ChannelAssociation, EventRule, ManagedNotification*, NotificationConfiguration, NotificationHub, OrganizationalUnitAssociation, NotificationsContacts::EmailContact) have no OrganizationsAccess type"
     },
     {
       "tf_type": "aws_notificationscontacts_email_contact",
@@ -7364,16 +7365,16 @@
     {
       "tf_type": "aws_oam_sink_policy",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::Oam::Sink",
+      "note": null
     },
     {
       "tf_type": "aws_observabilityadmin_centralization_rule_for_organization",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::ObservabilityAdmin::OrganizationCentralizationRule",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_observabilityadmin_s3_table_integration",
@@ -7392,23 +7393,23 @@
     {
       "tf_type": "aws_observabilityadmin_telemetry_evaluation",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an account-level telemetry-configuration evaluation run. registry search: AWS::ObservabilityAdmin's 6 types (OrganizationCentralizationRule, OrganizationTelemetryRule, S3TableIntegration, TelemetryEnrichment, TelemetryPipelines, TelemetryRule) have no Evaluation type"
     },
     {
       "tf_type": "aws_observabilityadmin_telemetry_evaluation_for_organization",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "the organization-wide counterpart of aws_observabilityadmin_telemetry_evaluation - same registry gap, no Evaluation type at any scope"
     },
     {
       "tf_type": "aws_observabilityadmin_telemetry_pipeline",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::ObservabilityAdmin::TelemetryPipelines",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_observabilityadmin_telemetry_rule",
@@ -7419,10 +7420,10 @@
     },
     {
       "tf_type": "aws_observabilityadmin_telemetry_rule_for_organization",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::ObservabilityAdmin::OrganizationTelemetryRule",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_odb_cloud_autonomous_vm_cluster",
@@ -7454,10 +7455,10 @@
     },
     {
       "tf_type": "aws_odb_network_peering_connection",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::ODB::OdbPeeringConnection",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_opensearch_application",
@@ -7469,9 +7470,9 @@
     {
       "tf_type": "aws_opensearch_authorize_vpc_endpoint_access",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "grants another account permission to create a VPC endpoint into a domain (AuthorizeVpcEndpointAccess). registry search: AWS::OpenSearchService has only Application and Domain - no authorization/access type"
     },
     {
       "tf_type": "aws_opensearch_domain",
@@ -7483,16 +7484,16 @@
     {
       "tf_type": "aws_opensearch_domain_policy",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::OpenSearchService::Domain",
+      "note": null
     },
     {
       "tf_type": "aws_opensearch_domain_saml_options",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::OpenSearchService::Domain",
+      "note": null
     },
     {
       "tf_type": "aws_opensearch_inbound_connection_accepter",
@@ -7504,30 +7505,30 @@
     {
       "tf_type": "aws_opensearch_outbound_connection",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "cross-cluster search connection. registry search: AWS::OpenSearchService has only Application and Domain"
     },
     {
       "tf_type": "aws_opensearch_package",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a custom plugin/dictionary package associated with a domain. registry search: AWS::OpenSearchService has only Application and Domain"
     },
     {
       "tf_type": "aws_opensearch_package_association",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "same gap as aws_opensearch_package - no CFN type models package associations"
     },
     {
       "tf_type": "aws_opensearch_vpc_endpoint",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a PrivateLink-style VPC endpoint into a domain. registry search: AWS::OpenSearchService has only Application and Domain"
     },
     {
       "tf_type": "aws_opensearchserverless_access_policy",
@@ -7588,16 +7589,16 @@
     {
       "tf_type": "aws_organizations_aws_service_access",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "enables trusted access for an AWS service at the organization level (EnableAWSServiceAccess). registry search: AWS::Organizations has Account, Organization, OrganizationalUnit, Policy, ResourcePolicy - no service-access type"
     },
     {
       "tf_type": "aws_organizations_delegated_administrator",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "registers a member account as delegated administrator for a service. registry search: AWS::Organizations has no DelegatedAdministrator type"
     },
     {
       "tf_type": "aws_organizations_organization",
@@ -7623,9 +7624,9 @@
     {
       "tf_type": "aws_organizations_policy_attachment",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::Organizations::Policy",
+      "note": null
     },
     {
       "tf_type": "aws_organizations_resource_policy",
@@ -7637,9 +7638,9 @@
     {
       "tf_type": "aws_organizations_tag",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a tagging-only wrapper for an AWS Organizations resource (account, OU, or root) created outside Terraform's own management - e.g. an account implicitly created by AWS Control Tower - with no cloud resource of its own (registry.terraform.io: \"Manages an individual Organizations resource tag ... in cases where Organizations resources are created outside Terraform\")"
     },
     {
       "tf_type": "aws_osis_pipeline",
@@ -7651,23 +7652,23 @@
     {
       "tf_type": "aws_osis_pipeline_endpoint",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a VPC endpoint connection into an OpenSearch Ingestion pipeline. registry search: AWS::OSIS has only a Pipeline type, no endpoint type"
     },
     {
       "tf_type": "aws_osis_resource_policy",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "cross-account resource policy for pipeline log ingestion. registry search: AWS::OSIS has only a Pipeline type"
     },
     {
       "tf_type": "aws_outposts_capacity_task",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an on-demand capacity-evaluation task run against an Outpost. registry search: AWS::Outposts has only a Site type (plus the unrelated AWS::S3Outposts::* family) - no CapacityTask type"
     },
     {
       "tf_type": "aws_paymentcryptography_key",
@@ -7678,10 +7679,10 @@
     },
     {
       "tf_type": "aws_paymentcryptography_key_alias",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::PaymentCryptography::Alias",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_pinpoint_adm_channel",
@@ -7769,38 +7770,38 @@
     },
     {
       "tf_type": "aws_pinpointsmsvoicev2_configuration_set",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::SMSVOICE::ConfigurationSet",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_pinpointsmsvoicev2_event_destination",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::SMSVOICE::ConfigurationSet",
+      "note": null
     },
     {
       "tf_type": "aws_pinpointsmsvoicev2_opt_out_list",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::SMSVOICE::OptOutList",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_pinpointsmsvoicev2_phone_number",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::SMSVOICE::PhoneNumber",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_pinpointsmsvoicev2_pool",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::SMSVOICE::Pool",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_pipes_pipe",
@@ -7819,72 +7820,72 @@
     {
       "tf_type": "aws_prometheus_alert_manager_definition",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::APS::Workspace",
+      "note": null
     },
     {
       "tf_type": "aws_prometheus_anomaly_detector",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::APS::AnomalyDetector",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_prometheus_query_logging_configuration",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::APS::Workspace",
+      "note": null
     },
     {
       "tf_type": "aws_prometheus_resource_policy",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::APS::ResourcePolicy",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_prometheus_rule_group_namespace",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::APS::RuleGroupsNamespace",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_prometheus_scraper",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::APS::Scraper",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_prometheus_scraper_logging_configuration",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::APS::Scraper",
+      "note": null
     },
     {
       "tf_type": "aws_prometheus_workspace",
       "cfn_type": "AWS::APS::Workspace",
-      "via": "former2",
+      "via": "service-alias",
       "fold_parent": null,
       "note": null
     },
     {
       "tf_type": "aws_prometheus_workspace_configuration",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::APS::Workspace",
+      "note": null
     },
     {
       "tf_type": "aws_proxy_protocol_policy",
       "cfn_type": null,
-      "via": "none",
-      "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "via": "fold",
+      "fold_parent": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "note": null
     },
     {
       "tf_type": "aws_qbusiness_application",
@@ -7910,16 +7911,16 @@
     {
       "tf_type": "aws_quicksight_account_settings",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "registry search: AWS::QuickSight's 18 types have no AccountSettings type (account-level singleton config, not CFN-modeled)"
     },
     {
       "tf_type": "aws_quicksight_account_subscription",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "subscribes an AWS account to QuickSight (the one-time account-creation action). registry search: no AccountSubscription type"
     },
     {
       "tf_type": "aws_quicksight_analysis",
@@ -7966,44 +7967,44 @@
     {
       "tf_type": "aws_quicksight_folder_membership",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "places an existing asset (dashboard, analysis, dataset...) into a folder. AWS::QuickSight::Folder's full property list (AwsAccountId, FolderId, FolderType, Name, ParentFolderArn, Permissions, SharingModel, Tags) has no members/membership property - registry search confirms no separate FolderMembership type either"
     },
     {
       "tf_type": "aws_quicksight_group",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a QuickSight identity-store group. registry search: no Group type (QuickSight groups are an identity construct managed by API, not CFN)"
     },
     {
       "tf_type": "aws_quicksight_group_membership",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "registry search: no GroupMembership type"
     },
     {
       "tf_type": "aws_quicksight_iam_policy_assignment",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "assigns an IAM policy to QuickSight users/groups. registry search: no IamPolicyAssignment type"
     },
     {
       "tf_type": "aws_quicksight_ingestion",
       "cfn_type": null,
-      "via": "none",
+      "via": "tf-only",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "an invocation action: starts a QuickSight dataset ingestion (SPICE refresh) job and tracks its result, with no CFN resource of its own (registry search: AWS::QuickSight has no Ingestion type)"
     },
     {
       "tf_type": "aws_quicksight_ip_restriction",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "account-level IP allow-list singleton. registry search: no IpRestriction type"
     },
     {
       "tf_type": "aws_quicksight_key_registration",
@@ -8015,9 +8016,9 @@
     {
       "tf_type": "aws_quicksight_namespace",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a QuickSight multi-tenancy namespace (identity construct). registry search: no Namespace type"
     },
     {
       "tf_type": "aws_quicksight_refresh_schedule",
@@ -8029,16 +8030,16 @@
     {
       "tf_type": "aws_quicksight_role_custom_permission",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "assigns an existing CustomPermissions profile to an entire QuickSight role (ADMIN/AUTHOR/READER/...) within a namespace - confirmed via provider docs (role + namespace arguments, no permissions content of its own). registry search: no per-role assignment type; AWS::QuickSight::CustomPermissions models the permissions profile itself, not this assignment"
     },
     {
       "tf_type": "aws_quicksight_role_membership",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "assigns a user to a QuickSight role. registry search: no RoleMembership type"
     },
     {
       "tf_type": "aws_quicksight_template",
@@ -8050,9 +8051,9 @@
     {
       "tf_type": "aws_quicksight_template_alias",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a named pointer to one version of an existing template - confirmed via provider docs (template_id + template_version_number, no template content of its own). registry search: AWS::QuickSight::Template exists but there is no TemplateAlias type"
     },
     {
       "tf_type": "aws_quicksight_theme",
@@ -8064,16 +8065,16 @@
     {
       "tf_type": "aws_quicksight_user",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "a QuickSight user (identity construct, typically federated via IAM/Identity Center). registry search: no User type"
     },
     {
       "tf_type": "aws_quicksight_user_custom_permission",
       "cfn_type": null,
-      "via": "none",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": "assigns a CustomPermissions profile to one specific user, the per-user counterpart of aws_quicksight_role_custom_permission. registry search: no per-user assignment type"
     },
     {
       "tf_type": "aws_quicksight_vpc_connection",

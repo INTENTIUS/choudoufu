@@ -528,11 +528,13 @@ creating one. `via: "tf-only"` in `live/mapping.json`.
 | 5 | a default_* adopter: brings an AWS-created default resource under management rather than creating one, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
 | 2 | a registration action: enrolls an account or resource into a feature, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
 | 1 | a confirmation waiter: flips a pending request to confirmed, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
+| 1 | a tagging-only wrapper for an AWS Organizations resource (account, OU, or root) created outside Terraform's own management - e.g. an account implicitly created by AWS Control Tower - with no cloud resource of its own (registry.terraform.io: "Manages an individual Organizations resource tag ... in cases where Organizations resources are created outside Terraform") |
 | 1 | an activation action: flips a pending registration to active, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
+| 1 | an invocation action: starts a QuickSight dataset ingestion (SPICE refresh) job and tracks its result, with no CFN resource of its own (registry search: AWS::QuickSight has no Ingestion type) |
 | 1 | an invocation action: triggers a call and records its result, with no CFN resource of its own (no identity schema in the provider's own schema, so no importable identity either) |
 | 1 | waiter: records only that DNS validation finished; waiting belongs to the lifecycle layer, not a CFN resource of its own |
 
-**Total.** 34 Terraform AWS resource types that are provider-side constructs, not infrastructure - no CloudFormation counterpart is expected for any of them. Each row's own note is in `live/mapping.json`.
+**Total.** 36 Terraform AWS resource types that are provider-side constructs, not infrastructure - no CloudFormation counterpart is expected for any of them. Each row's own note is in `live/mapping.json`.
 <!-- survey-gen:end residue-tf-only -->
 
 #### CFN-unmodeled resources
@@ -546,8 +548,56 @@ empty until a sweep adds its first entry.
 <!-- survey-gen:begin residue-cfn-unmodeled -->
 | Count | Note |
 |---|---|
+| 1 | AWS::Lightsail::Disk exposes AttachedTo/AttachmentState/IsAttached only as Fn::GetAtt read-only attributes, not as settable Properties - the attach action itself is not something a CFN template can declare |
+| 1 | Lex V1 intent. AWS::Lex::Bot's own CFN doc states plainly: "Amazon Lex V2 is the only supported version in CloudFormation" - the registry's four Lex types (Bot, BotAlias, BotVersion, ResourcePolicy) are all V2-shaped (BotLocales/Intents/Slots are properties of AWS::Lex::Bot, not importable types); V1's standalone intent has no CFN counterpart at any version |
+| 1 | Lex V1 slot type - same V2-only CFN gap as aws_lex_intent above |
+| 1 | Macie member-account association. registry search: AWS::Macie has no Member type |
+| 1 | a License Configuration (the license-counting-rules object). registry search: AWS::LicenseManager has no LicenseConfiguration type (only Grant, License, LicenseAssetRuleSet) |
+| 1 | a PrivateLink-style VPC endpoint into a domain. registry search: AWS::OpenSearchService has only Application and Domain |
+| 1 | a QuickSight identity-store group. registry search: no Group type (QuickSight groups are an identity construct managed by API, not CFN) |
+| 1 | a QuickSight multi-tenancy namespace (identity construct). registry search: no Namespace type |
+| 1 | a QuickSight user (identity construct, typically federated via IAM/Identity Center). registry search: no User type |
+| 1 | a VPC endpoint connection into an OpenSearch Ingestion pipeline. registry search: AWS::OSIS has only a Pipeline type, no endpoint type |
+| 1 | a custom plugin/dictionary package associated with a domain. registry search: AWS::OpenSearchService has only Application and Domain |
+| 1 | a custom/reader endpoint on a Neptune cluster. registry search: AWS::Neptune has DBCluster, DBClusterParameterGroup, DBInstance, DBParameterGroup, DBSubnetGroup, EventSubscription, GlobalCluster - no ClusterEndpoint type |
+| 1 | a named pointer to one version of an existing template - confirmed via provider docs (template_id + template_version_number, no template content of its own). registry search: AWS::QuickSight::Template exists but there is no TemplateAlias type |
+| 1 | account-level IP allow-list singleton. registry search: no IpRestriction type |
+| 1 | an account-level telemetry-configuration evaluation run. registry search: AWS::ObservabilityAdmin's 6 types (OrganizationCentralizationRule, OrganizationTelemetryRule, S3TableIntegration, TelemetryEnrichment, TelemetryPipelines, TelemetryRule) have no Evaluation type |
+| 1 | an on-demand capacity-evaluation task run against an Outpost. registry search: AWS::Outposts has only a Site type (plus the unrelated AWS::S3Outposts::* family) - no CapacityTask type |
+| 1 | assigns a CustomPermissions profile to one specific user, the per-user counterpart of aws_quicksight_role_custom_permission. registry search: no per-user assignment type |
+| 1 | assigns a user to a QuickSight role. registry search: no RoleMembership type |
+| 1 | assigns an IAM policy to QuickSight users/groups. registry search: no IamPolicyAssignment type |
+| 1 | assigns an existing CustomPermissions profile to an entire QuickSight role (ADMIN/AUTHOR/READER/...) within a namespace - confirmed via provider docs (role + namespace arguments, no permissions content of its own). registry search: no per-role assignment type; AWS::QuickSight::CustomPermissions models the permissions profile itself, not this assignment |
+| 1 | associates a License Manager configuration with an existing resource (AMI, launch template, EC2 host) via UpdateLicenseSpecificationsForResource; registry search: AWS::LicenseManager only has Grant, License and LicenseAssetRuleSet, no association/specification type |
+| 1 | cross-account resource policy for pipeline log ingestion. registry search: AWS::OSIS has only a Pipeline type |
+| 1 | cross-account resource-based policy attached to a Firewall/FirewallPolicy/RuleGroup ARN via PutResourcePolicy. registry search: AWS::NetworkFirewall has Firewall, FirewallPolicy, LoggingConfiguration, RuleGroup, TLSInspectionConfiguration, VpcEndpointAssociation - no ResourcePolicy type |
+| 1 | cross-cluster search connection. registry search: AWS::OpenSearchService has only Application and Domain |
+| 1 | designates an existing route table as a VPC's main route table (EC2's ReplaceRouteTableAssociation on the implicit main association). AWS::EC2::VPC carries no MainRouteTableId-style property, and the registry has no resource type for this association (only AWS::EC2::SubnetRouteTableAssociation exists, for subnet-level associations) - a well-known CloudFormation gap |
+| 1 | enables the User Notifications service's organizational access (trusted-access-style toggle). registry search: AWS::Notifications' 9 types (ChannelAssociation, EventRule, ManagedNotification*, NotificationConfiguration, NotificationHub, OrganizationalUnitAssociation, NotificationsContacts::EmailContact) have no OrganizationsAccess type |
+| 1 | enables trusted access for an AWS service at the organization level (EnableAWSServiceAccess). registry search: AWS::Organizations has Account, Organization, OrganizationalUnit, Policy, ResourcePolicy - no service-access type |
+| 1 | generated S3-compatible access-key credential for a Lightsail bucket. AWS::Lightsail::Bucket's full property list (AccessRules, BucketName, BundleId, ObjectVersioning, ReadOnlyAccessAccounts, ResourcesReceivingAccess, Tags) has no AccessKeys property - unlike AWS::IAM::AccessKey, Lightsail bucket keys are not CFN-declarable |
+| 1 | grants another account permission to create a VPC endpoint into a domain (AuthorizeVpcEndpointAccess). registry search: AWS::OpenSearchService has only Application and Domain - no authorization/access type |
+| 1 | per-account setting for where Macie writes classification results. registry search: AWS::Macie only has AllowList, CustomDataIdentifier, FindingsFilter, Session - no export-configuration type |
+| 1 | places an existing asset (dashboard, analysis, dataset...) into a folder. AWS::QuickSight::Folder's full property list (AwsAccountId, FolderId, FolderType, Name, ParentFolderArn, Permissions, SharingModel, Tags) has no members/membership property - registry search confirms no separate FolderMembership type either |
+| 1 | registers a member account as delegated administrator for a service. registry search: AWS::Organizations has no DelegatedAdministrator type |
+| 1 | registers an already-existing Transit Gateway Connect peer with a device/link in a global network (confirmed via provider docs: "Associates a transit gateway Connect peer with a device"). registry search: AWS::NetworkManager has a ConnectPeer type (for creating SD-WAN Connect peers) but no separate association type for registering a TGW Connect peer |
+| 1 | registry search: AWS::Macie has no ClassificationJob type |
+| 1 | registry search: AWS::Macie has no OrganizationAdminAccount type |
+| 1 | registry search: AWS::Macie has no OrganizationConfiguration type |
+| 1 | registry search: AWS::MemoryDB has ACL, Cluster, MultiRegionCluster, ParameterGroup, SubnetGroup, User - no Snapshot type |
+| 1 | registry search: AWS::Neptune has no DBClusterSnapshot type |
+| 1 | registry search: AWS::NetworkFlowMonitor has only a Monitor type, no Scope type |
+| 1 | registry search: AWS::QuickSight's 18 types have no AccountSettings type (account-level singleton config, not CFN-modeled) |
+| 1 | registry search: no AWS::Lightsail::KeyPair type exists at all (the 15 Lightsail registry types are Alarm, Bucket, Certificate, Container, Database, DatabaseSnapshot, Disk, DiskSnapshot, Distribution, Domain, Instance, InstanceSnapshot, LoadBalancer, LoadBalancerTlsCertificate, StaticIp) |
+| 1 | registry search: no AWS::NetworkMonitor::* type exists at all (distinct from AWS::NetworkFlowMonitor, which is a different service) |
+| 1 | registry search: no GroupMembership type |
+| 1 | same as aws_networkmonitor_monitor - no AWS::NetworkMonitor::* type in the registry |
+| 1 | same gap as aws_opensearch_package - no CFN type models package associations |
+| 1 | subscribes an AWS account to QuickSight (the one-time account-creation action). registry search: no AccountSubscription type |
+| 1 | the classic (non-Cloud-WAN) device-to-device Connection object within a global network. registry search: AWS::NetworkManager's 16 types (ConnectAttachment, ConnectPeer, CoreNetwork*, CustomerGatewayAssociation, Device, DirectConnectGatewayAttachment, GlobalNetwork, Link, LinkAssociation, Site, SiteToSiteVpnAttachment, TransitGateway*, VpcAttachment) include no Connection type |
+| 1 | the organization-wide counterpart of aws_observabilityadmin_telemetry_evaluation - same registry gap, no Evaluation type at any scope |
 
-**Total.** 0 Terraform AWS resource types that are real infrastructure with no CloudFormation Registry model at all. Each row's own note is in `live/mapping.json`.
+**Total.** 48 Terraform AWS resource types that are real infrastructure with no CloudFormation Registry model at all. Each row's own note is in `live/mapping.json`.
 <!-- survey-gen:end residue-cfn-unmodeled -->
 
 #### Unclassified Terraform types
@@ -563,9 +613,9 @@ parent-derived) are unaffected and may still reach one.
 <!-- survey-gen:begin residue-unmapped -->
 | Count | Note |
 |---|---|
-| 713 | no CFN counterpart found by name or curated overlay |
+| 595 | no CFN counterpart found by name or curated overlay |
 
-**Total.** 713 Terraform AWS resource types with no CloudFormation Registry counterpart and no terminal classification yet - the count the family sweeps in issue #53's workplan burn down. Each row's own note is in `live/mapping.json`.
+**Total.** 595 Terraform AWS resource types with no CloudFormation Registry counterpart and no terminal classification yet - the count the family sweeps in issue #53's workplan burn down. Each row's own note is in `live/mapping.json`.
 <!-- survey-gen:end residue-unmapped -->
 
 #### Registry-laggard live services
@@ -625,9 +675,11 @@ excluding types already counted under "Deprecated or EOL services" above.
 | `aws_lb_listener_certificate` | `AWS::ElasticLoadBalancingV2::ListenerCertificate` |
 | `aws_media_convert_queue` | `AWS::MediaConvert::Queue` |
 | `aws_media_store_container` | `AWS::MediaStore::Container` |
+| `aws_media_store_container_policy` | `AWS::MediaStore::Container` |
 | `aws_medialive_channel` | `AWS::MediaLive::Channel` |
 | `aws_medialive_input` | `AWS::MediaLive::Input` |
 | `aws_medialive_input_security_group` | `AWS::MediaLive::InputSecurityGroup` |
+| `aws_network_interface_permission` | `AWS::EC2::NetworkInterfacePermission` |
 | `aws_qldb_ledger` | `AWS::QLDB::Ledger` |
 | `aws_route53_record` | `AWS::Route53::RecordSet` |
 | `aws_sagemaker_code_repository` | `AWS::SageMaker::CodeRepository` |
@@ -643,7 +695,7 @@ excluding types already counted under "Deprecated or EOL services" above.
 | `aws_ses_receipt_rule` | `AWS::SES::ReceiptRule` |
 | `aws_ses_receipt_rule_set` | `AWS::SES::ReceiptRuleSet` |
 
-**Total.** 60 types, covered only where the provider's own identity schema reaches (the union `live/survey-full.json` measures). A successor CFN type sometimes exists with working handlers - `AWS::Elasticsearch::Domain` above has no handlers, but its successor `AWS::OpenSearchService::Domain` does; `live/mapping.json` does not yet link `aws_opensearch_domain` to it.
+**Total.** 62 types, covered only where the provider's own identity schema reaches (the union `live/survey-full.json` measures). A successor CFN type sometimes exists with working handlers - `AWS::Elasticsearch::Domain` above has no handlers, but its successor `AWS::OpenSearchService::Domain` does; `live/mapping.json` does not yet link `aws_opensearch_domain` to it.
 <!-- survey-gen:end residue-laggard -->
 
 #### Emulator-blocked
