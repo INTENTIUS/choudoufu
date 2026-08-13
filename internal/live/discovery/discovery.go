@@ -285,6 +285,11 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	// only settled once binding and orphan classification have run.
 	if req.Sweep {
 		diags = diags.Append(parentReadSweep(ctx, req, schemas, res))
+		// The fold-child leg (issue #68) runs right after: same res.Resolutions
+		// vantage point, generalized to a parent that may itself be
+		// untaggable and composite rather than concrete. See
+		// internal/live/discovery/fold_read.go's package doc comment.
+		diags = diags.Append(foldChildReadSweep(ctx, req, schemas, res))
 	}
 
 	// Policy narrows the undeclared_tagged quadrant last, once every removal
