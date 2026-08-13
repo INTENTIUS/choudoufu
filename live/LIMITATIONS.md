@@ -381,8 +381,12 @@ The unadmitted half holds by construction: `internal/live/discovery`
 builds the sweep universe from `identity.AdmittedTypes()`.)
 
 **Untaggable types cannot be removed by the sweep.** <!-- survey-gen:begin untaggable-admitted -->
-`aws_cloudwatch_dashboard`, `aws_ecr_registry_policy`,
-`aws_ecr_registry_scanning_configuration`,
+`aws_api_gateway_account`, `aws_api_gateway_base_path_mapping`,
+`aws_api_gateway_documentation_version`, `aws_api_gateway_gateway_response`,
+`aws_api_gateway_method`, `aws_api_gateway_model`,
+`aws_api_gateway_rest_api_policy`, `aws_api_gateway_usage_plan_key`,
+`aws_apigatewayv2_routing_rule`, `aws_cloudwatch_dashboard`,
+`aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
 `aws_ecr_replication_configuration`, `aws_iam_role_policy`,
 `aws_iam_role_policy_attachment`, `aws_kms_alias`,
 `aws_lambda_layer_version`, `aws_lb_target_group_attachment`, `aws_route`,

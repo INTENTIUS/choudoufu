@@ -453,6 +453,19 @@ var (
 		"aws_cloudwatch_composite_alarm",
 		"aws_cloudwatch_metric_stream",
 		"aws_sqs_queue",
+		// Registry-ratified API Gateway v1/v2 batch (#40, #44, issue #65).
+		"aws_api_gateway_api_key",
+		"aws_api_gateway_client_certificate",
+		"aws_api_gateway_domain_name",
+		"aws_api_gateway_domain_name_access_association",
+		"aws_api_gateway_rest_api",
+		"aws_api_gateway_stage",
+		"aws_api_gateway_usage_plan",
+		"aws_api_gateway_vpc_link",
+		"aws_apigatewayv2_api",
+		"aws_apigatewayv2_domain_name",
+		"aws_apigatewayv2_stage",
+		"aws_apigatewayv2_vpc_link",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -484,6 +497,19 @@ var (
 		"aws_cloudwatch_dashboard",
 		"aws_sns_topic_policy",
 		"aws_sqs_queue_policy",
+		// Registry-ratified API Gateway v1/v2 batch (#40, #44, issue #65):
+		// nine types with no tags argument at all, confirmed against the
+		// provider's documented Argument Reference for each. See
+		// live/e2e/estates/apigateway/README.md, "Untaggable types".
+		"aws_api_gateway_account",
+		"aws_api_gateway_base_path_mapping",
+		"aws_api_gateway_documentation_version",
+		"aws_api_gateway_gateway_response",
+		"aws_api_gateway_method",
+		"aws_api_gateway_model",
+		"aws_api_gateway_rest_api_policy",
+		"aws_api_gateway_usage_plan_key",
+		"aws_apigatewayv2_routing_rule",
 	}
 )
 
@@ -911,6 +937,34 @@ func testSchemas() Schemas {
 		"aws_sns_topic_policy":           untagged("id", "arn", "policy"),
 		"aws_sqs_queue":                  tagged("id", "arn", "url", "name"),
 		"aws_sqs_queue_policy":           untagged("id", "queue_url", "policy"),
+
+		// Registry-ratified API Gateway v1/v2 batch (#40, #44, issue #65).
+		// Taggable/untaggable per the real provider's documented Argument
+		// Reference for each type: aws_api_gateway_account,
+		// _base_path_mapping, _documentation_version, _gateway_response,
+		// _method, _model, _rest_api_policy, _usage_plan_key and
+		// aws_apigatewayv2_routing_rule carry no tags argument at all.
+		"aws_api_gateway_account":                        untagged("id"),
+		"aws_api_gateway_api_key":                        tagged("id", "name", "value"),
+		"aws_api_gateway_base_path_mapping":              untagged("id", "api_id", "domain_name", "base_path"),
+		"aws_api_gateway_client_certificate":             tagged("id", "description"),
+		"aws_api_gateway_documentation_version":          untagged("id", "rest_api_id", "version"),
+		"aws_api_gateway_domain_name":                    tagged("id", "domain_name"),
+		"aws_api_gateway_domain_name_access_association": tagged("id", "arn", "domain_name_arn"),
+		"aws_api_gateway_gateway_response":               untagged("id", "rest_api_id", "response_type"),
+		"aws_api_gateway_method":                         untagged("id", "rest_api_id", "resource_id", "http_method"),
+		"aws_api_gateway_model":                          untagged("id", "rest_api_id", "name"),
+		"aws_api_gateway_rest_api":                       tagged("id", "arn", "name"),
+		"aws_api_gateway_rest_api_policy":                untagged("id", "rest_api_id", "policy"),
+		"aws_api_gateway_stage":                          tagged("id", "arn", "rest_api_id", "stage_name", "deployment_id"),
+		"aws_api_gateway_usage_plan":                     tagged("id", "name"),
+		"aws_api_gateway_usage_plan_key":                 untagged("id", "usage_plan_id", "key_id", "key_type"),
+		"aws_api_gateway_vpc_link":                       tagged("id", "name", "target_arns"),
+		"aws_apigatewayv2_api":                           tagged("id", "arn", "name", "protocol_type"),
+		"aws_apigatewayv2_domain_name":                   tagged("id", "domain_name"),
+		"aws_apigatewayv2_routing_rule":                  untagged("id", "domain_name", "action", "condition"),
+		"aws_apigatewayv2_stage":                         tagged("id", "arn", "api_id", "name"),
+		"aws_apigatewayv2_vpc_link":                      tagged("id", "name", "security_group_ids", "subnet_ids"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.

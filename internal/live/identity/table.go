@@ -1023,6 +1023,360 @@ var DefaultTable = buildTable(
 		ImportSyntax:  "https://sqs.REGION.amazonaws.com/ACCOUNT/NAME",
 		IdentityAttrs: []string{"url", "id"},
 	},
+
+	// ---- Registry-ratified (#40, #44): fourth batch, API Gateway v1 and v2
+	// ---- (issue #65) -----------------------------------------------------
+	//
+	// Same pipeline as the earlier three batches: every row started as a
+	// tools/row-gen proposal from live/registry.json, cross-checked against
+	// the AWS provider's documented import behaviour. Two extensions beyond
+	// what row-gen itself proposes were needed for this service, because
+	// row-gen's own rule refuses any primaryIdentifier with more than one
+	// part ("needs hand separator", issue #44 non-goal 3):
+	//
+	//   - live/import-grammar.json (tools/importdocs-gen, scraped from the
+	//     pinned v6.58.0 provider docs) supplies the documented separator and
+	//     the argument names the provider's own Import section names, for
+	//     every composite ratified below.
+	//   - Knowing the separator is not enough by itself: several of API
+	//     Gateway's composite import IDs name a segment that is the child
+	//     resource's own server-minted id (an AuthorizerId, a DeploymentId, a
+	//     DocumentationPartId, a RequestValidatorId, the ResourceId the
+	//     provider's own identity schema calls "id") rather than a
+	//     configuration argument. Nothing in configuration can supply that
+	//     segment, so a Components row for it would be a guess dressed up as
+	//     a separator, which is exactly what issue #44 non-goal 3 forbids.
+	//     Each such type was checked against the provider's Argument
+	//     Reference — and, where available, live/survey-full.json's identity
+	//     schema or the resource's own source for where SetId points — before
+	//     landing either in the rejections below or, where every segment
+	//     really is a configuration argument, in the ratified rows.
+	//
+	// 25 ApiGateway and 13 ApiGatewayV2 types were in row-gen's scope; 16 and
+	// 5 respectively ratify here, the rest rejected (a composite needs a
+	// server-minted segment) or deferred (a method/response property-child
+	// per live/mapping.json's fold — see below). Cohort estate:
+	// live/e2e/estates/apigateway; see that cohort's README for the full
+	// floci verification this comment's floci notes summarize.
+	//
+	// Rejected, and deliberately absent from this table — every one because
+	// the documented composite import ID names a segment that is the child's
+	// own server-minted id, confirmed against the provider's Argument
+	// Reference (v6.58.0) rather than against row-gen's registry evidence
+	// alone:
+	//
+	//   - aws_api_gateway_authorizer: REST-API-ID/AUTHORIZER-ID. The
+	//     resource's only arguments are name and rest_api_id; AuthorizerId is
+	//     minted by the provider and appears nowhere in configuration.
+	//   - aws_api_gateway_deployment: REST-API-ID/DEPLOYMENT-ID. The
+	//     resource's only required argument is rest_api_id; DeploymentId is
+	//     minted at create time.
+	//   - aws_api_gateway_documentation_part: REST-API-ID/DOC-PART-ID. The
+	//     resource's arguments are location, properties and rest_api_id;
+	//     DocumentationPartId is minted at create time.
+	//   - aws_api_gateway_request_validator: REST-API-ID/REQUEST-VALIDATOR-ID.
+	//     The resource's arguments are name and rest_api_id; the validator's
+	//     id is a value the provider assigns independently of name.
+	//   - aws_api_gateway_resource: REST-API-ID/RESOURCE-ID.
+	//     live/survey-full.json's identity schema names the requirement
+	//     directly: required_for_import=[id, rest_api_id] — the resource's
+	//     own id, not an argument.
+	//   - aws_apigatewayv2_api_mapping: API-MAPPING-ID/DOMAIN-NAME. The
+	//     resource's arguments are api_id, domain_name, stage and the
+	//     optional api_mapping_key; ApiMappingId is minted at create time and
+	//     is not api_mapping_key's value.
+	//   - aws_apigatewayv2_authorizer: API-ID/AUTHORIZER-ID. The resource's
+	//     arguments are api_id, authorizer_type and name; AuthorizerId is
+	//     minted at create time.
+	//   - aws_apigatewayv2_deployment: API-ID/DEPLOYMENT-ID. The resource's
+	//     only required argument is api_id; DeploymentId is minted at create
+	//     time.
+	//   - aws_apigatewayv2_integration: API-ID/INTEGRATION-ID. The resource's
+	//     required arguments are api_id and integration_type; IntegrationId
+	//     is minted at create time.
+	//   - aws_apigatewayv2_integration_response: API-ID/INTEGRATION-ID/
+	//     INTEGRATION-RESPONSE-ID. Confirmed against the provider's own
+	//     source (internal/service/apigatewayv2/integration_response.go):
+	//     resourceIntegrationResponseCreate calls
+	//     d.SetId(aws.ToString(output.IntegrationResponseId)), a value the
+	//     API mints independently of the integration_response_key argument.
+	//   - aws_apigatewayv2_model: API-ID/MODEL-ID. Confirmed against the
+	//     provider's source (internal/service/apigatewayv2/model.go):
+	//     resourceModelCreate calls d.SetId(aws.ToString(output.ModelId)), a
+	//     value the API mints independently of the name argument.
+	//   - aws_apigatewayv2_route: API-ID/ROUTE-ID. live/survey-full.json's
+	//     identity schema names the requirement directly:
+	//     required_for_import=[api_id, id] — the route's own id, not an
+	//     argument route_key resolves to.
+	//   - aws_apigatewayv2_route_response: API-ID/ROUTE-ID/
+	//     ROUTE-RESPONSE-ID. Confirmed against the provider's source
+	//     (internal/service/apigatewayv2/route_response.go):
+	//     resourceRouteResponseCreate calls
+	//     d.SetId(aws.ToString(output.RouteResponseId)), a value the API
+	//     mints independently of the route_response_key argument.
+	//
+	// Deferred as method/response property-children, per live/mapping.json's
+	// fold (row-gen's own output marks each
+	// "(property-child of AWS::ApiGateway::Method)" or "...Stage", "no
+	// pastable row" — no independent cfn_type of its own), not for any
+	// identity weakness: each one's identity is in fact fully composable from
+	// real configuration arguments alone. aws_api_gateway_method,
+	// _integration, _integration_response and _method_response all require
+	// exactly rest_api_id, resource_id and http_method (the latter two also
+	// status_code), confirmed against live/survey-full.json's identity
+	// schema — none of the four is the type's own server-minted id, unlike
+	// the rejections above. aws_api_gateway_method_settings's identity
+	// (rest_api_id, stage_name, method_path) is confirmed the same way
+	// against live/import-grammar.json's scraped Import section instead,
+	// that type predating the provider's identity-schema mechanism.
+	// aws_api_gateway_method itself is not a fold (it is its own CFN
+	// resource, AWS::ApiGateway::Method, merely with a composite
+	// primaryIdentifier) and ratifies below; its three literal
+	// property-children do not, because admitting a property-child needs a
+	// parent-derived admission mechanism this table does not have yet — the
+	// same gap aws_prometheus_alert_manager_definition and its APS siblings
+	// are waiting on upstream. A future batch that builds that mechanism can
+	// pick these three straight up; the identity work is already done here:
+	//
+	//   - aws_api_gateway_integration, aws_api_gateway_integration_response,
+	//     aws_api_gateway_method_response (fold into AWS::ApiGateway::Method)
+	//   - aws_api_gateway_method_settings (fold into AWS::ApiGateway::Stage)
+
+	serverAssigned("aws_api_gateway_account",
+		"the account settings resource is a singleton per AWS account: its identity is the caller's own AWS account ID, which pre-exists the resource and is never supplied by a configuration argument — the resource's only argument, cloudwatch_role_arn, does not identify it. Confirmed against the provider's own source (internal/service/apigateway/account.go): the Create method sets the id to r.Meta().AccountID(ctx), not to anything the configuration names.",
+		"ACCOUNT_ID", "id"),
+	serverAssigned("aws_api_gateway_api_key",
+		"API Gateway mints the key's own id at create time; name is client-chosen but is not unique and is not what the provider imports by. Ratified despite a floci gap: reading an existing key back crashes the provider (a nil-pointer panic in resourceAPIKeyRead) rather than erroring gracefully — see live/e2e/estates/apigateway/README.md.",
+		"APIKEYID", "id"),
+	serverAssigned("aws_api_gateway_client_certificate",
+		"API Gateway mints the client certificate's id at create time; every argument (description, region, tags) is optional and none of them identifies it. floci returns 406 for GenerateClientCertificate — not implemented, not evidence against the identity.",
+		"CLIENTCERTIFICATEID", "id"),
+	serverAssigned("aws_api_gateway_domain_name_access_association",
+		"API Gateway mints the association's own ARN at create time; confirmed against the provider's own Identity Schema (required: arn) — the row-gen proposal here already matched the provider's documented behaviour with no correction needed.",
+		"ARN", "arn", "id"),
+	serverAssigned("aws_api_gateway_rest_api",
+		"API Gateway mints the REST API's id at create time; name is client-chosen but is not unique and is not what the provider imports by. Re-verified against the pinned floci image (issue #65): the old blocked-emulator note undersold it — CreateRestApi and GetRestApi both work, and a terraform import against a floci-created REST API round-trips cleanly (confirmed by hand), but the provider's post-create availability waiter still spins forever because floci's DescribeRestApi never reports the AVAILABLE status the waiter polls for. That is a create-path gap, not a read/import gap, and this table only needs the latter — see live/e2e/estates/apigateway/README.md.",
+		"RESTAPIID", "id"),
+	serverAssigned("aws_api_gateway_usage_plan",
+		"API Gateway mints the usage plan's id at create time; name is client-chosen but is not what the provider imports by. floci's own GetUsagePlan is broken (routes to a stray S3 NoSuchBucket error instead of the plan), so a terraform-managed usage plan cannot be read back against this emulator at all — a floci gap, not evidence against the identity; see live/e2e/estates/apigateway/README.md.",
+		"ID", "id"),
+	serverAssigned("aws_api_gateway_vpc_link",
+		"API Gateway mints the VPC link's id at create time; name is client-chosen but is not what the provider imports by, the same shape as aws_lb above. floci returns 406 for CreateVpcLink — not implemented, not evidence against the identity.",
+		"VPCLINKID", "id"),
+	serverAssigned("aws_apigatewayv2_api",
+		"API Gateway mints the v2 API's id at create time; confirmed against the provider's own Identity Schema (required: id) — the row-gen proposal here already matched the provider's documented behaviour. Confirmed against floci by hand: create, get and a terraform import all round-trip cleanly.",
+		"APIID", "id"),
+	serverAssigned("aws_apigatewayv2_routing_rule",
+		"API Gateway mints the routing rule's own ARN at create time; the provider's docs list routing_rule_arn only in the Attribute Reference, not the Argument Reference, confirming it is computed rather than configurable. Untested against floci: creating one needs a working aws_apigatewayv2_domain_name first, and floci's CreateDomainName itself misroutes (see that type's note below) — the identity is sound regardless, being a property of the provider, not the emulator.",
+		"ROUTINGRULEARN", "arn", "id"),
+	serverAssigned("aws_apigatewayv2_vpc_link",
+		"API Gateway mints the v2 VPC link's id at create time; name is client-chosen but is not what the provider imports by. Confirmed working against floci by hand (CreateVpcLink succeeds, unlike its v1 counterpart above).",
+		"VPCLINKID", "id"),
+
+	TypeIdentity{
+		// row-gen marked this evidence-only because the registry's own
+		// primaryIdentifier=[DomainName] argument name was GUESSED (not
+		// backed by a provider identity schema or the carve seed) — not
+		// because the identity itself is in doubt. Confirmed directly
+		// against the provider's Argument Reference: domain_name is the
+		// resource's sole required argument, and the documented import
+		// command (terraform import aws_api_gateway_domain_name.example
+		// dev.example.com) uses that same value verbatim. floci misroutes
+		// CreateDomainName (a stray S3-shaped 400), so this type is untested
+		// end-to-end against the pinned image; see
+		// live/e2e/estates/apigateway/README.md.
+		Type:          "aws_api_gateway_domain_name",
+		Components:    []Component{attr("domain_name")},
+		ImportSyntax:  "DOMAIN_NAME",
+		IdentityAttrs: []string{"domain_name"},
+	},
+	TypeIdentity{
+		// Same correction as aws_api_gateway_domain_name just above, and the
+		// same floci gap (CreateDomainName misroutes) for the same reason —
+		// domain_name_configuration's own certificate_arn dependency is not
+		// what blocks it here, the emulator's routing is.
+		Type:          "aws_apigatewayv2_domain_name",
+		Components:    []Component{attr("domain_name")},
+		ImportSyntax:  "DOMAIN_NAME",
+		IdentityAttrs: []string{"domain_name"},
+	},
+	TypeIdentity{
+		// A named-singleton-child of the REST API, the same shape as
+		// aws_s3_bucket_policy and aws_sns_topic_policy above: at most one
+		// per REST API, imported by the API's own id, which this resource's
+		// sole reference argument, rest_api_id, already carries. row-gen
+		// marked this "(property-child of AWS::ApiGateway::RestApi)
+		// [evidence-only]" the same as the four deferred property-children
+		// above, but unlike those this one needs no separator decision at
+		// all — a single component, not a composite — so it ratifies here on
+		// the same standard the earlier batches' singleton-child policies
+		// used. Confirmed against the provider's Argument Reference (policy,
+		// rest_api_id) and the documented import command (terraform import
+		// aws_api_gateway_rest_api_policy.example 12345abcde).
+		Type:          "aws_api_gateway_rest_api_policy",
+		Components:    []Component{attr("rest_api_id")},
+		ImportSyntax:  "REST_API_ID",
+		IdentityAttrs: []string{"id", "rest_api_id"},
+	},
+	TypeIdentity{
+		// Confirmed against the provider's Argument Reference: rest_api_id
+		// and name are both required arguments, and the documented import
+		// command (terraform import aws_api_gateway_model.example
+		// 12345abcde/example) joins them REST-API-ID/NAME. Confirmed against
+		// floci by hand: create, get and a terraform import all round-trip
+		// cleanly with zero plan diff.
+		Type: "aws_api_gateway_model",
+		Components: []Component{
+			attr("rest_api_id"),
+			sep("/"),
+			attr("name"),
+		},
+		ImportSyntax:  "REST-API-ID/NAME",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// Confirmed against the provider's Argument Reference: rest_api_id
+		// and stage_name are both required arguments (deployment_id is a
+		// third, unrelated to identity), and the documented import command
+		// (terraform import aws_api_gateway_stage.example 12345abcde/example)
+		// joins them REST-API-ID/STAGE-NAME. Confirmed against floci by
+		// hand: create, get and a terraform import all round-trip cleanly
+		// with zero plan diff — note the stage's own id attribute is an
+		// unrelated internal "ags-..." value, which is why it is not listed
+		// as an identity source here, the same standard of care aws_route's
+		// synthesized id gets.
+		Type: "aws_api_gateway_stage",
+		Components: []Component{
+			attr("rest_api_id"),
+			sep("/"),
+			attr("stage_name"),
+		},
+		ImportSyntax:  "REST-API-ID/STAGE-NAME",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// Confirmed against the provider's Argument Reference: rest_api_id
+		// and version are both required arguments, and the documented import
+		// command (terraform import aws_api_gateway_documentation_version.example
+		// 5i4e1ko720/example-version) joins them REST-API-ID/VERSION. floci
+		// returns 406 for CreateDocumentationVersion — not implemented, so
+		// this type is untested end-to-end against the pinned image; see
+		// live/e2e/estates/apigateway/README.md.
+		Type: "aws_api_gateway_documentation_version",
+		Components: []Component{
+			attr("rest_api_id"),
+			sep("/"),
+			attr("version"),
+		},
+		ImportSyntax:  "REST-API-ID/VERSION",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// row-gen marked this evidence-only because the registry's own
+		// primaryIdentifier=[Id] is opaque and read-only — the same
+		// registry-says-server-assigned-but-the-provider-disagrees shape as
+		// aws_sns_topic_policy above. The provider's real, documented import
+		// command (terraform import aws_api_gateway_gateway_response.example
+		// 12345abcde/UNAUTHORIZED) is REST-API-ID/RESPONSE-TYPE, both of
+		// which are the resource's own required arguments (rest_api_id,
+		// response_type). floci's PutGatewayResponse misroutes (a stray
+		// S3-shaped 404), so this type is untested end-to-end against the
+		// pinned image; see live/e2e/estates/apigateway/README.md.
+		Type: "aws_api_gateway_gateway_response",
+		Components: []Component{
+			attr("rest_api_id"),
+			sep("/"),
+			attr("response_type"),
+		},
+		ImportSyntax:  "REST-API-ID/RESPONSE-TYPE",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// Confirmed against the provider's Argument Reference: domain_name
+		// and the optional base_path are both configuration arguments (base_path
+		// defaults to "" for the root path), and the documented import
+		// examples (terraform import aws_api_gateway_base_path_mapping.example
+		// example.com/ and .../example.com/base-path) join them
+		// DOMAIN-NAME/BASE-PATH — note rest_api_id, though required to
+		// create the mapping, is not part of the identity at all. This type
+		// sits behind the same floci domain_name gap as
+		// aws_api_gateway_domain_name above, so it is untested end-to-end
+		// against the pinned image.
+		Type: "aws_api_gateway_base_path_mapping",
+		Components: []Component{
+			attr("domain_name"),
+			sep("/"),
+			attr("base_path"),
+		},
+		ImportSyntax:  "DOMAIN-NAME/BASE-PATH",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// Confirmed against the provider's Argument Reference: usage_plan_id
+		// and key_id are both required arguments, and confirmed against the
+		// provider's own source (internal/service/apigateway/usage_plan_key.go):
+		// the import function splits the documented
+		// USAGE-PLAN-ID/USAGE-PLAN-KEY-ID string and calls
+		// d.Set(names.AttrKeyID, usagePlanKeyId) — the second segment is
+		// literally the key_id argument's value, not a separate id the
+		// resource mints. Confirmed against floci by hand: create, get and a
+		// terraform import all round-trip cleanly with zero plan diff, even
+		// though the parent aws_api_gateway_usage_plan cannot itself be read
+		// back through this same emulator (see that type's note above) —
+		// GetUsagePlanKey and GetUsagePlan are independent floci code paths.
+		Type: "aws_api_gateway_usage_plan_key",
+		Components: []Component{
+			attr("usage_plan_id"),
+			sep("/"),
+			attr("key_id"),
+		},
+		ImportSyntax:  "USAGE-PLAN-ID/USAGE-PLAN-KEY-ID",
+		IdentityAttrs: []string{"id", "key_id"},
+	},
+	TypeIdentity{
+		// The one composite in this batch whose primaryIdentifier really is
+		// three configuration arguments end to end, confirmed directly
+		// against live/survey-full.json's identity schema
+		// (required_for_import=[http_method, resource_id, rest_api_id] —
+		// none of the three is the method's own id, because a method has no
+		// id the provider mints; it is identified entirely by the three
+		// arguments that address it). The documented import command
+		// (terraform import aws_api_gateway_method.example
+		// 12345abcde/67890fghij/GET) joins them
+		// REST-API-ID/RESOURCE-ID/HTTP-METHOD. Confirmed working against
+		// floci by hand (PutMethod via the raw API), though not
+		// import-tested end to end because it needs the same rest_api chain
+		// as aws_api_gateway_resource, which this table rejects above.
+		Type: "aws_api_gateway_method",
+		Components: []Component{
+			attr("rest_api_id"),
+			sep("/"),
+			attr("resource_id"),
+			sep("/"),
+			attr("http_method"),
+		},
+		ImportSyntax:  "REST-API-ID/RESOURCE-ID/HTTP-METHOD",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// Confirmed against the provider's Argument Reference: api_id and
+		// name (the v2 stage's client-chosen name — this type's argument is
+		// literally called "name", not "stage_name" as in the v1 type above)
+		// are both required arguments, and the documented import command
+		// (terraform import aws_apigatewayv2_stage.example
+		// aabbccddee/example-stage) joins them API-ID/STAGE-NAME. Confirmed
+		// against floci by hand: creating a v2 stage through terraform
+		// succeeds cleanly (unlike the v1 rest_api chain above, v2's own API
+		// and stage create paths have no waiter gap).
+		Type: "aws_apigatewayv2_stage",
+		Components: []Component{
+			attr("api_id"),
+			sep("/"),
+			attr("name"),
+		},
+		ImportSyntax:  "API-ID/STAGE-NAME",
+		IdentityAttrs: nil,
+	},
 )
 
 func buildTable(entries ...TypeIdentity) map[string]TypeIdentity {

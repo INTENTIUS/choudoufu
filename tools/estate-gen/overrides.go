@@ -193,4 +193,194 @@ var typeOverrides = map[string]typeOverride{
 			rule.Body().SetAttributeRaw("status", exprTokens(`"Enabled"`))
 		},
 	},
+
+	// ---- API Gateway v1/v2 batch (issue #65) -------------------------------
+	//
+	// Several types below also correct a generic-pass mis-wiring, not a
+	// validate failure: parentRef (gen.go) only ever proposes a sibling
+	// whose own identity is a single self-named argument (identityArgName),
+	// which by construction excludes every server-assigned type in this
+	// batch (aws_api_gateway_rest_api, aws_api_gateway_usage_plan,
+	// aws_api_gateway_api_key, aws_apigatewayv2_api) - their identity is not
+	// one configuration argument to name a placeholder for.
+	// aws_api_gateway_rest_api_policy's own identity happens to be the
+	// single argument "rest_api_id" (the same argument name every REST API
+	// child needs), so it is the only candidate parentRef finds for that
+	// argument, and every REST API child below silently wired to it instead
+	// of to the real REST API - terraform validate does not catch this
+	// (both are syntactically valid string attributes), so each is
+	// corrected here to the resource that is actually the coverage row's
+	// live parent. aws_apigatewayv2_routing_rule has the same shape for a
+	// different reason: both API Gateway generations' domain name types
+	// self-identify by the same argument name ("domain_name"), and
+	// parentRef's alphabetic tiebreak has no way to tell v1 and v2 apart.
+	"aws_api_gateway_base_path_mapping": {
+		Reasons: []string{
+			`api_id has no identity-table candidate to auto-wire from (aws_api_gateway_rest_api is server-assigned, so parentRef never proposes it); wired to the REST API this cohort renders`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if restAPI, ok := g.byType["aws_api_gateway_rest_api"]; ok {
+				body.SetAttributeRaw("api_id", exprTokens(fmt.Sprintf("%s.id", restAPI)))
+			}
+		},
+	},
+	"aws_api_gateway_documentation_version": {
+		Reasons: []string{
+			`rest_api_id was mis-wired to aws_api_gateway_rest_api_policy.app (parentRef's only candidate whose identity self-names "rest_api_id" - the real parent, aws_api_gateway_rest_api, is server-assigned and never a parentRef candidate); corrected to the REST API this cohort renders`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if restAPI, ok := g.byType["aws_api_gateway_rest_api"]; ok {
+				body.SetAttributeRaw("rest_api_id", exprTokens(fmt.Sprintf("%s.id", restAPI)))
+			}
+			body.SetAttributeRaw("version", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-docs-v1"`, g.cohort)))
+		},
+	},
+	"aws_api_gateway_gateway_response": {
+		Reasons: []string{
+			`rest_api_id mis-wired the same way as aws_api_gateway_documentation_version above; response_type is a fixed enum the provider validates server-side (terraform validate does not catch "placeholder", but it is not one of the documented values), set to the provider docs' own example value`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if restAPI, ok := g.byType["aws_api_gateway_rest_api"]; ok {
+				body.SetAttributeRaw("rest_api_id", exprTokens(fmt.Sprintf("%s.id", restAPI)))
+			}
+			body.SetAttributeRaw("response_type", exprTokens(`"UNAUTHORIZED"`))
+		},
+	},
+	"aws_api_gateway_method": {
+		Reasons: []string{
+			`rest_api_id mis-wired the same way as aws_api_gateway_documentation_version above; resource_id has no identity-table candidate at all because aws_api_gateway_resource is not admitted this batch (rejected), and that type cannot be added as supporting infrastructure either - every fixture resource, coverage or supporting, has to be an admitted type (TestAdmissionTableCoversEstate, TestTableCoversFixtureTypes) - so this method attaches to the REST API's own root_resource_id instead of a child resource, which needs no unadmitted type at all`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if restAPI, ok := g.byType["aws_api_gateway_rest_api"]; ok {
+				body.SetAttributeRaw("rest_api_id", exprTokens(fmt.Sprintf("%s.id", restAPI)))
+				body.SetAttributeRaw("resource_id", exprTokens(fmt.Sprintf("%s.root_resource_id", restAPI)))
+			}
+			body.SetAttributeRaw("http_method", exprTokens(`"GET"`))
+			body.SetAttributeRaw("authorization", exprTokens(`"NONE"`))
+		},
+	},
+	"aws_api_gateway_model": {
+		Reasons: []string{
+			`rest_api_id mis-wired the same way as aws_api_gateway_documentation_version above; content_type and schema left as the generic placeholder would not be valid JSON, set to a minimal real value`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if restAPI, ok := g.byType["aws_api_gateway_rest_api"]; ok {
+				body.SetAttributeRaw("rest_api_id", exprTokens(fmt.Sprintf("%s.id", restAPI)))
+			}
+			body.SetAttributeRaw("content_type", exprTokens(`"application/json"`))
+			body.SetAttributeRaw("schema", exprTokens(`jsonencode({})`))
+		},
+	},
+	"aws_api_gateway_stage": {
+		Reasons: []string{
+			`rest_api_id mis-wired the same way as aws_api_gateway_documentation_version above; deployment_id has no identity-table candidate because aws_api_gateway_deployment is not admitted this batch (rejected), so it is left as the generic placeholder string - a stage is its own coverage row and the deployment it names existing is not this type's identity concern`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if restAPI, ok := g.byType["aws_api_gateway_rest_api"]; ok {
+				body.SetAttributeRaw("rest_api_id", exprTokens(fmt.Sprintf("%s.id", restAPI)))
+			}
+		},
+	},
+	"aws_api_gateway_usage_plan_key": {
+		Reasons: []string{
+			`usage_plan_id and key_id have no identity-table candidates because aws_api_gateway_usage_plan and aws_api_gateway_api_key are both server-assigned (parentRef never proposes a server-assigned sibling, the same gap as the REST API children above); wired to the two sibling coverage rows this cohort renders, and key_type set to its one documented value`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if plan, ok := g.byType["aws_api_gateway_usage_plan"]; ok {
+				body.SetAttributeRaw("usage_plan_id", exprTokens(fmt.Sprintf("%s.id", plan)))
+			}
+			if key, ok := g.byType["aws_api_gateway_api_key"]; ok {
+				body.SetAttributeRaw("key_id", exprTokens(fmt.Sprintf("%s.id", key)))
+			}
+			body.SetAttributeRaw("key_type", exprTokens(`"API_KEY"`))
+		},
+	},
+	"aws_api_gateway_rest_api_policy": {
+		Reasons: []string{
+			`schema requires "policy" as a plain string, but the provider validates it is well-formed JSON (validate: "\"policy\" contains an invalid JSON"), the same shape as aws_s3_bucket_policy above`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			resourceExpr := fmt.Sprintf(`"arn:aws:execute-api:us-east-1:000000000000:tofu-%s-cohort-placeholder/*"`, g.cohort)
+			if restAPI, ok := g.byType["aws_api_gateway_rest_api"]; ok {
+				resourceExpr = fmt.Sprintf(`"${%s.execution_arn}/*"`, restAPI)
+			}
+			body.SetAttributeRaw("policy", exprTokens(fmt.Sprintf(`jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = "*"
+      Action    = "execute-api:Invoke"
+      Resource  = %s
+    }]
+  })`, resourceExpr)))
+		},
+	},
+	"aws_api_gateway_domain_name_access_association": {
+		Reasons: []string{
+			`access_association_source_type is a fixed enum (validate: "Invalid String Enum Value", valid values: VPCE); domain_name_arn is validated as a well-formed ARN (validate: "Invalid ARN Value") - both need real-shaped values, not the generic placeholder`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("access_association_source_type", exprTokens(`"VPCE"`))
+			body.SetAttributeRaw("access_association_source", exprTokens(`"vpce-0123456789abcdef0"`))
+			body.SetAttributeRaw("domain_name_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:apigateway:us-east-1::/domainnames/tofu-%s-cohort-api-gateway-domain-name"`, g.cohort)))
+		},
+	},
+	"aws_apigatewayv2_api": {
+		Reasons: []string{
+			`protocol_type is a fixed enum (validate: "expected protocol_type to be one of [WEBSOCKET HTTP]"), not the generic placeholder`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("protocol_type", exprTokens(`"HTTP"`))
+		},
+	},
+	"aws_apigatewayv2_domain_name": {
+		Reasons: []string{
+			`domain_name_configuration's three required arguments are each validated: certificate_arn as a well-formed ARN (validate: "invalid ARN: arn: invalid prefix"), endpoint_type and security_policy as fixed enums (validate: "expected ... to be one of [...]")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "domain_name_configuration" {
+					blk.Body().SetAttributeRaw("certificate_arn", exprTokens(fmt.Sprintf(
+						`"arn:aws:acm:us-east-1:000000000000:certificate/tofu-%s-cohort-placeholder"`, g.cohort)))
+					blk.Body().SetAttributeRaw("endpoint_type", exprTokens(`"REGIONAL"`))
+					blk.Body().SetAttributeRaw("security_policy", exprTokens(`"TLS_1_2"`))
+				}
+			}
+		},
+	},
+	"aws_apigatewayv2_routing_rule": {
+		Reasons: []string{
+			`domain_name was mis-wired to aws_api_gateway_domain_name.app (the v1 type) - both v1 and v2 domain name types self-identify by the same argument name, and parentRef's alphabetic tiebreak prefers "aws_api_gateway_domain_name" over "aws_apigatewayv2_domain_name" with no way to tell they are different API generations; corrected to the v2 domain name this type actually needs. action and condition are both required blocks the schema marks optional-in-shape but the provider requires present (validate: "Block action/condition must have a configuration value"), and priority must be 1-1000000 (validate: "must be between 1 and 1000000, got: 0")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if domain, ok := g.byType["aws_apigatewayv2_domain_name"]; ok {
+				body.SetAttributeRaw("domain_name", exprTokens(fmt.Sprintf("%s.domain_name", domain)))
+			}
+			body.SetAttributeRaw("priority", exprTokens(`1`))
+
+			action := body.AppendNewBlock("action", nil)
+			invoke := action.Body().AppendNewBlock("invoke_api", nil)
+			if v2api, ok := g.byType["aws_apigatewayv2_api"]; ok {
+				invoke.Body().SetAttributeRaw("api_id", exprTokens(fmt.Sprintf("%s.id", v2api)))
+			}
+			if v2stage, ok := g.byType["aws_apigatewayv2_stage"]; ok {
+				invoke.Body().SetAttributeRaw("stage", exprTokens(fmt.Sprintf("%s.name", v2stage)))
+			}
+
+			condition := body.AppendNewBlock("condition", nil)
+			mbp := condition.Body().AppendNewBlock("match_base_paths", nil)
+			mbp.Body().SetAttributeRaw("any_of", exprTokens(`["/"]`))
+		},
+	},
+	"aws_apigatewayv2_stage": {
+		Reasons: []string{
+			`api_id has no identity-table candidate to auto-wire from (aws_apigatewayv2_api is server-assigned, the same gap as the REST API children above); wired to the v2 API this cohort renders`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if v2api, ok := g.byType["aws_apigatewayv2_api"]; ok {
+				body.SetAttributeRaw("api_id", exprTokens(fmt.Sprintf("%s.id", v2api)))
+			}
+		},
+	},
 }
