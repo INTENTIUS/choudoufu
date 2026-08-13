@@ -424,7 +424,7 @@ func Lookup(tfType string) (cohort Cohort, sentence string, ok bool) {
 			note = *row.Note
 		}
 		return CohortUnmapped, fmt.Sprintf("%s has no CloudFormation Registry counterpart (%s), so the registry-backed admission path cannot reach it.", tfType, note), true
-	case "name", "alias", "service-alias", "fold":
+	case "name", "alias", "service-alias", "former2", "fold":
 		cfnType := ""
 		if row.CFNType != nil {
 			cfnType = *row.CFNType

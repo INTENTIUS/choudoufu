@@ -33,28 +33,57 @@ type registryJSONRoster struct {
 
 // registryArtifact is the slice of live/registry.json's shape
 // (RegistryArtifact in tools/registry-gen/registry.go) this loader actually
-// needs - just the type names, so a schema change to the rest of that
-// artifact (counts, handlers, tagging, ...) does not ripple into this tool.
+// needs - the type names and, for the former2 join's own eyeball-first
+// guard (issue #52), whether each carries a primaryIdentifier - so a schema
+// change to the rest of that artifact (counts, handlers, tagging, ...) does
+// not ripple into this tool.
 type registryArtifact struct {
 	Types []struct {
-		TypeName string `json:"type_name"`
+		TypeName          string   `json:"type_name"`
+		PrimaryIdentifier []string `json:"primary_identifier"`
 	} `json:"types"`
 }
 
 func (r registryJSONRoster) Types() ([]string, error) {
-	data, err := os.ReadFile(r.path) //nolint:gosec // a fixed path inside the checkout
+	art, err := r.load()
 	if err != nil {
 		return nil, err
-	}
-	var art registryArtifact
-	if err := json.Unmarshal(data, &art); err != nil {
-		return nil, fmt.Errorf("decoding %s: %w", r.path, err)
 	}
 	out := make([]string, 0, len(art.Types))
 	for _, t := range art.Types {
 		out = append(out, t.TypeName)
 	}
 	return out, nil
+}
+
+// WithPrimaryIdentifier returns the set of CFN types that carry a
+// primaryIdentifier - used to drop former2 rows naming a CFN type the
+// registry-backed admission path could never reach regardless of what
+// former2 says (issue #52).
+func (r registryJSONRoster) WithPrimaryIdentifier() (map[string]bool, error) {
+	art, err := r.load()
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]bool, len(art.Types))
+	for _, t := range art.Types {
+		if len(t.PrimaryIdentifier) > 0 {
+			out[t.TypeName] = true
+		}
+	}
+	return out, nil
+}
+
+func (r registryJSONRoster) load() (registryArtifact, error) {
+	data, err := os.ReadFile(r.path) //nolint:gosec // a fixed path inside the checkout
+	if err != nil {
+		return registryArtifact{}, err
+	}
+	var art registryArtifact
+	if err := json.Unmarshal(data, &art); err != nil {
+		return registryArtifact{}, fmt.Errorf("decoding %s: %w", r.path, err)
+	}
+	return art, nil
 }
 
 // staticRoster is a fixed in-memory CFN roster: testdata/cfn-types.json's

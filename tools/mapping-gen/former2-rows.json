@@ -1,0 +1,1132 @@
+{
+  "pin": {
+    "digest": "sha256:0161fd7b1e1d9f9460867e0fc9e0d1ecf0892638df219fd2b520741658aa61c1",
+    "commit": "7d354df27db5a8260950021b2273758ba5df9f62",
+    "accepted": "2026-08-13",
+    "raw_rows": 280,
+    "usable_rows": 264,
+    "dropped": 16
+  },
+  "rows": [
+    {
+      "cfn_type": "AWS::CertificateManager::Certificate",
+      "tf_type": "aws_acm_certificate"
+    },
+    {
+      "cfn_type": "AWS::ApiGateway::Account",
+      "tf_type": "aws_api_gateway_account"
+    },
+    {
+      "cfn_type": "AWS::ApiGateway::Authorizer",
+      "tf_type": "aws_api_gateway_authorizer"
+    },
+    {
+      "cfn_type": "AWS::ApiGateway::BasePathMapping",
+      "tf_type": "aws_api_gateway_base_path_mapping"
+    },
+    {
+      "cfn_type": "AWS::ApiGateway::Deployment",
+      "tf_type": "aws_api_gateway_deployment"
+    },
+    {
+      "cfn_type": "AWS::ApiGateway::DocumentationPart",
+      "tf_type": "aws_api_gateway_documentation_part"
+    },
+    {
+      "cfn_type": "AWS::ApiGateway::DocumentationVersion",
+      "tf_type": "aws_api_gateway_documentation_version"
+    },
+    {
+      "cfn_type": "AWS::ApiGateway::DomainName",
+      "tf_type": "aws_api_gateway_domain_name"
+    },
+    {
+      "cfn_type": "AWS::ApiGateway::GatewayResponse",
+      "tf_type": "aws_api_gateway_gateway_response"
+    },
+    {
+      "cfn_type": "AWS::ApiGateway::Method",
+      "tf_type": "aws_api_gateway_method"
+    },
+    {
+      "cfn_type": "AWS::ApiGateway::Model",
+      "tf_type": "aws_api_gateway_model"
+    },
+    {
+      "cfn_type": "AWS::ApiGateway::RequestValidator",
+      "tf_type": "aws_api_gateway_request_validator"
+    },
+    {
+      "cfn_type": "AWS::ApiGateway::Resource",
+      "tf_type": "aws_api_gateway_resource"
+    },
+    {
+      "cfn_type": "AWS::ApiGateway::RestApi",
+      "tf_type": "aws_api_gateway_rest_api"
+    },
+    {
+      "cfn_type": "AWS::ApiGateway::Stage",
+      "tf_type": "aws_api_gateway_stage"
+    },
+    {
+      "cfn_type": "AWS::ApiGateway::UsagePlanKey",
+      "tf_type": "aws_api_gateway_usage_plan_key"
+    },
+    {
+      "cfn_type": "AWS::ApiGateway::VpcLink",
+      "tf_type": "aws_api_gateway_vpc_link"
+    },
+    {
+      "cfn_type": "AWS::ApiGatewayV2::Api",
+      "tf_type": "aws_apigatewayv2_api"
+    },
+    {
+      "cfn_type": "AWS::ApiGatewayV2::ApiMapping",
+      "tf_type": "aws_apigatewayv2_api_mapping"
+    },
+    {
+      "cfn_type": "AWS::ApiGatewayV2::Authorizer",
+      "tf_type": "aws_apigatewayv2_authorizer"
+    },
+    {
+      "cfn_type": "AWS::ApiGatewayV2::Deployment",
+      "tf_type": "aws_apigatewayv2_deployment"
+    },
+    {
+      "cfn_type": "AWS::ApiGatewayV2::DomainName",
+      "tf_type": "aws_apigatewayv2_domain_name"
+    },
+    {
+      "cfn_type": "AWS::ApiGatewayV2::Integration",
+      "tf_type": "aws_apigatewayv2_integration"
+    },
+    {
+      "cfn_type": "AWS::ApiGatewayV2::Model",
+      "tf_type": "aws_apigatewayv2_model"
+    },
+    {
+      "cfn_type": "AWS::ApiGatewayV2::Route",
+      "tf_type": "aws_apigatewayv2_route"
+    },
+    {
+      "cfn_type": "AWS::ApiGatewayV2::Stage",
+      "tf_type": "aws_apigatewayv2_stage"
+    },
+    {
+      "cfn_type": "AWS::ApiGatewayV2::VpcLink",
+      "tf_type": "aws_apigatewayv2_vpc_link"
+    },
+    {
+      "cfn_type": "AWS::AppSync::ApiKey",
+      "tf_type": "aws_appsync_api_key"
+    },
+    {
+      "cfn_type": "AWS::AppSync::DataSource",
+      "tf_type": "aws_appsync_datasource"
+    },
+    {
+      "cfn_type": "AWS::AppSync::GraphQLApi",
+      "tf_type": "aws_appsync_graphql_api"
+    },
+    {
+      "cfn_type": "AWS::AppSync::Resolver",
+      "tf_type": "aws_appsync_resolver"
+    },
+    {
+      "cfn_type": "AWS::Athena::NamedQuery",
+      "tf_type": "aws_athena_named_query"
+    },
+    {
+      "cfn_type": "AWS::AutoScaling::AutoScalingGroup",
+      "tf_type": "aws_autoscaling_group"
+    },
+    {
+      "cfn_type": "AWS::AutoScaling::LifecycleHook",
+      "tf_type": "aws_autoscaling_lifecycle_hook"
+    },
+    {
+      "cfn_type": "AWS::AutoScaling::ScalingPolicy",
+      "tf_type": "aws_autoscaling_policy"
+    },
+    {
+      "cfn_type": "AWS::AutoScaling::ScheduledAction",
+      "tf_type": "aws_autoscaling_schedule"
+    },
+    {
+      "cfn_type": "AWS::Backup::BackupPlan",
+      "tf_type": "aws_backup_plan"
+    },
+    {
+      "cfn_type": "AWS::Backup::BackupSelection",
+      "tf_type": "aws_backup_selection"
+    },
+    {
+      "cfn_type": "AWS::Backup::BackupVault",
+      "tf_type": "aws_backup_vault"
+    },
+    {
+      "cfn_type": "AWS::Batch::ComputeEnvironment",
+      "tf_type": "aws_batch_compute_environment"
+    },
+    {
+      "cfn_type": "AWS::Batch::JobDefinition",
+      "tf_type": "aws_batch_job_definition"
+    },
+    {
+      "cfn_type": "AWS::Batch::JobQueue",
+      "tf_type": "aws_batch_job_queue"
+    },
+    {
+      "cfn_type": "AWS::Budgets::Budget",
+      "tf_type": "aws_budgets_budget"
+    },
+    {
+      "cfn_type": "AWS::Cloud9::EnvironmentEC2",
+      "tf_type": "aws_cloud9_environment_ec2"
+    },
+    {
+      "cfn_type": "AWS::CloudFront::Distribution",
+      "tf_type": "aws_cloudfront_distribution"
+    },
+    {
+      "cfn_type": "AWS::CloudFront::CloudFrontOriginAccessIdentity",
+      "tf_type": "aws_cloudfront_origin_access_identity"
+    },
+    {
+      "cfn_type": "AWS::CloudTrail::Trail",
+      "tf_type": "aws_cloudtrail"
+    },
+    {
+      "cfn_type": "AWS::CloudWatch::Dashboard",
+      "tf_type": "aws_cloudwatch_dashboard"
+    },
+    {
+      "cfn_type": "AWS::Events::Rule",
+      "tf_type": "aws_cloudwatch_event_rule"
+    },
+    {
+      "cfn_type": "AWS::Logs::Destination",
+      "tf_type": "aws_cloudwatch_log_destination"
+    },
+    {
+      "cfn_type": "AWS::Logs::LogGroup",
+      "tf_type": "aws_cloudwatch_log_group"
+    },
+    {
+      "cfn_type": "AWS::Logs::MetricFilter",
+      "tf_type": "aws_cloudwatch_log_metric_filter"
+    },
+    {
+      "cfn_type": "AWS::Logs::LogStream",
+      "tf_type": "aws_cloudwatch_log_stream"
+    },
+    {
+      "cfn_type": "AWS::Logs::SubscriptionFilter",
+      "tf_type": "aws_cloudwatch_log_subscription_filter"
+    },
+    {
+      "cfn_type": "AWS::CloudWatch::Alarm",
+      "tf_type": "aws_cloudwatch_metric_alarm"
+    },
+    {
+      "cfn_type": "AWS::CodeArtifact::Domain",
+      "tf_type": "aws_codeartifact_domain"
+    },
+    {
+      "cfn_type": "AWS::CodeArtifact::Repository",
+      "tf_type": "aws_codeartifact_repository"
+    },
+    {
+      "cfn_type": "AWS::CodeCommit::Repository",
+      "tf_type": "aws_codecommit_repository"
+    },
+    {
+      "cfn_type": "AWS::CodeDeploy::Application",
+      "tf_type": "aws_codedeploy_app"
+    },
+    {
+      "cfn_type": "AWS::CodeDeploy::DeploymentConfig",
+      "tf_type": "aws_codedeploy_deployment_config"
+    },
+    {
+      "cfn_type": "AWS::CodePipeline::Pipeline",
+      "tf_type": "aws_codepipeline"
+    },
+    {
+      "cfn_type": "AWS::CodePipeline::Webhook",
+      "tf_type": "aws_codepipeline_webhook"
+    },
+    {
+      "cfn_type": "AWS::Cognito::IdentityPool",
+      "tf_type": "aws_cognito_identity_pool"
+    },
+    {
+      "cfn_type": "AWS::Cognito::IdentityPoolRoleAttachment",
+      "tf_type": "aws_cognito_identity_pool_roles_attachment"
+    },
+    {
+      "cfn_type": "AWS::Cognito::UserPool",
+      "tf_type": "aws_cognito_user_pool"
+    },
+    {
+      "cfn_type": "AWS::Cognito::UserPoolClient",
+      "tf_type": "aws_cognito_user_pool_client"
+    },
+    {
+      "cfn_type": "AWS::Config::AggregationAuthorization",
+      "tf_type": "aws_config_aggregate_authorization"
+    },
+    {
+      "cfn_type": "AWS::Config::ConfigRule",
+      "tf_type": "aws_config_config_rule"
+    },
+    {
+      "cfn_type": "AWS::Config::ConfigurationAggregator",
+      "tf_type": "aws_config_configuration_aggregator"
+    },
+    {
+      "cfn_type": "AWS::Config::ConfigurationRecorder",
+      "tf_type": "aws_config_configuration_recorder"
+    },
+    {
+      "cfn_type": "AWS::Config::DeliveryChannel",
+      "tf_type": "aws_config_delivery_channel"
+    },
+    {
+      "cfn_type": "AWS::EC2::CustomerGateway",
+      "tf_type": "aws_customer_gateway"
+    },
+    {
+      "cfn_type": "AWS::DataSync::Agent",
+      "tf_type": "aws_datasync_agent"
+    },
+    {
+      "cfn_type": "AWS::DataSync::LocationEFS",
+      "tf_type": "aws_datasync_location_efs"
+    },
+    {
+      "cfn_type": "AWS::DataSync::LocationNFS",
+      "tf_type": "aws_datasync_location_nfs"
+    },
+    {
+      "cfn_type": "AWS::DataSync::LocationS3",
+      "tf_type": "aws_datasync_location_s3"
+    },
+    {
+      "cfn_type": "AWS::DataSync::Task",
+      "tf_type": "aws_datasync_task"
+    },
+    {
+      "cfn_type": "AWS::DAX::Cluster",
+      "tf_type": "aws_dax_cluster"
+    },
+    {
+      "cfn_type": "AWS::DAX::ParameterGroup",
+      "tf_type": "aws_dax_parameter_group"
+    },
+    {
+      "cfn_type": "AWS::DAX::SubnetGroup",
+      "tf_type": "aws_dax_subnet_group"
+    },
+    {
+      "cfn_type": "AWS::RDS::EventSubscription",
+      "tf_type": "aws_db_event_subscription"
+    },
+    {
+      "cfn_type": "AWS::RDS::OptionGroup",
+      "tf_type": "aws_db_option_group"
+    },
+    {
+      "cfn_type": "AWS::RDS::DBParameterGroup",
+      "tf_type": "aws_db_parameter_group"
+    },
+    {
+      "cfn_type": "AWS::RDS::DBSecurityGroup",
+      "tf_type": "aws_db_security_group"
+    },
+    {
+      "cfn_type": "AWS::RDS::DBSubnetGroup",
+      "tf_type": "aws_db_subnet_group"
+    },
+    {
+      "cfn_type": "AWS::DeviceFarm::Project",
+      "tf_type": "aws_devicefarm_project"
+    },
+    {
+      "cfn_type": "AWS::DirectoryService::MicrosoftAD",
+      "tf_type": "aws_directory_service_directory"
+    },
+    {
+      "cfn_type": "AWS::DirectoryService::SimpleAD",
+      "tf_type": "aws_directory_service_directory"
+    },
+    {
+      "cfn_type": "AWS::DLM::LifecyclePolicy",
+      "tf_type": "aws_dlm_lifecycle_policy"
+    },
+    {
+      "cfn_type": "AWS::DocDB::DBCluster",
+      "tf_type": "aws_docdb_cluster"
+    },
+    {
+      "cfn_type": "AWS::DocDB::DBInstance",
+      "tf_type": "aws_docdb_cluster_instance"
+    },
+    {
+      "cfn_type": "AWS::DocDB::DBClusterParameterGroup",
+      "tf_type": "aws_docdb_cluster_parameter_group"
+    },
+    {
+      "cfn_type": "AWS::DocDB::DBSubnetGroup",
+      "tf_type": "aws_docdb_subnet_group"
+    },
+    {
+      "cfn_type": "AWS::DynamoDB::GlobalTable",
+      "tf_type": "aws_dynamodb_table"
+    },
+    {
+      "cfn_type": "AWS::DynamoDB::Table",
+      "tf_type": "aws_dynamodb_table"
+    },
+    {
+      "cfn_type": "AWS::EC2::Volume",
+      "tf_type": "aws_ebs_volume"
+    },
+    {
+      "cfn_type": "AWS::EC2::PrefixList",
+      "tf_type": "aws_ec2_managed_prefix_list"
+    },
+    {
+      "cfn_type": "AWS::EC2::TransitGateway",
+      "tf_type": "aws_ec2_transit_gateway"
+    },
+    {
+      "cfn_type": "AWS::EC2::TransitGatewayRoute",
+      "tf_type": "aws_ec2_transit_gateway_route"
+    },
+    {
+      "cfn_type": "AWS::EC2::TransitGatewayRouteTable",
+      "tf_type": "aws_ec2_transit_gateway_route_table"
+    },
+    {
+      "cfn_type": "AWS::EC2::TransitGatewayRouteTableAssociation",
+      "tf_type": "aws_ec2_transit_gateway_route_table_association"
+    },
+    {
+      "cfn_type": "AWS::EC2::TransitGatewayRouteTablePropagation",
+      "tf_type": "aws_ec2_transit_gateway_route_table_propagation"
+    },
+    {
+      "cfn_type": "AWS::EC2::TransitGatewayAttachment",
+      "tf_type": "aws_ec2_transit_gateway_vpc_attachment"
+    },
+    {
+      "cfn_type": "AWS::ECR::Repository",
+      "tf_type": "aws_ecr_repository"
+    },
+    {
+      "cfn_type": "AWS::ECS::Cluster",
+      "tf_type": "aws_ecs_cluster"
+    },
+    {
+      "cfn_type": "AWS::ECS::Service",
+      "tf_type": "aws_ecs_service"
+    },
+    {
+      "cfn_type": "AWS::ECS::TaskDefinition",
+      "tf_type": "aws_ecs_task_definition"
+    },
+    {
+      "cfn_type": "AWS::EFS::FileSystem",
+      "tf_type": "aws_efs_file_system"
+    },
+    {
+      "cfn_type": "AWS::EFS::MountTarget",
+      "tf_type": "aws_efs_mount_target"
+    },
+    {
+      "cfn_type": "AWS::EC2::EgressOnlyInternetGateway",
+      "tf_type": "aws_egress_only_internet_gateway"
+    },
+    {
+      "cfn_type": "AWS::EC2::EIP",
+      "tf_type": "aws_eip"
+    },
+    {
+      "cfn_type": "AWS::EC2::EIPAssociation",
+      "tf_type": "aws_eip_association"
+    },
+    {
+      "cfn_type": "AWS::EKS::Cluster",
+      "tf_type": "aws_eks_cluster"
+    },
+    {
+      "cfn_type": "AWS::ElasticBeanstalk::Application",
+      "tf_type": "aws_elastic_beanstalk_application"
+    },
+    {
+      "cfn_type": "AWS::ElasticBeanstalk::ApplicationVersion",
+      "tf_type": "aws_elastic_beanstalk_application_version"
+    },
+    {
+      "cfn_type": "AWS::ElasticBeanstalk::ConfigurationTemplate",
+      "tf_type": "aws_elastic_beanstalk_configuration_template"
+    },
+    {
+      "cfn_type": "AWS::ElasticBeanstalk::Environment",
+      "tf_type": "aws_elastic_beanstalk_environment"
+    },
+    {
+      "cfn_type": "AWS::ElastiCache::CacheCluster",
+      "tf_type": "aws_elasticache_cluster"
+    },
+    {
+      "cfn_type": "AWS::ElastiCache::ParameterGroup",
+      "tf_type": "aws_elasticache_parameter_group"
+    },
+    {
+      "cfn_type": "AWS::ElastiCache::ReplicationGroup",
+      "tf_type": "aws_elasticache_replication_group"
+    },
+    {
+      "cfn_type": "AWS::ElastiCache::SecurityGroup",
+      "tf_type": "aws_elasticache_security_group"
+    },
+    {
+      "cfn_type": "AWS::ElastiCache::SubnetGroup",
+      "tf_type": "aws_elasticache_subnet_group"
+    },
+    {
+      "cfn_type": "AWS::OpenSearchService::Domain",
+      "tf_type": "aws_elasticsearch_domain"
+    },
+    {
+      "cfn_type": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "tf_type": "aws_elb"
+    },
+    {
+      "cfn_type": "AWS::EC2::FlowLog",
+      "tf_type": "aws_flow_log"
+    },
+    {
+      "cfn_type": "AWS::GameLift::Alias",
+      "tf_type": "aws_gamelift_alias"
+    },
+    {
+      "cfn_type": "AWS::GameLift::Build",
+      "tf_type": "aws_gamelift_build"
+    },
+    {
+      "cfn_type": "AWS::GameLift::Fleet",
+      "tf_type": "aws_gamelift_fleet"
+    },
+    {
+      "cfn_type": "AWS::GlobalAccelerator::Accelerator",
+      "tf_type": "aws_globalaccelerator_accelerator"
+    },
+    {
+      "cfn_type": "AWS::GlobalAccelerator::Listener",
+      "tf_type": "aws_globalaccelerator_listener"
+    },
+    {
+      "cfn_type": "AWS::Glue::Job",
+      "tf_type": "aws_glue_job"
+    },
+    {
+      "cfn_type": "AWS::GuardDuty::Detector",
+      "tf_type": "aws_guardduty_detector"
+    },
+    {
+      "cfn_type": "AWS::GuardDuty::IPSet",
+      "tf_type": "aws_guardduty_ipset"
+    },
+    {
+      "cfn_type": "AWS::GuardDuty::Member",
+      "tf_type": "aws_guardduty_member"
+    },
+    {
+      "cfn_type": "AWS::GuardDuty::ThreatIntelSet",
+      "tf_type": "aws_guardduty_threatintelset"
+    },
+    {
+      "cfn_type": "AWS::IAM::AccessKey",
+      "tf_type": "aws_iam_access_key"
+    },
+    {
+      "cfn_type": "AWS::IAM::Group",
+      "tf_type": "aws_iam_group"
+    },
+    {
+      "cfn_type": "AWS::IAM::InstanceProfile",
+      "tf_type": "aws_iam_instance_profile"
+    },
+    {
+      "cfn_type": "AWS::IAM::ManagedPolicy",
+      "tf_type": "aws_iam_policy"
+    },
+    {
+      "cfn_type": "AWS::IAM::Role",
+      "tf_type": "aws_iam_role"
+    },
+    {
+      "cfn_type": "AWS::IAM::ServiceLinkedRole",
+      "tf_type": "aws_iam_service_linked_role"
+    },
+    {
+      "cfn_type": "AWS::IAM::User",
+      "tf_type": "aws_iam_user"
+    },
+    {
+      "cfn_type": "AWS::EC2::Instance",
+      "tf_type": "aws_instance"
+    },
+    {
+      "cfn_type": "AWS::EC2::InternetGateway",
+      "tf_type": "aws_internet_gateway"
+    },
+    {
+      "cfn_type": "AWS::IoT::Certificate",
+      "tf_type": "aws_iot_certificate"
+    },
+    {
+      "cfn_type": "AWS::IoT::Policy",
+      "tf_type": "aws_iot_policy"
+    },
+    {
+      "cfn_type": "AWS::IoT::PolicyPrincipalAttachment",
+      "tf_type": "aws_iot_policy_attachment"
+    },
+    {
+      "cfn_type": "AWS::IoT::Thing",
+      "tf_type": "aws_iot_thing"
+    },
+    {
+      "cfn_type": "AWS::IoT::ThingPrincipalAttachment",
+      "tf_type": "aws_iot_thing_principal_attachment"
+    },
+    {
+      "cfn_type": "AWS::EC2::KeyPair",
+      "tf_type": "aws_key_pair"
+    },
+    {
+      "cfn_type": "AWS::Kinesis::Stream",
+      "tf_type": "aws_kinesis_stream"
+    },
+    {
+      "cfn_type": "AWS::KMS::Alias",
+      "tf_type": "aws_kms_alias"
+    },
+    {
+      "cfn_type": "AWS::KMS::Key",
+      "tf_type": "aws_kms_key"
+    },
+    {
+      "cfn_type": "AWS::Lambda::Alias",
+      "tf_type": "aws_lambda_alias"
+    },
+    {
+      "cfn_type": "AWS::Lambda::EventSourceMapping",
+      "tf_type": "aws_lambda_event_source_mapping"
+    },
+    {
+      "cfn_type": "AWS::Lambda::Function",
+      "tf_type": "aws_lambda_function"
+    },
+    {
+      "cfn_type": "AWS::Lambda::LayerVersion",
+      "tf_type": "aws_lambda_layer_version"
+    },
+    {
+      "cfn_type": "AWS::Lambda::Permission",
+      "tf_type": "aws_lambda_permission"
+    },
+    {
+      "cfn_type": "AWS::AutoScaling::LaunchConfiguration",
+      "tf_type": "aws_launch_configuration"
+    },
+    {
+      "cfn_type": "AWS::EC2::LaunchTemplate",
+      "tf_type": "aws_launch_template"
+    },
+    {
+      "cfn_type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+      "tf_type": "aws_lb"
+    },
+    {
+      "cfn_type": "AWS::ElasticLoadBalancingV2::Listener",
+      "tf_type": "aws_lb_listener"
+    },
+    {
+      "cfn_type": "AWS::ElasticLoadBalancingV2::ListenerRule",
+      "tf_type": "aws_lb_listener_rule"
+    },
+    {
+      "cfn_type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "tf_type": "aws_lb_target_group"
+    },
+    {
+      "cfn_type": "AWS::Lightsail::Instance",
+      "tf_type": "aws_lightsail_instance"
+    },
+    {
+      "cfn_type": "AWS::Lightsail::StaticIp",
+      "tf_type": "aws_lightsail_static_ip"
+    },
+    {
+      "cfn_type": "AWS::MediaPackage::Channel",
+      "tf_type": "aws_media_package_channel"
+    },
+    {
+      "cfn_type": "AWS::MediaStore::Container",
+      "tf_type": "aws_media_store_container"
+    },
+    {
+      "cfn_type": "AWS::EC2::NatGateway",
+      "tf_type": "aws_nat_gateway"
+    },
+    {
+      "cfn_type": "AWS::Neptune::DBCluster",
+      "tf_type": "aws_neptune_cluster"
+    },
+    {
+      "cfn_type": "AWS::Neptune::DBInstance",
+      "tf_type": "aws_neptune_cluster_instance"
+    },
+    {
+      "cfn_type": "AWS::Neptune::DBClusterParameterGroup",
+      "tf_type": "aws_neptune_cluster_parameter_group"
+    },
+    {
+      "cfn_type": "AWS::Neptune::DBParameterGroup",
+      "tf_type": "aws_neptune_parameter_group"
+    },
+    {
+      "cfn_type": "AWS::Neptune::DBSubnetGroup",
+      "tf_type": "aws_neptune_subnet_group"
+    },
+    {
+      "cfn_type": "AWS::EC2::NetworkAcl",
+      "tf_type": "aws_network_acl"
+    },
+    {
+      "cfn_type": "AWS::EC2::NetworkAclEntry",
+      "tf_type": "aws_network_acl_rule"
+    },
+    {
+      "cfn_type": "AWS::EC2::NetworkInterface",
+      "tf_type": "aws_network_interface"
+    },
+    {
+      "cfn_type": "AWS::EC2::NetworkInterfaceAttachment",
+      "tf_type": "aws_network_interface_attachment"
+    },
+    {
+      "cfn_type": "AWS::OpsWorks::App",
+      "tf_type": "aws_opsworks_application"
+    },
+    {
+      "cfn_type": "AWS::OpsWorks::Instance",
+      "tf_type": "aws_opsworks_instance"
+    },
+    {
+      "cfn_type": "AWS::OpsWorks::Stack",
+      "tf_type": "aws_opsworks_stack"
+    },
+    {
+      "cfn_type": "AWS::OpsWorks::UserProfile",
+      "tf_type": "aws_opsworks_user_profile"
+    },
+    {
+      "cfn_type": "AWS::Organizations::Account",
+      "tf_type": "aws_organizations_account"
+    },
+    {
+      "cfn_type": "AWS::Organizations::OrganizationalUnit",
+      "tf_type": "aws_organizations_organizational_unit"
+    },
+    {
+      "cfn_type": "AWS::Organizations::Policy",
+      "tf_type": "aws_organizations_policy"
+    },
+    {
+      "cfn_type": "AWS::Pinpoint::EmailChannel",
+      "tf_type": "aws_pinpoint_email_channel"
+    },
+    {
+      "cfn_type": "AWS::Pinpoint::EventStream",
+      "tf_type": "aws_pinpoint_event_stream"
+    },
+    {
+      "cfn_type": "AWS::Pinpoint::SMSChannel",
+      "tf_type": "aws_pinpoint_sms_channel"
+    },
+    {
+      "cfn_type": "AWS::EC2::PlacementGroup",
+      "tf_type": "aws_placement_group"
+    },
+    {
+      "cfn_type": "AWS::APS::Workspace",
+      "tf_type": "aws_prometheus_workspace"
+    },
+    {
+      "cfn_type": "AWS::RAM::ResourceShare",
+      "tf_type": "aws_ram_resource_share"
+    },
+    {
+      "cfn_type": "AWS::RDS::DBCluster",
+      "tf_type": "aws_rds_cluster"
+    },
+    {
+      "cfn_type": "AWS::RDS::DBClusterParameterGroup",
+      "tf_type": "aws_rds_cluster_parameter_group"
+    },
+    {
+      "cfn_type": "AWS::Redshift::Cluster",
+      "tf_type": "aws_redshift_cluster"
+    },
+    {
+      "cfn_type": "AWS::Redshift::ClusterParameterGroup",
+      "tf_type": "aws_redshift_parameter_group"
+    },
+    {
+      "cfn_type": "AWS::Redshift::ClusterSecurityGroup",
+      "tf_type": "aws_redshift_security_group"
+    },
+    {
+      "cfn_type": "AWS::Redshift::ClusterSubnetGroup",
+      "tf_type": "aws_redshift_subnet_group"
+    },
+    {
+      "cfn_type": "AWS::ResourceGroups::Group",
+      "tf_type": "aws_resourcegroups_group"
+    },
+    {
+      "cfn_type": "AWS::EC2::Route",
+      "tf_type": "aws_route"
+    },
+    {
+      "cfn_type": "AWS::Route53::HealthCheck",
+      "tf_type": "aws_route53_health_check"
+    },
+    {
+      "cfn_type": "AWS::Route53::RecordSet",
+      "tf_type": "aws_route53_record"
+    },
+    {
+      "cfn_type": "AWS::Route53Resolver::ResolverEndpoint",
+      "tf_type": "aws_route53_resolver_endpoint"
+    },
+    {
+      "cfn_type": "AWS::Route53Resolver::ResolverRule",
+      "tf_type": "aws_route53_resolver_rule"
+    },
+    {
+      "cfn_type": "AWS::Route53Resolver::ResolverRuleAssociation",
+      "tf_type": "aws_route53_resolver_rule_association"
+    },
+    {
+      "cfn_type": "AWS::Route53::HostedZone",
+      "tf_type": "aws_route53_zone"
+    },
+    {
+      "cfn_type": "AWS::EC2::RouteTable",
+      "tf_type": "aws_route_table"
+    },
+    {
+      "cfn_type": "AWS::EC2::GatewayRouteTableAssociation",
+      "tf_type": "aws_route_table_association"
+    },
+    {
+      "cfn_type": "AWS::EC2::SubnetRouteTableAssociation",
+      "tf_type": "aws_route_table_association"
+    },
+    {
+      "cfn_type": "AWS::S3::Bucket",
+      "tf_type": "aws_s3_bucket"
+    },
+    {
+      "cfn_type": "AWS::S3::BucketPolicy",
+      "tf_type": "aws_s3_bucket_policy"
+    },
+    {
+      "cfn_type": "AWS::SageMaker::Endpoint",
+      "tf_type": "aws_sagemaker_endpoint"
+    },
+    {
+      "cfn_type": "AWS::SageMaker::EndpointConfig",
+      "tf_type": "aws_sagemaker_endpoint_configuration"
+    },
+    {
+      "cfn_type": "AWS::SageMaker::Model",
+      "tf_type": "aws_sagemaker_model"
+    },
+    {
+      "cfn_type": "AWS::SageMaker::NotebookInstance",
+      "tf_type": "aws_sagemaker_notebook_instance"
+    },
+    {
+      "cfn_type": "AWS::SageMaker::NotebookInstanceLifecycleConfig",
+      "tf_type": "aws_sagemaker_notebook_instance_lifecycle_configuration"
+    },
+    {
+      "cfn_type": "AWS::SecretsManager::Secret",
+      "tf_type": "aws_secretsmanager_secret"
+    },
+    {
+      "cfn_type": "AWS::EC2::SecurityGroup",
+      "tf_type": "aws_security_group"
+    },
+    {
+      "cfn_type": "AWS::SecurityHub::Hub",
+      "tf_type": "aws_securityhub_account"
+    },
+    {
+      "cfn_type": "AWS::ServiceDiscovery::HttpNamespace",
+      "tf_type": "aws_service_discovery_http_namespace"
+    },
+    {
+      "cfn_type": "AWS::ServiceDiscovery::PrivateDnsNamespace",
+      "tf_type": "aws_service_discovery_private_dns_namespace"
+    },
+    {
+      "cfn_type": "AWS::ServiceDiscovery::PublicDnsNamespace",
+      "tf_type": "aws_service_discovery_public_dns_namespace"
+    },
+    {
+      "cfn_type": "AWS::ServiceDiscovery::Service",
+      "tf_type": "aws_service_discovery_service"
+    },
+    {
+      "cfn_type": "AWS::SES::ConfigurationSet",
+      "tf_type": "aws_ses_configuration_set"
+    },
+    {
+      "cfn_type": "AWS::SES::ConfigurationSetEventDestination",
+      "tf_type": "aws_ses_event_destination"
+    },
+    {
+      "cfn_type": "AWS::SES::ReceiptFilter",
+      "tf_type": "aws_ses_receipt_filter"
+    },
+    {
+      "cfn_type": "AWS::SES::ReceiptRule",
+      "tf_type": "aws_ses_receipt_filter"
+    },
+    {
+      "cfn_type": "AWS::SES::ReceiptRuleSet",
+      "tf_type": "aws_ses_receipt_rule_set"
+    },
+    {
+      "cfn_type": "AWS::SES::Template",
+      "tf_type": "aws_ses_template"
+    },
+    {
+      "cfn_type": "AWS::StepFunctions::Activity",
+      "tf_type": "aws_sfn_activity"
+    },
+    {
+      "cfn_type": "AWS::StepFunctions::StateMachine",
+      "tf_type": "aws_sfn_state_machine"
+    },
+    {
+      "cfn_type": "AWS::SNS::Topic",
+      "tf_type": "aws_sns_topic"
+    },
+    {
+      "cfn_type": "AWS::SNS::TopicPolicy",
+      "tf_type": "aws_sns_topic_policy"
+    },
+    {
+      "cfn_type": "AWS::SNS::Subscription",
+      "tf_type": "aws_sns_topic_subscription"
+    },
+    {
+      "cfn_type": "AWS::SQS::Queue",
+      "tf_type": "aws_sqs_queue"
+    },
+    {
+      "cfn_type": "AWS::SQS::QueuePolicy",
+      "tf_type": "aws_sqs_queue_policy"
+    },
+    {
+      "cfn_type": "AWS::SSM::Association",
+      "tf_type": "aws_ssm_association"
+    },
+    {
+      "cfn_type": "AWS::SSM::Document",
+      "tf_type": "aws_ssm_document"
+    },
+    {
+      "cfn_type": "AWS::SSM::MaintenanceWindow",
+      "tf_type": "aws_ssm_maintenance_window"
+    },
+    {
+      "cfn_type": "AWS::SSM::MaintenanceWindowTarget",
+      "tf_type": "aws_ssm_maintenance_window_target"
+    },
+    {
+      "cfn_type": "AWS::SSM::MaintenanceWindowTask",
+      "tf_type": "aws_ssm_maintenance_window_task"
+    },
+    {
+      "cfn_type": "AWS::SSM::Parameter",
+      "tf_type": "aws_ssm_parameter"
+    },
+    {
+      "cfn_type": "AWS::SSM::PatchBaseline",
+      "tf_type": "aws_ssm_patch_baseline"
+    },
+    {
+      "cfn_type": "AWS::SSM::ResourceDataSync",
+      "tf_type": "aws_ssm_resource_data_sync"
+    },
+    {
+      "cfn_type": "AWS::SSO::Assignment",
+      "tf_type": "aws_ssoadmin_account_assignment"
+    },
+    {
+      "cfn_type": "AWS::SSO::PermissionSet",
+      "tf_type": "aws_ssoadmin_permission_set"
+    },
+    {
+      "cfn_type": "AWS::EC2::Subnet",
+      "tf_type": "aws_subnet"
+    },
+    {
+      "cfn_type": "AWS::Transfer::Server",
+      "tf_type": "aws_transfer_server"
+    },
+    {
+      "cfn_type": "AWS::Transfer::User",
+      "tf_type": "aws_transfer_user"
+    },
+    {
+      "cfn_type": "AWS::EC2::VolumeAttachment",
+      "tf_type": "aws_volume_attachment"
+    },
+    {
+      "cfn_type": "AWS::EC2::VPC",
+      "tf_type": "aws_vpc"
+    },
+    {
+      "cfn_type": "AWS::EC2::DHCPOptions",
+      "tf_type": "aws_vpc_dhcp_options"
+    },
+    {
+      "cfn_type": "AWS::EC2::VPCDHCPOptionsAssociation",
+      "tf_type": "aws_vpc_dhcp_options_association"
+    },
+    {
+      "cfn_type": "AWS::EC2::VPCEndpoint",
+      "tf_type": "aws_vpc_endpoint"
+    },
+    {
+      "cfn_type": "AWS::EC2::VPCEndpointService",
+      "tf_type": "aws_vpc_endpoint_service"
+    },
+    {
+      "cfn_type": "AWS::EC2::VPCCidrBlock",
+      "tf_type": "aws_vpc_ipv4_cidr_block_association"
+    },
+    {
+      "cfn_type": "AWS::EC2::VPCPeeringConnection",
+      "tf_type": "aws_vpc_peering_connection"
+    },
+    {
+      "cfn_type": "AWS::EC2::VPNConnection",
+      "tf_type": "aws_vpn_connection"
+    },
+    {
+      "cfn_type": "AWS::EC2::VPNConnectionRoute",
+      "tf_type": "aws_vpn_connection_route"
+    },
+    {
+      "cfn_type": "AWS::EC2::VPNGateway",
+      "tf_type": "aws_vpn_gateway"
+    },
+    {
+      "cfn_type": "AWS::EC2::VPCGatewayAttachment",
+      "tf_type": "aws_vpn_gateway_attachment"
+    },
+    {
+      "cfn_type": "AWS::EC2::VPNGatewayRoutePropagation",
+      "tf_type": "aws_vpn_gateway_route_propagation"
+    },
+    {
+      "cfn_type": "AWS::WAF::ByteMatchSet",
+      "tf_type": "aws_waf_byte_match_set"
+    },
+    {
+      "cfn_type": "AWS::WAF::IPSet",
+      "tf_type": "aws_waf_ipset"
+    },
+    {
+      "cfn_type": "AWS::WAF::Rule",
+      "tf_type": "aws_waf_rule"
+    },
+    {
+      "cfn_type": "AWS::WAF::SizeConstraintSet",
+      "tf_type": "aws_waf_size_constraint_set"
+    },
+    {
+      "cfn_type": "AWS::WAF::SqlInjectionMatchSet",
+      "tf_type": "aws_waf_sql_injection_match_set"
+    },
+    {
+      "cfn_type": "AWS::WAF::WebACL",
+      "tf_type": "aws_waf_web_acl"
+    },
+    {
+      "cfn_type": "AWS::WAF::XssMatchSet",
+      "tf_type": "aws_waf_xss_match_set"
+    },
+    {
+      "cfn_type": "AWS::WAFRegional::ByteMatchSet",
+      "tf_type": "aws_wafregional_byte_match_set"
+    },
+    {
+      "cfn_type": "AWS::WAFRegional::GeoMatchSet",
+      "tf_type": "aws_wafregional_geo_match_set"
+    },
+    {
+      "cfn_type": "AWS::WAFRegional::IPSet",
+      "tf_type": "aws_wafregional_ipset"
+    },
+    {
+      "cfn_type": "AWS::WAFRegional::RateBasedRule",
+      "tf_type": "aws_wafregional_rate_based_rule"
+    },
+    {
+      "cfn_type": "AWS::WAFRegional::RegexPatternSet",
+      "tf_type": "aws_wafregional_regex_pattern_set"
+    },
+    {
+      "cfn_type": "AWS::WAFRegional::Rule",
+      "tf_type": "aws_wafregional_rule"
+    },
+    {
+      "cfn_type": "AWS::WAFRegional::SizeConstraintSet",
+      "tf_type": "aws_wafregional_size_constraint_set"
+    },
+    {
+      "cfn_type": "AWS::WAFRegional::SqlInjectionMatchSet",
+      "tf_type": "aws_wafregional_sql_injection_match_set"
+    },
+    {
+      "cfn_type": "AWS::WAFRegional::WebACL",
+      "tf_type": "aws_wafregional_web_acl"
+    },
+    {
+      "cfn_type": "AWS::WAFRegional::WebACLAssociation",
+      "tf_type": "aws_wafregional_web_acl_association"
+    },
+    {
+      "cfn_type": "AWS::WAFRegional::XssMatchSet",
+      "tf_type": "aws_wafregional_xss_match_set"
+    },
+    {
+      "cfn_type": "AWS::XRay::SamplingRule",
+      "tf_type": "aws_xray_sampling_rule"
+    }
+  ]
+}

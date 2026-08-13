@@ -499,10 +499,10 @@ parent-derived) are unaffected and may still reach one.
 <!-- survey-gen:begin residue-unmapped -->
 | Count | Note |
 |---|---|
-| 815 | no CFN counterpart found by name or curated overlay |
+| 753 | no CFN counterpart found by name or curated overlay |
 | 1 | waiter: records only that DNS validation finished; waiting belongs to the lifecycle layer, not a CFN resource of its own |
 
-**Total.** 816 Terraform AWS resource types with no CloudFormation Registry counterpart. Each row's own note is in `live/mapping.json`.
+**Total.** 754 Terraform AWS resource types with no CloudFormation Registry counterpart. Each row's own note is in `live/mapping.json`.
 <!-- survey-gen:end residue-unmapped -->
 
 #### Registry-laggard live services
@@ -535,6 +535,10 @@ excluding types already counted under "Deprecated or EOL services" above.
 | `aws_dms_replication_instance` | `AWS::DMS::ReplicationInstance` |
 | `aws_dms_replication_subnet_group` | `AWS::DMS::ReplicationSubnetGroup` |
 | `aws_dms_replication_task` | `AWS::DMS::ReplicationTask` |
+| `aws_docdb_cluster` | `AWS::DocDB::DBCluster` |
+| `aws_docdb_cluster_instance` | `AWS::DocDB::DBInstance` |
+| `aws_docdb_cluster_parameter_group` | `AWS::DocDB::DBClusterParameterGroup` |
+| `aws_docdb_subnet_group` | `AWS::DocDB::DBSubnetGroup` |
 | `aws_ec2_client_vpn_authorization_rule` | `AWS::EC2::ClientVpnAuthorizationRule` |
 | `aws_ec2_client_vpn_endpoint` | `AWS::EC2::ClientVpnEndpoint` |
 | `aws_ec2_client_vpn_route` | `AWS::EC2::ClientVpnRoute` |
@@ -549,6 +553,7 @@ excluding types already counted under "Deprecated or EOL services" above.
 | `aws_glue_security_configuration` | `AWS::Glue::SecurityConfiguration` |
 | `aws_glue_workflow` | `AWS::Glue::Workflow` |
 | `aws_iam_access_key` | `AWS::IAM::AccessKey` |
+| `aws_iot_policy_attachment` | `AWS::IoT::PolicyPrincipalAttachment` |
 | `aws_iot_thing_principal_attachment` | `AWS::IoT::ThingPrincipalAttachment` |
 | `aws_kinesis_analytics_application` | `AWS::KinesisAnalytics::Application` |
 | `aws_lakeformation_data_lake_settings` | `AWS::LakeFormation::DataLakeSettings` |
@@ -563,7 +568,9 @@ excluding types already counted under "Deprecated or EOL services" above.
 | `aws_qldb_ledger` | `AWS::QLDB::Ledger` |
 | `aws_route53_record` | `AWS::Route53::RecordSet` |
 | `aws_sagemaker_code_repository` | `AWS::SageMaker::CodeRepository` |
+| `aws_sagemaker_endpoint_configuration` | `AWS::SageMaker::EndpointConfig` |
 | `aws_sagemaker_notebook_instance` | `AWS::SageMaker::NotebookInstance` |
+| `aws_sagemaker_notebook_instance_lifecycle_configuration` | `AWS::SageMaker::NotebookInstanceLifecycleConfig` |
 | `aws_sagemaker_workteam` | `AWS::SageMaker::Workteam` |
 | `aws_service_discovery_http_namespace` | `AWS::ServiceDiscovery::HttpNamespace` |
 | `aws_service_discovery_instance` | `AWS::ServiceDiscovery::Instance` |
@@ -573,7 +580,7 @@ excluding types already counted under "Deprecated or EOL services" above.
 | `aws_ses_receipt_rule` | `AWS::SES::ReceiptRule` |
 | `aws_ses_receipt_rule_set` | `AWS::SES::ReceiptRuleSet` |
 
-**Total.** 53 types, covered only where the provider's own identity schema reaches (the union `live/survey-full.json` measures). A successor CFN type sometimes exists with working handlers - `AWS::Elasticsearch::Domain` above has no handlers, but its successor `AWS::OpenSearchService::Domain` does; `live/mapping.json` does not yet link `aws_opensearch_domain` to it.
+**Total.** 60 types, covered only where the provider's own identity schema reaches (the union `live/survey-full.json` measures). A successor CFN type sometimes exists with working handlers - `AWS::Elasticsearch::Domain` above has no handlers, but its successor `AWS::OpenSearchService::Domain` does; `live/mapping.json` does not yet link `aws_opensearch_domain` to it.
 <!-- survey-gen:end residue-laggard -->
 
 #### Emulator-blocked

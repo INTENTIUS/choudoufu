@@ -1,0 +1,1434 @@
+{
+  "pin": {
+    "digest": "sha256:f0596e0022aab55d3e5d3cd84d0ffb8eefd5ffc1edf5e930ecff174d49b74a8b",
+    "tag": "v6.58.0",
+    "accepted": "2026-08-13",
+    "families": 378,
+    "prefixes": 235,
+    "mismatches": 143
+  },
+  "aliases": {
+    "accessanalyzer": [
+      "AccessAnalyzer"
+    ],
+    "acmpca": [
+      "ACMPCA"
+    ],
+    "amplify": [
+      "Amplify"
+    ],
+    "amplifyuibuilder": [
+      "AmplifyUIBuilder"
+    ],
+    "apigateway": [
+      "ApiGateway"
+    ],
+    "apigatewayv2": [
+      "ApiGatewayV2"
+    ],
+    "appautoscaling": [
+      "ApplicationAutoScaling"
+    ],
+    "appconfig": [
+      "AppConfig"
+    ],
+    "appflow": [
+      "AppFlow"
+    ],
+    "appintegrations": [
+      "AppIntegrations"
+    ],
+    "applicationinsights": [
+      "ApplicationInsights"
+    ],
+    "applicationsignals": [
+      "ApplicationSignals"
+    ],
+    "appmesh": [
+      "AppMesh"
+    ],
+    "apprunner": [
+      "AppRunner"
+    ],
+    "appstream": [
+      "AppStream"
+    ],
+    "appsync": [
+      "AppSync"
+    ],
+    "arcregionswitch": [
+      "ARCRegionSwitch"
+    ],
+    "arczonalshift": [
+      "ARCZonalShift"
+    ],
+    "athena": [
+      "Athena"
+    ],
+    "auditmanager": [
+      "AuditManager"
+    ],
+    "autoscaling": [
+      "AutoScaling"
+    ],
+    "autoscalingplans": [
+      "AutoScalingPlans"
+    ],
+    "backup": [
+      "Backup"
+    ],
+    "backupgateway": [
+      "BackupGateway"
+    ],
+    "batch": [
+      "Batch"
+    ],
+    "bcmdataexports": [
+      "BCMDataExports"
+    ],
+    "bedrock": [
+      "Bedrock"
+    ],
+    "billing": [
+      "Billing"
+    ],
+    "billingconductor": [
+      "BillingConductor"
+    ],
+    "braket": [
+      "Braket"
+    ],
+    "budgets": [
+      "Budgets"
+    ],
+    "chatbot": [
+      "Chatbot"
+    ],
+    "chime": [
+      "Chime"
+    ],
+    "cleanrooms": [
+      "CleanRooms"
+    ],
+    "cloud9": [
+      "Cloud9"
+    ],
+    "cloudformation": [
+      "CloudFormation"
+    ],
+    "cloudfront": [
+      "CloudFront"
+    ],
+    "cloudtrail": [
+      "CloudTrail"
+    ],
+    "cloudwatch": [
+      "CloudWatch"
+    ],
+    "codeartifact": [
+      "CodeArtifact"
+    ],
+    "codebuild": [
+      "CodeBuild"
+    ],
+    "codecommit": [
+      "CodeCommit"
+    ],
+    "codeconnections": [
+      "CodeConnections"
+    ],
+    "codeguruprofiler": [
+      "CodeGuruProfiler"
+    ],
+    "codegurureviewer": [
+      "CodeGuruReviewer"
+    ],
+    "codepipeline": [
+      "CodePipeline"
+    ],
+    "codestar": [
+      "CodeStar"
+    ],
+    "codestarconnections": [
+      "CodeStarConnections"
+    ],
+    "codestarnotifications": [
+      "CodeStarNotifications"
+    ],
+    "comprehend": [
+      "Comprehend"
+    ],
+    "computeoptimizer": [
+      "ComputeOptimizer"
+    ],
+    "connect": [
+      "Connect"
+    ],
+    "controltower": [
+      "ControlTower"
+    ],
+    "customerprofiles": [
+      "CustomerProfiles"
+    ],
+    "databrew": [
+      "DataBrew"
+    ],
+    "datapipeline": [
+      "DataPipeline"
+    ],
+    "datasync": [
+      "DataSync"
+    ],
+    "datazone": [
+      "DataZone"
+    ],
+    "dax": [
+      "DAX"
+    ],
+    "deploy": [
+      "CodeDeploy"
+    ],
+    "detective": [
+      "Detective"
+    ],
+    "devopsagent": [
+      "DevOpsAgent"
+    ],
+    "devopsguru": [
+      "DevOpsGuru"
+    ],
+    "directconnect": [
+      "DirectConnect"
+    ],
+    "dlm": [
+      "DLM"
+    ],
+    "docdb": [
+      "DocDB"
+    ],
+    "docdbelastic": [
+      "DocDBElastic"
+    ],
+    "ds": [
+      "DirectoryService"
+    ],
+    "dsql": [
+      "DSQL"
+    ],
+    "dynamodb": [
+      "DynamoDB"
+    ],
+    "ec2": [
+      "EC2"
+    ],
+    "ec2ebs": [
+      "EC2"
+    ],
+    "ec2outposts": [
+      "EC2"
+    ],
+    "ecr": [
+      "ECR"
+    ],
+    "ecs": [
+      "ECS"
+    ],
+    "efs": [
+      "EFS"
+    ],
+    "eks": [
+      "EKS"
+    ],
+    "elasticache": [
+      "ElastiCache"
+    ],
+    "elasticbeanstalk": [
+      "ElasticBeanstalk"
+    ],
+    "elb": [
+      "ElasticLoadBalancing"
+    ],
+    "elbv2": [
+      "ElasticLoadBalancingV2"
+    ],
+    "emr": [
+      "EMR"
+    ],
+    "emrcontainers": [
+      "EMRContainers"
+    ],
+    "emrserverless": [
+      "EMRServerless"
+    ],
+    "evidently": [
+      "Evidently"
+    ],
+    "evs": [
+      "EVS"
+    ],
+    "finspace": [
+      "FinSpace"
+    ],
+    "fis": [
+      "FIS"
+    ],
+    "fms": [
+      "FMS"
+    ],
+    "forecast": [
+      "Forecast"
+    ],
+    "frauddetector": [
+      "FraudDetector"
+    ],
+    "fsx": [
+      "FSx"
+    ],
+    "gamelift": [
+      "GameLift"
+    ],
+    "globalaccelerator": [
+      "GlobalAccelerator"
+    ],
+    "glue": [
+      "Glue"
+    ],
+    "grafana": [
+      "Grafana"
+    ],
+    "greengrass": [
+      "Greengrass"
+    ],
+    "greengrassv2": [
+      "GreengrassV2"
+    ],
+    "groundstation": [
+      "GroundStation"
+    ],
+    "guardduty": [
+      "GuardDuty"
+    ],
+    "healthlake": [
+      "HealthLake"
+    ],
+    "iam": [
+      "IAM"
+    ],
+    "identitystore": [
+      "IdentityStore"
+    ],
+    "imagebuilder": [
+      "ImageBuilder"
+    ],
+    "inspector": [
+      "Inspector"
+    ],
+    "interconnect": [
+      "Interconnect"
+    ],
+    "internetmonitor": [
+      "InternetMonitor"
+    ],
+    "invoicing": [
+      "Invoicing"
+    ],
+    "iot": [
+      "IoT"
+    ],
+    "iotanalytics": [
+      "IoTAnalytics"
+    ],
+    "iotevents": [
+      "IoTEvents"
+    ],
+    "iotsitewise": [
+      "IoTSiteWise"
+    ],
+    "iotthingsgraph": [
+      "IoTThingsGraph"
+    ],
+    "iottwinmaker": [
+      "IoTTwinMaker"
+    ],
+    "iotwireless": [
+      "IoTWireless"
+    ],
+    "ipam": [
+      "EC2"
+    ],
+    "ivs": [
+      "IVS"
+    ],
+    "ivschat": [
+      "IVSChat"
+    ],
+    "kafkaconnect": [
+      "KafkaConnect"
+    ],
+    "kendra": [
+      "Kendra"
+    ],
+    "kinesis": [
+      "Kinesis"
+    ],
+    "kinesisanalytics": [
+      "KinesisAnalytics"
+    ],
+    "kinesisanalyticsv2": [
+      "KinesisAnalyticsV2"
+    ],
+    "kinesisvideo": [
+      "KinesisVideo"
+    ],
+    "kms": [
+      "KMS"
+    ],
+    "lakeformation": [
+      "LakeFormation"
+    ],
+    "lambda": [
+      "Lambda"
+    ],
+    "launchwizard": [
+      "LaunchWizard"
+    ],
+    "licensemanager": [
+      "LicenseManager"
+    ],
+    "lightsail": [
+      "Lightsail"
+    ],
+    "location": [
+      "Location"
+    ],
+    "lookoutequipment": [
+      "LookoutEquipment"
+    ],
+    "lookoutvision": [
+      "LookoutVision"
+    ],
+    "m2": [
+      "M2"
+    ],
+    "macie": [
+      "Macie"
+    ],
+    "managedblockchain": [
+      "ManagedBlockchain"
+    ],
+    "mediaconnect": [
+      "MediaConnect"
+    ],
+    "mediaconvert": [
+      "MediaConvert"
+    ],
+    "medialive": [
+      "MediaLive"
+    ],
+    "mediapackage": [
+      "MediaPackage"
+    ],
+    "mediapackagev2": [
+      "MediaPackageV2"
+    ],
+    "mediastore": [
+      "MediaStore"
+    ],
+    "mediatailor": [
+      "MediaTailor"
+    ],
+    "memorydb": [
+      "MemoryDB"
+    ],
+    "mpa": [
+      "MPA"
+    ],
+    "mwaa": [
+      "MWAA"
+    ],
+    "mwaaserverless": [
+      "MWAAServerless"
+    ],
+    "neptune": [
+      "Neptune"
+    ],
+    "neptunegraph": [
+      "NeptuneGraph"
+    ],
+    "networkfirewall": [
+      "NetworkFirewall"
+    ],
+    "networkflowmonitor": [
+      "NetworkFlowMonitor"
+    ],
+    "networkmanager": [
+      "NetworkManager"
+    ],
+    "notifications": [
+      "Notifications"
+    ],
+    "notificationscontacts": [
+      "NotificationsContacts"
+    ],
+    "oam": [
+      "Oam"
+    ],
+    "observabilityadmin": [
+      "ObservabilityAdmin"
+    ],
+    "odb": [
+      "ODB"
+    ],
+    "opensearchserverless": [
+      "OpenSearchServerless"
+    ],
+    "organizations": [
+      "Organizations"
+    ],
+    "osis": [
+      "OSIS"
+    ],
+    "outposts": [
+      "Outposts"
+    ],
+    "panorama": [
+      "Panorama"
+    ],
+    "paymentcryptography": [
+      "PaymentCryptography"
+    ],
+    "pcaconnectorad": [
+      "PCAConnectorAD"
+    ],
+    "pcs": [
+      "PCS"
+    ],
+    "personalize": [
+      "Personalize"
+    ],
+    "pinpoint": [
+      "Pinpoint"
+    ],
+    "pinpointemail": [
+      "PinpointEmail"
+    ],
+    "pipes": [
+      "Pipes"
+    ],
+    "proton": [
+      "Proton"
+    ],
+    "qbusiness": [
+      "QBusiness"
+    ],
+    "qldb": [
+      "QLDB"
+    ],
+    "quicksight": [
+      "QuickSight"
+    ],
+    "ram": [
+      "RAM"
+    ],
+    "rbin": [
+      "Rbin"
+    ],
+    "rds": [
+      "RDS"
+    ],
+    "redshift": [
+      "Redshift"
+    ],
+    "redshiftserverless": [
+      "RedshiftServerless"
+    ],
+    "rekognition": [
+      "Rekognition"
+    ],
+    "resiliencehub": [
+      "ResilienceHub"
+    ],
+    "resiliencehubv2": [
+      "ResilienceHubV2"
+    ],
+    "resourceexplorer2": [
+      "ResourceExplorer2"
+    ],
+    "resourcegroups": [
+      "ResourceGroups"
+    ],
+    "robomaker": [
+      "RoboMaker"
+    ],
+    "rolesanywhere": [
+      "RolesAnywhere"
+    ],
+    "route53": [
+      "Route53"
+    ],
+    "route53profiles": [
+      "Route53Profiles"
+    ],
+    "route53recoveryreadiness": [
+      "Route53RecoveryReadiness"
+    ],
+    "route53resolver": [
+      "Route53Resolver"
+    ],
+    "rum": [
+      "RUM"
+    ],
+    "s3": [
+      "S3"
+    ],
+    "s3files": [
+      "S3Files"
+    ],
+    "s3outposts": [
+      "S3Outposts"
+    ],
+    "s3tables": [
+      "S3Tables"
+    ],
+    "s3vectors": [
+      "S3Vectors"
+    ],
+    "sagemaker": [
+      "SageMaker"
+    ],
+    "scheduler": [
+      "Scheduler"
+    ],
+    "secretsmanager": [
+      "SecretsManager"
+    ],
+    "securityhub": [
+      "SecurityHub"
+    ],
+    "securitylake": [
+      "SecurityLake"
+    ],
+    "servicecatalog": [
+      "ServiceCatalog"
+    ],
+    "servicecatalogappregistry": [
+      "ServiceCatalogAppRegistry"
+    ],
+    "servicediscovery": [
+      "ServiceDiscovery"
+    ],
+    "ses": [
+      "SES"
+    ],
+    "shield": [
+      "Shield"
+    ],
+    "signer": [
+      "Signer"
+    ],
+    "sns": [
+      "SNS"
+    ],
+    "sqs": [
+      "SQS"
+    ],
+    "ssm": [
+      "SSM"
+    ],
+    "ssmcontacts": [
+      "SSMContacts"
+    ],
+    "ssmincidents": [
+      "SSMIncidents"
+    ],
+    "ssmquicksetup": [
+      "SSMQuickSetup"
+    ],
+    "sso": [
+      "SSO"
+    ],
+    "storagegateway": [
+      "StorageGateway"
+    ],
+    "synthetics": [
+      "Synthetics"
+    ],
+    "transcribe": [
+      "Transcribe"
+    ],
+    "transfer": [
+      "Transfer"
+    ],
+    "transitgateway": [
+      "EC2"
+    ],
+    "uxc": [
+      "UXC"
+    ],
+    "verifiedaccess": [
+      "EC2"
+    ],
+    "verifiedpermissions": [
+      "VerifiedPermissions"
+    ],
+    "voiceid": [
+      "VoiceID"
+    ],
+    "vpc": [
+      "EC2"
+    ],
+    "vpclattice": [
+      "VpcLattice"
+    ],
+    "vpnclient": [
+      "EC2"
+    ],
+    "vpnsite": [
+      "EC2"
+    ],
+    "waf": [
+      "WAF"
+    ],
+    "wafregional": [
+      "WAFRegional"
+    ],
+    "wafv2": [
+      "WAFv2"
+    ],
+    "wavelength": [
+      "EC2"
+    ],
+    "wellarchitected": [
+      "WellArchitected"
+    ],
+    "wisdom": [
+      "Wisdom"
+    ],
+    "workspaces": [
+      "WorkSpaces"
+    ],
+    "workspacesweb": [
+      "WorkSpacesWeb"
+    ],
+    "xray": [
+      "XRay"
+    ]
+  },
+  "mismatches": [
+    {
+      "prefix": "account",
+      "aws_id": "Account",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "acm",
+      "aws_id": "ACM",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "alexaforbusiness",
+      "aws_id": "Alexa For Business",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "amp",
+      "aws_id": "amp",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "amplifybackend",
+      "aws_id": "AmplifyBackend",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "apigatewaymanagementapi",
+      "aws_id": "ApiGatewayManagementApi",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "appconfigdata",
+      "aws_id": "AppConfigData",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "appfabric",
+      "aws_id": "AppFabric",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "applicationcostprofiler",
+      "aws_id": "ApplicationCostProfiler",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "bedrockagent",
+      "aws_id": "Bedrock Agent",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "bedrockagentcore",
+      "aws_id": "Bedrock AgentCore Control",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "ce",
+      "aws_id": "Cost Explorer",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "chimesdkidentity",
+      "aws_id": "Chime SDK Identity",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "chimesdkmediapipelines",
+      "aws_id": "Chime SDK Media Pipelines",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "chimesdkmeetings",
+      "aws_id": "Chime SDK Meetings",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "chimesdkmessaging",
+      "aws_id": "Chime SDK Messaging",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "chimesdkvoice",
+      "aws_id": "Chime SDK Voice",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "cloudcontrol",
+      "aws_id": "CloudControl",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "clouddirectory",
+      "aws_id": "CloudDirectory",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "cloudfrontkeyvaluestore",
+      "aws_id": "CloudFront KeyValueStore",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "cloudhsmv2",
+      "aws_id": "CloudHSM V2",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "cloudsearch",
+      "aws_id": "CloudSearch",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "cloudsearchdomain",
+      "aws_id": "CloudSearch Domain",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "codecatalyst",
+      "aws_id": "CodeCatalyst",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "cognitoidentity",
+      "aws_id": "Cognito Identity",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "cognitoidp",
+      "aws_id": "Cognito Identity Provider",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "cognitosync",
+      "aws_id": "Cognito Sync",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "comprehendmedical",
+      "aws_id": "ComprehendMedical",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "configservice",
+      "aws_id": "Config Service",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "connectcases",
+      "aws_id": "ConnectCases",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "connectcontactlens",
+      "aws_id": "Connect Contact Lens",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "connectparticipant",
+      "aws_id": "ConnectParticipant",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "costoptimizationhub",
+      "aws_id": "Cost Optimization Hub",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "cur",
+      "aws_id": "Cost and Usage Report Service",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "dataexchange",
+      "aws_id": "DataExchange",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "devicefarm",
+      "aws_id": "Device Farm",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "discovery",
+      "aws_id": "Application Discovery Service",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "dms",
+      "aws_id": "Database Migration Service",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "drs",
+      "aws_id": "DRS",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "dynamodbstreams",
+      "aws_id": "DynamoDB Streams",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "ebs",
+      "aws_id": "EBS",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "ec2instanceconnect",
+      "aws_id": "EC2 Instance Connect",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "ecrpublic",
+      "aws_id": "ECR PUBLIC",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "elasticinference",
+      "aws_id": "Elastic Inference",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "elasticsearch",
+      "aws_id": "Elasticsearch Service",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "elastictranscoder",
+      "aws_id": "Elastic Transcoder",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "events",
+      "aws_id": "EventBridge",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "finspacedata",
+      "aws_id": "finspace data",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "firehose",
+      "aws_id": "Firehose",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "forecastquery",
+      "aws_id": "forecastquery",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "glacier",
+      "aws_id": "Glacier",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "health",
+      "aws_id": "Health",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "honeycode",
+      "aws_id": "Honeycode",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "inspector2",
+      "aws_id": "Inspector2",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "iot1clickdevices",
+      "aws_id": "IoT 1Click Devices Service",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "iot1clickprojects",
+      "aws_id": "IoT 1Click Projects",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "iotdata",
+      "aws_id": "IoT Data Plane",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "iotdeviceadvisor",
+      "aws_id": "IotDeviceAdvisor",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "ioteventsdata",
+      "aws_id": "IoT Events Data",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "iotfleethub",
+      "aws_id": "IoTFleetHub",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "iotjobsdata",
+      "aws_id": "IoT Jobs Data Plane",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "iotsecuretunneling",
+      "aws_id": "IoTSecureTunneling",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "kafka",
+      "aws_id": "Kafka",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "keyspaces",
+      "aws_id": "Keyspaces",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "kinesisvideoarchivedmedia",
+      "aws_id": "Kinesis Video Archived Media",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "kinesisvideomedia",
+      "aws_id": "Kinesis Video Media",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "kinesisvideosignaling",
+      "aws_id": "Kinesis Video Signaling",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "lambdamicrovms",
+      "aws_id": "Lambda Microvms",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "lexmodels",
+      "aws_id": "Lex Model Building Service",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "lexruntime",
+      "aws_id": "Lex Runtime Service",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "lexruntimev2",
+      "aws_id": "Lex Runtime V2",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "lexv2models",
+      "aws_id": "Lex Models V2",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "logs",
+      "aws_id": "CloudWatch Logs",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "lookoutmetrics",
+      "aws_id": "LookoutMetrics",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "machinelearning",
+      "aws_id": "Machine Learning",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "macie2",
+      "aws_id": "Macie2",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "mailmanager",
+      "aws_id": "MailManager",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "marketplacecatalog",
+      "aws_id": "Marketplace Catalog",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "marketplacecommerceanalytics",
+      "aws_id": "Marketplace Commerce Analytics",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "marketplaceentitlement",
+      "aws_id": "Marketplace Entitlement Service",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "marketplacemetering",
+      "aws_id": "Marketplace Metering",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "mediapackagevod",
+      "aws_id": "MediaPackage Vod",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "mediastoredata",
+      "aws_id": "MediaStore Data",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "meta",
+      "aws_id": "Meta",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "mgh",
+      "aws_id": "Migration Hub",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "mgn",
+      "aws_id": "mgn",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "migrationhubconfig",
+      "aws_id": "MigrationHub Config",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "migrationhubrefactorspaces",
+      "aws_id": "Migration Hub Refactor Spaces",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "migrationhubstrategy",
+      "aws_id": "MigrationHubStrategy",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "mobile",
+      "aws_id": "Mobile",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "mq",
+      "aws_id": "mq",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "mturk",
+      "aws_id": "MTurk",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "networkmonitor",
+      "aws_id": "NetworkMonitor",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "nimble",
+      "aws_id": "nimble",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "opensearch",
+      "aws_id": "OpenSearch",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "opsworks",
+      "aws_id": "OpsWorks",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "opsworkscm",
+      "aws_id": "OpsWorksCM",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "personalizeevents",
+      "aws_id": "Personalize Events",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "personalizeruntime",
+      "aws_id": "Personalize Runtime",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "pi",
+      "aws_id": "PI",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "pinpointsmsvoice",
+      "aws_id": "Pinpoint SMS Voice",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "pinpointsmsvoicev2",
+      "aws_id": "Pinpoint SMS Voice v2",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "polly",
+      "aws_id": "Polly",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "pricing",
+      "aws_id": "Pricing",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "qldbsession",
+      "aws_id": "QLDB Session",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "rdsdata",
+      "aws_id": "RDS Data",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "redshiftdata",
+      "aws_id": "Redshift Data",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "resourcegroupstaggingapi",
+      "aws_id": "Resource Groups Tagging API",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "route53domains",
+      "aws_id": "Route 53 Domains",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "route53recoverycluster",
+      "aws_id": "Route53 Recovery Cluster",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "route53recoverycontrolconfig",
+      "aws_id": "Route53 Recovery Control Config",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "s3control",
+      "aws_id": "S3 Control",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "sagemakera2iruntime",
+      "aws_id": "SageMaker A2I Runtime",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "sagemakeredge",
+      "aws_id": "Sagemaker Edge",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "sagemakerfeaturestoreruntime",
+      "aws_id": "SageMaker FeatureStore Runtime",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "sagemakerruntime",
+      "aws_id": "SageMaker Runtime",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "savingsplans",
+      "aws_id": "savingsplans",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "schemas",
+      "aws_id": "schemas",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "serverlessrepo",
+      "aws_id": "ServerlessApplicationRepository",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "servicequotas",
+      "aws_id": "Service Quotas",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "sesv2",
+      "aws_id": "SESv2",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "sfn",
+      "aws_id": "SFN",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "simpledb",
+      "aws_id": "SimpleDB",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "sms",
+      "aws_id": "SMS",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "snowball",
+      "aws_id": "Snowball",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "snowdevicemanagement",
+      "aws_id": "Snow Device Management",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "ssmsap",
+      "aws_id": "Ssm Sap",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "ssoadmin",
+      "aws_id": "SSO Admin",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "ssooidc",
+      "aws_id": "SSO OIDC",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "sts",
+      "aws_id": "STS",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "support",
+      "aws_id": "Support",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "swf",
+      "aws_id": "SWF",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "taxsettings",
+      "aws_id": "TaxSettings",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "textract",
+      "aws_id": "Textract",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "timestreaminfluxdb",
+      "aws_id": "Timestream InfluxDB",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "timestreamquery",
+      "aws_id": "Timestream Query",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "timestreamwrite",
+      "aws_id": "Timestream Write",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "transcribestreaming",
+      "aws_id": "Transcribe Streaming",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "translate",
+      "aws_id": "Translate",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "workdocs",
+      "aws_id": "WorkDocs",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "worklink",
+      "aws_id": "WorkLink",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "workmail",
+      "aws_id": "WorkMail",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    },
+    {
+      "prefix": "workmailmessageflow",
+      "aws_id": "WorkMailMessageFlow",
+      "reason": "no CFN service in the current registry normalizes to the same spelling"
+    }
+  ]
+}

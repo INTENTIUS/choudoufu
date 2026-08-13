@@ -2,10 +2,37 @@
   "generated_by": "tools/mapping-gen (go run ./tools/mapping-gen)",
   "counts": {
     "types": 1691,
-    "mapped": 857,
+    "mapped": 919,
     "fold": 18,
-    "none": 816
+    "none": 754,
+    "by_via": {
+      "alias": 32,
+      "fold": 18,
+      "former2": 48,
+      "name": 742,
+      "service-alias": 97
+    }
   },
+  "former2_contradictions": [
+    {
+      "tf_type": "aws_ec2_transit_gateway_vpc_attachment",
+      "mapped_cfn_type": "AWS::EC2::TransitGatewayVpcAttachment",
+      "mapped_via": "name",
+      "former2_cfn_type": "AWS::EC2::TransitGatewayAttachment"
+    },
+    {
+      "tf_type": "aws_elasticsearch_domain",
+      "mapped_cfn_type": "AWS::Elasticsearch::Domain",
+      "mapped_via": "name",
+      "former2_cfn_type": "AWS::OpenSearchService::Domain"
+    },
+    {
+      "tf_type": "aws_iam_policy",
+      "mapped_cfn_type": "AWS::IAM::Policy",
+      "mapped_via": "name",
+      "former2_cfn_type": "AWS::IAM::ManagedPolicy"
+    }
+  ],
   "rows": [
     {
       "tf_type": "aws_accessanalyzer_analyzer",
@@ -814,10 +841,10 @@
     },
     {
       "tf_type": "aws_appsync_datasource",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::AppSync::DataSource",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_appsync_domain_name",
@@ -842,10 +869,10 @@
     },
     {
       "tf_type": "aws_appsync_graphql_api",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::AppSync::GraphQLApi",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_appsync_resolver",
@@ -926,10 +953,10 @@
     },
     {
       "tf_type": "aws_athena_workgroup",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Athena::WorkGroup",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_auditmanager_account_registration",
@@ -1024,17 +1051,17 @@
     },
     {
       "tf_type": "aws_autoscaling_policy",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::AutoScaling::ScalingPolicy",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_autoscaling_schedule",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::AutoScaling::ScheduledAction",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_autoscaling_traffic_source_attachment",
@@ -1444,10 +1471,10 @@
     },
     {
       "tf_type": "aws_billing_view",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Billing::BillingView",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_budgets_budget",
@@ -1773,10 +1800,10 @@
     },
     {
       "tf_type": "aws_cloudfront_origin_access_identity",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::CloudFront::CloudFrontOriginAccessIdentity",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_cloudfront_origin_request_policy",
@@ -1864,10 +1891,10 @@
     },
     {
       "tf_type": "aws_cloudtrail",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::CloudTrail::Trail",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_cloudtrail_event_data_store",
@@ -2270,10 +2297,10 @@
     },
     {
       "tf_type": "aws_codedeploy_app",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::CodeDeploy::Application",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_codedeploy_deployment_config",
@@ -2305,10 +2332,10 @@
     },
     {
       "tf_type": "aws_codepipeline",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::CodePipeline::Pipeline",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_codepipeline_custom_action_type",
@@ -2361,10 +2388,10 @@
     },
     {
       "tf_type": "aws_cognito_identity_pool_roles_attachment",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Cognito::IdentityPoolRoleAttachment",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_cognito_identity_provider",
@@ -2487,10 +2514,10 @@
     },
     {
       "tf_type": "aws_config_aggregate_authorization",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Config::AggregationAuthorization",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_config_config_rule",
@@ -2739,10 +2766,10 @@
     },
     {
       "tf_type": "aws_customer_gateway",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::CustomerGateway",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_customerprofiles_domain",
@@ -3348,24 +3375,24 @@
     },
     {
       "tf_type": "aws_docdb_cluster",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::DocDB::DBCluster",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_docdb_cluster_instance",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::DocDB::DBInstance",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_docdb_cluster_parameter_group",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::DocDB::DBClusterParameterGroup",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_docdb_cluster_snapshot",
@@ -3390,10 +3417,10 @@
     },
     {
       "tf_type": "aws_docdb_subnet_group",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::DocDB::DBSubnetGroup",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_docdbelastic_cluster",
@@ -3831,10 +3858,10 @@
     },
     {
       "tf_type": "aws_ec2_managed_prefix_list",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::PrefixList",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_ec2_managed_prefix_list_entry",
@@ -4286,10 +4313,10 @@
     },
     {
       "tf_type": "aws_egress_only_internet_gateway",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::EgressOnlyInternetGateway",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_eip",
@@ -4300,10 +4327,10 @@
     },
     {
       "tf_type": "aws_eip_association",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::EIPAssociation",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_eip_domain_name",
@@ -4405,10 +4432,10 @@
     },
     {
       "tf_type": "aws_elasticache_cluster",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::ElastiCache::CacheCluster",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_elasticache_global_replication_group",
@@ -4517,10 +4544,10 @@
     },
     {
       "tf_type": "aws_elb",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_elb_attachment",
@@ -4699,10 +4726,10 @@
     },
     {
       "tf_type": "aws_flow_log",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::FlowLog",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_fms_admin_account",
@@ -5686,10 +5713,10 @@
     },
     {
       "tf_type": "aws_iot_policy_attachment",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::IoT::PolicyPrincipalAttachment",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_iot_provisioning_template",
@@ -6155,10 +6182,10 @@
     },
     {
       "tf_type": "aws_launch_configuration",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::AutoScaling::LaunchConfiguration",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_launch_template",
@@ -6729,10 +6756,10 @@
     },
     {
       "tf_type": "aws_medialive_multiplex_program",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::MediaLive::Multiplexprogram",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_memorydb_acl",
@@ -6904,10 +6931,10 @@
     },
     {
       "tf_type": "aws_neptune_cluster",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Neptune::DBCluster",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_neptune_cluster_endpoint",
@@ -6918,17 +6945,17 @@
     },
     {
       "tf_type": "aws_neptune_cluster_instance",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Neptune::DBInstance",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_neptune_cluster_parameter_group",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Neptune::DBClusterParameterGroup",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_neptune_cluster_snapshot",
@@ -6953,17 +6980,17 @@
     },
     {
       "tf_type": "aws_neptune_parameter_group",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Neptune::DBParameterGroup",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_neptune_subnet_group",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Neptune::DBSubnetGroup",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_neptunegraph_graph",
@@ -6974,10 +7001,10 @@
     },
     {
       "tf_type": "aws_network_acl",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::NetworkAcl",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_network_acl_association",
@@ -6988,24 +7015,24 @@
     },
     {
       "tf_type": "aws_network_acl_rule",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::NetworkAclEntry",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_network_interface",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::NetworkInterface",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_network_interface_attachment",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::NetworkInterfaceAttachment",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_network_interface_permission",
@@ -7415,10 +7442,10 @@
     },
     {
       "tf_type": "aws_odb_network",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::ODB::OdbNetwork",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_odb_network_peering_connection",
@@ -7779,10 +7806,10 @@
     },
     {
       "tf_type": "aws_placement_group",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::PlacementGroup",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_prometheus_alert_manager_definition",
@@ -7835,10 +7862,10 @@
     },
     {
       "tf_type": "aws_prometheus_workspace",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::APS::Workspace",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_prometheus_workspace_configuration",
@@ -8115,10 +8142,10 @@
     },
     {
       "tf_type": "aws_rds_cluster",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::RDS::DBCluster",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_rds_cluster_activity_stream",
@@ -8143,10 +8170,10 @@
     },
     {
       "tf_type": "aws_rds_cluster_parameter_group",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::RDS::DBClusterParameterGroup",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_rds_cluster_role_association",
@@ -8318,10 +8345,10 @@
     },
     {
       "tf_type": "aws_redshift_parameter_group",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Redshift::ClusterParameterGroup",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_redshift_partner",
@@ -8374,10 +8401,10 @@
     },
     {
       "tf_type": "aws_redshift_subnet_group",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::Redshift::ClusterSubnetGroup",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_redshift_usage_limit",
@@ -9312,10 +9339,10 @@
     },
     {
       "tf_type": "aws_sagemaker_endpoint_configuration",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::SageMaker::EndpointConfig",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_sagemaker_feature_group",
@@ -9445,10 +9472,10 @@
     },
     {
       "tf_type": "aws_sagemaker_notebook_instance_lifecycle_configuration",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::SageMaker::NotebookInstanceLifecycleConfig",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_sagemaker_pipeline",
@@ -9613,10 +9640,10 @@
     },
     {
       "tf_type": "aws_securityhub_account",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::SecurityHub::Hub",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_securityhub_account_v2",
@@ -10012,10 +10039,10 @@
     },
     {
       "tf_type": "aws_ses_event_destination",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::SES::ConfigurationSetEventDestination",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_ses_identity_notification_topic",
@@ -10152,10 +10179,10 @@
     },
     {
       "tf_type": "aws_sfn_activity",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::StepFunctions::Activity",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_sfn_alias",
@@ -10481,10 +10508,10 @@
     },
     {
       "tf_type": "aws_ssoadmin_account_assignment",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::SSO::Assignment",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_ssoadmin_application",
@@ -10852,24 +10879,24 @@
     },
     {
       "tf_type": "aws_verifiedaccess_endpoint",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::VerifiedAccessEndpoint",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_verifiedaccess_group",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::VerifiedAccessGroup",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_verifiedaccess_instance",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::VerifiedAccessInstance",
+      "via": "alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_verifiedaccess_instance_logging_configuration",
@@ -10887,10 +10914,10 @@
     },
     {
       "tf_type": "aws_verifiedaccess_trust_provider",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::VerifiedAccessTrustProvider",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_verifiedpermissions_identity_source",
@@ -10929,10 +10956,10 @@
     },
     {
       "tf_type": "aws_volume_attachment",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::VolumeAttachment",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_vpc",
@@ -11118,10 +11145,10 @@
     },
     {
       "tf_type": "aws_vpc_ipv4_cidr_block_association",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::VPCCidrBlock",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_vpc_ipv6_cidr_block_association",
@@ -11335,38 +11362,38 @@
     },
     {
       "tf_type": "aws_vpn_connection",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::VPNConnection",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_vpn_connection_route",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::VPNConnectionRoute",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_vpn_gateway",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::VPNGateway",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_vpn_gateway_attachment",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::VPCGatewayAttachment",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_vpn_gateway_route_propagation",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::EC2::VPNGatewayRoutePropagation",
+      "via": "former2",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_waf_byte_match_set",
@@ -11384,10 +11411,10 @@
     },
     {
       "tf_type": "aws_waf_ipset",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::WAF::IPSet",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_waf_rate_based_rule",
@@ -11468,10 +11495,10 @@
     },
     {
       "tf_type": "aws_wafregional_ipset",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::WAFRegional::IPSet",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_wafregional_rate_based_rule",
@@ -11664,10 +11691,10 @@
     },
     {
       "tf_type": "aws_workspaces_pool",
-      "cfn_type": null,
-      "via": "none",
+      "cfn_type": "AWS::WorkSpaces::WorkspacesPool",
+      "via": "service-alias",
       "fold_parent": null,
-      "note": "no CFN counterpart found by name or curated overlay"
+      "note": null
     },
     {
       "tf_type": "aws_workspaces_workspace",
