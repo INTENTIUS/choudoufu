@@ -423,6 +423,13 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_apigatewayv2_routing_rule`, `aws_cloudfront_monitoring_subscription`,
 `aws_cloudfront_origin_access_control`,
 `aws_cloudfront_realtime_log_config`, `aws_cloudwatch_dashboard`,
+`aws_cloudwatch_event_api_destination`, `aws_cloudwatch_event_archive`,
+`aws_cloudwatch_event_connection`, `aws_cloudwatch_event_endpoint`,
+`aws_cloudwatch_event_permission`, `aws_cloudwatch_log_account_policy`,
+`aws_cloudwatch_log_metric_filter`, `aws_cloudwatch_log_resource_policy`,
+`aws_cloudwatch_log_stream`, `aws_cloudwatch_log_subscription_filter`,
+`aws_cloudwatch_log_transformer`, `aws_cloudwatch_otel_enrichment`,
+`aws_cloudwatch_query_definition`,
 `aws_codeartifact_domain_permissions_policy`,
 `aws_codeartifact_repository_permissions_policy`, `aws_codebuild_webhook`,
 `aws_codedeploy_deployment_config`,
@@ -454,8 +461,8 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_s3_bucket_server_side_encryption_configuration`,
 `aws_s3_bucket_versioning`, `aws_sns_topic_policy`, `aws_sqs_queue_policy`,
 `aws_ssoadmin_account_assignment`, `aws_ssoadmin_application_assignment`,
-`aws_ssoadmin_instance_access_control_attributes` and
-`aws_volume_attachment`<!-- survey-gen:end untaggable-admitted --> carry no tags, so a marker-based sweep
+`aws_ssoadmin_instance_access_control_attributes`, `aws_volume_attachment`
+and `aws_xray_resource_policy`<!-- survey-gen:end untaggable-admitted --> carry no tags, so a marker-based sweep
 has nothing to search on for any of them. Their identity is built from
 their own configuration, which is a problem the moment a resource block is
 removed rather than destroyed: with no marker to search on and no
@@ -490,6 +497,14 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_api_gateway_usage_plan_key` | `aws_api_gateway_usage_plan` | no (report-only) |
 | `aws_cloudfront_monitoring_subscription` | `aws_lightsail_distribution` | no (report-only) |
 | `aws_cloudfront_realtime_log_config` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_cloudwatch_event_api_destination` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_cloudwatch_event_archive` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_cloudwatch_event_connection` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_cloudwatch_event_endpoint` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_cloudwatch_log_metric_filter` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_cloudwatch_log_stream` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_cloudwatch_log_subscription_filter` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_cloudwatch_log_transformer` | `aws_cloudwatch_log_group` | no (report-only) |
 | `aws_codeartifact_domain_permissions_policy` | `aws_codeartifact_domain` | no (report-only) |
 | `aws_cognito_identity_pool_provider_principal_tag` | `aws_cognito_identity_pool` | no (report-only) |
 | `aws_cognito_identity_pool_roles_attachment` | `aws_cognito_identity_pool` | no (report-only) |
@@ -534,7 +549,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_ssoadmin_instance_access_control_attributes` | `aws_instance` | no (report-only) |
 | `aws_volume_attachment` | `aws_ebs_volume` | no (report-only) |
 
-**Total.** 52 types swept via a parent read.
+**Total.** 60 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
@@ -564,6 +579,9 @@ per-type reasoning as it stands.
 **The residue.** <!-- survey-gen:begin untaggable-residue -->
 `aws_api_gateway_account`, `aws_apigatewayv2_routing_rule`,
 `aws_cloudfront_origin_access_control`, `aws_cloudwatch_dashboard`,
+`aws_cloudwatch_event_permission`, `aws_cloudwatch_log_account_policy`,
+`aws_cloudwatch_log_resource_policy`, `aws_cloudwatch_otel_enrichment`,
+`aws_cloudwatch_query_definition`,
 `aws_codeartifact_repository_permissions_policy`, `aws_codebuild_webhook`,
 `aws_codedeploy_deployment_config`, `aws_cognito_user_pool_domain`,
 `aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
@@ -573,7 +591,8 @@ per-type reasoning as it stands.
 `aws_eip_association`, `aws_glue_data_catalog_encryption_settings`,
 `aws_lambda_layer_version`, `aws_network_interface_attachment`,
 `aws_network_interface_permission`, `aws_rds_cluster_role_association`,
-`aws_route53_hosted_zone_dnssec` and `aws_route53_resolver_rule_association`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
+`aws_route53_hosted_zone_dnssec`, `aws_route53_resolver_rule_association`
+and `aws_xray_resource_policy`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
 parent-readable: the three ECR registry types are account-level singletons
 with no admitted parent resource to read at all, and the dashboard, the
 KMS alias and the Lambda layer version are each client-named on their own
