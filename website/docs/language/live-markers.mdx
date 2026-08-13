@@ -271,6 +271,121 @@ has the full comparison, including the design in progress
 ([issue #67](https://github.com/INTENTIUS/choudoufu/issues/67)) to make the
 sweep's behavior per ownership quadrant a policy choice instead of fixed.
 
+## Modules
+
+A `tofu-address` marker binds to a configuration address, and it stays
+correct for exactly as long as that address stays stable. That single test
+is what separates the module shapes admitted below from the one that is
+not, and it is also why the third shape is refused for good rather than
+"not yet."
+
+**Static module trees.** A plain `module "app" {}` call, with neither
+`count` nor `for_each`, is traversed the same way the root module is. A
+resource inside it binds by its module-qualified address -
+`module.app.aws_x.y`, or `module.a.module.b.aws_x.y` at any nesting depth -
+exactly as soundly as a root resource binds by its own. Nothing extra is
+required in configuration; it is stamped, discovered, and planned the same
+way a root resource is.
+
+**`for_each` modules with statically-evaluable keys.** A module call
+expanded with `for_each` is admitted when every key can be evaluated from
+configuration alone - a literal collection, or one built from variables,
+locals, `path` and `terraform` values, the same static scope a resource's
+own `for_each` is held to. A user-chosen key does not shift when a sibling
+is added or removed, unlike a `count` index: `module.app["prod"]` stays
+`module.app["prod"]` no matter what happens to `module.app["staging"]`,
+which is the stability a marker needs to bind to it at all. Each key is
+also held to the marker-safe rune and length discipline a resource's own
+`for_each` key already is (`RuleForEachKey`, `RuleOverlongAddress`), since
+the key becomes part of every address inside the module.
+
+**`count` on a module block is refused, permanently.** Expansion by
+`count` renumbers every resource address inside the module positionally on
+every insertion or removal above the changed index - removing element zero
+turns `module.app[1]` into `module.app[0]`, silently retargeting every
+marker beneath the shifted instances at the wrong live resource. A
+`tofu-address` marker records an address, not a position, so this is not a
+gap a future traversal closes; it is the one shape address-as-identity
+cannot make sound. Rewrite the block as a keyed `for_each` over your own
+stable names, move its resources into the root module, or give the module
+an estate of its own.
+
+### The keyed-module marker idiom
+
+Auto-stamping cannot reach a resource declared inside a `for_each`'d
+module's own instances. The module's several instances share one HCL body
+for the resource's `tags` argument, and there is no single literal address
+that is correct for all of them - choudoufu leaves such a resource alone
+(the `MODULE_KEYED` skip reason, trusted as written when it already
+declares `tags`) rather than guess. The fix is the ordinary OpenTofu idiom
+for any value that has to vary per instance: thread the module's own
+`each.key` through as a variable, and build the address from it by hand.
+Three lines carry the whole pattern.
+
+```hcl
+# root module - the call passes its own each.key through
+module "wrapped" {
+  source   = "./wrapped"
+  for_each = toset(["a", "b"])
+  key      = each.key
+}
+```
+
+```hcl
+# wrapped module - receives it as a variable
+variable "key" {
+  type = string
+}
+```
+
+```hcl
+# wrapped module - builds its own address from the variable
+resource "aws_eip" "app" {
+  tags = {
+    tofu-estate  = local.estate_tag
+    tofu-address = "module.wrapped[\"${var.key}\"].aws_eip.app"
+  }
+}
+```
+
+`live/e2e/estate-module-keyed/` is the full two-instance fixture this
+pattern is drawn from, proven end to end against a live emulator: two EIPs
+come up with the exact keyed addresses above, plan clean, and removing key
+`"a"` from the `for_each` destroys only that instance, leaving `"b"`'s plan
+empty.
+
+### Addresses across a module boundary
+
+A `tofu-address` marker carries the full module-qualified address, in the
+same format OpenTofu's own address formatter produces -
+`module.a.module.b.aws_x.y` for a static nesting, `module.app["prod"].aws_x.y`
+for a keyed instance - escaped into an AWS tag value per the rule in
+`live/MARKERS.md` (`[` becomes `:`; `]` and `"` are dropped). `choudoufu
+live-mv` reads and writes these addresses the same way it does a root
+address, so crossing a module boundary is an ordinary rename: flattening a
+module into the root, moving a resource into a module, or renaming across
+two module instances are all just `choudoufu live-mv <old> <new>` once both
+addresses are legal ones. Only a step carrying a `count` key stays refused,
+since `count`-expanded modules are refused outright regardless of which
+address a rename names.
+
+`choudoufu live-import`, the bulk migration path off an existing state
+file, is narrower than the rest of this picture today: it ratifies
+root-module state entries only, and reports the count of any non-root
+module instances it saw but did not consider (issue
+[#59](https://github.com/INTENTIUS/choudoufu/issues/59)). A module-tree
+estate adopts by planning with a `live` block added, the ordinary
+Adoptable path described under "Migrating an Existing Estate" above,
+rather than through `live-import`.
+
+Provider blocks declared inside a child module are not yet handled: every
+child module's default provider is served from the root configuration
+today, and an explicitly-declared provider block inside a module (aliased
+or default) is neither supported nor refused with a named reason. Configure
+providers at the root and let modules receive them implicitly, the
+recommended and only proven pattern, until [issue
+#70](https://github.com/INTENTIUS/choudoufu/issues/70) resolves the design.
+
 ## Concurrency
 
 The cloud serializes API calls, not workflows. Two simultaneous applies
@@ -316,8 +431,8 @@ outcomes at all. They are named below.
 ## The Contract
 
 - **AWS only, <!-- survey-gen:begin contract-count -->
-511<!-- survey-gen:end contract-count --> resource types, root module only.** The v0 admission table
-  (`internal/live/lint/admission.go`) is the whole subset. It holds <!-- survey-gen:begin contract-types -->
+511<!-- survey-gen:end contract-count --> resource types, count-expanded modules refused.** The admission table
+  (`internal/live/lint/admission.go`) is the whole subset of resource types. It holds <!-- survey-gen:begin contract-types -->
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
   `aws_amplify_app`, `aws_amplify_branch`, `aws_api_gateway_account`,
@@ -584,12 +699,10 @@ outcomes at all. They are named below.
   `aws_wafv2_ip_set`, `aws_wafv2_regex_pattern_set`, `aws_wafv2_rule_group`,
   `aws_wafv2_web_acl`, `aws_wafv2_web_acl_rule`, `aws_xray_group`,
   `aws_xray_resource_policy`, and `aws_xray_sampling_rule`<!-- survey-gen:end contract-types -->. Nothing else, no
-  other AWS type, no other provider. A `module` block calling into a child module is refused
-  outright. The
-  subset lint rejects every module call with "Child modules are not
-  available under live resource markers", pointing at the `module` block itself,
-  before anything reads the live system. Only the root module is covered
-  today.
+  other AWS type, no other provider. Static module trees and
+  statically-keyed `for_each` modules are fully covered; a module block
+  expanded with `count` is refused outright, permanently, at any depth. See
+  Modules, below.
 - **Two named orphan cases.** Deleting a resource block whose type carries
   no tags at all (`aws_route`, `aws_route_table_association`,
   `aws_s3_bucket_policy`, `aws_s3_bucket_versioning`,

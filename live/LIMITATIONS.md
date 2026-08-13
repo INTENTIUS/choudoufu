@@ -513,6 +513,28 @@ as a destroy, is asserted in `internal/live/lifecycle/exactness_test.go`.
 The unadmitted half holds by construction: `internal/live/discovery`
 builds the sweep universe from `identity.AdmittedTypes()`.)
 
+**A resource inside a keyed module is stamped by hand, not automatically.**
+Stamping cannot compute a per-instance marker for a resource declared
+inside a module call that sets `for_each` (directly, or through an
+ancestor module call, at any depth) - the module's several instances share
+one HCL body for the resource's `tags` argument, and there is no single
+literal `tofu-address` that is correct for all of them, nor a safe way to
+evaluate an expression that depends on a variable threaded from the module
+call's own `each.key` (`internal/configs`' static evaluator has no
+repetition data to evaluate one against). Such a resource is left alone
+with the `SkipModuleKeyed` reason (`MODULE_KEYED`): trusted as written when
+it already declares a `tags` argument, and the ordinary must-stamp error
+when it declares none and its type needs discovery to be found again. The
+operator writes the marker by hand instead, threading the module's own
+`each.key` through as a variable and interpolating it into the address -
+see "The keyed-module marker idiom" on the concept page
+(`website/docs/language/live-markers.mdx`) for the three-line pattern, and
+`live/e2e/estate-module-keyed/` for the fixture it comes from. This is not
+a lint refusal; a keyed module is admitted (see "child-module" above), and
+this is a standing property of what the stamping pass can and cannot
+inject into a shared configuration body. (`internal/live/stamp/stamp.go`,
+`SkipModuleKeyed` and `moduleKeyedResource`.)
+
 **Untaggable types carry no ownership marker of their own.** <!-- survey-gen:begin untaggable-admitted -->
 `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
 `aws_api_gateway_account`, `aws_api_gateway_base_path_mapping`,

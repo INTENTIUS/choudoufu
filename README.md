@@ -27,10 +27,11 @@ render as a site at [intentius.io/choudoufu](https://intentius.io/choudoufu/).
 ## Where this stands
 
 Live markers are experimental, and the scope is deliberately narrow. The mode
-covers AWS only, a fixed subset of resource types, and the root module.
-Configs
-outside that subset are refused up front by a lint pass rather than half
-supported. The full boundary, with the reasoning for each limit, is in
+covers AWS only and a fixed subset of resource types. Static module trees and
+statically-keyed `for_each` modules are covered too; a `count`-expanded
+module block is refused permanently. Configs outside that subset are refused
+up front by a lint pass rather than half supported. The full boundary, with
+the reasoning for each limit, is in
 [`live/LIMITATIONS.md`](live/LIMITATIONS.md).
 
 ## Install
