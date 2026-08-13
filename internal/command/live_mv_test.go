@@ -341,6 +341,39 @@ func TestLiveMv_missingConfigOverride(t *testing.T) {
 	}
 }
 
+// TestLiveMv_lintFatal mirrors TestLivePlan_lintFatal: a configuration
+// outside the stateless subset is refused before the provider is started or
+// anything is read from the live system, which is the property this issue
+// (#50) threads schemas into lint to preserve.
+func TestLiveMv_lintFatal(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-mv-lint"), td)
+	t.Chdir(td)
+
+	cloud := mvNewCloud()
+	c, done := newLiveMvCommand(t, cloud)
+
+	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "aws_s3_bucket.data", "aws_s3_bucket.archive"})
+	output := done(t)
+	if code != 1 {
+		t.Fatalf("exit code %d, want 1\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+
+	stderr := output.Stderr()
+	if !strings.Contains(stderr, "Logical resources are not available under live resource markers") {
+		t.Errorf("no lint diagnostic for the logical resource:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "logical-resource") {
+		t.Errorf("the diagnostic does not name the rule that fired:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "random_pet.name") {
+		t.Errorf("the diagnostic does not name the offending resource:\n%s", stderr)
+	}
+	if len(cloud.planned) > 0 || len(cloud.applied) > 0 {
+		t.Errorf("a rejected configuration still wrote to the live system: planned=%v applied=%v", cloud.planned, cloud.applied)
+	}
+}
+
 // TestLiveMv_needsAnEstateName: unlike a plan, a rename cannot degrade
 // when nothing names the estate - it would have nothing to search for.
 func TestLiveMv_needsAnEstateName(t *testing.T) {

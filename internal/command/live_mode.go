@@ -300,19 +300,15 @@ func (r *statelessRunner) StateMgr() statemgr.Full {
 // the same reasons - lint before anything reads the cloud, the estate name
 // read out of the configuration before stamping writes into it, discovery
 // before stamping so that count instances get the slots the live set already
-// uses, and the projection before the schemas that stamping needs. The
-// difference from live-plan is the ending: instead of planning here, the
-// projection is handed back and the ordinary operation plans (and applies)
-// with it.
+// uses, and the projection before the schemas that stamping needs. Lint runs
+// after the providers are launched, schemas in hand, for the same reason
+// live-plan's does: a type with no admission-table row can still pass when
+// the provider's own identity schema describes it completely enough. See
+// [lint.CheckWith]. The difference from live-plan is the ending: instead of
+// planning here, the projection is handed back and the ordinary operation
+// plans (and applies) with it.
 func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config, core *tofu.Context) (*states.State, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
-
-	// Subset check first: a configuration outside the stateless subset has to
-	// fail with an explanation, and it has to fail before anything is read
-	// from or written to the cloud.
-	if issues := lint.CheckContext(ctx, config); len(issues) > 0 {
-		return nil, diags.Append(lint.Diagnostics(issues))
-	}
 
 	estate, estateDiags := r.estateName(ctx, config)
 	diags = diags.Append(estateDiags)
@@ -323,17 +319,41 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// manager was constructed - the live block can leave it to be
 	// derived from configuration tags, which is exactly what estateName just
 	// did - so it is set here, now that it is settled. A no-op when the
-	// snapshot was never enabled.
+	// snapshot was never enabled. Settling the estate name and recording it
+	// on the manager touches nothing outside this process - no cloud read, no
+	// cloud write - so doing it ahead of lint below is harmless: see
+	// [projection.Manager.SetSnapshotEstate].
 	r.mgr.SetSnapshotEstate(estate)
 
 	provs := newStatelessProviders(config, r.lib)
+
+	// Read once and handed to both the subset check and resolution below, so
+	// that a type the schemas admit reads the same answer at both points. See
+	// internal/command/live_plan.go, which does the same.
+	resourceSchemas := provs.resourceSchemas(ctx)
+
+	// Subset check first: a configuration outside the stateless subset has to
+	// fail with an explanation, and it has to fail before anything is read
+	// from or written to the cloud. It runs after the providers are launched
+	// now, schemas in hand, so a type with no admission-table row can still
+	// pass when the provider's own identity schema describes it completely
+	// enough, and a type schemas do refuse is explained in the identity
+	// layer's own words. See [lint.CheckWith]. Nothing above this point reads
+	// or writes the live system: newStatelessProviders only builds the
+	// struct, and resourceSchemas reads unconfigured provider schemas, the
+	// same schema-only call live-plan makes ahead of its own lint check.
+	if issues := lint.CheckWith(ctx, config, lint.Context{Schemas: resourceSchemas}); len(issues) > 0 {
+		diags = diags.Append(lint.Diagnostics(issues))
+		diags = diags.Append(provs.close(ctx))
+		return nil, diags
+	}
 
 	// Resolution runs ahead of the providers being configured and is handed
 	// their schemas, so that a type with no hand-written table row resolves
 	// when the provider's own identity schema describes it completely enough.
 	// See [identity.SynthesizeTypeIdentity].
 	resolutions, idDiags := identity.ResolveWith(ctx, config, identity.Context{
-		Schemas: provs.resourceSchemas(ctx),
+		Schemas: resourceSchemas,
 	})
 	diags = diags.Append(idDiags)
 	if idDiags.HasErrors() {

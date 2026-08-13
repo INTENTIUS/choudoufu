@@ -117,15 +117,20 @@ type liveMvArgs struct {
 // estate name and the identity map are what turn two addresses on a command
 // line into one live resource, and a rename that derived them differently
 // from a plan would eventually rewrite a marker a plan then disputes.
+//
+// Lint runs after the provider is launched, schemas in hand, exactly as
+// live-plan's does: a type with no admission-table row can still pass when
+// the provider's own identity schema describes it completely enough. See
+// [lint.CheckWith]. Nothing between the config load and the lint check below
+// reads or writes the live system: liveMvEstate only reads tag values back
+// out of the configuration, contextOpts only resolves which plugin binaries
+// are available, and newStatelessProviders only builds the struct - the
+// first live-system call of any kind is resourceSchemas, whose answer lint
+// consumes immediately.
 func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv.Result, diags tfdiags.Diagnostics) {
 	config, cfgDiags := c.loadConfig(ctx, ".")
 	diags = diags.Append(cfgDiags)
 	if cfgDiags.HasErrors() {
-		return nil, diags
-	}
-
-	if issues := lint.CheckContext(ctx, config); len(issues) > 0 {
-		diags = diags.Append(lint.Diagnostics(issues))
 		return nil, diags
 	}
 
@@ -145,11 +150,24 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 	// A named return, so that the shutdown warning still reaches the caller.
 	defer func() { diags = diags.Append(provs.close(ctx)) }()
 
+	// Read once and handed to both the subset check and resolution below, so
+	// that a type the schemas admit reads the same answer at both points. See
+	// internal/command/live_plan.go, which does the same.
+	resourceSchemas := provs.resourceSchemas(ctx)
+
+	// Subset check first: a configuration outside the stateless subset has to
+	// fail with an explanation, and it has to fail before anything else is
+	// read from or written to the cloud. See [lint.CheckWith].
+	if issues := lint.CheckWith(ctx, config, lint.Context{Schemas: resourceSchemas}); len(issues) > 0 {
+		diags = diags.Append(lint.Diagnostics(issues))
+		return nil, diags
+	}
+
 	// The same resolution a plan runs, with the same inputs, for the reason
 	// the comment above gives: a rename that derived the identity map
 	// differently from a plan would rewrite a marker a plan then disputes.
 	resolutions, idDiags := identity.ResolveWith(ctx, config, identity.Context{
-		Schemas: provs.resourceSchemas(ctx),
+		Schemas: resourceSchemas,
 	})
 	diags = diags.Append(idDiags)
 	if idDiags.HasErrors() {

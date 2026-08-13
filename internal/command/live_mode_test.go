@@ -153,6 +153,45 @@ func TestStatelessMode_livePlanIsAnAlias(t *testing.T) {
 	})
 }
 
+// TestStatelessMode_lintFatal mirrors TestLivePlan_lintFatal for the live
+// block's own entry point: a configuration outside the stateless subset
+// stops before any provider reads the live system, and the rule that
+// rejected it is named. This exercises statelessRunner.PriorState's lint
+// call rather than live-plan's own, which is the half of #45 this issue
+// (#50) brings the live block up to.
+func TestStatelessMode_lintFatal(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-block-lint"), td)
+	t.Chdir(td)
+
+	cloud := newStatelessTestCloud()
+	c, done := newLiveBlockPlanCommand(t, cloud)
+
+	code := c.Run([]string{"-no-color"})
+	output := done(t)
+	if code != 1 {
+		t.Fatalf("exit code %d, want 1\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+
+	stderr := output.Stderr()
+	if !strings.Contains(stderr, "Provisioners are not available under live resource markers") {
+		t.Errorf("no lint diagnostic for the provisioner:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "provisioner") {
+		t.Errorf("the diagnostic does not name the rule that fired:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "aws_s3_bucket.data") {
+		t.Errorf("the diagnostic does not name the offending resource:\n%s", stderr)
+	}
+	if len(cloud.imports) > 0 {
+		t.Errorf("a rejected configuration still read from the live system: %v", cloud.imports)
+	}
+	if len(cloud.applied) > 0 {
+		t.Errorf("a rejected configuration still wrote to the live system: %v", cloud.applied)
+	}
+	assertNoStateArtifacts(t, td)
+}
+
 // ---------------------------------------------------------------------------
 // Apply, and the no-persistence proof
 // ---------------------------------------------------------------------------
