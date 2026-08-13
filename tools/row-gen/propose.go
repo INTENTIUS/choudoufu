@@ -183,13 +183,21 @@ func sortedRuleKeys[V any](m map[ruleKey]V) []ruleKey {
 // shape every type name in this repo already follows.
 var tfTypeRE = regexp.MustCompile(`aws_[a-z0-9_]+`)
 
-// rejectedScanFiles are the two source files table.go's and admission.go's
-// own "Rejected, and deliberately absent from this table:" (and its several
-// worded variants - "Rejected outright", "Rejected on independent
-// verification", "Rejected, not deferred") notes live in.
-var rejectedScanFiles = []string{
-	filepath.Join("internal", "live", "identity", "table.go"),
-	filepath.Join("internal", "live", "lint", "admission.go"),
+// rejectedScanGlobs match the source files the identity table's and the
+// admission table's own "Rejected, and deliberately absent from this table:"
+// (and its several worded variants - "Rejected outright", "Rejected on
+// independent verification", "Rejected, not deferred") notes live in.
+//
+// These were two fixed paths until the per-cohort split (see
+// contributing/LIVE-TABLES.md), which moved every batch's rows - and the
+// comments recording what that batch rejected - out of table.go and
+// admission.go and into the cohort's own fragment. A rejection recorded in a
+// fragment has to veto a candidate exactly as one recorded in the core
+// literal does, so the scan globs the fragments instead of naming two files
+// that no longer hold most of the history.
+var rejectedScanGlobs = []string{
+	filepath.Join("internal", "live", "identity", "table*.go"),
+	filepath.Join("internal", "live", "lint", "admission*.go"),
 }
 
 // rejectedScanWindow is how many lines scanFileForRejected reads forward
@@ -200,7 +208,7 @@ const rejectedScanWindow = 60
 
 // scanRejectedMentions is PROPOSE's second safety net: every TF type token
 // mentioned within rejectedScanWindow lines of a "Rejected" comment heading
-// in either source file, deliberately over-inclusive (a type merely
+// in any matched source file, deliberately over-inclusive (a type merely
 // mentioned near a rejection note, not itself rejected, is excluded from
 // candidacy too - a false exclusion, which costs nothing but a possible
 // proposal; a missed real rejection would cost a wrong one, which this repo
@@ -209,9 +217,22 @@ const rejectedScanWindow = 60
 // alone would have allowed.
 func scanRejectedMentions(root string) (map[string]bool, error) {
 	out := map[string]bool{}
-	for _, rel := range rejectedScanFiles {
-		if err := scanFileForRejected(filepath.Join(root, rel), out); err != nil {
-			return nil, fmt.Errorf("scanning %s for recorded rejections: %w", rel, err)
+	for _, pat := range rejectedScanGlobs {
+		matches, err := filepath.Glob(filepath.Join(root, pat))
+		if err != nil {
+			return nil, fmt.Errorf("globbing %s for recorded rejections: %w", pat, err)
+		}
+		// An empty match means the tables moved or were renamed. Failing
+		// here is the point: silently scanning nothing would hand PROPOSE
+		// an empty veto set and let it propose types a batch had already
+		// rejected by name.
+		if len(matches) == 0 {
+			return nil, fmt.Errorf("scanning for recorded rejections: no file matched %s", pat)
+		}
+		for _, path := range matches {
+			if err := scanFileForRejected(path, out); err != nil {
+				return nil, fmt.Errorf("scanning %s for recorded rejections: %w", path, err)
+			}
 		}
 	}
 	return out, nil

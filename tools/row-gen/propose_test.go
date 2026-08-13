@@ -190,10 +190,11 @@ var x = 1
 
 // TestScanRejectedMentions_FindsKnownLambdaRejections is the regression tie
 // to real history: aws_lambda_alias and aws_lambda_layer_version_permission
-// are table.go's own worked "Rejected, and deliberately absent from this
-// table" example (see its comment just above the Lambda batch's
-// serverAssigned calls). If a future edit reshapes that comment so the
-// scanner no longer finds them, this fails loudly instead of silently
+// are the identity table's own worked "Rejected, and deliberately absent from
+// this table" example (see the comment just above the Lambda batch's
+// serverAssigned calls, in table_cohort_lambda.go since the per-cohort
+// split). If a future edit reshapes that comment, or moves it somewhere
+// rejectedScanGlobs does not reach, this fails loudly instead of silently
 // losing the safety net for the one case it was built to catch.
 func TestScanRejectedMentions_FindsKnownLambdaRejections(t *testing.T) {
 	root, err := repoRoot()
@@ -206,7 +207,7 @@ func TestScanRejectedMentions_FindsKnownLambdaRejections(t *testing.T) {
 	}
 	for _, want := range []string{"aws_lambda_alias", "aws_lambda_layer_version_permission"} {
 		if !rejected[want] {
-			t.Errorf("scanRejectedMentions did not find %q, table.go's own worked Rejected example", want)
+			t.Errorf("scanRejectedMentions did not find %q, the identity table's own worked Rejected example", want)
 		}
 	}
 }
@@ -261,7 +262,7 @@ func TestRenderProposeReport_WithCandidate(t *testing.T) {
 	if !strings.Contains(out, "aws_widget_gadget") {
 		t.Errorf("renderProposeReport: want the candidate's TF type, got:\n%s", out)
 	}
-	if !strings.Contains(out, "paste into internal/live/lint/admission.go") {
+	if !strings.Contains(out, "paste into internal/live/lint/admission_cohort_<cohort>.go") {
 		t.Errorf("renderProposeReport: want the reused renderProposal pastable block, got:\n%s", out)
 	}
 	if !strings.Contains(out, "spot-check:") {
