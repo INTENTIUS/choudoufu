@@ -296,7 +296,7 @@ outcomes at all. They are named below.
 ## The Contract
 
 - **AWS only, <!-- survey-gen:begin contract-count -->
-125<!-- survey-gen:end contract-count --> resource types, root module only.** The v0 admission table
+143<!-- survey-gen:end contract-count --> resource types, root module only.** The v0 admission table
   (`internal/live/lint/admission.go`) is the whole subset. It holds <!-- survey-gen:begin contract-types -->
   `aws_acm_certificate`, `aws_api_gateway_account`, `aws_api_gateway_api_key`,
   `aws_api_gateway_base_path_mapping`, `aws_api_gateway_client_certificate`,
@@ -309,6 +309,9 @@ outcomes at all. They are named below.
   `aws_api_gateway_vpc_link`, `aws_apigatewayv2_api`,
   `aws_apigatewayv2_domain_name`, `aws_apigatewayv2_routing_rule`,
   `aws_apigatewayv2_stage`, `aws_apigatewayv2_vpc_link`,
+  `aws_backup_framework`, `aws_backup_logically_air_gapped_vault`,
+  `aws_backup_plan`, `aws_backup_report_plan`,
+  `aws_backup_restore_testing_plan`, `aws_backup_vault`,
   `aws_cloudwatch_composite_alarm`, `aws_cloudwatch_dashboard`,
   `aws_cloudwatch_log_group`, `aws_cloudwatch_metric_alarm`,
   `aws_cloudwatch_metric_stream`, `aws_db_event_subscription`,
@@ -322,13 +325,19 @@ outcomes at all. They are named below.
   `aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
   `aws_ecr_replication_configuration`, `aws_ecr_repository`,
   `aws_ecs_cluster`, `aws_ecs_cluster_capacity_providers`, `aws_ecs_daemon`,
-  `aws_eip`, `aws_eip_association`, `aws_eks_access_entry`,
+  `aws_efs_access_point`, `aws_efs_file_system`, `aws_eip`,
+  `aws_eip_association`, `aws_eks_access_entry`,
   `aws_eks_access_policy_association`, `aws_eks_addon`, `aws_eks_capability`,
   `aws_eks_cluster`, `aws_eks_fargate_profile`, `aws_eks_node_group`,
   `aws_elasticache_cluster`, `aws_elasticache_parameter_group`,
   `aws_elasticache_replication_group`, `aws_elasticache_serverless_cache`,
   `aws_elasticache_subnet_group`, `aws_elasticache_user`,
-  `aws_elasticache_user_group`, `aws_iam_group`, `aws_iam_instance_profile`,
+  `aws_elasticache_user_group`, `aws_fsx_data_repository_association`,
+  `aws_fsx_lustre_file_system`, `aws_fsx_ontap_file_system`,
+  `aws_fsx_ontap_storage_virtual_machine`, `aws_fsx_ontap_volume`,
+  `aws_fsx_openzfs_file_system`, `aws_fsx_openzfs_snapshot`,
+  `aws_fsx_openzfs_volume`, `aws_fsx_s3_access_point_attachment`,
+  `aws_fsx_windows_file_system`, `aws_iam_group`, `aws_iam_instance_profile`,
   `aws_iam_role`, `aws_iam_role_policy`, `aws_iam_role_policy_attachment`,
   `aws_iam_service_linked_role`, `aws_iam_user`, `aws_instance`,
   `aws_internet_gateway`, `aws_key_pair`, `aws_kms_alias`, `aws_kms_key`,

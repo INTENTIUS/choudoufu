@@ -152,7 +152,7 @@ token per row.
 
 | Status | Meaning | Rows |
 |---|---|---|
-| `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | <!-- survey-gen:begin wired-count -->125<!-- survey-gen:end wired-count --> |
+| `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | <!-- survey-gen:begin wired-count -->143<!-- survey-gen:end wired-count --> |
 | `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 8 |
 | `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components | 0 |
 | `ops` | excluded by the rule, forwarded to the lifecycle layer | 3 |
@@ -255,7 +255,7 @@ identity argument were derived like every other row's.
 | aws_iam_user | client-named | wired | name; registry-ratified (#40, #44, choudoufu#26) rather than reached by this survey's own provider-schema path — floci's iam:GetUser now returns Tags on the pinned image, so the earlier blocked-emulator note (floci's iam:GetUser omits Tags, the GetRole gap family) no longer holds | survey note, registry; schema |
 | aws_lambda_function | client-named | wired | function_name; registry-ratified (#40, #44) rather than reached by this survey's own provider-schema path — floci's current image creates and destroys it cleanly, so the earlier blocked-emulator note (lex00/floci#26) no longer holds | survey note, registry; schema |
 | aws_lambda_permission | client-named | blocked-emulator | function_name + statement_id, optionally qualifier; blocked: needs a live parent function, which floci cannot create (lex00/floci#26) | survey note; schema |
-| aws_eks_cluster | client-named | wired | name; registry-ratified (#40, #44, #65) rather than reached by this survey's own provider-schema path — the identity is sound and independently confirmed against the provider's documented Identity Schema; the floci gap named here (EKS cluster creation, lex00/floci#27) is still open and is documented rather than treated as blocking, per issue #65's own recipe | survey note, registry; schema |
+| aws_eks_cluster | client-named | blocked-emulator | name; blocked: floci cannot create EKS clusters (lex00/floci#27) | survey note; schema |
 | aws_route53_record | client-named | wired | zone_id + name + type, plus set_identifier for weighted and latency sets; the fork wires it as a composite through the aws_route53_zone marker, since the Z-ID is the zone's server-assigned identity (see the wrinkles below) | survey note; schema |
 | aws_kms_key | marker | wired | server-assigned key ID (a UUID); the alias is a separate resource | survey note; schema |
 | aws_iam_policy | client-named | blocked-emulator | name + path, but the required import attribute is the policy ARN; the account-derived mechanism builds it, and floci's iam:GetPolicy omits Tags so the row cannot be proven live (choudoufu#26) | survey note; schema |
@@ -291,7 +291,7 @@ identity argument were derived like every other row's.
 | aws_ecs_service | client-named | blocked-emulator | cluster + name, the cluster itself client-named; blocked: floci's ecs:CreateService demands a task definition even for an EXTERNAL deployment controller, which real ECS does not (probed 2026-08-12; choudoufu#26) | roster fit; schema |
 | aws_ecr_repository | client-named | wired | name; registry-ratified (#40, #44, choudoufu#26) rather than reached by this survey's own provider-schema path — floci's ecr:CreateRepository no longer needs a Docker daemon on the pinned image, so the earlier blocked-emulator note no longer holds | roster fit, registry; schema |
 | aws_ecr_lifecycle_policy | client-named | blocked-emulator | repository (one policy per repository); blocked: needs a live parent repository, which floci cannot create (choudoufu#26) | roster fit; schema |
-| aws_eks_node_group | client-named | wired | cluster_name + node_group_name; registry-ratified (#40, #44, #65) rather than reached by this survey's own provider-schema path — node_group_name is Optional+Computed (Terraform assigns a random name when omitted), the name-generation idiom aws_iam_role's own row already carries, ratified by hand the same way; blocked: needs a live parent cluster, which floci cannot create (lex00/floci#27, still open, documented rather than blocking per issue #65) | roster fit, registry; schema |
+| aws_eks_node_group | client-named | blocked-emulator | cluster_name + node_group_name; blocked: needs a live parent cluster, which floci cannot create (lex00/floci#27) | roster fit; schema |
 | aws_ssm_document | client-named | blocked-emulator | name; blocked: floci answers ssm:CreateDocument with UnsupportedOperation (probed 2026-08-12; choudoufu#26) | roster fit; schema |
 | aws_vpc_security_group_ingress_rule | marker | wired | server-assigned rule ID (sgr-...), taggable, one resource per rule | roster fit; schema |
 | aws_vpc_security_group_egress_rule | marker | wired | server-assigned rule ID (sgr-...), taggable | roster fit; schema |
