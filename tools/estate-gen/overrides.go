@@ -1249,6 +1249,126 @@ var typeOverrides = map[string]typeOverride{
 		},
 	},
 
+	// EC2 networking beyond the core batch (issue #65). Same two failure
+	// shapes as every batch above: a Required argument the wire schema
+	// types as a plain string or number but the provider validates against
+	// a closed enum, a CIDR/IP/ARN shape, or a range - or a nested block
+	// left Optional in the schema while the provider requires its contents,
+	// or ExactlyOneOf/AtLeastOneOf combinations the wire schema does not
+	// express at all.
+	"aws_customer_gateway": {
+		Reasons: []string{
+			`type is Required and the provider validates it against a closed enum (validate: "expected type to be one of [\"ipsec.1\"]"); the generic placeholder string is not a member`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("type", exprTokens(`"ipsec.1"`))
+		},
+	},
+	"aws_ec2_client_vpn_endpoint": {
+		Reasons: []string{
+			`authentication_options is a required block whose "type" argument the provider validates against a closed enum (validate: "expected type to be one of [...]"); the certificate-authentication member also needs root_certificate_chain_arn in practice, which the schema leaves Optional; server_certificate_arn is Required and the provider validates it is a well-formed ARN (validate: "is an invalid ARN")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("server_certificate_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:acm:us-east-1:000000000000:certificate/tofu-%s-cohort-server-cert"`, g.cohort)))
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "authentication_options" {
+					blk.Body().SetAttributeRaw("type", exprTokens(`"certificate-authentication"`))
+					blk.Body().SetAttributeRaw("root_certificate_chain_arn", exprTokens(fmt.Sprintf(
+						`"arn:aws:acm:us-east-1:000000000000:certificate/tofu-%s-cohort-root-cert"`, g.cohort)))
+				}
+			}
+		},
+	},
+	"aws_ec2_client_vpn_route": {
+		Reasons: []string{
+			`destination_cidr_block is Required and the provider validates it is a well-formed CIDR (validate: "is not a valid CIDR block"); the generic placeholder string is not one`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("destination_cidr_block", exprTokens(`"10.1.0.0/24"`))
+		},
+	},
+	"aws_ec2_managed_prefix_list": {
+		Reasons: []string{
+			`address_family is Required and the provider validates it against a closed enum (validate: "expected address_family to be one of [\"IPv4\" \"IPv6\"]"); max_entries is Required and the provider validates it is at least 1 (validate: "expected max_entries to be at least (1), got 0"), the generic pass's zero-value number`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("address_family", exprTokens(`"IPv4"`))
+			body.SetAttributeRaw("max_entries", exprTokens(`5`))
+		},
+	},
+	"aws_ec2_managed_prefix_list_entry": {
+		Reasons: []string{
+			`cidr is Required and the provider validates it is a well-formed CIDR (validate: "to be a valid CIDR Value"); the generic placeholder string is not one`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("cidr", exprTokens(`"10.0.3.0/24"`))
+		},
+	},
+	"aws_ec2_transit_gateway_connect_peer": {
+		Reasons: []string{
+			`peer_address is Required and the provider validates it is a well-formed IP (validate: "expected peer_address to contain a valid IP"); inside_cidr_blocks is Required and the provider validates each element is a well-formed CIDR inside a fixed range, 169.254.0.0/16 for an IPv4 element (validate: "is not a valid CIDR block", then "IPv4 range must be from range 169.254.0.0/16"); the generic pass's single "placeholder" element satisfies neither check`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("peer_address", exprTokens(`"10.0.0.1"`))
+			body.SetAttributeRaw("inside_cidr_blocks", exprTokens(`["169.254.6.0/29"]`))
+		},
+	},
+	"aws_ec2_transit_gateway_metering_policy_entry": {
+		Reasons: []string{
+			`metered_account is Required and the provider validates it against a closed enum (validate: "Invalid String Enum Value", valid values: source-attachment-owner, destination-attachment-owner, transit-gateway-owner); the generic placeholder string is not a member`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("metered_account", exprTokens(`"source-attachment-owner"`))
+		},
+	},
+	"aws_ec2_transit_gateway_route": {
+		Reasons: []string{
+			`destination_cidr_block is Required and the provider validates it is a well-formed CIDR (validate: "is not a valid CIDR block"); the generic placeholder string is not one`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("destination_cidr_block", exprTokens(`"0.0.0.0/0"`))
+		},
+	},
+	"aws_flow_log": {
+		Reasons: []string{
+			`every argument naming what the flow log watches (vpc_id, subnet_id, eni_id, transit_gateway_id, transit_gateway_attachment_id, regional_nat_gateway_id) is Optional in the schema, so the generic pass renders an empty body, but the provider requires exactly one (validate: "Invalid combination of arguments": "one of ... must be specified")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("vpc_id", exprTokens(`"vpc-0123456789abcdef0"`))
+		},
+	},
+	"aws_network_acl_rule": {
+		Reasons: []string{
+			`cidr_block and ipv6_cidr_block are both Optional in the schema, but the provider requires exactly one (validate: "Invalid combination of arguments": "one of cidr_block,ipv6_cidr_block must be specified"); protocol is Required and the provider validates it against its own protocol-number/name table (validate: "unsupported NACL protocol"); rule_action is Required and validated against a closed enum (validate: "expected rule_action to be one of [...]")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("cidr_block", exprTokens(`"10.0.0.0/16"`))
+			body.SetAttributeRaw("protocol", exprTokens(`"-1"`))
+			body.SetAttributeRaw("rule_action", exprTokens(`"allow"`))
+		},
+	},
+	"aws_vpc_dhcp_options": {
+		Reasons: []string{
+			`domain_name, domain_name_servers, ipv6_address_preferred_lease_time, netbios_name_servers, netbios_node_type and ntp_servers are all Optional in the schema, so the generic pass renders an empty body, but the provider requires at least one (validate: "Missing required argument": "one of ... must be specified")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("domain_name", exprTokens(`"example.com"`))
+		},
+	},
+	"aws_vpc_ipam": {
+		Reasons: []string{
+			`operating_regions is a required block, but its own region_name argument is validated by the provider as a well-formed AWS region (validate: "doesn't look like AWS Region"), and the generic placeholder string is not one`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "operating_regions" {
+					blk.Body().SetAttributeRaw("region_name", exprTokens(`"us-east-1"`))
+				}
+			}
+		},
+	},
+
 	// ---- compute-platforms cohort (fifth ratification batch) -----------
 	"aws_apprunner_service": {
 		Reasons: []string{
@@ -1387,6 +1507,400 @@ var typeOverrides = map[string]typeOverride{
 			}
 		},
 	},
+
+	// ---- Sixth batch, security and secrets (issue #65). Two shapes of
+	// ---- fix: enum/format validators the generic pass's placeholders
+	// ---- cannot satisfy, and cross-references the generic pass's
+	// ---- parentRef wiring gets wrong within this cohort - several of this
+	// ---- batch's own parent-derived rows (aws_guardduty_organization_configuration,
+	// ---- aws_guardduty_filter/ipset/threatintelset/publishing_destination/member)
+	// ---- have a plain "detector_id" argument that coincidentally matches
+	// ---- aws_guardduty_organization_configuration's own identity argument
+	// ---- name too (Components: []Component{attr("detector_id")}), so
+	// ---- parentRef wires every one of them to that resource's own
+	// ---- detector_id echo instead of the real aws_guardduty_detector
+	// ---- marker - the same collision class as aws_glue_catalog_database's
+	// ---- entry above, fixed the same way.
+	"aws_acmpca_certificate_authority": {
+		Reasons: []string{
+			`certificate_authority_configuration.key_algorithm and .signing_algorithm are plain strings in the schema but the provider validates both against fixed enums (validate: "expected key_algorithm/signing_algorithm to be one of [...]")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "certificate_authority_configuration" {
+					blk.Body().SetAttributeRaw("key_algorithm", exprTokens(`"RSA_2048"`))
+					blk.Body().SetAttributeRaw("signing_algorithm", exprTokens(`"SHA256WITHRSA"`))
+				}
+			}
+		},
+	},
+	"aws_acmpca_certificate_authority_certificate": {
+		Reasons: []string{
+			`certificate_authority_arn is a plain string in the schema but the provider validates it is a well-formed ARN (validate: "is an invalid ARN"), which the generic pass's placeholder name is not - a real cross-reference to aws_acmpca_certificate_authority.app's own arn is both the fix and the point of this coverage row (the parent-derived composite this batch ratified)`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if ca, ok := g.byType["aws_acmpca_certificate_authority"]; ok {
+				body.SetAttributeRaw("certificate_authority_arn", exprTokens(fmt.Sprintf("%s.arn", ca)))
+			}
+		},
+	},
+	"aws_acmpca_policy": {
+		Reasons: []string{
+			`resource_arn is not wired to any resource by the generic pass (aws_acmpca_certificate_authority is server-assigned, so parentRef's identity-argument match never fires - see this file's batch header comment); policy is a plain string in the schema but the provider validates it is well-formed JSON (validate: "contains an invalid JSON")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if ca, ok := g.byType["aws_acmpca_certificate_authority"]; ok {
+				body.SetAttributeRaw("resource_arn", exprTokens(fmt.Sprintf("%s.arn", ca)))
+			}
+			body.SetAttributeRaw("policy", exprTokens(fmt.Sprintf(`jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { AWS = "arn:aws:iam::000000000000:root" }
+      Action    = "acm-pca:IssueCertificate"
+    }]
+  })`)))
+		},
+	},
+	"aws_guardduty_organization_configuration": {
+		Reasons: []string{
+			`auto_enable_organization_members is a plain string in the schema but the provider validates it against a fixed enum (validate: "expected auto_enable_organization_members to be one of [NEW ALL NONE]"); detector_id collides with this same type's own identity argument name (see this file's batch header comment), so the generic pass gives it a placeholder string instead of the real aws_guardduty_detector.app.id it should carry`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("auto_enable_organization_members", exprTokens(`"NEW"`))
+			if det, ok := g.byType["aws_guardduty_detector"]; ok {
+				body.SetAttributeRaw("detector_id", exprTokens(fmt.Sprintf("%s.id", det)))
+			}
+		},
+	},
+	"aws_guardduty_filter": {
+		Reasons: []string{
+			`detector_id collides with aws_guardduty_organization_configuration's own identity argument name (see this file's batch header comment), so the generic pass wires it to that unrelated resource's own detector_id echo instead of the real aws_guardduty_detector.app.id; action is a plain string in the schema but the provider validates it against a fixed enum (validate: "expected action to be one of [NOOP ARCHIVE]")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if det, ok := g.byType["aws_guardduty_detector"]; ok {
+				body.SetAttributeRaw("detector_id", exprTokens(fmt.Sprintf("%s.id", det)))
+			}
+			body.SetAttributeRaw("action", exprTokens(`"NOOP"`))
+		},
+	},
+	"aws_guardduty_ipset": {
+		Reasons: []string{
+			`detector_id collides with aws_guardduty_organization_configuration's own identity argument name (see this file's batch header comment), so the generic pass wires it to that unrelated resource's own detector_id echo instead of the real aws_guardduty_detector.app.id; format is a plain string in the schema but the provider validates it against a fixed enum (validate: "expected format to be one of [TXT STIX OTX_CSV ALIEN_VAULT PROOF_POINT FIRE_EYE]")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if det, ok := g.byType["aws_guardduty_detector"]; ok {
+				body.SetAttributeRaw("detector_id", exprTokens(fmt.Sprintf("%s.id", det)))
+			}
+			body.SetAttributeRaw("format", exprTokens(`"TXT"`))
+		},
+	},
+	"aws_guardduty_threatintelset": {
+		Reasons: []string{
+			`detector_id collides with aws_guardduty_organization_configuration's own identity argument name (see this file's batch header comment), so the generic pass wires it to that unrelated resource's own detector_id echo instead of the real aws_guardduty_detector.app.id; format is a plain string in the schema but the provider validates it against a fixed enum (validate: "expected format to be one of [TXT STIX OTX_CSV ALIEN_VAULT PROOF_POINT FIRE_EYE]")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if det, ok := g.byType["aws_guardduty_detector"]; ok {
+				body.SetAttributeRaw("detector_id", exprTokens(fmt.Sprintf("%s.id", det)))
+			}
+			body.SetAttributeRaw("format", exprTokens(`"TXT"`))
+		},
+	},
+	"aws_guardduty_malware_protection_plan": {
+		Reasons: []string{
+			`protected_resource is a required block the schema does not mark Required at the wire level in a way the generic pass fills (validate: "Block protected_resource must have a configuration value"), and its own nested s3_bucket.bucket_name is required with no schema-visible default`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			pr := body.AppendNewBlock("protected_resource", nil)
+			s3 := pr.Body().AppendNewBlock("s3_bucket", nil)
+			s3.Body().SetAttributeRaw("bucket_name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-malware-bucket"`, g.cohort)))
+		},
+	},
+	"aws_guardduty_member": {
+		Reasons: []string{
+			`detector_id collides with aws_guardduty_organization_configuration's own identity argument name (see this file's batch header comment), so the generic pass wires it to that unrelated resource's own detector_id echo instead of the real aws_guardduty_detector.app.id; account_id is a plain string in the schema but the provider validates it is exactly 12 digits (validate: "doesn't look like AWS Account ID")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if det, ok := g.byType["aws_guardduty_detector"]; ok {
+				body.SetAttributeRaw("detector_id", exprTokens(fmt.Sprintf("%s.id", det)))
+			}
+			body.SetAttributeRaw("account_id", exprTokens(`"000000000000"`))
+		},
+	},
+	"aws_guardduty_organization_admin_account": {
+		Reasons: []string{
+			`admin_account_id is a plain string in the schema but the provider validates it is exactly 12 digits (validate: "doesn't look like AWS Account ID")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("admin_account_id", exprTokens(`"000000000000"`))
+		},
+	},
+	"aws_guardduty_publishing_destination": {
+		Reasons: []string{
+			`detector_id collides with aws_guardduty_organization_configuration's own identity argument name (see this file's batch header comment), so the generic pass wires it to that unrelated resource's own detector_id echo instead of the real aws_guardduty_detector.app.id; destination_arn and kms_key_arn are plain strings in the schema but the provider validates both are well-formed ARNs (validate: "is an invalid ARN")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if det, ok := g.byType["aws_guardduty_detector"]; ok {
+				body.SetAttributeRaw("detector_id", exprTokens(fmt.Sprintf("%s.id", det)))
+			}
+			body.SetAttributeRaw("destination_arn", exprTokens(`"arn:aws:s3:::tofu-security-cohort-guardduty-findings-bucket"`))
+			body.SetAttributeRaw("kms_key_arn", exprTokens(`"arn:aws:kms:us-east-1:000000000000:key/1234abcd-12ab-34cd-56ef-1234567890ab"`))
+		},
+	},
+	"aws_inspector2_filter": {
+		Reasons: []string{
+			`filter_criteria is a required block the schema does not mark Required at the wire level in a way the generic pass fills (validate: "Block filter_criteria must have a configuration value"); action is a plain string in the schema but the provider validates it against a fixed enum (validate: "Invalid String Enum Value", valid values [NONE SUPPRESS])`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("action", exprTokens(`"NONE"`))
+			body.AppendNewBlock("filter_criteria", nil)
+		},
+	},
+	"aws_inspector2_member_association": {
+		Reasons: []string{
+			`account_id is a plain string in the schema but the provider validates it is exactly 12 digits (validate: "doesn't look like AWS Account ID")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("account_id", exprTokens(`"000000000000"`))
+		},
+	},
+	"aws_kms_replica_key": {
+		Reasons: []string{
+			`primary_key_arn is a plain string in the schema but the provider validates it is a well-formed ARN (validate: "is an invalid ARN"); no aws_kms_key/aws_kms_external_key coverage row exists in this cohort to reference (KMS's own marker types are covered by the pre-registry v0 table and the KMS-remainder rows above), so this is a realistic literal rather than a cross-reference`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("primary_key_arn", exprTokens(`"arn:aws:kms:us-west-2:000000000000:key/1234abcd-12ab-34cd-56ef-1234567890ab"`))
+		},
+	},
+	"aws_macie2_classification_job": {
+		Reasons: []string{
+			`job_type is a plain string in the schema but the provider validates it against a fixed enum (validate: "expected job_type to be one of [ONE_TIME SCHEDULED]"); s3_job_definition.bucket_definitions.account_id/.buckets are required with no schema-visible default once the parent block is present`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("job_type", exprTokens(`"ONE_TIME"`))
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "s3_job_definition" {
+					bd := blk.Body().AppendNewBlock("bucket_definitions", nil)
+					bd.Body().SetAttributeRaw("account_id", exprTokens(`"000000000000"`))
+					bd.Body().SetAttributeRaw("buckets", exprTokens(fmt.Sprintf(`["tofu-%s-cohort-macie-bucket"]`, g.cohort)))
+				}
+			}
+		},
+	},
+	"aws_macie2_findings_filter": {
+		Reasons: []string{
+			`action is a plain string in the schema but the provider validates it against a fixed enum (validate: "expected action to be one of [ARCHIVE NOOP]")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("action", exprTokens(`"ARCHIVE"`))
+		},
+	},
+	"aws_secretsmanager_secret_policy": {
+		Reasons: []string{
+			`secret_arn is a plain string in the schema but the provider validates it is a well-formed ARN (validate: "is an invalid ARN"), which the generic pass's placeholder name is not - a real cross-reference to aws_secretsmanager_secret.app's own arn is both the fix and the point of this coverage row (the parent-derived composite this batch ratified); policy is a plain string in the schema but the provider validates it is well-formed JSON (validate: "contains an invalid JSON")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if secret, ok := g.byType["aws_secretsmanager_secret"]; ok {
+				body.SetAttributeRaw("secret_arn", exprTokens(fmt.Sprintf("%s.arn", secret)))
+			}
+			body.SetAttributeRaw("policy", exprTokens(`jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { AWS = "arn:aws:iam::000000000000:root" }
+      Action    = "secretsmanager:GetSecretValue"
+      Resource  = "*"
+    }]
+  })`))
+		},
+	},
+	"aws_secretsmanager_secret_rotation": {
+		Reasons: []string{
+			`secret_id is not wired to any resource by the generic pass (aws_secretsmanager_secret is a marker type with no Components, so parentRef's identity-argument match never fires); rotation_rules is present but empty, and the provider requires one of automatically_after_days/schedule_expression set (validate: "one of ... must be specified")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if secret, ok := g.byType["aws_secretsmanager_secret"]; ok {
+				body.SetAttributeRaw("secret_id", exprTokens(fmt.Sprintf("%s.id", secret)))
+			}
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "rotation_rules" {
+					blk.Body().SetAttributeRaw("automatically_after_days", exprTokens(`30`))
+				}
+			}
+		},
+	},
+	"aws_securityhub_automation_rule": {
+		Reasons: []string{
+			`actions and criteria are both required blocks the schema does not mark Required at the wire level in a way the generic pass fills (validate: "Block actions/criteria must have a configuration value"); every field inside both is itself optional, so empty blocks are enough`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.AppendNewBlock("actions", nil)
+			body.AppendNewBlock("criteria", nil)
+		},
+	},
+	"aws_securityhub_automation_rule_v2": {
+		Reasons: []string{
+			`action and criteria are both required blocks the schema does not mark Required at the wire level in a way the generic pass fills (validate: "Block criteria/action must have a configuration value"); action.type and criteria.ocsf_finding_criteria_json are each required once their parent block is present; rule_order is a plain number in the schema but the provider validates it against a 1-1000 range (validate: "value must be between 1.000000 and 1000.000000", the generic pass's zero placeholder is out of range)`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("rule_order", exprTokens(`1`))
+			action := body.AppendNewBlock("action", nil)
+			action.Body().SetAttributeRaw("type", exprTokens(`"FINDING_FIELDS_UPDATE"`))
+			criteria := body.AppendNewBlock("criteria", nil)
+			criteria.Body().SetAttributeRaw("ocsf_finding_criteria_json", exprTokens(`"{}"`))
+		},
+	},
+	"aws_securityhub_configuration_policy_association": {
+		Reasons: []string{
+			`target_id is a plain string in the schema but the provider validates it is a root, OU or account id (validate: "Target ID must be a valid root, organizational unit or account id"); policy_id is a plain string in the schema but the provider validates it is either a UUID or the literal "SELF_MANAGED_SECURITY_HUB" (validate: "expected \"policy_id\" to be a valid UUID" / "expected policy_id to be one of [SELF_MANAGED_SECURITY_HUB]"), and this batch does not ratify aws_securityhub_configuration_policy (see the cohort README), so there is no real policy id to reference`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("target_id", exprTokens(`"000000000000"`))
+			body.SetAttributeRaw("policy_id", exprTokens(`"SELF_MANAGED_SECURITY_HUB"`))
+		},
+	},
+	"aws_securityhub_connector_v2": {
+		Reasons: []string{
+			`connector_provider is a required block the schema does not mark Required at the wire level in a way the generic pass fills (validate: "Block connector_provider must have a configuration value"); its own service_now.instance_name/.secret_arn are required once the block is present - secret_arn references aws_secretsmanager_secret.app's own arn, a real in-cohort value rather than a second placeholder ARN`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			cp := body.AppendNewBlock("connector_provider", nil)
+			sn := cp.Body().AppendNewBlock("service_now", nil)
+			sn.Body().SetAttributeRaw("instance_name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort"`, g.cohort)))
+			if secret, ok := g.byType["aws_secretsmanager_secret"]; ok {
+				sn.Body().SetAttributeRaw("secret_arn", exprTokens(fmt.Sprintf("%s.arn", secret)))
+			}
+		},
+	},
+	"aws_securityhub_member": {
+		Reasons: []string{
+			`account_id is a plain string in the schema but the provider validates it is exactly 12 digits (validate: "doesn't look like AWS Account ID")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("account_id", exprTokens(`"000000000000"`))
+		},
+	},
+	"aws_securityhub_organization_admin_account": {
+		Reasons: []string{
+			`admin_account_id is a plain string in the schema but the provider validates it is exactly 12 digits (validate: "doesn't look like AWS Account ID")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("admin_account_id", exprTokens(`"000000000000"`))
+		},
+	},
+	"aws_securityhub_standards_control": {
+		Reasons: []string{
+			`standards_control_arn is a plain string in the schema but the provider validates it is a well-formed ARN (validate: "is an invalid ARN"); control_status is a plain string in the schema but the provider validates it against a fixed enum (validate: "expected control_status to be one of [ENABLED DISABLED]")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("standards_control_arn", exprTokens(`"arn:aws:securityhub:us-east-1:000000000000:control/cis-aws-foundations-benchmark/v/1.2.0/1.10"`))
+			body.SetAttributeRaw("control_status", exprTokens(`"ENABLED"`))
+		},
+	},
+	"aws_securityhub_standards_control_association": {
+		Reasons: []string{
+			`association_status is a plain string in the schema but the provider validates it against a fixed enum (validate: "Invalid String Enum Value", valid values [ENABLED DISABLED]); standards_arn is a plain string in the schema but the provider validates it is a well-formed ARN (validate: "Invalid ARN Value")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("association_status", exprTokens(`"ENABLED"`))
+			body.SetAttributeRaw("standards_arn", exprTokens(`"arn:aws:securityhub:us-east-1:000000000000:control/cis-aws-foundations-benchmark/v/1.2.0"`))
+		},
+	},
+	"aws_ssm_patch_group": {
+		Reasons: []string{
+			`baseline_id is not wired to any resource by the generic pass (aws_ssm_patch_baseline is a marker type with no Components, so parentRef's identity-argument match never fires) - a real cross-reference to aws_ssm_patch_baseline.app's own id is both the fix and the point of this coverage row (the parent-derived composite this batch ratified)`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if baseline, ok := g.byType["aws_ssm_patch_baseline"]; ok {
+				body.SetAttributeRaw("baseline_id", exprTokens(fmt.Sprintf("%s.id", baseline)))
+			}
+		},
+	},
+	"aws_ssm_resource_data_sync": {
+		Reasons: []string{
+			`s3_destination.region is a plain string in the schema but the provider validates it looks like an AWS region (validate: "doesn't look like AWS Region")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "s3_destination" {
+					blk.Body().SetAttributeRaw("region", exprTokens(`"us-east-1"`))
+				}
+			}
+		},
+	},
+	"aws_ssm_service_setting": {
+		Reasons: []string{
+			`setting_id is a plain string in the schema but the provider validates it against two rules at once: it must begin with "/ssm/" and (per a separate check) parse as an ARN once the AWS provider prefixes it - a bare "/ssm/..." path is what the resource's own documented example uses`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("setting_id", exprTokens(`"/ssm/parameter-store/high-throughput-enabled"`))
+		},
+	},
+	"aws_wafv2_ip_set": {
+		Reasons: []string{
+			`ip_address_version and scope are plain strings in the schema but the provider validates both against fixed enums (validate: "expected ip_address_version to be one of [IPV4 IPV6]" / "expected scope to be one of [CLOUDFRONT REGIONAL]")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("ip_address_version", exprTokens(`"IPV4"`))
+			body.SetAttributeRaw("scope", exprTokens(`"REGIONAL"`))
+		},
+	},
+	"aws_wafv2_regex_pattern_set": {
+		Reasons: []string{
+			`scope is a plain string in the schema but the provider validates it against a fixed enum (validate: "expected scope to be one of [CLOUDFRONT REGIONAL]")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("scope", exprTokens(`"REGIONAL"`))
+		},
+	},
+	"aws_wafv2_rule_group": {
+		Reasons: []string{
+			`scope is a plain string in the schema but the provider validates it against a fixed enum (validate: "expected scope to be one of [CLOUDFRONT REGIONAL]"); capacity is optional/computed in the schema, rendered as the generic pass's numeric zero placeholder, but the provider validates it is at least 1 (validate: "expected capacity to be at least (1), got 0")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("scope", exprTokens(`"REGIONAL"`))
+			body.SetAttributeRaw("capacity", exprTokens(`100`))
+		},
+	},
+	"aws_wafv2_web_acl": {
+		Reasons: []string{
+			`scope is a plain string in the schema but the provider validates it against a fixed enum (validate: "expected scope to be one of [CLOUDFRONT REGIONAL]")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("scope", exprTokens(`"REGIONAL"`))
+		},
+	},
+	"aws_wafv2_web_acl_rule": {
+		Reasons: []string{
+			`web_acl_arn is a plain string in the schema but the provider validates it is a well-formed ARN (validate: "is an invalid ARN"), which the generic pass's placeholder name is not - a real cross-reference to aws_wafv2_web_acl.app's own arn is both the fix and the point of this coverage row (the parent-derived composite this batch ratified)`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if acl, ok := g.byType["aws_wafv2_web_acl"]; ok {
+				body.SetAttributeRaw("web_acl_arn", exprTokens(fmt.Sprintf("%s.arn", acl)))
+			}
+		},
+	},
+	"aws_vpc_ipam_pool": {
+		Reasons: []string{
+			`address_family is Required and the provider validates it against a closed enum (validate: "expected address_family to be one of [\"ipv4\" \"ipv6\"]"); the generic placeholder string is not a member`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("address_family", exprTokens(`"ipv4"`))
+		},
+	},
+	"aws_vpc_ipam_resource_discovery": {
+		Reasons: []string{
+			`operating_regions is a required block, the same shape as aws_vpc_ipam above; region_name is validated as a well-formed AWS region and the generic placeholder string is not one`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "operating_regions" {
+					blk.Body().SetAttributeRaw("region_name", exprTokens(`"us-east-1"`))
+				}
+			}
+		},
+	},
+
 	// Developer tools batch (issue #65). Every argument below is
 	// Required-but-Optional-shaped in the wire schema, validated against a
 	// closed enum or a real-value format check the schema alone does not
@@ -1440,6 +1954,16 @@ var typeOverrides = map[string]typeOverride{
 			}
 		},
 	},
+
+	"aws_vpn_connection": {
+		Reasons: []string{
+			`type is Required and the provider validates it against a closed enum (validate: "expected type to be one of [\"ipsec.1\" \"ipsec.1-aes256\"]"); the generic placeholder string is not a member`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("type", exprTokens(`"ipsec.1"`))
+		},
+	},
+
 	"aws_codepipeline": {
 		Reasons: []string{
 			`artifact_store.type is a required string the provider validates against a one-member enum (validate: "expected type to be one of [\"S3\"]"); "role_arn" is a required string the schema does not constrain, but the provider validates it is a well-formed ARN (validate: "is an invalid ARN"), the same isRoleArg gap as aws_codebuild_project's service_role above ("role_arn" alone does not end "_role_arn"); each stage's action.category, action.owner and action.version are required strings the schema does not constrain to an enum or a length range, but the provider validates each (validate: "expected category to be one of [...]", "expected owner to be one of [...]", "expected length of ... version to be in the range (1 - 9)")`,

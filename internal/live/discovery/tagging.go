@@ -167,13 +167,20 @@ var arnJoinTable = map[string]map[string]arnJoinEntry{
 		"launch-template":  single("AWS::EC2::LaunchTemplate"),
 		"instance":         single("AWS::EC2::Instance"),
 		// natgateway carries no hyphen, unlike most of this table's other
-		// two-word ec2 segments (AWS's own ARN grammar, not a typo) - aws_nat_gateway
-		// is not in identity.DefaultTable, so this is the mapped-but-unadmitted
-		// case tagging_test.go's real-artifacts suite exercises; every other
-		// ec2 entry above joined an admitted type as of the EC2 core batch
-		// (issue #65), which is what made adding this one necessary to keep
-		// that test case meaningful at all.
+		// two-word ec2 segments (AWS's own ARN grammar, not a typo).
+		// aws_nat_gateway joined identity.DefaultTable in the EC2 networking
+		// batch (issue #65), so this entry no longer carries the
+		// mapped-but-unadmitted test case tagging_test.go's real-artifacts
+		// suite needs; carrier-gateway below picked that up instead.
 		"natgateway": single("AWS::EC2::NatGateway"),
+		// carrier-gateway: aws_ec2_carrier_gateway maps via "name" but is
+		// outside every batch's scope so far - Carrier Gateway is one of the
+		// EC2 sub-services the EC2 networking batch (issue #65) named as
+		// explicitly out of scope, the same "not wired yet" shape
+		// aws_instance and aws_nat_gateway held here before their own
+		// batches admitted them - so this is the mapped-but-unadmitted case
+		// tagging_test.go's real-artifacts suite exercises now.
+		"carrier-gateway": single("AWS::EC2::CarrierGateway"),
 		// A security group rule's ARN does not say whether it is an ingress
 		// or an egress rule - both share this exact shape - so the join
 		// cannot pick one. See [ambiguous].
