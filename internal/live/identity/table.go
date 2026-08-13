@@ -1381,7 +1381,9 @@ var DefaultTable = buildTable(
 		Components:    []Component{attr("db_shard_group_identifier")},
 		ImportSyntax:  "DB_SHARD_GROUP_IDENTIFIER",
 		IdentityAttrs: []string{"db_shard_group_identifier"},
-	// ---- Registry-ratified (#40, #44): fourth batch, API Gateway v1 and v2
+	},
+
+	// ---- Registry-ratified (#40, #44): fifth batch, API Gateway v1 and v2
 	// ---- (issue #65) -----------------------------------------------------
 	//
 	// Same pipeline as the earlier three batches: every row started as a
