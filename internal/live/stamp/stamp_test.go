@@ -796,6 +796,26 @@ var (
 		"aws_ivs_recording_configuration",
 		"aws_ivschat_logging_configuration",
 		"aws_ivschat_room",
+		// Registry-ratified governance batch (#40, #44, issue #65). See
+		// live/e2e/estates/governance/README.md.
+		"aws_config_config_rule",
+		"aws_config_configuration_aggregator",
+		"aws_controltower_baseline",
+		"aws_controltower_landing_zone",
+		"aws_organizations_account",
+		"aws_organizations_organizational_unit",
+		"aws_organizations_policy",
+		"aws_organizations_resource_policy",
+		"aws_resourceexplorer2_index",
+		"aws_resourceexplorer2_view",
+		"aws_resourcegroups_group",
+		"aws_servicecatalog_portfolio",
+		"aws_servicecatalog_product",
+		"aws_servicecatalog_provisioned_product",
+		"aws_servicecatalogappregistry_application",
+		"aws_servicecatalogappregistry_attribute_group",
+		"aws_auditmanager_assessment",
+		"aws_auditmanager_framework",
 		// Registry-ratified data-movement batch (#40, #44, issue #65): all
 		// twenty-seven types this batch ratified carry a top-level tags
 		// argument in the pinned provider's own wire schema, confirmed
@@ -1135,6 +1155,16 @@ var (
 		// AWS::MediaLive::Multiplexprogram tagging.taggable is false. See
 		// live/e2e/estates/media/README.md, "Untaggable types".
 		"aws_medialive_multiplex_program",
+		// Registry-ratified governance batch (#40, #44, issue #65): six
+		// types with no tags argument at all, per
+		// live/survey-full.json's real-schema signal. See
+		// live/e2e/estates/governance/README.md.
+		"aws_config_conformance_pack",
+		"aws_config_organization_conformance_pack",
+		"aws_config_remediation_configuration",
+		"aws_controltower_control",
+		"aws_servicecatalog_portfolio_share",
+		"aws_servicecatalogappregistry_attribute_group_association",
 		// Registry-ratified databases batch (#40, #44, issue #65): the
 		// three OpenSearchServerless policy types (access, lifecycle,
 		// security) carry only a name/type/policy document, the same
@@ -2163,6 +2193,39 @@ func testSchemas() Schemas {
 		"aws_memorydb_subnet_group":                 tagged("id", "arn", "name"),
 		"aws_keyspaces_keyspace":                    tagged("id", "arn", "name"),
 		"aws_keyspaces_table":                       tagged("id", "arn", "keyspace_name", "table_name"),
+
+		// Registry-ratified governance batch (#40, #44, issue #65).
+		// Taggable/untaggable per live/survey-full.json's real-schema signal
+		// for each type: aws_config_conformance_pack,
+		// aws_config_organization_conformance_pack,
+		// aws_config_remediation_configuration, aws_controltower_control,
+		// aws_servicecatalog_portfolio_share and
+		// aws_servicecatalogappregistry_attribute_group_association carry no
+		// tags argument at all. See live/e2e/estates/governance/README.md.
+		"aws_config_config_rule":                                    tagged("id", "arn", "name"),
+		"aws_config_configuration_aggregator":                       tagged("id", "arn", "name"),
+		"aws_config_conformance_pack":                               untagged("id", "arn", "name"),
+		"aws_config_organization_conformance_pack":                  untagged("id", "arn", "name"),
+		"aws_config_remediation_configuration":                      untagged("id", "config_rule_name"),
+		"aws_controltower_baseline":                                 tagged("id", "arn", "target_identifier"),
+		"aws_controltower_control":                                  untagged("id", "target_identifier", "control_identifier"),
+		"aws_controltower_landing_zone":                             tagged("id", "arn", "manifest_json"),
+		"aws_organizations_account":                                 tagged("id", "arn", "name", "email"),
+		"aws_organizations_organizational_unit":                     tagged("id", "arn", "name", "parent_id"),
+		"aws_organizations_policy":                                  tagged("id", "arn", "name", "type"),
+		"aws_organizations_resource_policy":                         tagged("id", "arn", "content"),
+		"aws_resourceexplorer2_index":                               tagged("id", "arn", "type"),
+		"aws_resourceexplorer2_view":                                tagged("id", "arn", "name"),
+		"aws_resourcegroups_group":                                  tagged("id", "arn", "name"),
+		"aws_servicecatalog_portfolio":                              tagged("id", "arn", "name"),
+		"aws_servicecatalog_portfolio_share":                        untagged("id", "portfolio_id", "type", "principal_id"),
+		"aws_servicecatalog_product":                                tagged("id", "arn", "name"),
+		"aws_servicecatalog_provisioned_product":                    tagged("id", "arn", "name"),
+		"aws_servicecatalogappregistry_application":                 tagged("id", "arn", "name"),
+		"aws_servicecatalogappregistry_attribute_group":             tagged("id", "arn", "name"),
+		"aws_servicecatalogappregistry_attribute_group_association": untagged("id", "application_id", "attribute_group_id"),
+		"aws_auditmanager_assessment":                               tagged("id", "arn", "name", "framework_id"),
+		"aws_auditmanager_framework":                                tagged("id", "arn", "name"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.
