@@ -404,10 +404,16 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_apigatewayv2_routing_rule`, `aws_cloudfront_monitoring_subscription`,
 `aws_cloudfront_origin_access_control`,
 `aws_cloudfront_realtime_log_config`, `aws_cloudwatch_dashboard`,
-`aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
-`aws_dynamodb_global_table`, `aws_dynamodb_resource_policy`,
-`aws_ebs_snapshot_block_public_access`, `aws_ecr_registry_policy`,
-`aws_ecr_registry_scanning_configuration`,
+`aws_cloudwatch_event_api_destination`, `aws_cloudwatch_event_archive`,
+`aws_cloudwatch_event_connection`, `aws_cloudwatch_event_endpoint`,
+`aws_cloudwatch_event_permission`, `aws_cloudwatch_log_account_policy`,
+`aws_cloudwatch_log_metric_filter`, `aws_cloudwatch_log_resource_policy`,
+`aws_cloudwatch_log_stream`, `aws_cloudwatch_log_subscription_filter`,
+`aws_cloudwatch_log_transformer`, `aws_cloudwatch_otel_enrichment`,
+`aws_cloudwatch_query_definition`, `aws_db_instance_role_association`,
+`aws_db_proxy_default_target_group`, `aws_dynamodb_global_table`,
+`aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
+`aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
 `aws_ecr_replication_configuration`, `aws_ecs_cluster_capacity_providers`,
 `aws_eip_association`, `aws_eks_access_policy_association`,
 `aws_fsx_s3_access_point_attachment`, `aws_glue_catalog_table`,
@@ -423,8 +429,8 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_route_table_association`, `aws_s3_bucket_lifecycle_configuration`,
 `aws_s3_bucket_policy`, `aws_s3_bucket_public_access_block`,
 `aws_s3_bucket_server_side_encryption_configuration`,
-`aws_s3_bucket_versioning`, `aws_sns_topic_policy`, `aws_sqs_queue_policy`
-and `aws_volume_attachment`<!-- survey-gen:end untaggable-admitted --> carry no tags, so a marker-based sweep
+`aws_s3_bucket_versioning`, `aws_sns_topic_policy`, `aws_sqs_queue_policy`,
+`aws_volume_attachment` and `aws_xray_resource_policy`<!-- survey-gen:end untaggable-admitted --> carry no tags, so a marker-based sweep
 has nothing to search on for any of them. Their identity is built from
 their own configuration, which is a problem the moment a resource block is
 removed rather than destroyed: with no marker to search on and no
@@ -459,6 +465,14 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_api_gateway_usage_plan_key` | `aws_api_gateway_usage_plan` | no (report-only) |
 | `aws_cloudfront_monitoring_subscription` | `aws_cloudfront_distribution` | no (report-only) |
 | `aws_cloudfront_realtime_log_config` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_cloudwatch_event_api_destination` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_cloudwatch_event_archive` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_cloudwatch_event_connection` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_cloudwatch_event_endpoint` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_cloudwatch_log_metric_filter` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_cloudwatch_log_stream` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_cloudwatch_log_subscription_filter` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_cloudwatch_log_transformer` | `aws_cloudwatch_log_group` | no (report-only) |
 | `aws_dynamodb_global_table` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_fsx_s3_access_point_attachment` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_glue_catalog_table` | `aws_api_gateway_domain_name` | no (report-only) |
@@ -483,7 +497,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_sqs_queue_policy` | `aws_sqs_queue` | no (report-only) |
 | `aws_volume_attachment` | `aws_ebs_volume` | no (report-only) |
 
-**Total.** 32 types swept via a parent read.
+**Total.** 40 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
@@ -513,15 +527,18 @@ per-type reasoning as it stands.
 **The residue.** <!-- survey-gen:begin untaggable-residue -->
 `aws_api_gateway_account`, `aws_apigatewayv2_routing_rule`,
 `aws_cloudfront_origin_access_control`, `aws_cloudwatch_dashboard`,
-`aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
-`aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
-`aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
+`aws_cloudwatch_event_permission`, `aws_cloudwatch_log_account_policy`,
+`aws_cloudwatch_log_resource_policy`, `aws_cloudwatch_otel_enrichment`,
+`aws_cloudwatch_query_definition`, `aws_db_instance_role_association`,
+`aws_db_proxy_default_target_group`, `aws_dynamodb_resource_policy`,
+`aws_ebs_snapshot_block_public_access`, `aws_ecr_registry_policy`,
+`aws_ecr_registry_scanning_configuration`,
 `aws_ecr_replication_configuration`, `aws_ecs_cluster_capacity_providers`,
 `aws_eip_association`, `aws_eks_access_policy_association`,
 `aws_glue_data_catalog_encryption_settings`, `aws_lambda_layer_version`,
 `aws_network_interface_attachment`, `aws_network_interface_permission`,
-`aws_rds_cluster_role_association`, `aws_route53_hosted_zone_dnssec` and
-`aws_route53_resolver_rule_association`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
+`aws_rds_cluster_role_association`, `aws_route53_hosted_zone_dnssec`,
+`aws_route53_resolver_rule_association` and `aws_xray_resource_policy`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
 parent-readable: the three ECR registry types are account-level singletons
 with no admitted parent resource to read at all, and the dashboard, the
 KMS alias and the Lambda layer version are each client-named on their own

@@ -571,6 +571,25 @@ var (
 		"aws_cloudfront_multitenant_distribution",
 		"aws_cloudfront_trust_store",
 		"aws_cloudfront_vpc_origin",
+		// Registry-ratified observability and eventing remainder batch
+		// (#40, #44, issue #65). See
+		// live/e2e/estates/observability/README.md, "Untaggable types",
+		// for this batch's untaggable rows.
+		"aws_cloudwatch_alarm_mute_rule",
+		"aws_cloudwatch_contributor_insight_rule",
+		"aws_cloudwatch_event_bus",
+		"aws_cloudwatch_log_anomaly_detector",
+		"aws_cloudwatch_log_delivery",
+		"aws_cloudwatch_log_delivery_destination",
+		"aws_cloudwatch_log_delivery_source",
+		"aws_cloudwatch_log_destination",
+		"aws_grafana_workspace",
+		"aws_rum_app_monitor",
+		"aws_sfn_activity",
+		"aws_synthetics_canary",
+		"aws_synthetics_group",
+		"aws_xray_group",
+		"aws_xray_sampling_rule",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -678,6 +697,25 @@ var (
 		"aws_cloudfront_monitoring_subscription",
 		"aws_cloudfront_origin_access_control",
 		"aws_cloudfront_realtime_log_config",
+		// Registry-ratified observability and eventing remainder batch
+		// (#40, #44, issue #65): fourteen types with no top-level tags
+		// argument in the pinned provider's own wire schema, confirmed
+		// against each type's documented Argument Reference. See
+		// live/e2e/estates/observability/README.md, "Untaggable types".
+		"aws_cloudwatch_otel_enrichment",
+		"aws_cloudwatch_log_account_policy",
+		"aws_cloudwatch_log_metric_filter",
+		"aws_cloudwatch_log_resource_policy",
+		"aws_cloudwatch_log_stream",
+		"aws_cloudwatch_log_subscription_filter",
+		"aws_cloudwatch_log_transformer",
+		"aws_cloudwatch_query_definition",
+		"aws_cloudwatch_event_api_destination",
+		"aws_cloudwatch_event_archive",
+		"aws_cloudwatch_event_connection",
+		"aws_cloudwatch_event_endpoint",
+		"aws_cloudwatch_event_permission",
+		"aws_xray_resource_policy",
 	}
 )
 
@@ -1285,6 +1323,42 @@ func testSchemas() Schemas {
 		"aws_cloudfront_realtime_log_config":                   untagged("id", "arn", "name", "sampling_rate"),
 		"aws_cloudfront_trust_store":                           tagged("id", "arn", "name"),
 		"aws_cloudfront_vpc_origin":                            tagged("id", "arn"),
+
+		// Registry-ratified observability and eventing remainder batch
+		// (#40, #44, issue #65). Taggable/untaggable per the real
+		// provider's documented Argument Reference for each type; the
+		// fourteen untaggable rows are exactly this batch's own
+		// "Untaggable types" list in
+		// live/e2e/estates/observability/README.md.
+		"aws_cloudwatch_alarm_mute_rule":          tagged("id", "name", "rule"),
+		"aws_cloudwatch_contributor_insight_rule": tagged("id", "rule_name", "rule_definition"),
+		"aws_cloudwatch_otel_enrichment":          untagged("id"),
+		"aws_cloudwatch_log_account_policy":       untagged("id", "policy_name", "policy_type", "policy_document"),
+		"aws_cloudwatch_log_anomaly_detector":     tagged("id", "arn", "log_group_arn_list"),
+		"aws_cloudwatch_log_delivery":             tagged("id", "delivery_source_name", "delivery_destination_arn"),
+		"aws_cloudwatch_log_delivery_destination": tagged("id", "arn", "name"),
+		"aws_cloudwatch_log_delivery_source":      tagged("id", "arn", "name", "log_type", "resource_arn"),
+		"aws_cloudwatch_log_destination":          tagged("id", "arn", "name", "role_arn", "target_arn"),
+		"aws_cloudwatch_log_metric_filter":        untagged("id", "name", "log_group_name", "pattern"),
+		"aws_cloudwatch_log_resource_policy":      untagged("id", "policy_name", "policy_document"),
+		"aws_cloudwatch_log_stream":               untagged("id", "name", "log_group_name"),
+		"aws_cloudwatch_log_subscription_filter":  untagged("id", "name", "log_group_name", "destination_arn"),
+		"aws_cloudwatch_log_transformer":          untagged("id", "log_group_arn"),
+		"aws_cloudwatch_query_definition":         untagged("id", "name", "query_string"),
+		"aws_cloudwatch_event_api_destination":    untagged("id", "arn", "name", "connection_arn", "http_method"),
+		"aws_cloudwatch_event_archive":            untagged("id", "name", "event_source_arn"),
+		"aws_cloudwatch_event_bus":                tagged("id", "arn", "name"),
+		"aws_cloudwatch_event_connection":         untagged("id", "arn", "name", "authorization_type"),
+		"aws_cloudwatch_event_endpoint":           untagged("id", "arn", "name"),
+		"aws_cloudwatch_event_permission":         untagged("id", "statement_id", "principal"),
+		"aws_sfn_activity":                        tagged("id", "arn", "name"),
+		"aws_xray_group":                          tagged("id", "arn", "group_name", "filter_expression"),
+		"aws_xray_resource_policy":                untagged("id", "policy_name", "policy_document"),
+		"aws_xray_sampling_rule":                  tagged("id", "arn", "rule_name", "priority"),
+		"aws_grafana_workspace":                   tagged("id", "arn", "account_access_type", "authentication_providers", "permission_type"),
+		"aws_rum_app_monitor":                     tagged("id", "name", "domain"),
+		"aws_synthetics_canary":                   tagged("id", "arn", "name"),
+		"aws_synthetics_group":                    tagged("id", "arn", "name"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.
