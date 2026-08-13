@@ -50,6 +50,14 @@ import (
 // this tier runs against; this is lex00/floci's `latest` tag as of
 // 2026-08-12 (commit b2548a0). FLOCI_IMAGE overrides it, the same env-var
 // name run.sh uses for the same purpose.
+//
+// Bumping this pin makes this exact digest a stranger to
+// live/floci-capabilities.json, the per-digest capability manifest that
+// records which services and types this image does and does not implement
+// (package doc, live/flocicap.go). Regenerate the manifest's entry for the
+// new digest with tools/floci-capability-gen before relying on
+// CapabilityGate/ServiceCapabilityGate's skips meaning anything for it - see
+// that tool's own doc comment for the probe/merge workflow.
 const defaultImage = "ghcr.io/lex00/floci@sha256:4753246c0260a22af1056c65993f4d73b0a907729a9580b9baba5d628b6dad34"
 
 // image is what StartFloci actually runs: defaultImage unless FLOCI_IMAGE

@@ -152,16 +152,18 @@ func TestTaggingSweepAgainstFloci(t *testing.T) {
 	rm := removalsByAddr(res)
 	o, ok := rm[`aws_iam_role.demo`]
 	if !ok {
-		t.Skip("aws_iam_role.demo was not discovered through the estate-wide tagging sweep against real floci. " +
-			"This is the documented, currently-reproducing gap: floci's Resource Groups Tagging API " +
-			"(GetResources) does not reflect resources tagged through the ordinary service APIs - manually " +
-			"probing found the same for an S3 bucket tagged via put-bucket-tagging, and for the exact IAM role " +
-			"this fixture creates tagged directly via `aws iam create-role --tags`, even though " +
-			"`iam list-role-tags` on the same role correctly returns what was written. The code path this test " +
-			"exercises (sweepViaTagging, joinTaggedResource, the ARN parsing and CFN/TF join) is proven against " +
-			"fake servers in tagging_test.go; this e2e case is what proves it against floci's real wire behavior " +
-			"once floci's Resource Groups Tagging API coverage catches up. See this file's own doc comment for " +
-			"the full probe notes.")
+		// flocitest.TaggingSweepCapabilityGate skips with a loud, digest-cited
+		// reason when live/floci-capabilities.json already explains this
+		// exact gap (it does, as of the pinned digest - see this file's own
+		// doc comment for the full probe notes that entry is built from). If
+		// the manifest has no matching entry, this falls through to a real
+		// failure instead of a silent skip: an unexplained miss here means
+		// either floci's tagging-sweep coverage regressed, or a new gap needs
+		// investigating and recording, not waving through by hand again.
+		flocitest.TaggingSweepCapabilityGate(t, "aws_iam_role")
+		t.Fatal("aws_iam_role.demo was not discovered through the estate-wide tagging sweep against real floci, " +
+			"and live/floci-capabilities.json has no entry explaining why for this floci image - investigate and " +
+			"record the finding there (tools/floci-capability-gen's doc comment) rather than skip unexplained")
 	}
 	if !strings.Contains(o.ImportID, "tagging-e2e-demo") {
 		t.Errorf("ImportID = %q, want it to name the role tagging-e2e-demo", o.ImportID)
