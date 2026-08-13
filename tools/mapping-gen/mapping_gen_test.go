@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -51,7 +52,7 @@ func TestCurated68Pin(t *testing.T) {
 		t.Fatalf("loading the overlay: %v", err)
 	}
 
-	mapping, err := buildMapping(curated, cfnTypes, overlay)
+	mapping, _, err := buildMapping(curated, cfnTypes, overlay)
 	if err != nil {
 		t.Fatalf("buildMapping: %v", err)
 	}
@@ -142,6 +143,41 @@ func TestOverlayTwoWayStaleness(t *testing.T) {
 			t.Errorf("none entry for %s: %s is no longer in the TF roster (%s); remove or update this overlay entry", tf, tf, tfRosterRel)
 		}
 	}
+
+	// service_aliases' two-way check: the TF-side half is "does any TF type
+	// in the current roster still start with this prefix" (a prefix no
+	// type uses any more is dead weight, the service_aliases analog of an
+	// alias entry naming a TF type that no longer exists), and the CFN-side
+	// half is "does the named service still appear in the current CFN
+	// roster at all" (a service the registry has since renamed or dropped).
+	cfnServices := map[string]bool{}
+	for c := range cfnSet {
+		if svc, _, ok := splitCFNType(c); ok {
+			cfnServices[svc] = true
+		}
+	}
+	for prefix, services := range overlay.ServiceAliases {
+		ptoks := strings.Split(prefix, "_")
+		used := false
+		for tf := range tfSet {
+			if !strings.HasPrefix(tf, "aws_") {
+				continue
+			}
+			tokens := strings.Split(strings.TrimPrefix(tf, "aws_"), "_")
+			if tokenPrefixEqual(tokens, ptoks) {
+				used = true
+				break
+			}
+		}
+		if !used {
+			t.Errorf("service_aliases prefix %q: no TF type in the current roster (%s) starts with aws_%s_; remove or update this overlay entry", prefix, tfRosterRel, prefix)
+		}
+		for _, svc := range services {
+			if !cfnServices[svc] {
+				t.Errorf("service_aliases %q -> %q: %q is no longer a CFN service in the current registry (%s); remove or update this overlay entry", prefix, svc, svc, cfnRosterRel)
+			}
+		}
+	}
 }
 
 // TestNoUnflaggedCollisions is the full-roster collision test: no two TF
@@ -169,7 +205,7 @@ func TestNoUnflaggedCollisions(t *testing.T) {
 		t.Fatalf("loading the overlay: %v", err)
 	}
 
-	mapping, err := buildMapping(tfTypes, cfnTypes, overlay)
+	mapping, _, err := buildMapping(tfTypes, cfnTypes, overlay)
 	if err != nil {
 		t.Fatalf("buildMapping: %v", err)
 	}
@@ -205,6 +241,239 @@ func TestNoUnflaggedCollisions(t *testing.T) {
 	}
 }
 
+// TestServiceAliasAnchorsResolve pins the heuristic v2 anchors from issue
+// #43's follow-up: TF types the plain name heuristic could never reach (its
+// one candidate is service+resource concatenated; these all need either a
+// prefix with no relation to a real AWS service, or a CFN resource segment
+// that redundantly repeats the service word) that the service-alias
+// heuristic must now resolve, each verified against the live registry
+// before being asserted here (aws_db_snapshot's own natural anchor,
+// AWS::RDS::DBSnapshot, does not actually exist in live/registry.json, so
+// it is deliberately not one of these).
+func TestServiceAliasAnchorsResolve(t *testing.T) {
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tfTypes, err := loadTFRoster(filepath.Join(root, tfRosterRel))
+	if err != nil {
+		t.Fatalf("loading the TF roster: %v", err)
+	}
+	cfnRoster := registryJSONRoster{path: filepath.Join(root, cfnRosterRel)}
+	cfnTypes, err := cfnRoster.Types()
+	if err != nil {
+		t.Fatalf("loading the CFN roster: %v", err)
+	}
+	overlay, err := loadOverlay(filepath.Join(root, overlayJSONRel))
+	if err != nil {
+		t.Fatalf("loading the overlay: %v", err)
+	}
+	mapping, _, err := buildMapping(tfTypes, cfnTypes, overlay)
+	if err != nil {
+		t.Fatalf("buildMapping: %v", err)
+	}
+	byType := make(map[string]Row, len(mapping.Rows))
+	for _, r := range mapping.Rows {
+		byType[r.TFType] = r
+	}
+
+	anchors := map[string]string{
+		// vpc -> EC2: the CFN resource segment repeats "VPC" (a word the
+		// TF prefix already carries), which the plain heuristic's single
+		// "ec2" + resource candidate can never reach.
+		"aws_vpc_peering_connection": "AWS::EC2::VPCPeeringConnection",
+		// cloudwatch_log -> Logs: cloudwatch_log_* is really the Logs
+		// service; the match needs the cut that strips only "cloudwatch_",
+		// keeping "log_stream" - Logs' own resource names all keep "Log"
+		// as a literal word.
+		"aws_cloudwatch_log_stream": "AWS::Logs::LogStream",
+		// cloudwatch_event -> Events, generalizing the single
+		// aws_cloudwatch_event_rule overlay alias to the rest of the
+		// family.
+		"aws_cloudwatch_event_bus": "AWS::Events::EventBus",
+		// db -> RDS: an abbreviated TF prefix with no service-casing
+		// relationship to "RDS" at all.
+		"aws_db_proxy": "AWS::RDS::DBProxy",
+		// dx -> DirectConnect.
+		"aws_dx_connection": "AWS::DirectConnect::Connection",
+		// route53_resolver -> Route53Resolver, a distinct CFN service from
+		// plain route53's Route53 - the longer prefix must be tried, not
+		// just the one tf's own first token spells.
+		"aws_route53_resolver_endpoint": "AWS::Route53Resolver::ResolverEndpoint",
+		// ssoadmin -> SSO.
+		"aws_ssoadmin_permission_set": "AWS::SSO::PermissionSet",
+		// sesv2 -> SES (live/registry.json carries no separate SESv2
+		// service).
+		"aws_sesv2_email_identity": "AWS::SES::EmailIdentity",
+	}
+	for _, ct := range anchors {
+		if !contains(cfnTypes, ct) {
+			t.Fatalf("test bug: anchor CFN type %s is not in the live registry; pick a different anchor", ct)
+		}
+	}
+	if contains(cfnTypes, "AWS::RDS::DBSnapshot") {
+		t.Error("AWS::RDS::DBSnapshot now exists in live/registry.json; consider adding aws_db_snapshot as an anchor")
+	}
+
+	for tf, want := range anchors {
+		row, ok := byType[tf]
+		if !ok {
+			t.Errorf("%s: not in the regenerated mapping at all", tf)
+			continue
+		}
+		if row.Via != viaServiceAlias {
+			t.Errorf("%s: via = %q, want %q", tf, row.Via, viaServiceAlias)
+			continue
+		}
+		if row.CFNType == nil || *row.CFNType != want {
+			t.Errorf("%s: cfn_type = %v, want %q", tf, row.CFNType, want)
+		}
+	}
+}
+
+func contains(ss []string, s string) bool {
+	for _, x := range ss {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
+
+// TestServiceAliasFalsePositiveGuard is the regression test for the two
+// hits that motivated a service-scoped heuristic in the first place (a
+// naive cross-service name join once matched aws_amplify_webhook to
+// AWS::CodePipeline::Webhook and aws_appsync_type to AWS::Cassandra::Type):
+// run against the real, full roster, both must still be via:none - neither
+// "amplify" nor "appsync" is a service_aliases prefix, so nothing in this
+// package can ever reach across into CodePipeline or Cassandra for them.
+func TestServiceAliasFalsePositiveGuard(t *testing.T) {
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tfTypes, err := loadTFRoster(filepath.Join(root, tfRosterRel))
+	if err != nil {
+		t.Fatalf("loading the TF roster: %v", err)
+	}
+	cfnRoster := registryJSONRoster{path: filepath.Join(root, cfnRosterRel)}
+	cfnTypes, err := cfnRoster.Types()
+	if err != nil {
+		t.Fatalf("loading the CFN roster: %v", err)
+	}
+	overlay, err := loadOverlay(filepath.Join(root, overlayJSONRel))
+	if err != nil {
+		t.Fatalf("loading the overlay: %v", err)
+	}
+	mapping, _, err := buildMapping(tfTypes, cfnTypes, overlay)
+	if err != nil {
+		t.Fatalf("buildMapping: %v", err)
+	}
+	byType := make(map[string]Row, len(mapping.Rows))
+	for _, r := range mapping.Rows {
+		byType[r.TFType] = r
+	}
+
+	for _, tf := range []string{"aws_amplify_webhook", "aws_appsync_type"} {
+		row, ok := byType[tf]
+		if !ok {
+			t.Fatalf("%s: not in the regenerated mapping at all", tf)
+		}
+		if row.Via == viaServiceAlias {
+			t.Errorf("%s: via = service-alias (cfn_type %v) - the service-scoped heuristic must never cross into a service its own TF prefix was not aliased to", tf, row.CFNType)
+		}
+	}
+}
+
+// TestServiceAliasCrossHeuristicCollisions documents, rather than merely
+// asserts, every case where a service-alias hit shares a CFN type with
+// another mapped row: unlike TestNoUnflaggedCollisions' name-heuristic
+// rule, this is not automatically an error - aws_alb_* and aws_lb_* (TF's
+// own older/newer names for the same ElasticLoadBalancingV2 resources) and
+// aws_ses_*/aws_sesv2_* (the v1 and v2 SES APIs managing the same
+// account-level SES objects) are genuine synonyms, verified by hand against
+// the AWS provider's own docs, not a coincidence like the S3/S3Outposts
+// bucket case the overlay's own service_aliases comment for s3control
+// describes catching. A collision this allowlist does not name failing here
+// is exactly the signal that caught that S3Outposts bug: a human needs to
+// look, not silently trust either side.
+func TestServiceAliasCrossHeuristicCollisions(t *testing.T) {
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tfTypes, err := loadTFRoster(filepath.Join(root, tfRosterRel))
+	if err != nil {
+		t.Fatalf("loading the TF roster: %v", err)
+	}
+	cfnRoster := registryJSONRoster{path: filepath.Join(root, cfnRosterRel)}
+	cfnTypes, err := cfnRoster.Types()
+	if err != nil {
+		t.Fatalf("loading the CFN roster: %v", err)
+	}
+	overlay, err := loadOverlay(filepath.Join(root, overlayJSONRel))
+	if err != nil {
+		t.Fatalf("loading the overlay: %v", err)
+	}
+	mapping, _, err := buildMapping(tfTypes, cfnTypes, overlay)
+	if err != nil {
+		t.Fatalf("buildMapping: %v", err)
+	}
+
+	// Every via:service-alias row's CFN type, paired with every other TF
+	// type (any via) that also reaches the same CFN type - the allowlist
+	// below must name every pair found, and every pair it names must still
+	// be found (so a stale entry - a collision that stopped happening -
+	// fails loudly too).
+	byCFN := map[string][]Row{}
+	for _, r := range mapping.Rows {
+		if r.Via == viaName || r.Via == viaAlias || r.Via == viaServiceAlias {
+			byCFN[*r.CFNType] = append(byCFN[*r.CFNType], r)
+		}
+	}
+
+	allowed := map[[2]string]bool{
+		{"aws_alb_listener", "aws_lb_listener"}:                         true,
+		{"aws_alb_listener_certificate", "aws_lb_listener_certificate"}: true,
+		{"aws_alb_listener_rule", "aws_lb_listener_rule"}:               true,
+		{"aws_alb_target_group", "aws_lb_target_group"}:                 true,
+		{"aws_ses_configuration_set", "aws_sesv2_configuration_set"}:    true,
+		{"aws_ses_email_identity", "aws_sesv2_email_identity"}:          true,
+	}
+	seen := map[[2]string]bool{}
+
+	for _, rows := range byCFN {
+		hasServiceAlias := false
+		for _, r := range rows {
+			if r.Via == viaServiceAlias {
+				hasServiceAlias = true
+			}
+		}
+		if len(rows) < 2 || !hasServiceAlias {
+			continue
+		}
+		names := make([]string, len(rows))
+		for i, r := range rows {
+			names[i] = r.TFType
+		}
+		sort.Strings(names)
+		for i := 0; i < len(names); i++ {
+			for j := i + 1; j < len(names); j++ {
+				pair := [2]string{names[i], names[j]}
+				seen[pair] = true
+				if !allowed[pair] {
+					t.Errorf("undocumented collision: %s and %s both reach the same CFN type; either this is a genuine synonym pair (add it to this test's allowlist with a comment saying why) or a service_aliases entry needs narrowing (see the s3control/S3Outposts fix in overlay.json)", pair[0], pair[1])
+				}
+			}
+		}
+	}
+	for pair := range allowed {
+		if !seen[pair] {
+			t.Errorf("allowlisted collision %s/%s no longer happens; remove it from this test's allowlist", pair[0], pair[1])
+		}
+	}
+}
+
 // TestMappingJSONMatchesCommittedInputs regenerates live/mapping.json from
 // the other committed inputs (live/survey-full.json, live/registry.json,
 // the overlay) and diffs it against the committed artifact, the same
@@ -230,7 +499,7 @@ func TestMappingJSONMatchesCommittedInputs(t *testing.T) {
 		t.Fatalf("loading the overlay: %v", err)
 	}
 
-	mapping, err := buildMapping(tfTypes, cfnTypes, overlay)
+	mapping, _, err := buildMapping(tfTypes, cfnTypes, overlay)
 	if err != nil {
 		t.Fatalf("buildMapping: %v", err)
 	}

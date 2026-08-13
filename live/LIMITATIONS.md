@@ -499,10 +499,10 @@ parent-derived) are unaffected and may still reach one.
 <!-- survey-gen:begin residue-unmapped -->
 | Count | Note |
 |---|---|
-| 899 | no CFN counterpart found by name or curated overlay |
+| 815 | no CFN counterpart found by name or curated overlay |
 | 1 | waiter: records only that DNS validation finished; waiting belongs to the lifecycle layer, not a CFN resource of its own |
 
-**Total.** 900 Terraform AWS resource types with no CloudFormation Registry counterpart. Each row's own note is in `live/mapping.json`.
+**Total.** 816 Terraform AWS resource types with no CloudFormation Registry counterpart. Each row's own note is in `live/mapping.json`.
 <!-- survey-gen:end residue-unmapped -->
 
 #### Registry-laggard live services
@@ -519,6 +519,7 @@ excluding types already counted under "Deprecated or EOL services" above.
 <!-- survey-gen:begin residue-laggard -->
 | TF type | CFN type |
 |---|---|
+| `aws_alb_listener_certificate` | `AWS::ElasticLoadBalancingV2::ListenerCertificate` |
 | `aws_appsync_api_cache` | `AWS::AppSync::ApiCache` |
 | `aws_appsync_api_key` | `AWS::AppSync::ApiKey` |
 | `aws_autoscalingplans_scaling_plan` | `AWS::AutoScalingPlans::ScalingPlan` |
@@ -553,6 +554,7 @@ excluding types already counted under "Deprecated or EOL services" above.
 | `aws_lakeformation_data_lake_settings` | `AWS::LakeFormation::DataLakeSettings` |
 | `aws_lakeformation_permissions` | `AWS::LakeFormation::Permissions` |
 | `aws_lakeformation_resource` | `AWS::LakeFormation::Resource` |
+| `aws_lb_listener_certificate` | `AWS::ElasticLoadBalancingV2::ListenerCertificate` |
 | `aws_media_convert_queue` | `AWS::MediaConvert::Queue` |
 | `aws_media_store_container` | `AWS::MediaStore::Container` |
 | `aws_medialive_channel` | `AWS::MediaLive::Channel` |
@@ -571,7 +573,7 @@ excluding types already counted under "Deprecated or EOL services" above.
 | `aws_ses_receipt_rule` | `AWS::SES::ReceiptRule` |
 | `aws_ses_receipt_rule_set` | `AWS::SES::ReceiptRuleSet` |
 
-**Total.** 51 types, covered only where the provider's own identity schema reaches (the union `live/survey-full.json` measures). A successor CFN type sometimes exists with working handlers - `AWS::Elasticsearch::Domain` above has no handlers, but its successor `AWS::OpenSearchService::Domain` does; `live/mapping.json` does not yet link `aws_opensearch_domain` to it.
+**Total.** 53 types, covered only where the provider's own identity schema reaches (the union `live/survey-full.json` measures). A successor CFN type sometimes exists with working handlers - `AWS::Elasticsearch::Domain` above has no handlers, but its successor `AWS::OpenSearchService::Domain` does; `live/mapping.json` does not yet link `aws_opensearch_domain` to it.
 <!-- survey-gen:end residue-laggard -->
 
 #### Emulator-blocked

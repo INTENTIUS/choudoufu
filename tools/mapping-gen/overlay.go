@@ -9,11 +9,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 )
 
 // Overlay is the curated file at tools/mapping-gen/overlay.json: the hand
 // asserted facts the name heuristic in heuristic.go cannot derive on its
-// own. Three disjoint tables, each keyed by TF type:
+// own. Four tables. Three - Aliases, Folds, Nones - are disjoint and keyed
+// by TF type; the fourth - ServiceAliases - is keyed by TF type *prefix*
+// (a different domain, so it cannot collide with the other three) and
+// drives the service-scoped heuristic in servicealias.go:
 //
 //   - Aliases pairs a TF type straight to its CFN type when the two names
 //     just do not correspond - a legacy TF name (aws_cloudwatch_event_rule),
@@ -28,12 +32,22 @@ import (
 //   - Nones names a TF type with no CFN counterpart at all, and says why
 //     (a waiter, a credential, an account-wide setting CloudFormation has no
 //     resource for).
+//   - ServiceAliases pairs a TF type prefix (e.g. "vpc", "cloudwatch_log")
+//     with the CFN service name(s) it corresponds to, for prefixes whose
+//     relationship to a CFN service the name heuristic's own service-casing
+//     rule (heuristic.go's nameCandidates) cannot derive - a TF prefix that
+//     names no real AWS service at all (vpc -> EC2), or a compound CFN
+//     service name a shorter TF prefix does not spell out (route53_resolver
+//     -> Route53Resolver). One entry converts a whole family at once; see
+//     servicealias.go for how a prefix, once matched, is turned into a CFN
+//     type match scoped to that service alone.
 //
-// A TF type appearing in more than one table is almost certainly a curation
-// mistake (the loader below refuses it), and every entry in every table
-// must name a type that still exists in the current TF and CFN rosters -
-// see the two-way staleness test in mapping_gen_test.go, which also refuses
-// an alias the name heuristic has since grown to cover on its own.
+// A TF type appearing in more than one of the first three tables is almost
+// certainly a curation mistake (the loader below refuses it), and every
+// entry in every table must name a type (or, for ServiceAliases, a service)
+// that still exists in the current TF and CFN rosters - see the two-way
+// staleness tests in mapping_gen_test.go, which also refuse an alias the
+// name heuristic has since grown to cover on its own.
 type Overlay struct {
 	// Aliases maps tf_type -> cfn_type.
 	Aliases map[string]string `json:"aliases"`
@@ -43,6 +57,12 @@ type Overlay struct {
 
 	// Nones maps tf_type -> the reason it has no CFN counterpart.
 	Nones map[string]string `json:"nones"`
+
+	// ServiceAliases maps a TF type prefix (no "aws_" prefix, no trailing
+	// underscore, e.g. "vpc" or "cloudwatch_log") to the CFN service
+	// name(s) - as they appear in the registry's AWS::<Service>::<Resource>
+	// type names - that prefix's TF types belong to.
+	ServiceAliases map[string][]string `json:"service_aliases"`
 }
 
 // loadOverlay reads and validates tools/mapping-gen/overlay.json.
@@ -74,6 +94,23 @@ func loadOverlay(path string) (Overlay, error) {
 					path, tfType, prior, table.name)
 			}
 			seen[tfType] = table.name
+		}
+	}
+
+	for prefix, services := range ov.ServiceAliases {
+		if prefix == "" {
+			return Overlay{}, fmt.Errorf("%s: service_aliases has an empty-string prefix key", path)
+		}
+		if strings.HasPrefix(prefix, "aws_") || strings.HasPrefix(prefix, "_") || strings.HasSuffix(prefix, "_") {
+			return Overlay{}, fmt.Errorf("%s: service_aliases prefix %q must be bare (no leading \"aws_\", no leading or trailing underscore)", path, prefix)
+		}
+		if len(services) == 0 {
+			return Overlay{}, fmt.Errorf("%s: service_aliases entry for %q names no CFN service", path, prefix)
+		}
+		for _, svc := range services {
+			if svc == "" {
+				return Overlay{}, fmt.Errorf("%s: service_aliases entry for %q has an empty service name", path, prefix)
+			}
 		}
 	}
 	return ov, nil
