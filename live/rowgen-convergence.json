@@ -1,15 +1,15 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 662,
-    "compared": 641,
+    "admitted_total": 846,
+    "compared": 825,
     "not_in_mapped_set": 21,
-    "adopted_unchanged": 434,
-    "adopted_unchanged_pct": 67.71,
-    "genuine_mismatches": 207,
+    "adopted_unchanged": 584,
+    "adopted_unchanged_pct": 70.79,
+    "genuine_mismatches": 241,
     "annotated": 0,
-    "unannotated_mismatches": 207,
-    "scrape_gap_mismatches": 125
+    "unannotated_mismatches": 241,
+    "scrape_gap_mismatches": 158
   },
   "by_service": {
     "ACMPCA": {
@@ -18,9 +18,19 @@
       "adopted_unchanged_pct": 100
     },
     "APS": {
-      "compared": 5,
-      "adopted_unchanged": 2,
-      "adopted_unchanged_pct": 40
+      "compared": 6,
+      "adopted_unchanged": 3,
+      "adopted_unchanged_pct": 50
+    },
+    "ARCRegionSwitch": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
+    },
+    "ARCZonalShift": {
+      "compared": 2,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 50
     },
     "AmazonMQ": {
       "compared": 2,
@@ -42,6 +52,11 @@
       "adopted_unchanged": 3,
       "adopted_unchanged_pct": 60
     },
+    "AppConfig": {
+      "compared": 4,
+      "adopted_unchanged": 4,
+      "adopted_unchanged_pct": 100
+    },
     "AppFlow": {
       "compared": 2,
       "adopted_unchanged": 2,
@@ -58,18 +73,28 @@
       "adopted_unchanged_pct": 100
     },
     "AppSync": {
-      "compared": 1,
+      "compared": 4,
       "adopted_unchanged": 1,
-      "adopted_unchanged_pct": 100
+      "adopted_unchanged_pct": 25
     },
     "Athena": {
-      "compared": 2,
-      "adopted_unchanged": 0,
-      "adopted_unchanged_pct": 0
+      "compared": 3,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 33.33
     },
     "AuditManager": {
       "compared": 2,
       "adopted_unchanged": 2,
+      "adopted_unchanged_pct": 100
+    },
+    "AutoScaling": {
+      "compared": 2,
+      "adopted_unchanged": 2,
+      "adopted_unchanged_pct": 100
+    },
+    "BCMDataExports": {
+      "compared": 1,
+      "adopted_unchanged": 1,
       "adopted_unchanged_pct": 100
     },
     "Backup": {
@@ -92,6 +117,21 @@
       "adopted_unchanged": 7,
       "adopted_unchanged_pct": 50
     },
+    "Billing": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
+    },
+    "CE": {
+      "compared": 3,
+      "adopted_unchanged": 0,
+      "adopted_unchanged_pct": 0
+    },
+    "CUR": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
+    },
     "Cassandra": {
       "compared": 2,
       "adopted_unchanged": 1,
@@ -102,10 +142,30 @@
       "adopted_unchanged": 1,
       "adopted_unchanged_pct": 100
     },
+    "Chatbot": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
+    },
+    "CleanRooms": {
+      "compared": 3,
+      "adopted_unchanged": 3,
+      "adopted_unchanged_pct": 100
+    },
+    "Cloud9": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
+    },
     "CloudFront": {
-      "compared": 13,
-      "adopted_unchanged": 10,
-      "adopted_unchanged_pct": 76.92
+      "compared": 20,
+      "adopted_unchanged": 17,
+      "adopted_unchanged_pct": 85
+    },
+    "CloudTrail": {
+      "compared": 2,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 50
     },
     "CloudWatch": {
       "compared": 7,
@@ -136,6 +196,11 @@
       "compared": 3,
       "adopted_unchanged": 2,
       "adopted_unchanged_pct": 66.67
+    },
+    "CodeGuruReviewer": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
     },
     "CodePipeline": {
       "compared": 3,
@@ -177,15 +242,50 @@
       "adopted_unchanged": 2,
       "adopted_unchanged_pct": 66.67
     },
+    "DLM": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
+    },
     "DMS": {
       "compared": 8,
       "adopted_unchanged": 8,
+      "adopted_unchanged_pct": 100
+    },
+    "DSQL": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
+    },
+    "DataPipeline": {
+      "compared": 1,
+      "adopted_unchanged": 1,
       "adopted_unchanged_pct": 100
     },
     "DataSync": {
       "compared": 13,
       "adopted_unchanged": 13,
       "adopted_unchanged_pct": 100
+    },
+    "DataZone": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
+    },
+    "Detective": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
+    },
+    "DevOpsGuru": {
+      "compared": 1,
+      "adopted_unchanged": 0,
+      "adopted_unchanged_pct": 0
+    },
+    "DirectConnect": {
+      "compared": 6,
+      "adopted_unchanged": 0,
+      "adopted_unchanged_pct": 0
     },
     "DocDB": {
       "compared": 1,
@@ -203,9 +303,9 @@
       "adopted_unchanged_pct": 33.33
     },
     "EC2": {
-      "compared": 67,
-      "adopted_unchanged": 47,
-      "adopted_unchanged_pct": 70.15
+      "compared": 87,
+      "adopted_unchanged": 67,
+      "adopted_unchanged_pct": 77.01
     },
     "ECR": {
       "compared": 11,
@@ -213,13 +313,13 @@
       "adopted_unchanged_pct": 72.73
     },
     "ECS": {
-      "compared": 3,
-      "adopted_unchanged": 3,
+      "compared": 6,
+      "adopted_unchanged": 6,
       "adopted_unchanged_pct": 100
     },
     "EFS": {
-      "compared": 2,
-      "adopted_unchanged": 2,
+      "compared": 3,
+      "adopted_unchanged": 3,
       "adopted_unchanged_pct": 100
     },
     "EKS": {
@@ -252,24 +352,54 @@
       "adopted_unchanged": 1,
       "adopted_unchanged_pct": 50
     },
+    "ElasticLoadBalancing": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
+    },
     "ElasticLoadBalancingV2": {
-      "compared": 4,
-      "adopted_unchanged": 3,
-      "adopted_unchanged_pct": 75
+      "compared": 6,
+      "adopted_unchanged": 5,
+      "adopted_unchanged_pct": 83.33
     },
     "Elasticsearch": {
       "compared": 1,
       "adopted_unchanged": 1,
       "adopted_unchanged_pct": 100
     },
+    "EventSchemas": {
+      "compared": 1,
+      "adopted_unchanged": 0,
+      "adopted_unchanged_pct": 0
+    },
     "Events": {
       "compared": 6,
       "adopted_unchanged": 5,
       "adopted_unchanged_pct": 83.33
     },
+    "Evidently": {
+      "compared": 2,
+      "adopted_unchanged": 2,
+      "adopted_unchanged_pct": 100
+    },
+    "FIS": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
+    },
+    "FMS": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
+    },
     "FSx": {
       "compared": 10,
       "adopted_unchanged": 10,
+      "adopted_unchanged_pct": 100
+    },
+    "GameLift": {
+      "compared": 4,
+      "adopted_unchanged": 4,
       "adopted_unchanged_pct": 100
     },
     "GlobalAccelerator": {
@@ -278,9 +408,9 @@
       "adopted_unchanged_pct": 100
     },
     "Glue": {
-      "compared": 10,
-      "adopted_unchanged": 4,
-      "adopted_unchanged_pct": 40
+      "compared": 14,
+      "adopted_unchanged": 8,
+      "adopted_unchanged_pct": 57.14
     },
     "Grafana": {
       "compared": 1,
@@ -293,9 +423,9 @@
       "adopted_unchanged_pct": 71.43
     },
     "IAM": {
-      "compared": 14,
-      "adopted_unchanged": 8,
-      "adopted_unchanged_pct": 57.14
+      "compared": 17,
+      "adopted_unchanged": 11,
+      "adopted_unchanged_pct": 64.71
     },
     "IVS": {
       "compared": 3,
@@ -307,7 +437,27 @@
       "adopted_unchanged": 2,
       "adopted_unchanged_pct": 100
     },
+    "ImageBuilder": {
+      "compared": 9,
+      "adopted_unchanged": 9,
+      "adopted_unchanged_pct": 100
+    },
+    "Inspector": {
+      "compared": 2,
+      "adopted_unchanged": 2,
+      "adopted_unchanged_pct": 100
+    },
     "InspectorV2": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
+    },
+    "InternetMonitor": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
+    },
+    "Invoicing": {
       "compared": 1,
       "adopted_unchanged": 1,
       "adopted_unchanged_pct": 100
@@ -333,8 +483,13 @@
       "adopted_unchanged_pct": 100
     },
     "Kinesis": {
-      "compared": 2,
-      "adopted_unchanged": 2,
+      "compared": 3,
+      "adopted_unchanged": 3,
+      "adopted_unchanged_pct": 100
+    },
+    "KinesisAnalytics": {
+      "compared": 1,
+      "adopted_unchanged": 1,
       "adopted_unchanged_pct": 100
     },
     "KinesisFirehose": {
@@ -367,14 +522,24 @@
       "adopted_unchanged": 8,
       "adopted_unchanged_pct": 61.54
     },
+    "M2": {
+      "compared": 2,
+      "adopted_unchanged": 0,
+      "adopted_unchanged_pct": 0
+    },
     "MSK": {
-      "compared": 3,
-      "adopted_unchanged": 3,
+      "compared": 6,
+      "adopted_unchanged": 6,
       "adopted_unchanged_pct": 100
     },
+    "MWAA": {
+      "compared": 1,
+      "adopted_unchanged": 0,
+      "adopted_unchanged_pct": 0
+    },
     "Macie": {
-      "compared": 2,
-      "adopted_unchanged": 2,
+      "compared": 3,
+      "adopted_unchanged": 3,
       "adopted_unchanged_pct": 100
     },
     "MediaLive": {
@@ -412,6 +577,31 @@
       "adopted_unchanged": 16,
       "adopted_unchanged_pct": 94.12
     },
+    "Notifications": {
+      "compared": 3,
+      "adopted_unchanged": 3,
+      "adopted_unchanged_pct": 100
+    },
+    "NotificationsContacts": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
+    },
+    "ODB": {
+      "compared": 5,
+      "adopted_unchanged": 0,
+      "adopted_unchanged_pct": 0
+    },
+    "Oam": {
+      "compared": 2,
+      "adopted_unchanged": 2,
+      "adopted_unchanged_pct": 100
+    },
+    "ObservabilityAdmin": {
+      "compared": 2,
+      "adopted_unchanged": 2,
+      "adopted_unchanged_pct": 100
+    },
     "OpenSearchServerless": {
       "compared": 5,
       "adopted_unchanged": 2,
@@ -425,6 +615,11 @@
     "Organizations": {
       "compared": 4,
       "adopted_unchanged": 4,
+      "adopted_unchanged_pct": 100
+    },
+    "PaymentCryptography": {
+      "compared": 1,
+      "adopted_unchanged": 1,
       "adopted_unchanged_pct": 100
     },
     "Pipes": {
@@ -442,6 +637,11 @@
       "adopted_unchanged": 1,
       "adopted_unchanged_pct": 100
     },
+    "RAM": {
+      "compared": 2,
+      "adopted_unchanged": 2,
+      "adopted_unchanged_pct": 100
+    },
     "RDS": {
       "compared": 17,
       "adopted_unchanged": 12,
@@ -451,6 +651,11 @@
       "compared": 1,
       "adopted_unchanged": 1,
       "adopted_unchanged_pct": 100
+    },
+    "Rbin": {
+      "compared": 1,
+      "adopted_unchanged": 0,
+      "adopted_unchanged_pct": 0
     },
     "Redshift": {
       "compared": 4,
@@ -467,6 +672,16 @@
       "adopted_unchanged": 3,
       "adopted_unchanged_pct": 100
     },
+    "ResilienceHub": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
+    },
+    "ResilienceHubV2": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
+    },
     "ResourceExplorer2": {
       "compared": 2,
       "adopted_unchanged": 2,
@@ -477,19 +692,24 @@
       "adopted_unchanged": 1,
       "adopted_unchanged_pct": 100
     },
-    "Route53": {
-      "compared": 6,
-      "adopted_unchanged": 2,
-      "adopted_unchanged_pct": 33.33
-    },
-    "Route53Profiles": {
+    "RolesAnywhere": {
       "compared": 2,
       "adopted_unchanged": 2,
       "adopted_unchanged_pct": 100
     },
-    "Route53RecoveryControl": {
+    "Route53": {
+      "compared": 7,
+      "adopted_unchanged": 3,
+      "adopted_unchanged_pct": 42.86
+    },
+    "Route53Profiles": {
       "compared": 3,
       "adopted_unchanged": 3,
+      "adopted_unchanged_pct": 100
+    },
+    "Route53RecoveryControl": {
+      "compared": 4,
+      "adopted_unchanged": 4,
       "adopted_unchanged_pct": 100
     },
     "Route53RecoveryReadiness": {
@@ -498,19 +718,54 @@
       "adopted_unchanged_pct": 0
     },
     "Route53Resolver": {
-      "compared": 8,
-      "adopted_unchanged": 7,
-      "adopted_unchanged_pct": 87.5
+      "compared": 10,
+      "adopted_unchanged": 9,
+      "adopted_unchanged_pct": 90
     },
     "S3": {
-      "compared": 6,
+      "compared": 7,
+      "adopted_unchanged": 3,
+      "adopted_unchanged_pct": 42.86
+    },
+    "S3Express": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
+    },
+    "S3Files": {
+      "compared": 4,
+      "adopted_unchanged": 3,
+      "adopted_unchanged_pct": 75
+    },
+    "S3Outposts": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
+    },
+    "S3Tables": {
+      "compared": 2,
       "adopted_unchanged": 2,
-      "adopted_unchanged_pct": 33.33
+      "adopted_unchanged_pct": 100
+    },
+    "S3Vectors": {
+      "compared": 3,
+      "adopted_unchanged": 3,
+      "adopted_unchanged_pct": 100
+    },
+    "SES": {
+      "compared": 7,
+      "adopted_unchanged": 7,
+      "adopted_unchanged_pct": 100
+    },
+    "SMSVOICE": {
+      "compared": 4,
+      "adopted_unchanged": 4,
+      "adopted_unchanged_pct": 100
     },
     "SNS": {
-      "compared": 2,
-      "adopted_unchanged": 1,
-      "adopted_unchanged_pct": 50
+      "compared": 3,
+      "adopted_unchanged": 2,
+      "adopted_unchanged_pct": 66.67
     },
     "SQS": {
       "compared": 2,
@@ -521,6 +776,21 @@
       "compared": 7,
       "adopted_unchanged": 6,
       "adopted_unchanged_pct": 85.71
+    },
+    "SSMContacts": {
+      "compared": 4,
+      "adopted_unchanged": 2,
+      "adopted_unchanged_pct": 50
+    },
+    "SSMIncidents": {
+      "compared": 2,
+      "adopted_unchanged": 0,
+      "adopted_unchanged_pct": 0
+    },
+    "SSMQuickSetup": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
     },
     "SSO": {
       "compared": 5,
@@ -543,9 +813,14 @@
       "adopted_unchanged_pct": 100
     },
     "SecurityHub": {
-      "compared": 7,
-      "adopted_unchanged": 6,
-      "adopted_unchanged_pct": 85.71
+      "compared": 13,
+      "adopted_unchanged": 10,
+      "adopted_unchanged_pct": 76.92
+    },
+    "SecurityLake": {
+      "compared": 2,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 50
     },
     "ServiceCatalog": {
       "compared": 4,
@@ -557,9 +832,19 @@
       "adopted_unchanged": 2,
       "adopted_unchanged_pct": 66.67
     },
-    "StepFunctions": {
+    "ServiceDiscovery": {
+      "compared": 3,
+      "adopted_unchanged": 3,
+      "adopted_unchanged_pct": 100
+    },
+    "Shield": {
       "compared": 2,
-      "adopted_unchanged": 2,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 50
+    },
+    "StepFunctions": {
+      "compared": 3,
+      "adopted_unchanged": 3,
       "adopted_unchanged_pct": 100
     },
     "StorageGateway": {
@@ -581,6 +866,11 @@
       "compared": 9,
       "adopted_unchanged": 5,
       "adopted_unchanged_pct": 55.56
+    },
+    "VerifiedPermissions": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
     },
     "VpcLattice": {
       "compared": 14,
@@ -1003,6 +1293,38 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_appconfig_application",
+      "service": "AppConfig",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appconfig_deployment_strategy",
+      "service": "AppConfig",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appconfig_extension",
+      "service": "AppConfig",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appconfig_extension_association",
+      "service": "AppConfig",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_appflow_connector_profile",
       "service": "AppFlow",
       "proposed_bucket": "client-named",
@@ -1107,6 +1429,53 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_appsync_api",
+      "service": "AppSync",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appsync_api_cache",
+      "service": "AppSync",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "server-assigned",
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appsync_domain_name_api_association",
+      "service": "AppSync",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "server-assigned",
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_appsync_graphql_api",
       "service": "AppSync",
       "proposed_bucket": "server-assigned",
@@ -1114,6 +1483,41 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_arcregionswitch_plan",
+      "service": "ARCRegionSwitch",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_arczonalshift_autoshift_observer_notification_status",
+      "service": "ARCZonalShift",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "server-assigned",
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_arczonalshift_zonal_autoshift_configuration",
+      "service": "ARCZonalShift",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
       "matched": true,
       "annotated": false
@@ -1132,6 +1536,14 @@
       ],
       "scrape_gap": true,
       "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_athena_named_query",
+      "service": "Athena",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
       "annotated": false
     },
     {
@@ -1167,6 +1579,17 @@
       "service": "AuditManager",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_autoscaling_group",
+      "service": "AutoScaling",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -1304,6 +1727,14 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_bcmdataexports_export",
+      "service": "BCMDataExports",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -1558,6 +1989,99 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_billing_view",
+      "service": "Billing",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ce_anomaly_monitor",
+      "service": "CE",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ce_anomaly_subscription",
+      "service": "CE",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ce_cost_category",
+      "service": "CE",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_chatbot_slack_channel_configuration",
+      "service": "Chatbot",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cleanrooms_collaboration",
+      "service": "CleanRooms",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cleanrooms_configured_table",
+      "service": "CleanRooms",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cleanrooms_membership",
+      "service": "CleanRooms",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloud9_environment_ec2",
+      "service": "Cloud9",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_cloudfront_anycast_ip_list",
       "service": "CloudFront",
       "proposed_bucket": "server-assigned",
@@ -1565,6 +2089,14 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfront_cache_policy",
+      "service": "CloudFront",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -1587,6 +2119,14 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfront_continuous_deployment_policy",
+      "service": "CloudFront",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -1625,6 +2165,14 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfront_key_group",
+      "service": "CloudFront",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -1678,6 +2226,30 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_cloudfront_origin_access_identity",
+      "service": "CloudFront",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfront_origin_request_policy",
+      "service": "CloudFront",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfront_public_key",
+      "service": "CloudFront",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_cloudfront_realtime_log_config",
       "service": "CloudFront",
       "proposed_bucket": "server-assigned",
@@ -1692,6 +2264,14 @@
       ],
       "scrape_gap": true,
       "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfront_response_headers_policy",
+      "service": "CloudFront",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
       "annotated": false
     },
     {
@@ -1713,6 +2293,27 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudtrail",
+      "service": "CloudTrail",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "mismatch_classes": [
+        "server-assigned",
+        "components"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudtrail_event_data_store",
+      "service": "CloudTrail",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -2218,6 +2819,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_codegurureviewer_repository_association",
+      "service": "CodeGuruReviewer",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_codepipeline",
       "service": "CodePipeline",
       "proposed_bucket": "client-named",
@@ -2708,6 +3317,17 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_cur_report_definition",
+      "service": "CUR",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_customer_gateway",
       "service": "EC2",
       "proposed_bucket": "server-assigned",
@@ -2716,6 +3336,14 @@
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_datapipeline_pipeline",
+      "service": "DataPipeline",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -2876,6 +3504,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_datazone_domain",
+      "service": "DataZone",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_db_event_subscription",
       "service": "RDS",
       "proposed_bucket": "client-named",
@@ -2980,6 +3616,42 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_detective_graph",
+      "service": "Detective",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_devopsguru_resource_collection",
+      "service": "DevOpsGuru",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "server-assigned",
+        "components"
+      ],
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dlm_lifecycle_policy",
+      "service": "DLM",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -3099,6 +3771,86 @@
         "import-syntax-wording"
       ],
       "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dsql_cluster",
+      "service": "DSQL",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dx_connection",
+      "service": "DirectConnect",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dx_gateway",
+      "service": "DirectConnect",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dx_lag",
+      "service": "DirectConnect",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dx_private_virtual_interface",
+      "service": "DirectConnect",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dx_public_virtual_interface",
+      "service": "DirectConnect",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dx_transit_virtual_interface",
+      "service": "DirectConnect",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "scrape_gap": true,
+      "matched": false,
       "annotated": false
     },
     {
@@ -3234,6 +3986,38 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_ec2_instance_connect_endpoint",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_local_gateway_route_table",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_local_gateway_route_table_virtual_interface_group_association",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_local_gateway_route_table_vpc_association",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_ec2_managed_prefix_list",
       "service": "EC2",
       "proposed_bucket": "server-assigned",
@@ -3257,6 +4041,54 @@
         "import-syntax-wording"
       ],
       "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_network_insights_access_scope",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_network_insights_analysis",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_network_insights_path",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_traffic_mirror_filter",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_traffic_mirror_session",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_traffic_mirror_target",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
       "annotated": false
     },
     {
@@ -3620,6 +4452,30 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_ecs_daemon_task_definition",
+      "service": "ECS",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ecs_express_gateway_service",
+      "service": "ECS",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ecs_task_definition",
+      "service": "ECS",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_efs_access_point",
       "service": "EFS",
       "proposed_bucket": "server-assigned",
@@ -3638,6 +4494,22 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_efs_mount_target",
+      "service": "EFS",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_egress_only_internet_gateway",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -3880,6 +4752,17 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_elb",
+      "service": "ElasticLoadBalancing",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_emr_cluster",
       "service": "EMR",
       "proposed_bucket": "server-assigned",
@@ -3937,6 +4820,30 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_evidently_project",
+      "service": "Evidently",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_evidently_segment",
+      "service": "Evidently",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_fis_experiment_template",
+      "service": "FIS",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_flow_log",
       "service": "EC2",
       "proposed_bucket": "server-assigned",
@@ -3945,6 +4852,14 @@
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_fms_resource_set",
+      "service": "FMS",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -4056,6 +4971,38 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_gamelift_alias",
+      "service": "GameLift",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_gamelift_build",
+      "service": "GameLift",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_gamelift_fleet",
+      "service": "GameLift",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_gamelift_script",
+      "service": "GameLift",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -4198,6 +5145,17 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_glue_data_quality_ruleset",
+      "service": "Glue",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_glue_job",
       "service": "Glue",
       "proposed_bucket": "client-named",
@@ -4238,7 +5196,37 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_glue_schema",
+      "service": "Glue",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_glue_security_configuration",
+      "service": "Glue",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_glue_trigger",
+      "service": "Glue",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_glue_workflow",
       "service": "Glue",
       "proposed_bucket": "client-named",
       "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
@@ -4343,6 +5331,14 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iam_access_key",
+      "service": "IAM",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -4463,6 +5459,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_iam_saml_provider",
+      "service": "IAM",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_iam_server_certificate",
       "service": "IAM",
       "proposed_bucket": "client-named",
@@ -4526,6 +5530,86 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_iam_virtual_mfa_device",
+      "service": "IAM",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_imagebuilder_component",
+      "service": "ImageBuilder",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_imagebuilder_container_recipe",
+      "service": "ImageBuilder",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_imagebuilder_distribution_configuration",
+      "service": "ImageBuilder",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_imagebuilder_image",
+      "service": "ImageBuilder",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_imagebuilder_image_pipeline",
+      "service": "ImageBuilder",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_imagebuilder_image_recipe",
+      "service": "ImageBuilder",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_imagebuilder_infrastructure_configuration",
+      "service": "ImageBuilder",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_imagebuilder_lifecycle_policy",
+      "service": "ImageBuilder",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_imagebuilder_workflow",
+      "service": "ImageBuilder",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_inspector2_filter",
       "service": "InspectorV2",
       "proposed_bucket": "server-assigned",
@@ -4533,6 +5617,22 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_inspector_assessment_target",
+      "service": "Inspector",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_inspector_assessment_template",
+      "service": "Inspector",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -4556,6 +5656,25 @@
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_internetmonitor_monitor",
+      "service": "InternetMonitor",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_invoicing_invoice_unit",
+      "service": "Invoicing",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -4819,6 +5938,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_kinesis_analytics_application",
+      "service": "KinesisAnalytics",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_kinesis_firehose_delivery_stream",
       "service": "KinesisFirehose",
       "proposed_bucket": "client-named",
@@ -4831,6 +5958,17 @@
         "import-syntax-wording"
       ],
       "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_kinesis_resource_policy",
+      "service": "Kinesis",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
       "annotated": false
     },
     {
@@ -4958,6 +6096,17 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_launch_configuration",
+      "service": "AutoScaling",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_launch_template",
       "service": "EC2",
       "proposed_bucket": "server-assigned",
@@ -4992,6 +6141,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_lb_listener_rule",
+      "service": "ElasticLoadBalancingV2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_lb_target_group",
       "service": "ElasticLoadBalancingV2",
       "proposed_bucket": "server-assigned",
@@ -5014,6 +6171,14 @@
         "import-syntax-wording"
       ],
       "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lb_trust_store",
+      "service": "ElasticLoadBalancingV2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
       "annotated": false
     },
     {
@@ -5271,6 +6436,44 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_m2_application",
+      "service": "M2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_m2_environment",
+      "service": "M2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_macie2_account",
+      "service": "Macie",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_macie2_custom_data_identifier",
       "service": "Macie",
       "proposed_bucket": "server-assigned",
@@ -5289,6 +6492,22 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_mailmanager_rule_set",
+      "service": "SES",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_mailmanager_traffic_policy",
+      "service": "SES",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -5459,6 +6678,17 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_msk_cluster_policy",
+      "service": "MSK",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_msk_configuration",
       "service": "MSK",
       "proposed_bucket": "server-assigned",
@@ -5470,6 +6700,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_msk_replicator",
+      "service": "MSK",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_msk_serverless_cluster",
       "service": "MSK",
       "proposed_bucket": "server-assigned",
@@ -5477,6 +6715,14 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_msk_vpc_connection",
+      "service": "MSK",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -5514,6 +6760,20 @@
         "import-syntax-wording"
       ],
       "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_mwaa_environment",
+      "service": "MWAA",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": false,
       "annotated": false
     },
     {
@@ -5889,6 +7149,151 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_notifications_event_rule",
+      "service": "Notifications",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_notifications_notification_configuration",
+      "service": "Notifications",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_notifications_notification_hub",
+      "service": "Notifications",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_notificationscontacts_email_contact",
+      "service": "NotificationsContacts",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_oam_link",
+      "service": "Oam",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_oam_sink",
+      "service": "Oam",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_observabilityadmin_s3_table_integration",
+      "service": "ObservabilityAdmin",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_observabilityadmin_telemetry_pipeline",
+      "service": "ObservabilityAdmin",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_odb_cloud_autonomous_vm_cluster",
+      "service": "ODB",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_odb_cloud_exadata_infrastructure",
+      "service": "ODB",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_odb_cloud_vm_cluster",
+      "service": "ODB",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_odb_network",
+      "service": "ODB",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_odb_network_peering_connection",
+      "service": "ODB",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_opensearch_domain",
       "service": "OpenSearchService",
       "proposed_bucket": "client-named",
@@ -6009,6 +7414,55 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_paymentcryptography_key",
+      "service": "PaymentCryptography",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_pinpointsmsvoicev2_configuration_set",
+      "service": "SMSVOICE",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_pinpointsmsvoicev2_opt_out_list",
+      "service": "SMSVOICE",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_pinpointsmsvoicev2_phone_number",
+      "service": "SMSVOICE",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_pinpointsmsvoicev2_pool",
+      "service": "SMSVOICE",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_pipes_pipe",
       "service": "Pipes",
       "proposed_bucket": "client-named",
@@ -6056,6 +7510,14 @@
         "import-syntax-wording"
       ],
       "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_prometheus_rule_group_namespace",
+      "service": "APS",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
       "annotated": false
     },
     {
@@ -6111,6 +7573,34 @@
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
       "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ram_permission",
+      "service": "RAM",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ram_resource_share",
+      "service": "RAM",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_rbin_rule",
+      "service": "Rbin",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "scrape_gap": true,
+      "matched": false,
       "annotated": false
     },
     {
@@ -6314,6 +7804,22 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_resiliencehub_resiliency_policy",
+      "service": "ResilienceHub",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_resiliencehubv2_policy",
+      "service": "ResilienceHubV2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_resourceexplorer2_index",
       "service": "ResourceExplorer2",
       "proposed_bucket": "server-assigned",
@@ -6348,6 +7854,22 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_rolesanywhere_profile",
+      "service": "RolesAnywhere",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_rolesanywhere_trust_anchor",
+      "service": "RolesAnywhere",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_route",
       "service": "EC2",
       "proposed_bucket": "needs-hand-separator",
@@ -6359,6 +7881,14 @@
         "import-syntax-wording"
       ],
       "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53_cidr_collection",
+      "service": "Route53",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
       "annotated": false
     },
     {
@@ -6418,6 +7948,14 @@
       ],
       "scrape_gap": true,
       "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53_resolver_dnssec_config",
+      "service": "Route53Resolver",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
       "annotated": false
     },
     {
@@ -6487,6 +8025,14 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53_resolver_query_log_config_association",
+      "service": "Route53Resolver",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -6563,6 +8109,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_route53profiles_resource_association",
+      "service": "Route53Profiles",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_route53recoverycontrolconfig_cluster",
       "service": "Route53RecoveryControl",
       "proposed_bucket": "server-assigned",
@@ -6583,6 +8137,14 @@
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53recoverycontrolconfig_routing_control",
+      "service": "Route53RecoveryControl",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -6783,6 +8345,127 @@
         "import-syntax-wording"
       ],
       "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3_directory_bucket",
+      "service": "S3Express",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3control_bucket",
+      "service": "S3Outposts",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3control_multi_region_access_point",
+      "service": "S3",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3files_access_point",
+      "service": "S3Files",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3files_file_system",
+      "service": "S3Files",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3files_file_system_policy",
+      "service": "S3Files",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3files_mount_target",
+      "service": "S3Files",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3tables_table_bucket",
+      "service": "S3Tables",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3tables_table_bucket_policy",
+      "service": "S3Tables",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3vectors_index",
+      "service": "S3Vectors",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3vectors_vector_bucket",
+      "service": "S3Vectors",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3vectors_vector_bucket_policy",
+      "service": "S3Vectors",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
       "annotated": false
     },
     {
@@ -7157,6 +8840,21 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_schemas_discoverer",
+      "service": "EventSchemas",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_secretsmanager_secret",
       "service": "SecretsManager",
       "proposed_bucket": "server-assigned",
@@ -7202,6 +8900,21 @@
         "import-syntax-wording"
       ],
       "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_securityhub_account",
+      "service": "SecurityHub",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
       "annotated": false
     },
     {
@@ -7253,6 +8966,18 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_securityhub_configuration_policy",
+      "service": "SecurityHub",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_securityhub_configuration_policy_association",
       "service": "SecurityHub",
       "proposed_bucket": "client-named",
@@ -7280,6 +9005,22 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_securityhub_finding_aggregator",
+      "service": "SecurityHub",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_securityhub_insight",
+      "service": "SecurityHub",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_securityhub_organization_admin_account",
       "service": "SecurityHub",
       "proposed_bucket": "client-named",
@@ -7288,6 +9029,69 @@
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_securityhub_organization_configuration",
+      "service": "SecurityHub",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_securityhub_standards_subscription",
+      "service": "SecurityHub",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_securitylake_data_lake",
+      "service": "SecurityLake",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_securitylake_subscriber",
+      "service": "SecurityLake",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_service_discovery_http_namespace",
+      "service": "ServiceDiscovery",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_service_discovery_public_dns_namespace",
+      "service": "ServiceDiscovery",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_service_discovery_service",
+      "service": "ServiceDiscovery",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -7380,7 +9184,70 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_sesv2_account_vdm_attributes",
+      "service": "SES",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sesv2_configuration_set",
+      "service": "SES",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sesv2_dedicated_ip_pool",
+      "service": "SES",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sesv2_email_identity",
+      "service": "SES",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sesv2_tenant",
+      "service": "SES",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_sfn_activity",
+      "service": "StepFunctions",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sfn_alias",
       "service": "StepFunctions",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
@@ -7397,6 +9264,26 @@
         "import-syntax-wording"
       ],
       "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_shield_proactive_engagement",
+      "service": "Shield",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_shield_protection",
+      "service": "Shield",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "scrape_gap": true,
+      "matched": false,
       "annotated": false
     },
     {
@@ -7425,6 +9312,14 @@
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sns_topic_subscription",
+      "service": "SNS",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -7548,6 +9443,90 @@
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssmcontacts_contact",
+      "service": "SSMContacts",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssmcontacts_contact_channel",
+      "service": "SSMContacts",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssmcontacts_plan",
+      "service": "SSMContacts",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssmcontacts_rotation",
+      "service": "SSMContacts",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssmincidents_replication_set",
+      "service": "SSMIncidents",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssmincidents_response_plan",
+      "service": "SSMIncidents",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "mismatch_classes": [
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssmquicksetup_configuration_manager",
+      "service": "SSMQuickSetup",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -7845,6 +9824,38 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_verifiedaccess_endpoint",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_verifiedaccess_instance",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_verifiedaccess_trust_provider",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_verifiedpermissions_policy_store",
+      "service": "VerifiedPermissions",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_volume_attachment",
       "service": "EC2",
       "proposed_bucket": "needs-hand-separator",
@@ -7868,6 +9879,14 @@
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_block_public_access_exclusion",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -7898,6 +9917,14 @@
       ],
       "scrape_gap": true,
       "matched": false,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_encryption_control",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
       "annotated": false
     },
     {
@@ -8084,6 +10111,30 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_vpc_route_server",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_route_server_endpoint",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_route_server_peer",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_vpc_security_group_egress_rule",
       "service": "EC2",
       "proposed_bucket": "server-assigned",
@@ -8231,6 +10282,14 @@
     {
       "tf_type": "aws_vpclattice_target_group",
       "service": "VpcLattice",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpn_concentrator",
+      "service": "EC2",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,

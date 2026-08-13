@@ -589,13 +589,26 @@ func TestStaticModuleTraversal(t *testing.T) {
 }
 
 // TestTableCoversFixtureTypes keeps the v0 table and the fixtures in step:
-// the table exists to cover exactly the union of the demo estate and every
+// the table exists to cover the union of the demo estate and every
 // per-cohort verification estate under live/e2e/estates (#48, phase 3 of
-// #38's decision), and a type added to one side without the other is the
-// kind of drift that shows up later as a mystery NEEDS_DISCOVERY. The
-// universe is read straight off the fixtures rather than pinned as a
+// #38's decision), and a type a fixture uses without the table covering it
+// is the kind of drift that shows up later as a mystery NEEDS_DISCOVERY.
+// The universe is read straight off the fixtures rather than pinned as a
 // hardcoded count, so a new estates/<cohort> directory extends it with no
 // test-file edits.
+//
+// Through the sixth registry-ratified batch this was a two-way equality:
+// every admitted type traced back to some fixture's own use of it, table ==
+// used exactly. The REMAINDER ratification batch (issue #65) deliberately
+// breaks the reverse direction at the coordinator's own sign-off: its long
+// tail (~90 services) is ratified at a scale where a terraform-validate-clean
+// fixture resource for every single admitted type is not what ratification
+// gates on - live/e2e/estates/remainder holds a representative ~25-type
+// subset, and every other type this batch admits is "identity-only-verified"
+// (see that cohort's README) - in DefaultTable, verified against the
+// provider's own documented Import section, with no fixture of its own. So
+// only the first direction still runs unconditionally; the second is now a
+// floor, not an equality.
 func TestTableCoversFixtureTypes(t *testing.T) {
 	used := make(map[string]bool)
 	for _, dir := range flocitest.FixtureDirs(t) {
@@ -621,12 +634,9 @@ func TestTableCoversFixtureTypes(t *testing.T) {
 			continue
 		}
 		nonRecordBacked++
-		if !used[typeName] {
-			t.Errorf("the v0 identity table covers %s, which no fixture uses", typeName)
-		}
 	}
-	if got, want := nonRecordBacked, len(used); got != want {
-		t.Errorf("table covers %d non-record-backed types, want the fixtures' %d", got, want)
+	if got, min := nonRecordBacked, len(used); got < min {
+		t.Errorf("table covers %d non-record-backed types, want at least the fixtures' %d", got, min)
 	}
 }
 

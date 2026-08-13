@@ -18,27 +18,35 @@ import (
 // count (mapping_gen_test.go): the highest live/rowgen-convergence.json's
 // summary.unannotated_mismatches may be. This pass originally measured 170
 // genuine mismatches over 571 admitted types, after merging
-// ratify-sagemaker/ratify-governance/ratify-media. Merging this branch
-// itself landed after a further eight ratification batches
+// ratify-sagemaker/ratify-governance/ratify-media. It was then bumped to
+// 207 (125 scrape-gap) after a further eight concurrently-landed batches
 // (ratify-data-movement, ratify-networking-advanced, ratify-databases,
 // ratify-security, ratify-ec2-networking, ratify-iot,
-// ratify-ai-location/stragglers/connect-euc among them) had already raised
-// the admitted count to 652 - none of those batches ever passed through
-// this convergence check, since it did not exist yet when they were
-// ratified, so their own row-gen/DefaultTable disagreements show up here
-// for the first time as 207 unannotated mismatches (125 scrape-gap, the
-// rest the same still-mechanical gaps the original comment named: fold-child
-// Components derivation, order-unrecoverable composites). This is a reviewed
-// bump reflecting that backlog, not a quality regression introduced by this
-// merge - see tools/row-gen/annotations.json's own doc comment for why none
-// of the 207 is annotated yet. Lower this constant to match
+// ratify-ai-location/stragglers/connect-euc among them) raised the admitted
+// count to 652, none of them ever having passed through this convergence
+// check before (it did not exist yet when they were ratified).
+//
+// Merging ratify-remainder (issue #65's REMAINDER batch, the long tail of
+// services outside every concurrent batch's own scope) raised the admitted
+// count again, 652 to 836 (184 more - the exact count
+// live/e2e/estates/remainder/README.md's own "184 types admitted" gives),
+// and, the same as every prior batch above, never having passed through
+// this convergence check before, surfaces its own row-gen/DefaultTable
+// disagreements here for the first time too: 34 more unannotated mismatches
+// (241 total: 158 scrape-gap, up from 125; 83 non-scrape-gap, up from 82).
+// This lines up with REMAINDER's own README, whose "Corrections made (35
+// types...)" section is the same shape of deliberate row-gen disagreement
+// this ratchet measures. This is a reviewed bump reflecting that backlog,
+// not a quality regression introduced by this merge - see
+// tools/row-gen/annotations.json's own doc comment for why none of the 241
+// is annotated yet. Lower this constant to match
 // live/rowgen-convergence.json's own committed count whenever a future
 // change (a wider importdocs-gen scrape, a fold-child Components rule,
 // annotations.json gaining real rulings) closes some of the gap. Raising
 // it back up again needs its own reviewed reason, not a silent increase -
 // TestUnannotatedMismatchRatchet below fails the build the moment a
 // regeneration would do that.
-const unannotatedMismatchRatchetMax = 207
+const unannotatedMismatchRatchetMax = 241
 
 // TestUnannotatedMismatchRatchet reads the committed live/rowgen-
 // convergence.json directly (not a fresh regeneration - see

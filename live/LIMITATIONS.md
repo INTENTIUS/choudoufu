@@ -581,11 +581,20 @@ inject into a shared configuration body. (`internal/live/stamp/stamp.go`,
 `aws_api_gateway_method`, `aws_api_gateway_method_response`,
 `aws_api_gateway_method_settings`, `aws_api_gateway_model`,
 `aws_api_gateway_rest_api_policy`, `aws_api_gateway_usage_plan_key`,
-`aws_apigatewayv2_routing_rule`, `aws_appflow_connector_profile`,
-`aws_bedrockagentcore_resource_policy`,
+`aws_apigatewayv2_routing_rule`, `aws_appconfig_extension_association`,
+`aws_appflow_connector_profile`, `aws_appsync_api_cache`,
+`aws_appsync_domain_name_api_association`,
+`aws_arczonalshift_autoshift_observer_notification_status`,
+`aws_arczonalshift_zonal_autoshift_configuration`, `aws_athena_named_query`,
+`aws_autoscaling_group`, `aws_bedrockagentcore_resource_policy`,
+`aws_cloudfront_cache_policy`,
+`aws_cloudfront_continuous_deployment_policy`, `aws_cloudfront_key_group`,
 `aws_cloudfront_monitoring_subscription`,
 `aws_cloudfront_origin_access_control`,
-`aws_cloudfront_realtime_log_config`, `aws_cloudwatch_dashboard`,
+`aws_cloudfront_origin_access_identity`,
+`aws_cloudfront_origin_request_policy`, `aws_cloudfront_public_key`,
+`aws_cloudfront_realtime_log_config`,
+`aws_cloudfront_response_headers_policy`, `aws_cloudwatch_dashboard`,
 `aws_cloudwatch_event_api_destination`, `aws_cloudwatch_event_archive`,
 `aws_cloudwatch_event_connection`, `aws_cloudwatch_event_endpoint`,
 `aws_cloudwatch_event_permission`, `aws_cloudwatch_log_account_policy`,
@@ -605,9 +614,9 @@ inject into a shared configuration body. (`internal/live/stamp/stamp.go`,
 `aws_config_remediation_configuration`,
 `aws_connect_user_hierarchy_structure`, `aws_controltower_control`,
 `aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
-`aws_dynamodb_global_table`, `aws_dynamodb_resource_policy`,
-`aws_ebs_snapshot_block_public_access`, `aws_ec2_client_vpn_route`,
-`aws_ec2_managed_prefix_list_entry`,
+`aws_devopsguru_resource_collection`, `aws_dynamodb_global_table`,
+`aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
+`aws_ec2_client_vpn_route`, `aws_ec2_managed_prefix_list_entry`,
 `aws_ec2_transit_gateway_metering_policy_entry`,
 `aws_ec2_transit_gateway_policy_table_association`,
 `aws_ec2_transit_gateway_route`,
@@ -618,24 +627,27 @@ inject into a shared configuration body. (`internal/live/stamp/stamp.go`,
 `aws_ecr_registry_scanning_configuration`,
 `aws_ecr_replication_configuration`, `aws_ecr_repository_creation_template`,
 `aws_ecr_repository_policy`, `aws_ecrpublic_repository_policy`,
-`aws_ecs_cluster_capacity_providers`, `aws_eip_association`,
-`aws_eks_access_policy_association`, `aws_emr_security_configuration`,
-`aws_fsx_s3_access_point_attachment`,
+`aws_ecs_cluster_capacity_providers`, `aws_efs_mount_target`,
+`aws_eip_association`, `aws_eks_access_policy_association`,
+`aws_emr_security_configuration`, `aws_fsx_s3_access_point_attachment`,
 `aws_globalaccelerator_endpoint_group`, `aws_globalaccelerator_listener`,
 `aws_glue_catalog_table`, `aws_glue_classifier`,
-`aws_glue_data_catalog_encryption_settings`, `aws_guardduty_member`,
+`aws_glue_data_catalog_encryption_settings`,
+`aws_glue_security_configuration`, `aws_guardduty_member`,
 `aws_guardduty_organization_admin_account`,
-`aws_guardduty_organization_configuration`, `aws_iam_group`,
-`aws_iam_group_policy`, `aws_iam_group_policy_attachment`,
+`aws_guardduty_organization_configuration`, `aws_iam_access_key`,
+`aws_iam_group`, `aws_iam_group_policy`, `aws_iam_group_policy_attachment`,
 `aws_iam_role_policy`, `aws_iam_role_policy_attachment`,
 `aws_iam_user_policy`, `aws_iam_user_policy_attachment`,
 `aws_inspector2_delegated_admin_account`,
-`aws_inspector2_member_association`, `aws_iot_thing`,
-`aws_iot_topic_rule_destination`, `aws_kms_alias`,
-`aws_lambda_layer_version`, `aws_lb_target_group_attachment`,
+`aws_inspector2_member_association`, `aws_inspector_assessment_target`,
+`aws_iot_thing`, `aws_iot_topic_rule_destination`,
+`aws_kinesis_resource_policy`, `aws_kms_alias`, `aws_lambda_layer_version`,
+`aws_launch_configuration`, `aws_lb_target_group_attachment`,
 `aws_lexv2models_bot_locale`, `aws_lightsail_lb_certificate`,
 `aws_lightsail_static_ip`, `aws_location_tracker_association`,
-`aws_macie2_organization_admin_account`, `aws_medialive_multiplex_program`,
+`aws_macie2_account`, `aws_macie2_organization_admin_account`,
+`aws_medialive_multiplex_program`, `aws_msk_cluster_policy`,
 `aws_msk_configuration`, `aws_nat_gateway_eip_association`,
 `aws_network_acl_rule`, `aws_network_interface_attachment`,
 `aws_network_interface_permission`,
@@ -645,6 +657,7 @@ inject into a shared configuration body. (`internal/live/stamp/stamp.go`,
 `aws_networkmanager_link_association`,
 `aws_networkmanager_prefix_list_association`,
 `aws_networkmanager_transit_gateway_registration`,
+`aws_notifications_event_rule`, `aws_notifications_notification_hub`,
 `aws_opensearchserverless_access_policy`,
 `aws_opensearchserverless_lifecycle_policy`,
 `aws_opensearchserverless_security_policy`,
@@ -652,22 +665,36 @@ inject into a shared configuration body. (`internal/live/stamp/stamp.go`,
 `aws_prometheus_query_logging_configuration`,
 `aws_prometheus_scraper_logging_configuration`,
 `aws_rds_cluster_role_association`, `aws_route`,
-`aws_route53_hosted_zone_dnssec`, `aws_route53_key_signing_key`,
-`aws_route53_record`, `aws_route53_resolver_firewall_rule`,
+`aws_route53_cidr_collection`, `aws_route53_hosted_zone_dnssec`,
+`aws_route53_key_signing_key`, `aws_route53_record`,
+`aws_route53_resolver_dnssec_config`, `aws_route53_resolver_firewall_rule`,
+`aws_route53_resolver_query_log_config_association`,
 `aws_route53_resolver_rule_association`, `aws_route53_zone_association`,
+`aws_route53profiles_resource_association`,
+`aws_route53recoverycontrolconfig_routing_control`,
 `aws_route_table_association`, `aws_s3_bucket_lifecycle_configuration`,
 `aws_s3_bucket_policy`, `aws_s3_bucket_public_access_block`,
 `aws_s3_bucket_server_side_encryption_configuration`,
-`aws_s3_bucket_versioning`, `aws_sagemaker_model_package_group_policy`,
+`aws_s3_bucket_versioning`, `aws_s3control_multi_region_access_point`,
+`aws_s3files_file_system_policy`, `aws_s3files_mount_target`,
+`aws_s3tables_table_bucket_policy`, `aws_s3vectors_vector_bucket_policy`,
+`aws_sagemaker_model_package_group_policy`,
 `aws_secretsmanager_secret_policy`, `aws_secretsmanager_secret_rotation`,
+`aws_securityhub_account`, `aws_securityhub_configuration_policy`,
 `aws_securityhub_configuration_policy_association`,
+`aws_securityhub_finding_aggregator`, `aws_securityhub_insight`,
 `aws_securityhub_member`, `aws_securityhub_organization_admin_account`,
+`aws_securityhub_organization_configuration`,
 `aws_securityhub_standards_control`,
 `aws_securityhub_standards_control_association`,
+`aws_securityhub_standards_subscription`,
 `aws_servicecatalog_portfolio_share`,
 `aws_servicecatalogappregistry_attribute_group_association`,
-`aws_sns_topic_policy`, `aws_sqs_queue_policy`, `aws_ssm_patch_group`,
+`aws_sesv2_account_vdm_attributes`, `aws_sfn_alias`,
+`aws_shield_proactive_engagement`, `aws_sns_topic_policy`,
+`aws_sns_topic_subscription`, `aws_sqs_queue_policy`, `aws_ssm_patch_group`,
 `aws_ssm_resource_data_sync`, `aws_ssm_service_setting`,
+`aws_ssmcontacts_contact_channel`, `aws_ssmcontacts_plan`,
 `aws_ssoadmin_account_assignment`, `aws_ssoadmin_application_assignment`,
 `aws_ssoadmin_instance_access_control_attributes`,
 `aws_transfer_web_app_customization`, `aws_volume_attachment`,
@@ -723,6 +750,10 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_api_gateway_rest_api_policy` | `aws_api_gateway_rest_api` | no (report-only) |
 | `aws_api_gateway_usage_plan_key` | `aws_api_gateway_usage_plan` | no (report-only) |
 | `aws_appflow_connector_profile` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_appsync_api_cache` | `aws_appsync_api` | no (report-only) |
+| `aws_appsync_domain_name_api_association` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_arczonalshift_zonal_autoshift_configuration` | `null_resource` | no (report-only) |
+| `aws_autoscaling_group` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_bedrockagentcore_resource_policy` | `null_resource` | no (report-only) |
 | `aws_cloudfront_monitoring_subscription` | `aws_lightsail_distribution` | no (report-only) |
 | `aws_cloudfront_realtime_log_config` | `aws_api_gateway_domain_name` | no (report-only) |
@@ -744,6 +775,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_cognito_user_in_group` | `aws_cognito_user_pool` | no (report-only) |
 | `aws_config_conformance_pack` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_config_organization_conformance_pack` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_devopsguru_resource_collection` | `aws_iot_thing_type` | no (report-only) |
 | `aws_dynamodb_global_table` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_dynamodb_resource_policy` | `null_resource` | no (report-only) |
 | `aws_ec2_client_vpn_route` | `aws_ec2_client_vpn_endpoint` | no (report-only) |
@@ -760,6 +792,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_fsx_s3_access_point_attachment` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_glue_catalog_table` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_glue_classifier` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_glue_security_configuration` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_guardduty_member` | `aws_guardduty_detector` | no (report-only) |
 | `aws_guardduty_organization_configuration` | `aws_guardduty_detector` | no (report-only) |
 | `aws_iam_group` | `aws_api_gateway_domain_name` | no (report-only) |
@@ -770,7 +803,9 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_iam_user_policy` | `aws_iam_user` | no (report-only) |
 | `aws_iam_user_policy_attachment` | `aws_iam_user` | no (report-only) |
 | `aws_iot_thing` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_kinesis_resource_policy` | `null_resource` | no (report-only) |
 | `aws_kms_alias` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_launch_configuration` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_lb_target_group_attachment` | `aws_lb_target_group` | no (report-only) |
 | `aws_lexv2models_bot_locale` | `aws_lexv2models_bot` | no (report-only) |
 | `aws_lightsail_lb_certificate` | `aws_lightsail_lb` | no (report-only) |
@@ -782,7 +817,6 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_networkfirewall_logging_configuration` | `aws_networkfirewall_firewall` | no (report-only) |
 | `aws_networkmanager_core_network_policy_attachment` | `aws_networkmanager_core_network` | no (report-only) |
 | `aws_networkmanager_customer_gateway_association` | `aws_customer_gateway` | no (report-only) |
-| `aws_networkmanager_link_association` | `aws_networkmanager_link` | no (report-only) |
 | `aws_networkmanager_prefix_list_association` | `aws_ec2_managed_prefix_list` | no (report-only) |
 | `aws_networkmanager_transit_gateway_registration` | `aws_ec2_transit_gateway` | no (report-only) |
 | `aws_opensearchserverless_access_policy` | `aws_api_gateway_domain_name` | no (report-only) |
@@ -802,6 +836,9 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_s3_bucket_public_access_block` | `aws_s3_bucket` | no (report-only) |
 | `aws_s3_bucket_server_side_encryption_configuration` | `aws_s3_bucket` | no (report-only) |
 | `aws_s3_bucket_versioning` | `aws_s3_bucket` | no (report-only) |
+| `aws_s3control_multi_region_access_point` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_s3tables_table_bucket_policy` | `aws_s3tables_table_bucket` | no (report-only) |
+| `aws_s3vectors_vector_bucket_policy` | `aws_s3vectors_vector_bucket` | no (report-only) |
 | `aws_sagemaker_model_package_group_policy` | `aws_sagemaker_model_package_group` | no (report-only) |
 | `aws_secretsmanager_secret_policy` | `aws_secretsmanager_secret` | no (report-only) |
 | `aws_secretsmanager_secret_rotation` | `aws_secretsmanager_secret` | no (report-only) |
@@ -812,7 +849,6 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_ssm_patch_group` | `aws_ssm_patch_baseline` | no (report-only) |
 | `aws_ssm_resource_data_sync` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_ssoadmin_account_assignment` | `aws_instance` | no (report-only) |
-| `aws_ssoadmin_application_assignment` | `aws_ssoadmin_application` | no (report-only) |
 | `aws_ssoadmin_instance_access_control_attributes` | `aws_instance` | no (report-only) |
 | `aws_transfer_web_app_customization` | `aws_transfer_web_app` | no (report-only) |
 | `aws_volume_attachment` | `aws_ebs_volume` | no (report-only) |
@@ -833,7 +869,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_workspacesweb_user_access_logging_settings_association` | `aws_workspacesweb_user_access_logging_settings` | no (report-only) |
 | `aws_workspacesweb_user_settings_association` | `aws_workspacesweb_user_settings` | no (report-only) |
 
-**Total.** 123 types swept via a parent read.
+**Total.** 132 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
@@ -862,7 +898,14 @@ per-type reasoning as it stands.
 
 **The residue.** <!-- survey-gen:begin untaggable-residue -->
 `aws_api_gateway_account`, `aws_apigatewayv2_routing_rule`,
-`aws_cloudfront_origin_access_control`, `aws_cloudwatch_dashboard`,
+`aws_appconfig_extension_association`,
+`aws_arczonalshift_autoshift_observer_notification_status`,
+`aws_athena_named_query`, `aws_cloudfront_cache_policy`,
+`aws_cloudfront_continuous_deployment_policy`, `aws_cloudfront_key_group`,
+`aws_cloudfront_origin_access_control`,
+`aws_cloudfront_origin_access_identity`,
+`aws_cloudfront_origin_request_policy`, `aws_cloudfront_public_key`,
+`aws_cloudfront_response_headers_policy`, `aws_cloudwatch_dashboard`,
 `aws_cloudwatch_event_permission`, `aws_cloudwatch_log_account_policy`,
 `aws_cloudwatch_otel_enrichment`, `aws_cloudwatch_query_definition`,
 `aws_codeartifact_domain_permissions_policy`,
@@ -875,20 +918,38 @@ per-type reasoning as it stands.
 `aws_ecr_pull_through_cache_rule`, `aws_ecr_pull_time_update_exclusion`,
 `aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
 `aws_ecr_replication_configuration`, `aws_ecr_repository_creation_template`,
-`aws_ecs_cluster_capacity_providers`, `aws_eip_association`,
-`aws_globalaccelerator_endpoint_group`, `aws_globalaccelerator_listener`,
+`aws_ecs_cluster_capacity_providers`, `aws_efs_mount_target`,
+`aws_eip_association`, `aws_globalaccelerator_endpoint_group`,
+`aws_globalaccelerator_listener`,
 `aws_glue_data_catalog_encryption_settings`,
-`aws_guardduty_organization_admin_account`,
+`aws_guardduty_organization_admin_account`, `aws_iam_access_key`,
 `aws_inspector2_delegated_admin_account`,
-`aws_inspector2_member_association`, `aws_iot_topic_rule_destination`,
-`aws_lambda_layer_version`, `aws_macie2_organization_admin_account`,
-`aws_msk_configuration`, `aws_network_interface_attachment`,
-`aws_network_interface_permission`, `aws_rds_cluster_role_association`,
-`aws_route53_hosted_zone_dnssec`, `aws_route53_resolver_rule_association`,
+`aws_inspector2_member_association`, `aws_inspector_assessment_target`,
+`aws_iot_topic_rule_destination`, `aws_lambda_layer_version`,
+`aws_macie2_account`, `aws_macie2_organization_admin_account`,
+`aws_msk_cluster_policy`, `aws_msk_configuration`,
+`aws_network_interface_attachment`, `aws_network_interface_permission`,
+`aws_networkmanager_link_association`, `aws_notifications_event_rule`,
+`aws_notifications_notification_hub`, `aws_rds_cluster_role_association`,
+`aws_route53_cidr_collection`, `aws_route53_hosted_zone_dnssec`,
+`aws_route53_resolver_dnssec_config`,
+`aws_route53_resolver_query_log_config_association`,
+`aws_route53_resolver_rule_association`,
+`aws_route53profiles_resource_association`,
+`aws_route53recoverycontrolconfig_routing_control`,
+`aws_s3files_file_system_policy`, `aws_s3files_mount_target`,
+`aws_securityhub_account`, `aws_securityhub_configuration_policy`,
 `aws_securityhub_configuration_policy_association`,
+`aws_securityhub_finding_aggregator`, `aws_securityhub_insight`,
 `aws_securityhub_member`, `aws_securityhub_organization_admin_account`,
+`aws_securityhub_organization_configuration`,
 `aws_securityhub_standards_control`,
-`aws_securityhub_standards_control_association`, `aws_ssm_service_setting`,
+`aws_securityhub_standards_control_association`,
+`aws_securityhub_standards_subscription`,
+`aws_sesv2_account_vdm_attributes`, `aws_sfn_alias`,
+`aws_shield_proactive_engagement`, `aws_sns_topic_subscription`,
+`aws_ssm_service_setting`, `aws_ssmcontacts_contact_channel`,
+`aws_ssmcontacts_plan`, `aws_ssoadmin_application_assignment`,
 `aws_vpc_dhcp_options_association`, `aws_vpclattice_auth_policy` and
 `aws_xray_resource_policy`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
 parent-readable: the three ECR registry types are account-level singletons
