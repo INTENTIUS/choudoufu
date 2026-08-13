@@ -2195,6 +2195,8 @@ func configureBackend(t *testing.T, config map[string]any) (*Backend, tfdiags.Di
 }
 
 func initSessionTestEnv(t *testing.T) {
+	t.Helper()
+
 	envVars := os.Environ()
 	for _, envVar := range envVars {
 		if strings.HasPrefix(envVar, "AWS_") {
@@ -2202,4 +2204,18 @@ func initSessionTestEnv(t *testing.T) {
 			t.Setenv(pair[0], "")
 		}
 	}
+
+	// Ensure the AWS SDK's default shared config/credentials file lookups
+	// cannot fall through to whatever happens to be at ~/.aws/config or
+	// ~/.aws/credentials on the machine running the test. Without this,
+	// real ambient credentials (or profile settings) on a developer's
+	// machine get merged into the "default" profile used by these tests,
+	// producing different results on every machine and in CI. Test cases
+	// that need specific file contents point these at their own temporary
+	// files via setSharedConfigFile or the SharedCredentialsFile/
+	// SharedConfigurationFile fields, which take precedence over these
+	// defaults.
+	dir := t.TempDir()
+	t.Setenv("AWS_CONFIG_FILE", filepath.Join(dir, "no-such-config-file"))
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", filepath.Join(dir, "no-such-credentials-file"))
 }
