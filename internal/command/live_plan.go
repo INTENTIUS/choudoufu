@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hcldec"
@@ -270,6 +271,9 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		diags = diags.Append(provs.close(ctx))
 		return 1, false, diags
 	}
+	// GitHub issue #70's interim half: never fatal, so it rides alongside the
+	// subset check rather than gating on it. See [lint.CheckModuleProviders].
+	diags = diags.Append(lint.CheckModuleProviders(config))
 
 	// Resolution runs ahead of the providers being configured, as it always
 	// has, and is handed their schemas: a resource type the hand table has
@@ -353,10 +357,15 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	statelessView.Omissions(statelessOmissions(projResult))
 	statelessView.Unowned(statelessUnownedReport(projResult, estate))
 
+	// classified and foreignReq are kept in outer scope, past the section
+	// they were computed for: the lookalike guard below needs the same
+	// classification and the same request (for its region and endpoint) once
+	// the plan is in hand and it knows which addresses are actually about to
+	// be created.
 	var classified *foreign.Result
+	var foreignReq foreign.Request
 	if disco != nil {
-		var foreignDiags tfdiags.Diagnostics
-		classified, foreignDiags = foreign.Classify(ctx, foreign.Request{
+		foreignReq = foreign.Request{
 			Estate:    disco.Estate,
 			Config:    config,
 			Discovery: disco,
@@ -374,12 +383,15 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 			// produces nothing in this section at all) requires.
 			Region:      provs.region(discoProvider),
 			EndpointURL: provs.endpointURL(discoProvider),
-		})
+		}
+		var foreignDiags tfdiags.Diagnostics
+		classified, foreignDiags = foreign.Classify(ctx, foreignReq)
 		diags = diags.Append(foreignDiags)
 		if foreignDiags.HasErrors() {
 			return 1, false, diags
 		}
 		statelessView.Foreign(statelessForeignReport(classified))
+		statelessView.GuidedFallback(disco.GuidedFallback)
 	}
 
 	rawVariables, varDiags := c.collectVariableValues()
@@ -437,6 +449,18 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	diags = diags.Append(planDiags)
 	if plan == nil {
 		return 1, false, diags
+	}
+
+	// The lookalike guard: now that the plan is in hand, ask which of its
+	// creates might be duplicating a live resource this estate does not own
+	// - most often because a resource's tofu-estate and tofu-address tags
+	// were stripped out of band, off a server-assigned type no marker means
+	// no other way to find. It reuses the classification computed above
+	// rather than sweeping a second time, and it never touches the plan: a
+	// create beside a genuine lookalike is still a create, and this only
+	// makes sure the warning sits right above it.
+	if classified != nil {
+		statelessView.Lookalikes(statelessLookalikeReport(foreign.Lookalikes(foreignReq, classified, statelessPlannedCreates(plan))))
 	}
 
 	view.Operation().Plan(plan, schemas)
@@ -597,7 +621,7 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 		))
 	}
 
-	res, discoDiags := discovery.Discover(ctx, discovery.Request{
+	req := discovery.Request{
 		Estate:           estate,
 		Config:           config,
 		Resolutions:      resolutions,
@@ -607,9 +631,103 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 		Sweep:            true,
 		Policy:           pol,
 		ScopeProvider:    scopeProvider,
-	})
+	}
+	statelessApplyGuidedDiscovery(config, &req)
+
+	res, discoDiags := discovery.Discover(ctx, req)
 	diags = diags.Append(discoDiags)
 	return res, diags
+}
+
+// guidedDiscoveryDisableEnvVar opts every estate this process plans or
+// applies out of the default-on snapshot-guided discovery
+// [statelessApplyGuidedDiscovery] turns on, forcing today's full sweep
+// regardless of what the "live" block configures. Set it to any non-empty
+// value.
+//
+// The name and shape follow this fork's existing convention for a
+// default-on behavior with an environment-variable escape hatch -
+// TF_DISABLE_PLUGIN_TLS in meta_providers.go is the precedent - rather than
+// a new "live" block attribute: turning guided discovery off is an
+// operational lever for a run that is misbehaving, not a decision a team
+// checks in and reviews the way estate, snapshot_path and snapshots are, so
+// it does not belong beside them in configuration.
+const guidedDiscoveryDisableEnvVar = "TOFU_DISABLE_GUIDED_DISCOVERY"
+
+// defaultAutoGuidedMaxAge is the GuidedMaxAge [statelessApplyGuidedDiscovery]
+// sets when it turns guided discovery on automatically: a snapshot hint has
+// up to a week to keep narrowing the estate-wide sweep before it is treated
+// as though it were never written at all, and discovery falls all the way
+// back to full enumeration (see [discovery.Result.GuidedFallback]). A week
+// is deliberately generous compared to [defaultGuidedMaxAge] in
+// internal/live/discovery/guided.go (24h, the fallback for a direct API
+// caller that sets Request.Guided with no GuidedMaxAge of its own): an
+// operator who explicitly turned a snapshot on already made the choice to
+// pay for it, and defaultAutoGuidedVerifyAge below is what keeps a week-old
+// hint from also meaning "drift can hide for a week" - the freshness ceiling
+// here only decides when a hint is too old to be worth reading at all.
+const defaultAutoGuidedMaxAge = 7 * 24 * time.Hour
+
+// defaultAutoGuidedVerifyAge is the GuidedVerifyAge
+// [statelessApplyGuidedDiscovery] sets: a hint that is still trusted (younger
+// than defaultAutoGuidedMaxAge) but has gone a full day without a fresh sweep
+// runs this pass as a full, verifying sweep anyway, exactly as
+// Request.GuidedVerify would. This is the policy's own safety valve - a
+// standing orphan of a hinted type can surface no later than a day after it
+// appears, under these defaults, no matter how generous defaultAutoGuidedMaxAge
+// is about trusting the hint for narrowing.
+const defaultAutoGuidedVerifyAge = 24 * time.Hour
+
+// statelessApplyGuidedDiscovery is issue #64's default-on policy: it turns
+// req.Guided on, with req.SnapshotPath, req.SnapshotBranchDir,
+// req.GuidedMaxAge and req.GuidedVerifyAge populated from the configuration's
+// own snapshot destination, whenever all of the following hold -
+//
+//   - the configuration's "live" block turns on an observational snapshot at
+//     all (snapshot_path, snapshots = true, or both - see [configs.Live]);
+//   - guidedDiscoveryDisableEnvVar is not set to a non-empty value.
+//
+// Nothing here invents a hint source: a configuration that never turned a
+// snapshot on leaves req untouched, and discovery.Discover behaves exactly as
+// it always has for it (Request.Guided's own zero value is false). The
+// snapshot fields it does populate are read from the same [configs.Live]
+// settings [statelessBegin] and [statelessRunner.PriorState] already read to
+// decide whether to write a snapshot in the first place (see live_mode.go),
+// so a run that writes a snapshot and a run that reads one back as a guided
+// hint always agree on where it lives - the branch carrier first when
+// "snapshots" is set, the file carrier as its fallback or on its own when
+// only "snapshot_path" is set, the same priority
+// [projection.Manager.writeSnapshotCarriers] gives the write side.
+//
+// See internal/live/discovery/guided.go's file doc comment for the full
+// policy statement from the discovery package's own side, including why its
+// defaults (defaultGuidedMaxAge, and no automatic GuidedVerifyAge at all) stay
+// unchanged for a direct caller of Discover.
+func statelessApplyGuidedDiscovery(config *configs.Config, req *discovery.Request) {
+	if os.Getenv(guidedDiscoveryDisableEnvVar) != "" {
+		return
+	}
+	if config == nil || config.Module == nil || config.Module.Live == nil {
+		return
+	}
+	settings := config.Module.Live
+	if settings.SnapshotPath == "" && !settings.Snapshots {
+		// No snapshot destination configured at all: there is no hint to
+		// guide anything, and today's full enumeration is exactly right.
+		return
+	}
+
+	req.Guided = true
+	req.SnapshotPath = settings.SnapshotPath
+	if settings.Snapshots {
+		// "." is the module directory every command in this package already
+		// loads configuration from, the same directory [statelessBegin]
+		// passes to [projection.Manager.EnableSnapshotBranch] for the write
+		// side.
+		req.SnapshotBranchDir = "."
+	}
+	req.GuidedMaxAge = defaultAutoGuidedMaxAge
+	req.GuidedVerifyAge = defaultAutoGuidedVerifyAge
 }
 
 // statelessEstateName establishes which estate this run is about.
@@ -1140,6 +1258,55 @@ func statelessForeignReport(res *foreign.Result) views.StatelessForeign {
 		})
 	}
 	return rep
+}
+
+// statelessPlannedCreates is every address the plan actually proposes to
+// create, in the order [plans.Changes.Resources] carries them - the input
+// the lookalike guard needs, since it warns about the plan's own actions
+// rather than about what discovery merely left unbound. A replace (however
+// it is spelled: [plans.Replace], [plans.DeleteThenCreate],
+// [plans.CreateThenDelete], [plans.ForgetThenCreate]) is deliberately
+// excluded: the address already has a prior-state entry, so there is no
+// question of it duplicating a live resource nobody owns.
+func statelessPlannedCreates(plan *plans.Plan) []addrs.AbsResourceInstance {
+	if plan == nil || plan.Changes == nil {
+		return nil
+	}
+	var out []addrs.AbsResourceInstance
+	for _, rc := range plan.Changes.Resources {
+		if rc.Action == plans.Create {
+			out = append(out, rc.Addr)
+		}
+	}
+	return out
+}
+
+// statelessLookalikeReport converts the lookalike guard's findings into the
+// view's wire format, the same split [statelessForeignReport] and
+// [statelessUnownedReport] keep: data across the package boundary, never
+// rendered text.
+func statelessLookalikeReport(warnings []foreign.Lookalike) []views.StatelessLookalike {
+	if len(warnings) == 0 {
+		return nil
+	}
+	out := make([]views.StatelessLookalike, 0, len(warnings))
+	for _, w := range warnings {
+		matched := make([]views.StatelessTag, 0, len(w.Matched))
+		for _, m := range w.Matched {
+			matched = append(matched, views.StatelessTag{Key: m.Attr, Value: m.Value})
+		}
+		out = append(out, views.StatelessLookalike{
+			Addr:          w.Addr.String(),
+			TypeName:      w.TypeName,
+			LiveID:        w.LiveID,
+			DisplayName:   w.DisplayName,
+			Matched:       matched,
+			MarkerEstate:  w.MarkerEstate,
+			MarkerAddress: w.MarkerAddress,
+			Hint:          w.Hint,
+		})
+	}
+	return out
 }
 
 func statelessTags(tags []foreign.Tag) []views.StatelessTag {
