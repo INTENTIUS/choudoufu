@@ -59,6 +59,57 @@ func TestStatelessMode_plainPlan(t *testing.T) {
 	assertNoStateArtifacts(t, td)
 }
 
+// TestStatelessMode_planVerboseSweepGaps: the getting-started tutorial's
+// entry point is plain "choudoufu plan"/"apply" against a live block, not
+// "choudoufu live-plan" - GitHub issue #78 was filed after walking exactly
+// that path on a fresh two-resource estate and hitting a "Not swept for
+// removal" list hundreds of types deep. -verbose is a view-level flag
+// (internal/command/arguments/view.go), not one of live-plan's own, for
+// exactly this reason: it has to reach this alias too, or the fix would miss
+// the path the bug was actually found on.
+func TestStatelessMode_planVerboseSweepGaps(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-block"), td)
+	t.Chdir(td)
+
+	cloud := liveBlockCloud()
+	c, done := newLiveBlockPlanCommand(t, cloud)
+
+	code := c.Run([]string{"-no-color"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+	stdout := output.Stdout()
+
+	if !strings.Contains(stdout, "Not swept for removal") {
+		t.Errorf("the plain plan does not report the sweep gaps:\n%s", stdout)
+	}
+	if strings.Contains(stdout, "[TYPE_NOT_LISTABLE]") {
+		t.Errorf("the plain plan renders the full type-by-type breakdown without -verbose:\n%s", stdout)
+	}
+	if !strings.Contains(stdout, "Rerun with -verbose") {
+		t.Errorf("the plain plan's summary line does not point at -verbose:\n%s", stdout)
+	}
+
+	cloud2 := liveBlockCloud()
+	c2, done2 := newLiveBlockPlanCommand(t, cloud2)
+
+	code2 := c2.Run([]string{"-no-color", "-verbose"})
+	output2 := done2(t)
+	if code2 != 0 {
+		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code2, output2.Stdout(), output2.Stderr())
+	}
+	stdout2 := output2.Stdout()
+
+	if !strings.Contains(stdout2, "[TYPE_NOT_LISTABLE]") {
+		t.Errorf("plain \"plan -verbose\" does not render the full type-by-type breakdown:\n%s", stdout2)
+	}
+	if !strings.Contains(stdout2, "aws_xray_sampling_rule") {
+		t.Errorf("plain \"plan -verbose\" does not name the gap types:\n%s", stdout2)
+	}
+}
+
 // TestStatelessMode_planParity: the plan a live block produces is the
 // plan "choudoufu live-plan -estate=..." produces for the same estate. The
 // two fixtures differ only by the block, so any difference in the rendered

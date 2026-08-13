@@ -36,6 +36,7 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 	defer closer()
 
 	c.View.SetShowSensitive(args.ShowSensitive)
+	c.View.SetVerbose(args.Verbose)
 
 	// Instantiate the view, even if there are flag errors, so that we render
 	// diagnostics according to the desired view
@@ -308,6 +309,11 @@ Other Options:
   -no-color                    Disable virtual terminal escape sequences.
 
   -concise                     Disable progress-related messages.
+
+  -verbose                     Print detail some commands summarize by
+                               default. Under live resource markers, prints
+                               every type the removal sweep could not cover
+                               by name instead of a one-line count.
 
   -out=path                    Write a plan file to the given path. This can be
                                used as input to the "apply" command.

@@ -591,13 +591,32 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 			len(rep.SweepGaps), noun(len(rep.SweepGaps), "type", "types"))
 		wrapped(statelessSweepGapIntro, 0)
 		out("\n")
+		// A list call that failed is this run's own news and is never
+		// collapsed: it is itemized above regardless of -verbose. The
+		// standing-fact groups below - a provider version's fixed inability
+		// to list or tag a type, true of every run against it - are what
+		// makes a fresh estate's first plan "337 types deep" (GitHub issue
+		// #78), so those are the ones a summary line stands in for by
+		// default.
 		for _, g := range itemized {
 			colored("  [bold]%s[reset] [%s]\n", g.TypeName, g.Reason)
 			wrapped(g.Detail, 6)
 		}
-		for _, reason := range order {
-			colored("  [bold]%s[reset] [%s]\n", strings.Join(byReason[reason], ", "), reason)
-			wrapped(statelessSweepGapReasons[reason], 6)
+		switch {
+		case v.view.verbose:
+			for _, reason := range order {
+				colored("  [bold]%s[reset] [%s]\n", strings.Join(byReason[reason], ", "), reason)
+				wrapped(statelessSweepGapReasons[reason], 6)
+			}
+		case len(order) > 0:
+			var collapsed int
+			for _, reason := range order {
+				collapsed += len(byReason[reason])
+			}
+			wrapped(fmt.Sprintf(
+				"%d of them are %s: standing facts about what this provider version can list and tag, true of every run against it and not something this run discovered, so they are named here by count instead of one at a time. Rerun with -verbose to print every type by name, or see live/LIMITATIONS.md, \"Removal coverage is the admission table\", for the same list.",
+				collapsed, strings.Join(order, " or "),
+			), 0)
 		}
 	}
 

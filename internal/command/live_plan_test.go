@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -429,9 +430,22 @@ func TestLivePlan_undeclaredIsDestroyed(t *testing.T) {
 	}
 }
 
+// sweepGapHeadingCount pulls the "Not swept for removal" heading's own type
+// count back out of rendered output, so a test can check the summary
+// sentence's count agrees with it instead of hard-coding the admission
+// table's current size (which grows as later ratification batches land).
+var sweepGapHeadingCount = regexp.MustCompile(`Not swept for removal: (\d+) resource`)
+
 // TestLivePlan_sweepGapsAreReported: a type the sweep could not
 // enumerate is named, because "nothing undeclared was found" is only
-// meaningful beside the list of types that were searched.
+// meaningful beside the list of types that were searched. By default the
+// standing-fact groups - a provider version's fixed inability to list or tag
+// a type, true of every run against it - collapse to a one-line summary
+// naming the count and where the full list lives, rather than printing
+// hundreds of type names on a fresh estate's first plan (GitHub issue #78,
+// "First plan drowns a small estate in the not-swept type list"). The
+// heading's own count is never hidden or softened, and -verbose still
+// prints every type (see TestLivePlan_sweepGapsVerboseListsEveryType).
 func TestLivePlan_sweepGapsAreReported(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-plan"), td)
@@ -457,17 +471,81 @@ func TestLivePlan_sweepGapsAreReported(t *testing.T) {
 	}
 	stdout := output.Stdout()
 
-	if !strings.Contains(stdout, "Not swept for removal") {
-		t.Errorf("the plan does not report the types the sweep could not cover:\n%s", stdout)
+	m := sweepGapHeadingCount.FindStringSubmatch(stdout)
+	if m == nil {
+		t.Fatalf("no \"Not swept for removal\" heading with a count:\n%s", stdout)
 	}
-	// The mock provider lists three types and no more, so every other
-	// admitted type is a gap - reported as one group rather than as a
-	// paragraph each.
-	if !strings.Contains(stdout, "TYPE_NOT_LISTABLE") {
-		t.Errorf("the unlistable types are not named:\n%s", stdout)
+	total := m[1]
+
+	// The mock provider lists one type (aws_vpc) and no more, so every
+	// other admitted type is a standing-fact gap: nothing here is a list
+	// call that failed during this run, so the whole heading count is what
+	// the summary sentence should carry.
+	if !strings.Contains(stdout, fmt.Sprintf("%s of them are TYPE_NOT_LISTABLE", total)) {
+		t.Errorf("the summary line does not carry the heading's own count (%s):\n%s", total, stdout)
+	}
+	if !strings.Contains(stdout, "Rerun with -verbose to print every type by name") {
+		t.Errorf("the summary line does not point at -verbose for the full list:\n%s", stdout)
+	}
+	if !strings.Contains(stdout, "live/LIMITATIONS.md") || !strings.Contains(stdout, "Removal coverage is the admission table") {
+		t.Errorf("the summary line does not point at LIMITATIONS.md:\n%s", stdout)
+	}
+	// The full breakdown - one bracketed reason line per type, and the type
+	// names themselves - must not render without -verbose. aws_xray_sampling_rule
+	// is the alphabetically last admitted type in live/LIMITATIONS.md's
+	// contract table, so its absence here (and presence in the -verbose
+	// test below) pins the boundary precisely rather than by inference.
+	if strings.Contains(stdout, "[TYPE_NOT_LISTABLE]") {
+		t.Errorf("the full type-by-type breakdown rendered without -verbose:\n%s", stdout)
+	}
+	if strings.Contains(stdout, "aws_xray_sampling_rule") {
+		t.Errorf("a specific gap type is named without -verbose:\n%s", stdout)
 	}
 	if strings.Contains(stdout, "Owned and undeclared") {
 		t.Errorf("a removal was reported with nothing undeclared:\n%s", stdout)
+	}
+}
+
+// TestLivePlan_sweepGapsVerboseListsEveryType is -verbose's own claim: the
+// full type-by-type breakdown TestLivePlan_sweepGapsAreReported found
+// collapsed by default is still there on request, in the same form it
+// always rendered in before GitHub issue #78.
+func TestLivePlan_sweepGapsVerboseListsEveryType(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-plan"), td)
+	t.Chdir(td)
+
+	cloud := newStatelessTestCloud()
+	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	})
+	cloud.putMarked("aws_vpc", "vpc-owned", "stateless-unit", "aws_vpc.main", map[string]string{
+		"id": "vpc-owned", "cidr_block": "10.42.0.0/16",
+	})
+	cloud.list("aws_vpc", "vpc-owned", "the estate's own VPC",
+		map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_vpc.main"},
+		map[string]string{"cidr_block": "10.42.0.0/16"})
+
+	c, done := newLivePlanCommand(t, cloud)
+
+	code := c.Run([]string{"-no-color", "-verbose", "-estate=stateless-unit"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+	stdout := output.Stdout()
+
+	if !strings.Contains(stdout, "Not swept for removal") {
+		t.Errorf("the plan does not report the types the sweep could not cover:\n%s", stdout)
+	}
+	if !strings.Contains(stdout, "[TYPE_NOT_LISTABLE]") {
+		t.Errorf("-verbose does not print the reason each gap type carries:\n%s", stdout)
+	}
+	if !strings.Contains(stdout, "aws_xray_sampling_rule") {
+		t.Errorf("-verbose does not print the standing-fact gap types by name:\n%s", stdout)
+	}
+	if strings.Contains(stdout, "Rerun with -verbose") {
+		t.Errorf("verbose output should not also point at -verbose for more detail:\n%s", stdout)
 	}
 }
 

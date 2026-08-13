@@ -49,6 +49,7 @@ func (c *ApplyCommand) Run(rawArgs []string) int {
 	defer closer()
 
 	c.View.SetShowSensitive(args.ShowSensitive)
+	c.View.SetVerbose(args.Verbose)
 
 	// Instantiate the view, even if there are flag errors, so that we render
 	// diagnostics according to the desired view
@@ -379,6 +380,11 @@ Options:
   -no-color                    If specified, output won't contain any color.
 
   -concise                     Disables progress-related messages in the output.
+
+  -verbose                     Print detail some commands summarize by
+                               default. Under live resource markers, prints
+                               every type the removal sweep could not cover
+                               by name instead of a one-line count.
 
   -parallelism=n               Limit the number of parallel resource operations.
                                Defaults to 10.
