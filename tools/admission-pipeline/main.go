@@ -19,13 +19,20 @@
 //	REGENERATE  runs survey-gen, registry-gen, mapping-gen, importdocs-gen
 //	            and row-gen in dependency order, then survey-gen -render
 //	            (-skip-regenerate).
+//	PROPOSE     issue #65's endgame stage: `go run ./tools/row-gen -propose`
+//	            over the artifacts REGENERATE just wrote, which prints
+//	            ready-to-paste admission entries only for the logical types
+//	            whose classification rule has a spotless, large-enough
+//	            historical adoption record - see tools/row-gen/propose.go's
+//	            own doc comment for the exact bar and the spot-check
+//	            contract a human approving them is trusting (-skip-propose).
 //	VERIFY      `go build ./...` and the fast test tiers; a nonzero exit
 //	            from either fails the run (-skip-verify).
 //	REPORT      a generated markdown summary - pin states, artifact count
-//	            deltas, row-gen's proposal counts, mapping-gen's former2
-//	            contradictions and unclassifiable count - written under
-//	            tmp/admission-pipeline/ (gitignored) and printed
-//	            (-skip-report).
+//	            deltas, row-gen's proposal counts, PROPOSE's rule-class
+//	            ledger, mapping-gen's former2 contradictions and
+//	            unclassifiable count - written under tmp/admission-pipeline/
+//	            (gitignored) and printed (-skip-report).
 //
 // Every *-gen tool this orchestrates is its own package main, so none of
 // them is importable as a library; each stage shells out to `go run
@@ -36,10 +43,10 @@
 //
 // Usage, from anywhere in the checkout:
 //
-//	go run ./tools/admission-pipeline                # detect; regenerate+verify+report only on drift
+//	go run ./tools/admission-pipeline                # detect; regenerate+propose+verify+report only on drift
 //	go run ./tools/admission-pipeline -force          # regenerate even with no drift
 //	go run ./tools/admission-pipeline -pr             # ... and open a PR when there's something to review
-//	go run ./tools/admission-pipeline -skip-verify -skip-report  # fast local DETECT+REGENERATE loop
+//	go run ./tools/admission-pipeline -skip-verify -skip-report  # fast local DETECT+REGENERATE+PROPOSE loop
 package main
 
 import (
@@ -67,6 +74,7 @@ func repoRoot() (string, error) {
 func main() {
 	skipDetect := flag.Bool("skip-detect", false, "skip DETECT and proceed straight to REGENERATE (implies drift, same as -force)")
 	skipRegenerate := flag.Bool("skip-regenerate", false, "skip REGENERATE (a DETECT-only, or DETECT+VERIFY, run)")
+	skipPropose := flag.Bool("skip-propose", false, "skip PROPOSE (issue #65's high-confidence auto-admission proposals); never runs if REGENERATE is skipped")
 	skipVerify := flag.Bool("skip-verify", false, "skip VERIFY (go build/go test)")
 	skipReport := flag.Bool("skip-report", false, "skip REPORT (no markdown summary written)")
 	force := flag.Bool("force", false, "REGENERATE even when DETECT finds no drift")
@@ -75,13 +83,13 @@ func main() {
 	remote := flag.String("remote", "origin", "git remote -pr pushes the branch to")
 	flag.Parse()
 
-	if err := run(*skipDetect, *skipRegenerate, *skipVerify, *skipReport, *force, *accept, *prMode, *remote); err != nil {
+	if err := run(*skipDetect, *skipRegenerate, *skipPropose, *skipVerify, *skipReport, *force, *accept, *prMode, *remote); err != nil {
 		fmt.Fprintf(os.Stderr, "admission-pipeline: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(skipDetect, skipRegenerate, skipVerify, skipReport, force, accept, prMode bool, remote string) error {
+func run(skipDetect, skipRegenerate, skipPropose, skipVerify, skipReport, force, accept, prMode bool, remote string) error {
 	root, err := repoRoot()
 	if err != nil {
 		return err
@@ -127,6 +135,18 @@ func run(skipDetect, skipRegenerate, skipVerify, skipReport, force, accept, prMo
 		}
 	}
 
+	// PROPOSE reads whatever REGENERATE just wrote to live/*.json, so it
+	// only makes sense to run in the same pass as REGENERATE - a
+	// -skip-regenerate loop (DETECT-only, or DETECT+VERIFY against
+	// artifacts unrelated to this run) has nothing fresh for it to read.
+	var propose *ProposeResult
+	if !skipRegenerate && !skipPropose {
+		propose, err = Propose(root, log)
+		if err != nil {
+			return fmt.Errorf("PROPOSE: %w", err)
+		}
+	}
+
 	if !skipVerify {
 		if err := Verify(root, log); err != nil {
 			return fmt.Errorf("VERIFY: %w", err)
@@ -135,7 +155,7 @@ func run(skipDetect, skipRegenerate, skipVerify, skipReport, force, accept, prMo
 
 	var reportPath string
 	if !skipReport {
-		reportPath, err = WriteReport(root, drift, regen, log)
+		reportPath, err = WriteReport(root, drift, regen, propose, log)
 		if err != nil {
 			return fmt.Errorf("REPORT: %w", err)
 		}

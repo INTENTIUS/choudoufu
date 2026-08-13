@@ -74,3 +74,28 @@ func TestSmokeRegenerateAndVerify(t *testing.T) {
 		t.Fatalf("Verify after Regenerate: %v", err)
 	}
 }
+
+// TestSmokePropose runs PROPOSE (issue #65) as a subprocess against the real
+// checkout, the same call the pipeline's own run() makes right after
+// REGENERATE. Shares TestSmokeRegenerateAndVerify's dirty-tree guard and
+// network/runtime cost, so it is gated the same way.
+func TestSmokePropose(t *testing.T) {
+	root := smokeOrSkip(t)
+
+	if dirty, err := gitDirty(root); err != nil {
+		t.Fatalf("gitDirty: %v", err)
+	} else if dirty {
+		t.Fatal("refusing to run TestSmokePropose against a dirty working tree")
+	}
+
+	propose, err := Propose(root, io.Discard)
+	if err != nil {
+		t.Fatalf("Propose: %v", err)
+	}
+	if propose.Path == "" {
+		t.Error("Propose did not record a captured report path")
+	}
+	if propose.Summary == "" {
+		t.Error("Propose did not capture a summary line")
+	}
+}

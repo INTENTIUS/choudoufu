@@ -41,6 +41,59 @@ fixture, test). This is real generated coverage; it has not been stamped
 through the human gate yet, by design. Nothing here ships without a
 fixture and a test.
 
+## PROPOSE: automatic high-confidence proposals (issue #65)
+
+The weekly admission-pipeline PR (`.github/workflows/admission-pipeline.yml`,
+`tools/admission-pipeline`) carries a PROPOSE stage on top of the ordinary
+generate-and-batch flow above: `go run ./tools/row-gen -propose` prints
+ready-to-paste `admittedTypesV0` and `DefaultTable` entries for logical
+types whose classification rule has never once needed a human correction.
+
+A rule class - a bucket (server-assigned, client-named or composite) plus
+the exact evidence rule that produced it - qualifies only when both hold:
+
+- Every one of its historical instances, re-run today against
+  `internal/live/identity.DefaultTable`, reproduces byte-for-byte what a
+  human independently ratified (a 100% match), over at least five instances
+  - large enough that the streak is not two coincidences. `live/rowgen-
+  convergence.json`'s own `types[]` is where that comparison already lives;
+  PROPOSE only regroups it by rule instead of by admitted type.
+- No member of that rule class is named in a "Rejected" note anywhere in
+  `table.go` or `admission.go` - a second, independent, deliberately
+  over-inclusive check, because a rejected type is invisible to the first
+  measurement (it was never admitted, so it never enters that comparison at
+  all).
+
+As of this stage landing, no rule class clears that bar yet: the largest,
+best-behaved base rules run in the high 80s to high 90s percent, not 100 -
+real correction rates a hand batch has been absorbing invisibly, not zero.
+PROPOSE's own printed report carries the full rule-class ledger every run,
+qualifying or not, so that state is never hidden - see `go run
+./tools/row-gen -propose`'s own output, or the `## PROPOSE` section of any
+admission-pipeline PR.
+
+**The spot-check contract.** Approving a PROPOSE-emitted entry is not
+re-deriving the classification. It is, per proposed type:
+
+1. Opening the provider's own documentation for the type (the Import
+   section, or the Identity Schema block where the entry says so) and
+   confirming the pasted argument or attribute is what that section
+   documents.
+2. Confirming the type mints or exports no credential material (the
+   standing exclusion `aws_iam_access_key` and `aws_iot_certificate` are
+   held to).
+3. Pasting the two printed blocks unedited.
+4. Building the cohort estate, running the suites, and getting a floci
+   probe before merging - the same as any hand-ratified batch. PROPOSE
+   shortens the classification decision, not the verification that always
+   follows one.
+
+What is being trusted: that a classification rule with a spotless record
+over its past instances will also be right on the next one. That is an
+inductive claim about the rule, evidenced by a stated count, not a proof
+about the specific type - and PROPOSE never claims floci or live-account
+proof for anything it emits.
+
 ## Behind small, known hand-work: 240 types
 
 - 114 composite types each need a one-character import separator chosen.
