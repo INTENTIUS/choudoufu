@@ -655,6 +655,13 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 	}
 
 	var sawAccountID, sawIdentity bool
+	// sweepUntaggedReported keeps a per-object gap during a sweep from
+	// becoming a SweepGap-per-instance pile-up: the type is what has no
+	// coverage, not each individual malformed object of it, so this loop
+	// files at most one gap for it, the same "once per type" shape every
+	// other SweepGap in this function already has (each of those returns
+	// before this loop even starts).
+	sweepUntaggedReported := false
 	for _, r := range results {
 		if acct, ok := r.IdentityAttr("account_id"); ok {
 			sawIdentity = true
@@ -668,6 +675,34 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 
 		tags, taggable := markers.TagsOf(r.Resource)
 		if !taggable {
+			if sweep {
+				// The runtime twin of the schema-level check above
+				// (SweepGapNotTaggable, "a %s carries no tags"): here the
+				// type's schema DOES declare a tags attribute, but this
+				// particular listed object came back without one anyway -
+				// a provider or emulator quirk on the object, not a fact
+				// about the type. Either way a sweep is looking for THIS
+				// estate's markers among an admitted type the configuration
+				// never declares, and an unreadable object there is a hole
+				// in removal coverage, not a reason to fail every plan this
+				// estate ever runs - the same reasoning SweepGapListFailed
+				// already gives a few lines above for "the provider failed
+				// while listing". Never taken for a DECLARED type's own
+				// scan: an estate that actually declares this type and
+				// cannot read its own resource's markers still hard-fails
+				// below, unchanged.
+				if !sweepUntaggedReported {
+					sweepUntaggedReported = true
+					diags = diags.Append(sweepGapDiag(res, SweepGap{
+						TypeName: typeName,
+						Reason:   SweepGapNotTaggable,
+						Detail: fmt.Sprintf(
+							"A live %s came back from the provider with no tags attribute, so this sweep cannot tell whether it (or any other unreadable instance of the type) belongs to this estate. Destroy a resource of this type before removing its block, or delete it out of band.",
+							typeName),
+					}))
+				}
+				continue
+			}
 			diags = diags.Append(problemDiag(res, Problem{
 				Kind:     ProblemNoTags,
 				TypeName: typeName,
