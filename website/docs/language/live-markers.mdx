@@ -805,7 +805,13 @@ outcomes at all. They are named below.
   determined at runtime from each type's provider schema, not a fixed list
   (`markerCapable`, `internal/live/discovery/discovery.go:784-789`).
   The plan names these types under "Not swept for removal" every time, so
-  this is never discovered after the fact. A live resource carrying this
+  this is never discovered after the fact - the count is always there, and it
+  is never softened. What changed (GitHub issue #78) is how much of the list
+  prints by default: a type a provider version simply cannot list or tag is a
+  standing fact, true of every run against it and not news about this one, so
+  those are named by count rather than one at a time unless you pass
+  `-verbose`. A list call that actually failed during this run is still
+  itemized every time, verbose or not. A live resource carrying this
   estate's markers at a type outside the admission table above is invisible
   to the estate-wide removal sweep the same way. The markers are the
   contract, the admission table is what the contract is defined over, and a

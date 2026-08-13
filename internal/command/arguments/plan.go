@@ -35,6 +35,19 @@ type Plan struct {
 
 	// ShowSensitive is used to display the value of variables marked as sensitive.
 	ShowSensitive bool
+
+	// Verbose asks a command to print detail it would otherwise summarize.
+	// Live resource markers is the first consumer: the "Not swept for
+	// removal" section's full type-by-type breakdown, collapsed to a
+	// one-line count by default (GitHub issue #78, "First plan drowns a
+	// small estate in the not-swept type list"). It lives on Plan itself,
+	// not behind the [parsePlan] extraFlags hook the way -estate is (see
+	// that hook's own comment), because -verbose does nothing to a stock
+	// plan rather than naming a stateless-only concept, and because it also
+	// needs to reach "choudoufu apply" against a live block
+	// (arguments.Apply.Verbose), where -estate has no equivalent need
+	// (arguments.Apply has none either).
+	Verbose bool
 }
 
 // ParsePlan processes CLI arguments, returning a Plan value, a closer function, and errors.
@@ -66,6 +79,7 @@ func parsePlan(args []string, extraFlags func(*flag.FlagSet)) (*Plan, func(), tf
 	cmdFlags.StringVar(&plan.OutPath, "out", "", "out")
 	cmdFlags.StringVar(&plan.GenerateConfigPath, "generate-config-out", "", "generate-config-out")
 	cmdFlags.BoolVar(&plan.ShowSensitive, "show-sensitive", false, "displays sensitive values")
+	cmdFlags.BoolVar(&plan.Verbose, "verbose", false, "verbose")
 
 	plan.ViewOptions.AddFlags(cmdFlags, true)
 

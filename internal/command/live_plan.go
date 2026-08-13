@@ -139,6 +139,7 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 	estateFlag := args.Estate
 
 	c.View.SetShowSensitive(args.ShowSensitive)
+	c.View.SetVerbose(args.Verbose)
 
 	view := views.NewPlan(args.ViewOptions, c.View)
 
@@ -1783,7 +1784,10 @@ Usage: choudoufu [global options] live-plan [options]
   carrying no ownership marker, the ones that exactly match a resource this
   configuration declares and could be adopted, and which resource types were
   swept at all. Nothing unowned is ever part of the plan, and no plan this
-  command produces can destroy any of it.
+  command produces can destroy any of it. The types a provider version simply
+  cannot list or tag are a standing fact rather than run-specific news, so
+  "Not swept for removal" names only the count by default; pass -verbose for
+  every type by name.
 
   The same section pairs a changed for_each key with the live resource still
   marked with the old one: the plan proposes creating the new key either way,
@@ -1840,6 +1844,10 @@ Options:
   -input=true             Ask for input for variables if not directly set.
 
   -no-color               If specified, output won't contain any color.
+
+  -verbose                Print every type the removal sweep could not cover
+                          by name, rather than the default one-line count.
+                          See "Not swept for removal" above the plan.
 
   -parallelism=n          Limit the number of concurrent operations. Defaults
                           to 10.

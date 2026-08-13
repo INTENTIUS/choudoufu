@@ -39,6 +39,22 @@ type View struct {
 	// only the important details.
 	concise bool
 
+	// verbose is Concise's opposite: a command that summarizes something by
+	// default may print the full detail instead when this is set. Unlike
+	// Concise it is not parsed by [arguments.ParseView] - "-verbose" already
+	// names an unrelated per-command flag on "choudoufu test" and "choudoufu
+	// graph" (arguments/test.go, arguments/graph.go), each on its own flag
+	// set, and ParseView's early pass runs ahead of every command's own flag
+	// set and would swallow the flag before either one saw it. It is set via
+	// [View.SetVerbose] instead, the same way [View.SetShowSensitive] is,
+	// from -verbose on "choudoufu plan"'s and "choudoufu apply"'s own flag
+	// sets (arguments.Plan.Verbose, arguments.Apply.Verbose) - which
+	// "choudoufu live-plan" inherits by embedding Plan, and a plain
+	// "choudoufu plan"/"apply" against a live block
+	// (internal/command/live_mode.go's alias) inherits by being the same
+	// command.
+	verbose bool
+
 	// ModuleDeprecationWarnLvl is used to filter out deprecation warnings for outputs and variables as requested by the user.
 	ModuleDeprecationWarnLvl arguments.DeprecationWarningLevel
 
@@ -257,6 +273,13 @@ func (v *View) outputHorizRule() {
 
 func (v *View) SetShowSensitive(showSensitive bool) {
 	v.showSensitive = showSensitive
+}
+
+// SetVerbose sets the view's verbose flag. See the verbose field's own
+// comment for why this is a setter called from a command's own -verbose
+// flag rather than something [View.Configure] reads off [arguments.View].
+func (v *View) SetVerbose(verbose bool) {
+	v.verbose = verbose
 }
 
 // Colorize returns the [colorstring.Colorize] object within to be used in other places.

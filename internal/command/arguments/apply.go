@@ -34,6 +34,13 @@ type Apply struct {
 	// SuppressForgetErrorsDuringDestroy suppresses the error that occurs when a
 	// destroy operation completes successfully but leaves forgotten instances behind.
 	SuppressForgetErrorsDuringDestroy bool
+
+	// Verbose asks a command to print detail it would otherwise summarize.
+	// See [Plan.Verbose] for what it is for and why it lives on Apply
+	// directly rather than behind a shared, every-command flag: "-verbose"
+	// already names an unrelated flag on "choudoufu test" and "choudoufu
+	// graph" parsed ahead of a shared flag set's own turn.
+	Verbose bool
 }
 
 // ParseApply processes CLI arguments, returning an Apply value, a closer function, and errors.
@@ -51,6 +58,7 @@ func ParseApply(args []string) (*Apply, func(), tfdiags.Diagnostics) {
 	cmdFlags.BoolVar(&apply.AutoApprove, "auto-approve", false, "auto-approve")
 	cmdFlags.BoolVar(&apply.ShowSensitive, "show-sensitive", false, "displays sensitive values")
 	cmdFlags.BoolVar(&apply.SuppressForgetErrorsDuringDestroy, "suppress-forget-errors", false, "suppress errors in destroy mode due to resources being forgotten")
+	cmdFlags.BoolVar(&apply.Verbose, "verbose", false, "verbose")
 
 	apply.State.addFlags(cmdFlags, stateFlagAll)
 	apply.ViewOptions.AddFlags(cmdFlags, true)
