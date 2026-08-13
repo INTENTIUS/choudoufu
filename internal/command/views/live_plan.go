@@ -264,6 +264,18 @@ type StatelessPlan interface {
 	// Foreign reports the live resources the estate does not own: what was
 	// found, what could be adopted, and which types the sweep covered.
 	Foreign(rep StatelessForeign)
+
+	// GuidedFallback reports why a pass that had snapshot-guided discovery
+	// configured (issue #64) fell back to today's full sweep instead of
+	// using it - a stale, missing or unreadable snapshot hint, in one
+	// sentence from [discovery.Result.GuidedFallback]. reason is empty
+	// whenever guided discovery was never configured for this pass, or
+	// whenever it engaged successfully, and an empty reason renders
+	// nothing: this is informational only, never a warning that something
+	// is wrong with the plan itself, which the fallback's own safety
+	// argument (a stale or missing snapshot costs one full re-read, never a
+	// wrong plan) is what makes true.
+	GuidedFallback(reason string)
 }
 
 // NewStatelessPlan returns the human-readable implementation. There is no
@@ -309,6 +321,27 @@ func (v *StatelessPlanHuman) Omissions(oms []StatelessOmission) {
 			v.view.streams.Print("      " + line + "\n")
 		}
 	}
+
+	v.view.outputHorizRule()
+}
+
+// GuidedFallback renders the one-sentence reason a configured guided-discovery
+// pass fell back to a full sweep, as a small informational note rather than a
+// titled, itemized section like the ones around it: there is exactly one
+// sentence to say, about the run as a whole rather than about any particular
+// resource, so a heading-plus-intro-plus-list shape would be a lot of
+// scaffolding around one line.
+func (v *StatelessPlanHuman) GuidedFallback(reason string) {
+	if reason == "" {
+		return
+	}
+
+	cols := v.view.outputColumns()
+
+	v.view.streams.Print(v.view.colorize.Color(
+		"\n[reset][bold]Snapshot-guided discovery: fell back to a full sweep[reset]\n\n",
+	))
+	v.view.streams.Print(format.WordWrap(reason, cols) + "\n")
 
 	v.view.outputHorizRule()
 }

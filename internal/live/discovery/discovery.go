@@ -128,8 +128,12 @@ type Request struct {
 	// comment) as a cost HINT: which admitted types this estate has ever
 	// held, so the sweep's routine pass can skip re-listing a type with no
 	// evidence behind it instead of paying one List call per admitted type
-	// on every plan. Default off: a caller that never sets this gets
-	// exactly today's full enumeration, unchanged.
+	// on every plan. Default off in this package: a direct caller of
+	// [Discover] that never sets this gets exactly today's full
+	// enumeration, unchanged. The fork's own commands (internal/command's
+	// statelessDiscover) turn it on automatically instead of leaving it at
+	// the zero value - see the policy note in guided.go's file doc comment
+	// for exactly when, and with what defaults.
 	//
 	// The hint is never authority. A type absent from the hint is always
 	// swept in full, on every run - see guidedSweepUniverse - and any
@@ -179,6 +183,18 @@ type Request struct {
 	// 10th plan" or an explicit -verify flag) and sets this when that
 	// cadence says so. Ignored when Guided is false.
 	GuidedVerify bool
+
+	// GuidedVerifyAge is an age-based, automatic form of GuidedVerify: a
+	// hint younger than GuidedMaxAge (so still trusted enough to narrow the
+	// sweep) but older than this runs the pass as a full sweep anyway - same
+	// effect as GuidedVerify, but decided from the hint's own age rather
+	// than a caller-tracked cadence. Zero disables it, which leaves
+	// GuidedVerify as the only lever and matches every behavior this field
+	// did not exist to change. See internal/command's statelessDiscover for
+	// the default this fork's own commands set when they turn guided
+	// discovery on automatically - the "drift never hides longer than a
+	// day" half of that policy is this field, not GuidedMaxAge.
+	GuidedVerifyAge time.Duration
 }
 
 // Discover finds the live resources of an estate and binds them to the
