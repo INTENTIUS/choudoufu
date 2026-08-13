@@ -12,6 +12,8 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // remoteStateDataType is the data source that reads a state file. Its whole
@@ -37,19 +39,68 @@ const remoteStateDataType = "terraform_remote_state"
 // for_each expression's keys, which every other caller in the repo already
 // plumbs a real one into.
 func CheckContext(ctx context.Context, cfg *configs.Config) []Issue {
+	return CheckWith(ctx, cfg, Context{})
+}
+
+// Context is everything a caller may tell Check about the world outside the
+// configuration, mirroring [identity.Context]'s shape: lint's admission
+// question and identity resolution's are the same question, asked of the
+// same schemas, and a caller that has them for one already has them for the
+// other.
+type Context struct {
+	// Schemas are the provider's managed resource type schemas, keyed by
+	// type name, as GetProviderSchema returns them. A resource type absent
+	// from the v0 admission table passes lint anyway when the provider's
+	// own resource identity schema describes it completely enough - the
+	// same rule [identity.SynthesizeTypeIdentity] applies during
+	// resolution, applied here too so that a lint refusal and a resolution
+	// refusal never disagree about the same type. See [admitted].
+	//
+	// Nil is the default and means the v0 hand table is the whole of what
+	// lint knows, which is what [CheckContext] always passes and what
+	// every caller running before a provider has started passes.
+	Schemas map[string]providers.Schema
+}
+
+// CheckWith is [CheckContext] told the provider schemas the caller already
+// has, so that a resource type with no hand-written row in the v0 admission
+// table can still pass when the schemas describe it completely enough.
+//
+// Admission only ever grows when schemas are present, never shrinks: a
+// caller with none gets exactly [CheckContext]'s answer, over the same
+// fixtures, byte for byte.
+func CheckWith(ctx context.Context, cfg *configs.Config, lctx Context) []Issue {
 	if cfg == nil {
 		return nil
 	}
 
+	// The naming signal is collected once, over the whole configuration,
+	// for the same reason identity.Resolve collects it once before
+	// classification starts: the schema fallback's verdict for a type
+	// depends on what the whole configuration sets, not on how much of the
+	// walk below has reached it by the time the type is asked about. Left
+	// nil, and never computed, when there are no schemas to fall back to -
+	// SynthesizeTypeIdentity refuses immediately in that case and never
+	// consults it, and a signal computed for nothing would just be a
+	// static-evaluator walk this run does not need. Its own diagnostics are
+	// dropped for the same reason lint's for_each check drops evalStatic's:
+	// a configuration this pass cannot scan is not this pass's finding to
+	// report, and an admitted() call with a nil signal just declines the
+	// [identity.AdmitConfigSignal] path rather than failing.
+	var signal *identity.ConfigSignal
+	if len(lctx.Schemas) > 0 {
+		signal, _ = identity.ScanConfig(ctx, cfg)
+	}
+
 	var issues []Issue
-	checkConfig(ctx, cfg, &issues)
+	checkConfig(ctx, cfg, lctx.Schemas, signal, &issues)
 	sortIssues(issues)
 	return issues
 }
 
 // checkConfig appends the issues found in one node of the module tree and then
 // recurses into its children.
-func checkConfig(ctx context.Context, cfg *configs.Config, issues *[]Issue) {
+func checkConfig(ctx context.Context, cfg *configs.Config, schemas map[string]providers.Schema, signal *identity.ConfigSignal, issues *[]Issue) {
 	if cfg == nil || cfg.Module == nil {
 		return
 	}
@@ -60,7 +111,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, issues *[]Issue) {
 	checkStateBackends(mod, path, issues)
 	checkChildModules(mod, path, issues)
 	checkMovedBlocks(mod, path, issues)
-	checkManagedResources(mod, path, issues)
+	checkManagedResources(mod, path, schemas, signal, issues)
 	checkForEachKeys(ctx, mod, path, issues)
 	checkOverlongAddresses(ctx, mod, path, issues)
 	checkDataResources(mod, path, issues)
@@ -74,7 +125,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, issues *[]Issue) {
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		checkConfig(ctx, cfg.Children[name], issues)
+		checkConfig(ctx, cfg.Children[name], schemas, signal, issues)
 	}
 }
 
@@ -129,7 +180,7 @@ func checkMovedBlocks(mod *configs.Module, path addrs.Module, issues *[]Issue) {
 // checkManagedResources runs the rules that apply to resource blocks:
 // provisioners and their connection blocks, logical resource types, and the v0
 // admission table.
-func checkManagedResources(mod *configs.Module, path addrs.Module, issues *[]Issue) {
+func checkManagedResources(mod *configs.Module, path addrs.Module, schemas map[string]providers.Schema, signal *identity.ConfigSignal, issues *[]Issue) {
 	for _, resource := range mod.ManagedResources {
 		addr := resource.Addr().String()
 
@@ -160,21 +211,31 @@ func checkManagedResources(mod *configs.Module, path addrs.Module, issues *[]Iss
 			continue
 		}
 
-		if !admitted(resource.Type) {
+		if !admitted(resource.Type, schemas, signal) {
+			detail := fmt.Sprintf(
+				"resource type %q is not in the live-markers v0 admission table. A type "+
+					"participates only if its identity is recoverable from the live system "+
+					"with no memory, by one of the four admission paths: client-assigned "+
+					"identity, marker, parent-derived, or list plus content match. The v0 "+
+					"table is hardcoded in internal/live/lint/admission.go and grows "+
+					"with the provider survey and, later, provider identity schemas",
+				resource.Type,
+			)
+			// A caller with no schemas gets exactly the sentence above, byte
+			// for byte: SchemaRefusal returns "" when it has none to
+			// consult, the same silence identity.Resolve's own refusal
+			// gives. One only when schemas were offered and still refused
+			// the type, in the identity layer's own words, so a lint
+			// refusal and a resolution refusal never disagree about why.
+			if refusal := identity.SchemaRefusal(resource.Type, schemas, signal); refusal != "" {
+				detail += "." + refusal
+			}
 			*issues = append(*issues, Issue{
 				Rule:      RuleUnadmittedType,
 				Construct: addr,
 				Module:    path,
-				Detail: fmt.Sprintf(
-					"resource type %q is not in the live-markers v0 admission table. A type "+
-						"participates only if its identity is recoverable from the live system "+
-						"with no memory, by one of the four admission paths: client-assigned "+
-						"identity, marker, parent-derived, or list plus content match. The v0 "+
-						"table is hardcoded in internal/live/lint/admission.go and grows "+
-						"with the provider survey and, later, provider identity schemas",
-					resource.Type,
-				),
-				Subject: resource.DeclRange,
+				Detail:    detail,
+				Subject:   resource.DeclRange,
 			})
 		}
 	}

@@ -8,7 +8,7 @@ package identity
 import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/live/lint"
+	"github.com/intentius/choudoufu/internal/live/markerkey"
 )
 
 // checkedForEachKeys refuses an expansion whose instance keys cannot survive
@@ -20,7 +20,7 @@ import (
 // declined to guess at has actually been evaluated, and it is the last place
 // before a key becomes an address, an address becomes a marker, and the
 // marker becomes something no later run can read. The rule is defined once,
-// in the lint package, so the two points cannot drift.
+// in [markerkey], so the two points cannot drift.
 //
 // Only the statically-expanded for_each branch calls this. A block whose
 // for_each iterates over another resource inherits that resource's keys,
@@ -33,7 +33,7 @@ func (r *resolver) checkedForEachKeys(rc *configs.Resource, exp *expansion) (*ex
 		if !isString {
 			continue
 		}
-		bad, isBad := lint.InvalidForEachKeyRune(string(strKey))
+		bad, isBad := markerkey.InvalidRune(string(strKey))
 		if !isBad {
 			continue
 		}
@@ -44,7 +44,7 @@ func (r *resolver) checkedForEachKeys(rc *configs.Resource, exp *expansion) (*ex
 				"and that marker is the only record of ownership a live-markers run has (live/MARKERS.md). "+
 				"A key may contain letters, digits, space, and the characters + - = _ / @: the AWS tag-value character set, "+
 				"less \".\" and \":\", which separate the segments of an escaped address. Rename the key.",
-			rc.Addr().String(), string(strKey), lint.DescribeForEachKeyRune(bad))
+			rc.Addr().String(), string(strKey), markerkey.DescribeRune(bad))
 	}
 	if !ok {
 		return nil, false
