@@ -54,8 +54,20 @@ type Survey struct {
 	// rows come from and how to refresh them.
 	GeneratedBy string `json:"generated_by"`
 
+	// Accepted is the ISO date a human ran the generator with -accept and
+	// ratified the rows below - the same vocabulary
+	// tools/registry-gen/pin.go's SpecPin.Accepted uses, "so a diff reads
+	// as a decision" rather than one regeneration silently replacing
+	// another (issue #37, increment 1). Empty unless -accept was passed on
+	// the run that produced this file: neither this tool nor its tests
+	// read the previously committed artifact as an input, so regenerating
+	// without -accept drops any previously accepted date out of the diff
+	// instead of carrying it forward unreviewed.
+	Accepted string `json:"accepted,omitempty"`
+
 	// Counts are the roster-wide raw-signal totals, the figures SURVEY.md's
-	// "Raw signals" section records by hand.
+	// "Raw signals" section records by hand - and, when Accepted is set,
+	// the reviewed counts a human ratified alongside it.
 	Counts Counts `json:"counts"`
 
 	// Types has one row per surveyed type, sorted by type name.

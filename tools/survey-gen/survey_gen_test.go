@@ -54,17 +54,29 @@ func TestSurveyJSONMatchesProviderSchemas(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading the committed %s: %v", surveyJSONRel, err)
 	}
-	if bytes.Equal(got, want) {
+
+	// Accepted is a human ratification stamp the generator only writes
+	// with -accept (issue #37, increment 1); buildSurvey itself never sets
+	// it, so strip it from the committed file before comparing - this test
+	// is about whether the rows are stale, not whether someone accepted
+	// them.
+	var wantS Survey
+	if err := json.Unmarshal(want, &wantS); err != nil {
+		t.Fatalf("decoding the committed %s: %v", surveyJSONRel, err)
+	}
+	wantS.Accepted = ""
+	wantCanonical, err := wantS.marshal()
+	if err != nil {
+		t.Fatalf("re-marshaling the committed %s: %v", surveyJSONRel, err)
+	}
+	if bytes.Equal(got, wantCanonical) {
 		return
 	}
 
 	// Name the rows that moved rather than dumping two blobs.
-	var gotS, wantS Survey
+	var gotS Survey
 	if err := json.Unmarshal(got, &gotS); err != nil {
 		t.Fatal(err)
-	}
-	if err := json.Unmarshal(want, &wantS); err != nil {
-		t.Fatalf("decoding the committed %s: %v", surveyJSONRel, err)
 	}
 	wantRows := map[string]string{}
 	for _, r := range wantS.Types {
@@ -126,47 +138,83 @@ type pathException struct {
 
 	// reason is the one-line explanation.
 	reason string
+
+	// cohort is which of the five groups this exception measures - one of
+	// the cohortXxx constants below, and live/SURVEY.md's own "What the
+	// classifier does not settle" section names the same five with the
+	// same sizes (TestExceptionCohortCounts holds the two together).
+	cohort string
+
+	// tracking is the two-way ratchet issue #37's increment 4 adds,
+	// following chant's KNOWN_FAILURES convention: either a
+	// "choudoufu#NN" issue whose resolution should remove this entry, or
+	// the literal "permanent" for a disagreement that is deliberate fork
+	// design and will not close by itself. TestExceptionTracking enforces
+	// the format; TestSurveyJSONAgainstHandTable's existing staleness
+	// checks (an exception no disagreement uses anymore, or a
+	// disagreement with no exception) are what actually retire an entry
+	// once its tracking issue lands - this field only says where to look.
+	tracking string
 }
 
+// The five pathException cohorts, named identically to live/SURVEY.md's
+// "What the classifier does not settle" table so the doc and this file
+// cannot drift apart without TestExceptionCohortCounts saying so.
+const (
+	// cohortNamePrefix: the type's identifying argument (name, bucket,
+	// statement_id...) is Optional+Computed in the legacy-SDK schema
+	// because a *_prefix alternative exists, and the strict client-named
+	// rule deliberately stops at required arguments - accepting
+	// Optional+Computed would admit aws_vpc by its id
+	// (internal/live/identity/doc.go). The hand row knows the value is
+	// client-chosen; the schema cannot prove it.
+	cohortNamePrefix = "name-prefix idiom"
+
+	// cohortAccountDerived (SURVEY.md flags F1, F3-F4): the provider's
+	// required import attribute is an arn or url that embeds
+	// account/region, so the schema says server-assigned while the survey
+	// keeps the config-name judgment and flags the gap.
+	cohortAccountDerived = "account-derived import identity"
+
+	// cohortDocsTier: v6.58.0 ships no identity schema, so the hand row
+	// read the provider's documented import grammar - a source the
+	// schema-only classifier does not have.
+	cohortDocsTier = "docs tier"
+
+	// cohortForkWrinkle: fork-wiring wrinkles SURVEY.md itself records
+	// (aws_eip) or server-composed identities the four-path vocabulary
+	// cannot split (aws_ecs_task_definition, aws_route_table_association,
+	// aws_sns_topic_subscription).
+	cohortForkWrinkle = "fork-wiring wrinkle"
+
+	// cohortParentComponent: aws_route53_record, where the classifier and
+	// flag F5 agree that zone_id is a parent's server-assigned Z-ID and
+	// the survey keeps client-named anyway.
+	cohortParentComponent = "parent component"
+)
+
 // pathExceptions is the full disagreement list between the hand table and
-// the schema-derived classification, one documented entry per type. Five
-// cohorts:
-//
-//   - name-prefix idiom: the type's identifying argument (name, bucket,
-//     statement_id...) is Optional+Computed in the legacy-SDK schema
-//     because a *_prefix alternative exists, and the strict client-named
-//     rule deliberately stops at required arguments - accepting
-//     Optional+Computed would admit aws_vpc by its id
-//     (internal/live/identity/doc.go). The hand row knows the value
-//     is client-chosen; the schema cannot prove it.
-//   - account-derived import identity (SURVEY.md flags F1-F4): the
-//     provider's required import attribute is an arn or url that embeds
-//     account/region, so the schema says server-assigned while the survey
-//     keeps the config-name judgment and flags the gap.
-//   - docs tier: v6.58.0 ships no identity schema, so the hand row read
-//     the provider's documented import grammar - a source the schema-only
-//     classifier does not have.
-//   - fork-wiring wrinkles SURVEY.md itself records (aws_eip) or
-//     server-composed identities the four-path vocabulary cannot split
-//     (aws_ecs_task_definition, aws_route_table_association,
-//     aws_sns_topic_subscription).
-//   - aws_route53_record, where the classifier and flag F5 agree that
-//     zone_id is a parent's server-assigned Z-ID and the survey keeps
-//     client-named anyway.
+// the schema-derived classification, one documented entry per type, grouped
+// into the five cohorts above.
 var pathExceptions = map[string]pathException{
 	// --- name-prefix idiom (Optional+Computed identifying argument) ---
-	"aws_cloudwatch_event_rule": {pathClientNamed, pathMarker, "name is Optional+Computed (name_prefix idiom); strict rule cannot prove client-naming, falls to marker"},
-	"aws_cloudwatch_log_group":  {pathClientNamed, pathMarker, "name is Optional+Computed (name_prefix idiom); falls to marker"},
-	"aws_db_subnet_group":       {pathClientNamed, pathMarker, "name is Optional+Computed (name_prefix idiom); falls to marker"},
-	"aws_ecs_service":           {pathClientNamed, pathMarker, "cluster and name are Optional+Computed in the schema; falls to marker"},
-	"aws_eks_node_group":        {pathClientNamed, pathMarker, "cluster_name/node_group_name are Optional+Computed (node_group_name_prefix idiom); falls to marker"},
-	"aws_iam_instance_profile":  {pathClientNamed, pathMarker, "name is Optional+Computed (name_prefix idiom); falls to marker"},
-	"aws_iam_role":              {pathClientNamed, pathMarker, "name is Optional+Computed (name_prefix idiom); falls to marker"},
-	"aws_s3_bucket":             {pathClientNamed, pathMarker, "bucket is Optional+Computed (bucket_prefix idiom), the archetype in identity/doc.go; falls to marker"},
-	"aws_autoscaling_group":     {pathClientNamed, pathListContent, "name is Optional+Computed (name_prefix idiom), and tags are tag blocks rather than a tags map, so the fallback is list+content"},
-	"aws_iam_role_policy":       {pathClientNamed, pathListContent, "name is Optional+Computed (name_prefix idiom); untaggable, falls to list+content"},
-	"aws_kms_alias":             {pathClientNamed, pathListContent, "name is Optional+Computed (name_prefix idiom); untaggable, falls to list+content"},
-	"aws_lambda_permission":     {pathClientNamed, pathListContent, "statement_id is Optional+Computed (statement_id_prefix idiom); untaggable, falls to list+content"},
+	//
+	// All twelve wait on the same upstream fact: the provider's identity
+	// schema marking the identifying argument required-for-import instead
+	// of optional. That is the opentofu#2854 gap tracked here as
+	// choudoufu#22.
+	"aws_cloudwatch_event_rule": {hand: pathClientNamed, generated: pathMarker, reason: "name is Optional+Computed (name_prefix idiom); strict rule cannot prove client-naming, falls to marker", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
+	"aws_cloudwatch_log_group":  {hand: pathClientNamed, generated: pathMarker, reason: "name is Optional+Computed (name_prefix idiom); falls to marker", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
+	"aws_db_subnet_group":       {hand: pathClientNamed, generated: pathMarker, reason: "name is Optional+Computed (name_prefix idiom); falls to marker", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
+	"aws_ecs_service":           {hand: pathClientNamed, generated: pathMarker, reason: "cluster and name are Optional+Computed in the schema; falls to marker", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
+	"aws_eks_node_group":        {hand: pathClientNamed, generated: pathMarker, reason: "cluster_name/node_group_name are Optional+Computed (node_group_name_prefix idiom); falls to marker", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
+	"aws_iam_instance_profile":  {hand: pathClientNamed, generated: pathMarker, reason: "name is Optional+Computed (name_prefix idiom); falls to marker", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
+	"aws_iam_role":              {hand: pathClientNamed, generated: pathMarker, reason: "name is Optional+Computed (name_prefix idiom); falls to marker", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
+	"aws_s3_bucket":             {hand: pathClientNamed, generated: pathMarker, reason: "bucket is Optional+Computed (bucket_prefix idiom), the archetype in identity/doc.go; falls to marker", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
+	"aws_autoscaling_group":     {hand: pathClientNamed, generated: pathListContent, reason: "name is Optional+Computed (name_prefix idiom), and tags are tag blocks rather than a tags map, so the fallback is list+content", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
+	"aws_iam_role_policy":       {hand: pathClientNamed, generated: pathListContent, reason: "name is Optional+Computed (name_prefix idiom); untaggable, falls to list+content", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
+	"aws_kms_alias":             {hand: pathClientNamed, generated: pathListContent, reason: "name is Optional+Computed (name_prefix idiom); untaggable, falls to list+content", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
+	"aws_lambda_permission":     {hand: pathClientNamed, generated: pathListContent, reason: "statement_id is Optional+Computed (statement_id_prefix idiom); untaggable, falls to list+content", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
 
 	// --- account-derived import identity (SURVEY.md flags F1, F3-F4) ---
 	//
@@ -174,26 +222,44 @@ var pathExceptions = map[string]pathException{
 	// topic's ARN out of the name plus the run's account and region, the
 	// classifier reads that assertion, and both files say account-derived.
 	// The three below are the ones the mechanism does not carry all the way
-	// to a wired row, each for its own reason.
-	"aws_sqs_queue":             {pathClientNamed, pathMarker, "required import attribute is the queue url (flag F1); the template is exact, but floci reports a queue's URL as its own endpoint and the provider's importer refuses it, so the marker path a context-less run takes cannot complete (choudoufu#26) and it is not wired"},
-	"aws_iam_policy":            {pathClientNamed, pathMarker, "required import attribute is the policy arn (flag F3); the mechanism would build it, but floci's iam:GetPolicy omits Tags so the row cannot be proven live (choudoufu#26) and it is not wired"},
-	"aws_secretsmanager_secret": {pathClientNamed, pathMarker, "required import attribute is the arn with a six-character server-generated suffix (flag F4), which no account/region template reconstructs; deferred to the marker path the classifier already reads off its taggability"},
+	// to a wired row, each for its own reason. The first two are already
+	// blocked on the floci emulator gap choudoufu#26 tracks, not on
+	// anything upstream; the third is permanent, since no account/region
+	// template will ever reconstruct a server-minted secret suffix.
+	"aws_sqs_queue":             {hand: pathClientNamed, generated: pathMarker, reason: "required import attribute is the queue url (flag F1); the template is exact, but floci reports a queue's URL as its own endpoint and the provider's importer refuses it, so the marker path a context-less run takes cannot complete (choudoufu#26) and it is not wired", cohort: cohortAccountDerived, tracking: "choudoufu#26"},
+	"aws_iam_policy":            {hand: pathClientNamed, generated: pathMarker, reason: "required import attribute is the policy arn (flag F3); the mechanism would build it, but floci's iam:GetPolicy omits Tags so the row cannot be proven live (choudoufu#26) and it is not wired", cohort: cohortAccountDerived, tracking: "choudoufu#26"},
+	"aws_secretsmanager_secret": {hand: pathClientNamed, generated: pathMarker, reason: "required import attribute is the arn with a six-character server-generated suffix (flag F4), which no account/region template reconstructs; deferred to the marker path the classifier already reads off its taggability", cohort: cohortAccountDerived, tracking: "permanent"},
 
 	// --- docs tier: no identity schema in v6.58.0 ---
-	"aws_ecs_cluster":                      {pathClientNamed, pathMarker, "no identity schema; hand row read the documented import grammar (name), classifier falls back to taggability"},
-	"aws_key_pair":                         {pathClientNamed, pathMarker, "no identity schema; hand row read the documented import grammar (key_name), classifier falls back to taggability"},
-	"aws_db_parameter_group":               {pathClientNamed, pathMarker, "no identity schema; hand row read the documented import grammar (name), classifier falls back to taggability"},
-	"aws_iam_group":                        {pathClientNamed, pathOps, "no identity schema, untaggable and no native list resource; hand row read the documented import grammar (name)"},
-	"aws_cloudfront_origin_access_control": {pathListContent, pathOps, "no identity schema and no native list resource in this release; the hand row kept the original pass's list+content claim"},
+	//
+	// All five wait on the same upstream fact as the name-prefix cohort: a
+	// first identity schema for the type. Tracked the same way,
+	// choudoufu#22.
+	"aws_ecs_cluster":                      {hand: pathClientNamed, generated: pathMarker, reason: "no identity schema; hand row read the documented import grammar (name), classifier falls back to taggability", cohort: cohortDocsTier, tracking: "choudoufu#22"},
+	"aws_key_pair":                         {hand: pathClientNamed, generated: pathMarker, reason: "no identity schema; hand row read the documented import grammar (key_name), classifier falls back to taggability", cohort: cohortDocsTier, tracking: "choudoufu#22"},
+	"aws_db_parameter_group":               {hand: pathClientNamed, generated: pathMarker, reason: "no identity schema; hand row read the documented import grammar (name), classifier falls back to taggability", cohort: cohortDocsTier, tracking: "choudoufu#22"},
+	"aws_iam_group":                        {hand: pathClientNamed, generated: pathOps, reason: "no identity schema, untaggable and no native list resource; hand row read the documented import grammar (name)", cohort: cohortDocsTier, tracking: "choudoufu#22"},
+	"aws_cloudfront_origin_access_control": {hand: pathListContent, generated: pathOps, reason: "no identity schema and no native list resource in this release; the hand row kept the original pass's list+content claim", cohort: cohortDocsTier, tracking: "choudoufu#22"},
 
 	// --- wrinkles SURVEY.md or c02d492 already records ---
-	"aws_eip":                     {pathListContent, pathMarker, "SURVEY.md's own wrinkle: taggable, so the strongest-path rule says marker; the hand table shows the fork's list+content wiring"},
-	"aws_ecs_task_definition":     {pathParentDerived, pathMarker, "identity is family plus a server-assigned revision; the classifier has no parent-derived-with-server-component shape and falls to marker"},
-	"aws_route_table_association": {pathParentDerived, pathListContent, "the provider identifies an association by its rtbassoc- id (the c02d492 divergence); the hand row keeps the documented subnet+route-table import string"},
-	"aws_sns_topic_subscription":  {pathParentDerived, pathListContent, "identity is the subscription arn, the parent topic arn plus a server uuid (flag F6); the schema sees only a server-assigned arn"},
+	//
+	// All four are permanent: aws_eip's marker-vs-list+content split is the
+	// fork's own deliberate slot wiring (SURVEY.md's wrinkle note), and the
+	// other three are server-composed identities the four-path vocabulary
+	// was never meant to split further, aws_route_table_association's
+	// association id being the c02d492 case in point - its hand row keeps
+	// the documented subnet+route-table import string on purpose.
+	"aws_eip":                     {hand: pathListContent, generated: pathMarker, reason: "SURVEY.md's own wrinkle: taggable, so the strongest-path rule says marker; the hand table shows the fork's list+content wiring", cohort: cohortForkWrinkle, tracking: "permanent"},
+	"aws_ecs_task_definition":     {hand: pathParentDerived, generated: pathMarker, reason: "identity is family plus a server-assigned revision; the classifier has no parent-derived-with-server-component shape and falls to marker", cohort: cohortForkWrinkle, tracking: "permanent"},
+	"aws_route_table_association": {hand: pathParentDerived, generated: pathListContent, reason: "the provider identifies an association by its rtbassoc- id (the c02d492 divergence); the hand row keeps the documented subnet+route-table import string", cohort: cohortForkWrinkle, tracking: "permanent"},
+	"aws_sns_topic_subscription":  {hand: pathParentDerived, generated: pathListContent, reason: "identity is the subscription arn, the parent topic arn plus a server uuid (flag F6); the schema sees only a server-assigned arn", cohort: cohortForkWrinkle, tracking: "permanent"},
 
 	// --- parent component the survey flags but does not reclassify ---
-	"aws_route53_record": {pathClientNamed, pathParentDerived, "zone_id is the parent zone's server-assigned Z-ID (flag F5); the survey keeps client-named, the classifier calls the composition parent-derived"},
+	//
+	// A permanent editorial choice, not a wait on upstream: the survey
+	// keeps client-named for zone_id on purpose, so no schema change would
+	// remove this entry by itself.
+	"aws_route53_record": {hand: pathClientNamed, generated: pathParentDerived, reason: "zone_id is the parent zone's server-assigned Z-ID (flag F5); the survey keeps client-named, the classifier calls the composition parent-derived", cohort: cohortParentComponent, tracking: "permanent"},
 }
 
 // The raw-signal headline figures, both sides pinned so drift in either
@@ -350,4 +416,106 @@ func atoiOrFail(t *testing.T, b []byte) int {
 		t.Fatalf("parsing %q as a number: %v", b, err)
 	}
 	return n
+}
+
+// ---------------------------------------------------------------------------
+// SURVEY.md naming its own gap (issue #37, increment 3)
+// ---------------------------------------------------------------------------
+
+// exceptionTableRe matches live/SURVEY.md's "What the classifier does not
+// settle" cohort table, row labels verbatim and in the same order the
+// cohortXxx constants above are documented in.
+var exceptionTableRe = regexp.MustCompile(`(?s)` +
+	`\| Name-prefix idiom \(Optional\+Computed identifying argument\) \| (\d+) \|.*?` +
+	`\| Account-derived import identity, not yet wired \| (\d+) \|.*?` +
+	`\| Docs tier \(no identity schema in v6\.58\.0\) \| (\d+) \|.*?` +
+	`\| Fork-wiring wrinkle \(deliberate, permanent\) \| (\d+) \|.*?` +
+	`\| Parent component the survey keeps client-named \| (\d+) \|.*?` +
+	`\| \*\*Total\*\* \| \*\*(\d+)\*\* \|`)
+
+// TestExceptionCohortCounts holds live/SURVEY.md's "What the classifier
+// does not settle" table to pathExceptions's own cohort tally. This is the
+// count assertion issue #37's increment 3 asks for: the doc names the
+// opentofu#2854 gap's size, and this test fails the moment pathExceptions
+// changes - a cohort's count moves, a cohort appears or disappears, the
+// total moves - without the doc's table following it.
+func TestExceptionCohortCounts(t *testing.T) {
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	md, err := os.ReadFile(filepath.Join(root, surveyMDRel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := exceptionTableRe.FindSubmatch(md)
+	if m == nil {
+		t.Fatalf("%s no longer carries the path-exception cohort table this test pins", surveyMDRel)
+	}
+	docCounts := map[string]int{
+		cohortNamePrefix:      atoiOrFail(t, m[1]),
+		cohortAccountDerived:  atoiOrFail(t, m[2]),
+		cohortDocsTier:        atoiOrFail(t, m[3]),
+		cohortForkWrinkle:     atoiOrFail(t, m[4]),
+		cohortParentComponent: atoiOrFail(t, m[5]),
+	}
+	docTotal := atoiOrFail(t, m[6])
+
+	gotCounts := map[string]int{}
+	for typeName, exc := range pathExceptions {
+		if exc.cohort == "" {
+			t.Errorf("%s: pathException carries no cohort", typeName)
+			continue
+		}
+		gotCounts[exc.cohort]++
+	}
+
+	sumWant := 0
+	for cohort, want := range docCounts {
+		sumWant += want
+		if got := gotCounts[cohort]; got != want {
+			t.Errorf("%s's cohort table says %q is %d, pathExceptions has %d", surveyMDRel, cohort, want, got)
+		}
+	}
+	for cohort, got := range gotCounts {
+		if _, ok := docCounts[cohort]; !ok {
+			t.Errorf("pathExceptions has %d entries in cohort %q, which %s's table does not name", got, cohort, surveyMDRel)
+		}
+	}
+	if sumWant != docTotal {
+		t.Errorf("%s's cohort table sums to %d but its own Total row says %d", surveyMDRel, sumWant, docTotal)
+	}
+	if len(pathExceptions) != docTotal {
+		t.Errorf("pathExceptions has %d entries, %s's Total row says %d", len(pathExceptions), surveyMDRel, docTotal)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Tying each exception to an issue (issue #37, increment 4)
+// ---------------------------------------------------------------------------
+
+// trackingRe matches a pathException.tracking value that names an issue:
+// "choudoufu#" followed by digits. The other legal value is the literal
+// "permanent", checked separately.
+var trackingRe = regexp.MustCompile(`^choudoufu#\d+$`)
+
+// TestExceptionTracking is chant's KNOWN_FAILURES ratchet applied to
+// pathExceptions: every entry must carry either a tracking issue or an
+// explicit "permanent" marker, so a reader can tell which exceptions are
+// waiting on upstream (and should disappear on their own) from which are
+// deliberate fork design (and will not). The other half of the ratchet -
+// TestSurveyJSONAgainstHandTable failing on a stale exception once its
+// disagreement stops happening, and on an undocumented one - is unchanged
+// by this field; this test only checks the reference itself is well-formed.
+func TestExceptionTracking(t *testing.T) {
+	for typeName, exc := range pathExceptions {
+		switch {
+		case exc.tracking == "":
+			t.Errorf("%s: pathException carries no tracking issue or %q marker", typeName, "permanent")
+		case exc.tracking == "permanent":
+		case trackingRe.MatchString(exc.tracking):
+		default:
+			t.Errorf("%s: tracking %q is neither %q nor a choudoufu#NN issue reference", typeName, exc.tracking, "permanent")
+		}
+	}
 }
