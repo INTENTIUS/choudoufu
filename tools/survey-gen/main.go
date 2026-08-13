@@ -35,14 +35,19 @@
 //
 //	go run ./tools/survey-gen -all
 //
-// A second mode rewrites live/SURVEY.md's derived spans (the raw-signal
-// counts sentence and the Summary path-count table, each between
-// survey-gen marker comments) from the committed artifact, with no
-// provider and no network:
+// A second mode rewrites every derived span this tool owns, each between
+// survey-gen marker comments, from committed artifacts and the compiled
+// admission table, with no provider and no network: live/SURVEY.md's
+// raw-signal counts sentence, Summary path-count table and wired-count
+// cell; live/LIMITATIONS.md's five residue-roster spans and its
+// untaggable-admitted entry (issue #54); and
+// website/docs/language/live-markers.mdx's Contract count and type
+// enumeration (issue #54):
 //
 //	go run ./tools/survey-gen -render
 //
-// See render.go.
+// See render.go, residue_render.go, untaggable_render.go and
+// contract_render.go.
 //
 // A -accept flag stamps the written artifact's header with today's date
 // (the "accepted" field), the only way that field is ever written -

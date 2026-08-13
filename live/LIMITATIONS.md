@@ -380,14 +380,18 @@ as a destroy, is asserted in `internal/live/lifecycle/exactness_test.go`.
 The unadmitted half holds by construction: `internal/live/discovery`
 builds the sweep universe from `identity.AdmittedTypes()`.)
 
-**Untaggable types cannot be removed by the sweep.** `aws_route`,
-`aws_route_table_association`, `aws_s3_bucket_policy`,
-`aws_s3_bucket_versioning`, `aws_s3_bucket_public_access_block`,
+**Untaggable types cannot be removed by the sweep.** <!-- survey-gen:begin untaggable-admitted -->
+`aws_cloudwatch_dashboard`, `aws_ecr_registry_policy`,
+`aws_ecr_registry_scanning_configuration`,
+`aws_ecr_replication_configuration`, `aws_iam_role_policy`,
+`aws_iam_role_policy_attachment`, `aws_kms_alias`,
+`aws_lambda_layer_version`, `aws_lb_target_group_attachment`, `aws_route`,
+`aws_route53_record`, `aws_route_table_association`,
+`aws_s3_bucket_lifecycle_configuration`, `aws_s3_bucket_policy`,
+`aws_s3_bucket_public_access_block`,
 `aws_s3_bucket_server_side_encryption_configuration`,
-`aws_s3_bucket_lifecycle_configuration`, `aws_iam_role_policy`,
-`aws_kms_alias`, `aws_route53_record`,
-`aws_iam_role_policy_attachment` and
-`aws_lb_target_group_attachment` carry no tags, so they can carry no
+`aws_s3_bucket_versioning`, `aws_sns_topic_policy` and
+`aws_sqs_queue_policy`<!-- survey-gen:end untaggable-admitted --> carry no tags, so they can carry no
 ownership marker and the sweep has nothing to search on. Their identity is
 built from their own configuration, which means deleting the resource
 block deletes the only record of which resource it was. Destroy the

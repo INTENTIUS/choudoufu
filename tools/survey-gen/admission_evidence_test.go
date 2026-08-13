@@ -86,9 +86,9 @@ var admittedParents = map[string][]string{
 	"aws_route53_record": {"aws_route53_zone"},
 }
 
-// TestAdmissionEvidenceAgainstProviderSchemas re-checks, for every type in
-// the admission table (identity.AdmittedTypes, the same set
-// internal/live/lint/admission.go admits), that the evidence its
+// TestAdmissionEvidenceAgainstProviderSchemas re-checks, for every admitted
+// type that is also a row in live/SURVEY.md's curated-68 table (the two
+// rosters this test actually has hand evidence for), that the evidence its
 // admission was ratified on still holds against the pinned provider's live
 // schemas and the committed survey artifact:
 //
@@ -104,6 +104,16 @@ var admittedParents = map[string][]string{
 //     marker) and still has a native list resource;
 //   - and no admitted type is classified moves-to-Ops or excluded by rule
 //     in the committed survey.json.
+//
+// This test's purpose is curated-survey evidence, not global admission
+// coverage: it walks live/SURVEY.md's hand roster, so it has nothing to
+// check for a registry-ratified type outside the curated 68 (issue #40's
+// tiering; issue #54 generalized the split). Those types skip this test's
+// per-type checks entirely rather than failing it for lacking a hand
+// roster row they were never meant to have - the registry-ratified
+// universe's own admission evidence is exercised by tools/row-gen's own
+// tests (row_gen_test.go, classify_test.go), which read live/registry.json
+// and live/survey-full.json instead of this file's provider-schema survey.
 //
 // The test never edits anything. Every failure names the type and says
 // "review this": either the provider moved under the pin and the admission
@@ -166,16 +176,25 @@ func TestAdmissionEvidenceAgainstProviderSchemas(t *testing.T) {
 
 	usedExceptions := map[string]bool{}
 	for _, typeName := range admitted {
+		// Scope to the curated survey's own rows (issue #54): this test's
+		// purpose is re-checking curated-68 evidence, not walking the whole
+		// admission table. A registry-ratified type outside live/SURVEY.md's
+		// roster (issue #40's tiering) has no hand-classified path here to
+		// re-check, so it is not a gap this test should name - the
+		// registry-ratified universe is covered by tools/row-gen's own
+		// tests instead (see the doc comment above).
+		row, inSurvey := surveyRow[typeName]
+		if !inSurvey {
+			continue
+		}
+
 		// Admitted-but-excluded is the loudest drift there is: the survey
 		// says the type left the resource model and the admission table
 		// still carries it.
 		if reason, ok := opsExcluded[typeName]; ok {
 			t.Errorf("%s is admitted but excluded by rule (%s); review this: the admission table and the exclusion cannot both be right", typeName, reason)
 		}
-		row, inSurvey := surveyRow[typeName]
-		if !inSurvey {
-			t.Errorf("%s is admitted but not in %s's roster; review this: the survey no longer covers an admitted type", typeName, surveyJSONRel)
-		} else if row.Path == pathOps {
+		if row.Path == pathOps {
 			t.Errorf("%s is admitted but %s classifies it %q (%s); review this: either the admission or the classification has to move", typeName, surveyJSONRel, row.Path, row.Evidence)
 		}
 

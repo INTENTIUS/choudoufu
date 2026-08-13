@@ -5,10 +5,11 @@
 
 // Render mode (issue #25, increment 3): `go run ./tools/survey-gen -render`
 // rewrites the derivable spans of live/SURVEY.md in place, between HTML
-// comment markers, from two committed inputs - live/survey.json for the
-// raw-signal counts and SURVEY.md's own per-type table for the summary
-// tally. No provider and no network: rendering moves numbers out of
-// transcription, not out of the survey.
+// comment markers, from committed inputs - live/survey.json for the
+// raw-signal counts, SURVEY.md's own per-type table for the summary tally,
+// and the compiled admission table (identity.AdmittedTypes) for the wired
+// count (issue #54). No provider and no network: rendering moves numbers
+// out of transcription, not out of the survey.
 //
 // Only the numbers are rendered. The per-type table and every line of prose
 // carry hand judgment and stay hand-written; the diff tests in
@@ -21,12 +22,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
-// The two rendered spans. Each lives in SURVEY.md between a
-// `<!-- survey-gen:begin NAME -->` line and a `<!-- survey-gen:end NAME -->`
-// line; the renderer replaces everything between the pair and touches
-// nothing outside it.
+// The three rendered spans. Each lives in SURVEY.md between a
+// `<!-- survey-gen:begin NAME -->` marker and a `<!-- survey-gen:end NAME -->`
+// marker (a block span's begin marker ends its line; an inline span's does
+// not, see inlineSpanMarkers below); the renderer replaces everything
+// between the pair and touches nothing outside it.
 const (
 	// spanRawSignals is the "Raw signals" counts sentence, rendered from
 	// live/survey.json's counts block.
@@ -35,6 +39,13 @@ const (
 	// spanSummary is the Summary path-count table, tallied from the
 	// per-type table's own Path column (modulo summaryOverrides below).
 	spanSummary = "summary"
+
+	// spanWiredCount is the Status table's `wired` row count: the admission
+	// table's global size (issue #54), not a tally of this file's own rows
+	// (identity.AdmittedTypes runs well past the curated 68, on the
+	// registry-ratified batches' account). Rendered so a batch that grows
+	// the admission table never has to hand-edit this digit.
+	spanWiredCount = "wired-count"
 )
 
 // summaryOverrides pins the rows the Summary table counts under a different
@@ -56,11 +67,14 @@ var summaryOverrides = map[string]struct {
 }
 
 // runRender is the -render entry point: read the committed artifacts and
-// the committed docs, replace the marked spans, write the docs back. Two
+// the committed docs, replace the marked spans, write the docs back. Three
 // docs are rendered this way: live/SURVEY.md (this function's original
-// scope) and live/LIMITATIONS.md's residue-roster spans (issue #49,
-// renderResidueRoster in residue_render.go), both from committed JSON with
-// no provider and no network.
+// scope, plus its wired-count span, issue #54), live/LIMITATIONS.md's
+// residue-roster spans and untaggable-admitted span (issue #49 and #54,
+// renderLimitationsMD in residue_render.go and untaggable_render.go), and
+// website/docs/language/live-markers.mdx's Contract spans (issue #54,
+// renderContractMDX in contract_render.go). All from committed JSON and the
+// compiled admission table, with no provider and no network.
 func runRender() error {
 	root, err := repoRoot()
 	if err != nil {
@@ -70,7 +84,10 @@ func runRender() error {
 	if err := renderSurveyMD(root); err != nil {
 		return err
 	}
-	return renderLimitationsMD(root)
+	if err := renderLimitationsMD(root); err != nil {
+		return err
+	}
+	return renderContractMDX(root)
 }
 
 // renderSurveyMD rewrites live/SURVEY.md's raw-signals and summary spans
@@ -106,18 +123,33 @@ func renderSurveyMD(root string) error {
 	if err := os.WriteFile(mdPath, []byte(out), 0o644); err != nil { //nolint:gosec // a committed doc, not a secret
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "survey-gen: rewrote the %s and %s spans of %s\n", spanRawSignals, spanSummary, surveyMDRel)
+	fmt.Fprintf(os.Stderr, "survey-gen: rewrote the %s, %s and %s spans of %s\n", spanRawSignals, spanSummary, spanWiredCount, surveyMDRel)
 	return nil
 }
 
-// renderSpans returns the doc with both marked spans replaced by their
+// renderSpans returns the doc with all three marked spans replaced by their
 // rendered bodies. The rest of the file passes through byte-for-byte.
 func renderSpans(md string, survey Survey, rows []HandRow) (string, error) {
 	md, err := replaceSpan(surveyMDRel, md, spanRawSignals, renderRawSignals(survey.Counts))
 	if err != nil {
 		return "", err
 	}
-	return replaceSpan(surveyMDRel, md, spanSummary, renderSummary(rows))
+	md, err = replaceSpan(surveyMDRel, md, spanSummary, renderSummary(rows))
+	if err != nil {
+		return "", err
+	}
+	// Inline: the wired-count span sits inside a single Markdown table
+	// cell, where a literal newline would split the row.
+	return replaceSpanInline(surveyMDRel, md, spanWiredCount, renderWiredCount())
+}
+
+// renderWiredCount is the admission table's global size, straight off
+// identity.AdmittedTypes - the same set internal/live/lint/admission.go
+// admits and SURVEY.md's Contract-adjacent docs cite. Not a tally of
+// SURVEY.md's own per-type table: registry-ratified batches (#40, #44) add
+// types this file's provider-schema survey never rostered.
+func renderWiredCount() string {
+	return fmt.Sprintf("%d", len(identity.AdmittedTypes()))
 }
 
 // renderRawSignals is the "Raw signals" headline sentence, in the exact
@@ -164,9 +196,24 @@ func renderSummary(rows []HandRow) string {
 
 // spanMarkers returns the begin and end marker lines for a named span. The
 // marker comment is "survey-gen" regardless of which doc it lives in - one
-// tool, one comment vocabulary, across every doc it renders spans into.
+// tool, one comment vocabulary, across every doc it renders spans into. The
+// begin marker's trailing newline is what makes this the block form: the
+// rendered body starts on its own line, which is right for a paragraph or a
+// table but wrong for a span embedded inside a single table cell or a
+// bullet's inline prose - see inlineSpanMarkers for that shape.
 func spanMarkers(name string) (begin, end string) {
 	return fmt.Sprintf("<!-- survey-gen:begin %s -->\n", name),
+		fmt.Sprintf("<!-- survey-gen:end %s -->", name)
+}
+
+// inlineSpanMarkers is spanMarkers' sibling for a span that has to stay on
+// the same physical line as the text around it - a Markdown table cell, or
+// a phrase mid-sentence in a bullet's prose, both of which break if a
+// literal newline lands inside them. Same comment vocabulary and the same
+// begin/end text, just without the forced newline, so the rendered body
+// sits directly between the two markers on one line.
+func inlineSpanMarkers(name string) (begin, end string) {
+	return fmt.Sprintf("<!-- survey-gen:begin %s -->", name),
 		fmt.Sprintf("<!-- survey-gen:end %s -->", name)
 }
 
@@ -177,6 +224,19 @@ func spanMarkers(name string) (begin, end string) {
 // replaced.
 func replaceSpan(docRel, md, name, body string) (string, error) {
 	begin, end := spanMarkers(name)
+	return replaceBetweenMarkers(docRel, md, name, begin, end, body)
+}
+
+// replaceSpanInline is replaceSpan's inline-marker sibling, for a span that
+// has to stay on one physical line (see inlineSpanMarkers).
+func replaceSpanInline(docRel, md, name, body string) (string, error) {
+	begin, end := inlineSpanMarkers(name)
+	return replaceBetweenMarkers(docRel, md, name, begin, end, body)
+}
+
+// replaceBetweenMarkers is replaceSpan and replaceSpanInline's shared
+// implementation, parameterized on which marker pair to look for.
+func replaceBetweenMarkers(docRel, md, name, begin, end, body string) (string, error) {
 	if n := strings.Count(md, begin); n != 1 {
 		return "", fmt.Errorf("%s: expected exactly one %q marker, found %d", docRel, strings.TrimSpace(begin), n)
 	}
@@ -195,6 +255,19 @@ func replaceSpan(docRel, md, name, body string) (string, error) {
 // drift test's per-span message. See [replaceSpan] for docRel.
 func spanContent(docRel, md, name string) (string, error) {
 	begin, end := spanMarkers(name)
+	return contentBetweenMarkers(docRel, md, name, begin, end)
+}
+
+// spanContentInline is spanContent's inline-marker sibling, for a span
+// replaced with replaceSpanInline.
+func spanContentInline(docRel, md, name string) (string, error) {
+	begin, end := inlineSpanMarkers(name)
+	return contentBetweenMarkers(docRel, md, name, begin, end)
+}
+
+// contentBetweenMarkers is spanContent and spanContentInline's shared
+// implementation.
+func contentBetweenMarkers(docRel, md, name, begin, end string) (string, error) {
 	if n := strings.Count(md, begin); n != 1 {
 		return "", fmt.Errorf("%s: expected exactly one %q marker, found %d", docRel, strings.TrimSpace(begin), n)
 	}
@@ -207,4 +280,63 @@ func spanContent(docRel, md, name string) (string, error) {
 		return "", fmt.Errorf("%s: the %q end marker precedes its begin marker", docRel, name)
 	}
 	return md[i:j], nil
+}
+
+// joinWithAnd renders a backtick-quoted type list as prose, the way a hand
+// writer would: comma-separated, with the last item joined by "and" instead
+// of a trailing comma. oxford controls whether that last comma survives
+// ("a, b, and c" vs "a, b and c") - both conventions already appear in the
+// docs this package renders into, so the caller picks the one already in
+// use at its span.
+func joinWithAnd(items []string, oxford bool) string {
+	switch len(items) {
+	case 0:
+		return ""
+	case 1:
+		return items[0]
+	default:
+		sep := " and "
+		if oxford {
+			sep = ", and "
+		}
+		return strings.Join(items[:len(items)-1], ", ") + sep + items[len(items)-1]
+	}
+}
+
+// backtickTypes wraps each type name in backticks, for a prose enumeration.
+func backtickTypes(types []string) []string {
+	items := make([]string, len(types))
+	for i, t := range types {
+		items[i] = "`" + t + "`"
+	}
+	return items
+}
+
+// wrapIndented greedily word-wraps s to width columns (including indent's
+// own width), prefixing every line with indent. Used for the rendered
+// prose enumerations, whose committed line breaks are otherwise cosmetic:
+// wrapping deterministically here is what makes them byte-stable rather
+// than a hand-editing chore.
+func wrapIndented(s string, width int, indent string) string {
+	words := strings.Fields(s)
+	var b strings.Builder
+	lineLen := 0
+	for i, w := range words {
+		switch {
+		case i == 0:
+			b.WriteString(indent)
+			b.WriteString(w)
+			lineLen = len(indent) + len(w)
+		case lineLen+1+len(w) > width:
+			b.WriteString("\n")
+			b.WriteString(indent)
+			b.WriteString(w)
+			lineLen = len(indent) + len(w)
+		default:
+			b.WriteString(" ")
+			b.WriteString(w)
+			lineLen += 1 + len(w)
+		}
+	}
+	return b.String()
 }

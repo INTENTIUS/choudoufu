@@ -12,11 +12,12 @@ import (
 	"testing"
 )
 
-// TestSurveyMDRenderedSpans holds SURVEY.md's two rendered spans - the
-// raw-signals sentence and the Summary path-count table - byte-for-byte to
-// what the renderer produces from the committed live/survey.json and the
-// doc's own per-type table. Two committed files, no provider, so it is not
-// gated; drift between the artifact and the doc fails here with the
+// TestSurveyMDRenderedSpans holds SURVEY.md's three rendered spans - the
+// raw-signals sentence, the Summary path-count table, and the Status
+// table's wired-count cell (issue #54) - byte-for-byte to what the
+// renderer produces from the committed live/survey.json, the doc's own
+// per-type table, and the compiled admission table. No provider, so it is
+// not gated; drift between the artifacts and the doc fails here with the
 // command that fixes it.
 func TestSurveyMDRenderedSpans(t *testing.T) {
 	root, err := repoRoot()
@@ -59,6 +60,15 @@ func TestSurveyMDRenderedSpans(t *testing.T) {
 			t.Errorf("%s's %q span is stale; run `go run ./tools/survey-gen -render` and commit the result.\n--- committed ---\n%s--- rendered ---\n%s",
 				surveyMDRel, span.name, got, span.want)
 		}
+	}
+
+	// wired-count is inline (a single Markdown table cell), so it is
+	// checked with the inline-marker reader rather than spanContent.
+	if got, err := spanContentInline(surveyMDRel, md, spanWiredCount); err != nil {
+		t.Errorf("%v", err)
+	} else if want := renderWiredCount(); got != want {
+		t.Errorf("%s's %q span is stale; run `go run ./tools/survey-gen -render` and commit the result.\n--- committed ---\n%s--- rendered ---\n%s",
+			surveyMDRel, spanWiredCount, got, want)
 	}
 
 	// The whole-file check catches what the per-span one cannot: a marker

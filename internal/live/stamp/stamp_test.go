@@ -401,9 +401,16 @@ func TestTaggable(t *testing.T) {
 // admission table itself does not record the answer - and without this pin a
 // provider release that adds a tags argument to aws_route, or removes one
 // from a type that has it, would change SkipUntaggable behavior with no test
-// failing. live/LIMITATIONS.md names the untaggable four in its
-// "Untaggable types cannot be removed by the sweep" entry, and
-// TestUntaggableTypesMatchLimitationsDoc keeps that list and this one the
+// failing. live/LIMITATIONS.md's "Untaggable types cannot be removed by the
+// sweep" entry names this same set, rendered from live/survey-full.json
+// (issue #54, tools/survey-gen/untaggable_render.go) rather than the
+// curated 68 live/survey.json measures - which is what let
+// untaggableAdmittedTypes fold back into one list after the registry-ratified
+// batches added untaggable types outside that curated roster. It used to
+// carry a second, split-out list (untaggableOutsideCuratedSurvey) for
+// exactly those types, worked around because the doc's own derivation
+// couldn't see past the curated 68 yet; now that it can, the split is gone.
+// TestUntaggableTypesMatchLimitationsDoc keeps this list and the doc the
 // same.
 var (
 	taggableAdmittedTypes = []string{
@@ -460,38 +467,20 @@ var (
 		"aws_kms_alias",
 		"aws_route53_record",
 		"aws_lb_target_group_attachment",
-	}
-	// untaggableOutsideCuratedSurvey is untaggableAdmittedTypes' sibling for
-	// admitted types outside live/survey.json's curated 68 - the roster
-	// tools/survey-gen/limitations_test.go's TestLimitationsDocAgainstSurvey
-	// derives live/LIMITATIONS.md's "Untaggable types cannot be removed by
-	// the sweep" entry from. A type here is genuinely untaggable and is
-	// checked as such below, exactly like untaggableAdmittedTypes, but it is
-	// deliberately excluded from TestUntaggableTypesMatchLimitationsDoc's
-	// comparison: adding it to the doc would make that test's derivation
-	// (scoped to the curated 68) fail instead, since the type was never in
-	// scope for it. Until tools/survey-gen's derivation extends past the
-	// curated 68 to the full registry roster (live/survey-full.json), this
-	// is the honest split - the doc undercounts real untaggable types rather
-	// than either test lying about what it checked. See
-	// live/e2e/estates/lambda/README.md, "Untaggable types", for the same
-	// note against the first type to land here.
-	untaggableOutsideCuratedSurvey = []string{
+		// Registry-ratified Lambda batch (#40, #44): the batch's one
+		// untaggable type. See live/e2e/estates/lambda/README.md,
+		// "Untaggable types".
 		"aws_lambda_layer_version",
 		// Registry-ratified IAM and ECR batch (#40, #44, issue #26): three
 		// singleton-per-account ECR types with no tags argument at all. See
-		// live/e2e/estates/iam-ecr/README.md, "Untaggable types", for why
-		// these cannot join live/LIMITATIONS.md's untaggable entry either.
+		// live/e2e/estates/iam-ecr/README.md, "Untaggable types".
 		"aws_ecr_registry_policy",
 		"aws_ecr_registry_scanning_configuration",
 		"aws_ecr_replication_configuration",
-		// Registry-ratified messaging batch (#40, #44). All three are
-		// outside live/survey.json's curated 68 (aws_sqs_queue_policy and
-		// aws_sns_topic_policy are not in it at all; aws_cloudwatch_dashboard
-		// is not either, unlike aws_cloudwatch_metric_alarm above). See
+		// Registry-ratified messaging batch (#40, #44). See
 		// live/e2e/estates/messaging/README.md, "Untaggable types", for why
-		// aws_sns_topic_subscription — untaggable and *inside* the curated
-		// 68 — is deferred rather than landing in either list here.
+		// aws_sns_topic_subscription — untaggable and inside the curated 68
+		// — is deferred rather than joining this list.
 		"aws_cloudwatch_dashboard",
 		"aws_sns_topic_policy",
 		"aws_sqs_queue_policy",
@@ -510,11 +499,11 @@ var (
 // TestTaggableSetAgainstRealSchemas in stamp_live_test.go is the same pin
 // against the schema the real provider serves.
 func TestTaggableSetCoversAdmissionTable(t *testing.T) {
-	pinned := make(map[string]bool, len(taggableAdmittedTypes)+len(untaggableAdmittedTypes)+len(untaggableOutsideCuratedSurvey))
+	pinned := make(map[string]bool, len(taggableAdmittedTypes)+len(untaggableAdmittedTypes))
 	for _, resourceType := range taggableAdmittedTypes {
 		pinned[resourceType] = true
 	}
-	for _, resourceType := range append(append([]string{}, untaggableAdmittedTypes...), untaggableOutsideCuratedSurvey...) {
+	for _, resourceType := range untaggableAdmittedTypes {
 		if pinned[resourceType] {
 			t.Errorf("%s is pinned as both taggable and untaggable", resourceType)
 		}
@@ -545,7 +534,6 @@ func TestTaggableSetCoversAdmissionTable(t *testing.T) {
 	}
 	check(taggableAdmittedTypes, true)
 	check(untaggableAdmittedTypes, false)
-	check(untaggableOutsideCuratedSurvey, false)
 }
 
 // TestUntaggableTypesMatchLimitationsDoc: live/LIMITATIONS.md tells the
