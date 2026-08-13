@@ -1267,9 +1267,15 @@ fi
 
 # ── 8. removal-exact ─────────────────────────────────────────────────────────
 # P5.1's removal case (lifecycle/exactness_test.go, part 4), mirrored
-# rather than re-derived: aws_security_group.main's whole block is deleted -
-# the same block that test deletes, chosen there (and here) because the SG's
-# own removal carries no known-gap interference of its own; the estate's
+# rather than re-derived: one whole block is deleted and exactly its live
+# resource goes. The test's own fixture deletes its security group; here the
+# block is aws_ebs_volume.data instead, because the estate's security group
+# grew per-rule dependents in #20's third slice
+# (aws_vpc_security_group_ingress_rule/_egress_rule reference
+# aws_security_group.main.id, and EC2 deletes a group's rules with the
+# group), and a removal step's whole point is ONE destroy. The volume is the
+# same shape the SG was chosen for - taggable, marker path, no known-gap
+# interference of its own, and nothing else references it. The estate's
 # standing gap (aws_iam_role.app, RESIDUE_UNOWNED - both SSM-parameter
 # receipts were adopted in step 3d and no longer ride along) rides regardless
 # of which block is removed, so the full-estate plan here is
@@ -1286,17 +1292,16 @@ else
   R_VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=stateless-e2e" \
     --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo None)"
   [ -n "$R_VPC_ID" ] && [ "$R_VPC_ID" != "None" ] || fail "removal-exact" "could not find the estate's VPC"
-  # shellcheck disable=SC2016 # single-quoted: JMESPath backtick literal, not shell interpolation
-  R_SG_ID="$(awsl ec2 describe-security-groups --filters "Name=tag:tofu-estate,Values=stateless-e2e" \
-    --query 'SecurityGroups[?GroupName!=`default`]|[0].GroupId' --output text 2>/dev/null || echo None)"
-  [ -n "$R_SG_ID" ] && [ "$R_SG_ID" != "None" ] || fail "removal-exact" "could not find the estate's security group"
+  R_VOL_ID="$(awsl ec2 describe-volumes --filters "Name=tag:tofu-estate,Values=stateless-e2e" \
+    --query 'Volumes[0].VolumeId' --output text 2>/dev/null || echo None)"
+  [ -n "$R_VOL_ID" ] && [ "$R_VOL_ID" != "None" ] || fail "removal-exact" "could not find the estate's EBS volume"
 
-  comment_out_resource "resource[[:space:]]+\"aws_security_group\"" "$COPY" "removal-exact"
+  comment_out_resource "resource[[:space:]]+\"aws_ebs_volume\"" "$COPY" "removal-exact"
 
   run_tf "$COPY" live-plan -input=false -no-color
   OUT="$TF_OUT"
   RC="$TF_RC"
-  [ "$RC" -eq 0 ] || fail "removal-exact" "live-plan failed after removing the security group's block: $OUT"
+  [ "$RC" -eq 0 ] || fail "removal-exact" "live-plan failed after removing the EBS volume's block: $OUT"
 
   # 1. The whole plan shape in one assertion: exactly one destroy and it is
   # the deleted block, every create is an unowned one with an omission
@@ -1304,14 +1309,14 @@ else
   # and the Plan: line agrees with all of that. The destroy is passed in as
   # this step's own expectation, so a SECOND destroy - the thing a removal
   # step exists to rule out - fails on the address rather than on a count.
-  assert_estate_plan "$OUT" "removal-exact" "" "aws_security_group.main" "the removal plan"
+  assert_estate_plan "$OUT" "removal-exact" "" "aws_ebs_volume.data" "the removal plan"
 
   # 2. "Owned and undeclared" names the removal and the live ID - the
   # legitimacy claim, not merely the destroy header.
   echo "$OUT" | grep -q "Owned and undeclared: 1 live resource will be destroyed" \
-    || fail "removal-exact" "the plan does not say why destroying aws_security_group.main is legitimate: $OUT"
-  echo "$OUT" | grep -q "$R_SG_ID" \
-    || fail "removal-exact" "the plan does not name the live resource $R_SG_ID anywhere: $OUT"
+    || fail "removal-exact" "the plan does not say why destroying aws_ebs_volume.data is legitimate: $OUT"
+  echo "$OUT" | grep -q "$R_VOL_ID" \
+    || fail "removal-exact" "the plan does not name the live resource $R_VOL_ID anywhere: $OUT"
 
   # 4. Apply it. No live-apply command exists - $MAIN carries no
   # "live" block, standup/adopt's whole point is a plain-state estate -
@@ -1319,17 +1324,17 @@ else
   # protected's cleanup and count-scale-down's convergence already use. Then
   # confirm the deletion the way this harness always confirms an AWS-side
   # claim: read it back with the AWS CLI, never through choudoufu.
-  awsl ec2 delete-security-group --group-id "$R_SG_ID" >/dev/null \
-    || fail "removal-exact" "could not delete the security group $R_SG_ID"
-  # Real AWS errors describe-security-groups for an unknown group id; floci
-  # instead answers 200 with an empty SecurityGroups list (confirmed against
-  # this harness's own floci image), so "gone" is read from the query result,
-  # not from the exit code -- the same fallback exSecurityGroupExists uses in
-  # lifecycle/exactness_test.go.
-  R_SG_AFTER="$(awsl ec2 describe-security-groups --group-ids "$R_SG_ID" \
-    --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null || echo None)"
-  [ -z "$R_SG_AFTER" ] || [ "$R_SG_AFTER" = "None" ] \
-    || fail "removal-exact" "the security group $R_SG_ID is still live after the removal apply (describe returned $R_SG_AFTER)"
+  awsl ec2 delete-volume --volume-id "$R_VOL_ID" >/dev/null \
+    || fail "removal-exact" "could not delete the EBS volume $R_VOL_ID"
+  # Real AWS errors describe-volumes for an unknown volume id; floci may
+  # instead answer 200 with an empty Volumes list (the same shape its
+  # describe-security-groups fallback has), so "gone" is read from the query
+  # result, not from the exit code -- the same fallback
+  # exSecurityGroupExists uses in lifecycle/exactness_test.go.
+  R_VOL_AFTER="$(awsl ec2 describe-volumes --volume-ids "$R_VOL_ID" \
+    --query 'Volumes[0].VolumeId' --output text 2>/dev/null || echo None)"
+  [ -z "$R_VOL_AFTER" ] || [ "$R_VOL_AFTER" = "None" ] \
+    || fail "removal-exact" "the EBS volume $R_VOL_ID is still live after the removal apply (describe returned $R_VOL_AFTER)"
 
   # 5. The rest of the estate is untouched.
   R_VPC_ID_AFTER="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=stateless-e2e" \
@@ -1350,20 +1355,36 @@ else
     || fail "removal-exact" "terraform.tfstate exists in the work copy after the removal"
 
   rm -rf "$COPY"
-  echo "  aws_security_group.main removed: exactly one destroy, Owned-and-undeclared names $R_SG_ID, rest of the estate untouched, re-plan clean"
+  echo "  aws_ebs_volume.data removed: exactly one destroy, Owned-and-undeclared names $R_VOL_ID, rest of the estate untouched, re-plan clean"
 
-  # 8. Restore: $MAIN's own config still declares aws_security_group.main -
-  # only $COPY's config had the block commented out - so a live security
-  # group has to exist again for every later step's full-estate plan to stay
-  # clean. Same convention count-scale-down (step 9) already uses to put
-  # back what it released.
-  R_NEW_SG_ID="$(awsl ec2 create-security-group --group-name "stateless-e2e-main" \
-    --description "estate fixture security group" --vpc-id "$R_VPC_ID" --query 'GroupId' --output text)"
-  [ -n "$R_NEW_SG_ID" ] && [ "$R_NEW_SG_ID" != "None" ] \
-    || fail "removal-exact" "could not recreate the security group to restore \$MAIN's live estate"
-  awsl ec2 create-tags --resources "$R_NEW_SG_ID" --tags \
-    "Key=tofu-estate,Value=stateless-e2e" "Key=tofu-address,Value=aws_security_group.main" >/dev/null \
-    || fail "removal-exact" "could not tag the replacement security group $R_NEW_SG_ID"
+  # 8. Restore: $MAIN's own config still declares aws_ebs_volume.data -
+  # only $COPY's config had the block commented out - so a live volume has
+  # to exist again for every later step's full-estate plan to stay clean.
+  # Same convention count-scale-down (step 9) already uses to put back what
+  # it released.
+  # The markers ride on the create call itself: floci's ec2:CreateTags
+  # silently drops tags on volume resources (probed 2026-08-12 — the call
+  # succeeds and describe-volumes returns Tags: []), while tag
+  # specifications at create time round-trip fine, which is also the path
+  # the provider itself takes.
+  R_NEW_VOL_ID="$(awsl ec2 create-volume --availability-zone "us-east-1a" --size 1 \
+    --tag-specifications 'ResourceType=volume,Tags=[{Key=tofu-estate,Value=stateless-e2e},{Key=tofu-address,Value=aws_ebs_volume.data}]' \
+    --query 'VolumeId' --output text)"
+  [ -n "$R_NEW_VOL_ID" ] && [ "$R_NEW_VOL_ID" != "None" ] \
+    || fail "removal-exact" "could not recreate the EBS volume to restore \$MAIN's live estate"
+  # create-volume returns while the volume is still "creating", and the
+  # provider's volume read waits for "available" (the probe's create took
+  # ~10s against floci for exactly this reason), so the restore plan below
+  # would miss a still-creating volume. Poll it available first.
+  R_VOL_STATE=""
+  for _ in $(seq 1 30); do
+    R_VOL_STATE="$(awsl ec2 describe-volumes --volume-ids "$R_NEW_VOL_ID" \
+      --query 'Volumes[0].State' --output text 2>/dev/null || echo unknown)"
+    [ "$R_VOL_STATE" = "available" ] && break
+    sleep 2
+  done
+  [ "$R_VOL_STATE" = "available" ] \
+    || fail "removal-exact" "the replacement EBS volume $R_NEW_VOL_ID never became available (last state: $R_VOL_STATE)"
   run_tf "$MAIN" live-plan -input=false -no-color
   RESTORE_OUT="$TF_OUT"
   RC="$TF_RC"
@@ -1371,7 +1392,7 @@ else
   assert_full_estate_clean "$RESTORE_OUT" "removal-exact"
 
   STEP8_T1=$(date +%s)
-  echo "  restored via $R_NEW_SG_ID so \$MAIN's live estate still matches its declared config; $((STEP8_T1 - STEP8_T0))s"
+  echo "  restored via $R_NEW_VOL_ID so \$MAIN's live estate still matches its declared config; $((STEP8_T1 - STEP8_T0))s"
   record_step "removal-exact" pass
 fi
 

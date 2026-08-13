@@ -164,12 +164,12 @@ it again.
 `blocked-emulator` was empty in the first pass and holds twenty rows now,
 all of them found by wiring lanes probing against floci rather than by a
 survey of emulator coverage. Each names its gap and its tracking issue in
-the identity column; choudoufu#26 is the umbrella. Five of the gaps
-(Lambda, EKS, RDS, EC2 run-instances, SQS queue URLs) were fixed upstream
-on 2026-08-12 — lex00/floci#26, #27, #28, #32 and #34 all closed that
-evening — but no pullable harness image carries the fixes yet, so their
-rows stay blocked until the republished image lands and a probe proves them
-live. Nothing about these rows is a claim about real AWS, which is the
+the identity column; choudoufu#26 is the umbrella. Six of the gaps
+(Lambda, EKS, RDS, EC2 run-instances, SQS queue URLs, the CloudFront
+lifecycle) were fixed upstream on 2026-08-12 — lex00/floci#26, #27, #28,
+#29, #32 and #34 all closed that evening — but no pullable harness image
+carries the fixes yet, so their rows stay blocked until the republished
+image lands and a probe proves them live. Nothing about these rows is a claim about real AWS, which is the
 point of keeping the token separate from `ready`.
 
 `Source` is two tokens, provenance then derivation tier. Provenance is
@@ -214,7 +214,7 @@ identity argument were derived like every other row's.
 | aws_sqs_queue | client-named | blocked-emulator | name, and the required import attribute is the queue URL; the account-derived template builds it, but floci reports a queue's URL as its own endpoint and the provider's importer parses only the amazonaws.com form, so the marker path cannot complete (choudoufu#26) | survey note; schema |
 | aws_sns_topic | account-derived | wired | name, wrapped in the run's region and account as arn:aws:sns:REGION:ACCOUNT:NAME | survey note; schema |
 | aws_instance | marker | blocked-emulator | server-assigned instance ID (i-...); floci jumps a new instance straight to `terminated` and the provider's create waits for `running` (lex00/floci#32, closed 2026-08-12; blocked until a pullable harness image carries the fix — reprobed the same evening, the published image still terminates; choudoufu#26) | survey note; schema |
-| aws_cloudfront_distribution | marker | blocked-emulator | server-assigned distribution ID; floci serves no usable CloudFront distribution lifecycle (choudoufu#26) | survey note; schema |
+| aws_cloudfront_distribution | marker | blocked-emulator | server-assigned distribution ID; floci serves no usable CloudFront distribution lifecycle (choudoufu#26); lifecycle fix merged upstream 2026-08-12 (lex00/floci#29), awaiting a republished image — and floci's resourcegroupstagging covers no CloudFront, so the wiring lane must verify the provider's list resource reaches ListDistributions + ListTagsForResource rather than GetResources before flipping this row | survey note; schema |
 | aws_db_instance | marker | blocked-emulator | taggable, but v6.58.0 ships neither an identity schema nor a list resource for it, and `identifier` is the documented import ID, so it wires client-named when unblocked (see the wrinkles below); RDS needs the Docker socket mounted into the emulator (lex00/floci#28, choudoufu#26) | survey note; docs |
 | aws_route53_zone | marker | wired | server-assigned hosted zone ID (Z...); the identity schema names zone_id rather than id | survey note; schema |
 | aws_lb_listener | marker | wired | server-assigned listener ARN | survey note; schema |
