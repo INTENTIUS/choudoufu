@@ -129,6 +129,33 @@ type Request struct {
 	// destroys, in [applyOrphanPolicy].
 	Policy *policy.Policy
 
+	// ScopeProvider narrows which of Resolutions this pass treats as
+	// "waiting to be found" - both the needs-discovery config-driven scan
+	// and the parent-read leg - to the ones whose resource block uses this
+	// provider configuration. It exists for issue #69's multi-provider
+	// sweep ([Merge], run by internal/command/live_plan.go's
+	// statelessDiscover once per distinct provider configuration among an
+	// estate's managed resources): a pass must never bind a needs-discovery
+	// instance, or read a parent-derived child, through the wrong account.
+	//
+	// It deliberately does NOT narrow what counts as "already declared" for
+	// [declared.declares] - the check that keeps a live, client-named
+	// resource matching another pass's declared address from being
+	// misclassified as an orphan. That check stays global, over every
+	// resolution in Resolutions regardless of provider, because a type like
+	// aws_s3_bucket whose list operation is account-global (not
+	// region-scoped - see testdata/alias-e2e/main.tf's comment) will hand
+	// every pass every account's bucket, including ones declared under a
+	// different provider configuration; without whole-config knowledge of
+	// what is declared, a pass would misread another provider's own
+	// resource as undeclared and propose destroying it out from under the
+	// pass that actually owns it.
+	//
+	// The zero value means no scoping: every resolution in Resolutions is
+	// in scope, which is every existing caller's behavior and what keeps a
+	// single-provider Discover call exactly as it always was.
+	ScopeProvider addrs.AbsProviderConfig
+
 	// ---------------------------------------------------------------------
 	// Snapshot-guided discovery (issue #64's second leg)
 	// ---------------------------------------------------------------------
@@ -450,6 +477,27 @@ func (d *declared) typeNames() []string {
 	return out
 }
 
+// inScope reports whether a resource block is this pass's business: every
+// block, when scope is the zero value (every existing caller, unchanged),
+// or only the blocks using that exact provider configuration when it is
+// set (issue #69's multi-provider sweep - see [Request.ScopeProvider]'s own
+// doc comment for what this is and is not used to restrict). modPath is the
+// static module the block itself is declared in, the same module-qualified
+// shape [Request.ScopeProvider] and internal/command/live_plan.go's
+// providerConfigAddr use, so a resource inside a child module scopes
+// correctly rather than being compared as if it were always in the root.
+func inScope(scope addrs.AbsProviderConfig, rc *configs.Resource, modPath addrs.Module) bool {
+	if scope.Provider.Type == "" {
+		return true
+	}
+	addr := addrs.AbsProviderConfig{
+		Module:   modPath,
+		Provider: rc.Provider,
+		Alias:    rc.ProviderConfigAddr().Alias,
+	}
+	return addr.String() == scope.String()
+}
+
 // declaredInstances indexes the needs-discovery resolutions by type and
 // escaped address, checking each against the configuration as it goes.
 func declaredInstances(req Request) (*declared, tfdiags.Diagnostics) {
@@ -501,6 +549,15 @@ func declaredInstances(req Request) (*declared, tfdiags.Diagnostics) {
 				"Resolved resource missing from the configuration",
 				fmt.Sprintf("Discovery was asked to find %s, but the configuration it was given declares no resource block %q in %s. The resolutions and the configuration come from different runs; this is a bug in whatever assembled them.", r.Addr, blockAddr, moduleDisplay(r.Addr.Module)),
 			))
+			continue
+		}
+
+		if !inScope(req.ScopeProvider, block, r.Addr.Module.Module()) {
+			// Declared, but by a different provider configuration than this
+			// pass is scoped to (issue #69's multi-provider sweep). It
+			// already contributed its address to d.all above, which is what
+			// keeps another pass's sweep from mistaking it for an orphan;
+			// this pass simply is not the one that tries to find it.
 			continue
 		}
 
@@ -570,7 +627,7 @@ func declaredInstances(req Request) (*declared, tfdiags.Diagnostics) {
 // address, so two count blocks with the same local name in different
 // modules never collide.
 func (d *declared) indexCountBlocks(req Request) {
-	d.walkCountBlocks(req.Config)
+	d.walkCountBlocks(req.Config, req.ScopeProvider)
 
 	for typeName, entries := range d.types {
 		for _, entry := range entries {
@@ -597,14 +654,21 @@ func (d *declared) indexCountBlocks(req Request) {
 }
 
 // walkCountBlocks is [declared.indexCountBlocks]'s recursive step: one
-// module's count blocks, then its children in name order.
-func (d *declared) walkCountBlocks(cfg *configs.Config) {
+// module's count blocks, then its children in name order. scope is
+// [Request.ScopeProvider], threaded through the recursion so a block
+// outside this pass's scope (issue #69's multi-provider sweep) never gets
+// a count-set entry - or a marker naming one of its slots would be parked
+// on a block this pass never declared anything into.
+func (d *declared) walkCountBlocks(cfg *configs.Config, scope addrs.AbsProviderConfig) {
 	if cfg == nil || cfg.Module == nil {
 		return
 	}
 	modInst := identity.ModuleInstance(cfg)
 	for _, rc := range cfg.Module.ManagedResources {
 		if rc.Count == nil {
+			continue
+		}
+		if !inScope(scope, rc, cfg.Path) {
 			continue
 		}
 		typeName := rc.Type
@@ -624,7 +688,7 @@ func (d *declared) walkCountBlocks(cfg *configs.Config) {
 		}
 	}
 	for _, name := range identity.SortedChildNames(cfg.Children) {
-		d.walkCountBlocks(cfg.Children[name])
+		d.walkCountBlocks(cfg.Children[name], scope)
 	}
 }
 

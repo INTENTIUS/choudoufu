@@ -15,25 +15,26 @@ import (
 	"github.com/intentius/choudoufu/internal/live/flocitest"
 )
 
-// This is issue #64's provider-alias e2e: two aws provider configurations -
-// the default and one aliased "west" - each pointed at a different region
-// against floci's single endpoint (testdata/alias-e2e), stood up by stock
-// terraform, and then `choudoufu live-plan` over the lot. It drives the
-// real command, the same way foreign_live_test.go's
-// TestForeignAgainstFloci does, because the claim under test - "a plan over
-// resources from two aliased provider configurations works" - is a
-// property of the command, not of a function this package exports.
+// This is issue #64's provider-alias e2e, closed by issue #69: two aws
+// provider configurations - the default and one aliased "west" - each
+// pointed at a different region against floci's single endpoint
+// (testdata/alias-e2e), stood up by stock terraform, and then
+// `choudoufu live-plan` over the lot. It drives the real command, the same
+// way foreign_live_test.go's TestForeignAgainstFloci does, because the
+// claim under test - "a plan over resources from two aliased provider
+// configurations works" - is a property of the command, not of a function
+// this package exports.
 //
-// Result (2026-08-13, this checkout's floci pin): it does not work today.
-// TestAliasedProvidersAgainstFloci skips with the finding recorded in its
-// own body rather than failing outright or passing silently: live-plan
-// refuses any configuration whose managed resources span more than one
-// provider configuration at all, via
-// internal/command/live_plan.go's statelessDiscoveryProvider - even for
-// this fixture, where neither resource needs marker-based discovery in the
-// first place. See the FINDING comment at the point of the skip for the
-// root cause; filed as issue #69 rather than fixed here (out of #64's
-// backoff/benchmark scope).
+// History: this test used to skip with a recorded finding rather than pass
+// or fail outright, because live-plan refused any configuration whose
+// managed resources spanned more than one provider configuration at all
+// (internal/command/live_plan.go's now-removed statelessDiscoveryProvider) -
+// even here, where neither resource needs marker-based discovery in the
+// first place. Issue #69 made the estate-wide sweep provider-aware
+// (statelessDiscover loops it once per distinct managed-resource provider
+// configuration and internal/live/discovery.Merge combines the results),
+// and this is that fix's own acceptance test: it now asserts a real,
+// passing plan rather than recording why one could not be produced.
 //
 //	TF_FLOCI_TEST=1 go test ./internal/live/discovery/ -run TestAliasedProvidersAgainstFloci -v
 func TestAliasedProvidersAgainstFloci(t *testing.T) {
@@ -82,7 +83,8 @@ func TestAliasedProvidersAgainstFloci(t *testing.T) {
 	// scoped to the region the request was signed for), so this is not the
 	// region-scope claim internal/live/cloudcontrol/doc.go's "Signing"
 	// section makes for Cloud Control; that machinery lives in a code path
-	// this fixture cannot reach at all, per the finding below.
+	// this fixture (aws_s3_bucket, listed through the AWS provider's own
+	// native list resource) never reaches at all.
 	eastList := flocitest.AWSCLI(t, flociPort, "--region", "us-east-1", "s3api", "list-buckets", "--query", "Buckets[].Name", "--output", "text")
 	westList := flocitest.AWSCLI(t, flociPort, "--region", "us-west-2", "s3api", "list-buckets", "--query", "Buckets[].Name", "--output", "text")
 	t.Logf("us-east-1 sees: %q", eastList)
@@ -103,50 +105,14 @@ func TestAliasedProvidersAgainstFloci(t *testing.T) {
 	t.Logf("choudoufu live-plan:\n%s", output)
 
 	if err != nil {
-		// FINDING (issue #64's provider-alias e2e): live-plan refuses any
-		// configuration whose managed resources span more than one
-		// provider configuration, even when - as here - neither resource
-		// actually needs marker-based discovery at all.
-		//
-		// Root cause: internal/command/live_plan.go's
-		// statelessDiscoveryProvider chooses the one provider configuration
-		// the discovery pass's estate-wide sweep (Request.Sweep, always on
-		// for live-plan) lists through. When nothing is waiting on marker
-		// discovery - both resources here are client-named aws_s3_bucket,
-		// so `needs` is empty - it falls back to every *managed* resource's
-		// provider as the sweep's candidate set, sees this fixture's two
-		// (default and .west), and refuses with "Marker discovery across
-		// several provider configurations": the same refusal correctly
-		// used for the case its own doc comment describes (needs-discovery
-		// resources spanning providers, where sweeping the wrong region
-		// really would misreport an estate as missing), applied to a case
-		// where nothing needs discovery at all and the refusal is not
-		// buying any correctness the sweep didn't already have to give up
-		// somewhere (a single-provider sweep already covers only one
-		// region's undeclared resources; a caller with a multi-region
-		// estate already accepts a narrower sweep, not a wrong one).
-		//
-		// This is not a small fix: making the sweep provider-aware means
-		// Discover (or its caller) looping the sweep once per distinct
-		// managed-resource provider configuration and merging the results,
-		// which is real design work on the command layer's discovery
-		// wiring, not a one-line change to statelessDiscoveryProvider's
-		// fallback branch. Filed as issue #69 rather than fixed here, which
-		// is out of scope for #64's backoff/benchmark work.
-		//
-		// Structural alias support (identity.Resolve and projection keying
-		// every resolution by its own addrs.AbsProviderConfig) is real and
-		// unaffected by this: a configuration with exactly one
-		// provider-configuration's worth of managed resources plus a
-		// second, alias-only provider used by nothing still plans
-		// correctly today. What this fixture proves is narrower and
-		// sharper than the issue's "does Alias work" framing suggested:
-		// Alias works structurally; the sweep's provider selection is what
-		// blocks a real two-alias estate from ever reaching that code.
-		t.Skipf("live-plan refuses this two-alias estate before it reaches marker discovery or projection - "+
-			"see the FINDING comment above this line in alias_live_test.go for the root cause "+
-			"(internal/command/live_plan.go's statelessDiscoveryProvider) and why it is filed rather than "+
-			"fixed here. Command output:\n%s", output)
+		// Issue #69's whole point: this must not happen any more. Before
+		// the fix this failed with "Marker discovery across several
+		// provider configurations" - live-plan refusing any configuration
+		// whose managed resources spanned more than one provider
+		// configuration, even though neither resource here needs
+		// marker-based discovery at all. A real, unexplained failure here
+		// is this test doing its job.
+		t.Fatalf("live-plan failed over a two-alias estate (issue #69 regression): %v\n%s", err, output)
 	}
 
 	for _, addr := range []string{"aws_s3_bucket.east", "aws_s3_bucket.west"} {
