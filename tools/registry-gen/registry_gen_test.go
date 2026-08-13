@@ -34,16 +34,26 @@ import (
 // the delta a one-type difference between measurement moments would
 // produce - consistent with the volatility issue #42 itself documents (AWS
 // shipping several distinct digests a day).
+//
+// issue #66 moved this pin: the CFN registry drift admission-pipeline found
+// on the provider 6.58.0 -> 6.59.0 bump added 30 types with none removed
+// (tools/registry-gen/pinned_spec.go's Digest/Resources/Accepted and
+// pinned-types.json moved together, in the same commit, per this file's own
+// AssertPinned discipline). The values below are what live/registry.json's
+// own counts were measured at against the new pinned bundle, following the
+// same "moving only with an accepted pin bump" rule the test below enforces
+// - not re-derived from a published issue text the way the original 1,653
+// set was.
 var referenceCounts = RegistryCounts{
-	Types:                  1653,
-	WithPrimaryIdentifier:  1653,
-	PrimaryIdentifierArity: PrimaryIdentifierArity{Single: 1364, Double: 232, ThreeOrMore: 57},
-	Taggable:               1014,
-	ListFree:               1098,
-	ListWithRequiredInput:  309,
-	NoListHandler:          246,
-	NoHandlersAtAll:        168,
-	WithRead:               1479,
+	Types:                  1683,
+	WithPrimaryIdentifier:  1683,
+	PrimaryIdentifierArity: PrimaryIdentifierArity{Single: 1386, Double: 239, ThreeOrMore: 58},
+	Taggable:               1035,
+	ListFree:               1121,
+	ListWithRequiredInput:  322,
+	NoListHandler:          240,
+	NoHandlersAtAll:        161,
+	WithRead:               1516,
 }
 
 // realZipOrSkip returns the cached real CloudFormation Registry bundle, or

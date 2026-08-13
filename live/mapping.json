@@ -1,21 +1,21 @@
 {
   "generated_by": "tools/mapping-gen (go run ./tools/mapping-gen)",
   "counts": {
-    "types": 1691,
-    "mapped": 1083,
+    "types": 1699,
+    "mapped": 1090,
     "fold": 170,
     "tf_only": 116,
-    "cfn_unmodeled": 302,
+    "cfn_unmodeled": 303,
     "deprecated_service": 7,
     "unclassified": 13,
     "by_via": {
-      "alias": 173,
-      "cfn-unmodeled": 302,
+      "alias": 174,
+      "cfn-unmodeled": 303,
       "deprecated-service": 7,
       "fold": 170,
       "former2": 47,
-      "name": 740,
-      "service-alias": 123,
+      "name": 744,
+      "service-alias": 125,
       "tf-only": 116
     }
   },
@@ -1387,6 +1387,13 @@
     {
       "tf_type": "aws_bedrockagentcore_gateway",
       "cfn_type": "AWS::BedrockAgentCore::Gateway",
+      "via": "name",
+      "fold_parent": null,
+      "note": null
+    },
+    {
+      "tf_type": "aws_bedrockagentcore_gateway_rule",
+      "cfn_type": "AWS::BedrockAgentCore::GatewayRule",
       "via": "name",
       "fold_parent": null,
       "note": null
@@ -6677,6 +6684,13 @@
       "note": "registry search: AWS::Macie has no OrganizationConfiguration type"
     },
     {
+      "tf_type": "aws_mailmanager_ingress_point",
+      "cfn_type": "AWS::SES::MailManagerIngressPoint",
+      "via": "alias",
+      "fold_parent": null,
+      "note": null
+    },
+    {
       "tf_type": "aws_mailmanager_rule_set",
       "cfn_type": "AWS::SES::MailManagerRuleSet",
       "via": "alias",
@@ -7006,6 +7020,13 @@
       "note": null
     },
     {
+      "tf_type": "aws_neptunegraph_private_graph_endpoint",
+      "cfn_type": "AWS::NeptuneGraph::PrivateGraphEndpoint",
+      "via": "name",
+      "fold_parent": null,
+      "note": null
+    },
+    {
       "tf_type": "aws_network_acl",
       "cfn_type": "AWS::EC2::NetworkAcl",
       "via": "former2",
@@ -7053,6 +7074,13 @@
       "via": "fold",
       "fold_parent": "AWS::EC2::NetworkInterface",
       "note": null
+    },
+    {
+      "tf_type": "aws_networkfirewall_container_association",
+      "cfn_type": null,
+      "via": "cfn-unmodeled",
+      "fold_parent": null,
+      "note": "AWS::NetworkFirewall::* carries no ContainerAssociation type (confirmed by search of every AWS::NetworkFirewall::* type in live/registry.json: Firewall, FirewallPolicy, LoggingConfiguration, RuleGroup, TLSInspectionConfiguration, VpcEndpointAssociation - none models linking an ECS/EKS cluster's containers to a Network Firewall for dynamic IP-set resolution, which is what this TF resource's own docs describe)"
     },
     {
       "tf_type": "aws_networkfirewall_firewall",
@@ -7804,6 +7832,20 @@
       "note": null
     },
     {
+      "tf_type": "aws_pinpointsmsvoicev2_resource_policy",
+      "cfn_type": "AWS::SMSVOICE::ResourcePolicy",
+      "via": "service-alias",
+      "fold_parent": null,
+      "note": null
+    },
+    {
+      "tf_type": "aws_pinpointsmsvoicev2_sender_id",
+      "cfn_type": "AWS::SMSVOICE::SenderId",
+      "via": "service-alias",
+      "fold_parent": null,
+      "note": null
+    },
+    {
       "tf_type": "aws_pipes_pipe",
       "cfn_type": "AWS::Pipes::Pipe",
       "via": "name",
@@ -8506,6 +8548,20 @@
     {
       "tf_type": "aws_resiliencehubv2_policy",
       "cfn_type": "AWS::ResilienceHubV2::Policy",
+      "via": "name",
+      "fold_parent": null,
+      "note": null
+    },
+    {
+      "tf_type": "aws_resiliencehubv2_service",
+      "cfn_type": "AWS::ResilienceHubV2::Service",
+      "via": "name",
+      "fold_parent": null,
+      "note": null
+    },
+    {
+      "tf_type": "aws_resiliencehubv2_system",
+      "cfn_type": "AWS::ResilienceHubV2::System",
       "via": "name",
       "fold_parent": null,
       "note": null

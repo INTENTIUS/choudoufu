@@ -24,7 +24,7 @@ import (
 // names this the same tradeoff survey-gen's doc comment already accepts).
 const (
 	providerSource  = "hashicorp/aws"
-	providerVersion = "6.58.0"
+	providerVersion = "6.59.0"
 
 	providerOwner = "hashicorp"
 	providerRepo  = "terraform-provider-aws"

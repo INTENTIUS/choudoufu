@@ -1,0 +1,13 @@
+{
+  "aliases": {
+    "aws_mailmanager_ingress_point": "AWS::SES::MailManagerIngressPoint"
+  },
+  "cfn_unmodeled": {
+    "aws_networkfirewall_container_association": "AWS::NetworkFirewall::* carries no ContainerAssociation type (confirmed by search of every AWS::NetworkFirewall::* type in live/registry.json: Firewall, FirewallPolicy, LoggingConfiguration, RuleGroup, TLSInspectionConfiguration, VpcEndpointAssociation - none models linking an ECS/EKS cluster's containers to a Network Firewall for dynamic IP-set resolution, which is what this TF resource's own docs describe)"
+  },
+  "_provenance": [
+    "issue #66: provider 6.58.0 -> 6.59.0 added 8 TF types; six (aws_bedrockagentcore_gateway_rule, aws_neptunegraph_private_graph_endpoint, aws_pinpointsmsvoicev2_resource_policy, aws_pinpointsmsvoicev2_sender_id, aws_resiliencehubv2_service, aws_resiliencehubv2_system) were classified automatically by the name/service-alias heuristics; these two landed via:none with the generic unexplained note and needed a human classification.",
+    "aliases (aws_mailmanager_ingress_point): the plain name heuristic misses it for the same reason it misses the fragment's siblings aws_mailmanager_rule_set and aws_mailmanager_traffic_policy (both already aliased in the base overlay.json) - AWS nests the whole Mail Manager sub-service under AWS::SES::MailManager* rather than a standalone AWS::MailManager::* namespace. AWS::SES::MailManagerIngressPoint is unclaimed by any other TF type; the resource's own doc (subcategory \"SES Mail Manager\") confirms the pairing.",
+    "cfn_unmodeled (aws_networkfirewall_container_association): a genuinely new AWS capability (container-based Network Firewall deployment against ECS/EKS clusters) with no CloudFormation Registry model yet, per the CFN registry bump's own +30 added-types list (tools/registry-gen/pinned-types.json) not including it and a full-service search turning up nothing - not a sweep guess, an explicit no-match confirmed against the resource's imported doc."
+  ]
+}

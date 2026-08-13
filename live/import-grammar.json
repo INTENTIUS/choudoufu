@@ -1,19 +1,19 @@
 {
   "provider": "hashicorp/aws",
-  "provider_version": "6.58.0",
+  "provider_version": "6.59.0",
   "generated_by": "tools/importdocs-gen (go run ./tools/importdocs-gen)",
   "accepted": "2026-08-13",
   "counts": {
-    "types_considered": 1691,
-    "docs_found": 1685,
+    "types_considered": 1699,
+    "docs_found": 1693,
     "docs_missing": 6,
     "no_import_section": 93,
-    "rows": 1592,
-    "composed_true": 591,
-    "composed_false": 222,
-    "composed_unsure": 779,
-    "separator_known": 203,
-    "separator_unsure": 1389
+    "rows": 1600,
+    "composed_true": 596,
+    "composed_false": 227,
+    "composed_unsure": 777,
+    "separator_known": 205,
+    "separator_unsure": 1395
   },
   "rows": [
     {
@@ -1238,11 +1238,11 @@
     },
     {
       "tf_type": "aws_backup_plan",
-      "import_id_example": "<id>",
+      "import_id_example": "abc123",
       "separator": null,
-      "composed_of_arguments": null,
+      "composed_of_arguments": false,
       "arguments": null,
-      "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Backup Plan using the `id`. For example:\n\n```terraform\nimport {\n  to = aws_backup_plan.test\n  id = \"<id>\"\n}\n```\n\nUsing `terraform import`, import Backup Plan using the `id`. For example:\n\n```console\n% terraform import aws_backup_plan.test <id>\n```"
+      "evidence_excerpt": "## Import\n\nIn Terraform v1.12.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `identity` attribute. For example:\n\n```terraform\nimport {\n  to = aws_backup_plan.example\n  identity = {\n    id = \"abc123\"\n  }\n}\n\nresource \"aws_backup_plan\" \"example\" {\n  ### Configuration omitted for brevity ###\n}\n```\n\n### Identity Schema\n\n#### Required\n\n* `id` (String) Backup Plan ID.\n\n#### Optional\n\n* `account_id` (String) AWS Account where this resource is managed.\n* `region` (String) Region where this resource is managed.\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Backup Plan using the `id`. For example:\n\n```terraform\nimport {\n  to = aws_backup_plan.example\n  id = \"abc123\"\n}\n```\n\nUsing `terraform import`, import Backup Plan using the `id`. For example:\n\n```console\n% terraform import aws_backup_plan.example abc123\n```"
     },
     {
       "tf_type": "aws_backup_region_settings",
@@ -1285,11 +1285,13 @@
     },
     {
       "tf_type": "aws_backup_selection",
-      "import_id_example": "plan-id|selection-id",
-      "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
-      "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Backup selection using the role plan_id and id separated by `|`. For example:\n\n```terraform\nimport {\n  to = aws_backup_selection.example\n  id = \"plan-id|selection-id\"\n}\n```\n\nUsing `terraform import`, import Backup selection using the role plan_id and id separated by `|`. For example:\n\n```console\n% terraform import aws_backup_selection.example plan-id|selection-id\n```"
+      "import_id_example": "abcd1234|efgh5678",
+      "separator": "|",
+      "composed_of_arguments": true,
+      "arguments": [
+        "plan_id"
+      ],
+      "evidence_excerpt": "## Import\n\nIn Terraform v1.12.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `identity` attribute. For example:\n\n```terraform\nimport {\n  to = aws_backup_selection.example\n  identity = {\n    plan_id = \"abcd1234\"\n    id      = \"efgh5678\"\n  }\n}\n\nresource \"aws_backup_selection\" \"example\" {\n  ### Configuration omitted for brevity ###\n}\n```\n\n### Identity Schema\n\n#### Required\n\n* `plan_id` (Required) Backup plan ID associated with the selection of resources.\n* `id` (String) Backup selection ID.\n\n#### Optional\n\n* `account_id` (String) AWS Account where this resource is managed.\n* `region` (String) Region where this resource is managed.\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Backup selection using the `plan_id` and `id` separated by `|`. For example:\n\n```terraform\nimport {\n  to = aws_backup_selection.example\n  id = \"abcd1234|efgh5678\"\n}\n```\n\nUsing `terraform import`, import Backup selection using the `plan_id` and `id` separated by `|`. For example:\n\n```console\n% terraform import aws_backup_selection.example abcd1234|efgh5678\n```"
     },
     {
       "tf_type": "aws_backup_vault",
@@ -1299,7 +1301,7 @@
       "arguments": [
         "name"
       ],
-      "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Backup vault using the `name`. For example:\n\n```terraform\nimport {\n  to = aws_backup_vault.test-vault\n  id = \"TestVault\"\n}\n```\n\nUsing `terraform import`, import Backup vault using the `name`. For example:\n\n```console\n% terraform import aws_backup_vault.test-vault TestVault\n```"
+      "evidence_excerpt": "## Import\n\nIn Terraform v1.12.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `identity` attribute. For example:\n\n```terraform\nimport {\n  to = aws_backup_vault.example\n  identity = {\n    name = \"TestVault\"\n  }\n}\n\nresource \"aws_backup_vault\" \"example\" {\n  ### Configuration omitted for brevity ###\n}\n```\n\n### Identity Schema\n\n#### Required\n\n* `name` (String) Name of the backup vault.\n\n#### Optional\n\n* `account_id` (String) AWS Account where this resource is managed.\n* `region` (String) Region where this resource is managed.\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Backup vault using the `name`. For example:\n\n```terraform\nimport {\n  to = aws_backup_vault.test-vault\n  id = \"TestVault\"\n}\n```\n\nUsing `terraform import`, import Backup vault using the `name`. For example:\n\n```console\n% terraform import aws_backup_vault.test-vault TestVault\n```"
     },
     {
       "tf_type": "aws_backup_vault_lock_configuration",
@@ -1578,6 +1580,16 @@
       "composed_of_arguments": null,
       "arguments": null,
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Bedrock AgentCore Gateway using the gateway ID. For example:\n\n```terraform\nimport {\n  to = aws_bedrockagentcore_gateway.example\n  id = \"GATEWAY1234567890\"\n}\n```\n\nUsing `terraform import`, import Bedrock AgentCore Gateway using the gateway ID. For example:\n\n```console\n% terraform import aws_bedrockagentcore_gateway.example GATEWAY1234567890\n```"
+    },
+    {
+      "tf_type": "aws_bedrockagentcore_gateway_rule",
+      "import_id_example": "example-gateway-abcdef1234,11111111-2222-3333-4444-555555555555",
+      "separator": ",",
+      "composed_of_arguments": true,
+      "arguments": [
+        "gateway_identifier"
+      ],
+      "evidence_excerpt": "## Import\n\nIn Terraform v1.12.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `identity` attribute. For example:\n\n```terraform\nimport {\n  to = aws_bedrockagentcore_gateway_rule.example\n  identity = {\n    gateway_identifier = \"example-gateway-abcdef1234\"\n    rule_id            = \"11111111-2222-3333-4444-555555555555\"\n  }\n}\n\nresource \"aws_bedrockagentcore_gateway_rule\" \"example\" {\n  ### Configuration omitted for brevity ###\n}\n```\n\n### Identity Schema\n\n#### Required\n\n* `gateway_identifier` (String) Identifier of the gateway.\n* `rule_id` (String) Identifier of the rule.\n\n#### Optional\n\n* `account_id` (String) AWS Account where this resource is managed.\n* `region` (String) Region where this resource is managed.\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import gateway rules using `gateway_identifier` and `rule_id` separated by a comma (`,`). For example:\n\n```terraform\nimport {\n  to = aws_bedrockagentcore_gateway_rule.example\n  id = \"example-gateway-abcdef1234,11111111-2222-3333-4444-555555555555\"\n}\n```\n\nUsing `terraform import`, import gateway rules using `gateway_identifier` and `rule_id` separated by a comma (`,`). For example:\n\n```console\n% terraform import aws_bedrockagentcore_gateway_rule.example example-gateway-abcdef1234,11111111-2222-3333-4444-555555555555\n```"
     },
     {
       "tf_type": "aws_bedrockagentcore_gateway_target",
@@ -5350,7 +5362,7 @@
       "separator": null,
       "composed_of_arguments": null,
       "arguments": null,
-      "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import elasticsearch VPC endpoint connections using the `id`. For example:\n\n```terraform\nimport {\n  to = aws_elasticsearch_vpc_endpoint_connection.example\n  id = \"endpoint-id\"\n}\n```\n\nUsing `terraform import`, import elasticsearch VPC endpoint connections using the `id`. For example:\n\n```console\n% terraform import aws_elasticsearch_vpc_endpoint_connection.example endpoint-id\n```"
+      "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import elasticsearch VPC endpoints using the `id`. For example:\n\n```terraform\nimport {\n  to = aws_elasticsearch_vpc_endpoint.example\n  id = \"endpoint-id\"\n}\n```\n\nUsing `terraform import`, import elasticsearch VPC endpoints using the `id`. For example:\n\n```console\n% terraform import aws_elasticsearch_vpc_endpoint.example endpoint-id\n```"
     },
     {
       "tf_type": "aws_elastictranscoder_pipeline",
@@ -7729,6 +7741,14 @@
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_macie2_organization_admin_account` using the id. For example:\n\n```terraform\nimport {\n  to = aws_macie2_organization_admin_account.example\n  id = \"abcd1\"\n}\n```\n\nUsing `terraform import`, import `aws_macie2_organization_admin_account` using the id. For example:\n\n```console\n% terraform import aws_macie2_organization_admin_account.example abcd1\n```"
     },
     {
+      "tf_type": "aws_mailmanager_ingress_point",
+      "import_id_example": "ingress_point-id-12345678",
+      "separator": null,
+      "composed_of_arguments": false,
+      "arguments": null,
+      "evidence_excerpt": "## Import\n\nIn Terraform v1.12.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `identity` attribute. For example:\n\n```terraform\nimport {\n  to = aws_mailmanager_ingress_point.example\n  identity = {\n    id = \"ingress_point-id-12345678\"\n  }\n}\n\nresource \"aws_mailmanager_ingress_point\" \"example\" {\n  ### Configuration omitted for brevity ###\n}\n```\n\n### Identity Schema\n\n#### Required\n\n* `id` (String) Identifier of the Ingress Point.\n\n#### Optional\n\n* `account_id` (String) AWS Account where this resource is managed.\n* `region` (String) Region where this resource is managed.\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import SES Mail Manager Ingress Point using the `id`. For example:\n\n```terraform\nimport {\n  to = aws_mailmanager_ingress_point.example\n  id = \"ingress_point-id-12345678\"\n}\n```\n\nUsing `terraform import`, import SES Mail Manager Ingress Point using the `id`. For example:\n\n```console\n% terraform import aws_mailmanager_ingress_point.example ingress_point-id-12345678\n```"
+    },
+    {
       "tf_type": "aws_mailmanager_rule_set",
       "import_id_example": "rule-set-id",
       "separator": null,
@@ -8127,6 +8147,17 @@
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_neptunegraph_graph` using the graph identifier. For example:\n\n```terraform\nimport {\n  to = aws_neptunegraph_graph.example\n  id = \"graph_id\"\n}\n```\n\nUsing `terraform import`, import `aws_neptunegraph_graph` using the graph identifier. For example:\n\n```console\n% terraform import aws_neptunegraph_graph.example \"graph_id\"\n```"
     },
     {
+      "tf_type": "aws_neptunegraph_private_graph_endpoint",
+      "import_id_example": "g-12a3bcdef4_vpc-111122223333aabbc",
+      "separator": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "graph_identifier",
+        "vpc_id"
+      ],
+      "evidence_excerpt": "## Import\n\nIn Terraform v1.12.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Neptune Analytics Private Graph Endpoint using the `graph_identifier` and `vpc_id`. For example:\n\n```terraform\nimport {\n  to = aws_neptunegraph_private_graph_endpoint.example\n  identity = {\n    graph_identifier = \"g-12a3bcdef4\"\n    vpc_id           = \"vpc-111122223333aabbc\"\n  }\n}\n```\n\n### Identity Schema\n\n#### Required\n\n* `graph_identifier` (String) Unique identifier of the Neptune Analytics graph.\n* `vpc_id` (String) VPC in which the private graph endpoint is created.\n\n#### Optional\n\n* `account_id` (String) AWS Account where this resource is managed.\n* `region` (String) Region where this resource is managed.\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Neptune Analytics Private Graph Endpoint using the `private_graph_endpoint_identifier`. For example:\n\n```terraform\nimport {\n  to = aws_neptunegraph_private_graph_endpoint.example\n  id = \"g-12a3bcdef4_vpc-111122223333aabbc\"\n}\n```\n\nUsing `terraform import`, import Neptune Analytics Private Graph Endpoint using the `private_graph_endpoint_identifier`. For example:\n\n```console\n% terraform import aws_neptunegraph_private_graph_endpoint.example g-12a3bcdef4_vpc-111122223333aabbc\n```"
+    },
+    {
       "tf_type": "aws_network_acl",
       "import_id_example": "acl-7aaabd18",
       "separator": null,
@@ -8186,6 +8217,14 @@
       "composed_of_arguments": null,
       "arguments": null,
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Network Interface Security Group attachments using the associated network interface ID and security group ID, separated by an underscore (`_`). For example:\n\n```terraform\nimport {\n  to = aws_network_interface_sg_attachment.sg_attachment\n  id = \"eni-1234567890abcdef0_sg-1234567890abcdef0\"\n}\n```\n\nUsing `terraform import`, import Network Interface Security Group attachments using the associated network interface ID and security group ID, separated by an underscore (`_`). For example:\n\n```console\n% terraform import aws_network_interface_sg_attachment.sg_attachment eni-1234567890abcdef0_sg-1234567890abcdef0\n```"
+    },
+    {
+      "tf_type": "aws_networkfirewall_container_association",
+      "import_id_example": "arn:aws:network-firewall:us-west-2:123456789012:container-association/example",
+      "separator": null,
+      "composed_of_arguments": false,
+      "arguments": null,
+      "evidence_excerpt": "## Import\n\nIn Terraform v1.12.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `identity` attribute. For example:\n\n```terraform\nimport {\n  to = aws_networkfirewall_container_association.example\n  identity = {\n    container_association_arn = \"arn:aws:network-firewall:us-west-2:123456789012:container-association/example\"\n  }\n}\n\nresource \"aws_networkfirewall_container_association\" \"example\" {\n  ### Configuration omitted for brevity ###\n}\n```\n\n### Identity Schema\n\n#### Required\n\n* `container_association_arn` (String) ARN of the container association.\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Network Firewall Container Association using the `container_association_arn`. For example:\n\n```terraform\nimport {\n  to = aws_networkfirewall_container_association.example\n  id = \"arn:aws:network-firewall:us-west-2:123456789012:container-association/example\"\n}\n```\n\nUsing `terraform import`, import Network Firewall Container Association using the `container_association_arn`. For example:\n\n```console\n% terraform import aws_networkfirewall_container_association.example arn:aws:network-firewall:us-west-2:123456789012:container-association/example\n```"
     },
     {
       "tf_type": "aws_networkfirewall_firewall",
@@ -8663,7 +8702,7 @@
       "separator": null,
       "composed_of_arguments": null,
       "arguments": null,
-      "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import OpenSearch Ingestion Pipeline using the `id`. For example:\n\n```terraform\nimport {\n  to = aws_odb_network.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import Odb Network using the `id`. For example:\n\n```console\n% terraform import aws_odb_network.example example\n```"
+      "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import ODB Network using the `id`. For example:\n\n```terraform\nimport {\n  to = aws_odb_network.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import Odb Network using the `id`. For example:\n\n```console\n% terraform import aws_odb_network.example example\n```"
     },
     {
       "tf_type": "aws_odb_network_peering_connection",
@@ -8762,7 +8801,7 @@
       "separator": null,
       "composed_of_arguments": null,
       "arguments": null,
-      "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import OpenSearch VPC endpoint connections using the `id`. For example:\n\n```terraform\nimport {\n  to = aws_opensearch_vpc_endpoint_connection.example\n  id = \"endpoint-id\"\n}\n```\n\nUsing `terraform import`, import OpenSearch VPC endpoint connections using the `id`. For example:\n\n```console\n% terraform import aws_opensearch_vpc_endpoint_connection.example endpoint-id\n```"
+      "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import OpenSearch VPC endpoints using the `id`. For example:\n\n```terraform\nimport {\n  to = aws_opensearch_vpc_endpoint.example\n  id = \"endpoint-id\"\n}\n```\n\nUsing `terraform import`, import OpenSearch VPC endpoints using the `id`. For example:\n\n```console\n% terraform import aws_opensearch_vpc_endpoint.example endpoint-id\n```"
     },
     {
       "tf_type": "aws_opensearchserverless_access_policy",
@@ -9127,6 +9166,27 @@
       "composed_of_arguments": false,
       "arguments": null,
       "evidence_excerpt": "## Import\n\n~> **Note:** `iso_country_code` is never returned by AWS, so importing a pool with `iso_country_code` set plans a replacement until removed from config.\n\nIn Terraform v1.12.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `identity` attribute. For example:\n\n```terraform\nimport {\n  to = aws_pinpointsmsvoicev2_pool.example\n  identity = {\n    id = \"pool-abcdef0123456789abcdef0123456789\"\n  }\n}\n\nresource \"aws_pinpointsmsvoicev2_pool\" \"example\" {\n  ### Configuration omitted for brevity ###\n}\n```\n\n### Identity Schema\n\n#### Required\n\n* `id` - (String) ID of the Pool.\n\n#### Optional\n\n* `account_id` (String) AWS Account where this resource is managed.\n* `region` (String) Region where this resource is managed.\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import an AWS End User Messaging SMS Pool using the `id`. For example:\n\n```terraform\nimport {\n  to = aws_pinpointsmsvoicev2_pool.example\n  id = \"pool-abcdef0123456789abcdef0123456789\"\n}\n```\n\nUsing `terraform import`, import an AWS End User Messaging SMS Pool using the `id`. For example:\n\n```console\n% terraform import aws_pinpointsmsvoicev2_pool.example pool-abcdef0123456789abcdef0123456789\n```"
+    },
+    {
+      "tf_type": "aws_pinpointsmsvoicev2_resource_policy",
+      "import_id_example": "arn:aws:sms-voice:us-east-1:123456789012:phone-number/phone-abcdef0123456789abcdef0123456789",
+      "separator": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "resource_arn"
+      ],
+      "evidence_excerpt": "## Import\n\nIn Terraform v1.12.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `identity` attribute. For example:\n\n```terraform\nimport {\n  to = aws_pinpointsmsvoicev2_resource_policy.example\n  identity = {\n    resource_arn = \"arn:aws:sms-voice:us-east-1:123456789012:phone-number/phone-abcdef0123456789abcdef0123456789\"\n  }\n}\n\nresource \"aws_pinpointsmsvoicev2_resource_policy\" \"example\" {\n  ### Configuration omitted for brevity ###\n}\n```\n\n### Identity Schema\n\n#### Required\n\n* `resource_arn` (String) ARN of the End User Messaging SMS resource the policy is attached to.\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import the resource policy using the parent resource ARN. For example:\n\n```terraform\nimport {\n  to = aws_pinpointsmsvoicev2_resource_policy.example\n  id = \"arn:aws:sms-voice:us-east-1:123456789012:phone-number/phone-abcdef0123456789abcdef0123456789\"\n}\n```\n\nUsing `terraform import`, import the resource policy using the parent resource ARN. For example:\n\n```console\n% terraform import aws_pinpointsmsvoicev2_resource_policy.example arn:aws:sms-voice:us-east-1:123456789012:phone-number/phone-abcdef0123456789abcdef0123456789\n```"
+    },
+    {
+      "tf_type": "aws_pinpointsmsvoicev2_sender_id",
+      "import_id_example": "MYSENDERID,US",
+      "separator": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "iso_country_code",
+        "sender_id"
+      ],
+      "evidence_excerpt": "## Import\n\nIn Terraform v1.12.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `identity` attribute. For example:\n\n```terraform\nimport {\n  to = aws_pinpointsmsvoicev2_sender_id.example\n  identity = {\n    sender_id        = \"MYSENDERID\"\n    iso_country_code = \"US\"\n  }\n}\n\nresource \"aws_pinpointsmsvoicev2_sender_id\" \"example\" {\n  ### Configuration omitted for brevity ###\n}\n```\n\n### Identity Schema\n\n#### Required\n\n* `sender_id` (String) Sender ID.\n* `iso_country_code` (String) Two-character code, in ISO 3166-1 alpha-2 format, for the country or region.\n\n#### Optional\n\n* `account_id` (String) AWS Account where this resource is managed.\n* `region` (String) Region where this resource is managed.\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import an End User Messaging SMS Sender ID using the `sender_id` and `iso_country_code`, separated by a comma. For example:\n\n```terraform\nimport {\n  to = aws_pinpointsmsvoicev2_sender_id.example\n  id = \"MYSENDERID,US\"\n}\n```\n\nUsing `terraform import`, import an End User Messaging SMS Sender ID using the `sender_id` and `iso_country_code`, separated by a comma. For example:\n\n```console\n% terraform import aws_pinpointsmsvoicev2_sender_id.example \"MYSENDERID,US\"\n```"
     },
     {
       "tf_type": "aws_pipes_pipe",
@@ -9993,6 +10053,22 @@
       "evidence_excerpt": "## Import\n\nIn Terraform v1.12.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `identity` attribute. For example:\n\n```terraform\nimport {\n  to = aws_resiliencehubv2_policy.example\n  identity = {\n    arn = \"arn:aws:resiliencehub:us-west-2:123456789012:policy/example-policy:abc123\"\n  }\n}\n\nresource \"aws_resiliencehubv2_policy\" \"example\" {\n  ### Configuration omitted for brevity ###\n}\n```\n\n### Identity Schema\n\n#### Required\n\n- `arn` (String) Amazon Resource Name (ARN) of the Resilience Hub V2 Policy.\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Resilience Hub V2 Policy using the `arn`. For example:\n\n```terraform\nimport {\n  to = aws_resiliencehubv2_policy.example\n  id = \"arn:aws:resiliencehub:us-west-2:123456789012:policy/example-policy:abc123\"\n}\n```\n\nUsing `terraform import`, import Resilience Hub V2 Policy using the `arn`. For example:\n\n```console\n% terraform import aws_resiliencehubv2_policy.example arn:aws:resiliencehub:us-west-2:123456789012:policy/example-policy:abc123\n```"
     },
     {
+      "tf_type": "aws_resiliencehubv2_service",
+      "import_id_example": "arn:aws:resiliencehub:us-west-2:123456789012:service/example-service:abc123",
+      "separator": null,
+      "composed_of_arguments": false,
+      "arguments": null,
+      "evidence_excerpt": "## Import\n\nIn Terraform v1.12.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `identity` attribute. For example:\n\n```terraform\nimport {\n  to = aws_resiliencehubv2_service.example\n  identity = {\n    arn = \"arn:aws:resiliencehub:us-west-2:123456789012:service/example-service:abc123\"\n  }\n}\n\nresource \"aws_resiliencehubv2_service\" \"example\" {\n  ### Configuration omitted for brevity ###\n}\n```\n\n### Identity Schema\n\n#### Required\n\n- `arn` (String) Amazon Resource Name (ARN) of the Resilience Hub V2 Service.\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Resilience Hub V2 Service using the `arn`. For example:\n\n```terraform\nimport {\n  to = aws_resiliencehubv2_service.example\n  id = \"arn:aws:resiliencehub:us-west-2:123456789012:service/example-service:abc123\"\n}\n```\n\nUsing `terraform import`, import Resilience Hub V2 Service using the `arn`. For example:\n\n```console\n% terraform import aws_resiliencehubv2_service.example arn:aws:resiliencehub:us-west-2:123456789012:service/example-service:abc123\n```"
+    },
+    {
+      "tf_type": "aws_resiliencehubv2_system",
+      "import_id_example": "arn:aws:resiliencehub:us-west-2:123456789012:system/example-system:abc123",
+      "separator": null,
+      "composed_of_arguments": false,
+      "arguments": null,
+      "evidence_excerpt": "## Import\n\nIn Terraform v1.12.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `identity` attribute. For example:\n\n```terraform\nimport {\n  to = aws_resiliencehubv2_system.example\n  identity = {\n    arn = \"arn:aws:resiliencehub:us-west-2:123456789012:system/example-system:abc123\"\n  }\n}\n\nresource \"aws_resiliencehubv2_system\" \"example\" {\n  ### Configuration omitted for brevity ###\n}\n```\n\n### Identity Schema\n\n#### Required\n\n- `arn` (String) Amazon Resource Name (ARN) of the Resilience Hub V2 System.\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Resilience Hub V2 System using the `arn`. For example:\n\n```terraform\nimport {\n  to = aws_resiliencehubv2_system.example\n  id = \"arn:aws:resiliencehub:us-west-2:123456789012:system/example-system:abc123\"\n}\n```\n\nUsing `terraform import`, import Resilience Hub V2 System using the `arn`. For example:\n\n```console\n% terraform import aws_resiliencehubv2_system.example arn:aws:resiliencehub:us-west-2:123456789012:system/example-system:abc123\n```"
+    },
+    {
       "tf_type": "aws_resourceexplorer2_index",
       "import_id_example": "arn:aws:resource-explorer-2:us-east-1:123456789012:index/6047ac4e-207e-4487-9bcf-cb53bb0ff5cc",
       "separator": null,
@@ -10719,7 +10795,7 @@
       "arguments": [
         "account_id"
       ],
-      "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import S3 Access Grants using the `account_id` and `access_grant_id`, separated by a comma (`,`). For example:\n\n```terraform\nimport {\n  to = aws_s3control_access_grant.example\n  id = \"123456789012,04549c5e-2f3c-4a07-824d-2cafe720aa22\"\n}\n```\n\nUsing `terraform import`, import S3 Access Grants using the `account_id` and `access_grant_id`, separated by a comma (`,`). For example:\n\n```console\n% terraform import aws_s3control_access_grants_location.example 123456789012,04549c5e-2f3c-4a07-824d-2cafe720aa22\n```"
+      "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import S3 Access Grants using the `account_id` and `access_grant_id`, separated by a comma (`,`). For example:\n\n```terraform\nimport {\n  to = aws_s3control_access_grant.example\n  id = \"123456789012,04549c5e-2f3c-4a07-824d-2cafe720aa22\"\n}\n```\n\nUsing `terraform import`, import S3 Access Grants using the `account_id` and `access_grant_id`, separated by a comma (`,`). For example:\n\n```console\n% terraform import aws_s3control_access_grant.example 123456789012,04549c5e-2f3c-4a07-824d-2cafe720aa22\n```"
     },
     {
       "tf_type": "aws_s3control_access_grants_instance",
