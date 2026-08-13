@@ -668,10 +668,19 @@ func (c *mvCloud) provider() providers.Interface {
 	}
 
 	p.ImportResourceStateFn = func(req providers.ImportResourceStateRequest) (resp providers.ImportResourceStateResponse) {
+		// A provider serving an identity schema is asked by identity object
+		// wherever the run has one, and by the import-ID string otherwise.
+		// Every type here is identified by its id, so the two name the same
+		// object; the mock has to answer both because the wire carries
+		// exactly one of them (providers.ImportTarget).
+		id := req.Target.ID
+		if req.Target.IsIdentityBased() {
+			id = req.Target.Identity.GetAttr("id").AsString()
+		}
 		schema := mvSchemas()[req.TypeName]
 		resp.ImportedResources = []providers.ImportedResource{{
 			TypeName: req.TypeName,
-			State:    mvObject(schema, map[string]string{"id": req.Target.ID}, nil),
+			State:    mvObject(schema, map[string]string{"id": id}, nil),
 		}}
 		return resp
 	}
