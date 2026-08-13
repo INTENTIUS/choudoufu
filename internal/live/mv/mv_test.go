@@ -71,28 +71,20 @@ const (
 	// test renames for a gap-free proof of that path.
 	estateLogGroup = "/stateless-e2e/app"
 
-	// flociRoleGap is the standing known gap every plan against this estate
-	// carries: iam:GetRole omits Tags, so aws_iam_role.app reads back
-	// untagged, which under RA.1's verified ownership means it is not this
-	// estate's - omitted as [UNOWNED] and planned as a create. See
-	// test/floci-gaps.md #5 in the chant checkout and the harness's note in
-	// live/e2e/run.sh step 5.
-	flociRoleGap = "aws_iam_role.app"
-
-	// flociPolicyChild is the untaggable child of an unowned parent, and the
-	// one tolerated shape here that is not an emulator gap at all.
+	// flociPolicyChild is the untaggable child of a bucket, and the one
+	// tolerated shape here that is not an emulator gap at all.
 	// aws_s3_bucket_policy carries no tags, so it has no marker and no
 	// ownership of its own: it is admitted as a named singleton child of its
-	// bucket. Its policy document interpolates aws_iam_role.app's ARN, and
-	// the role reads back untagged on floci, so under RA.1 the role is
-	// unowned, planned as a create, and its ARN is unknown until apply -
-	// which makes the policy's own document unknown, so the policy re-plans.
-	// While the bucket keeps its name that is an in-place update; once the
-	// bucket rename makes the bucket reference unknown too, it is a
-	// replacement. Neither is churn the rename caused: both follow from the
-	// role's ARN, and both would disappear the moment the emulator served
-	// tags on iam:GetRole. This is the untaggable-child boundary
-	// LIMITATIONS.md documents, showing up live.
+	// bucket. Its policy document interpolates aws_iam_role.app's ARN. Until
+	// #26 switched this harness's floci image to a fork build carrying
+	// lex00/floci#24, the role read back untagged on floci, so under RA.1
+	// the role was unowned, planned as a create, and its ARN was unknown
+	// until apply - which made the policy's own document unknown, so the
+	// policy re-planned even at the baseline, before any rename. #24 fixed
+	// that; the shape below now matters only for flociS3TagGap's bucket
+	// rename, where the bucket itself (the policy's other reference) goes
+	// unknown. This is the untaggable-child boundary LIMITATIONS.md
+	// documents, showing up live.
 	flociPolicyChild = "aws_s3_bucket_policy.data"
 
 	// flociBucketChildren is flociPolicyChild's boundary generalized: the
@@ -129,10 +121,10 @@ const (
 	// tolerance is scoped to this one address.
 	flociS3TagGap = "aws_s3_bucket.archive"
 
-	// flociSSMGap is a third standing emulator gap (test/floci-gaps.md #10 in
-	// the chant checkout): floci drops the inline tags an SSM parameter is
-	// created with, so aws_ssm_parameter.demo_effect reads back untagged.
-	// Same shape as flociRoleGap and, under RA.1, the same consequence: no
+	// flociSSMGap is a standing emulator gap (test/floci-gaps.md #10 in the
+	// chant checkout, unrelated to and not fixed by #26's image switch):
+	// floci drops the inline tags an SSM parameter is created with, so
+	// aws_ssm_parameter.demo_effect reads back untagged. Under RA.1: no
 	// marker means not owned, so it is omitted as [UNOWNED] and planned as a
 	// create rather than quietly re-tagged in place.
 	flociSSMGap = "aws_ssm_parameter.demo_effect"
@@ -344,42 +336,46 @@ func rename(t *testing.T, dir string, replacements map[string]string) {
 // moved is the baseline it is measured against.
 //
 // Before RA.1 a client-named resource was read by its import ID and entered
-// the prior state whatever tags came back, so this fixture's two untaggable-
+// the prior state whatever tags came back, so this fixture's untaggable-
 // on-floci resources showed up as tags-only in-place diffs and the tolerance
 // was "an in-place diff on these addresses, tags only". RA.1 made an
 // ownership marker a precondition for entering the prior state: a resource
 // that reads back with no tofu-estate tag is not this estate's, so it stays
 // out of the projection, the plan proposes creating what the configuration
 // declares, and the omissions section says [UNOWNED] with an adoption hint.
-// Same emulator gaps, different and more honest rendering:
+// Standing emulator gaps, different and more honest rendering:
 //
-//	aws_iam_role.app                   floci-gaps #5   iam:GetRole omits Tags
-//	aws_ssm_parameter.demo_effect               #10    PutParameter drops inline tags
-//	aws_ssm_parameter.demo_existence            #10    same gap, the RA.6 fixture
-//	aws_s3_bucket.archive                       #9     S3 TagResource replaces the set
+//	aws_ssm_parameter.demo_effect      floci-gaps #10  PutParameter drops inline tags
+//	aws_ssm_parameter.demo_existence           #10     same gap, the RA.6 fixture
+//	aws_s3_bucket.archive                      #9      S3 TagResource replaces the set
 //
-// The third only appears after the bucket rename, and for the same reason
-// the rename is what triggers it: rewriting tofu-address through TagResource
-// drops tofu-estate, so the bucket the rename just succeeded on reads back
-// unowned on the next plan. That is the emulator's write path, not the
-// rename's - the CLI read above already confirmed tofu-address is correct on
-// the live bucket.
+// aws_iam_role.app used to sit at the top of this list (floci-gaps #5,
+// iam:GetRole omitting Tags) until #26 switched this harness's floci image
+// to a fork build carrying lex00/floci#24, which fixed the read; it is no
+// longer a standing tolerance here.
 //
-// aws_s3_bucket_policy.data is the fourth tolerated shape and it is not an
+// The bucket-archive gap only appears after the bucket rename, and for the
+// same reason the rename is what triggers it: rewriting tofu-address through
+// TagResource drops tofu-estate, so the bucket the rename just succeeded on
+// reads back unowned on the next plan. That is the emulator's write path,
+// not the rename's - the CLI read above already confirmed tofu-address is
+// correct on the live bucket.
+//
+// aws_s3_bucket_policy.data is a separately tolerated shape and it is not an
 // emulator gap at all: it is the documented untaggable-child boundary. The
-// policy interpolates the app role's ARN, the role is unowned and therefore
-// planned as a create, so the ARN is unknown and the policy re-plans - as an
-// in-place update while the bucket keeps its name, and as a replacement once
-// the bucket rename makes its own bucket reference unknown too. Tolerated
-// by address, and only ever as change or replace; a policy DESTROY with no
-// replacement half would be a real finding and still fails.
+// policy interpolates the app role's ARN and its own bucket's identity; once
+// the bucket rename makes the bucket reference unknown, the policy re-plans
+// - as an in-place update while the bucket keeps its name, and as a
+// replacement once the bucket rename makes its own bucket reference unknown
+// too. Tolerated by address, and only ever as change or replace; a policy
+// DESTROY with no replacement half would be a real finding and still fails.
 //
 // unownedGaps names the addresses tolerated in the create + [UNOWNED] shape
-// beyond the two standing ones.
+// beyond the two standing SSM ones.
 func assertCleanPlan(t *testing.T, when, output string, unownedGaps ...string) {
 	t.Helper()
 
-	unowned := map[string]bool{flociRoleGap: true, flociSSMGap: true, flociSSMExistenceGap: true}
+	unowned := map[string]bool{flociSSMGap: true, flociSSMExistenceGap: true}
 	for _, addr := range unownedGaps {
 		unowned[addr] = true
 	}

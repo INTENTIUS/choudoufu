@@ -167,7 +167,7 @@ func TestForeignAgainstFloci(t *testing.T) {
 		}
 	}
 
-	// --- The two emulator read gaps, and what RA.1 made of them ----------
+	// --- The remaining emulator read gap, and what RA.1 made of them -----
 	//
 	// This assertion used to be "add == 0, and no omissions section at all",
 	// which was true while the projection read a client-named resource by
@@ -177,29 +177,30 @@ func TestForeignAgainstFloci(t *testing.T) {
 	// of the projection and the configuration's declaration of it plans as a
 	// create.
 	//
-	// Three of the fixture's resources read back untagged on floci, none of
-	// them by anything this fork does:
+	// Two of the fixture's resources still read back untagged on floci:
 	//
-	//   aws_iam_role.app                  floci-gaps #5  - iam:GetRole omits Tags
-	//   aws_ssm_parameter.demo_effect     #10            - PutParameter drops inline tags
+	//   aws_ssm_parameter.demo_effect     floci-gaps #10 - PutParameter drops inline tags
 	//   aws_ssm_parameter.demo_existence  #10            - same gap, the RA.6 fixture
 	//
-	// So all three are correctly UNOWNED here: absent from the prior state,
-	// listed as an [UNOWNED] omission with an adoption hint, and planned as a
-	// create. That is the corrected behaviour, and the assertion is exact -
-	// those three addresses and no others, still zero destroys. On an
-	// emulator that served tags on every read the estate would materialize
+	// aws_iam_role.app used to sit here too (floci-gaps #5, iam:GetRole
+	// omitting Tags), until #26 switched this harness's floci image to a
+	// fork build carrying lex00/floci#24, which fixed the read. So all two
+	// are correctly UNOWNED here: absent from the prior state, listed as an
+	// [UNOWNED] omission with an adoption hint, and planned as a create.
+	// That is the corrected behaviour, and the assertion is exact - those
+	// two addresses and no others, still zero destroys. On an emulator that
+	// served tags on every read (#10 included) the estate would materialize
 	// whole and the count would be zero, which is also accepted below.
 	unowned := unownedOmissions(output)
-	wantUnowned := []string{"aws_iam_role.app", "aws_ssm_parameter.demo_effect", "aws_ssm_parameter.demo_existence"}
+	wantUnowned := []string{"aws_ssm_parameter.demo_effect", "aws_ssm_parameter.demo_existence"}
 	if len(unowned) == 0 {
-		t.Log("no [UNOWNED] omissions: the emulator served tags on both known read gaps")
+		t.Log("no [UNOWNED] omissions: the emulator served tags on the remaining known read gap")
 		if ok && add != 0 {
 			t.Errorf("the plan proposes %d create(s) with nothing reported unowned:\n%s", add, output)
 		}
 	} else {
 		if !slices.Equal(unowned, wantUnowned) {
-			t.Errorf("the [UNOWNED] omissions are %v, want exactly the two documented emulator read gaps %v:\n%s",
+			t.Errorf("the [UNOWNED] omissions are %v, want exactly the documented emulator read gap %v:\n%s",
 				unowned, wantUnowned, omissionSection(output))
 		}
 		if ok && add != len(unowned) {

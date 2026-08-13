@@ -40,8 +40,26 @@ import (
 	"time"
 )
 
-// image is the emulator every test in this tier runs.
-const image = "floci/floci:latest"
+// defaultImage is the emulator every test in this tier runs against:
+// lex00/floci, not upstream floci/floci — the fork carries lex00/floci#24
+// (iam:GetRole/GetUser/GetPolicy now return Tags, which retired the
+// standing unowned-role residue live/e2e/run.sh's floci-tier tests used to
+// tolerate) and lex00/floci#25 (ecr:CreateRepository no longer needs a
+// Docker daemon), neither merged upstream yet. Pinned by digest rather than
+// `:latest` so a later push to the fork's main cannot silently change what
+// this tier runs against; this is lex00/floci's `latest` tag as of
+// 2026-08-12 (commit b2548a0). FLOCI_IMAGE overrides it, the same env-var
+// name run.sh uses for the same purpose.
+const defaultImage = "ghcr.io/lex00/floci@sha256:4753246c0260a22af1056c65993f4d73b0a907729a9580b9baba5d628b6dad34"
+
+// image is what StartFloci actually runs: defaultImage unless FLOCI_IMAGE
+// overrides it.
+func image() string {
+	if v := os.Getenv("FLOCI_IMAGE"); v != "" {
+		return v
+	}
+	return defaultImage
+}
 
 // Gate skips t unless the floci integration tier is enabled.
 //
@@ -238,7 +256,7 @@ func startFlociOnce(t *testing.T, prefix string) (string, error) {
 	name := fmt.Sprintf("%s-%d-%s", prefix, os.Getpid(), randomSuffix(t))
 
 	out, err := exec.Command("docker", "run", "-d", "--rm",
-		"-p", "127.0.0.1:"+hostPort+":4566", "--name", name, image).CombinedOutput()
+		"-p", "127.0.0.1:"+hostPort+":4566", "--name", name, image()).CombinedOutput()
 	if err != nil {
 		// A failed docker run can still leave a Created container holding
 		// the name. Ours to remove, by exact name.
