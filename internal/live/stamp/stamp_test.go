@@ -571,6 +571,21 @@ var (
 		"aws_cloudfront_multitenant_distribution",
 		"aws_cloudfront_trust_store",
 		"aws_cloudfront_vpc_origin",
+		// Registry-ratified streaming and app integration batch (#40, #44,
+		// issue #65). aws_msk_configuration and aws_appflow_connector_profile
+		// are this batch's two untaggable types, below. See
+		// live/e2e/estates/streaming/README.md, "Untaggable types".
+		"aws_mq_broker",
+		"aws_mq_configuration",
+		"aws_msk_cluster",
+		"aws_msk_serverless_cluster",
+		"aws_mskconnect_connector",
+		"aws_mskconnect_custom_plugin",
+		"aws_mskconnect_worker_configuration",
+		"aws_appflow_flow",
+		"aws_appsync_graphql_api",
+		"aws_pipes_pipe",
+		"aws_scheduler_schedule_group",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -678,6 +693,14 @@ var (
 		"aws_cloudfront_monitoring_subscription",
 		"aws_cloudfront_origin_access_control",
 		"aws_cloudfront_realtime_log_config",
+		// Registry-ratified streaming and app integration batch (#40, #44,
+		// issue #65): two types with no tags argument at all —
+		// aws_msk_configuration's Argument Reference names no tags block,
+		// and aws_appflow_connector_profile's exports only arn and
+		// credentials_arn. See live/e2e/estates/streaming/README.md,
+		// "Untaggable types".
+		"aws_msk_configuration",
+		"aws_appflow_connector_profile",
 	}
 )
 
@@ -1285,6 +1308,24 @@ func testSchemas() Schemas {
 		"aws_cloudfront_realtime_log_config":                   untagged("id", "arn", "name", "sampling_rate"),
 		"aws_cloudfront_trust_store":                           tagged("id", "arn", "name"),
 		"aws_cloudfront_vpc_origin":                            tagged("id", "arn"),
+
+		// Registry-ratified streaming and app integration batch (#40, #44,
+		// issue #65). Taggable/untaggable per the real provider's
+		// documented Argument Reference for each type: aws_msk_configuration
+		// and aws_appflow_connector_profile carry no tags argument at all.
+		"aws_mq_broker":                       tagged("id", "arn", "broker_name"),
+		"aws_mq_configuration":                tagged("id", "arn", "name"),
+		"aws_msk_cluster":                     tagged("id", "arn", "cluster_name"),
+		"aws_msk_configuration":               untagged("arn", "name"),
+		"aws_msk_serverless_cluster":          tagged("id", "arn", "cluster_name"),
+		"aws_mskconnect_connector":            tagged("id", "arn", "name"),
+		"aws_mskconnect_custom_plugin":        tagged("id", "arn", "name"),
+		"aws_mskconnect_worker_configuration": tagged("id", "arn", "name"),
+		"aws_appflow_connector_profile":       untagged("arn", "name"),
+		"aws_appflow_flow":                    tagged("id", "arn", "name"),
+		"aws_appsync_graphql_api":             tagged("id", "arn", "name"),
+		"aws_pipes_pipe":                      tagged("id", "arn", "name"),
+		"aws_scheduler_schedule_group":        tagged("id", "arn", "name"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.
