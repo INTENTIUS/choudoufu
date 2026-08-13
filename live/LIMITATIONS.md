@@ -453,9 +453,11 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_ecr_replication_configuration`, `aws_ecrpublic_repository_policy`,
 `aws_ecs_cluster_capacity_providers`, `aws_eip_association`,
 `aws_eks_access_policy_association`, `aws_emr_security_configuration`,
-`aws_fsx_s3_access_point_attachment`, `aws_glue_catalog_table`,
-`aws_glue_classifier`, `aws_glue_data_catalog_encryption_settings`,
-`aws_guardduty_member`, `aws_guardduty_organization_admin_account`,
+`aws_fsx_s3_access_point_attachment`,
+`aws_globalaccelerator_endpoint_group`, `aws_globalaccelerator_listener`,
+`aws_glue_catalog_table`, `aws_glue_classifier`,
+`aws_glue_data_catalog_encryption_settings`, `aws_guardduty_member`,
+`aws_guardduty_organization_admin_account`,
 `aws_guardduty_organization_configuration`, `aws_iam_group`,
 `aws_iam_group_policy`, `aws_iam_group_policy_attachment`,
 `aws_iam_role_policy`, `aws_iam_role_policy_attachment`,
@@ -468,6 +470,11 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_macie2_organization_admin_account`, `aws_msk_configuration`,
 `aws_nat_gateway_eip_association`, `aws_network_acl_rule`,
 `aws_network_interface_attachment`, `aws_network_interface_permission`,
+`aws_networkfirewall_logging_configuration`,
+`aws_networkmanager_customer_gateway_association`,
+`aws_networkmanager_link_association`,
+`aws_networkmanager_prefix_list_association`,
+`aws_networkmanager_transit_gateway_registration`,
 `aws_rds_cluster_role_association`, `aws_route`,
 `aws_route53_hosted_zone_dnssec`, `aws_route53_key_signing_key`,
 `aws_route53_record`, `aws_route53_resolver_firewall_rule`,
@@ -489,6 +496,7 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_vpc_endpoint_private_dns`, `aws_vpc_endpoint_route_table_association`,
 `aws_vpc_endpoint_security_group_association`,
 `aws_vpc_endpoint_subnet_association`, `aws_vpc_ipam_pool_cidr`,
+`aws_vpclattice_auth_policy`, `aws_vpclattice_resource_policy`,
 `aws_wafv2_web_acl_rule` and `aws_xray_resource_policy`<!-- survey-gen:end untaggable-admitted --> carry no tags, so a marker-based sweep
 has nothing to search on for any of them. Their identity is built from
 their own configuration, which is a problem the moment a resource block is
@@ -571,6 +579,11 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_lightsail_static_ip` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_nat_gateway_eip_association` | `aws_nat_gateway` | no (report-only) |
 | `aws_network_acl_rule` | `aws_network_acl` | no (report-only) |
+| `aws_networkfirewall_logging_configuration` | `aws_networkfirewall_firewall` | no (report-only) |
+| `aws_networkmanager_customer_gateway_association` | `aws_customer_gateway` | no (report-only) |
+| `aws_networkmanager_link_association` | `aws_networkmanager_link` | no (report-only) |
+| `aws_networkmanager_prefix_list_association` | `aws_ec2_managed_prefix_list` | no (report-only) |
+| `aws_networkmanager_transit_gateway_registration` | `aws_ec2_transit_gateway` | no (report-only) |
 | `aws_route` | `aws_route_table` | no (report-only) |
 | `aws_route53_key_signing_key` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_route53_record` | `aws_api_gateway_domain_name` | no (report-only) |
@@ -600,7 +613,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_vpc_ipam_pool_cidr` | `aws_vpc_ipam_pool` | no (report-only) |
 | `aws_wafv2_web_acl_rule` | `aws_wafv2_web_acl` | no (report-only) |
 
-**Total.** 84 types swept via a parent read.
+**Total.** 89 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
@@ -640,7 +653,9 @@ per-type reasoning as it stands.
 `aws_ec2_transit_gateway_route`, `aws_ecr_registry_policy`,
 `aws_ecr_registry_scanning_configuration`,
 `aws_ecr_replication_configuration`, `aws_ecs_cluster_capacity_providers`,
-`aws_eip_association`, `aws_glue_data_catalog_encryption_settings`,
+`aws_eip_association`, `aws_globalaccelerator_endpoint_group`,
+`aws_globalaccelerator_listener`,
+`aws_glue_data_catalog_encryption_settings`,
 `aws_guardduty_organization_admin_account`,
 `aws_inspector2_delegated_admin_account`,
 `aws_inspector2_member_association`, `aws_iot_topic_rule_destination`,
@@ -652,7 +667,8 @@ per-type reasoning as it stands.
 `aws_securityhub_member`, `aws_securityhub_organization_admin_account`,
 `aws_securityhub_standards_control`,
 `aws_securityhub_standards_control_association`, `aws_ssm_service_setting`,
-`aws_vpc_dhcp_options_association` and `aws_xray_resource_policy`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
+`aws_vpc_dhcp_options_association`, `aws_vpclattice_auth_policy`,
+`aws_vpclattice_resource_policy` and `aws_xray_resource_policy`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
 parent-readable: the three ECR registry types are account-level singletons
 with no admitted parent resource to read at all, and the dashboard, the
 KMS alias and the Lambda layer version are each client-named on their own
