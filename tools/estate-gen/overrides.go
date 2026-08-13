@@ -194,6 +194,131 @@ var typeOverrides = map[string]typeOverride{
 		},
 	},
 
+	// EC2 core batch (issue #65). Every argument below is Optional in the
+	// wire schema (so the generic required-only pass leaves it unset or
+	// leaves a bare "placeholder" that fails an enum/format check the
+	// schema itself does not carry), or is a nested block the schema marks
+	// optional while the provider requires its contents in practice - the
+	// same two failure shapes issue #56 already named for the Lambda and S3
+	// cohorts above.
+	"aws_ebs_snapshot_block_public_access": {
+		Reasons: []string{
+			`state is Required but Optional-shaped in nothing else - the provider validates it against a closed enum (validate: "expected state to be one of [...]"), and the generic pass's "placeholder" string is not a member`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("state", exprTokens(`"block-new-sharing"`))
+		},
+	},
+	"aws_ec2_capacity_reservation": {
+		Reasons: []string{
+			`instance_platform is Required and the provider validates it against a closed enum (validate: "expected instance_platform to be one of [...]"); the generic placeholder string is not a member`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("instance_platform", exprTokens(`"Linux/UNIX"`))
+		},
+	},
+	"aws_ec2_fleet": {
+		Reasons: []string{
+			`launch_template_config is a required block, but its own launch_template_specification child is optional in the schema while the provider requires it in practice (validate: "Invalid combination of arguments" on an empty launch_template_config); target_capacity_specification.default_target_capacity_type is Required and validated against a closed enum, and the generic placeholder string is not a member`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			for _, blk := range body.Blocks() {
+				switch blk.Type() {
+				case "launch_template_config":
+					spec := blk.Body().AppendNewBlock("launch_template_specification", nil)
+					spec.Body().SetAttributeRaw("launch_template_id", exprTokens(`"lt-0123456789abcdef0"`))
+					spec.Body().SetAttributeRaw("version", exprTokens(`"$Latest"`))
+				case "target_capacity_specification":
+					blk.Body().SetAttributeRaw("default_target_capacity_type", exprTokens(`"on-demand"`))
+				}
+			}
+		},
+	},
+	"aws_ec2_host": {
+		Reasons: []string{
+			`instance_family and instance_type are both Optional in the schema, but the provider requires exactly one (validate: "Invalid combination of arguments": "one of instance_family,instance_type must be specified"), and the generic required-only pass sets neither`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("instance_type", exprTokens(`"c5.xlarge"`))
+		},
+	},
+	"aws_eip_association": {
+		Reasons: []string{
+			`every argument is Optional in the schema, so the generic pass renders an empty body, but the provider requires exactly one of instance_id/network_interface_id (validate: "Invalid combination of arguments"); allocation_id is documented as required in practice too (legacy EC2-Classic exception in the Argument Reference), so both are set here rather than just enough to silence validate. instance_id references this same cohort's aws_instance.app - the cross-resource reference issue #56 asks for - since identityArgName only wires that automatically for client-named types, and aws_instance is server-assigned.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if instance, ok := g.byType["aws_instance"]; ok {
+				body.SetAttributeRaw("instance_id", exprTokens(fmt.Sprintf("%s.id", instance)))
+			} else {
+				body.SetAttributeRaw("instance_id", exprTokens(`"i-0123456789abcdef0"`))
+			}
+			body.SetAttributeRaw("allocation_id", exprTokens(`"eipalloc-0123456789abcdef0"`))
+		},
+	},
+	"aws_instance": {
+		Reasons: []string{
+			`ami and instance_type are both Optional in the schema (a launch_template can supply either instead), but the provider requires ami and instance_type when no launch_template is set (validate: "Missing required argument" x3), and the generic required-only pass sets neither since the schema alone does not say so`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("ami", exprTokens(`"ami-0123456789abcdef0"`))
+			body.SetAttributeRaw("instance_type", exprTokens(`"t3.micro"`))
+		},
+	},
+	"aws_network_interface_attachment": {
+		Reasons: []string{
+			`instance_id and network_interface_id are both Required but generic-string placeholders, not references - overridden to point at this cohort's own aws_instance.app and aws_network_interface.app for the same cross-resource-reference reason as aws_eip_association above (validate does not require this; it is a fixture-quality improvement, not a constraint fix)`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if instance, ok := g.byType["aws_instance"]; ok {
+				body.SetAttributeRaw("instance_id", exprTokens(fmt.Sprintf("%s.id", instance)))
+			}
+			if eni, ok := g.byType["aws_network_interface"]; ok {
+				body.SetAttributeRaw("network_interface_id", exprTokens(fmt.Sprintf("%s.id", eni)))
+			}
+		},
+	},
+	"aws_network_interface_permission": {
+		Reasons: []string{
+			`aws_account_id is Required and the provider validates it is a well-formed 12-digit account ID (validate: "must be a valid AWS account ID"); permission is Required and validated against a closed enum (INSTANCE-ATTACH, EIP-ASSOCIATE); network_interface_id is overridden to reference this cohort's own aws_network_interface.app for the same reason as aws_network_interface_attachment above`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("aws_account_id", exprTokens(`"123456789012"`))
+			body.SetAttributeRaw("permission", exprTokens(`"INSTANCE-ATTACH"`))
+			if eni, ok := g.byType["aws_network_interface"]; ok {
+				body.SetAttributeRaw("network_interface_id", exprTokens(fmt.Sprintf("%s.id", eni)))
+			}
+		},
+	},
+	"aws_placement_group": {
+		Reasons: []string{
+			`strategy is Required and the provider validates it against a closed enum (validate: "expected strategy to be one of [...]"); the generic placeholder string is not a member`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("strategy", exprTokens(`"cluster"`))
+		},
+	},
+	"aws_spot_fleet_request": {
+		Reasons: []string{
+			`launch_specification and launch_template_config are both Optional in the schema, but the provider requires exactly one (validate: "Invalid combination of arguments"), and the generic pass sets neither; iam_fleet_role is Required and the provider validates it is a well-formed ARN (validate: "is an invalid ARN"), and the generic placeholder string is not one`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("iam_fleet_role", exprTokens(fmt.Sprintf(
+				`"arn:aws:iam::123456789012:role/tofu-%s-cohort-spot-fleet"`, g.cohort)))
+			spec := body.AppendNewBlock("launch_specification", nil)
+			spec.Body().SetAttributeRaw("ami", exprTokens(`"ami-0123456789abcdef0"`))
+			spec.Body().SetAttributeRaw("instance_type", exprTokens(`"t3.micro"`))
+		},
+	},
+	"aws_volume_attachment": {
+		Reasons: []string{
+			`instance_id is Required but a generic-string placeholder, not a reference - overridden to point at this cohort's own aws_instance.app for the same cross-resource-reference reason as aws_eip_association above. volume_id stays a literal placeholder: aws_ebs_volume is already admitted and covered by live/e2e/estate, not part of this cohort's own coverage, so there is no sibling aws_ebs_volume resource in this run to point at (validate does not require this either; it is a fixture-quality note, not a constraint fix).`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if instance, ok := g.byType["aws_instance"]; ok {
+				body.SetAttributeRaw("instance_id", exprTokens(fmt.Sprintf("%s.id", instance)))
+			}
+		},
+	},
 	"aws_db_instance": {
 		Reasons: []string{
 			`schema requires only identifier and instance_class; the provider's create-time logic also requires allocated_storage, engine, username and one of password/password_wo/manage_master_user_password (validate does not catch any of these - they are enforced only once Create actually runs, confirmed by hand against floci during this batch's verification), and instance_class needs a real instance type, not an arbitrary string`,
@@ -220,18 +345,6 @@ var typeOverrides = map[string]typeOverride{
 			body.SetAttributeRaw("instance_class", exprTokens(`"db.r4.large"`))
 		},
 	},
-
-	// RDS batch (issue #65's ratification campaign). None of these six
-	// types' Required arguments alone satisfy the provider's plan-time
-	// validation, and none of the *_role_arn/*_arn arguments below trigger
-	// planCohort's isRoleArg alias (which matches only "role" and the
-	// "_role_arn" suffix, not the bare "role_arn" every RDS association type
-	// happens to use) or a parentRef match (the associations' own argument
-	// names - db_instance_identifier, db_cluster_identifier, db_proxy_name -
-	// never exactly match another admitted type's identity-table argument
-	// name in every case below), so every ARN and every intra-cohort parent
-	// link here is a hand override rather than something the generic pass
-	// or planCohort's curated aliases already reach.
 	"aws_db_event_subscription": {
 		Reasons: []string{
 			`schema requires only name and sns_topic; the provider validates sns_topic is a well-formed ARN (validate: "is an invalid ARN"), and no aws_sns_topic is part of this cohort to reference`,
@@ -326,26 +439,62 @@ var typeOverrides = map[string]typeOverride{
 				`"arn:aws:redshift-serverless:us-east-1:000000000000:namespace/tofu-%s-cohort-namespace"`, g.cohort)))
 		},
 	},
-	// ---- API Gateway v1/v2 batch (issue #65) -------------------------------
-	//
-	// Several types below also correct a generic-pass mis-wiring, not a
-	// validate failure: parentRef (gen.go) only ever proposes a sibling
-	// whose own identity is a single self-named argument (identityArgName),
-	// which by construction excludes every server-assigned type in this
-	// batch (aws_api_gateway_rest_api, aws_api_gateway_usage_plan,
-	// aws_api_gateway_api_key, aws_apigatewayv2_api) - their identity is not
-	// one configuration argument to name a placeholder for.
-	// aws_api_gateway_rest_api_policy's own identity happens to be the
-	// single argument "rest_api_id" (the same argument name every REST API
-	// child needs), so it is the only candidate parentRef finds for that
-	// argument, and every REST API child below silently wired to it instead
-	// of to the real REST API - terraform validate does not catch this
-	// (both are syntactically valid string attributes), so each is
-	// corrected here to the resource that is actually the coverage row's
-	// live parent. aws_apigatewayv2_routing_rule has the same shape for a
-	// different reason: both API Gateway generations' domain name types
-	// self-identify by the same argument name ("domain_name"), and
-	// parentRef's alphabetic tiebreak has no way to tell v1 and v2 apart.
+	"aws_dynamodb_resource_policy": {
+		Reasons: []string{
+			`schema requires "resource_arn" as a plain string, but the provider validates it is a well-formed ARN (validate: "The provided value cannot be parsed as an ARN"); the generic identity-argument placeholder ("tofu-<cohort>-cohort-...") is not one. schema also requires "policy" as a plain string, but the provider validates it is well-formed JSON (validate: "is not valid JSON string format"); the generic string placeholder is not JSON`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			tableARN := fmt.Sprintf(`"arn:aws:dynamodb:us-east-1:000000000000:table/tofu-%s-cohort-app"`, g.cohort)
+			body.SetAttributeRaw("resource_arn", exprTokens(tableARN))
+			body.SetAttributeRaw("policy", exprTokens(fmt.Sprintf(`jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = "*"
+      Action    = "dynamodb:DescribeTable"
+      Resource  = %s
+    }]
+  })`, tableARN)))
+		},
+	},
+	"aws_elasticache_cluster": {
+		Reasons: []string{
+			`schema requires only cluster_id; the provider also requires exactly one of engine/replication_group_id (validate: "one of engine,replication_group_id must be specified") and, once engine is chosen, node_type, num_cache_nodes and parameter_group_name become required in practice too (validate: "Missing required argument"). engine is set to "memcached" rather than the more familiar "redis": AWS's CreateCacheCluster API (which this resource calls directly, unlike aws_elasticache_replication_group) only accepts the redis/valkey engines when joining an existing replication group, confirmed by floci's own emulation of that same real-AWS rule (apply: "InvalidParameterValue: Engine must be 'memcached'. For Redis/Valkey use CreateReplicationGroup.") — not a floci gap, the standalone-cluster shape genuinely requires memcached. cluster_id is also length-limited to 50 characters (validate: "expected length ... to be in the range (1 - 50)"), and this cohort's own name ("dynamodb-elasticache") makes the generic tofu-<cohort>-cohort-<type> placeholder 54 characters - shortened here to a value that still names the cohort and the type`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("cluster_id", exprTokens(`"tofu-ddb-ec-cluster"`))
+			body.SetAttributeRaw("engine", exprTokens(`"memcached"`))
+			body.SetAttributeRaw("node_type", exprTokens(`"cache.t3.micro"`))
+			body.SetAttributeRaw("num_cache_nodes", exprTokens(`1`))
+			body.SetAttributeRaw("parameter_group_name", exprTokens(`"default.memcached1.6"`))
+		},
+	},
+	"aws_elasticache_replication_group": {
+		Reasons: []string{
+			`schema requires only replication_group_id; the provider also requires node_type in practice once no global_replication_group_id is set (validate: "\"node_type\" is required unless \"global_replication_group_id\" is set"), and engine defaults to redis but is set explicitly here for clarity. replication_group_id is also length-limited to 40 characters (validate: "expected length ... to be in the range (1 - 40)"), and this cohort's own name ("dynamodb-elasticache") makes the generic tofu-<cohort>-cohort-<type> placeholder 58 characters - shortened here to a value that still names the cohort and the type`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("replication_group_id", exprTokens(`"tofu-ddb-ec-replgrp"`))
+			body.SetAttributeRaw("engine", exprTokens(`"redis"`))
+			body.SetAttributeRaw("node_type", exprTokens(`"cache.t3.micro"`))
+		},
+	},
+	"aws_elasticache_user": {
+		Reasons: []string{
+			`engine is a required argument the schema types as an unconstrained string, but the provider validates it against a closed enum (validate: "expected engine to be one of [\"redis\" \"valkey\"]"); the generic placeholder string is neither`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("engine", exprTokens(`"redis"`))
+		},
+	},
+	"aws_elasticache_user_group": {
+		Reasons: []string{
+			`engine is a required argument the schema types as an unconstrained string, but the provider validates it against a closed enum (validate: "expected engine to be one of [\"redis\" \"valkey\"]"); the generic placeholder string is neither`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("engine", exprTokens(`"redis"`))
+		},
+	},
 	"aws_api_gateway_base_path_mapping": {
 		Reasons: []string{
 			`api_id has no identity-table candidate to auto-wire from (aws_api_gateway_rest_api is server-assigned, so parentRef never proposes it); wired to the REST API this cohort renders`,
@@ -436,13 +585,6 @@ var typeOverrides = map[string]typeOverride{
 			if restAPI, ok := g.byType["aws_api_gateway_rest_api"]; ok {
 				resourceExpr = fmt.Sprintf(`"${%s.execution_arn}/*"`, restAPI)
 			}
-	"aws_dynamodb_resource_policy": {
-		Reasons: []string{
-			`schema requires "resource_arn" as a plain string, but the provider validates it is a well-formed ARN (validate: "The provided value cannot be parsed as an ARN"); the generic identity-argument placeholder ("tofu-<cohort>-cohort-...") is not one. schema also requires "policy" as a plain string, but the provider validates it is well-formed JSON (validate: "is not valid JSON string format"); the generic string placeholder is not JSON`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			tableARN := fmt.Sprintf(`"arn:aws:dynamodb:us-east-1:000000000000:table/tofu-%s-cohort-app"`, g.cohort)
-			body.SetAttributeRaw("resource_arn", exprTokens(tableARN))
 			body.SetAttributeRaw("policy", exprTokens(fmt.Sprintf(`jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -484,42 +626,6 @@ var typeOverrides = map[string]typeOverride{
 						`"arn:aws:acm:us-east-1:000000000000:certificate/tofu-%s-cohort-placeholder"`, g.cohort)))
 					blk.Body().SetAttributeRaw("endpoint_type", exprTokens(`"REGIONAL"`))
 					blk.Body().SetAttributeRaw("security_policy", exprTokens(`"TLS_1_2"`))
-	// EC2 core batch (issue #65). Every argument below is Optional in the
-	// wire schema (so the generic required-only pass leaves it unset or
-	// leaves a bare "placeholder" that fails an enum/format check the
-	// schema itself does not carry), or is a nested block the schema marks
-	// optional while the provider requires its contents in practice - the
-	// same two failure shapes issue #56 already named for the Lambda and S3
-	// cohorts above.
-	"aws_ebs_snapshot_block_public_access": {
-		Reasons: []string{
-			`state is Required but Optional-shaped in nothing else - the provider validates it against a closed enum (validate: "expected state to be one of [...]"), and the generic pass's "placeholder" string is not a member`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("state", exprTokens(`"block-new-sharing"`))
-		},
-	},
-	"aws_ec2_capacity_reservation": {
-		Reasons: []string{
-			`instance_platform is Required and the provider validates it against a closed enum (validate: "expected instance_platform to be one of [...]"); the generic placeholder string is not a member`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("instance_platform", exprTokens(`"Linux/UNIX"`))
-		},
-	},
-	"aws_ec2_fleet": {
-		Reasons: []string{
-			`launch_template_config is a required block, but its own launch_template_specification child is optional in the schema while the provider requires it in practice (validate: "Invalid combination of arguments" on an empty launch_template_config); target_capacity_specification.default_target_capacity_type is Required and validated against a closed enum, and the generic placeholder string is not a member`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			for _, blk := range body.Blocks() {
-				switch blk.Type() {
-				case "launch_template_config":
-					spec := blk.Body().AppendNewBlock("launch_template_specification", nil)
-					spec.Body().SetAttributeRaw("launch_template_id", exprTokens(`"lt-0123456789abcdef0"`))
-					spec.Body().SetAttributeRaw("version", exprTokens(`"$Latest"`))
-				case "target_capacity_specification":
-					blk.Body().SetAttributeRaw("default_target_capacity_type", exprTokens(`"on-demand"`))
 				}
 			}
 		},
@@ -555,131 +661,6 @@ var typeOverrides = map[string]typeOverride{
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			if v2api, ok := g.byType["aws_apigatewayv2_api"]; ok {
 				body.SetAttributeRaw("api_id", exprTokens(fmt.Sprintf("%s.id", v2api)))
-			}
-      Action    = "dynamodb:DescribeTable"
-      Resource  = %s
-    }]
-  })`, tableARN)))
-		},
-	},
-	"aws_elasticache_cluster": {
-		Reasons: []string{
-			`schema requires only cluster_id; the provider also requires exactly one of engine/replication_group_id (validate: "one of engine,replication_group_id must be specified") and, once engine is chosen, node_type, num_cache_nodes and parameter_group_name become required in practice too (validate: "Missing required argument"). engine is set to "memcached" rather than the more familiar "redis": AWS's CreateCacheCluster API (which this resource calls directly, unlike aws_elasticache_replication_group) only accepts the redis/valkey engines when joining an existing replication group, confirmed by floci's own emulation of that same real-AWS rule (apply: "InvalidParameterValue: Engine must be 'memcached'. For Redis/Valkey use CreateReplicationGroup.") — not a floci gap, the standalone-cluster shape genuinely requires memcached. cluster_id is also length-limited to 50 characters (validate: "expected length ... to be in the range (1 - 50)"), and this cohort's own name ("dynamodb-elasticache") makes the generic tofu-<cohort>-cohort-<type> placeholder 54 characters - shortened here to a value that still names the cohort and the type`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("cluster_id", exprTokens(`"tofu-ddb-ec-cluster"`))
-			body.SetAttributeRaw("engine", exprTokens(`"memcached"`))
-			body.SetAttributeRaw("node_type", exprTokens(`"cache.t3.micro"`))
-			body.SetAttributeRaw("num_cache_nodes", exprTokens(`1`))
-			body.SetAttributeRaw("parameter_group_name", exprTokens(`"default.memcached1.6"`))
-		},
-	},
-	"aws_elasticache_replication_group": {
-		Reasons: []string{
-			`schema requires only replication_group_id; the provider also requires node_type in practice once no global_replication_group_id is set (validate: "\"node_type\" is required unless \"global_replication_group_id\" is set"), and engine defaults to redis but is set explicitly here for clarity. replication_group_id is also length-limited to 40 characters (validate: "expected length ... to be in the range (1 - 40)"), and this cohort's own name ("dynamodb-elasticache") makes the generic tofu-<cohort>-cohort-<type> placeholder 58 characters - shortened here to a value that still names the cohort and the type`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("replication_group_id", exprTokens(`"tofu-ddb-ec-replgrp"`))
-			body.SetAttributeRaw("engine", exprTokens(`"redis"`))
-			body.SetAttributeRaw("node_type", exprTokens(`"cache.t3.micro"`))
-		},
-	},
-	"aws_elasticache_user": {
-		Reasons: []string{
-			`engine is a required argument the schema types as an unconstrained string, but the provider validates it against a closed enum (validate: "expected engine to be one of [\"redis\" \"valkey\"]"); the generic placeholder string is neither`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("engine", exprTokens(`"redis"`))
-		},
-	},
-	"aws_elasticache_user_group": {
-		Reasons: []string{
-			`engine is a required argument the schema types as an unconstrained string, but the provider validates it against a closed enum (validate: "expected engine to be one of [\"redis\" \"valkey\"]"); the generic placeholder string is neither`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("engine", exprTokens(`"redis"`))
-	"aws_ec2_host": {
-		Reasons: []string{
-			`instance_family and instance_type are both Optional in the schema, but the provider requires exactly one (validate: "Invalid combination of arguments": "one of instance_family,instance_type must be specified"), and the generic required-only pass sets neither`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("instance_type", exprTokens(`"c5.xlarge"`))
-		},
-	},
-	"aws_eip_association": {
-		Reasons: []string{
-			`every argument is Optional in the schema, so the generic pass renders an empty body, but the provider requires exactly one of instance_id/network_interface_id (validate: "Invalid combination of arguments"); allocation_id is documented as required in practice too (legacy EC2-Classic exception in the Argument Reference), so both are set here rather than just enough to silence validate. instance_id references this same cohort's aws_instance.app - the cross-resource reference issue #56 asks for - since identityArgName only wires that automatically for client-named types, and aws_instance is server-assigned.`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if instance, ok := g.byType["aws_instance"]; ok {
-				body.SetAttributeRaw("instance_id", exprTokens(fmt.Sprintf("%s.id", instance)))
-			} else {
-				body.SetAttributeRaw("instance_id", exprTokens(`"i-0123456789abcdef0"`))
-			}
-			body.SetAttributeRaw("allocation_id", exprTokens(`"eipalloc-0123456789abcdef0"`))
-		},
-	},
-	"aws_instance": {
-		Reasons: []string{
-			`ami and instance_type are both Optional in the schema (a launch_template can supply either instead), but the provider requires ami and instance_type when no launch_template is set (validate: "Missing required argument" x3), and the generic required-only pass sets neither since the schema alone does not say so`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("ami", exprTokens(`"ami-0123456789abcdef0"`))
-			body.SetAttributeRaw("instance_type", exprTokens(`"t3.micro"`))
-		},
-	},
-	"aws_network_interface_attachment": {
-		Reasons: []string{
-			`instance_id and network_interface_id are both Required but generic-string placeholders, not references - overridden to point at this cohort's own aws_instance.app and aws_network_interface.app for the same cross-resource-reference reason as aws_eip_association above (validate does not require this; it is a fixture-quality improvement, not a constraint fix)`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if instance, ok := g.byType["aws_instance"]; ok {
-				body.SetAttributeRaw("instance_id", exprTokens(fmt.Sprintf("%s.id", instance)))
-			}
-			if eni, ok := g.byType["aws_network_interface"]; ok {
-				body.SetAttributeRaw("network_interface_id", exprTokens(fmt.Sprintf("%s.id", eni)))
-			}
-		},
-	},
-	"aws_network_interface_permission": {
-		Reasons: []string{
-			`aws_account_id is Required and the provider validates it is a well-formed 12-digit account ID (validate: "must be a valid AWS account ID"); permission is Required and validated against a closed enum (INSTANCE-ATTACH, EIP-ASSOCIATE); network_interface_id is overridden to reference this cohort's own aws_network_interface.app for the same reason as aws_network_interface_attachment above`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("aws_account_id", exprTokens(`"123456789012"`))
-			body.SetAttributeRaw("permission", exprTokens(`"INSTANCE-ATTACH"`))
-			if eni, ok := g.byType["aws_network_interface"]; ok {
-				body.SetAttributeRaw("network_interface_id", exprTokens(fmt.Sprintf("%s.id", eni)))
-			}
-		},
-	},
-	"aws_placement_group": {
-		Reasons: []string{
-			`strategy is Required and the provider validates it against a closed enum (validate: "expected strategy to be one of [...]"); the generic placeholder string is not a member`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("strategy", exprTokens(`"cluster"`))
-		},
-	},
-	"aws_spot_fleet_request": {
-		Reasons: []string{
-			`launch_specification and launch_template_config are both Optional in the schema, but the provider requires exactly one (validate: "Invalid combination of arguments"), and the generic pass sets neither; iam_fleet_role is Required and the provider validates it is a well-formed ARN (validate: "is an invalid ARN"), and the generic placeholder string is not one`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("iam_fleet_role", exprTokens(fmt.Sprintf(
-				`"arn:aws:iam::123456789012:role/tofu-%s-cohort-spot-fleet"`, g.cohort)))
-			spec := body.AppendNewBlock("launch_specification", nil)
-			spec.Body().SetAttributeRaw("ami", exprTokens(`"ami-0123456789abcdef0"`))
-			spec.Body().SetAttributeRaw("instance_type", exprTokens(`"t3.micro"`))
-		},
-	},
-	"aws_volume_attachment": {
-		Reasons: []string{
-			`instance_id is Required but a generic-string placeholder, not a reference - overridden to point at this cohort's own aws_instance.app for the same cross-resource-reference reason as aws_eip_association above. volume_id stays a literal placeholder: aws_ebs_volume is already admitted and covered by live/e2e/estate, not part of this cohort's own coverage, so there is no sibling aws_ebs_volume resource in this run to point at (validate does not require this either; it is a fixture-quality note, not a constraint fix).`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if instance, ok := g.byType["aws_instance"]; ok {
-				body.SetAttributeRaw("instance_id", exprTokens(fmt.Sprintf("%s.id", instance)))
 			}
 		},
 	},

@@ -1024,95 +1024,116 @@ var DefaultTable = buildTable(
 		IdentityAttrs: []string{"url", "id"},
 	},
 
-	// ---- Registry-ratified (#40, #44): fourth batch, RDS (issue #65's
-	// ---- ratification campaign) -----------------------------------------
+	// ---- Registry-ratified (#40, #44): fourth batch, EC2 core (instances,
+	// ---- EBS, ENI; issue #65) -------------------------------------------
 	//
-	// Same pipeline as the earlier batches: every row started as a
-	// tools/row-gen proposal from live/registry.json's RDS section (18
-	// proposals), cross-checked against the AWS provider's documented
-	// import behaviour at the pinned v6.58.0 tag
-	// (raw.githubusercontent.com/hashicorp/terraform-provider-aws/v6.58.0/website/docs/r/*.html.markdown)
-	// rather than accepted on the registry's classification alone. Cohort
-	// estate: live/e2e/estates/rds.
+	// Same pipeline as the three batches above: every row started as a
+	// tools/row-gen proposal from live/registry.json, cross-checked against
+	// the AWS provider's documented import behaviour at the pinned v6.58.0
+	// tag (its "Import" section and, where the provider has one, its own
+	// identity schema) rather than accepted on the registry's word alone.
+	// Scope is "instances and their periphery" — the slice issue #65 itself
+	// names "EC2 core (instances, EBS, ENI)" — not the full 114-type EC2
+	// registry service tools/row-gen enumerates; the VPC/Transit
+	// Gateway/VPN/Client VPN/IPAM/Verified Access/route-server/NAT-gateway
+	// families that make up the rest of that count are a future batch's
+	// scope, not this one's. Cohort estate: live/e2e/estates/ec2-core.
 	//
-	// Five of the seventeen ratified rows are corrections, the same shape
-	// as the messaging batch's aws_sns_topic_policy: row-gen filed them
-	// "evidence-only" or "needs hand separator" because the registry's own
-	// primaryIdentifier/readOnlyProperties evidence did not resolve them,
-	// but the provider's own Import section names a concrete, documented
-	// grammar built entirely from arguments already in configuration —
-	// aws_db_proxy_default_target_group, aws_db_proxy_endpoint,
-	// aws_db_instance_role_association, aws_rds_cluster_role_association and
-	// aws_rds_global_cluster below. One proposal is rejected outright
-	// (aws_db_proxy_target): its documented import string embeds a literal
-	// segment ("RDS_INSTANCE" vs. "TRACKED_CLUSTER") chosen by *which* of two
-	// optional arguments a config sets, a conditional-literal component this
-	// table's vocabulary does not have, the same "needs a component this
-	// table's vocabulary does not have yet" shape as the messaging batch's
-	// aws_cloudwatch_event_rule rejection.
+	// aws_instance is this batch's headline type: the repo's long-standing
+	// canonical unadmitted example. live/e2e/limits/unadmitted-type and
+	// live/LIMITATIONS.md's matching entry swap to aws_nat_gateway — a real,
+	// non-logical, server-assigned EC2 type still in live/SURVEY.md's
+	// curated 68, deliberately left out of this batch's own scope below and
+	// out of every batch issue #65 names next, so it stays a stable example
+	// rather than one this same wave of ratification would immediately have
+	// to re-swap. See that fixture's own comment for the rest of the
+	// account.
 	//
-	// aws_db_instance keeps live/SURVEY.md's own recorded wrinkle (the
-	// "third wrinkle" in that file's "Classification wrinkles" section): the
-	// original survey filed it under marker on taggability alone, because
-	// v6.58.0 ships it no identity schema and no list resource, but its
-	// documented import ID is the client-chosen "identifier" argument, so it
-	// wires client-named here, exactly as that file predicted a batch that
-	// reached RDS would do. Its own "id" attribute is the RDS DBI resource
-	// ID, a distinct provider-minted value the provider's own Attribute
-	// Reference lists separately from "identifier" — unlike
-	// aws_rds_cluster_instance below, whose "id" and "identifier" attributes
-	// are documented as the same string — so "id" is deliberately not
-	// claimed as an identity source here, the same standard of care as
-	// aws_ecs_cluster's synthesized id.
+	// Rejected, and deliberately absent from this table: none. Every
+	// pastable proposal row-gen made in this batch's instances/EBS/ENI
+	// slice checked out against the provider's real import behaviour — a
+	// first for a registry-ratified batch, and worth naming precisely
+	// because the other three batches all found at least one CFN-says-one-
+	// thing-provider-says-another mismatch.
 	//
-	// aws_db_instance is also this batch's emulator caveat, the same
-	// deliberate stance as the messaging batch's aws_sqs_queue: floci needs
-	// the Docker socket mounted into its container to serve RDS at all
-	// (lex00/floci#28), and neither the gated Go test harness
-	// (internal/live/flocitest.flocitest.go), the shell e2e harness
-	// (live/e2e/run.sh) nor any cohort README's "Verifying by hand" `docker
-	// run` command mounts it as of this batch — confirmed by inspection, not
-	// merely carried over from live/SURVEY.md's note. The type ratifies on
-	// paper: its identity is sound and independently verified against the
-	// provider's docs regardless of what any one emulator can run. See
-	// live/e2e/estates/rds/README.md's "Verifying by hand" section for the
-	// caveat recorded the way aws_sqs_queue's is.
+	// Out of scope for this batch, not rejected on the evidence:
 	//
-	// Rejected, and deliberately absent from this table:
+	//   - aws_ec2_instance_connect_endpoint: a real, server-assigned,
+	//     cleanly-proposed type (row-gen: primary identifier Id, read-only
+	//     and not create-only), but it is SSH/RDP connectivity
+	//     infrastructure for reaching an instance, not part of the
+	//     instance's own identity, EBS, or ENI periphery this batch's
+	//     mandate covers. Left for a networking-focused batch.
+	//   - aws_nat_gateway_eip_association and
+	//     aws_network_interface_sg_attachment: both evidence-only,
+	//     property-children row-gen folds onto a parent (AWS::EC2::NatGateway
+	//     and AWS::EC2::NetworkInterface respectively) with no pastable row
+	//     of their own (issue #44's own non-goals). The second parent,
+	//     aws_network_interface, is ratified below; the first,
+	//     aws_nat_gateway, is not admitted at all yet (SURVEY.md's
+	//     blocked-emulator: floci loses subnet_id on read) and is out of
+	//     this batch's instances/EBS/ENI scope regardless.
 	//
-	//   - aws_db_proxy_target: row-gen filed this evidence-only (a fold
-	//     child of aws_db_proxy_default_target_group with no registry
-	//     primaryIdentifier of its own). The provider's documented import ID
-	//     is "db_proxy_name/target_group_name/type/resource_identifier",
-	//     where db_proxy_name and target_group_name are both configured
-	//     arguments and resource_identifier is whichever of
-	//     db_instance_identifier or db_cluster_identifier a config sets
-	//     (idlessAttr's alternation-list shape handles that part fine) — but
-	//     "type" is the literal string "RDS_INSTANCE" or "TRACKED_CLUSTER"
-	//     chosen by *which* of those two optional arguments is set, not a
-	//     value any argument carries and not a fixed separator either. No
-	//     [Component] in this table's vocabulary expresses "a literal
-	//     conditioned on which alternative matched", so this stays a
-	//     needs-hand-separator case rather than a guess this batch writes
-	//     blind, the same stance as the messaging batch's two rejections.
-	//
-	// Not this batch's to decide: aws_db_proxy_target's own true fold
-	// children (aws_db_snapshot, aws_db_cluster_snapshot,
-	// aws_rds_cluster_endpoint, and the rest of the RDS resource family
-	// row-gen classifies "marker" by taggability alone rather than proposing
-	// a pastable row) carry no registry evidence at all and are simply
-	// outside this batch's scope, the same as the messaging batch's Logs and
-	// Events family.
+	// aws_placement_group is the one correction this batch makes to
+	// row-gen's own classification, not to the provider's identity:
+	// row-gen filed it evidence-only because registry.json's primary
+	// identifier (GroupName) does not string-match the provider's own
+	// argument name (name) closely enough for row-gen's classifier to
+	// paste a row (issue #44's own non-goal — no fuzzy matching between a
+	// CFN field name and a provider argument name). The provider's real,
+	// documented import command settles it independently of the registry:
+	// client-named via `name`, the same shape as aws_key_pair alongside it
+	// below.
+
+	serverAssigned("aws_instance",
+		"EC2 mints the instance ID (i-…) at create time; ami, instance_type, subnet_id and the rest of the launch configuration describe what to launch, not what comes back. Confirmed against the provider's own identity schema (v6.58.0: required id) and its documented import command.",
+		"INSTANCEID", "id"),
+	serverAssigned("aws_ec2_fleet",
+		"EC2 mints the fleet's own identifier (fleet-…) at create time; the type's launch_template_config and target_capacity_specification blocks describe what to launch, not the fleet's own identity.",
+		"FLEETID", "id"),
+	serverAssigned("aws_ec2_capacity_reservation",
+		"EC2 mints the reservation's ID (cr-…) at create time; instance_type, instance_platform and availability_zone in configuration describe what capacity to reserve, not the reservation's own identity.",
+		"ID", "id"),
+	serverAssigned("aws_ec2_host",
+		"EC2 mints the dedicated host's ID (h-…) at create time; availability_zone and instance_type/instance_family in configuration describe what the host supports, not the host's own identity.",
+		"HOSTID", "id"),
+	serverAssigned("aws_network_interface",
+		"EC2 mints the ENI's ID (eni-…) at create time; subnet_id in configuration names where the interface lives, not the interface itself. Confirmed against the provider's own identity schema (v6.58.0: required id).",
+		"ID", "id"),
+	serverAssigned("aws_network_interface_attachment",
+		"EC2 mints the attachment's own ID (eni-attach-…) at create time, distinct from the instance_id and network_interface_id arguments that name the two ends of the attachment; the provider's own docs export no id attribute for this type at all, only attachment_id, which is also the documented import ID.",
+		"ATTACHMENTID", "attachment_id"),
+	serverAssigned("aws_network_interface_permission",
+		"EC2 mints the permission's own ID at create time, distinct from the network_interface_id, aws_account_id and permission arguments that describe what is granted; the provider's own docs export no id attribute for this type, only network_interface_permission_id, which is also the documented import ID.",
+		"NETWORKINTERFACEPERMISSIONID", "network_interface_permission_id"),
+	serverAssigned("aws_eip_association",
+		"EC2 mints the association's own ID (eipassoc-…) at create time, distinct from the allocation_id, instance_id and network_interface_id arguments that name what is being associated.",
+		"ID", "id"),
+	serverAssigned("aws_spot_fleet_request",
+		"EC2 mints the spot fleet request's ID (sfr-…) at create time; the type's launch_specification/launch_template_config and target_capacity arguments describe what to launch, not the request's own identity.",
+		"ID", "id"),
 
 	TypeIdentity{
-		// registry.json: primaryIdentifier=[SubscriptionName], in
-		// createOnlyProperties and not in readOnlyProperties — client-named.
-		// Confirmed against the provider's documented import command
-		// (terraform import aws_db_event_subscription.default
-		// rds-event-sub) and its Attribute Reference, which states id is
-		// "The name of the RDS event notification subscription" — the same
-		// name argument verbatim.
-		Type:          "aws_db_event_subscription",
+		// registry.json: primary_identifier=["KeyName"], in
+		// create_only_properties and not in read_only_properties —
+		// client-named. Confirmed directly against the provider's own
+		// documented import command (terraform import aws_key_pair.deployer
+		// deployer-key) and its Attribute Reference, which states id "The
+		// key pair name."
+		Type:          "aws_key_pair",
+		Components:    []Component{attr("key_name")},
+		ImportSyntax:  "KEY_NAME",
+		IdentityAttrs: []string{"id", "key_name"},
+	},
+	TypeIdentity{
+		// row-gen classified this evidence-only (see the batch comment
+		// above for why); the provider's real, documented import command
+		// settles it anyway: "terraform import aws_placement_group.prod_pg
+		// production-placement-group" imports by the group's own `name`
+		// argument, and the Attribute Reference confirms id "The name of
+		// the placement group." — the same client-named shape as
+		// aws_key_pair just above.
+		Type:          "aws_placement_group",
 		Components:    []Component{attr("name")},
 		ImportSyntax:  "NAME",
 		IdentityAttrs: []string{"id", "name"},
@@ -1301,272 +1322,124 @@ var DefaultTable = buildTable(
 		IdentityAttrs: []string{"id", "name"},
 	},
 	TypeIdentity{
-		// registry.json: primaryIdentifier=[DBInstanceIdentifier], in
-		// createOnlyProperties and not in readOnlyProperties — client-named.
-		// The provider ships no identity schema for this type in v6.58.0 (see
-		// live/SURVEY.md's "third wrinkle"), but its documented import
-		// command (terraform import aws_db_instance.default
-		// mydb-rds-instance) and Argument Reference ("identifier - (Optional)
-		// The name of the RDS instance, if omitted, Terraform will assign a
-		// random, unique identifier") confirm the client-named shape
-		// row-gen proposed. Its own "id" attribute is "RDS DBI resource ID"
-		// per the Attribute Reference — a distinct provider-minted value,
-		// not the identifier — so "id" is deliberately not claimed as an
-		// identity source here. See this section's banner comment above for
-		// the emulator caveat (lex00/floci#28) this type ratifies despite.
-		Type:          "aws_db_instance",
-		Components:    []Component{attr("identifier")},
-		ImportSyntax:  "IDENTIFIER",
-		IdentityAttrs: []string{"identifier"}, // "id" intentionally omitted: id is the DBI resource ID, not the identifier
-	},
-	TypeIdentity{
-		// row-gen filed this evidence-only: registry.json's primaryIdentifier
-		// (TargetGroupArn) is entirely a readOnlyProperties field, so its own
-		// classify rule refuses a pastable row, noting only "import docs show
-		// argument-composed ID". Reading that import section directly: the
-		// documented command (terraform import
-		// aws_db_proxy_default_target_group.example example) imports "using
-		// the db_proxy_name" — a named-singleton child of aws_db_proxy, the
-		// same shape as aws_sns_topic_policy in the messaging batch, keyed on
-		// the parent's own name argument rather than an opaque ARN the
-		// registry's primaryIdentifier names. The provider's own Attribute
-		// Reference confirms it: "id - Name of the RDS DB Proxy" — the
-		// exported "name" attribute is the target group's own fixed name
-		// ("default"), a different thing, and is not claimed as an identity
-		// source here.
-		Type:          "aws_db_proxy_default_target_group",
-		Components:    []Component{attr("db_proxy_name")},
-		ImportSyntax:  "DB_PROXY_NAME",
-		IdentityAttrs: []string{"id"},
-	},
-	TypeIdentity{
-		// row-gen filed this evidence-only: registry.json's guessed argument
-		// name (db_proxy_endpoint_name) is "not backed by a provider identity
-		// schema or the carve seed", so its own rules refuse a pastable row.
-		// Reading the import section directly resolves it cleanly: the
-		// documented import ID is "DB-PROXY-NAME/DB-PROXY-ENDPOINT-NAME", a
-		// concrete composite of two arguments the Argument Reference marks
-		// Required (db_proxy_name, db_proxy_endpoint_name) — the same
-		// concrete-composite shape as aws_iam_role_policy_attachment. The
-		// Attribute Reference confirms "id" is exactly that composite ("The
-		// name of the proxy and proxy endpoint separated by /"), so id is
-		// claimed as an identity source, the same standard of care as
-		// aws_iam_role_policy's colon-joined id.
-		Type: "aws_db_proxy_endpoint",
+		// row-gen classified this needs-hand-separator: registry.json's
+		// primary identifier is the pair [VolumeId, InstanceId], a
+		// composite with no separator any schema names (issue #44's own
+		// non-goal). The separator is not a guess here: live/import-
+		// grammar.json's scrape of the provider's own Import section names
+		// it directly — DEVICE_NAME:VOLUME_ID:INSTANCE_ID — and the
+		// provider's own identity schema (v6.58.0) requires exactly those
+		// three arguments, all Required in the Argument Reference too, so
+		// any realistic configuration already has them. Parent-derived over
+		// aws_ebs_volume (already admitted) and aws_instance (ratified
+		// above in this same batch): resolving this type needs both to
+		// resolve first. The provider's docs export no additional
+		// id-shaped attribute for this type at all — only the three
+		// arguments read back — so no alias beyond them is claimed here,
+		// the same standard of care aws_route's synthesized id gets.
+		Type: "aws_volume_attachment",
 		Components: []Component{
-			attr("db_proxy_name"),
-			sep("/"),
-			attr("db_proxy_endpoint_name"),
-		},
-		ImportSyntax:  "DB-PROXY-NAME/DB-PROXY-ENDPOINT-NAME",
-		IdentityAttrs: []string{"id"},
-	},
-	TypeIdentity{
-		// registry.json: primaryIdentifier=[OptionGroupName], in
-		// createOnlyProperties and not in readOnlyProperties — client-named.
-		// Confirmed against the provider's documented import command
-		// (terraform import aws_db_option_group.example
-		// mysql-option-group) and its Attribute Reference ("id - DB option
-		// group name").
-		Type:          "aws_db_option_group",
-		Components:    []Component{attr("name")},
-		ImportSyntax:  "NAME",
-		IdentityAttrs: []string{"id", "name"},
-	},
-	TypeIdentity{
-		// registry.json: primaryIdentifier=[DBParameterGroupName], in
-		// createOnlyProperties and not in readOnlyProperties — client-named.
-		// Confirmed against the provider's documented import command
-		// (terraform import aws_db_parameter_group.rds_pg rds-pg) and its
-		// Attribute Reference ("id - The db parameter group name").
-		Type:          "aws_db_parameter_group",
-		Components:    []Component{attr("name")},
-		ImportSyntax:  "NAME",
-		IdentityAttrs: []string{"id", "name"},
-	},
-	TypeIdentity{
-		// registry.json: primaryIdentifier=[DBProxyName], in
-		// createOnlyProperties and not in readOnlyProperties — client-named.
-		// Confirmed against the provider's documented import command
-		// (terraform import aws_db_proxy.example example) and its Argument
-		// Reference ("name" is Required, not merely settable). Unlike the
-		// types above, its own "id" attribute is documented as "The Amazon
-		// Resource Name (ARN) for the proxy" — a different value from name —
-		// so "id" is deliberately not claimed as an identity source here,
-		// the same standard of care as aws_ecs_cluster's synthesized id.
-		Type:          "aws_db_proxy",
-		Components:    []Component{attr("name")},
-		ImportSyntax:  "NAME",
-		IdentityAttrs: []string{"name"}, // "id" intentionally omitted: id is the proxy's ARN, not name
-	},
-	TypeIdentity{
-		// registry.json: primaryIdentifier=[DBSubnetGroupName], in
-		// createOnlyProperties and not in readOnlyProperties — client-named.
-		// The provider ships an identity schema for this type
-		// (required_for_import: name), which live/survey-full.json's own
-		// mechanical pass reads as "needs-config-signal" because name is
-		// settable but not a schema-Required argument (Optional, Terraform
-		// assigns a random name when omitted) — the same shape
-		// aws_s3_bucket's own "bucket" argument already has among the types
-		// this table admits unconditionally. Confirmed against the
-		// provider's documented import command (terraform import
-		// aws_db_subnet_group.default production-subnet-group) and its
-		// Attribute Reference ("id - The db subnet group name").
-		Type:          "aws_db_subnet_group",
-		Components:    []Component{attr("name")},
-		ImportSyntax:  "NAME",
-		IdentityAttrs: []string{"id", "name"},
-	},
-	TypeIdentity{
-		// registry.json: primaryIdentifier=[DBClusterIdentifier], in
-		// createOnlyProperties and not in readOnlyProperties — client-named.
-		// Same "needs-config-signal" mechanical classification as
-		// aws_db_subnet_group above, for the same reason
-		// (cluster_identifier is Optional; Terraform assigns a random one
-		// when omitted), overridden here the same way. Confirmed against the
-		// provider's documented import command (terraform import
-		// aws_rds_cluster.aurora_cluster aurora-prod-cluster) and its
-		// Attribute Reference ("id - RDS Cluster Identifier").
-		Type:          "aws_rds_cluster",
-		Components:    []Component{attr("cluster_identifier")},
-		ImportSyntax:  "CLUSTER_IDENTIFIER",
-		IdentityAttrs: []string{"id", "cluster_identifier"},
-	},
-	TypeIdentity{
-		// registry.json: primaryIdentifier=[DBInstanceIdentifier] (this type
-		// maps to the same AWS::RDS::DBInstance CFN type as aws_db_instance
-		// above), in createOnlyProperties and not in readOnlyProperties —
-		// client-named. Confirmed against the provider's documented import
-		// command (terraform import
-		// aws_rds_cluster_instance.prod_instance_1
-		// aurora-cluster-instance-1) and its Attribute Reference, which lists
-		// both "identifier" and "id" as "Instance identifier" — the same
-		// string — unlike aws_db_instance above, where id is a distinct
-		// DBI resource ID. "id" is claimed as an identity source here for
-		// exactly that reason.
-		Type:          "aws_rds_cluster_instance",
-		Components:    []Component{attr("identifier")},
-		ImportSyntax:  "IDENTIFIER",
-		IdentityAttrs: []string{"id", "identifier"},
-	},
-	TypeIdentity{
-		// registry.json: primaryIdentifier=[DBClusterParameterGroupName], in
-		// createOnlyProperties and not in readOnlyProperties — client-named.
-		// Confirmed against the provider's documented import command
-		// (terraform import aws_rds_cluster_parameter_group.cluster_pg
-		// production-pg-1) and its Attribute Reference ("id - The db cluster
-		// parameter group name").
-		Type:          "aws_rds_cluster_parameter_group",
-		Components:    []Component{attr("name")},
-		ImportSyntax:  "NAME",
-		IdentityAttrs: []string{"id", "name"},
-	},
-	TypeIdentity{
-		// row-gen filed this evidence-only (a fold child of aws_rds_cluster
-		// with no registry primaryIdentifier of its own). Reading the
-		// provider's Import section directly: the documented import ID is
-		// "DB Cluster Identifier and IAM Role ARN separated by a comma", a
-		// concrete composite of two arguments the Argument Reference marks
-		// Required (db_cluster_identifier, role_arn) — the same
-		// concrete-composite shape as aws_iam_role_policy. The Attribute
-		// Reference confirms "id" is exactly that composite, so id is
-		// claimed as an identity source.
-		Type: "aws_rds_cluster_role_association",
-		Components: []Component{
-			attr("db_cluster_identifier"),
-			sep(","),
-			attr("role_arn"),
-		},
-		ImportSyntax:  "DBCLUSTERIDENTIFIER,ROLEARN",
-		IdentityAttrs: []string{"id"},
-	},
-	TypeIdentity{
-		// row-gen refused a pastable row outright ("the composite separator
-		// is not registry evidence; a human chooses it") because
-		// primaryIdentifier=[Engine, EngineVersion] is a composite with no
-		// separator in any schema. Reading the provider's Import section
-		// resolves it: the documented import ID is "engine and engine_version
-		// separated by a colon", and both halves are Required arguments
-		// already in configuration — the same concrete-composite shape as
-		// aws_iam_role_policy's ROLENAME:POLICYNAME. The provider's own
-		// Attribute Reference exports no "id" at all for this type, so this
-		// imports by string only, like aws_route_table_association; nothing
-		// is claimed as an identity source.
-		Type: "aws_rds_custom_db_engine_version",
-		Components: []Component{
-			attr("engine"),
+			attr("device_name"),
 			sep(":"),
-			attr("engine_version"),
+			attr("volume_id"),
+			sep(":"),
+			attr("instance_id"),
 		},
-		ImportSyntax:  "ENGINE:ENGINE_VERSION",
+		ImportSyntax:  "DEVICE_NAME:VOLUME_ID:INSTANCE_ID",
+		IdentityAttrs: []string{"device_name", "instance_id", "volume_id"},
+	},
+	TypeIdentity{
+		// row-gen proposed this server-assigned via registry.json's
+		// AccountId (AWS::EC2::SnapshotBlockPublicAccess's primary
+		// identifier) — the same singleton-per-account shape as the
+		// IAM/ECR batch's three ECR registry-level types. The provider
+		// disagrees about the shape, not the singleton-ness: its own
+		// identity schema requires nothing at all for import (account_id
+		// and region are both Optional), and its documented import command
+		// is always the fixed literal string "default" ("terraform import
+		// aws_ebs_snapshot_block_public_access.example default"), not an
+		// account ID the account happens to have. This is a per-region
+		// settings object AWS gives every region exactly one of, not a
+		// value AWS mints per resource, so it needs no discovery at all:
+		// Components below is a pure literal, computable from configuration
+		// with nothing to look up — ServerAssigned is deliberately false,
+		// unlike every other row in this batch. The provider's own docs say
+		// this resource "exports no additional attributes", so no
+		// IdentityAttrs are claimed either, the same standard of care
+		// aws_route's synthesized id gets.
+		Type:          "aws_ebs_snapshot_block_public_access",
+		Components:    []Component{sep("default")},
+		ImportSyntax:  "default",
 		IdentityAttrs: nil,
 	},
 	TypeIdentity{
-		// row-gen filed this evidence-only: the registry's own primaryIdentifier
-		// (GlobalClusterIdentifier) is in createOnlyProperties, which would
-		// ordinarily propose client-named, but row-gen's own rule flags the
-		// argument name as "GUESSED: snake_cased CFN property name, not
-		// backed by a provider identity schema or the carve seed" and
-		// refuses a pastable row on that basis alone. The provider's own
-		// Argument Reference resolves the guess directly: "global_cluster_identifier
-		// - (Required, Forces new resources)" is exactly that argument, no
-		// snake-casing inference needed, and its Attribute Reference confirms
-		// "id - RDS Global Cluster identifier" is the same string. Confirmed
-		// against the documented import command (terraform import
-		// aws_rds_global_cluster.example example).
-		Type:          "aws_rds_global_cluster",
-		Components:    []Component{attr("global_cluster_identifier")},
-		ImportSyntax:  "GLOBAL_CLUSTER_IDENTIFIER",
-		IdentityAttrs: []string{"id", "global_cluster_identifier"},
-	},
-	serverAssigned("aws_rds_integration",
-		"the RDS service assigns the integration's own ARN at create time (Amazon Resource Name (ARN) of the Integration); integration_name, source_arn and target_arn together name what it connects, not the integration resource itself.",
-		"ARN", "arn", "id"),
-	// aws_rds_integration: registry.json's primaryIdentifier (IntegrationArn)
-	// is entirely a readOnlyProperties field, matching row-gen's
-	// server-assigned proposal. Confirmed against the provider's documented
-	// import command (terraform import aws_rds_integration.example
-	// arn:aws:rds:us-west-2:123456789012:integration:abcdefgh-...) and its
-	// Attribute Reference, which lists both "arn" and a deprecated "id"
-	// alias of the same ARN.
-
-	TypeIdentity{
-		// row-gen filed this evidence-only (a fold child of aws_db_instance
-		// with no registry primaryIdentifier of its own). Reading the
-		// provider's Import section directly: the documented import ID is
-		// "DB Instance Identifier and IAM Role ARN separated by a comma", a
-		// concrete composite of two arguments the Argument Reference marks
-		// Required (db_instance_identifier, role_arn) — the same shape as
-		// aws_rds_cluster_role_association above. The Attribute Reference
-		// confirms "id" is exactly that composite, so id is claimed as an
-		// identity source.
-		Type: "aws_db_instance_role_association",
-		Components: []Component{
-			attr("db_instance_identifier"),
-			sep(","),
-			attr("role_arn"),
-		},
-		ImportSyntax:  "DBINSTANCEIDENTIFIER,ROLEARN",
-		IdentityAttrs: []string{"id"},
+		// registry.json: primaryIdentifier=[ReplicationGroupId], in
+		// createOnlyProperties and not in readOnlyProperties —
+		// client-named, proposed correctly; argument from
+		// live/import-grammar.json. Confirmed against the provider's own
+		// Argument Reference (replication_group_id, Required) and its
+		// documented import command (terraform import
+		// aws_elasticache_replication_group.my_replication_group
+		// replication-group-1).
+		Type:          "aws_elasticache_replication_group",
+		Components:    []Component{attr("replication_group_id")},
+		ImportSyntax:  "REPLICATION_GROUP_ID",
+		IdentityAttrs: []string{"replication_group_id"},
 	},
 	TypeIdentity{
-		// registry.json: primaryIdentifier=[DBShardGroupIdentifier], in
-		// createOnlyProperties and not in readOnlyProperties — client-named.
-		// Confirmed against the provider's documented import command
-		// (terraform import aws_rds_shard_group.example
-		// example-shard-group) and its Argument Reference
-		// ("db_shard_group_identifier" is Required, with no
-		// Terraform-assigned fallback, unlike every *_group name above). Its
-		// Attribute Reference exports no "id" attribute at all (only arn,
-		// db_shard_group_resource_id, endpoint), so nothing is claimed as an
-		// identity source beyond the argument itself.
-		Type:          "aws_rds_shard_group",
-		Components:    []Component{attr("db_shard_group_identifier")},
-		ImportSyntax:  "DB_SHARD_GROUP_IDENTIFIER",
-		IdentityAttrs: []string{"db_shard_group_identifier"},
+		// registry.json: primaryIdentifier=[ServerlessCacheName], in
+		// createOnlyProperties and not in readOnlyProperties —
+		// client-named, proposed correctly; argument from
+		// live/import-grammar.json. Confirmed against the provider's own
+		// Argument Reference (name, Required) and its documented import
+		// command (terraform import
+		// aws_elasticache_serverless_cache.my_cluster my_cluster).
+		Type:          "aws_elasticache_serverless_cache",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[CacheSubnetGroupName], in
+		// createOnlyProperties and not in readOnlyProperties —
+		// client-named, proposed correctly; argument from
+		// live/import-grammar.json. Confirmed against the provider's own
+		// Argument Reference (name, Required) and its documented import
+		// command (terraform import aws_elasticache_subnet_group.bar
+		// tf-test-cache-subnet).
+		Type:          "aws_elasticache_subnet_group",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[UserId], in
+		// createOnlyProperties and not in readOnlyProperties —
+		// client-named, proposed correctly; argument from
+		// live/import-grammar.json. Confirmed against the provider's own
+		// Argument Reference (user_id, Required, alongside access_string,
+		// engine and user_name) and its documented import command
+		// (terraform import aws_elasticache_user.my_user userId1).
+		Type:          "aws_elasticache_user",
+		Components:    []Component{attr("user_id")},
+		ImportSyntax:  "USER_ID",
+		IdentityAttrs: []string{"user_id"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[UserGroupId], in
+		// createOnlyProperties and not in readOnlyProperties —
+		// client-named, proposed correctly; argument from
+		// live/import-grammar.json. Confirmed against the provider's own
+		// Argument Reference (user_group_id, Required, alongside engine)
+		// and its documented import command (terraform import
+		// aws_elasticache_user_group.my_user_group userGoupId1).
+		Type:          "aws_elasticache_user_group",
+		Components:    []Component{attr("user_group_id")},
+		ImportSyntax:  "USER_GROUP_ID",
+		IdentityAttrs: []string{"user_group_id"},
 	},
 
-	// ---- Registry-ratified (#40, #44): fifth batch, API Gateway v1 and v2
+	// ---- Registry-ratified (#40, #44): fourth batch, API Gateway v1 and v2
 	// ---- (issue #65) -----------------------------------------------------
 	//
 	// Same pipeline as the earlier three batches: every row started as a
@@ -1918,236 +1791,365 @@ var DefaultTable = buildTable(
 		},
 		ImportSyntax:  "API-ID/STAGE-NAME",
 		IdentityAttrs: nil,
-		// registry.json: primaryIdentifier=[ReplicationGroupId], in
-		// createOnlyProperties and not in readOnlyProperties —
-		// client-named, proposed correctly; argument from
-		// live/import-grammar.json. Confirmed against the provider's own
-		// Argument Reference (replication_group_id, Required) and its
-		// documented import command (terraform import
-		// aws_elasticache_replication_group.my_replication_group
-		// replication-group-1).
-		Type:          "aws_elasticache_replication_group",
-		Components:    []Component{attr("replication_group_id")},
-		ImportSyntax:  "REPLICATION_GROUP_ID",
-		IdentityAttrs: []string{"replication_group_id"},
-	},
-	TypeIdentity{
-		// registry.json: primaryIdentifier=[ServerlessCacheName], in
-		// createOnlyProperties and not in readOnlyProperties —
-		// client-named, proposed correctly; argument from
-		// live/import-grammar.json. Confirmed against the provider's own
-		// Argument Reference (name, Required) and its documented import
-		// command (terraform import
-		// aws_elasticache_serverless_cache.my_cluster my_cluster).
-		Type:          "aws_elasticache_serverless_cache",
-		Components:    []Component{attr("name")},
-		ImportSyntax:  "NAME",
-		IdentityAttrs: []string{"name"},
-	},
-	TypeIdentity{
-		// registry.json: primaryIdentifier=[CacheSubnetGroupName], in
-		// createOnlyProperties and not in readOnlyProperties —
-		// client-named, proposed correctly; argument from
-		// live/import-grammar.json. Confirmed against the provider's own
-		// Argument Reference (name, Required) and its documented import
-		// command (terraform import aws_elasticache_subnet_group.bar
-		// tf-test-cache-subnet).
-		Type:          "aws_elasticache_subnet_group",
-		Components:    []Component{attr("name")},
-		ImportSyntax:  "NAME",
-		IdentityAttrs: []string{"name"},
-	},
-	TypeIdentity{
-		// registry.json: primaryIdentifier=[UserId], in
-		// createOnlyProperties and not in readOnlyProperties —
-		// client-named, proposed correctly; argument from
-		// live/import-grammar.json. Confirmed against the provider's own
-		// Argument Reference (user_id, Required, alongside access_string,
-		// engine and user_name) and its documented import command
-		// (terraform import aws_elasticache_user.my_user userId1).
-		Type:          "aws_elasticache_user",
-		Components:    []Component{attr("user_id")},
-		ImportSyntax:  "USER_ID",
-		IdentityAttrs: []string{"user_id"},
-	},
-	TypeIdentity{
-		// registry.json: primaryIdentifier=[UserGroupId], in
-		// createOnlyProperties and not in readOnlyProperties —
-		// client-named, proposed correctly; argument from
-		// live/import-grammar.json. Confirmed against the provider's own
-		// Argument Reference (user_group_id, Required, alongside engine)
-		// and its documented import command (terraform import
-		// aws_elasticache_user_group.my_user_group userGoupId1).
-		Type:          "aws_elasticache_user_group",
-		Components:    []Component{attr("user_group_id")},
-		ImportSyntax:  "USER_GROUP_ID",
-		IdentityAttrs: []string{"user_group_id"},
 	},
 
-	// ---- Registry-ratified (#40, #44): fourth batch, EC2 core (instances,
-	// ---- EBS, ENI; issue #65) -------------------------------------------
+	// ---- Registry-ratified (#40, #44): fourth batch, RDS (issue #65's
+	// ---- ratification campaign) -----------------------------------------
 	//
-	// Same pipeline as the three batches above: every row started as a
-	// tools/row-gen proposal from live/registry.json, cross-checked against
-	// the AWS provider's documented import behaviour at the pinned v6.58.0
-	// tag (its "Import" section and, where the provider has one, its own
-	// identity schema) rather than accepted on the registry's word alone.
-	// Scope is "instances and their periphery" — the slice issue #65 itself
-	// names "EC2 core (instances, EBS, ENI)" — not the full 114-type EC2
-	// registry service tools/row-gen enumerates; the VPC/Transit
-	// Gateway/VPN/Client VPN/IPAM/Verified Access/route-server/NAT-gateway
-	// families that make up the rest of that count are a future batch's
-	// scope, not this one's. Cohort estate: live/e2e/estates/ec2-core.
+	// Same pipeline as the earlier batches: every row started as a
+	// tools/row-gen proposal from live/registry.json's RDS section (18
+	// proposals), cross-checked against the AWS provider's documented
+	// import behaviour at the pinned v6.58.0 tag
+	// (raw.githubusercontent.com/hashicorp/terraform-provider-aws/v6.58.0/website/docs/r/*.html.markdown)
+	// rather than accepted on the registry's classification alone. Cohort
+	// estate: live/e2e/estates/rds.
 	//
-	// aws_instance is this batch's headline type: the repo's long-standing
-	// canonical unadmitted example. live/e2e/limits/unadmitted-type and
-	// live/LIMITATIONS.md's matching entry swap to aws_nat_gateway — a real,
-	// non-logical, server-assigned EC2 type still in live/SURVEY.md's
-	// curated 68, deliberately left out of this batch's own scope below and
-	// out of every batch issue #65 names next, so it stays a stable example
-	// rather than one this same wave of ratification would immediately have
-	// to re-swap. See that fixture's own comment for the rest of the
-	// account.
+	// Five of the seventeen ratified rows are corrections, the same shape
+	// as the messaging batch's aws_sns_topic_policy: row-gen filed them
+	// "evidence-only" or "needs hand separator" because the registry's own
+	// primaryIdentifier/readOnlyProperties evidence did not resolve them,
+	// but the provider's own Import section names a concrete, documented
+	// grammar built entirely from arguments already in configuration —
+	// aws_db_proxy_default_target_group, aws_db_proxy_endpoint,
+	// aws_db_instance_role_association, aws_rds_cluster_role_association and
+	// aws_rds_global_cluster below. One proposal is rejected outright
+	// (aws_db_proxy_target): its documented import string embeds a literal
+	// segment ("RDS_INSTANCE" vs. "TRACKED_CLUSTER") chosen by *which* of two
+	// optional arguments a config sets, a conditional-literal component this
+	// table's vocabulary does not have, the same "needs a component this
+	// table's vocabulary does not have yet" shape as the messaging batch's
+	// aws_cloudwatch_event_rule rejection.
 	//
-	// Rejected, and deliberately absent from this table: none. Every
-	// pastable proposal row-gen made in this batch's instances/EBS/ENI
-	// slice checked out against the provider's real import behaviour — a
-	// first for a registry-ratified batch, and worth naming precisely
-	// because the other three batches all found at least one CFN-says-one-
-	// thing-provider-says-another mismatch.
+	// aws_db_instance keeps live/SURVEY.md's own recorded wrinkle (the
+	// "third wrinkle" in that file's "Classification wrinkles" section): the
+	// original survey filed it under marker on taggability alone, because
+	// v6.58.0 ships it no identity schema and no list resource, but its
+	// documented import ID is the client-chosen "identifier" argument, so it
+	// wires client-named here, exactly as that file predicted a batch that
+	// reached RDS would do. Its own "id" attribute is the RDS DBI resource
+	// ID, a distinct provider-minted value the provider's own Attribute
+	// Reference lists separately from "identifier" — unlike
+	// aws_rds_cluster_instance below, whose "id" and "identifier" attributes
+	// are documented as the same string — so "id" is deliberately not
+	// claimed as an identity source here, the same standard of care as
+	// aws_ecs_cluster's synthesized id.
 	//
-	// Out of scope for this batch, not rejected on the evidence:
+	// aws_db_instance is also this batch's emulator caveat, the same
+	// deliberate stance as the messaging batch's aws_sqs_queue: floci needs
+	// the Docker socket mounted into its container to serve RDS at all
+	// (lex00/floci#28), and neither the gated Go test harness
+	// (internal/live/flocitest.flocitest.go), the shell e2e harness
+	// (live/e2e/run.sh) nor any cohort README's "Verifying by hand" `docker
+	// run` command mounts it as of this batch — confirmed by inspection, not
+	// merely carried over from live/SURVEY.md's note. The type ratifies on
+	// paper: its identity is sound and independently verified against the
+	// provider's docs regardless of what any one emulator can run. See
+	// live/e2e/estates/rds/README.md's "Verifying by hand" section for the
+	// caveat recorded the way aws_sqs_queue's is.
 	//
-	//   - aws_ec2_instance_connect_endpoint: a real, server-assigned,
-	//     cleanly-proposed type (row-gen: primary identifier Id, read-only
-	//     and not create-only), but it is SSH/RDP connectivity
-	//     infrastructure for reaching an instance, not part of the
-	//     instance's own identity, EBS, or ENI periphery this batch's
-	//     mandate covers. Left for a networking-focused batch.
-	//   - aws_nat_gateway_eip_association and
-	//     aws_network_interface_sg_attachment: both evidence-only,
-	//     property-children row-gen folds onto a parent (AWS::EC2::NatGateway
-	//     and AWS::EC2::NetworkInterface respectively) with no pastable row
-	//     of their own (issue #44's own non-goals). The second parent,
-	//     aws_network_interface, is ratified below; the first,
-	//     aws_nat_gateway, is not admitted at all yet (SURVEY.md's
-	//     blocked-emulator: floci loses subnet_id on read) and is out of
-	//     this batch's instances/EBS/ENI scope regardless.
+	// Rejected, and deliberately absent from this table:
 	//
-	// aws_placement_group is the one correction this batch makes to
-	// row-gen's own classification, not to the provider's identity:
-	// row-gen filed it evidence-only because registry.json's primary
-	// identifier (GroupName) does not string-match the provider's own
-	// argument name (name) closely enough for row-gen's classifier to
-	// paste a row (issue #44's own non-goal — no fuzzy matching between a
-	// CFN field name and a provider argument name). The provider's real,
-	// documented import command settles it independently of the registry:
-	// client-named via `name`, the same shape as aws_key_pair alongside it
-	// below.
-
-	serverAssigned("aws_instance",
-		"EC2 mints the instance ID (i-…) at create time; ami, instance_type, subnet_id and the rest of the launch configuration describe what to launch, not what comes back. Confirmed against the provider's own identity schema (v6.58.0: required id) and its documented import command.",
-		"INSTANCEID", "id"),
-	serverAssigned("aws_ec2_fleet",
-		"EC2 mints the fleet's own identifier (fleet-…) at create time; the type's launch_template_config and target_capacity_specification blocks describe what to launch, not the fleet's own identity.",
-		"FLEETID", "id"),
-	serverAssigned("aws_ec2_capacity_reservation",
-		"EC2 mints the reservation's ID (cr-…) at create time; instance_type, instance_platform and availability_zone in configuration describe what capacity to reserve, not the reservation's own identity.",
-		"ID", "id"),
-	serverAssigned("aws_ec2_host",
-		"EC2 mints the dedicated host's ID (h-…) at create time; availability_zone and instance_type/instance_family in configuration describe what the host supports, not the host's own identity.",
-		"HOSTID", "id"),
-	serverAssigned("aws_network_interface",
-		"EC2 mints the ENI's ID (eni-…) at create time; subnet_id in configuration names where the interface lives, not the interface itself. Confirmed against the provider's own identity schema (v6.58.0: required id).",
-		"ID", "id"),
-	serverAssigned("aws_network_interface_attachment",
-		"EC2 mints the attachment's own ID (eni-attach-…) at create time, distinct from the instance_id and network_interface_id arguments that name the two ends of the attachment; the provider's own docs export no id attribute for this type at all, only attachment_id, which is also the documented import ID.",
-		"ATTACHMENTID", "attachment_id"),
-	serverAssigned("aws_network_interface_permission",
-		"EC2 mints the permission's own ID at create time, distinct from the network_interface_id, aws_account_id and permission arguments that describe what is granted; the provider's own docs export no id attribute for this type, only network_interface_permission_id, which is also the documented import ID.",
-		"NETWORKINTERFACEPERMISSIONID", "network_interface_permission_id"),
-	serverAssigned("aws_eip_association",
-		"EC2 mints the association's own ID (eipassoc-…) at create time, distinct from the allocation_id, instance_id and network_interface_id arguments that name what is being associated.",
-		"ID", "id"),
-	serverAssigned("aws_spot_fleet_request",
-		"EC2 mints the spot fleet request's ID (sfr-…) at create time; the type's launch_specification/launch_template_config and target_capacity arguments describe what to launch, not the request's own identity.",
-		"ID", "id"),
+	//   - aws_db_proxy_target: row-gen filed this evidence-only (a fold
+	//     child of aws_db_proxy_default_target_group with no registry
+	//     primaryIdentifier of its own). The provider's documented import ID
+	//     is "db_proxy_name/target_group_name/type/resource_identifier",
+	//     where db_proxy_name and target_group_name are both configured
+	//     arguments and resource_identifier is whichever of
+	//     db_instance_identifier or db_cluster_identifier a config sets
+	//     (idlessAttr's alternation-list shape handles that part fine) — but
+	//     "type" is the literal string "RDS_INSTANCE" or "TRACKED_CLUSTER"
+	//     chosen by *which* of those two optional arguments is set, not a
+	//     value any argument carries and not a fixed separator either. No
+	//     [Component] in this table's vocabulary expresses "a literal
+	//     conditioned on which alternative matched", so this stays a
+	//     needs-hand-separator case rather than a guess this batch writes
+	//     blind, the same stance as the messaging batch's two rejections.
+	//
+	// Not this batch's to decide: aws_db_proxy_target's own true fold
+	// children (aws_db_snapshot, aws_db_cluster_snapshot,
+	// aws_rds_cluster_endpoint, and the rest of the RDS resource family
+	// row-gen classifies "marker" by taggability alone rather than proposing
+	// a pastable row) carry no registry evidence at all and are simply
+	// outside this batch's scope, the same as the messaging batch's Logs and
+	// Events family.
 
 	TypeIdentity{
-		// registry.json: primary_identifier=["KeyName"], in
-		// create_only_properties and not in read_only_properties —
-		// client-named. Confirmed directly against the provider's own
-		// documented import command (terraform import aws_key_pair.deployer
-		// deployer-key) and its Attribute Reference, which states id "The
-		// key pair name."
-		Type:          "aws_key_pair",
-		Components:    []Component{attr("key_name")},
-		ImportSyntax:  "KEY_NAME",
-		IdentityAttrs: []string{"id", "key_name"},
-	},
-	TypeIdentity{
-		// row-gen classified this evidence-only (see the batch comment
-		// above for why); the provider's real, documented import command
-		// settles it anyway: "terraform import aws_placement_group.prod_pg
-		// production-placement-group" imports by the group's own `name`
-		// argument, and the Attribute Reference confirms id "The name of
-		// the placement group." — the same client-named shape as
-		// aws_key_pair just above.
-		Type:          "aws_placement_group",
+		// registry.json: primaryIdentifier=[SubscriptionName], in
+		// createOnlyProperties and not in readOnlyProperties — client-named.
+		// Confirmed against the provider's documented import command
+		// (terraform import aws_db_event_subscription.default
+		// rds-event-sub) and its Attribute Reference, which states id is
+		// "The name of the RDS event notification subscription" — the same
+		// name argument verbatim.
+		Type:          "aws_db_event_subscription",
 		Components:    []Component{attr("name")},
 		ImportSyntax:  "NAME",
 		IdentityAttrs: []string{"id", "name"},
 	},
 	TypeIdentity{
-		// row-gen classified this needs-hand-separator: registry.json's
-		// primary identifier is the pair [VolumeId, InstanceId], a
-		// composite with no separator any schema names (issue #44's own
-		// non-goal). The separator is not a guess here: live/import-
-		// grammar.json's scrape of the provider's own Import section names
-		// it directly — DEVICE_NAME:VOLUME_ID:INSTANCE_ID — and the
-		// provider's own identity schema (v6.58.0) requires exactly those
-		// three arguments, all Required in the Argument Reference too, so
-		// any realistic configuration already has them. Parent-derived over
-		// aws_ebs_volume (already admitted) and aws_instance (ratified
-		// above in this same batch): resolving this type needs both to
-		// resolve first. The provider's docs export no additional
-		// id-shaped attribute for this type at all — only the three
-		// arguments read back — so no alias beyond them is claimed here,
-		// the same standard of care aws_route's synthesized id gets.
-		Type: "aws_volume_attachment",
-		Components: []Component{
-			attr("device_name"),
-			sep(":"),
-			attr("volume_id"),
-			sep(":"),
-			attr("instance_id"),
-		},
-		ImportSyntax:  "DEVICE_NAME:VOLUME_ID:INSTANCE_ID",
-		IdentityAttrs: []string{"device_name", "instance_id", "volume_id"},
+		// registry.json: primaryIdentifier=[DBInstanceIdentifier], in
+		// createOnlyProperties and not in readOnlyProperties — client-named.
+		// The provider ships no identity schema for this type in v6.58.0 (see
+		// live/SURVEY.md's "third wrinkle"), but its documented import
+		// command (terraform import aws_db_instance.default
+		// mydb-rds-instance) and Argument Reference ("identifier - (Optional)
+		// The name of the RDS instance, if omitted, Terraform will assign a
+		// random, unique identifier") confirm the client-named shape
+		// row-gen proposed. Its own "id" attribute is "RDS DBI resource ID"
+		// per the Attribute Reference — a distinct provider-minted value,
+		// not the identifier — so "id" is deliberately not claimed as an
+		// identity source here. See this section's banner comment above for
+		// the emulator caveat (lex00/floci#28) this type ratifies despite.
+		Type:          "aws_db_instance",
+		Components:    []Component{attr("identifier")},
+		ImportSyntax:  "IDENTIFIER",
+		IdentityAttrs: []string{"identifier"}, // "id" intentionally omitted: id is the DBI resource ID, not the identifier
 	},
 	TypeIdentity{
-		// row-gen proposed this server-assigned via registry.json's
-		// AccountId (AWS::EC2::SnapshotBlockPublicAccess's primary
-		// identifier) — the same singleton-per-account shape as the
-		// IAM/ECR batch's three ECR registry-level types. The provider
-		// disagrees about the shape, not the singleton-ness: its own
-		// identity schema requires nothing at all for import (account_id
-		// and region are both Optional), and its documented import command
-		// is always the fixed literal string "default" ("terraform import
-		// aws_ebs_snapshot_block_public_access.example default"), not an
-		// account ID the account happens to have. This is a per-region
-		// settings object AWS gives every region exactly one of, not a
-		// value AWS mints per resource, so it needs no discovery at all:
-		// Components below is a pure literal, computable from configuration
-		// with nothing to look up — ServerAssigned is deliberately false,
-		// unlike every other row in this batch. The provider's own docs say
-		// this resource "exports no additional attributes", so no
-		// IdentityAttrs are claimed either, the same standard of care
-		// aws_route's synthesized id gets.
-		Type:          "aws_ebs_snapshot_block_public_access",
-		Components:    []Component{sep("default")},
-		ImportSyntax:  "default",
+		// row-gen filed this evidence-only: registry.json's primaryIdentifier
+		// (TargetGroupArn) is entirely a readOnlyProperties field, so its own
+		// classify rule refuses a pastable row, noting only "import docs show
+		// argument-composed ID". Reading that import section directly: the
+		// documented command (terraform import
+		// aws_db_proxy_default_target_group.example example) imports "using
+		// the db_proxy_name" — a named-singleton child of aws_db_proxy, the
+		// same shape as aws_sns_topic_policy in the messaging batch, keyed on
+		// the parent's own name argument rather than an opaque ARN the
+		// registry's primaryIdentifier names. The provider's own Attribute
+		// Reference confirms it: "id - Name of the RDS DB Proxy" — the
+		// exported "name" attribute is the target group's own fixed name
+		// ("default"), a different thing, and is not claimed as an identity
+		// source here.
+		Type:          "aws_db_proxy_default_target_group",
+		Components:    []Component{attr("db_proxy_name")},
+		ImportSyntax:  "DB_PROXY_NAME",
+		IdentityAttrs: []string{"id"},
+	},
+	TypeIdentity{
+		// row-gen filed this evidence-only: registry.json's guessed argument
+		// name (db_proxy_endpoint_name) is "not backed by a provider identity
+		// schema or the carve seed", so its own rules refuse a pastable row.
+		// Reading the import section directly resolves it cleanly: the
+		// documented import ID is "DB-PROXY-NAME/DB-PROXY-ENDPOINT-NAME", a
+		// concrete composite of two arguments the Argument Reference marks
+		// Required (db_proxy_name, db_proxy_endpoint_name) — the same
+		// concrete-composite shape as aws_iam_role_policy_attachment. The
+		// Attribute Reference confirms "id" is exactly that composite ("The
+		// name of the proxy and proxy endpoint separated by /"), so id is
+		// claimed as an identity source, the same standard of care as
+		// aws_iam_role_policy's colon-joined id.
+		Type: "aws_db_proxy_endpoint",
+		Components: []Component{
+			attr("db_proxy_name"),
+			sep("/"),
+			attr("db_proxy_endpoint_name"),
+		},
+		ImportSyntax:  "DB-PROXY-NAME/DB-PROXY-ENDPOINT-NAME",
+		IdentityAttrs: []string{"id"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[OptionGroupName], in
+		// createOnlyProperties and not in readOnlyProperties — client-named.
+		// Confirmed against the provider's documented import command
+		// (terraform import aws_db_option_group.example
+		// mysql-option-group) and its Attribute Reference ("id - DB option
+		// group name").
+		Type:          "aws_db_option_group",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"id", "name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[DBParameterGroupName], in
+		// createOnlyProperties and not in readOnlyProperties — client-named.
+		// Confirmed against the provider's documented import command
+		// (terraform import aws_db_parameter_group.rds_pg rds-pg) and its
+		// Attribute Reference ("id - The db parameter group name").
+		Type:          "aws_db_parameter_group",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"id", "name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[DBProxyName], in
+		// createOnlyProperties and not in readOnlyProperties — client-named.
+		// Confirmed against the provider's documented import command
+		// (terraform import aws_db_proxy.example example) and its Argument
+		// Reference ("name" is Required, not merely settable). Unlike the
+		// types above, its own "id" attribute is documented as "The Amazon
+		// Resource Name (ARN) for the proxy" — a different value from name —
+		// so "id" is deliberately not claimed as an identity source here,
+		// the same standard of care as aws_ecs_cluster's synthesized id.
+		Type:          "aws_db_proxy",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"}, // "id" intentionally omitted: id is the proxy's ARN, not name
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[DBSubnetGroupName], in
+		// createOnlyProperties and not in readOnlyProperties — client-named.
+		// The provider ships an identity schema for this type
+		// (required_for_import: name), which live/survey-full.json's own
+		// mechanical pass reads as "needs-config-signal" because name is
+		// settable but not a schema-Required argument (Optional, Terraform
+		// assigns a random name when omitted) — the same shape
+		// aws_s3_bucket's own "bucket" argument already has among the types
+		// this table admits unconditionally. Confirmed against the
+		// provider's documented import command (terraform import
+		// aws_db_subnet_group.default production-subnet-group) and its
+		// Attribute Reference ("id - The db subnet group name").
+		Type:          "aws_db_subnet_group",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"id", "name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[DBClusterIdentifier], in
+		// createOnlyProperties and not in readOnlyProperties — client-named.
+		// Same "needs-config-signal" mechanical classification as
+		// aws_db_subnet_group above, for the same reason
+		// (cluster_identifier is Optional; Terraform assigns a random one
+		// when omitted), overridden here the same way. Confirmed against the
+		// provider's documented import command (terraform import
+		// aws_rds_cluster.aurora_cluster aurora-prod-cluster) and its
+		// Attribute Reference ("id - RDS Cluster Identifier").
+		Type:          "aws_rds_cluster",
+		Components:    []Component{attr("cluster_identifier")},
+		ImportSyntax:  "CLUSTER_IDENTIFIER",
+		IdentityAttrs: []string{"id", "cluster_identifier"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[DBInstanceIdentifier] (this type
+		// maps to the same AWS::RDS::DBInstance CFN type as aws_db_instance
+		// above), in createOnlyProperties and not in readOnlyProperties —
+		// client-named. Confirmed against the provider's documented import
+		// command (terraform import
+		// aws_rds_cluster_instance.prod_instance_1
+		// aurora-cluster-instance-1) and its Attribute Reference, which lists
+		// both "identifier" and "id" as "Instance identifier" — the same
+		// string — unlike aws_db_instance above, where id is a distinct
+		// DBI resource ID. "id" is claimed as an identity source here for
+		// exactly that reason.
+		Type:          "aws_rds_cluster_instance",
+		Components:    []Component{attr("identifier")},
+		ImportSyntax:  "IDENTIFIER",
+		IdentityAttrs: []string{"id", "identifier"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[DBClusterParameterGroupName], in
+		// createOnlyProperties and not in readOnlyProperties — client-named.
+		// Confirmed against the provider's documented import command
+		// (terraform import aws_rds_cluster_parameter_group.cluster_pg
+		// production-pg-1) and its Attribute Reference ("id - The db cluster
+		// parameter group name").
+		Type:          "aws_rds_cluster_parameter_group",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"id", "name"},
+	},
+	TypeIdentity{
+		// row-gen filed this evidence-only (a fold child of aws_rds_cluster
+		// with no registry primaryIdentifier of its own). Reading the
+		// provider's Import section directly: the documented import ID is
+		// "DB Cluster Identifier and IAM Role ARN separated by a comma", a
+		// concrete composite of two arguments the Argument Reference marks
+		// Required (db_cluster_identifier, role_arn) — the same
+		// concrete-composite shape as aws_iam_role_policy. The Attribute
+		// Reference confirms "id" is exactly that composite, so id is
+		// claimed as an identity source.
+		Type: "aws_rds_cluster_role_association",
+		Components: []Component{
+			attr("db_cluster_identifier"),
+			sep(","),
+			attr("role_arn"),
+		},
+		ImportSyntax:  "DBCLUSTERIDENTIFIER,ROLEARN",
+		IdentityAttrs: []string{"id"},
+	},
+	TypeIdentity{
+		// row-gen refused a pastable row outright ("the composite separator
+		// is not registry evidence; a human chooses it") because
+		// primaryIdentifier=[Engine, EngineVersion] is a composite with no
+		// separator in any schema. Reading the provider's Import section
+		// resolves it: the documented import ID is "engine and engine_version
+		// separated by a colon", and both halves are Required arguments
+		// already in configuration — the same concrete-composite shape as
+		// aws_iam_role_policy's ROLENAME:POLICYNAME. The provider's own
+		// Attribute Reference exports no "id" at all for this type, so this
+		// imports by string only, like aws_route_table_association; nothing
+		// is claimed as an identity source.
+		Type: "aws_rds_custom_db_engine_version",
+		Components: []Component{
+			attr("engine"),
+			sep(":"),
+			attr("engine_version"),
+		},
+		ImportSyntax:  "ENGINE:ENGINE_VERSION",
 		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// row-gen filed this evidence-only: the registry's own primaryIdentifier
+		// (GlobalClusterIdentifier) is in createOnlyProperties, which would
+		// ordinarily propose client-named, but row-gen's own rule flags the
+		// argument name as "GUESSED: snake_cased CFN property name, not
+		// backed by a provider identity schema or the carve seed" and
+		// refuses a pastable row on that basis alone. The provider's own
+		// Argument Reference resolves the guess directly: "global_cluster_identifier
+		// - (Required, Forces new resources)" is exactly that argument, no
+		// snake-casing inference needed, and its Attribute Reference confirms
+		// "id - RDS Global Cluster identifier" is the same string. Confirmed
+		// against the documented import command (terraform import
+		// aws_rds_global_cluster.example example).
+		Type:          "aws_rds_global_cluster",
+		Components:    []Component{attr("global_cluster_identifier")},
+		ImportSyntax:  "GLOBAL_CLUSTER_IDENTIFIER",
+		IdentityAttrs: []string{"id", "global_cluster_identifier"},
+	},
+	serverAssigned("aws_rds_integration",
+		"the RDS service assigns the integration's own ARN at create time (Amazon Resource Name (ARN) of the Integration); integration_name, source_arn and target_arn together name what it connects, not the integration resource itself.",
+		"ARN", "arn", "id"),
+	// aws_rds_integration: registry.json's primaryIdentifier (IntegrationArn)
+	// is entirely a readOnlyProperties field, matching row-gen's
+	// server-assigned proposal. Confirmed against the provider's documented
+	// import command (terraform import aws_rds_integration.example
+	// arn:aws:rds:us-west-2:123456789012:integration:abcdefgh-...) and its
+	// Attribute Reference, which lists both "arn" and a deprecated "id"
+	// alias of the same ARN.
+
+	TypeIdentity{
+		// row-gen filed this evidence-only (a fold child of aws_db_instance
+		// with no registry primaryIdentifier of its own). Reading the
+		// provider's Import section directly: the documented import ID is
+		// "DB Instance Identifier and IAM Role ARN separated by a comma", a
+		// concrete composite of two arguments the Argument Reference marks
+		// Required (db_instance_identifier, role_arn) — the same shape as
+		// aws_rds_cluster_role_association above. The Attribute Reference
+		// confirms "id" is exactly that composite, so id is claimed as an
+		// identity source.
+		Type: "aws_db_instance_role_association",
+		Components: []Component{
+			attr("db_instance_identifier"),
+			sep(","),
+			attr("role_arn"),
+		},
+		ImportSyntax:  "DBINSTANCEIDENTIFIER,ROLEARN",
+		IdentityAttrs: []string{"id"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[DBShardGroupIdentifier], in
+		// createOnlyProperties and not in readOnlyProperties — client-named.
+		// Confirmed against the provider's documented import command
+		// (terraform import aws_rds_shard_group.example
+		// example-shard-group) and its Argument Reference
+		// ("db_shard_group_identifier" is Required, with no
+		// Terraform-assigned fallback, unlike every *_group name above). Its
+		// Attribute Reference exports no "id" attribute at all (only arn,
+		// db_shard_group_resource_id, endpoint), so nothing is claimed as an
+		// identity source beyond the argument itself.
+		Type:          "aws_rds_shard_group",
+		Components:    []Component{attr("db_shard_group_identifier")},
+		ImportSyntax:  "DB_SHARD_GROUP_IDENTIFIER",
+		IdentityAttrs: []string{"db_shard_group_identifier"},
 	},
 )
 

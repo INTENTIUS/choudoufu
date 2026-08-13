@@ -216,73 +216,29 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_sqs_queue":        {},
 	"aws_sqs_queue_policy": {},
 
-	// ---- Registry-ratified (#40, #44): fourth batch, RDS (issue #65's
-	// ---- ratification campaign). Same tools/row-gen pipeline as the
-	// ---- earlier batches (18 row-gen proposals in the RDS service section;
-	// ---- 17 ratified, 1 rejected — see internal/live/identity/table.go for
-	// ---- the per-type evidence, including five corrections where row-gen's
-	// ---- own classification undersold a real, documented import grammar
-	// ---- the same way the messaging batch's aws_sns_topic_policy correction
-	// ---- did). aws_db_instance keeps SURVEY.md's own recorded wrinkle: the
-	// ---- survey filed it under marker (taggable, no identity schema in
-	// ---- v6.58.0), but its documented import ID is the client-chosen
-	// ---- "identifier" argument, so it wires client-named here rather than
-	// ---- through a marker, per live/SURVEY.md's own note that "a wiring
-	// ---- batch that reaches RDS should expect to admit it by name." Cohort
-	// ---- estate: live/e2e/estates/rds.
-	"aws_db_event_subscription":         {},
-	"aws_db_instance":                   {},
-	"aws_db_instance_role_association":  {},
-	"aws_db_option_group":               {},
-	"aws_db_parameter_group":            {},
-	"aws_db_proxy":                      {},
-	"aws_db_proxy_default_target_group": {},
-	"aws_db_proxy_endpoint":             {},
-	"aws_db_subnet_group":               {},
-	"aws_rds_cluster":                   {},
-	"aws_rds_cluster_instance":          {},
-	"aws_rds_cluster_parameter_group":   {},
-	"aws_rds_cluster_role_association":  {},
-	"aws_rds_custom_db_engine_version":  {},
-	"aws_rds_global_cluster":            {},
-	"aws_rds_integration":               {},
-	"aws_rds_shard_group":               {},
-	// ---- Registry-ratified (#40, #44): fourth batch, API Gateway v1 and v2
-	// ---- (issue #65). Same tools/row-gen pipeline as the earlier batches,
-	// ---- cross-checked against live/import-grammar.json (the pinned
-	// ---- v6.58.0 provider docs) and, for several composites, against the
-	// ---- provider's Argument Reference and source directly — row-gen's own
-	// ---- "needs hand separator" output only says a primaryIdentifier has
-	// ---- more than one part, not whether every part is a configuration
-	// ---- argument, and several of API Gateway's are not. See
-	// ---- internal/live/identity/table.go for the per-type evidence and
-	// ---- rejections, and live/e2e/estates/apigateway/README.md for the
-	// ---- floci verification (including a provider crash reading
-	// ---- aws_api_gateway_api_key and the re-confirmed aws_api_gateway_rest_api
-	// ---- availability-waiter gap). 25 ApiGateway and 13 ApiGatewayV2 types
-	// ---- were in row-gen's scope; 16 and 5 respectively ratify here.
-	// ---- Cohort estate: live/e2e/estates/apigateway.
-	"aws_api_gateway_account":                        {},
-	"aws_api_gateway_api_key":                        {},
-	"aws_api_gateway_base_path_mapping":              {},
-	"aws_api_gateway_client_certificate":             {},
-	"aws_api_gateway_documentation_version":          {},
-	"aws_api_gateway_domain_name":                    {},
-	"aws_api_gateway_domain_name_access_association": {},
-	"aws_api_gateway_gateway_response":               {},
-	"aws_api_gateway_method":                         {},
-	"aws_api_gateway_model":                          {},
-	"aws_api_gateway_rest_api":                       {},
-	"aws_api_gateway_rest_api_policy":                {},
-	"aws_api_gateway_stage":                          {},
-	"aws_api_gateway_usage_plan":                     {},
-	"aws_api_gateway_usage_plan_key":                 {},
-	"aws_api_gateway_vpc_link":                       {},
-	"aws_apigatewayv2_api":                           {},
-	"aws_apigatewayv2_domain_name":                   {},
-	"aws_apigatewayv2_routing_rule":                  {},
-	"aws_apigatewayv2_stage":                         {},
-	"aws_apigatewayv2_vpc_link":                      {},
+	// ---- Registry-ratified (#40, #44): fourth batch, EC2 core (instances,
+	// ---- EBS, ENI; issue #65's own next-batch suggestion). Same evidence
+	// ---- source and verification standard as the three batches above; see
+	// ---- internal/live/identity/table.go for the per-type evidence and for
+	// ---- the row-gen proposals this batch rejected or left out of scope.
+	// ---- Cohort estate: live/e2e/estates/ec2-core. aws_instance is this
+	// ---- batch's headline type: the repo's long-standing canonical
+	// ---- unadmitted example (live/e2e/limits/unadmitted-type,
+	// ---- live/LIMITATIONS.md) swaps to aws_nat_gateway in the same change —
+	// ---- see that fixture's own comment for why.
+	"aws_instance":                         {},
+	"aws_key_pair":                         {},
+	"aws_placement_group":                  {},
+	"aws_ec2_fleet":                        {},
+	"aws_ec2_capacity_reservation":         {},
+	"aws_ec2_host":                         {},
+	"aws_network_interface":                {},
+	"aws_network_interface_attachment":     {},
+	"aws_network_interface_permission":     {},
+	"aws_eip_association":                  {},
+	"aws_volume_attachment":                {},
+	"aws_spot_fleet_request":               {},
+	"aws_ebs_snapshot_block_public_access": {},
 	// ---- Registry-ratified (#40, #44): fourth batch, DynamoDB periphery
 	// ---- and ElastiCache (issue #65). Same tools/row-gen pipeline as the
 	// ---- three batches above, cross-checked against the AWS provider's
@@ -324,29 +280,73 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_elasticache_subnet_group":      {},
 	"aws_elasticache_user":              {},
 	"aws_elasticache_user_group":        {},
-	// ---- Registry-ratified (#40, #44): fourth batch, EC2 core (instances,
-	// ---- EBS, ENI; issue #65's own next-batch suggestion). Same evidence
-	// ---- source and verification standard as the three batches above; see
-	// ---- internal/live/identity/table.go for the per-type evidence and for
-	// ---- the row-gen proposals this batch rejected or left out of scope.
-	// ---- Cohort estate: live/e2e/estates/ec2-core. aws_instance is this
-	// ---- batch's headline type: the repo's long-standing canonical
-	// ---- unadmitted example (live/e2e/limits/unadmitted-type,
-	// ---- live/LIMITATIONS.md) swaps to aws_nat_gateway in the same change —
-	// ---- see that fixture's own comment for why.
-	"aws_instance":                         {},
-	"aws_key_pair":                         {},
-	"aws_placement_group":                  {},
-	"aws_ec2_fleet":                        {},
-	"aws_ec2_capacity_reservation":         {},
-	"aws_ec2_host":                         {},
-	"aws_network_interface":                {},
-	"aws_network_interface_attachment":     {},
-	"aws_network_interface_permission":     {},
-	"aws_eip_association":                  {},
-	"aws_volume_attachment":                {},
-	"aws_spot_fleet_request":               {},
-	"aws_ebs_snapshot_block_public_access": {},
+	// ---- Registry-ratified (#40, #44): fourth batch, API Gateway v1 and v2
+	// ---- (issue #65). Same tools/row-gen pipeline as the earlier batches,
+	// ---- cross-checked against live/import-grammar.json (the pinned
+	// ---- v6.58.0 provider docs) and, for several composites, against the
+	// ---- provider's Argument Reference and source directly — row-gen's own
+	// ---- "needs hand separator" output only says a primaryIdentifier has
+	// ---- more than one part, not whether every part is a configuration
+	// ---- argument, and several of API Gateway's are not. See
+	// ---- internal/live/identity/table.go for the per-type evidence and
+	// ---- rejections, and live/e2e/estates/apigateway/README.md for the
+	// ---- floci verification (including a provider crash reading
+	// ---- aws_api_gateway_api_key and the re-confirmed aws_api_gateway_rest_api
+	// ---- availability-waiter gap). 25 ApiGateway and 13 ApiGatewayV2 types
+	// ---- were in row-gen's scope; 16 and 5 respectively ratify here.
+	// ---- Cohort estate: live/e2e/estates/apigateway.
+	"aws_api_gateway_account":                        {},
+	"aws_api_gateway_api_key":                        {},
+	"aws_api_gateway_base_path_mapping":              {},
+	"aws_api_gateway_client_certificate":             {},
+	"aws_api_gateway_documentation_version":          {},
+	"aws_api_gateway_domain_name":                    {},
+	"aws_api_gateway_domain_name_access_association": {},
+	"aws_api_gateway_gateway_response":               {},
+	"aws_api_gateway_method":                         {},
+	"aws_api_gateway_model":                          {},
+	"aws_api_gateway_rest_api":                       {},
+	"aws_api_gateway_rest_api_policy":                {},
+	"aws_api_gateway_stage":                          {},
+	"aws_api_gateway_usage_plan":                     {},
+	"aws_api_gateway_usage_plan_key":                 {},
+	"aws_api_gateway_vpc_link":                       {},
+	"aws_apigatewayv2_api":                           {},
+	"aws_apigatewayv2_domain_name":                   {},
+	"aws_apigatewayv2_routing_rule":                  {},
+	"aws_apigatewayv2_stage":                         {},
+	"aws_apigatewayv2_vpc_link":                      {},
+	// ---- Registry-ratified (#40, #44): fourth batch, RDS (issue #65's
+	// ---- ratification campaign). Same tools/row-gen pipeline as the
+	// ---- earlier batches (18 row-gen proposals in the RDS service section;
+	// ---- 17 ratified, 1 rejected — see internal/live/identity/table.go for
+	// ---- the per-type evidence, including five corrections where row-gen's
+	// ---- own classification undersold a real, documented import grammar
+	// ---- the same way the messaging batch's aws_sns_topic_policy correction
+	// ---- did). aws_db_instance keeps SURVEY.md's own recorded wrinkle: the
+	// ---- survey filed it under marker (taggable, no identity schema in
+	// ---- v6.58.0), but its documented import ID is the client-chosen
+	// ---- "identifier" argument, so it wires client-named here rather than
+	// ---- through a marker, per live/SURVEY.md's own note that "a wiring
+	// ---- batch that reaches RDS should expect to admit it by name." Cohort
+	// ---- estate: live/e2e/estates/rds.
+	"aws_db_event_subscription":         {},
+	"aws_db_instance":                   {},
+	"aws_db_instance_role_association":  {},
+	"aws_db_option_group":               {},
+	"aws_db_parameter_group":            {},
+	"aws_db_proxy":                      {},
+	"aws_db_proxy_default_target_group": {},
+	"aws_db_proxy_endpoint":             {},
+	"aws_db_subnet_group":               {},
+	"aws_rds_cluster":                   {},
+	"aws_rds_cluster_instance":          {},
+	"aws_rds_cluster_parameter_group":   {},
+	"aws_rds_cluster_role_association":  {},
+	"aws_rds_custom_db_engine_version":  {},
+	"aws_rds_global_cluster":            {},
+	"aws_rds_integration":               {},
+	"aws_rds_shard_group":               {},
 }
 
 // admitted reports whether the given provider-local resource type may appear

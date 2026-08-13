@@ -453,6 +453,40 @@ var (
 		"aws_cloudwatch_composite_alarm",
 		"aws_cloudwatch_metric_stream",
 		"aws_sqs_queue",
+		// Registry-ratified EC2 core batch (#40, #44, issue #65). See
+		// live/e2e/estates/ec2-core/README.md, "Untaggable types", for
+		// the five untaggable types this batch also admits.
+		"aws_instance",
+		"aws_key_pair",
+		"aws_placement_group",
+		"aws_ec2_fleet",
+		"aws_ec2_capacity_reservation",
+		"aws_ec2_host",
+		"aws_network_interface",
+		"aws_spot_fleet_request",
+		// Registry-ratified DynamoDB periphery and ElastiCache batch (#40,
+		// #44, issue #65). Taggable per the real provider's documented
+		// Argument Reference for each type.
+		"aws_elasticache_cluster",
+		"aws_elasticache_parameter_group",
+		"aws_elasticache_replication_group",
+		"aws_elasticache_serverless_cache",
+		"aws_elasticache_subnet_group",
+		"aws_elasticache_user",
+		"aws_elasticache_user_group",
+		// Registry-ratified API Gateway v1/v2 batch (#40, #44, issue #65).
+		"aws_api_gateway_api_key",
+		"aws_api_gateway_client_certificate",
+		"aws_api_gateway_domain_name",
+		"aws_api_gateway_domain_name_access_association",
+		"aws_api_gateway_rest_api",
+		"aws_api_gateway_stage",
+		"aws_api_gateway_usage_plan",
+		"aws_api_gateway_vpc_link",
+		"aws_apigatewayv2_api",
+		"aws_apigatewayv2_domain_name",
+		"aws_apigatewayv2_stage",
+		"aws_apigatewayv2_vpc_link",
 		// Registry-ratified RDS batch (#40, #44, issue #65's ratification
 		// campaign). aws_db_instance_role_association, aws_db_proxy_default_target_group
 		// and aws_rds_cluster_role_association are this batch's untaggable
@@ -471,40 +505,6 @@ var (
 		"aws_rds_global_cluster",
 		"aws_rds_integration",
 		"aws_rds_shard_group",
-		// Registry-ratified API Gateway v1/v2 batch (#40, #44, issue #65).
-		"aws_api_gateway_api_key",
-		"aws_api_gateway_client_certificate",
-		"aws_api_gateway_domain_name",
-		"aws_api_gateway_domain_name_access_association",
-		"aws_api_gateway_rest_api",
-		"aws_api_gateway_stage",
-		"aws_api_gateway_usage_plan",
-		"aws_api_gateway_vpc_link",
-		"aws_apigatewayv2_api",
-		"aws_apigatewayv2_domain_name",
-		"aws_apigatewayv2_stage",
-		"aws_apigatewayv2_vpc_link",
-		// Registry-ratified DynamoDB periphery and ElastiCache batch (#40,
-		// #44, issue #65). Taggable per the real provider's documented
-		// Argument Reference for each type.
-		"aws_elasticache_cluster",
-		"aws_elasticache_parameter_group",
-		"aws_elasticache_replication_group",
-		"aws_elasticache_serverless_cache",
-		"aws_elasticache_subnet_group",
-		"aws_elasticache_user",
-		"aws_elasticache_user_group",
-		// Registry-ratified EC2 core batch (#40, #44, issue #65). See
-		// live/e2e/estates/ec2-core/README.md, "Untaggable types", for
-		// the five untaggable types this batch also admits.
-		"aws_instance",
-		"aws_key_pair",
-		"aws_placement_group",
-		"aws_ec2_fleet",
-		"aws_ec2_capacity_reservation",
-		"aws_ec2_host",
-		"aws_network_interface",
-		"aws_spot_fleet_request",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -536,12 +536,22 @@ var (
 		"aws_cloudwatch_dashboard",
 		"aws_sns_topic_policy",
 		"aws_sqs_queue_policy",
-		// Registry-ratified RDS batch (#40, #44, issue #65's ratification
-		// campaign): three types with no tags argument at all. See
-		// live/e2e/estates/rds/README.md, "Untaggable types".
-		"aws_db_instance_role_association",
-		"aws_db_proxy_default_target_group",
-		"aws_rds_cluster_role_association",
+		// Registry-ratified EC2 core batch (#40, #44, issue #65): five
+		// untaggable types — four whose Argument Reference names no tags
+		// block at all, plus aws_ebs_snapshot_block_public_access, a
+		// per-region singleton with no arguments at all beyond `state`. See
+		// live/e2e/estates/ec2-core/README.md, "Untaggable types".
+		"aws_network_interface_attachment",
+		"aws_network_interface_permission",
+		"aws_eip_association",
+		"aws_volume_attachment",
+		"aws_ebs_snapshot_block_public_access",
+		// Registry-ratified DynamoDB periphery and ElastiCache batch (#40,
+		// #44, issue #65): both types' Argument Reference names no tags
+		// block at all. See live/e2e/estates/dynamodb-elasticache/README.md,
+		// "Untaggable types".
+		"aws_dynamodb_global_table",
+		"aws_dynamodb_resource_policy",
 		// Registry-ratified API Gateway v1/v2 batch (#40, #44, issue #65):
 		// nine types with no tags argument at all, confirmed against the
 		// provider's documented Argument Reference for each. See
@@ -555,22 +565,12 @@ var (
 		"aws_api_gateway_rest_api_policy",
 		"aws_api_gateway_usage_plan_key",
 		"aws_apigatewayv2_routing_rule",
-		// Registry-ratified DynamoDB periphery and ElastiCache batch (#40,
-		// #44, issue #65): both types' Argument Reference names no tags
-		// block at all. See live/e2e/estates/dynamodb-elasticache/README.md,
-		// "Untaggable types".
-		"aws_dynamodb_global_table",
-		"aws_dynamodb_resource_policy",
-		// Registry-ratified EC2 core batch (#40, #44, issue #65): five
-		// untaggable types — four whose Argument Reference names no tags
-		// block at all, plus aws_ebs_snapshot_block_public_access, a
-		// per-region singleton with no arguments at all beyond `state`. See
-		// live/e2e/estates/ec2-core/README.md, "Untaggable types".
-		"aws_network_interface_attachment",
-		"aws_network_interface_permission",
-		"aws_eip_association",
-		"aws_volume_attachment",
-		"aws_ebs_snapshot_block_public_access",
+		// Registry-ratified RDS batch (#40, #44, issue #65's ratification
+		// campaign): three types with no tags argument at all. See
+		// live/e2e/estates/rds/README.md, "Untaggable types".
+		"aws_db_instance_role_association",
+		"aws_db_proxy_default_target_group",
+		"aws_rds_cluster_role_association",
 	}
 )
 
@@ -999,28 +999,40 @@ func testSchemas() Schemas {
 		"aws_sqs_queue":                  tagged("id", "arn", "url", "name"),
 		"aws_sqs_queue_policy":           untagged("id", "queue_url", "policy"),
 
-		// Registry-ratified RDS batch (#40, #44, issue #65's ratification
-		// campaign). Taggable/untaggable per the real provider's documented
-		// Argument Reference for each type: aws_db_instance_role_association,
-		// aws_db_proxy_default_target_group and
-		// aws_rds_cluster_role_association carry no tags argument at all.
-		"aws_db_event_subscription":         tagged("id", "arn", "name", "sns_topic"),
-		"aws_db_instance":                   tagged("id", "identifier", "instance_class"),
-		"aws_db_instance_role_association":  untagged("id", "db_instance_identifier", "feature_name", "role_arn"),
-		"aws_db_option_group":               tagged("id", "arn", "name", "engine_name", "major_engine_version"),
-		"aws_db_parameter_group":            tagged("id", "arn", "name", "family"),
-		"aws_db_proxy":                      tagged("id", "arn", "name", "engine_family", "role_arn"),
-		"aws_db_proxy_default_target_group": untagged("id", "arn", "name", "db_proxy_name"),
-		"aws_db_proxy_endpoint":             tagged("id", "arn", "db_proxy_name", "db_proxy_endpoint_name"),
-		"aws_db_subnet_group":               tagged("id", "arn", "name", "subnet_ids"),
-		"aws_rds_cluster":                   tagged("id", "arn", "cluster_identifier", "engine"),
-		"aws_rds_cluster_instance":          tagged("id", "arn", "identifier", "cluster_identifier", "engine", "instance_class"),
-		"aws_rds_cluster_parameter_group":   tagged("id", "arn", "name", "family"),
-		"aws_rds_cluster_role_association":  untagged("id", "db_cluster_identifier", "feature_name", "role_arn"),
-		"aws_rds_custom_db_engine_version":  tagged("arn", "engine", "engine_version"),
-		"aws_rds_global_cluster":            tagged("id", "arn", "global_cluster_identifier"),
-		"aws_rds_integration":               tagged("id", "arn", "integration_name", "source_arn", "target_arn"),
-		"aws_rds_shard_group":               tagged("arn", "db_shard_group_identifier", "db_cluster_identifier", "max_acu"),
+		// Registry-ratified EC2 core batch (#40, #44, issue #65).
+		// Taggable/untaggable per the real provider's documented Argument
+		// Reference for each type: aws_network_interface_attachment,
+		// aws_network_interface_permission, aws_eip_association and
+		// aws_volume_attachment carry no tags argument at all, and
+		// aws_ebs_snapshot_block_public_access carries no argument beyond
+		// `state`.
+		"aws_instance":                         tagged("id", "arn", "ami", "instance_type"),
+		"aws_key_pair":                         tagged("id", "arn", "key_name", "public_key"),
+		"aws_placement_group":                  tagged("id", "arn", "name", "strategy"),
+		"aws_ec2_fleet":                        tagged("id", "arn"),
+		"aws_ec2_capacity_reservation":         tagged("id", "arn", "instance_type", "availability_zone"),
+		"aws_ec2_host":                         tagged("id", "arn", "availability_zone"),
+		"aws_network_interface":                tagged("id", "arn", "subnet_id"),
+		"aws_network_interface_attachment":     untagged("instance_id", "network_interface_id", "attachment_id", "device_index"),
+		"aws_network_interface_permission":     untagged("network_interface_id", "aws_account_id", "permission", "network_interface_permission_id"),
+		"aws_eip_association":                  untagged("id", "allocation_id", "instance_id"),
+		"aws_volume_attachment":                untagged("device_name", "instance_id", "volume_id"),
+		"aws_spot_fleet_request":               tagged("id", "arn"),
+		"aws_ebs_snapshot_block_public_access": untagged("state"),
+		// Registry-ratified DynamoDB periphery and ElastiCache batch (#40,
+		// #44, issue #65). Taggable/untaggable per the real provider's
+		// documented Argument Reference for each type: the two DynamoDB
+		// types carry no tags argument at all, the seven ElastiCache types
+		// all do.
+		"aws_dynamodb_global_table":         untagged("id", "name"),
+		"aws_dynamodb_resource_policy":      untagged("id", "resource_arn", "policy"),
+		"aws_elasticache_cluster":           tagged("id", "arn", "cluster_id", "engine"),
+		"aws_elasticache_parameter_group":   tagged("id", "arn", "name", "family"),
+		"aws_elasticache_replication_group": tagged("id", "arn", "replication_group_id"),
+		"aws_elasticache_serverless_cache":  tagged("id", "arn", "name", "engine"),
+		"aws_elasticache_subnet_group":      tagged("id", "arn", "name"),
+		"aws_elasticache_user":              tagged("id", "arn", "user_id", "user_name"),
+		"aws_elasticache_user_group":        tagged("id", "arn", "user_group_id"),
 		// Registry-ratified API Gateway v1/v2 batch (#40, #44, issue #65).
 		// Taggable/untaggable per the real provider's documented Argument
 		// Reference for each type: aws_api_gateway_account,
@@ -1048,40 +1060,28 @@ func testSchemas() Schemas {
 		"aws_apigatewayv2_routing_rule":                  untagged("id", "domain_name", "action", "condition"),
 		"aws_apigatewayv2_stage":                         tagged("id", "arn", "api_id", "name"),
 		"aws_apigatewayv2_vpc_link":                      tagged("id", "name", "security_group_ids", "subnet_ids"),
-		// Registry-ratified DynamoDB periphery and ElastiCache batch (#40,
-		// #44, issue #65). Taggable/untaggable per the real provider's
-		// documented Argument Reference for each type: the two DynamoDB
-		// types carry no tags argument at all, the seven ElastiCache types
-		// all do.
-		"aws_dynamodb_global_table":         untagged("id", "name"),
-		"aws_dynamodb_resource_policy":      untagged("id", "resource_arn", "policy"),
-		"aws_elasticache_cluster":           tagged("id", "arn", "cluster_id", "engine"),
-		"aws_elasticache_parameter_group":   tagged("id", "arn", "name", "family"),
-		"aws_elasticache_replication_group": tagged("id", "arn", "replication_group_id"),
-		"aws_elasticache_serverless_cache":  tagged("id", "arn", "name", "engine"),
-		"aws_elasticache_subnet_group":      tagged("id", "arn", "name"),
-		"aws_elasticache_user":              tagged("id", "arn", "user_id", "user_name"),
-		"aws_elasticache_user_group":        tagged("id", "arn", "user_group_id"),
-		// Registry-ratified EC2 core batch (#40, #44, issue #65).
-		// Taggable/untaggable per the real provider's documented Argument
-		// Reference for each type: aws_network_interface_attachment,
-		// aws_network_interface_permission, aws_eip_association and
-		// aws_volume_attachment carry no tags argument at all, and
-		// aws_ebs_snapshot_block_public_access carries no argument beyond
-		// `state`.
-		"aws_instance":                         tagged("id", "arn", "ami", "instance_type"),
-		"aws_key_pair":                         tagged("id", "arn", "key_name", "public_key"),
-		"aws_placement_group":                  tagged("id", "arn", "name", "strategy"),
-		"aws_ec2_fleet":                        tagged("id", "arn"),
-		"aws_ec2_capacity_reservation":         tagged("id", "arn", "instance_type", "availability_zone"),
-		"aws_ec2_host":                         tagged("id", "arn", "availability_zone"),
-		"aws_network_interface":                tagged("id", "arn", "subnet_id"),
-		"aws_network_interface_attachment":     untagged("instance_id", "network_interface_id", "attachment_id", "device_index"),
-		"aws_network_interface_permission":     untagged("network_interface_id", "aws_account_id", "permission", "network_interface_permission_id"),
-		"aws_eip_association":                  untagged("id", "allocation_id", "instance_id"),
-		"aws_volume_attachment":                untagged("device_name", "instance_id", "volume_id"),
-		"aws_spot_fleet_request":               tagged("id", "arn"),
-		"aws_ebs_snapshot_block_public_access": untagged("state"),
+		// Registry-ratified RDS batch (#40, #44, issue #65's ratification
+		// campaign). Taggable/untaggable per the real provider's documented
+		// Argument Reference for each type: aws_db_instance_role_association,
+		// aws_db_proxy_default_target_group and
+		// aws_rds_cluster_role_association carry no tags argument at all.
+		"aws_db_event_subscription":         tagged("id", "arn", "name", "sns_topic"),
+		"aws_db_instance":                   tagged("id", "identifier", "instance_class"),
+		"aws_db_instance_role_association":  untagged("id", "db_instance_identifier", "feature_name", "role_arn"),
+		"aws_db_option_group":               tagged("id", "arn", "name", "engine_name", "major_engine_version"),
+		"aws_db_parameter_group":            tagged("id", "arn", "name", "family"),
+		"aws_db_proxy":                      tagged("id", "arn", "name", "engine_family", "role_arn"),
+		"aws_db_proxy_default_target_group": untagged("id", "arn", "name", "db_proxy_name"),
+		"aws_db_proxy_endpoint":             tagged("id", "arn", "db_proxy_name", "db_proxy_endpoint_name"),
+		"aws_db_subnet_group":               tagged("id", "arn", "name", "subnet_ids"),
+		"aws_rds_cluster":                   tagged("id", "arn", "cluster_identifier", "engine"),
+		"aws_rds_cluster_instance":          tagged("id", "arn", "identifier", "cluster_identifier", "engine", "instance_class"),
+		"aws_rds_cluster_parameter_group":   tagged("id", "arn", "name", "family"),
+		"aws_rds_cluster_role_association":  untagged("id", "db_cluster_identifier", "feature_name", "role_arn"),
+		"aws_rds_custom_db_engine_version":  tagged("arn", "engine", "engine_version"),
+		"aws_rds_global_cluster":            tagged("id", "arn", "global_cluster_identifier"),
+		"aws_rds_integration":               tagged("id", "arn", "integration_name", "source_arn", "target_arn"),
+		"aws_rds_shard_group":               tagged("arn", "db_shard_group_identifier", "db_cluster_identifier", "max_acu"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.
