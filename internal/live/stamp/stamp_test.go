@@ -602,6 +602,36 @@ var (
 		"aws_network_acl",
 		"aws_flow_log",
 		"aws_nat_gateway",
+		// Registry-ratified compute-platforms batch (#40, #44, issue #65's
+		// ratification campaign): Batch, EMR remainder, App Runner, Elastic
+		// Beanstalk, Amplify and Lightsail. Three of this batch's types are
+		// untaggable instead — see below. See
+		// live/e2e/estates/compute-platforms/README.md.
+		"aws_batch_compute_environment",
+		"aws_batch_job_definition",
+		"aws_batch_job_queue",
+		"aws_batch_scheduling_policy",
+		"aws_emr_cluster",
+		"aws_emr_studio",
+		"aws_emrcontainers_virtual_cluster",
+		"aws_emrserverless_application",
+		"aws_apprunner_auto_scaling_configuration_version",
+		"aws_apprunner_observability_configuration",
+		"aws_apprunner_service",
+		"aws_apprunner_vpc_connector",
+		"aws_apprunner_vpc_ingress_connection",
+		"aws_elastic_beanstalk_application",
+		"aws_elastic_beanstalk_environment",
+		"aws_amplify_app",
+		"aws_amplify_branch",
+		"aws_lightsail_bucket",
+		"aws_lightsail_certificate",
+		"aws_lightsail_container_service",
+		"aws_lightsail_database",
+		"aws_lightsail_disk",
+		"aws_lightsail_distribution",
+		"aws_lightsail_instance",
+		"aws_lightsail_lb",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -731,6 +761,18 @@ var (
 		"aws_vpc_endpoint_route_table_association",
 		"aws_vpc_endpoint_subnet_association",
 		"aws_vpc_endpoint_security_group_association",
+		// Registry-ratified compute-platforms batch (#40, #44, issue #65's
+		// ratification campaign): three types with no tags argument at all
+		// in the pinned provider's own wire schema, confirmed against
+		// live/survey-full.json and, for the two Lightsail rows, the
+		// provider's own Argument Reference directly.
+		// aws_emr_security_configuration is client-named (its identity does
+		// not depend on the marker path a tag enables); the other two are
+		// this batch's parent-derived composites. See
+		// live/e2e/estates/compute-platforms/README.md, "Untaggable types".
+		"aws_emr_security_configuration",
+		"aws_lightsail_lb_certificate",
+		"aws_lightsail_static_ip",
 	}
 )
 
@@ -1385,6 +1427,41 @@ func testSchemas() Schemas {
 		"aws_vpc_endpoint_route_table_association":         untagged("id", "vpc_endpoint_id", "route_table_id"),
 		"aws_vpc_endpoint_subnet_association":              untagged("id", "vpc_endpoint_id", "subnet_id"),
 		"aws_vpc_endpoint_security_group_association":      untagged("id", "vpc_endpoint_id", "security_group_id"),
+
+		// Registry-ratified compute-platforms batch (#40, #44, issue #65's
+		// ratification campaign). Taggable/untaggable per the real
+		// provider's documented Argument Reference for each type:
+		// aws_emr_security_configuration and the two Lightsail
+		// parent-derived composites (aws_lightsail_lb_certificate,
+		// aws_lightsail_static_ip) carry no tags argument at all.
+		"aws_batch_compute_environment":                    tagged("id", "arn", "compute_environment_name"),
+		"aws_batch_job_definition":                         tagged("id", "arn", "name"),
+		"aws_batch_job_queue":                              tagged("id", "arn", "name"),
+		"aws_batch_scheduling_policy":                      tagged("id", "arn", "name"),
+		"aws_emr_cluster":                                  tagged("id", "arn", "name", "release_label", "service_role"),
+		"aws_emr_security_configuration":                   untagged("id", "name", "configuration"),
+		"aws_emr_studio":                                   tagged("id", "arn", "name", "auth_mode", "service_role", "vpc_id"),
+		"aws_emrcontainers_virtual_cluster":                tagged("id", "arn", "name"),
+		"aws_emrserverless_application":                    tagged("id", "arn", "name", "type"),
+		"aws_apprunner_auto_scaling_configuration_version": tagged("id", "arn"),
+		"aws_apprunner_observability_configuration":        tagged("id", "arn"),
+		"aws_apprunner_service":                            tagged("id", "arn", "service_name"),
+		"aws_apprunner_vpc_connector":                      tagged("id", "arn"),
+		"aws_apprunner_vpc_ingress_connection":             tagged("id", "arn", "service_arn"),
+		"aws_elastic_beanstalk_application":                tagged("id", "name"),
+		"aws_elastic_beanstalk_environment":                tagged("id", "name", "application"),
+		"aws_amplify_app":                                  tagged("id", "arn", "name"),
+		"aws_amplify_branch":                               tagged("id", "arn", "app_id", "branch_name"),
+		"aws_lightsail_bucket":                             tagged("id", "arn", "name"),
+		"aws_lightsail_certificate":                        tagged("id", "arn", "name"),
+		"aws_lightsail_container_service":                  tagged("id", "arn", "name"),
+		"aws_lightsail_database":                           tagged("id", "arn", "relational_database_name"),
+		"aws_lightsail_disk":                               tagged("id", "arn", "name"),
+		"aws_lightsail_distribution":                       tagged("id", "arn", "name"),
+		"aws_lightsail_instance":                           tagged("id", "arn", "name"),
+		"aws_lightsail_lb":                                 tagged("id", "arn", "name"),
+		"aws_lightsail_lb_certificate":                     untagged("id", "arn", "lb_name", "name"),
+		"aws_lightsail_static_ip":                          untagged("id", "arn", "name"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.

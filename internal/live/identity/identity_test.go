@@ -472,27 +472,32 @@ func TestDisabledLifecycle(t *testing.T) {
 	})
 }
 
-// TestChildModulesRejected checks that a configuration with child modules
-// is refused outright rather than resolved as if the modules were not
-// there, which would silently omit every resource inside them.
+// TestStaticModuleTraversal is 59b's headline: a configuration with a
+// static module tree - two levels deep, so both "one hop" and "recurse
+// again" are exercised - resolves every instance in it, and every address
+// is module-qualified: "module.net.aws_s3_bucket.data", not
+// "aws_s3_bucket.data" with the module silently dropped.
 //
-// The refusal an operator actually reads is lint's RuleChildModule, which
-// names the module block and points at it; this one is the invariant behind
-// it, and says so, because a configuration that got this far went past lint.
-func TestChildModulesRejected(t *testing.T) {
-	cfg := loadConfig(t, estateDir(t), nil)
-	cfg.Children = map[string]*configs.Config{"network": {}}
+// It also pins that intra-module resolution still works exactly as it does
+// at the root: aws_s3_bucket_policy.data's identity is derived from its
+// sibling aws_s3_bucket.data's id, in the same module, and collapses to
+// CONCRETE the same way the root fixture's equivalent pair does (see
+// TestResolveEstate) - a reference does not need help crossing a module
+// boundary it never crosses.
+func TestStaticModuleTraversal(t *testing.T) {
+	cfg := loadConfigTree(t, filepath.Join("testdata", "static-module"), nil)
 
 	result, diags := Resolve(context.Background(), cfg)
-	if !diags.HasErrors() {
-		t.Fatal("child modules were accepted")
-	}
-	if !hasDiag(diags, "Configuration with child modules reached identity resolution", `"network"`) {
-		t.Errorf("wrong diagnostic:\n%s", renderDiags(diags))
-	}
-	if result.Len() != 0 {
-		t.Errorf("resolved %d instances despite refusing the configuration", result.Len())
-	}
+	assertNoErrors(t, diags)
+
+	assertClassifications(t, result, map[string]string{
+		`aws_s3_bucket.root`: `CONCRETE tofu-stateless-static-module-root`,
+
+		`module.net.aws_s3_bucket.data`:        `CONCRETE tofu-stateless-static-module-net-data`,
+		`module.net.aws_s3_bucket_policy.data`: `CONCRETE tofu-stateless-static-module-net-data`,
+
+		`module.net.module.inner.aws_s3_bucket.leaf`: `CONCRETE tofu-stateless-static-module-inner-leaf`,
+	})
 }
 
 // TestTableCoversFixtureTypes keeps the v0 table and the fixtures in step:
@@ -628,6 +633,60 @@ func loadConfig(t *testing.T, dir string, vars map[string]cty.Value) *configs.Co
 		func(_ context.Context, req *configs.ModuleRequest) (*configs.Module, *version.Version, hcl.Diagnostics) {
 			t.Fatalf("test fixture %s unexpectedly calls module %q", dir, req.Name)
 			return nil, nil, nil
+		},
+	))
+	if cfgDiags.HasErrors() {
+		t.Fatalf("building config for %s: %s", dir, cfgDiags.Error())
+	}
+	return cfg
+}
+
+// loadConfigTree is [loadConfig] with a walker that actually resolves child
+// modules, by treating a module call's source address as a path relative to
+// the calling module's own directory - the same reading
+// internal/configs/config_build_test.go uses for its own fixtures. It is
+// what a fixture with a real module tree needs: [loadConfig]'s walker fails
+// the test the moment anything calls a module, which is deliberate for
+// every other fixture and wrong for this one.
+func loadConfigTree(t *testing.T, dir string, vars map[string]cty.Value) *configs.Config {
+	t.Helper()
+
+	parser := configs.NewParser(nil)
+	call := configs.NewStaticModuleCall(
+		addrs.RootModule,
+		hcl.Range{},
+		func(v *configs.Variable) (cty.Value, hcl.Diagnostics) {
+			if val, ok := vars[v.Name]; ok {
+				return val, nil
+			}
+			if v.Required() {
+				return cty.NilVal, hcl.Diagnostics{{
+					Severity: hcl.DiagError,
+					Summary:  "No value for required variable",
+					Detail:   fmt.Sprintf("The root module input variable %q is not set.", v.Name),
+					Subject:  v.DeclRange.Ptr(),
+				}}
+			}
+			return v.Default, nil
+		},
+		dir,
+		"default",
+	)
+
+	mod, diags := parser.LoadConfigDir(dir, call)
+	if diags.HasErrors() {
+		t.Fatalf("loading %s: %s", dir, diags.Error())
+	}
+
+	dirs := map[string]string{"": dir}
+	cfg, cfgDiags := configs.BuildConfig(context.Background(), mod, configs.ModuleWalkerFunc(
+		func(_ context.Context, req *configs.ModuleRequest) (*configs.Module, *version.Version, hcl.Diagnostics) {
+			parentDir := dirs[req.Parent.Path.String()]
+			sourcePath := filepath.Join(parentDir, req.SourceAddr.String())
+			dirs[req.Path.String()] = sourcePath
+
+			childMod, modDiags := parser.LoadConfigDir(sourcePath, req.Call)
+			return childMod, nil, modDiags
 		},
 	))
 	if cfgDiags.HasErrors() {

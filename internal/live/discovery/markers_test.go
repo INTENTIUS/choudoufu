@@ -144,6 +144,16 @@ func TestCollisionOnAKeyedInstance(t *testing.T) {
 // The list is deliberately made of near-misses. A value that is obviously
 // rubbish is easy; the dangerous ones are the values one character away from
 // a real address.
+//
+// "module path" used to be one of these entries, pinning that
+// "module.net.aws_vpc.main" was malformed. It is not, since 59b: a
+// module-qualified address is exactly as well-formed as a root one, and
+// this fixture's config declaring no "net" module makes the live resource
+// an ordinary (non-actionable, since nothing declares it) unclaimed
+// resource rather than a malformed marker. "provider prefix" below is the
+// near-miss that stays malformed: a two-segment prefix in the same
+// position as a module step, but whose first segment is not literally
+// "module".
 func TestHostileMarkerValuesAreMalformedAndNothingElse(t *testing.T) {
 	for name, value := range map[string]string{
 		"trailing separator":  `aws_vpc.main:`,
@@ -151,7 +161,6 @@ func TestHostileMarkerValuesAreMalformedAndNothingElse(t *testing.T) {
 		"double separator":    `aws_subnet.this::a`,
 		"embedded newline":    "aws_vpc.main\naws_vpc.other",
 		"embedded space":      `aws_vpc.main aws_vpc.other`,
-		"module path":         `module.net.aws_vpc.main`,
 		"provider prefix":     `aws.default.aws_vpc.main`,
 		"data address":        `data.aws_vpc.main`,
 		"whitespace padded":   ` aws_vpc.main `,
