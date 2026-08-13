@@ -65,11 +65,11 @@ func applyOrphanPolicy(req Request, res *Result) {
 		// untaggable child can never carry TagKey=TagValue, so it is always
 		// undeclared_untagged under this policy's tag reading, never
 		// undeclared_tagged - and undeclared_untagged's default is Keep, not
-        // Delete, which would silently narrow today's fixed behavior for
-        // every estate that owns one of these children. So a parent-read
-        // removal is left exactly as classifyOrphans and parentReadSweep
-        // decided it, regardless of policy, until issue #67's follow-up
-        // extends the tag reading to untaggable children.
+		// Delete, which would silently narrow today's fixed behavior for
+		// every estate that owns one of these children. So a parent-read
+		// removal is left exactly as classifyOrphans and parentReadSweep
+		// decided it, regardless of policy, until issue #67's follow-up
+		// extends the tag reading to untaggable children.
 		_ = f
 	}
 
@@ -110,10 +110,10 @@ func policyWithheldMessage(pol *policy.Policy, verb policy.Verb, quadrant, typeN
 	case policy.Untag:
 		consequence := ""
 		if pol != nil && pol.TagKey == markers.TagEstate {
-			consequence = " This is the estate marker itself: releasing it would leave this resource unmanaged - the next run's marker discovery could no longer find it by this marker."
+			consequence = " This is the estate marker itself: releasing it leaves this resource unmanaged - the next run's marker discovery can no longer find it by this marker, and reads it as foreign."
 		}
 		return fmt.Sprintf(
-			"policy.%s = \"untag\": this run would release %s=%q from this %s (marker %s) rather than destroy it; automatic release for a resource with no declared address is not implemented yet, so the tag is left as it is - see GitHub issue #67's follow-up and release it by hand if this estate no longer wants it.%s",
+			"policy.%s = \"untag\": this resource is NOT destroyed; an apply of this plan releases %s=%q from this %s (marker %s) rather than destroying it, through a tags-only write outside the ordinary plan graph (this orphan has no declared address for an update diff to hang off of) - see internal/live/untag.%s",
 			quadrant, policyTagKeyOf(pol), policyTagValueOf(pol), typeName, marker, consequence)
 	default:
 		return fmt.Sprintf("policy.%s = %q withheld this %s from the sweep", quadrant, string(verb), typeName)
