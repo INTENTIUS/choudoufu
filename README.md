@@ -4,9 +4,11 @@
 
 **Ownership on the resource.** <img src="docs/images/choudoufu-inline-64.png" width="32" height="32" alt="">
 
-Built on **OpenTofu 1.13.0** (fork point
+Built on OpenTofu (fork point
 [`03743ce6e8`](https://github.com/opentofu/opentofu/commit/03743ce6e8)). The
-badge above is the current choudoufu release; each release's notes name both
+exact upstream version this tree is built on lives in
+[`version/VERSION`](version/VERSION), and each
+[release](https://github.com/INTENTIUS/choudoufu/releases)'s notes name both
 versions.
 
 Choudoufu is OpenTofu with live resource markers. There is no state file, no
