@@ -23,6 +23,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/registry"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -118,6 +119,15 @@ type Request struct {
 	// sets it, or sets it with Tagging or Roster left nil, gets the pre-#51
 	// per-type sweep unchanged.
 	TaggingSweep bool
+
+	// Policy is GitHub issue #67's resolved ownership policy. Nil means no
+	// policy block at all (or one that set nothing this package reads),
+	// which resolves to [policy.DefaultVerb] for every quadrant and leaves
+	// this pass's behavior exactly as it was before Policy existed. Set,
+	// it governs the undeclared_tagged quadrant: which of the removals
+	// [classifyOrphans] and [parentReadSweep] proposed are actually kept as
+	// destroys, in [applyOrphanPolicy].
+	Policy *policy.Policy
 
 	// ---------------------------------------------------------------------
 	// Snapshot-guided discovery (issue #64's second leg)
@@ -276,6 +286,11 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	if req.Sweep {
 		diags = diags.Append(parentReadSweep(ctx, req, schemas, res))
 	}
+
+	// Policy narrows the undeclared_tagged quadrant last, once every removal
+	// classifyOrphans and parentReadSweep would otherwise propose is
+	// settled: see [applyOrphanPolicy].
+	applyOrphanPolicy(req, res)
 
 	res.sortEverything()
 	return res, diags
