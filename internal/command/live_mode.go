@@ -22,6 +22,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/foreign"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
+	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plugins"
@@ -281,6 +282,12 @@ type statelessRunner struct {
 	// settled.
 	settings *configs.Live
 
+	// policy is the live block's optional policy block, resolved to a
+	// [policy.Policy] once the estate name is settled below. It is GitHub
+	// issue #67's config/lint half only: nothing in this struct's own
+	// methods reads it yet. See [statelessPolicy].
+	policy *policy.Policy
+
 	lib  plugins.Library
 	mgr  *projection.Manager
 	view views.StatelessPlan
@@ -346,6 +353,13 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		diags = diags.Append(lint.Diagnostics(issues))
 		diags = diags.Append(provs.close(ctx))
 		return nil, diags
+	}
+
+	// Resolved now that lint has passed and the estate name is settled, so
+	// that any verb here is already known valid for its quadrant. Nothing
+	// below reads r.policy yet - see its doc comment.
+	if config.Module != nil {
+		r.policy = statelessPolicy(config.Module.Live, estate)
 	}
 
 	// Resolution runs ahead of the providers being configured and is handed

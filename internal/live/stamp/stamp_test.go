@@ -532,6 +532,45 @@ var (
 		"aws_backup_report_plan",
 		"aws_backup_restore_testing_plan",
 		"aws_backup_logically_air_gapped_vault",
+		// Registry-ratified data-plane batch (#40, #44, issue #65): Kinesis,
+		// KinesisFirehose, Glue and Athena types with a top-level tags
+		// argument in the pinned provider's own wire schema.
+		"aws_kinesis_stream",
+		"aws_kinesis_stream_consumer",
+		"aws_kinesis_firehose_delivery_stream",
+		"aws_glue_catalog_database",
+		"aws_glue_registry",
+		"aws_glue_job",
+		"aws_glue_crawler",
+		"aws_glue_connection",
+		"aws_glue_trigger",
+		"aws_glue_ml_transform",
+		"aws_athena_workgroup",
+		"aws_athena_data_catalog",
+		// Registry-ratified Route53 remainder and CloudFront batch (#40,
+		// #44, #65). See live/e2e/estates/route53-cloudfront/README.md.
+		"aws_route53_health_check",
+		"aws_route53profiles_association",
+		"aws_route53profiles_profile",
+		"aws_route53recoverycontrolconfig_cluster",
+		"aws_route53recoverycontrolconfig_control_panel",
+		"aws_route53recoverycontrolconfig_safety_rule",
+		"aws_route53_resolver_endpoint",
+		"aws_route53_resolver_firewall_domain_list",
+		"aws_route53_resolver_firewall_rule_group",
+		"aws_route53_resolver_firewall_rule_group_association",
+		"aws_route53_resolver_query_log_config",
+		"aws_route53_resolver_rule",
+		"aws_cloudfront_anycast_ip_list",
+		"aws_cloudfront_connection_function",
+		"aws_cloudfront_connection_group",
+		"aws_cloudfront_distribution",
+		"aws_cloudfront_distribution_tenant",
+		"aws_cloudfront_function",
+		"aws_cloudfront_key_value_store",
+		"aws_cloudfront_multitenant_distribution",
+		"aws_cloudfront_trust_store",
+		"aws_cloudfront_vpc_origin",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -612,6 +651,33 @@ var (
 		// attachment with no tags argument at all. See
 		// live/e2e/estates/storage/README.md, "Untaggable types".
 		"aws_fsx_s3_access_point_attachment",
+		// Registry-ratified data-plane batch (#40, #44, issue #65): three
+		// types with no top-level tags argument in the pinned provider's own
+		// wire schema — aws_glue_catalog_table and aws_glue_classifier
+		// mirror aws_cloudwatch_dashboard's shape (a plain client-named
+		// identity, just an untaggable one); aws_glue_data_catalog_encryption_settings
+		// is a singleton-per-account type, the same shape as the IAM/ECR
+		// batch's three ECR registry singletons above.
+		"aws_glue_catalog_table",
+		"aws_glue_classifier",
+		"aws_glue_data_catalog_encryption_settings",
+		// Registry-ratified Route53 remainder and CloudFront batch (#40,
+		// #44, #65). aws_cloudfront_origin_access_control is untaggable and
+		// inside the curated 68 - the same shape the messaging batch's
+		// aws_sns_topic_subscription hit and deferred over, but issue #54
+		// landed since then and live/LIMITATIONS.md's untaggable-admitted
+		// span now derives from live/survey-full.json across the whole
+		// registry-backed roster rather than the curated 68 intersected
+		// with the admission table, so it joins this list rather than being
+		// deferred. See live/e2e/estates/route53-cloudfront/README.md.
+		"aws_route53_hosted_zone_dnssec",
+		"aws_route53_key_signing_key",
+		"aws_route53_zone_association",
+		"aws_route53_resolver_firewall_rule",
+		"aws_route53_resolver_rule_association",
+		"aws_cloudfront_monitoring_subscription",
+		"aws_cloudfront_origin_access_control",
+		"aws_cloudfront_realtime_log_config",
 	}
 )
 
@@ -676,7 +742,7 @@ func TestUntaggableTypesMatchLimitationsDoc(t *testing.T) {
 		t.Fatalf("reading %s: %v", doc, err)
 	}
 
-	const heading = "**Untaggable types cannot be removed by the sweep.**"
+	const heading = "**Untaggable types carry no ownership marker of their own.**"
 	_, entry, found := strings.Cut(string(content), heading)
 	if !found {
 		t.Fatalf("live/LIMITATIONS.md has no %q entry", heading)
@@ -1162,6 +1228,63 @@ func testSchemas() Schemas {
 		"aws_backup_report_plan":                tagged("id", "arn", "name"),
 		"aws_backup_restore_testing_plan":       tagged("arn", "name", "schedule_expression"),
 		"aws_backup_logically_air_gapped_vault": tagged("id", "arn", "name", "min_retention_days", "max_retention_days"),
+		// Registry-ratified data-plane batch (#40, #44, issue #65):
+		// Kinesis, KinesisFirehose, Glue and Athena. Taggable/untaggable per
+		// the pinned provider's own wire schema (`terraform providers schema
+		// -json` against the real hashicorp/aws 6.58.0 binary) for each
+		// type: aws_glue_catalog_table, aws_glue_classifier and
+		// aws_glue_data_catalog_encryption_settings carry no tags argument
+		// at all.
+		"aws_kinesis_stream":                        tagged("id", "arn", "name"),
+		"aws_kinesis_stream_consumer":               tagged("id", "arn", "name", "stream_arn"),
+		"aws_kinesis_firehose_delivery_stream":      tagged("id", "arn", "name"),
+		"aws_glue_catalog_database":                 tagged("id", "arn", "name", "catalog_id"),
+		"aws_glue_catalog_table":                    untagged("id", "arn", "name", "database_name", "catalog_id"),
+		"aws_glue_registry":                         tagged("id", "arn", "registry_name"),
+		"aws_glue_job":                              tagged("id", "arn", "name", "role_arn"),
+		"aws_glue_crawler":                          tagged("id", "arn", "name", "database_name", "role"),
+		"aws_glue_connection":                       tagged("id", "arn", "name", "catalog_id"),
+		"aws_glue_classifier":                       untagged("id", "name"),
+		"aws_glue_data_catalog_encryption_settings": untagged("id", "catalog_id"),
+		"aws_glue_trigger":                          tagged("id", "arn", "name", "type"),
+		"aws_glue_ml_transform":                     tagged("id", "arn", "name", "role_arn"),
+		"aws_athena_workgroup":                      tagged("id", "arn", "name"),
+		"aws_athena_data_catalog":                   tagged("id", "arn", "name", "type"),
+		// Registry-ratified Route53 remainder and CloudFront batch (#40,
+		// #44, #65). Taggable/untaggable per the real provider's documented
+		// Argument Reference for each type; the eight untaggable rows are
+		// exactly this batch's own "Untaggable types" list in
+		// live/e2e/estates/route53-cloudfront/README.md.
+		"aws_route53_health_check":                             tagged("id", "type"),
+		"aws_route53_hosted_zone_dnssec":                       untagged("id", "hosted_zone_id", "signing_status"),
+		"aws_route53_key_signing_key":                          untagged("id", "hosted_zone_id", "name", "key_management_service_arn"),
+		"aws_route53_zone_association":                         untagged("id", "zone_id", "vpc_id"),
+		"aws_route53profiles_association":                      tagged("id", "arn", "name", "profile_id", "resource_id"),
+		"aws_route53profiles_profile":                          tagged("id", "arn", "name"),
+		"aws_route53recoverycontrolconfig_cluster":             tagged("id", "arn", "name"),
+		"aws_route53recoverycontrolconfig_control_panel":       tagged("id", "arn", "name", "cluster_arn"),
+		"aws_route53recoverycontrolconfig_safety_rule":         tagged("id", "arn", "name", "control_panel_arn"),
+		"aws_route53_resolver_endpoint":                        tagged("id", "arn", "direction"),
+		"aws_route53_resolver_firewall_domain_list":            tagged("id", "arn", "name"),
+		"aws_route53_resolver_firewall_rule":                   untagged("id", "name", "action", "firewall_rule_group_id", "firewall_domain_list_id", "priority"),
+		"aws_route53_resolver_firewall_rule_group":             tagged("id", "arn", "name"),
+		"aws_route53_resolver_firewall_rule_group_association": tagged("id", "arn", "name", "firewall_rule_group_id", "vpc_id", "priority"),
+		"aws_route53_resolver_query_log_config":                tagged("id", "arn", "name", "destination_arn"),
+		"aws_route53_resolver_rule":                            tagged("id", "arn", "domain_name", "rule_type"),
+		"aws_route53_resolver_rule_association":                untagged("id", "resolver_rule_id", "vpc_id"),
+		"aws_cloudfront_anycast_ip_list":                       tagged("id", "arn", "name", "ip_count"),
+		"aws_cloudfront_connection_function":                   tagged("id", "arn", "name", "connection_function_code"),
+		"aws_cloudfront_connection_group":                      tagged("id", "arn", "name"),
+		"aws_cloudfront_distribution":                          tagged("id", "arn", "enabled"),
+		"aws_cloudfront_distribution_tenant":                   tagged("id", "arn", "name", "distribution_id"),
+		"aws_cloudfront_function":                              tagged("id", "arn", "name", "runtime", "code"),
+		"aws_cloudfront_key_value_store":                       tagged("id", "arn", "name"),
+		"aws_cloudfront_monitoring_subscription":               untagged("id", "distribution_id"),
+		"aws_cloudfront_multitenant_distribution":              tagged("id", "arn", "enabled"),
+		"aws_cloudfront_origin_access_control":                 untagged("id", "arn", "name", "origin_access_control_origin_type", "signing_behavior", "signing_protocol"),
+		"aws_cloudfront_realtime_log_config":                   untagged("id", "arn", "name", "sampling_rate"),
+		"aws_cloudfront_trust_store":                           tagged("id", "arn", "name"),
+		"aws_cloudfront_vpc_origin":                            tagged("id", "arn"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.

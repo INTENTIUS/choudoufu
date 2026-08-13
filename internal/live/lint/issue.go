@@ -80,6 +80,25 @@ const (
 	// value expression directly references an input variable declared
 	// sensitive. See receipt_secret.go.
 	RuleReceiptSecret Rule = "receipt-secret"
+
+	// RulePolicyVerb covers a live block's policy block assigning a verb to
+	// a quadrant that internal/live/policy.ValidVerbs does not allow there
+	// - either an unrecognized verb, or a real verb this fork refuses in
+	// that quadrant (delete outside the two undeclared quadrants, for
+	// example). See policy.go.
+	RulePolicyVerb Rule = "policy-verb"
+
+	// RulePolicyScope covers a policy block quadrant explicitly assigned
+	// "delete" with no scope block: an unscoped account-wide purge, which
+	// GitHub issue #67 makes a lint refusal rather than a default. See
+	// policy.go.
+	RulePolicyScope Rule = "policy-scope"
+
+	// RulePolicyThreshold covers a policy block's threshold argument set to
+	// zero or a negative number. It exists to be raised deliberately once a
+	// delete quadrant's roster has been reviewed, which a non-positive
+	// value cannot mean. See policy.go.
+	RulePolicyThreshold Rule = "policy-threshold"
 )
 
 // ruleInfo is the fixed part of every issue a rule produces: the one-line
@@ -147,6 +166,21 @@ var ruleInfo = map[Rule]struct {
 		// docs page that defines it by title instead.
 		summary: "Receipt inputs reference secrets by pointer, never by value",
 		docsRef: `live/RECEIPTS.md, "Secrets discipline"`,
+	},
+	RulePolicyVerb: {
+		// No shipped doc describes the policy block yet - it lands with the
+		// behavioral half (GitHub issue #67) - so this cites the issue
+		// itself rather than inventing a doc page.
+		summary: "Policy verb is not valid for its quadrant",
+		docsRef: `GitHub issue #67, "Design"`,
+	},
+	RulePolicyScope: {
+		summary: "Delete quadrant has no scope block",
+		docsRef: `GitHub issue #67, "Safety rails on the delete quadrant"`,
+	},
+	RulePolicyThreshold: {
+		summary: "Policy threshold is not a positive number",
+		docsRef: `GitHub issue #67, "Safety rails on the delete quadrant"`,
 	},
 }
 

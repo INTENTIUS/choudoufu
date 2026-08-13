@@ -109,6 +109,68 @@ type Result struct {
 	// Scans records what happened per resource type: how it was filtered,
 	// how wide the scan was, and what came back.
 	Scans []TypeScan
+
+	// ParentReads lists the untaggable children a marked, admitted parent's
+	// own identity led this pass to, with no marker and no configuration of
+	// their own to find them by (issue #60). Each says whether it also
+	// became a removal, the same way [OwnedResource.Removal] does for a
+	// swept orphan - see [identity.ParentReadRemovable] for which types
+	// this pass trusts to remove rather than only report.
+	ParentReads []ParentReadFinding
+}
+
+// ParentReadFinding is one live child a parent read found: an untaggable,
+// admitted type whose whole identity [identity.SingleParentComponent] says
+// is composed from a bound, admitted parent's own identity, discovered by
+// reading that parent's value rather than by a marker or a declared
+// resource block of the child's own.
+type ParentReadFinding struct {
+	// TypeName is the child's resource type.
+	TypeName string
+
+	// Parent is the admitted type whose identity led this pass to it.
+	Parent string
+
+	// ParentAddr is the parent's own resolved address in this estate.
+	ParentAddr addrs.AbsResourceInstance
+
+	// ParentValue is the parent identity value the read was scoped to -
+	// the bucket name, the topic ARN, the queue URL, and so on - which is
+	// also the child's own whole identity for this shape.
+	ParentValue string
+
+	// ImportID is the child's live identity as the read found it.
+	ImportID string
+
+	// IdentityAttr names the attribute ImportID was read from.
+	IdentityAttr string
+
+	// Identity is the full identity object as the provider sent it.
+	Identity cty.Value
+
+	// DisplayName is the provider's label for it. Display only.
+	DisplayName string
+
+	// Removal is true when this finding enters the prior state as an
+	// instance with no configuration, the same way a swept orphan does, so
+	// the plan proposes destroying it. See [identity.ParentReadRemovable].
+	Removal bool
+
+	// Withheld is why Removal is false: the one sentence an operator gets
+	// instead of a destroy. Empty when Removal is true.
+	Withheld string
+}
+
+// String renders a parent-read finding on one line.
+func (f ParentReadFinding) String() string {
+	s := f.TypeName + " " + f.ImportID + " via " + f.Parent + " " + f.ParentAddr.String()
+	if f.Removal {
+		return s + " REMOVAL"
+	}
+	if f.Withheld != "" {
+		return s + " WITHHELD (" + f.Withheld + ")"
+	}
+	return s
 }
 
 // Binding is one declared instance matched to one live resource.
@@ -378,20 +440,6 @@ const (
 	// on. Its identity comes out of configuration, which means deleting its
 	// resource block deletes the only record of which resource it was.
 	SweepGapNotTaggable SweepGapReason = "TYPE_NOT_TAGGABLE"
-
-	// SweepGapObjectUntagged is an admitted, schema-taggable type
-	// ([markerCapable] said yes) that nonetheless listed at least one live
-	// object carrying no readable tags at all - a provider or emulator bug
-	// on that specific object, distinct from [SweepGapNotTaggable]'s
-	// type-wide "this type has no tags argument at all". Downgraded from a
-	// hard [Problem] to a gap only for the estate-wide sweep: a type
-	// nothing in configuration declares is best-effort coverage by
-	// definition, so one malformed object in it must not abort a plan that
-	// depends on none of it, the same reasoning [SweepGapListFailed]
-	// already applies to a list call that errors outright. A declared
-	// instance hitting the identical condition stays a hard Problem,
-	// because the operator's own configuration is waiting on it.
-	SweepGapObjectUntagged SweepGapReason = "OBJECT_UNTAGGED"
 
 	// SweepGapNoARNJoin is a type the tagging sweep ([Request.TaggingSweep],
 	// issue #51) cannot recognize from an ARN alone: either live/mapping.json
@@ -829,6 +877,9 @@ func (r *Result) String() string {
 	for _, g := range r.SweepGaps {
 		b.WriteString("SWEEPGAP  " + g.String() + "\n")
 	}
+	for _, f := range r.ParentReads {
+		b.WriteString("PARENTREAD " + f.String() + "\n")
+	}
 	for _, p := range r.Problems {
 		b.WriteString("PROBLEM   " + p.String() + "\n")
 	}
@@ -868,6 +919,12 @@ func (r *Result) sortEverything() {
 	})
 	sort.Slice(r.SweepGaps, func(i, j int) bool {
 		return r.SweepGaps[i].TypeName < r.SweepGaps[j].TypeName
+	})
+	sort.Slice(r.ParentReads, func(i, j int) bool {
+		if r.ParentReads[i].TypeName != r.ParentReads[j].TypeName {
+			return r.ParentReads[i].TypeName < r.ParentReads[j].TypeName
+		}
+		return r.ParentReads[i].ImportID < r.ParentReads[j].ImportID
 	})
 	sort.Strings(r.SweepCovered)
 	sort.Slice(r.Resolutions, func(i, j int) bool {

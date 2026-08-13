@@ -62,6 +62,30 @@ type Config struct {
 	// Now is the signing clock. Defaults to time.Now; tests inject it for a
 	// reproducible signature and a reproducible region-scope placeholder.
 	Now func() time.Time
+
+	// MaxAttempts bounds how many times one call may attempt the request
+	// before giving up, counting the first try. Only a ThrottlingException
+	// response triggers a retry at all (see doc.go's "Retries" section);
+	// every other failure - including a different *APIError code, a
+	// transport error, a malformed response - returns to the caller after
+	// the first attempt. Zero means defaultMaxAttempts (5).
+	MaxAttempts int
+
+	// RetryBaseDelay is the backoff curve's starting point: the first
+	// retry's delay is uniformly random between 0 and this value, doubling
+	// (still full-jitter) on each attempt after that, up to RetryMaxDelay.
+	// Zero means defaultRetryBaseDelay (200ms).
+	RetryBaseDelay time.Duration
+
+	// RetryMaxDelay caps any single retry's sleep. Zero means
+	// defaultRetryMaxDelay (5s).
+	RetryMaxDelay time.Duration
+
+	// RetrySleep overrides the function a retry waits with between
+	// attempts - a test's hook for a deterministic, instant backoff curve
+	// instead of a real sleep. Nil means retrySleep, which respects ctx
+	// cancellation.
+	RetrySleep func(ctx context.Context, d time.Duration) error
 }
 
 // Client is a Cloud Control API client: two operations (ListResources,
@@ -75,6 +99,15 @@ type Client struct {
 	signEndpointOverride bool
 	httpClient           *http.Client
 	now                  func() time.Time
+
+	// The retry policy this Client applies to every call - see doc.go's
+	// "Retries" section. retrySleepFn is nil unless Config.RetrySleep set
+	// it, in which case call() uses it instead of the package-level
+	// retrySleep.
+	maxAttempts    int
+	retryBaseDelay time.Duration
+	retryMaxDelay  time.Duration
+	retrySleepFn   func(ctx context.Context, d time.Duration) error
 
 	// service is the SigV4 service identifier and host subdomain
 	// (<service>.<region>.amazonaws.com), and opTargetPrefix is the
@@ -125,7 +158,28 @@ func newClient(cfg Config) *Client {
 		signEndpointOverride: cfg.SignEndpointOverride,
 		httpClient:           &http.Client{Transport: transport},
 		now:                  cfg.Now,
+		maxAttempts:          positiveIntOr(cfg.MaxAttempts, defaultMaxAttempts),
+		retryBaseDelay:       positiveDurationOr(cfg.RetryBaseDelay, defaultRetryBaseDelay),
+		retryMaxDelay:        positiveDurationOr(cfg.RetryMaxDelay, defaultRetryMaxDelay),
+		retrySleepFn:         cfg.RetrySleep,
 	}
+}
+
+// positiveIntOr returns v when it is positive, and fallback otherwise - the
+// "zero means the default" rule every retry-policy Config field follows.
+func positiveIntOr(v, fallback int) int {
+	if v > 0 {
+		return v
+	}
+	return fallback
+}
+
+// positiveDurationOr is positiveIntOr for time.Duration fields.
+func positiveDurationOr(v, fallback time.Duration) time.Duration {
+	if v > 0 {
+		return v
+	}
+	return fallback
 }
 
 // clock is the signing time: cfg.Now when the caller set one, time.Now
@@ -236,11 +290,38 @@ func errorCode(wireType string) string {
 	return wireType
 }
 
-// call makes one Cloud Control request: marshals payload, sends it as
-// operation, and either decodes the response into out or returns an
-// *APIError. out may be nil for an operation whose response carries
-// nothing the caller needs.
+// call makes one Cloud Control request, retrying it under this Client's
+// retry policy when the failure is a ThrottlingException (doc.go's
+// "Retries" section): every other failure - a transport error, a
+// different *APIError code, a malformed response - returns to the caller
+// straight from the first attempt. out may be nil for an operation whose
+// response carries nothing the caller needs.
 func (c *Client) call(ctx context.Context, operation string, payload any, out any) error {
+	var lastErr error
+	for attempt := 1; attempt <= c.maxAttempts; attempt++ {
+		err := c.callOnce(ctx, operation, payload, out)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if attempt == c.maxAttempts || !HasCode(err, CodeThrottlingError) {
+			return err
+		}
+		sleep := c.retrySleepFn
+		if sleep == nil {
+			sleep = retrySleep
+		}
+		if sleepErr := sleep(ctx, backoffDelay(c.retryBaseDelay, c.retryMaxDelay, attempt)); sleepErr != nil {
+			return sleepErr
+		}
+	}
+	return lastErr
+}
+
+// callOnce is call's single attempt: marshals payload, sends it as
+// operation, and either decodes the response into out or returns an
+// *APIError.
+func (c *Client) callOnce(ctx context.Context, operation string, payload any, out any) error {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("cloudcontrol: encoding the %s request: %w", operation, err)

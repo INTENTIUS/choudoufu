@@ -40,6 +40,10 @@ func TestLimitationsMDResidueRosterSpans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	readable, residue, err := parentReadableRoster(root)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	for _, span := range []struct {
 		name, want string
@@ -52,6 +56,8 @@ func TestLimitationsMDResidueRosterSpans(t *testing.T) {
 		{spanResidueLaggard, renderResidueLaggard()},
 		{spanResidueEmulator, renderResidueEmulator()},
 		{spanUntaggableAdmitted, renderUntaggableAdmitted(untaggable)},
+		{spanUntaggableParentRead, renderUntaggableParentRead(readable)},
+		{spanUntaggableResidue, renderUntaggableResidue(residue)},
 	} {
 		got, err := spanContent(limitationsMDRel, md, span.name)
 		if err != nil {
@@ -66,10 +72,59 @@ func TestLimitationsMDResidueRosterSpans(t *testing.T) {
 
 	// The whole-file check catches what the per-span one cannot: a marker
 	// pair going missing or duplicated.
-	if out, err := renderLimitationsSpans(md, untaggable); err != nil {
+	if out, err := renderLimitationsSpans(md, untaggable, readable, residue); err != nil {
 		t.Errorf("rendering %s's spans: %v", limitationsMDRel, err)
 	} else if out != md {
 		t.Errorf("%s differs from its rendered form; run `go run ./tools/survey-gen -render` and commit the result", limitationsMDRel)
+	}
+}
+
+// TestParentReadableRosterPartitionsUntaggable pins issue #60's own
+// invariant over the roster itself, independent of the doc: every
+// untaggable admitted type lands in exactly one of the two sets
+// parentReadableRoster returns, so live/LIMITATIONS.md's "Untaggable types
+// cannot be removed by the sweep" list and the two-way split below it never
+// silently drift apart - a type can only be added to or removed from the
+// untaggable roster by changing identity.DefaultTable or
+// live/survey-full.json, and either change is exactly what re-running this
+// derivation picks up.
+func TestParentReadableRosterPartitionsUntaggable(t *testing.T) {
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	untaggable, err := untaggableAdmittedTypes(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	readable, residue, err := parentReadableRoster(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := len(readable) + len(residue); got != len(untaggable) {
+		t.Fatalf("parent-readable (%d) + residue (%d) = %d, want the untaggable-admitted total %d",
+			len(readable), len(residue), got, len(untaggable))
+	}
+
+	seen := make(map[string]string, len(untaggable))
+	for _, r := range readable {
+		seen[r.Type] = "readable"
+		if r.Parent == "" {
+			t.Errorf("%s is parent-readable with no parent named", r.Type)
+		}
+	}
+	for _, t2 := range residue {
+		if other, ok := seen[t2]; ok {
+			t.Errorf("%s is in both the residue and the %s set", t2, other)
+		}
+		seen[t2] = "residue"
+	}
+	for _, u := range untaggable {
+		if _, ok := seen[u]; !ok {
+			t.Errorf("%s is untaggable-admitted but in neither the parent-readable nor the residue set", u)
+		}
 	}
 }
 

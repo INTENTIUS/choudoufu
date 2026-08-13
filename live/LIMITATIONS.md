@@ -415,33 +415,141 @@ as a destroy, is asserted in `internal/live/lifecycle/exactness_test.go`.
 The unadmitted half holds by construction: `internal/live/discovery`
 builds the sweep universe from `identity.AdmittedTypes()`.)
 
-**Untaggable types cannot be removed by the sweep.** <!-- survey-gen:begin untaggable-admitted -->
+**Untaggable types carry no ownership marker of their own.** <!-- survey-gen:begin untaggable-admitted -->
 `aws_api_gateway_account`, `aws_api_gateway_base_path_mapping`,
 `aws_api_gateway_documentation_version`, `aws_api_gateway_gateway_response`,
 `aws_api_gateway_method`, `aws_api_gateway_model`,
 `aws_api_gateway_rest_api_policy`, `aws_api_gateway_usage_plan_key`,
-`aws_apigatewayv2_routing_rule`, `aws_cloudwatch_dashboard`,
+`aws_apigatewayv2_routing_rule`, `aws_cloudfront_monitoring_subscription`,
+`aws_cloudfront_origin_access_control`,
+`aws_cloudfront_realtime_log_config`, `aws_cloudwatch_dashboard`,
 `aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
 `aws_dynamodb_global_table`, `aws_dynamodb_resource_policy`,
 `aws_ebs_snapshot_block_public_access`, `aws_ecr_registry_policy`,
 `aws_ecr_registry_scanning_configuration`,
 `aws_ecr_replication_configuration`, `aws_ecs_cluster_capacity_providers`,
 `aws_eip_association`, `aws_eks_access_policy_association`,
-`aws_fsx_s3_access_point_attachment`, `aws_iam_group`,
-`aws_iam_role_policy`, `aws_iam_role_policy_attachment`, `aws_kms_alias`,
-`aws_lambda_layer_version`, `aws_lb_target_group_attachment`,
-`aws_network_interface_attachment`, `aws_network_interface_permission`,
-`aws_rds_cluster_role_association`, `aws_route`, `aws_route53_record`,
+`aws_fsx_s3_access_point_attachment`, `aws_glue_catalog_table`,
+`aws_glue_classifier`, `aws_glue_data_catalog_encryption_settings`,
+`aws_iam_group`, `aws_iam_role_policy`, `aws_iam_role_policy_attachment`,
+`aws_kms_alias`, `aws_lambda_layer_version`,
+`aws_lb_target_group_attachment`, `aws_network_interface_attachment`,
+`aws_network_interface_permission`, `aws_rds_cluster_role_association`,
+`aws_route`, `aws_route53_hosted_zone_dnssec`,
+`aws_route53_key_signing_key`, `aws_route53_record`,
+`aws_route53_resolver_firewall_rule`,
+`aws_route53_resolver_rule_association`, `aws_route53_zone_association`,
 `aws_route_table_association`, `aws_s3_bucket_lifecycle_configuration`,
 `aws_s3_bucket_policy`, `aws_s3_bucket_public_access_block`,
 `aws_s3_bucket_server_side_encryption_configuration`,
 `aws_s3_bucket_versioning`, `aws_sns_topic_policy`, `aws_sqs_queue_policy`
-and `aws_volume_attachment`<!-- survey-gen:end untaggable-admitted --> carry no tags, so they can carry no
-ownership marker and the sweep has nothing to search on. Their identity is
-built from their own configuration, which means deleting the resource
-block deletes the only record of which resource it was. Destroy the
-resource before removing its block, or delete it out of band. Every plan
-names these types under "Not swept for removal".
+and `aws_volume_attachment`<!-- survey-gen:end untaggable-admitted --> carry no tags, so a marker-based sweep
+has nothing to search on for any of them. Their identity is built from
+their own configuration, which is a problem the moment a resource block is
+removed rather than destroyed: with no marker to search on and no
+configuration left to build the identity from, deleting the resource block
+looks indistinguishable from the resource never having existed. Issue #60
+is the two ways this fork closes that gap, and the residue left once both
+are applied.
+
+**Some are swept via a parent read instead (issue #60).** An untaggable
+type whose identity is composed from an admitted, taggable parent's own
+identity - a bucket policy's `bucket` is the same string as the bucket's
+own identity, and the same shape holds for a role, a topic, a queue, a
+route table or a hosted zone - does not need a marker of its own: reading
+the parent tells the sweep the child's identity too, so the child's live
+existence is one read away with no memory required. This is derived, not a
+second hand list: `internal/live/identity`'s `ParentOf` reads the same
+`Components` every identity resolution already reads, matched against
+which admitted types are themselves taggable
+(`live/survey-full.json`'s signal here, the provider's own schema at run
+time), and `SingleParentComponent` narrows that to the shape where nothing
+besides the parent's value is needed - the "named-singleton child" the
+identity table's own comments already name for `aws_s3_bucket_policy` and
+`aws_sns_topic_policy`. <!-- survey-gen:begin untaggable-parent-read -->
+| Type | Parent | Removed by this leg |
+|---|---|---|
+| `aws_api_gateway_base_path_mapping` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_api_gateway_documentation_version` | `aws_api_gateway_rest_api` | no (report-only) |
+| `aws_api_gateway_gateway_response` | `aws_api_gateway_rest_api` | no (report-only) |
+| `aws_api_gateway_method` | `aws_api_gateway_rest_api` | no (report-only) |
+| `aws_api_gateway_model` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_api_gateway_rest_api_policy` | `aws_api_gateway_rest_api` | no (report-only) |
+| `aws_api_gateway_usage_plan_key` | `aws_api_gateway_usage_plan` | no (report-only) |
+| `aws_cloudfront_monitoring_subscription` | `aws_cloudfront_distribution` | no (report-only) |
+| `aws_cloudfront_realtime_log_config` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_dynamodb_global_table` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_fsx_s3_access_point_attachment` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_glue_catalog_table` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_glue_classifier` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_iam_group` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_iam_role_policy` | `aws_iam_role` | no (report-only) |
+| `aws_iam_role_policy_attachment` | `aws_iam_role` | no (report-only) |
+| `aws_kms_alias` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_lb_target_group_attachment` | `aws_lb_target_group` | no (report-only) |
+| `aws_route` | `aws_route_table` | no (report-only) |
+| `aws_route53_key_signing_key` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_route53_record` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_route53_resolver_firewall_rule` | `aws_route53_resolver_firewall_domain_list` | no (report-only) |
+| `aws_route53_zone_association` | `aws_route53_zone` | no (report-only) |
+| `aws_route_table_association` | `aws_route_table` | no (report-only) |
+| `aws_s3_bucket_lifecycle_configuration` | `aws_s3_bucket` | no (report-only) |
+| `aws_s3_bucket_policy` | `aws_s3_bucket` | yes |
+| `aws_s3_bucket_public_access_block` | `aws_s3_bucket` | no (report-only) |
+| `aws_s3_bucket_server_side_encryption_configuration` | `aws_s3_bucket` | no (report-only) |
+| `aws_s3_bucket_versioning` | `aws_s3_bucket` | no (report-only) |
+| `aws_sns_topic_policy` | `aws_sns_topic` | no (report-only) |
+| `aws_sqs_queue_policy` | `aws_sqs_queue` | no (report-only) |
+| `aws_volume_attachment` | `aws_ebs_volume` | no (report-only) |
+
+**Total.** 32 types swept via a parent read.
+<!-- survey-gen:end untaggable-parent-read -->
+
+Being parent-readable only says the sweep can *see* the child; whether it
+can also *remove* it is a narrower, per-type question the parent read
+alone does not settle, and the "Removed by this leg" column above is that
+answer today rather than a promise about the rest of the row. Wired for
+removal this pass: `aws_s3_bucket_policy`, this fork's first read-based
+removal - S3's `GetBucketPolicy` returns a clean "not found" when a bucket
+carries none, so a parent read gives the sweep the same yes/no answer a
+marker would have, and the bucket name is the whole of the policy's
+identity end to end (`internal/live/discovery`'s gated e2e exercises this
+against floci). Everything else in the table stays report-only: a plan
+still names it, under "Not swept for removal", but does not propose
+destroying it. `aws_iam_role_policy` and `aws_iam_role_policy_attachment`
+each carry a second, free-standing argument the parent alone does not
+supply (the inline policy's own name, the attached policy's ARN);
+`aws_route`, `aws_route53_record`, `aws_route_table_association` and
+`aws_lb_target_group_attachment` are the same shape, one component short of
+what the parent alone determines; and the S3 siblings besides the policy,
+and the SNS/SQS policy pair, are structurally the named-singleton shape
+that would let a future pass wire them the same way `aws_s3_bucket_policy`
+was wired here, once each one's own "found vs. not found" provider
+behavior is checked the way the bucket policy's was - see
+`internal/live/identity/parent.go`'s `parentReadRemovable` for the
+per-type reasoning as it stands.
+
+**The residue.** <!-- survey-gen:begin untaggable-residue -->
+`aws_api_gateway_account`, `aws_apigatewayv2_routing_rule`,
+`aws_cloudfront_origin_access_control`, `aws_cloudwatch_dashboard`,
+`aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
+`aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
+`aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
+`aws_ecr_replication_configuration`, `aws_ecs_cluster_capacity_providers`,
+`aws_eip_association`, `aws_eks_access_policy_association`,
+`aws_glue_data_catalog_encryption_settings`, `aws_lambda_layer_version`,
+`aws_network_interface_attachment`, `aws_network_interface_permission`,
+`aws_rds_cluster_role_association`, `aws_route53_hosted_zone_dnssec` and
+`aws_route53_resolver_rule_association`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
+parent-readable: the three ECR registry types are account-level singletons
+with no admitted parent resource to read at all, and the dashboard, the
+KMS alias and the Lambda layer version are each client-named on their own
+terms, with no dependency on any other admitted type's identity. For these,
+issue #60 changes nothing: destroy the resource before removing its block,
+or delete it out of band. Every plan still names this narrower list under
+"Not swept for removal" - the parent-readable set above is reported there
+too when it is report-only, and left out of it entirely on the one row this
+pass also removes.
 
 **An import-derived prior state cannot hold config-only attributes.** A
 provider attribute that the cloud does not store and the configuration
@@ -1089,10 +1197,10 @@ from any artifact, so this roster is curated
 <!-- survey-gen:begin residue-emulator -->
 | Type | Admitted today | Reason |
 |---|---|---|
-| `aws_cloudfront_distribution` | no | floci serves no usable CloudFront distribution lifecycle, and its resourcegroupstagging coverage does not reach CloudFront either (lex00/floci#29) |
 | `aws_db_instance` | yes (standing e2e residue) | RDS only works fully against floci when the docker socket is mounted into the emulator container, which this harness does not do (lex00/floci#28) |
 | `aws_iam_role` | yes (standing e2e residue) | floci's iam:GetRole omits Tags, so the role's own marker never reads back and every plan reports it unowned |
 | `aws_s3_bucket_policy` | yes (standing e2e residue) | downstream of aws_iam_role's residue: its policy document embeds the unowned role's ARN, so its own plan never settles |
+| `aws_ssm_document` | no | floci answers ssm:CreateDocument with UnsupportedOperation, so no SSM document can be created against the emulator at all (choudoufu#26) |
 
 **Total.** 4 types.
 <!-- survey-gen:end residue-emulator -->

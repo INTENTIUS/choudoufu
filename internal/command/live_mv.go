@@ -8,6 +8,7 @@ package command
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
@@ -162,6 +163,14 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 	if issues := lint.CheckWith(ctx, config, lint.Context{Schemas: resourceSchemas}); len(issues) > 0 {
 		diags = diags.Append(lint.Diagnostics(issues))
 		return nil, diags
+	}
+
+	// Resolved now that lint has passed and the estate name is settled, so
+	// that any verb here is already known valid for its quadrant (see
+	// internal/live/lint's checkLivePolicy). Nothing downstream reads this
+	// yet - GitHub issue #67's config/lint half only, see [statelessPolicy].
+	if config.Module != nil {
+		log.Printf("[TRACE] live-mv: ownership policy: %s", statelessPolicy(config.Module.Live, estate))
 	}
 
 	// The same resolution a plan runs, with the same inputs, for the reason

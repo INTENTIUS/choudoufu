@@ -198,6 +198,14 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	diags = diags.Append(bind(req, decl, res))
 	diags = diags.Append(classifyOrphans(req, res))
 
+	// The parent-read leg (issue #60) runs after bind and classifyOrphans:
+	// it reads res.Resolutions to find both which parent instances this
+	// pass resolved and which children are already declared, and both are
+	// only settled once binding and orphan classification have run.
+	if req.Sweep {
+		diags = diags.Append(parentReadSweep(ctx, req, schemas, res))
+	}
+
 	res.sortEverything()
 	return res, diags
 }
@@ -675,6 +683,13 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 	}
 
 	var sawAccountID, sawIdentity bool
+	// sweepUntaggedReported keeps a per-object gap during a sweep from
+	// becoming a SweepGap-per-instance pile-up: the type is what has no
+	// coverage, not each individual malformed object of it, so this loop
+	// files at most one gap for it, the same "once per type" shape every
+	// other SweepGap in this function already has (each of those returns
+	// before this loop even starts).
+	sweepUntaggedReported := false
 	for _, r := range results {
 		if acct, ok := r.IdentityAttr("account_id"); ok {
 			sawIdentity = true
@@ -689,21 +704,31 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		tags, taggable := markers.TagsOf(r.Resource)
 		if !taggable {
 			if sweep {
-				// A type nothing in configuration declares is best-effort
-				// coverage by definition (see sweepTypes' doc): one
-				// malformed object in it - a provider or emulator bug on
-				// that object, distinct from the type-wide
-				// SweepGapNotTaggable check above, which already passed for
-				// this type - is a gap in removal coverage, not a reason to
-				// abort a plan that depends on none of it. See
-				// SweepGapObjectUntagged.
-				diags = diags.Append(sweepGapDiag(res, SweepGap{
-					TypeName: typeName,
-					Reason:   SweepGapObjectUntagged,
-					Detail: fmt.Sprintf(
-						"The estate-wide sweep listed a %s with no tags attribute on the returned object, so its ownership markers cannot be read and it cannot be matched to this estate. This is a provider or emulator bug; the sweep continues over the rest of this type's objects and every other type.",
-						typeName),
-				}))
+				// The runtime twin of the schema-level check above
+				// (SweepGapNotTaggable, "a %s carries no tags"): here the
+				// type's schema DOES declare a tags attribute, but this
+				// particular listed object came back without one anyway -
+				// a provider or emulator quirk on the object, not a fact
+				// about the type. Either way a sweep is looking for THIS
+				// estate's markers among an admitted type the configuration
+				// never declares, and an unreadable object there is a hole
+				// in removal coverage, not a reason to fail every plan this
+				// estate ever runs - the same reasoning SweepGapListFailed
+				// already gives a few lines above for "the provider failed
+				// while listing". Never taken for a DECLARED type's own
+				// scan: an estate that actually declares this type and
+				// cannot read its own resource's markers still hard-fails
+				// below, unchanged.
+				if !sweepUntaggedReported {
+					sweepUntaggedReported = true
+					diags = diags.Append(sweepGapDiag(res, SweepGap{
+						TypeName: typeName,
+						Reason:   SweepGapNotTaggable,
+						Detail: fmt.Sprintf(
+							"A live %s came back from the provider with no tags attribute, so this sweep cannot tell whether it (or any other unreadable instance of the type) belongs to this estate. Destroy a resource of this type before removing its block, or delete it out of band.",
+							typeName),
+					}))
+				}
 				continue
 			}
 			diags = diags.Append(problemDiag(res, Problem{

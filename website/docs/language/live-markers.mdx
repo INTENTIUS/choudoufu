@@ -251,6 +251,26 @@ Renaming an already-adopted resource is a separate, narrower operation.
 `choudoufu live-mv <old-address> <new-address>` rewrites the `tofu-address`
 tag in place. It does not touch resources that were never adopted.
 
+**Compared to `import`, `moved`, and `removed` blocks.** Upstream needs
+those three one-shot constructs because state is authoritative and each one
+edits that record surgically: `import` writes a new entry, `moved` rewrites
+an entry's address, `removed` with `lifecycle { destroy = false }` deletes
+an entry without touching the object. With no file of record to edit, live
+resource markers do not need the constructs that edit one - adopting is the
+plan-visible marker stamp above (or `choudoufu live-import` for a bulk
+migration), renaming is `choudoufu live-mv`, and `moved` blocks are refused
+outright by lint. Forgetting without destroying is the one case where the
+parallel is not yet exact: deleting a resource block leaves its marker on
+the live object, and today the estate-wide sweep still destroys a marked,
+undeclared, taggable resource on the next plan, the same as upstream's own
+default absent a `removed` block. The live-markers equivalent of `destroy =
+false` - keep the marker, skip the sweep - is not yet a first-class
+operation; it takes stripping the tags by hand before deleting the block.
+`live/FAQ.md`'s "How does this relate to removed blocks / destroy = false?"
+has the full comparison, including the design in progress
+([issue #67](https://github.com/INTENTIUS/choudoufu/issues/67)) to make the
+sweep's behavior per ownership quadrant a policy choice instead of fixed.
+
 ## Concurrency
 
 The cloud serializes API calls, not workflows. Two simultaneous applies
@@ -296,7 +316,7 @@ outcomes at all. They are named below.
 ## The Contract
 
 - **AWS only, <!-- survey-gen:begin contract-count -->
-143<!-- survey-gen:end contract-count --> resource types, root module only.** The v0 admission table
+188<!-- survey-gen:end contract-count --> resource types, root module only.** The v0 admission table
   (`internal/live/lint/admission.go`) is the whole subset. It holds <!-- survey-gen:begin contract-types -->
   `aws_acm_certificate`, `aws_api_gateway_account`, `aws_api_gateway_api_key`,
   `aws_api_gateway_base_path_mapping`, `aws_api_gateway_client_certificate`,
@@ -309,14 +329,23 @@ outcomes at all. They are named below.
   `aws_api_gateway_vpc_link`, `aws_apigatewayv2_api`,
   `aws_apigatewayv2_domain_name`, `aws_apigatewayv2_routing_rule`,
   `aws_apigatewayv2_stage`, `aws_apigatewayv2_vpc_link`,
-  `aws_backup_framework`, `aws_backup_logically_air_gapped_vault`,
-  `aws_backup_plan`, `aws_backup_report_plan`,
-  `aws_backup_restore_testing_plan`, `aws_backup_vault`,
-  `aws_cloudwatch_composite_alarm`, `aws_cloudwatch_dashboard`,
-  `aws_cloudwatch_log_group`, `aws_cloudwatch_metric_alarm`,
-  `aws_cloudwatch_metric_stream`, `aws_db_event_subscription`,
-  `aws_db_instance`, `aws_db_instance_role_association`,
-  `aws_db_option_group`, `aws_db_parameter_group`, `aws_db_proxy`,
+  `aws_athena_data_catalog`, `aws_athena_workgroup`, `aws_backup_framework`,
+  `aws_backup_logically_air_gapped_vault`, `aws_backup_plan`,
+  `aws_backup_report_plan`, `aws_backup_restore_testing_plan`,
+  `aws_backup_vault`, `aws_cloudfront_anycast_ip_list`,
+  `aws_cloudfront_connection_function`, `aws_cloudfront_connection_group`,
+  `aws_cloudfront_distribution`, `aws_cloudfront_distribution_tenant`,
+  `aws_cloudfront_function`, `aws_cloudfront_key_value_store`,
+  `aws_cloudfront_monitoring_subscription`,
+  `aws_cloudfront_multitenant_distribution`,
+  `aws_cloudfront_origin_access_control`,
+  `aws_cloudfront_realtime_log_config`, `aws_cloudfront_trust_store`,
+  `aws_cloudfront_vpc_origin`, `aws_cloudwatch_composite_alarm`,
+  `aws_cloudwatch_dashboard`, `aws_cloudwatch_log_group`,
+  `aws_cloudwatch_metric_alarm`, `aws_cloudwatch_metric_stream`,
+  `aws_db_event_subscription`, `aws_db_instance`,
+  `aws_db_instance_role_association`, `aws_db_option_group`,
+  `aws_db_parameter_group`, `aws_db_proxy`,
   `aws_db_proxy_default_target_group`, `aws_db_proxy_endpoint`,
   `aws_db_subnet_group`, `aws_dynamodb_global_table`,
   `aws_dynamodb_resource_policy`, `aws_dynamodb_table`,
@@ -337,10 +366,16 @@ outcomes at all. They are named below.
   `aws_fsx_ontap_storage_virtual_machine`, `aws_fsx_ontap_volume`,
   `aws_fsx_openzfs_file_system`, `aws_fsx_openzfs_snapshot`,
   `aws_fsx_openzfs_volume`, `aws_fsx_s3_access_point_attachment`,
-  `aws_fsx_windows_file_system`, `aws_iam_group`, `aws_iam_instance_profile`,
+  `aws_fsx_windows_file_system`, `aws_glue_catalog_database`,
+  `aws_glue_catalog_table`, `aws_glue_classifier`, `aws_glue_connection`,
+  `aws_glue_crawler`, `aws_glue_data_catalog_encryption_settings`,
+  `aws_glue_job`, `aws_glue_ml_transform`, `aws_glue_registry`,
+  `aws_glue_trigger`, `aws_iam_group`, `aws_iam_instance_profile`,
   `aws_iam_role`, `aws_iam_role_policy`, `aws_iam_role_policy_attachment`,
   `aws_iam_service_linked_role`, `aws_iam_user`, `aws_instance`,
-  `aws_internet_gateway`, `aws_key_pair`, `aws_kms_alias`, `aws_kms_key`,
+  `aws_internet_gateway`, `aws_key_pair`,
+  `aws_kinesis_firehose_delivery_stream`, `aws_kinesis_stream`,
+  `aws_kinesis_stream_consumer`, `aws_kms_alias`, `aws_kms_key`,
   `aws_lambda_capacity_provider`, `aws_lambda_code_signing_config`,
   `aws_lambda_event_source_mapping`, `aws_lambda_function`,
   `aws_lambda_layer_version`, `aws_launch_template`, `aws_lb`,
@@ -351,7 +386,19 @@ outcomes at all. They are named below.
   `aws_rds_cluster_parameter_group`, `aws_rds_cluster_role_association`,
   `aws_rds_custom_db_engine_version`, `aws_rds_global_cluster`,
   `aws_rds_integration`, `aws_rds_shard_group`, `aws_route`,
-  `aws_route53_record`, `aws_route53_zone`, `aws_route_table`,
+  `aws_route53_health_check`, `aws_route53_hosted_zone_dnssec`,
+  `aws_route53_key_signing_key`, `aws_route53_record`,
+  `aws_route53_resolver_endpoint`,
+  `aws_route53_resolver_firewall_domain_list`,
+  `aws_route53_resolver_firewall_rule`,
+  `aws_route53_resolver_firewall_rule_group`,
+  `aws_route53_resolver_firewall_rule_group_association`,
+  `aws_route53_resolver_query_log_config`, `aws_route53_resolver_rule`,
+  `aws_route53_resolver_rule_association`, `aws_route53_zone`,
+  `aws_route53_zone_association`, `aws_route53profiles_association`,
+  `aws_route53profiles_profile`, `aws_route53recoverycontrolconfig_cluster`,
+  `aws_route53recoverycontrolconfig_control_panel`,
+  `aws_route53recoverycontrolconfig_safety_rule`, `aws_route_table`,
   `aws_route_table_association`, `aws_s3_bucket`,
   `aws_s3_bucket_lifecycle_configuration`, `aws_s3_bucket_policy`,
   `aws_s3_bucket_public_access_block`,

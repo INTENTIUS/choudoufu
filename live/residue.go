@@ -340,22 +340,28 @@ var EmulatorBlocked = []EmulatorBlockedType{
 		// harness does not do today.
 		Reason: "RDS only works fully against floci when the docker socket is mounted into the emulator container, which this harness does not do (lex00/floci#28)",
 	},
-	// aws_cloudfront_distribution takes over this roster's sole "kept out of
-	// a wiring slice entirely" example from aws_db_instance above (issue
-	// #65's ratification campaign): aws_instance is deliberately not used
-	// here, despite being blocked-emulator too, because it is the fixed
-	// "surveyed but unadmitted, in no cohort" example
-	// TestRefusalSilentForTypeInNoCohort and live/LIMITATIONS.md's
-	// unadmitted-type entry both pin — adding it to this roster would move
-	// it into the emulator-blocked cohort and break both. live/SURVEY.md's
-	// per-type table already records this gap (floci serves no usable
-	// CloudFront distribution lifecycle; the lifecycle fix merged upstream
-	// 2026-08-12, lex00/floci#29, but no pullable harness image carries it
-	// yet).
+	// aws_cloudfront_distribution left this roster in the Route53
+	// remainder/CloudFront batch (#40, #44, #65): lex00/floci#29's
+	// lifecycle fix landed in the image this checkout pins, confirmed live
+	// against live/e2e/estates/route53-cloudfront — the pinned floci image
+	// now creates and reads a distribution back cleanly, so the earlier
+	// blocked-emulator gap no longer holds. See live/SURVEY.md's own row
+	// for it. It is admitted (marker, server-assigned distribution ID)
+	// with no standing residue, so it no longer belongs in this roster at
+	// all, the same departure aws_ecr_repository and aws_iam_user made
+	// above.
+	//
+	// aws_ssm_document takes over this roster's sole "kept out of a wiring
+	// slice entirely" example: it is surveyed (live/SURVEY.md) but not yet
+	// reached by any ratification batch, and unlike aws_lambda_permission
+	// or aws_eks_node_group's own blocked-emulator notes (both need a live
+	// parent resource floci cannot create), its own gap is total and
+	// standalone — floci refuses the create call outright, leaving nothing
+	// a wiring batch could even admit provisionally.
 	{
-		Type:     "aws_cloudfront_distribution",
+		Type:     "aws_ssm_document",
 		Admitted: false,
-		Reason:   "floci serves no usable CloudFront distribution lifecycle, and its resourcegroupstagging coverage does not reach CloudFront either (lex00/floci#29)",
+		Reason:   "floci answers ssm:CreateDocument with UnsupportedOperation, so no SSM document can be created against the emulator at all (choudoufu#26)",
 	},
 }
 
