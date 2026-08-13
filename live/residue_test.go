@@ -18,12 +18,13 @@ func TestLookupCohorts(t *testing.T) {
 		wantOK bool
 	}{
 		{"aws_pinpoint_app", CohortDeprecated, true},
-		{"aws_ecr_repository", CohortEmulatorBlocked, true},
+		{"aws_db_instance", CohortEmulatorBlocked, true},
 		{"aws_codebuild_project", CohortRegistryLaggard, true},
 		{"aws_accessanalyzer_archive_rule", CohortUnmapped, true},
-		{"aws_vpc", "", false},          // admitted, mapped, working handlers: in no cohort
-		{"aws_s3_bucket", "", false},    // admitted, mapped, working handlers: in no cohort
-		{"aws_no_such_type", "", false}, // not in mapping.json at all
+		{"aws_vpc", "", false},            // admitted, mapped, working handlers: in no cohort
+		{"aws_s3_bucket", "", false},      // admitted, mapped, working handlers: in no cohort
+		{"aws_ecr_repository", "", false}, // registry-ratified batch #2 (#26): left EmulatorBlocked, now in no cohort
+		{"aws_no_such_type", "", false},   // not in mapping.json at all
 	}
 	for _, tt := range tests {
 		cohort, sentence, ok := Lookup(tt.tfType)

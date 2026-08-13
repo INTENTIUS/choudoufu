@@ -292,18 +292,15 @@ var EmulatorBlocked = []EmulatorBlockedType{
 		// never settles either.
 		Reason: "downstream of aws_iam_role's residue: its policy document embeds the unowned role's ARN, so its own plan never settles",
 	},
-	{
-		Type:     "aws_ecr_repository",
-		Admitted: false,
-		// lex00/floci#23: floci's ECR emulation needs a docker daemon
-		// this harness's image does not carry, so ECR calls fail outright.
-		Reason: "floci's ECR emulation needs a docker daemon the current harness image does not carry (lex00/floci#23)",
-	},
-	{
-		Type:     "aws_iam_user",
-		Admitted: false,
-		Reason:   "dropped from its wiring slice by the same floci IAM tag gap as aws_iam_role (lex00/floci#22)",
-	},
+	// aws_ecr_repository (lex00/floci#23) and aws_iam_user (lex00/floci#22)
+	// left this roster in the second registry-ratified batch (#40, #44,
+	// issue #26): the pinned floci image (internal/live/flocitest's
+	// defaultImage) carries both fixes, confirmed live against
+	// live/e2e/estates/iam-ecr — both create, tag and destroy cleanly with
+	// no drift on refresh. Both are admitted (aws_iam_user client-named,
+	// aws_ecr_repository client-named) with no standing residue, so
+	// neither belongs in this roster at all, unlike aws_iam_role above,
+	// which is admitted but still carries one.
 	{
 		Type:     "aws_db_instance",
 		Admitted: false,

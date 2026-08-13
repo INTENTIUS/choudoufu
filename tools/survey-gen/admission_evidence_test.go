@@ -52,6 +52,7 @@ var admissionEvidenceExceptions = map[string]evidenceException{
 	"aws_cloudwatch_log_group": {"name is Optional+Computed (name_prefix idiom); documented import grammar is the log group name"},
 	"aws_iam_role_policy":      {"name is Optional+Computed (name_prefix idiom); documented import grammar is ROLENAME:POLICYNAME, both halves client-chosen"},
 	"aws_kms_alias":            {"name is Optional+Computed (name_prefix idiom); documented import grammar is the full alias/... name"},
+	"aws_iam_instance_profile": {"name is Optional+Computed (name_prefix idiom); documented import grammar is the instance profile name (registry-ratified, #40/#44/#26)"},
 
 	// --- docs tier: no identity schema in v6.58.0 ---
 	"aws_ecs_cluster": {"no identity schema in v6.58.0; documented import grammar is the cluster name, and the provider sets id to the ARN"},

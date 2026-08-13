@@ -437,6 +437,11 @@ var (
 		"aws_lambda_code_signing_config",
 		"aws_lambda_event_source_mapping",
 		"aws_lambda_function",
+		// Registry-ratified IAM and ECR batch (#40, #44, issue #26).
+		"aws_ecr_repository",
+		"aws_iam_instance_profile",
+		"aws_iam_service_linked_role",
+		"aws_iam_user",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -469,6 +474,13 @@ var (
 	// note against the first type to land here.
 	untaggableOutsideCuratedSurvey = []string{
 		"aws_lambda_layer_version",
+		// Registry-ratified IAM and ECR batch (#40, #44, issue #26): three
+		// singleton-per-account ECR types with no tags argument at all. See
+		// live/e2e/estates/iam-ecr/README.md, "Untaggable types", for why
+		// these cannot join live/LIMITATIONS.md's untaggable entry either.
+		"aws_ecr_registry_policy",
+		"aws_ecr_registry_scanning_configuration",
+		"aws_ecr_replication_configuration",
 	}
 )
 
@@ -875,6 +887,18 @@ func testSchemas() Schemas {
 		"aws_lambda_event_source_mapping": tagged("id", "uuid", "arn", "function_arn"),
 		"aws_lambda_function":             tagged("id", "arn", "function_name"),
 		"aws_lambda_layer_version":        untagged("id", "arn", "layer_arn", "layer_name", "version"),
+
+		// Registry-ratified IAM and ECR batch (#40, #44, issue #26). Taggable
+		// per the real provider's documented Argument Reference, except the
+		// three ECR registry-level singletons, whose Argument Reference names
+		// no tags block at all.
+		"aws_ecr_repository":                      tagged("id", "arn", "name", "registry_id", "repository_url"),
+		"aws_ecr_registry_policy":                 untagged("id", "registry_id", "policy"),
+		"aws_ecr_registry_scanning_configuration": untagged("id", "registry_id", "scan_type"),
+		"aws_ecr_replication_configuration":       untagged("id", "registry_id"),
+		"aws_iam_instance_profile":                tagged("id", "arn", "name", "role"),
+		"aws_iam_service_linked_role":             tagged("id", "arn", "name", "aws_service_name"),
+		"aws_iam_user":                            tagged("id", "arn", "name"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.

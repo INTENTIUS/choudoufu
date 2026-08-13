@@ -295,7 +295,7 @@ outcomes at all. They are named below.
 
 ## The Contract
 
-- **AWS only, 42 resource types, root module only.** The v0 admission table
+- **AWS only, 49 resource types, root module only.** The v0 admission table
   (`internal/live/lint/admission.go`) is the whole subset. It holds
   `aws_vpc`, `aws_subnet`, `aws_security_group`,
   `aws_vpc_security_group_ingress_rule`,
@@ -314,7 +314,11 @@ outcomes at all. They are named below.
   `aws_ssm_parameter`, `aws_dynamodb_table`, `aws_ecs_cluster`,
   `aws_sns_topic`, `aws_eip`, `aws_lambda_capacity_provider`,
   `aws_lambda_code_signing_config`, `aws_lambda_event_source_mapping`,
-  `aws_lambda_function`, and `aws_lambda_layer_version`. Nothing else, no
+  `aws_lambda_function`, `aws_lambda_layer_version`,
+  `aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
+  `aws_ecr_replication_configuration`, `aws_ecr_repository`,
+  `aws_iam_instance_profile`, `aws_iam_service_linked_role`, and
+  `aws_iam_user`. Nothing else, no
   other AWS type, no other provider. A `module` block calling into a child module is refused
   outright. The
   subset lint rejects every module call with "Child modules are not

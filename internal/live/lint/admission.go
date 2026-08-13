@@ -173,6 +173,25 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_lambda_event_source_mapping": {},
 	"aws_lambda_function":             {},
 	"aws_lambda_layer_version":        {},
+
+	// ---- Registry-ratified (#40, #44): second batch, IAM and ECR
+	// ---- (issue #26). Same evidence source and verification standard as
+	// ---- the first Lambda batch above; see internal/live/identity/table.go
+	// ---- for the per-type evidence and for the row-gen proposals this
+	// ---- batch rejected or deferred. Cohort estate:
+	// ---- live/e2e/estates/iam-ecr.
+	// tools/row-gen proposed 13 pastable rows across the two services
+	// (plus evidence-only and needs-hand-separator rows this batch never
+	// touches); 7 ratified here, 5 rejected, 1 deferred — see table.go.
+	// #26's two named types, aws_ecr_repository and aws_iam_user, are both
+	// in this batch.
+	"aws_ecr_registry_policy":                 {},
+	"aws_ecr_registry_scanning_configuration": {},
+	"aws_ecr_replication_configuration":       {},
+	"aws_ecr_repository":                      {},
+	"aws_iam_instance_profile":                {},
+	"aws_iam_service_linked_role":             {},
+	"aws_iam_user":                            {},
 }
 
 // admitted reports whether the given provider-local resource type may appear

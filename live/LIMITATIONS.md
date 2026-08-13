@@ -591,10 +591,8 @@ from any artifact, so this roster is curated
 | Type | Admitted today | Reason |
 |---|---|---|
 | `aws_db_instance` | no | RDS only works fully against floci when the docker socket is mounted into the emulator container, which this harness does not do (lex00/floci#28) |
-| `aws_ecr_repository` | no | floci's ECR emulation needs a docker daemon the current harness image does not carry (lex00/floci#23) |
 | `aws_iam_role` | yes (standing e2e residue) | floci's iam:GetRole omits Tags, so the role's own marker never reads back and every plan reports it unowned |
-| `aws_iam_user` | no | dropped from its wiring slice by the same floci IAM tag gap as aws_iam_role (lex00/floci#22) |
 | `aws_s3_bucket_policy` | yes (standing e2e residue) | downstream of aws_iam_role's residue: its policy document embeds the unowned role's ARN, so its own plan never settles |
 
-**Total.** 5 types.
+**Total.** 3 types.
 <!-- survey-gen:end residue-emulator -->

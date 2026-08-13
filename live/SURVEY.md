@@ -152,25 +152,32 @@ token per row.
 
 | Status | Meaning | Rows |
 |---|---|---|
-| `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | 42 |
+| `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | 49 |
 | `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 8 |
 | `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components | 0 |
 | `ops` | excluded by the rule, forwarded to the lifecycle layer | 3 |
-| `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 19 |
+| `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 16 |
 | `unknown` | path not determined | 0 |
 
 `wired`'s count is the admission table's global size, not a tally of this
-table's own rows: 38 of the 42 are rows below, classified and wired the way
-every batch before #40 was, and the other 5 are the first registry-ratified
-batch (#40, #44) — `aws_lambda_capacity_provider`,
-`aws_lambda_code_signing_config`, `aws_lambda_event_source_mapping`,
-`aws_lambda_layer_version`, plus `aws_lambda_function`, already a row below
-and reclassified `wired` in the same batch. Four of the five have no row in
-this table at all: they are outside the curated 68 this survey measures,
-reached by `live/registry.json` and `tools/row-gen` (#44) rather than by
-this file's own provider-schema path. Extending this roster and
-`live/survey.json` to the full registry-backed universe is #40's own
-follow-on work, not this batch's.
+table's own rows: 41 of the 49 are rows below, classified and wired the way
+every batch before #40 was or later reclassified from blocked-emulator by
+a registry-ratified batch, and 12 come from the two registry-ratified
+batches (#40, #44) so far. The first (Lambda) contributed
+`aws_lambda_capacity_provider`, `aws_lambda_code_signing_config`,
+`aws_lambda_event_source_mapping` and `aws_lambda_layer_version`, plus
+`aws_lambda_function`, already a row below and reclassified `wired` in
+that batch. The second (IAM and ECR, issue #26) contributed
+`aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
+`aws_ecr_replication_configuration` and `aws_iam_service_linked_role`,
+plus `aws_ecr_repository`, `aws_iam_instance_profile` and `aws_iam_user`,
+all three already rows below and reclassified `wired` in this batch. Eight
+of the twelve registry-ratified types have no row in this table at all:
+they are outside the curated 68 this survey measures, reached by
+`live/registry.json` and `tools/row-gen` (#44) rather than by this file's
+own provider-schema path. Extending this roster and `live/survey.json` to
+the full registry-backed universe is #40's and #54's own follow-on work,
+not either batch's.
 
 The `blocked-emulator` rows were found by the #19 and #20 wiring lanes, by
 probing each candidate end to end through the provider against the harness's
@@ -233,7 +240,7 @@ identity argument were derived like every other row's.
 | aws_ssm_parameter | client-named | wired | name | survey note; schema |
 | aws_dynamodb_table | client-named | wired | name | survey note; schema |
 | aws_ecs_cluster | client-named | wired | name; the provider sets id to the cluster ARN, so only name carries the import ID | roster fit; docs |
-| aws_iam_user | client-named | blocked-emulator | name; blocked: floci's iam:GetUser omits Tags, the GetRole gap family, so ownership can never read back (choudoufu#26) | survey note; schema |
+| aws_iam_user | client-named | wired | name; registry-ratified (#40, #44, choudoufu#26) rather than reached by this survey's own provider-schema path — floci's iam:GetUser now returns Tags on the pinned image, so the earlier blocked-emulator note (floci's iam:GetUser omits Tags, the GetRole gap family) no longer holds | survey note, registry; schema |
 | aws_lambda_function | client-named | wired | function_name; registry-ratified (#40, #44) rather than reached by this survey's own provider-schema path — floci's current image creates and destroys it cleanly, so the earlier blocked-emulator note (lex00/floci#26) no longer holds | survey note, registry; schema |
 | aws_lambda_permission | client-named | blocked-emulator | function_name + statement_id, optionally qualifier; blocked: needs a live parent function, which floci cannot create (lex00/floci#26) | survey note; schema |
 | aws_eks_cluster | client-named | blocked-emulator | name; blocked: floci cannot create EKS clusters (lex00/floci#27) | survey note; schema |
@@ -259,7 +266,7 @@ identity argument were derived like every other row's.
 | aws_s3_bucket_public_access_block | client-named | wired | bucket | roster fit; schema |
 | aws_s3_bucket_server_side_encryption_configuration | client-named | wired | bucket | roster fit; schema |
 | aws_s3_bucket_lifecycle_configuration | client-named | wired | bucket | roster fit; schema |
-| aws_iam_instance_profile | client-named | blocked-emulator | name; blocked: floci's iam:GetInstanceProfile omits Tags, the GetRole gap family, so the marker never reads back (probed 2026-08-12; choudoufu#26) | roster fit; schema |
+| aws_iam_instance_profile | client-named | wired | name; registry-ratified (#40, #44, choudoufu#26) rather than reached by this survey's own provider-schema path — floci's iam:GetInstanceProfile now returns Tags on the pinned image (probed live during ratification), so the earlier blocked-emulator note (probed 2026-08-12) no longer holds | roster fit, registry; schema |
 | aws_iam_role_policy | client-named | wired | role + name, both client-named, so concrete wherever the role is | roster fit; schema |
 | aws_iam_group | client-named | ready | name; no identity schema shipped, import ID documented as the group name | roster fit; docs |
 | aws_autoscaling_group | client-named | ready | name; tags are `tag` blocks rather than a `tags` argument, so the marker path is not open to it | roster fit; schema |
@@ -270,7 +277,7 @@ identity argument were derived like every other row's.
 | aws_db_parameter_group | client-named | blocked-emulator | name; no identity schema shipped, import ID documented as the group name; blocked: floci's rds:ListTagsForResource serves no tags back (probed 2026-08-12; choudoufu#26) | roster fit; docs |
 | aws_kms_alias | client-named | wired | name, the full `alias/...` string | roster fit; schema |
 | aws_ecs_service | client-named | blocked-emulator | cluster + name, the cluster itself client-named; blocked: floci's ecs:CreateService demands a task definition even for an EXTERNAL deployment controller, which real ECS does not (probed 2026-08-12; choudoufu#26) | roster fit; schema |
-| aws_ecr_repository | client-named | blocked-emulator | name; blocked: floci's ecr:CreateRepository dies starting the backing registry container (choudoufu#26) | roster fit; schema |
+| aws_ecr_repository | client-named | wired | name; registry-ratified (#40, #44, choudoufu#26) rather than reached by this survey's own provider-schema path — floci's ecr:CreateRepository no longer needs a Docker daemon on the pinned image, so the earlier blocked-emulator note no longer holds | roster fit, registry; schema |
 | aws_ecr_lifecycle_policy | client-named | blocked-emulator | repository (one policy per repository); blocked: needs a live parent repository, which floci cannot create (choudoufu#26) | roster fit; schema |
 | aws_eks_node_group | client-named | blocked-emulator | cluster_name + node_group_name; blocked: needs a live parent cluster, which floci cannot create (lex00/floci#27) | roster fit; schema |
 | aws_ssm_document | client-named | blocked-emulator | name; blocked: floci answers ssm:CreateDocument with UnsupportedOperation (probed 2026-08-12; choudoufu#26) | roster fit; schema |
