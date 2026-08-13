@@ -15,10 +15,18 @@ This cohort exercises every type this batch ratified into
 Gateway v1 and v2" section comment for the per-type evidence and the
 row-gen proposals this batch rejected or deferred.
 
+Extended by issue #68's fold-child batch to add `aws_api_gateway_integration`,
+`aws_api_gateway_integration_response`, `aws_api_gateway_method_response` and
+`aws_api_gateway_method_settings` — the four property-children the fourth
+batch above deferred pending a parent-derived admission mechanism for a
+declared property-child (see `internal/live/identity/table.go`'s
+"Fold-children (issue #68)" section comment, and the "Fold-children" section
+below).
+
 Regenerate with:
 
 ```
-go run ./tools/estate-gen -cohort apigateway -types aws_api_gateway_account,aws_api_gateway_api_key,aws_api_gateway_base_path_mapping,aws_api_gateway_client_certificate,aws_api_gateway_documentation_version,aws_api_gateway_domain_name,aws_api_gateway_domain_name_access_association,aws_api_gateway_gateway_response,aws_api_gateway_method,aws_api_gateway_model,aws_api_gateway_rest_api,aws_api_gateway_rest_api_policy,aws_api_gateway_stage,aws_api_gateway_usage_plan,aws_api_gateway_usage_plan_key,aws_api_gateway_vpc_link,aws_apigatewayv2_api,aws_apigatewayv2_domain_name,aws_apigatewayv2_routing_rule,aws_apigatewayv2_stage,aws_apigatewayv2_vpc_link -out live/e2e/estates/apigateway
+go run ./tools/estate-gen -cohort apigateway -types aws_api_gateway_account,aws_api_gateway_api_key,aws_api_gateway_base_path_mapping,aws_api_gateway_client_certificate,aws_api_gateway_documentation_version,aws_api_gateway_domain_name,aws_api_gateway_domain_name_access_association,aws_api_gateway_gateway_response,aws_api_gateway_integration,aws_api_gateway_integration_response,aws_api_gateway_method,aws_api_gateway_method_response,aws_api_gateway_method_settings,aws_api_gateway_model,aws_api_gateway_rest_api,aws_api_gateway_rest_api_policy,aws_api_gateway_stage,aws_api_gateway_usage_plan,aws_api_gateway_usage_plan_key,aws_api_gateway_vpc_link,aws_apigatewayv2_api,aws_apigatewayv2_domain_name,aws_apigatewayv2_routing_rule,aws_apigatewayv2_stage,aws_apigatewayv2_vpc_link -out live/e2e/estates/apigateway
 ```
 
 The explicit `-types` list is required here, not optional convenience: this
@@ -53,7 +61,11 @@ run blind.
 | `aws_api_gateway_domain_name.app` | coverage | none |
 | `aws_api_gateway_domain_name_access_association.app` | coverage | access_association_source_type is a fixed enum (validate: "Invalid String Enum Value", valid values: VPCE); domain_name_arn is validated as a well-formed ARN (validate: "Invalid ARN Value") - both need real-shaped values, not the generic placeholder |
 | `aws_api_gateway_gateway_response.app` | coverage | rest_api_id mis-wired the same way as aws_api_gateway_documentation_version above; response_type is a fixed enum the provider validates server-side (terraform validate does not catch "placeholder", but it is not one of the documented values), set to the provider docs' own example value |
+| `aws_api_gateway_integration.app` | coverage (issue #68) | rest_api_id/resource_id/http_method mis-wired or left as the generic placeholder the same way aws_api_gateway_method's were, for the same reason - corrected to the same REST API root resource and GET method aws_api_gateway_method.app already targets, so this integration is the method's own; type is a fixed enum, set to MOCK |
+| `aws_api_gateway_integration_response.app` | coverage (issue #68) | rest_api_id/resource_id/http_method mis-wired or left as the generic placeholder the same way aws_api_gateway_integration's were above; status_code set to 200, matching aws_api_gateway_method_response.app below |
 | `aws_api_gateway_method.app` | coverage | rest_api_id mis-wired the same way as aws_api_gateway_documentation_version above; resource_id has no identity-table candidate at all because aws_api_gateway_resource is not admitted this batch (rejected), and that type cannot be added as supporting infrastructure either since every fixture resource has to be an admitted type - so this method attaches to the REST API's own root_resource_id instead of a child resource |
+| `aws_api_gateway_method_response.app` | coverage (issue #68) | rest_api_id/resource_id/http_method/status_code, the same corrections as aws_api_gateway_integration_response above |
+| `aws_api_gateway_method_settings.app` | coverage (issue #68) | rest_api_id mis-wired the same way as aws_api_gateway_documentation_version above; stage_name has no identity-table candidate to auto-wire from (aws_api_gateway_stage's own identity is a two-component pair, not a single self-named argument), wired to the stage this cohort renders; method_path set to the */* wildcard |
 | `aws_api_gateway_model.app` | coverage | rest_api_id mis-wired the same way as aws_api_gateway_documentation_version above; content_type and schema left as the generic placeholder would not be valid JSON, set to a minimal real value |
 | `aws_api_gateway_rest_api.app` | coverage | none |
 | `aws_api_gateway_rest_api_policy.app` | coverage | schema requires "policy" as a plain string, but the provider validates it is well-formed JSON (validate: "\"policy\" contains an invalid JSON"), the same shape as aws_s3_bucket_policy above |
@@ -77,7 +89,11 @@ run blind.
 - `aws_api_gateway_domain_name`
 - `aws_api_gateway_domain_name_access_association`
 - `aws_api_gateway_gateway_response`
+- `aws_api_gateway_integration` (issue #68)
+- `aws_api_gateway_integration_response` (issue #68)
 - `aws_api_gateway_method`
+- `aws_api_gateway_method_response` (issue #68)
+- `aws_api_gateway_method_settings` (issue #68)
 - `aws_api_gateway_model`
 - `aws_api_gateway_rest_api`
 - `aws_api_gateway_rest_api_policy`
@@ -113,24 +129,57 @@ source, or `live/survey-full.json`'s identity schema for each):
   provider's own source rather than inferred from its docs: each
   `resourceXCreate` calls `d.SetId(aws.ToString(output.XId))`, a value the
   API mints independently of any argument in configuration.
-- **Deferred as method/response property-children**, per `live/mapping.json`'s
-  fold (no independent `cfn_type` of their own — row-gen's own output marks
-  each `(property-child of AWS::ApiGateway::Method)` or `...Stage`, "no
-  pastable row"), not for any identity weakness — each one's identity is in
-  fact fully composable from real configuration arguments alone, confirmed
-  the same way `aws_api_gateway_method` itself was (which *is* ratified: it
-  is its own CFN resource, merely with a composite `primaryIdentifier`, not a
-  fold): `aws_api_gateway_integration`, `aws_api_gateway_integration_response`,
-  `aws_api_gateway_method_response` (fold into `AWS::ApiGateway::Method`),
-  `aws_api_gateway_method_settings` (fold into `AWS::ApiGateway::Stage`).
-  Ratifying a property-child needs a parent-derived admission mechanism this
-  table does not have yet — the same gap the APS service's
-  `aws_prometheus_alert_manager_definition` and its siblings are waiting on
-  upstream. `aws_api_gateway_rest_api_policy` is *not* in this group despite
+- **Ratified as of issue #68** (previously deferred as method/response
+  property-children pending a parent-derived admission mechanism for a
+  declared property-child): `aws_api_gateway_integration`,
+  `aws_api_gateway_integration_response`, `aws_api_gateway_method_response`
+  (fold into `AWS::ApiGateway::Method`), `aws_api_gateway_method_settings`
+  (fold into `AWS::ApiGateway::Stage`) — see the "Fold-children" section
+  below. `aws_api_gateway_rest_api_policy` was never in this group despite
   also being a fold in `live/mapping.json`: unlike the four above, its
   identity is a single argument (`rest_api_id`) with no separator to choose,
   the same named-singleton-child shape as `aws_s3_bucket_policy` and
-  `aws_sns_topic_policy`, so it ratifies on that existing standard instead.
+  `aws_sns_topic_policy`, so it ratified on that existing standard instead,
+  in the original batch.
+
+## Fold-children (issue #68)
+
+`aws_api_gateway_integration`, `aws_api_gateway_integration_response` and
+`aws_api_gateway_method_response` duplicate `aws_api_gateway_method`'s own
+composite identity (`rest_api_id`/`resource_id`/`http_method`) verbatim, the
+two response types adding their own `status_code`;
+`aws_api_gateway_method_settings` duplicates `aws_api_gateway_stage`'s own
+identity (`rest_api_id`/`stage_name`), adding its own `method_path`. This is
+admission path 3 (parent-derived) worked exactly the way
+`aws_api_gateway_method` itself already is — see
+`internal/live/identity/table.go`'s "Fold-children (issue #68)" section
+comment for the full per-component citation.
+
+All four are untaggable (confirmed against each type's Argument Reference),
+so none can carry a marker of its own. Removal-sweep coverage differs by
+shape:
+
+- `aws_api_gateway_integration` needs no argument beyond what its parent
+  (`aws_api_gateway_method`) already supplies, so it is covered by the new
+  `identity.FoldParentTypes`/`discovery.foldChildReadSweep` extension
+  (issue #68) — report-only, the same "unverified against a real not-found
+  response" standard `aws_sns_topic_policy` and `aws_sqs_queue_policy`
+  already carry. `TestFoldChildReadSweepAgainstFloci`
+  (`internal/live/discovery/fold_read_live_test.go`) is this shape's gated
+  live proof: declare, plan (via `Discover`), apply, read back, re-discover
+  with the block still declared (no change), delete the block, re-discover
+  (a report-only finding, not a removal, when the emulator's List Resource
+  protocol can serve it — see "Verifying by hand" below for a floci-specific
+  gap in that one protocol, distinct from the identity itself, that this
+  test documents and independently verifies around rather than papers over).
+- `aws_api_gateway_integration_response`, `aws_api_gateway_method_response`
+  and `aws_api_gateway_method_settings` each need one further argument
+  (`status_code`, `method_path`) a parent read cannot recover once the
+  child's own block is gone, so removal-sweep coverage for these three
+  stays the same accepted gap `live/LIMITATIONS.md`'s "Untaggable types
+  cannot be removed by the sweep" entry already carries for
+  `aws_api_gateway_method` itself. Declared-instance resolution (plan,
+  apply, read-back) is unaffected either way.
 
 ## Untaggable types
 
@@ -151,23 +200,41 @@ landed), so all nine plus one fold straight into that doc's derived span via
 `go run ./tools/survey-gen -render` — see that command's diff to
 `live/LIMITATIONS.md` in this batch's commit.
 
+Issue #68 adds four more untaggable ApiGateway types the same way:
+`aws_api_gateway_integration`, `aws_api_gateway_integration_response`,
+`aws_api_gateway_method_response` and `aws_api_gateway_method_settings` —
+thirteen of this cohort's twenty ApiGateway types in total. See the
+"Fold-children" section above for which of the four get parent-read
+removal-sweep coverage regardless (one, report-only) and which stay the
+same accepted sweep gap as `aws_api_gateway_method` itself (three).
+
 ## Files
 
 | File | Contents |
 |---|---|
 | `versions.tf` | `terraform`/`provider "aws"` blocks, identical in shape to `live/e2e/estate/versions.tf`. |
 | `locals.tf` | `estate_tag` — `"apigateway-cohort"`, distinct from every other cohort's own tag. |
-| `apigateway.tf` | The 21 ratified types, entirely `estate-gen` output with `typeOverrides` applied — see the provenance table above. No supporting resources: `aws_api_gateway_method.app` attaches to `aws_api_gateway_rest_api.app`'s own `root_resource_id` rather than needing an `aws_api_gateway_resource` (rejected above, and unusable as supporting infrastructure anyway — every fixture resource, coverage or supporting, has to be an admitted type). |
+| `apigateway.tf` | The 25 ratified types (21 from the original batch, 4 fold-children from issue #68), entirely `estate-gen` output with `typeOverrides` applied — see the provenance table above. No supporting resources: `aws_api_gateway_method.app` attaches to `aws_api_gateway_rest_api.app`'s own `root_resource_id` rather than needing an `aws_api_gateway_resource` (rejected above, and unusable as supporting infrastructure anyway — every fixture resource, coverage or supporting, has to be an admitted type). The four fold-children key off the same root resource and `GET` method for the same reason. |
 
 ## Gating
 
-Nothing here runs against a live or emulated cloud in the automated suite.
-`go test ./internal/live/lint/... ./internal/live/identity/...` picks this
-directory up through `internal/live/flocitest.FixtureDirs` (#48's union pin)
-and checks it by static HCL parse — `TestAdmissionTableCoversEstate` and
+This cohort's own static fixture is not applied against a live or emulated
+cloud in the automated suite. `go test ./internal/live/lint/...
+./internal/live/identity/...` picks this directory up through
+`internal/live/flocitest.FixtureDirs` (#48's union pin) and checks it by
+static HCL parse — `TestAdmissionTableCoversEstate` and
 `TestTableCoversFixtureTypes` require `admittedTypesV0` and `DefaultTable` to
 cover exactly the union of `live/e2e/estate/` and every `estates/*` cohort,
 this one included.
+
+Issue #68's fold-child shape does get a gated live proof, against its own
+minimal fixture rather than this whole cohort (the same choice
+`internal/live/discovery/parent_read_live_test.go` made for
+`aws_s3_bucket_policy`, for the same reason: a REST API's own create-path
+waiter hang, noted below, makes a whole-cohort `terraform apply` unusable as
+a test fixture regardless):
+
+	TF_FLOCI_TEST=1 go test ./internal/live/discovery/ -run TestFoldChildReadSweepAgainstFloci -v
 
 `terraform validate` passes against the real provider release (6.58.0) this
 fixture pins, with the `typeOverrides` corrections above applied.
@@ -256,6 +323,41 @@ than its health check advertises, the same split every earlier batch found:
   above rules out on this image. The identity itself (a single server-minted
   ARN, confirmed computed rather than configurable via the provider's own
   Attribute Reference) does not depend on the emulator either way.
+
+- **`aws_api_gateway_integration`, `aws_api_gateway_integration_response`,
+  `aws_api_gateway_method_response`** (issue #68): the classic per-object
+  calls all round-trip cleanly against floci by hand — `PutMethod`,
+  `PutIntegration`/`GetIntegration`, `PutMethodResponse`/`GetMethodResponse`
+  and `PutIntegrationResponse`/`GetIntegrationResponse` all succeed with the
+  expected content, confirming the identity end to end (not just via the
+  Argument Reference), and `TestFoldChildReadSweepAgainstFloci`'s "declared"
+  phases (plan, apply-already-live, read-back through the real provider,
+  plan again with no drift) exercise `aws_api_gateway_integration` this way,
+  live. The *List Resource* protocol these three types' provider
+  implementations use for `internal/live/discovery`'s own fold-child
+  removal-sweep leg (`foldChildReadSweep`, issue #68) is a different code
+  path and does not round-trip against this image: confirmed by hand with
+  `terraform query` against a list block scoped the same way
+  `readFoldChild` scopes it (zero results for all three, against a
+  live-confirmed object each time), and traced to `GetResources`'s `embed`
+  parameter — what the provider's List implementation for this whole family
+  needs to enumerate a resource's methods in one call — coming back with no
+  `resourceMethods` key at all on this emulator. Not a general List
+  Resource gap: `aws_api_gateway_rest_api`'s own list finds the same REST
+  API correctly on the same image. `TestFoldChildReadSweepAgainstFloci`
+  documents this precisely (and independently confirms the live object is
+  still there via a direct `GetIntegration`, so a working list has a real
+  orphan to find) rather than skip the assertion silently; the leg's own
+  logic is proven separately, against a fake provider that does answer the
+  scoped call, in `fold_read_test.go`.
+- **`aws_api_gateway_method_settings`**: `CreateStage`/`GetStage` work, but
+  `UpdateStage`'s patch-operations path for a method-level setting
+  (`/{method_path}/{setting}`) does not persist: a subsequent `GetStage`
+  shows no `methodSettings` at all. A floci gap, not evidence against the
+  identity (confirmed instead against the provider's Argument Reference and
+  its documented import command) — this type is untested end to end against
+  the pinned image for that reason, the same standard the domain name and
+  usage plan gaps above already hold to.
 
 None of the gaps above changes which types this batch ratifies: identity and
 enumeration are properties of the provider and the registry, not of one

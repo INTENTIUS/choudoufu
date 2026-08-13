@@ -26,8 +26,24 @@ type TypeIdentity struct {
 	// ServerAssigned, unused otherwise.
 	Reason string
 
+	// RecordBacked is true when this type's identity is not observed from
+	// the cloud at all: the type is one of GitHub issue #73's
+	// RECORD_ADMITTED logical types (internal/live/lint), whose whole
+	// existence is a persisted micro-state record. Instances of such a
+	// type would always classify [ClassRecordBacked], whatever their
+	// arguments say, the same way ServerAssigned instances always classify
+	// ClassNeedsDiscovery above.
+	//
+	// Staged and currently inert: no entry in [DefaultTable] sets this
+	// field yet, because a RECORD_ADMITTED type is refused by lint before
+	// it ever reaches this table, and [SynthesizeTypeIdentity] never
+	// produces it either. It exists so the projection work #73 stages next
+	// - hydrating a record-backed instance without a cloud read - is an
+	// additive change to this struct's callers rather than a breaking one.
+	RecordBacked bool
+
 	// Components build the import identity by concatenation, in order.
-	// Required unless ServerAssigned.
+	// Required unless ServerAssigned or RecordBacked.
 	Components []Component
 
 	// ImportSyntax documents the provider's import-ID grammar for this
@@ -3927,6 +3943,163 @@ var DefaultTable = buildTable(
 			attr("allocation_id"),
 		},
 		ImportSyntax:  "NATGATEWAYID,ALLOCATIONID",
+		IdentityAttrs: nil,
+	},
+
+	// ---- Fold-children (issue #68): declared property-children of an
+	// ---- admitted parent whose whole identity is the parent's own plus,
+	// ---- for three of them, one further argument of the child's own ------
+	//
+	// live/mapping.json classifies each of these seven as "fold": a TF type
+	// with no cfn_type of its own, decomposed out of a CFN parent resource
+	// that models it as a nested property rather than a resource of its own
+	// (tools/mapping-gen/overlay.go's own doc comment names the shape:
+	// "Terraform decomposes some resources finer than CloudFormation
+	// does"). Two sub-shapes ratify here:
+	//
+	//   - The API Gateway four duplicate an already-admitted parent's own
+	//     composite Components verbatim: aws_api_gateway_integration reads
+	//     exactly the rest_api_id/resource_id/http_method triple
+	//     aws_api_gateway_method's own row above already builds, and
+	//     aws_api_gateway_method_settings reads the rest_api_id/stage_name
+	//     pair aws_api_gateway_stage's own row already builds. This is
+	//     admission path 3 (parent-derived, live/doc.go) worked exactly the
+	//     way aws_api_gateway_method itself already is above - nothing new
+	//     for declared-instance resolution - and it ratifies on the same
+	//     standard of evidence table.go's own "fourth batch, API Gateway"
+	//     section comment already cited when it deferred these four: every
+	//     component confirmed against live/survey-full.json's identity
+	//     schema, except aws_api_gateway_method_settings (confirmed instead
+	//     against live/import-grammar.json's scraped Import section, that
+	//     type predating the provider's identity-schema mechanism).
+	//   - The APS/Prometheus three key on a single parent argument
+	//     (workspace_id, scraper_id) and nothing else of their own - the
+	//     same named-singleton-child shape aws_s3_bucket_policy and
+	//     aws_sns_topic_policy already ratify above, against a new parent
+	//     family. aws_prometheus_workspace and aws_prometheus_scraper admit
+	//     alongside them below, neither having had a row before this batch.
+	//
+	// Removal (issue #60's parent-read sweep,
+	// internal/live/discovery/parent_read.go): all seven are untaggable,
+	// confirmed against each type's own Argument Reference (none has a tags
+	// argument), so none can carry an ownership marker and every one of them
+	// depends on reading through a parent to be swept at all.
+	//
+	//   - The APS three fit identity.SingleParentComponent unchanged - one
+	//     attribute-supplying component, entirely the parent's - so the
+	//     existing #60 leg covers them with no new discovery code once
+	//     aws_prometheus_workspace and aws_prometheus_scraper are themselves
+	//     taggable admitted parents. Report-only, the same "unverified,
+	//     stays report-only" standard parent_read.go's parentReadRemovable
+	//     comment already holds aws_sns_topic_policy and
+	//     aws_sqs_queue_policy to - a Describe* "no configuration" response
+	//     for either has not been confirmed unambiguous here either.
+	//   - aws_api_gateway_integration's identity has three components, so
+	//     identity.SingleParentComponent's own "exactly one" test excludes
+	//     it, but it needs no argument beyond what its parent
+	//     (aws_api_gateway_method) already supplies: rendering the method's
+	//     own identity - itself parent-derived through
+	//     aws_api_gateway_rest_api, not directly taggable, so #60's original
+	//     leg cannot anchor on it either - settles the integration's
+	//     identity completely too. identity.FoldParentTypes and
+	//     discovery's foldChildReadSweep are the small, explicitly-curated
+	//     extension this batch adds for exactly this shape (see both doc
+	//     comments) - report-only, the same standard as the APS three.
+	//   - aws_api_gateway_integration_response, aws_api_gateway_method_response
+	//     and aws_api_gateway_method_settings each need one further argument
+	//     (status_code, method_path) that a parent read cannot supply once
+	//     the child's own block is gone, so removal-sweep coverage for
+	//     these three stays the same accepted gap live/LIMITATIONS.md's
+	//     "Untaggable types cannot be removed by the sweep" entry already
+	//     carries for aws_api_gateway_method itself and for aws_route.
+	//     Declared-instance resolution (plan, apply, read-back) is
+	//     unaffected either way, since that has never depended on the
+	//     sweep.
+
+	TypeIdentity{
+		Type: "aws_api_gateway_integration",
+		Components: []Component{
+			attr("rest_api_id"), sep("/"), attr("resource_id"), sep("/"), attr("http_method"),
+		},
+		ImportSyntax: "REST-API-ID/RESOURCE-ID/HTTP-METHOD",
+		// "This resource exports no additional attributes" (provider docs);
+		// nothing may derive another resource's identity from it.
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_api_gateway_integration_response",
+		Components: []Component{
+			attr("rest_api_id"), sep("/"), attr("resource_id"), sep("/"), attr("http_method"), sep("/"), attr("status_code"),
+		},
+		ImportSyntax: "REST-API-ID/RESOURCE-ID/HTTP-METHOD/STATUS-CODE",
+		// The child's own status_code beyond the method's own triple: not
+		// recoverable from a read of the parent alone, see the section
+		// comment above.
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_api_gateway_method_response",
+		Components: []Component{
+			attr("rest_api_id"), sep("/"), attr("resource_id"), sep("/"), attr("http_method"), sep("/"), attr("status_code"),
+		},
+		ImportSyntax:  "REST-API-ID/RESOURCE-ID/HTTP-METHOD/STATUS-CODE",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// Fold parent is aws_api_gateway_stage (rest_api_id/stage_name,
+		// confirmed against live/survey-full.json's identity schema for
+		// that type above), plus method_path, this type's own argument -
+		// confirmed against live/import-grammar.json's scraped Import
+		// section (composed_of_arguments=true,
+		// arguments=["method_path","rest_api_id","stage_name"]), this type
+		// predating the provider's identity-schema mechanism.
+		Type: "aws_api_gateway_method_settings",
+		Components: []Component{
+			attr("rest_api_id"), sep("/"), attr("stage_name"), sep("/"), attr("method_path"),
+		},
+		ImportSyntax:  "REST-API-ID/STAGE-NAME/METHOD-PATH",
+		IdentityAttrs: nil,
+	},
+
+	serverAssigned("aws_prometheus_workspace",
+		"AMP mints the workspace's own id (ws-...) at create time; row-gen's registry-derived guess (the read-only Arn field) is wrong the same way several earlier batches' rejections were (aws_lambda_alias, aws_iam_policy) - confirmed against the provider's documented import command (terraform import aws_prometheus_workspace.demo ws-C6DCB907-F2D7-4D96-957B-66691F865D8B) and its own source (internal/service/amp/workspace.go's Create path uses schema.ImportStatePassthroughContext on d.Id(), never on the separately-exported arn attribute). No configuration argument names it: alias is an optional, non-unique display name the provider does not import by.",
+		"WORKSPACEID", "id"),
+	serverAssigned("aws_prometheus_scraper",
+		"AMP mints the scraper's own id (s-...) at create time; the same registry-Arn mismatch as the workspace above - confirmed against the provider's documented import command (terraform import aws_prometheus_scraper.example s-b6f487db-4761-4930-9215-e9d588a7efe2) and its generated plugin-framework identity schema, which names the scraper's own id rather than the separately-exported arn.",
+		"SCRAPERID", "id"),
+
+	TypeIdentity{
+		// Named-singleton child of the workspace, the same shape as
+		// aws_s3_bucket_policy and aws_sns_topic_policy above: AMP allows at
+		// most one alert manager definition per workspace, and the
+		// documented import id is the workspace's own id verbatim
+		// (terraform import aws_prometheus_alert_manager_definition.demo
+		// ws-C6DCB907-F2D7-4D96-957B-66691F865D8B). The provider exports no
+		// further attributes for this type.
+		Type:          "aws_prometheus_alert_manager_definition",
+		Components:    []Component{attr("workspace_id")},
+		ImportSyntax:  "WORKSPACEID",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// Same shape as the alert manager definition just above, confirmed
+		// against the provider's own DescribeQueryLoggingConfiguration
+		// operation (not the older, unrelated DescribeLoggingConfiguration)
+		// and its documented import (the workspace id, verbatim).
+		Type:          "aws_prometheus_query_logging_configuration",
+		Components:    []Component{attr("workspace_id")},
+		ImportSyntax:  "WORKSPACEID",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// Named-singleton child of the scraper rather than the workspace:
+		// AMP allows at most one logging configuration per scraper, imported
+		// by the scraper's own id verbatim (terraform import
+		// aws_prometheus_scraper_logging_configuration.example
+		// s-b6f487db-4761-4930-9215-e9d588a7efe2).
+		Type:          "aws_prometheus_scraper_logging_configuration",
+		Components:    []Component{attr("scraper_id")},
+		ImportSyntax:  "SCRAPERID",
 		IdentityAttrs: nil,
 	},
 

@@ -91,13 +91,17 @@ func TestDiscoverCrossTypeMarkerOnUndeclaredAddress(t *testing.T) {
 	}
 }
 
-// TestDiscoverModulePathMarkerIsMalformed: a marker naming an address inside
-// a child module. Stateless mode v0 manages the root module only, so such a
-// marker names nothing this run can bind or plan - and it used to be dropped
-// silently by the same missing check.
+// TestDiscoverModulePathMarkerIsMalformed is
+// TestDiscoverCrossTypeMarkerIsMalformed's module-qualified analogue: a
+// marker whose module prefix decodes fine (59c, issue #59 phase 3 - a keyed
+// module step is no longer refused outright the way it was through 59b) but
+// whose type segment names a different type than the live resource it is
+// written on. A marker names the resource it is written on, module prefix or
+// not, so this is still malformed rather than bound to the address it
+// borrowed.
 func TestDiscoverModulePathMarkerIsMalformed(t *testing.T) {
 	cloud := newFakeCloud()
-	cloud.own("aws_subnet", "subnet-in-a-module", `module.net:a.aws_subnet.this`)
+	cloud.own("aws_subnet", "subnet-in-a-module", `module.net:a.aws_vpc.main`)
 
 	res, diags := discoverFixture(t, cloud, Request{})
 	if !diags.HasErrors() {

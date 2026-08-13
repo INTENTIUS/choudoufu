@@ -214,7 +214,13 @@ change in the number of live instances mints or retires slots.
   `tofu-address` at once is also a named error. The marker admission path
   assumes at most one live resource per address per estate, and a
   collision means something upstream (a manual tag edit, a botched
-  `live-mv`) needs a human to resolve it.
+  `live-mv`) needs a human to resolve it. This holds regardless of region
+  or provider configuration: an address is unique estate-wide, not
+  estate-wide-per-region, so two live resources in two different regions
+  both carrying one estate's marker for one address are the same named
+  collision as two in one region, not two legitimate resources that happen
+  to sit in different places. A multi-provider estate (issue #69) reports
+  it the same way, naming every region involved.
 
 ## The rename rule
 

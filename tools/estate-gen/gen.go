@@ -77,8 +77,46 @@ type generator struct {
 	// the module call wraps it - "module.wrapped.aws_eip.app", not
 	// "aws_eip.app" - rather than one the stamping pass would immediately
 	// reject as a conflict on the first plan. Empty for an unwrapped run,
-	// which is every run before issue #59, 59b.
+	// which is every run before issue #59, 59b. Unused when moduleKeyVar is
+	// set (see below): a keyed module's prefix is not a fixed string.
 	modulePrefix string
+
+	// moduleKeyVar is the name of the variable a -module-wrap -module-keys
+	// run's wrapped module declares to receive its own module instance's
+	// for_each key (issue #59, 59c) - "key" for every run today, but named
+	// via this field rather than a hardcoded literal at the one place
+	// [render] builds the tofu-address expression, so the two stay in sync
+	// even if a future caller wants a different name. Empty for every run
+	// before 59c and for an unkeyed -module-wrap run: [render] falls back
+	// to the plain literal address exactly as it always has.
+	//
+	// A keyed module's instances share one HCL body for the wrapped
+	// resource's tags argument (there is exactly one resource block on
+	// disk, expanded N times by the module call's own for_each), so the
+	// tofu-address this generator writes has to be an expression that
+	// varies per real instance rather than a fixed string - the same
+	// reason a resource's own for_each writes count.index or each.key into
+	// its own tofu-address. A module call has no each.key of its own
+	// visible inside the module it calls, though - OpenTofu does not
+	// implicitly pass one - so the wrapped module declares a variable and
+	// the call passes each.key into it explicitly
+	// ([moduleWrapKeyedMainTF]/[wrappedVariablesTF]), the ordinary idiom
+	// for any value that must vary per module instance.
+	moduleKeyVar string
+}
+
+// tofuAddressLiteral is the tofu-address value [render] writes into a
+// taggable resource's tags: a plain quoted literal for an unwrapped or
+// statically-wrapped run, and - when moduleKeyVar is set (59c, issue #59
+// phase 3, a keyed -module-wrap run) - an interpolated template that reads
+// the instance's own key from that variable, so one shared resource block
+// produces a distinct, correct tofu-address for each of the module's
+// instances at real apply time.
+func (g *generator) tofuAddressLiteral(addr resourceAddr) string {
+	if g.moduleKeyVar == "" {
+		return fmt.Sprintf("%q", g.modulePrefix+addr.String())
+	}
+	return fmt.Sprintf(`"module.%s[\"${var.%s}\"].%s"`, wrappedModuleDir, g.moduleKeyVar, addr.String())
 }
 
 // iamRoleRefExpr is the one curated cross-type alias this generator knows
@@ -245,8 +283,8 @@ func (g *generator) render(p planned) (string, []string) {
 	if taggable(block) {
 		rBody.SetAttributeRaw("tags", exprTokens(fmt.Sprintf(`{
     tofu-estate  = local.estate_tag
-    tofu-address = %q
-  }`, g.modulePrefix+p.Addr.String())))
+    tofu-address = %s
+  }`, g.tofuAddressLiteral(p.Addr))))
 	}
 
 	comment := g.comment(p, overrides)

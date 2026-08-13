@@ -95,6 +95,8 @@ func renderProposal(p proposal) string {
 		fmt.Fprintf(&b, "## %s -> %s [proposed: client-named]\n", p.TFType, p.CFNType)
 	case bucketNeedsHandSeparator:
 		fmt.Fprintf(&b, "## %s -> %s [needs hand separator]\n", p.TFType, p.CFNType)
+	case bucketFoldChild:
+		fmt.Fprintf(&b, "## %s -> (property-child of %s) [fold-child: parent %s]\n", p.TFType, p.FoldParent, p.ParentTFType)
 	case bucketEvidenceOnly:
 		if p.FoldParent != "" {
 			fmt.Fprintf(&b, "## %s -> (property-child of %s) [evidence-only]\n", p.TFType, p.FoldParent)
@@ -133,6 +135,8 @@ func renderProposal(p proposal) string {
 		b.WriteString(renderClientNamedEntry(p))
 	case bucketNeedsHandSeparator:
 		b.WriteString("no pastable row: the composite separator is not registry evidence; a human chooses it.\n")
+	case bucketFoldChild:
+		b.WriteString("no pastable row: the fold-child admission path exists (issue #68), but the child's own Components - the parent's tuple, plus any further argument (e.g. status_code) the parent alone does not supply - still need a human's separator and shape choice, the same standard internal/live/identity/table.go's \"Fold-children (issue #68)\" section comment holds every entry to.\n")
 	case bucketEvidenceOnly:
 		b.WriteString("no pastable row.\n")
 	}
@@ -191,21 +195,22 @@ func renderClientNamedEntry(p proposal) string {
 `, p.TFType, p.ArgName, importSyntax, p.ArgName)
 }
 
-// summaryCounts is the acceptance criterion's headline: the four bucket
-// totals over the whole mapped set.
+// summaryCounts is the acceptance criterion's headline: the bucket totals
+// over the whole mapped set.
 func summaryCounts(proposals []proposal) string {
 	counts := tally(proposals)
 	return fmt.Sprintf(
-		"summary (mapped set: %d types)\n  proposed server-assigned:  %d\n  proposed client-named:     %d\n  needs hand separator:      %d\n  evidence-only:             %d\n",
-		len(proposals), counts.ServerAssigned, counts.ClientNamed, counts.NeedsHandSeparator, counts.EvidenceOnly)
+		"summary (mapped set: %d types)\n  proposed server-assigned:  %d\n  proposed client-named:     %d\n  needs hand separator:      %d\n  fold-child (issue #68):    %d\n  evidence-only:             %d\n",
+		len(proposals), counts.ServerAssigned, counts.ClientNamed, counts.NeedsHandSeparator, counts.FoldChild, counts.EvidenceOnly)
 }
 
-// summary is the four acceptance counts, shared by main.go's stderr line
-// and the tests so neither has to re-derive the switch below.
+// summary is the acceptance counts, shared by main.go's stderr line and the
+// tests so neither has to re-derive the switch below.
 type summary struct {
 	ServerAssigned     int
 	ClientNamed        int
 	NeedsHandSeparator int
+	FoldChild          int
 	EvidenceOnly       int
 }
 
@@ -219,6 +224,8 @@ func tally(proposals []proposal) summary {
 			s.ClientNamed++
 		case bucketNeedsHandSeparator:
 			s.NeedsHandSeparator++
+		case bucketFoldChild:
+			s.FoldChild++
 		case bucketEvidenceOnly:
 			s.EvidenceOnly++
 		}

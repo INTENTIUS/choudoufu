@@ -23,6 +23,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/registry"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -118,6 +119,42 @@ type Request struct {
 	// sets it, or sets it with Tagging or Roster left nil, gets the pre-#51
 	// per-type sweep unchanged.
 	TaggingSweep bool
+
+	// Policy is GitHub issue #67's resolved ownership policy. Nil means no
+	// policy block at all (or one that set nothing this package reads),
+	// which resolves to [policy.DefaultVerb] for every quadrant and leaves
+	// this pass's behavior exactly as it was before Policy existed. Set,
+	// it governs the undeclared_tagged quadrant: which of the removals
+	// [classifyOrphans] and [parentReadSweep] proposed are actually kept as
+	// destroys, in [applyOrphanPolicy].
+	Policy *policy.Policy
+
+	// ScopeProvider narrows which of Resolutions this pass treats as
+	// "waiting to be found" - both the needs-discovery config-driven scan
+	// and the parent-read leg - to the ones whose resource block uses this
+	// provider configuration. It exists for issue #69's multi-provider
+	// sweep ([Merge], run by internal/command/live_plan.go's
+	// statelessDiscover once per distinct provider configuration among an
+	// estate's managed resources): a pass must never bind a needs-discovery
+	// instance, or read a parent-derived child, through the wrong account.
+	//
+	// It deliberately does NOT narrow what counts as "already declared" for
+	// [declared.declares] - the check that keeps a live, client-named
+	// resource matching another pass's declared address from being
+	// misclassified as an orphan. That check stays global, over every
+	// resolution in Resolutions regardless of provider, because a type like
+	// aws_s3_bucket whose list operation is account-global (not
+	// region-scoped - see testdata/alias-e2e/main.tf's comment) will hand
+	// every pass every account's bucket, including ones declared under a
+	// different provider configuration; without whole-config knowledge of
+	// what is declared, a pass would misread another provider's own
+	// resource as undeclared and propose destroying it out from under the
+	// pass that actually owns it.
+	//
+	// The zero value means no scoping: every resolution in Resolutions is
+	// in scope, which is every existing caller's behavior and what keeps a
+	// single-provider Discover call exactly as it always was.
+	ScopeProvider addrs.AbsProviderConfig
 
 	// ---------------------------------------------------------------------
 	// Snapshot-guided discovery (issue #64's second leg)
@@ -219,7 +256,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		))
 	}
 
-	decl, declDiags := declaredInstances(req)
+	decl, declDiags := declaredInstances(ctx, req)
 	diags = diags.Append(declDiags)
 	if declDiags.HasErrors() {
 		return res, diags
@@ -275,7 +312,17 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	// only settled once binding and orphan classification have run.
 	if req.Sweep {
 		diags = diags.Append(parentReadSweep(ctx, req, schemas, res))
+		// The fold-child leg (issue #68) runs right after: same res.Resolutions
+		// vantage point, generalized to a parent that may itself be
+		// untaggable and composite rather than concrete. See
+		// internal/live/discovery/fold_read.go's package doc comment.
+		diags = diags.Append(foldChildReadSweep(ctx, req, schemas, res))
 	}
+
+	// Policy narrows the undeclared_tagged quadrant last, once every removal
+	// classifyOrphans and parentReadSweep would otherwise propose is
+	// settled: see [applyOrphanPolicy].
+	applyOrphanPolicy(req, res)
 
 	res.sortEverything()
 	return res, diags
@@ -430,9 +477,30 @@ func (d *declared) typeNames() []string {
 	return out
 }
 
+// inScope reports whether a resource block is this pass's business: every
+// block, when scope is the zero value (every existing caller, unchanged),
+// or only the blocks using that exact provider configuration when it is
+// set (issue #69's multi-provider sweep - see [Request.ScopeProvider]'s own
+// doc comment for what this is and is not used to restrict). modPath is the
+// static module the block itself is declared in, the same module-qualified
+// shape [Request.ScopeProvider] and internal/command/live_plan.go's
+// providerConfigAddr use, so a resource inside a child module scopes
+// correctly rather than being compared as if it were always in the root.
+func inScope(scope addrs.AbsProviderConfig, rc *configs.Resource, modPath addrs.Module) bool {
+	if scope.Provider.Type == "" {
+		return true
+	}
+	addr := addrs.AbsProviderConfig{
+		Module:   modPath,
+		Provider: rc.Provider,
+		Alias:    rc.ProviderConfigAddr().Alias,
+	}
+	return addr.String() == scope.String()
+}
+
 // declaredInstances indexes the needs-discovery resolutions by type and
 // escaped address, checking each against the configuration as it goes.
-func declaredInstances(req Request) (*declared, tfdiags.Diagnostics) {
+func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	d := &declared{
@@ -484,6 +552,15 @@ func declaredInstances(req Request) (*declared, tfdiags.Diagnostics) {
 			continue
 		}
 
+		if !inScope(req.ScopeProvider, block, r.Addr.Module.Module()) {
+			// Declared, but by a different provider configuration than this
+			// pass is scoped to (issue #69's multi-provider sweep). It
+			// already contributed its address to d.all above, which is what
+			// keeps another pass's sweep from mistaking it for an orphan;
+			// this pass simply is not the one that tries to find it.
+			continue
+		}
+
 		escaped := EscapeAddress(r.Addr.String())
 		if len([]rune(escaped)) > MaxTagValue {
 			diags = diags.Append(&hcl.Diagnostic{
@@ -528,7 +605,7 @@ func declaredInstances(req Request) (*declared, tfdiags.Diagnostics) {
 		}
 	}
 
-	d.indexCountBlocks(req)
+	d.indexCountBlocks(ctx, req)
 	return d, diags
 }
 
@@ -546,11 +623,20 @@ func declaredInstances(req Request) (*declared, tfdiags.Diagnostics) {
 // The whole static module tree is walked, not only the root: a resource
 // inside a static module may carry count exactly as a root resource can (it
 // is the module BLOCK'S count, not a resource's, that RuleChildModule
-// refuses permanently). Every block is keyed by its module-qualified
-// address, so two count blocks with the same local name in different
-// modules never collide.
-func (d *declared) indexCountBlocks(req Request) {
-	d.walkCountBlocks(req.Config)
+// refuses permanently). A module reached through a for_each'd module call
+// (59c, issue #59 phase 3) is walked once per instance, so a count block
+// inside a keyed module is recorded once per module instance too, each
+// under its own module-qualified address - "module.app[\"a\"].aws_x.y[2]"
+// and "module.app[\"b\"].aws_x.y[2]" are two different count blocks, not
+// one. Every block is keyed by its module-qualified address, so two count
+// blocks with the same local name in different modules (or different
+// instances of the same for_each'd module) never collide. scope is
+// [Request.ScopeProvider], threaded through the recursion so a block
+// outside this pass's scope (issue #69's multi-provider sweep) never gets
+// a count-set entry - or a marker naming one of its slots would be parked
+// on a block this pass never declared anything into.
+func (d *declared) indexCountBlocks(ctx context.Context, req Request) {
+	d.walkCountBlocks(ctx, req.Config, addrs.RootModuleInstance, req.ScopeProvider)
 
 	for typeName, entries := range d.types {
 		for _, entry := range entries {
@@ -577,14 +663,22 @@ func (d *declared) indexCountBlocks(req Request) {
 }
 
 // walkCountBlocks is [declared.indexCountBlocks]'s recursive step: one
-// module's count blocks, then its children in name order.
-func (d *declared) walkCountBlocks(cfg *configs.Config) {
+// module instance's count blocks, then its children in name order. modInst
+// is the instance cfg is being visited as - see [identity.resolver.walkModule]'s
+// doc for why it has to be threaded down explicitly rather than recomputed
+// from cfg.Path once a for_each module (59c) can be in the tree. scope is
+// [Request.ScopeProvider]; inScope compares it against cfg.Path (the
+// static module a block is declared in - a provider configuration is a
+// static-module fact, unlike modInst, which is a runtime one).
+func (d *declared) walkCountBlocks(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleInstance, scope addrs.AbsProviderConfig) {
 	if cfg == nil || cfg.Module == nil {
 		return
 	}
-	modInst := identity.ModuleInstance(cfg)
 	for _, rc := range cfg.Module.ManagedResources {
 		if rc.Count == nil {
+			continue
+		}
+		if !inScope(scope, rc, cfg.Path) {
 			continue
 		}
 		typeName := rc.Type
@@ -604,7 +698,20 @@ func (d *declared) walkCountBlocks(cfg *configs.Config) {
 		}
 	}
 	for _, name := range identity.SortedChildNames(cfg.Children) {
-		d.walkCountBlocks(cfg.Children[name])
+		child := cfg.Children[name]
+		var forEach hcl.Expression
+		if call, ok := cfg.Module.ModuleCalls[name]; ok && call != nil {
+			forEach = call.ForEach
+		}
+		keys, diag := identity.ChildModuleKeys(ctx, cfg.Module, fmt.Sprintf("module %q", name), forEach)
+		if diag != nil {
+			// RuleChildModule already refused this call before discovery
+			// ever ran; nothing to index under it.
+			continue
+		}
+		for _, key := range keys {
+			d.walkCountBlocks(ctx, child, modInst.Child(name, key), scope)
+		}
 	}
 }
 

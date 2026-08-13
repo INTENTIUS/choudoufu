@@ -6,8 +6,6 @@
 package lint
 
 import (
-	"strings"
-
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -574,6 +572,28 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_flow_log":                                     {},
 	"aws_nat_gateway":                                  {},
 	"aws_nat_gateway_eip_association":                  {},
+	// ---- Fold-children (issue #68): declared property-children of an
+	// ---- admitted parent, admitted the same way live/mapping.json's other
+	// ---- ~170 "fold" rows will be as this path picks them up in future
+	// ---- batches. See internal/live/identity/table.go's own "Fold-children
+	// ---- (issue #68)" section comment for the per-type evidence and the
+	// ---- two sub-shapes (API Gateway's four duplicate an already-admitted
+	// ---- parent's own composite identity; the APS three key on a single
+	// ---- parent argument, the same named-singleton-child shape
+	// ---- aws_s3_bucket_policy and aws_sns_topic_policy already ratify).
+	// ---- Cohort estate: live/e2e/estates/apigateway (the API Gateway four)
+	// ---- and live/e2e/estates/aps (the APS three plus their two new
+	// ---- parents, aws_prometheus_workspace and aws_prometheus_scraper,
+	// ---- neither previously admitted).
+	"aws_api_gateway_integration":                  {},
+	"aws_api_gateway_integration_response":         {},
+	"aws_api_gateway_method_response":              {},
+	"aws_api_gateway_method_settings":              {},
+	"aws_prometheus_workspace":                     {},
+	"aws_prometheus_scraper":                       {},
+	"aws_prometheus_alert_manager_definition":      {},
+	"aws_prometheus_query_logging_configuration":   {},
+	"aws_prometheus_scraper_logging_configuration": {},
 
 	// ---- Registry-ratified (#40, #44, #65): fifth batch, compute
 	// ---- platforms (Batch, EMR remainder, App Runner, Elastic
@@ -1110,32 +1130,4 @@ func admitted(resourceType string, schemas map[string]providers.Schema, signal *
 	}
 	_, ok := identity.SynthesizeTypeIdentity(resourceType, schemas, signal)
 	return ok
-}
-
-// logicalTypePrefixes are the provider-local type prefixes whose resources
-// exist only inside the state file. Their value is generated once and then
-// remembered; the record of them IS the store that stateless mode removes, so
-// there is nothing to recover them from and no version of them that works
-// without authoritative state. See live/LIMITATIONS.md.
-//
-// Checked before the admission table so that a random_id gets the explanation
-// for why its whole family is out rather than the generic "not in the v0
-// table" message.
-var logicalTypePrefixes = []string{
-	"random_",
-	"tls_",
-	"time_",
-	"null_",
-	"local_",
-}
-
-// logicalType reports whether the given provider-local resource type is a
-// logical, store-only type, and returns the prefix that matched.
-func logicalType(resourceType string) (string, bool) {
-	for _, prefix := range logicalTypePrefixes {
-		if strings.HasPrefix(resourceType, prefix) {
-			return prefix, true
-		}
-	}
-	return "", false
 }
