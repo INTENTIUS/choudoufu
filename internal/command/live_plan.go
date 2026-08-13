@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hcldec"
@@ -299,7 +300,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// resolution list with the discovered instances made concrete, plus the
 	// unclaimed live resources the classifier below sorts out.
 	merged := resolutions.All()
-	disco, discoProvider, discoDiags := statelessDiscover(ctx, config, resolutions, estateFlag, provs)
+	disco, discoProvider, discoDiags := statelessDiscover(ctx, config, resolutions, estateFlag, provs, statelessView)
 	diags = diags.Append(discoDiags)
 	if discoDiags.HasErrors() {
 		// A marker problem means the estate's ownership records disagree with
@@ -437,7 +438,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 // The provider configuration it listed through is returned along with the
 // result, because a resource found by the sweep has no resource block to read
 // a provider from and must be read back through the one that found it.
-func statelessDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, estateFlag string, provs *statelessProviders) (*discovery.Result, addrs.AbsProviderConfig, tfdiags.Diagnostics) {
+func statelessDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, estateFlag string, provs *statelessProviders, statelessView views.StatelessPlan) (*discovery.Result, addrs.AbsProviderConfig, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	var noProvider addrs.AbsProviderConfig
 
@@ -477,12 +478,51 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		Region:           provs.region(providerAddr),
 		CollectUnclaimed: true,
 		Sweep:            true,
+		Progress:         statelessProgress(statelessView),
 	})
 	diags = diags.Append(discoDiags)
 	if discoDiags.HasErrors() {
 		return nil, noProvider, diags
 	}
 	return res, providerAddr, diags
+}
+
+// statelessProgressInterval is the minimum time between two heartbeat lines
+// [statelessProgress] forwards. Discovery reports every single type it
+// scans, which for a fast-listing provider can be many per second; printing
+// all of them would turn a heartbeat into a scrolling log, which is the
+// opposite of unobtrusive. Half a second is frequent enough that a large,
+// slow-listing estate never looks hung, and coarse enough that a small,
+// fast one prints once or twice and gets out of the way.
+const statelessProgressInterval = 500 * time.Millisecond
+
+// statelessProgress adapts a [views.StatelessPlan] into a
+// [discovery.ProgressFunc], throttling how often it actually renders a
+// heartbeat: [discovery.Discover] calls back after every resource type it
+// scans, which is finer-grained than anything worth printing, so this is
+// where the "how often" decision is made rather than in the discovery
+// package or the view. The first event always passes through unthrottled,
+// since that is a reader's first evidence the run has not hung, which
+// matters more than any timing rule.
+//
+// The view renders to stderr (see [views.StatelessPlanHuman.Progress]),
+// never stdout, so nothing this prints can end up in output a script reads
+// from this command - today that is everything live-plan writes on
+// success, since it has no -json mode yet.
+func statelessProgress(statelessView views.StatelessPlan) discovery.ProgressFunc {
+	var last time.Time
+	return func(ev discovery.ProgressEvent) {
+		now := time.Now()
+		if !last.IsZero() && now.Sub(last) < statelessProgressInterval {
+			return
+		}
+		last = now
+		statelessView.Progress(views.StatelessProgress{
+			TypeName:       ev.TypeName,
+			TypesScanned:   ev.TypesScanned,
+			ResourcesFound: ev.ResourcesFound,
+		})
+	}
 }
 
 // statelessEstateName establishes which estate this run is about.

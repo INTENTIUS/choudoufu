@@ -63,19 +63,19 @@ func checkOverlongAddresses(ctx context.Context, mod *configs.Module, path addrs
 				continue
 			}
 			for _, key := range keys {
-				addr := resource.Addr().Instance(addrs.StringKey(key)).Absolute(modInst)
-				reportOverlongAddress(addr.String(), resource.ForEach.Range(), path, issues)
+				inst := resource.Addr().Instance(addrs.StringKey(key))
+				reportOverlongAddress(inst, modInst, resource.ForEach.Range(), path, issues)
 			}
 		case resource.Count != nil:
 			n, ok := staticCount(ctx, mod, resource.Count)
 			if !ok || n < 1 {
 				continue
 			}
-			addr := resource.Addr().Instance(addrs.IntKey(n - 1)).Absolute(modInst)
-			reportOverlongAddress(addr.String(), resource.Count.Range(), path, issues)
+			inst := resource.Addr().Instance(addrs.IntKey(n - 1))
+			reportOverlongAddress(inst, modInst, resource.Count.Range(), path, issues)
 		default:
-			addr := resource.Addr().Instance(addrs.NoKey).Absolute(modInst)
-			reportOverlongAddress(addr.String(), resource.DeclRange, path, issues)
+			inst := resource.Addr().Instance(addrs.NoKey)
+			reportOverlongAddress(inst, modInst, resource.DeclRange, path, issues)
 		}
 	}
 }
@@ -83,7 +83,14 @@ func checkOverlongAddresses(ctx context.Context, mod *configs.Module, path addrs
 // reportOverlongAddress escapes one instance address exactly the way the
 // stamped marker would be escaped and appends an issue if the result does
 // not fit in a tag value.
-func reportOverlongAddress(addr string, subject hcl.Range, path addrs.Module, issues *[]Issue) {
+//
+// inst and modInst are handed separately, rather than as the one already-
+// joined address string the rest of this file used to pass around, because
+// the refusal below breaks the budget down into the module path's share and
+// the resource's own share - see budgetBreakdown - and that split needs the
+// join point, not just the joined result.
+func reportOverlongAddress(inst addrs.ResourceInstance, modInst addrs.ModuleInstance, subject hcl.Range, path addrs.Module, issues *[]Issue) {
+	addr := inst.Absolute(modInst).String()
 	length := utf8.RuneCountInString(markers.EscapeAddress(addr))
 	if length <= markers.MaxTagValue {
 		return
@@ -93,16 +100,62 @@ func reportOverlongAddress(addr string, subject hcl.Range, path addrs.Module, is
 		Construct: addr,
 		Module:    path,
 		Detail: fmt.Sprintf(
-			"the escaped tofu-address for this instance is %d characters, and a tag value "+
-				"holds at most %d (the AWS hard cap, live/MARKERS.md). The address becomes "+
-				"the tofu-address marker on the live resource, and that marker is the only record "+
-				"of ownership a stateless run has, so an address that does not fit is refused here "+
-				"rather than truncated: silently truncating an ownership key is worse than refusing "+
-				"to admit the resource. Shorten the resource label or the instance key",
-			length, markers.MaxTagValue,
+			"the escaped tofu-address for this instance is %d characters, %d over the "+
+				"256-character budget (the AWS hard cap on a tag value, live/MARKERS.md). "+
+				"%s The address becomes the tofu-address marker on the live resource, and "+
+				"that marker - together with the separate tofu-estate tag, which has its own "+
+				"independent 128-character budget and is not part of this one - is the only "+
+				"record of ownership a stateless run has. An address that does not fit is "+
+				"refused here rather than truncated: silently truncating an ownership key is "+
+				"worse than refusing to admit the resource. To fit: shorten the module names "+
+				"in the path, flatten a level of module nesting, shorten the resource label, "+
+				"pick a shorter for_each key, or move the resource somewhere its address is "+
+				"shorter and carry its marker over with \"choudoufu live-mv\" rather than "+
+				"re-adopting it from scratch. See live/LIMITATIONS.md, \"overlong-address\", "+
+				"for the full budget math and a worst-case example.",
+			length, length-markers.MaxTagValue, budgetBreakdown(inst, modInst),
 		),
 		Subject: subject,
 	})
+}
+
+// budgetBreakdown is the one sentence that turns "256 characters" into
+// something a reader can act on: how much of this instance's escaped address
+// the module path spends, versus how much is left for the resource type,
+// its label and its instance key combined. Module nesting is the part that
+// grows without the author writing a longer resource label - each level
+// costs a literal "module." (7 characters) plus the module's own name and,
+// for a keyed module call, an escaped instance key - so it is the module
+// path's share that most often explains why an address that looked
+// reasonable in a flat root module stopped fitting once it moved three
+// levels deep.
+func budgetBreakdown(inst addrs.ResourceInstance, modInst addrs.ModuleInstance) string {
+	total := utf8.RuneCountInString(markers.EscapeAddress(inst.Absolute(modInst).String()))
+	resourceOnly := utf8.RuneCountInString(markers.EscapeAddress(inst.String()))
+	modulePath := total - resourceOnly
+	if modulePath <= 0 {
+		return fmt.Sprintf(
+			"This instance declares no module path, so the resource type, label and instance "+
+				"key alone account for all %d characters.",
+			resourceOnly,
+		)
+	}
+	remaining := markers.MaxTagValue - modulePath
+	if remaining <= 0 {
+		return fmt.Sprintf(
+			"Of that, the module path (\"%s\", including the separator before the resource "+
+				"address) alone spends %d characters - already past the 256-character budget "+
+				"before the resource type, label or instance key are counted at all.",
+			modInst.String(), modulePath,
+		)
+	}
+	return fmt.Sprintf(
+		"Of that, the module path (\"%s\", including the separator before the resource "+
+			"address) spends %d characters, leaving %d for the resource type, label and "+
+			"instance key combined - the budget that shrinks every time this instance moves "+
+			"one level deeper into the module tree.",
+		modInst.String(), modulePath, remaining,
+	)
 }
 
 // staticCount computes the value of a count expression, or reports that it

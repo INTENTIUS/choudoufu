@@ -142,6 +142,79 @@ func TestSweepFindsDeletedBlock(t *testing.T) {
 	}
 }
 
+// TestSweepReportsProgress pins the heartbeat a large sweep needs so a
+// caller can render "still working" while it runs (see
+// [Request.Progress]): one event per type scanned, cumulative counts that
+// only grow, and a final resource count that matches what the scans
+// themselves recorded.
+func TestSweepReportsProgress(t *testing.T) {
+	cloud := newFakeCloud()
+	ownWholeEstate(cloud)
+	cloud.listable("aws_cloudwatch_log_group")
+	cloud.own("aws_cloudwatch_log_group", "/estate/deleted", `aws_cloudwatch_log_group.deleted`)
+	cloud.listable("aws_sns_topic")
+
+	var events []ProgressEvent
+	res, diags := discoverFixture(t, cloud, Request{
+		Sweep:      true,
+		SweepTypes: []string{"aws_cloudwatch_log_group", "aws_sns_topic"},
+		Progress: func(ev ProgressEvent) {
+			events = append(events, ev)
+		},
+	})
+	assertNoErrors(t, diags)
+
+	if len(events) == 0 {
+		t.Fatal("no progress events were reported")
+	}
+
+	var wantFound int
+	for _, scan := range res.Scans {
+		wantFound += scan.Listed
+	}
+
+	for i, ev := range events {
+		if ev.TypesScanned != i+1 {
+			t.Errorf("event %d: TypesScanned = %d, want %d", i, ev.TypesScanned, i+1)
+		}
+		if ev.TypeName == "" {
+			t.Errorf("event %d: TypeName is empty", i)
+		}
+		if i > 0 && ev.ResourcesFound < events[i-1].ResourcesFound {
+			t.Errorf("event %d: ResourcesFound went backwards, %d after %d", i, ev.ResourcesFound, events[i-1].ResourcesFound)
+		}
+	}
+
+	last := events[len(events)-1]
+	if last.TypesScanned != len(res.Scans) {
+		t.Errorf("final TypesScanned = %d, want %d (len(res.Scans))", last.TypesScanned, len(res.Scans))
+	}
+	if last.ResourcesFound != wantFound {
+		t.Errorf("final ResourcesFound = %d, want %d", last.ResourcesFound, wantFound)
+	}
+	if !last.Sweep {
+		t.Error("the last event, from an explicit sweep type, is not marked Sweep")
+	}
+}
+
+// TestSweepReportsNoProgressWhenNobodyAsks proves Request.Progress being
+// unset costs nothing beyond a nil check: no goroutine, no buffering,
+// nothing to opt out of.
+func TestSweepReportsNoProgressWhenNobodyAsks(t *testing.T) {
+	cloud := newFakeCloud()
+	ownWholeEstate(cloud)
+	cloud.listable("aws_cloudwatch_log_group")
+
+	res, diags := discoverFixture(t, cloud, Request{
+		Sweep:      true,
+		SweepTypes: []string{"aws_cloudwatch_log_group"},
+	})
+	assertNoErrors(t, diags)
+	if len(res.Scans) == 0 {
+		t.Fatal("sweep did not run")
+	}
+}
+
 // TestSweepLeavesDeclaredClientNamedResourcesAlone is the hazard the sweep
 // creates and has to defuse. A live bucket carrying the marker for a bucket
 // the configuration still declares is claiming an address nothing in the

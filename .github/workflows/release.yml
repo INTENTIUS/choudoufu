@@ -17,6 +17,8 @@ jobs:
           - { goos: linux, goarch: arm64 }
           - { goos: darwin, goarch: amd64 }
           - { goos: darwin, goarch: arm64 }
+          - { goos: windows, goarch: amd64 }
+          - { goos: windows, goarch: arm64 }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -29,13 +31,24 @@ jobs:
           CGO_ENABLED: "0"
         run: |
           mkdir -p dist
+          bin=choudoufu
+          if [ "$GOOS" = "windows" ]; then
+            bin=choudoufu.exe
+          fi
           # MODULE-PATH-RENAME: the -X flags below embed the Go module path
           # github.com/intentius/choudoufu; update them when the module is
           # renamed to github.com/intentius/choudoufu.
           go build -trimpath \
             -ldflags "-X 'github.com/intentius/choudoufu/version.Fork=${GITHUB_REF_NAME}' -X 'github.com/intentius/choudoufu/version.dev=no'" \
-            -o dist/choudoufu ./cmd/choudoufu
-          tar -C dist -czf "choudoufu_${GITHUB_REF_NAME}_${GOOS}_${GOARCH}.tar.gz" choudoufu
+            -o "dist/$bin" ./cmd/choudoufu
+          # Windows ships as .zip, which Explorer opens with no extra
+          # tooling; macOS and Linux keep the .tar.gz they have always
+          # shipped as. SHA256SUMS below covers both extensions.
+          if [ "$GOOS" = "windows" ]; then
+            (cd dist && zip -q "../choudoufu_${GITHUB_REF_NAME}_${GOOS}_${GOARCH}.zip" "$bin")
+          else
+            tar -C dist -czf "choudoufu_${GITHUB_REF_NAME}_${GOOS}_${GOARCH}.tar.gz" "$bin"
+          fi
       - name: Verify reported version
         if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
         run: |
@@ -44,7 +57,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: choudoufu-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: "*.tar.gz"
+          path: |
+            *.tar.gz
+            *.zip
 
   release:
     needs: build
@@ -54,7 +69,7 @@ jobs:
         with:
           merge-multiple: true
       - name: Checksums
-        run: sha256sum *.tar.gz > SHA256SUMS
+        run: sha256sum ./*.tar.gz ./*.zip > SHA256SUMS
       - uses: actions/checkout@v4
         with:
           path: src
@@ -69,8 +84,8 @@ jobs:
           cat > NOTES.md <<EOF
           choudoufu $GITHUB_REF_NAME, built on OpenTofu $upstream (fork point [\`03743ce6e8\`](https://github.com/opentofu/opentofu/commit/03743ce6e8)).
 
-          Everything outside live resource markers is stock OpenTofu $upstream. Binaries below are macOS and Linux, amd64 and arm64; verify with \`SHA256SUMS\`.
+          Everything outside live resource markers is stock OpenTofu $upstream. Binaries below are macOS, Linux and Windows, amd64 and arm64; macOS and Linux are \`.tar.gz\`, Windows is \`.zip\`; verify with \`SHA256SUMS\`.
           EOF
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" --notes-file NOTES.md --generate-notes \
-            *.tar.gz SHA256SUMS
+            ./*.tar.gz ./*.zip SHA256SUMS
