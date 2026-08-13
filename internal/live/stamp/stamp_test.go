@@ -683,6 +683,19 @@ var (
 		"aws_codepipeline_custom_action_type",
 		"aws_codepipeline_webhook",
 		"aws_ecrpublic_repository",
+		// Registry-ratified IoT core batch (#40, #44, issue #65): nine of
+		// the batch's eleven types carry a top-level tags argument in the
+		// pinned provider's own wire schema. See
+		// live/e2e/estates/iot/README.md.
+		"aws_iot_authorizer",
+		"aws_iot_billing_group",
+		"aws_iot_domain_configuration",
+		"aws_iot_policy",
+		"aws_iot_provisioning_template",
+		"aws_iot_role_alias",
+		"aws_iot_thing_group",
+		"aws_iot_thing_type",
+		"aws_iot_topic_rule",
 		// Registry-ratified identity batch (#40, #44, #65): Cognito, IAM
 		// leftovers, SSO Admin. See live/e2e/estates/identity/README.md.
 		"aws_cognito_identity_pool",
@@ -942,6 +955,15 @@ var (
 		"aws_codebuild_webhook",
 		"aws_codedeploy_deployment_config",
 		"aws_ecrpublic_repository_policy",
+		// Registry-ratified IoT core batch (#40, #44, issue #65): two of
+		// the batch's eleven types carry no tags argument at all in the
+		// pinned provider's own wire schema — aws_iot_thing's Argument
+		// Reference names only name, attributes and thing_type_name, and
+		// aws_iot_topic_rule_destination's names only enabled and
+		// vpc_configuration. See live/e2e/estates/iot/README.md,
+		// "Untaggable types".
+		"aws_iot_thing",
+		"aws_iot_topic_rule_destination",
 		// Registry-ratified identity batch (#40, #44, #65): Cognito, IAM
 		// leftovers, SSO Admin. Fifteen untaggable types, confirmed against
 		// the real provider's documented Argument Reference for each - see
@@ -1846,6 +1868,22 @@ func testSchemas() Schemas {
 		"aws_wafv2_rule_group":                             tagged("id", "arn", "name", "scope"),
 		"aws_wafv2_web_acl":                                tagged("id", "arn", "name", "scope"),
 		"aws_wafv2_web_acl_rule":                           untagged("id", "web_acl_arn", "name"),
+		// Registry-ratified IoT core batch (#40, #44, issue #65).
+		// Taggable/untaggable per the real provider's documented Argument
+		// Reference for each type: aws_iot_thing (name, attributes,
+		// thing_type_name only) and aws_iot_topic_rule_destination
+		// (enabled, vpc_configuration only) carry no tags argument at all.
+		"aws_iot_authorizer":             tagged("arn", "name"),
+		"aws_iot_billing_group":          tagged("id", "arn", "name"),
+		"aws_iot_domain_configuration":   tagged("id", "arn", "name"),
+		"aws_iot_policy":                 tagged("arn", "name"),
+		"aws_iot_provisioning_template":  tagged("arn", "name"),
+		"aws_iot_role_alias":             tagged("arn", "alias"),
+		"aws_iot_thing":                  untagged("arn", "name"),
+		"aws_iot_thing_group":            tagged("id", "arn", "name"),
+		"aws_iot_thing_type":             tagged("arn", "name"),
+		"aws_iot_topic_rule":             tagged("arn", "name"),
+		"aws_iot_topic_rule_destination": untagged("arn"),
 
 		// Registry-ratified databases batch (#40, #44, issue #65).
 		// Taggable/untaggable per the real provider's documented Argument

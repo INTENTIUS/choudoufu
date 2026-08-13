@@ -461,7 +461,8 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_iam_role_policy`, `aws_iam_role_policy_attachment`,
 `aws_iam_user_policy`, `aws_iam_user_policy_attachment`,
 `aws_inspector2_delegated_admin_account`,
-`aws_inspector2_member_association`, `aws_kms_alias`,
+`aws_inspector2_member_association`, `aws_iot_thing`,
+`aws_iot_topic_rule_destination`, `aws_kms_alias`,
 `aws_lambda_layer_version`, `aws_lb_target_group_attachment`,
 `aws_lightsail_lb_certificate`, `aws_lightsail_static_ip`,
 `aws_macie2_organization_admin_account`, `aws_msk_configuration`,
@@ -565,6 +566,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_iam_role_policy_attachment` | `aws_iam_role` | no (report-only) |
 | `aws_iam_user_policy` | `aws_iam_user` | no (report-only) |
 | `aws_iam_user_policy_attachment` | `aws_iam_user` | no (report-only) |
+| `aws_iot_thing` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_kms_alias` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_lb_target_group_attachment` | `aws_lb_target_group` | no (report-only) |
 | `aws_lightsail_lb_certificate` | `aws_lightsail_lb` | no (report-only) |
@@ -603,7 +605,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_vpc_ipam_pool_cidr` | `aws_vpc_ipam_pool` | no (report-only) |
 | `aws_wafv2_web_acl_rule` | `aws_wafv2_web_acl` | no (report-only) |
 
-**Total.** 85 types swept via a parent read.
+**Total.** 86 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
@@ -647,11 +649,11 @@ per-type reasoning as it stands.
 `aws_eip_association`, `aws_glue_data_catalog_encryption_settings`,
 `aws_guardduty_organization_admin_account`,
 `aws_inspector2_delegated_admin_account`,
-`aws_inspector2_member_association`, `aws_lambda_layer_version`,
-`aws_macie2_organization_admin_account`, `aws_msk_configuration`,
-`aws_network_interface_attachment`, `aws_network_interface_permission`,
-`aws_rds_cluster_role_association`, `aws_route53_hosted_zone_dnssec`,
-`aws_route53_resolver_rule_association`,
+`aws_inspector2_member_association`, `aws_iot_topic_rule_destination`,
+`aws_lambda_layer_version`, `aws_macie2_organization_admin_account`,
+`aws_msk_configuration`, `aws_network_interface_attachment`,
+`aws_network_interface_permission`, `aws_rds_cluster_role_association`,
+`aws_route53_hosted_zone_dnssec`, `aws_route53_resolver_rule_association`,
 `aws_securityhub_configuration_policy_association`,
 `aws_securityhub_member`, `aws_securityhub_organization_admin_account`,
 `aws_securityhub_standards_control`,
