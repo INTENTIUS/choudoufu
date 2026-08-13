@@ -498,30 +498,166 @@ func TestAdmissionTableCoversEstate(t *testing.T) {
 	}
 }
 
-func TestLogicalType(t *testing.T) {
+func TestClassifyLogicalType(t *testing.T) {
 	tests := []struct {
 		resourceType string
-		wantPrefix   string
 		wantLogical  bool
+		wantClass    LogicalClass
+		wantPrefix   string
 	}{
-		{"random_pet", "random_", true},
-		{"tls_private_key", "tls_", true},
-		{"time_sleep", "time_", true},
-		{"null_resource", "null_", true},
-		{"local_file", "local_", true},
-		{"aws_vpc", "", false},
-		// Prefix matching must not be fooled by a type that merely starts with
-		// the same letters as a banned family.
-		{"randomizer_widget", "", false},
-		{"localstack_thing", "", false},
+		// RECORD_ADMITTED: verified against provider docs, per logicalTypes.
+		{"random_pet", true, ClassRecordAdmitted, "random_"},
+		{"random_id", true, ClassRecordAdmitted, "random_"},
+		{"random_shuffle", true, ClassRecordAdmitted, "random_"},
+		{"random_integer", true, ClassRecordAdmitted, "random_"},
+		{"time_sleep", true, ClassRecordAdmitted, "time_"},
+		{"time_static", true, ClassRecordAdmitted, "time_"},
+		{"time_offset", true, ClassRecordAdmitted, "time_"},
+		{"time_rotating", true, ClassRecordAdmitted, "time_"},
+		{"null_resource", true, ClassRecordAdmitted, "null_"},
+		// terraform_data is the one entry with no family prefix of its own -
+		// the audit's whole point (admission.go used to miss it entirely).
+		{"terraform_data", true, ClassRecordAdmitted, ""},
+
+		// SECRET_REFUSED: named rows and the tls_ family default alike.
+		{"random_password", true, ClassSecretRefused, "random_"},
+		{"random_bytes", true, ClassSecretRefused, "random_"},
+		{"tls_private_key", true, ClassSecretRefused, "tls_"},
+		{"tls_self_signed_cert", true, ClassSecretRefused, "tls_"},
+		{"tls_locally_signed_cert", true, ClassSecretRefused, "tls_"},
+		{"tls_cert_request", true, ClassSecretRefused, "tls_"},
+		// A hypothetical tls_ type with no row of its own still defaults to
+		// SECRET_REFUSED, not the generic OTHER_REFUSED every other
+		// unlisted family member gets - the tls_ family's evidence is
+		// uniform enough to extend to a type nobody has reviewed yet.
+		{"tls_hypothetical_new_type", true, ClassSecretRefused, "tls_"},
+
+		// OTHER_REFUSED: local_* (current wording family) and any other
+		// family member this table has no specific opinion about.
+		{"local_file", true, ClassOtherRefused, "local_"},
+		{"local_sensitive_file", true, ClassOtherRefused, "local_"},
+		{"random_string", true, ClassOtherRefused, "random_"},
+
+		// Not logical at all.
+		{"aws_vpc", false, "", ""},
+		// Prefix matching must not be fooled by a type that merely starts
+		// with the same letters as a banned family.
+		{"randomizer_widget", false, "", ""},
+		{"localstack_thing", false, "", ""},
 	}
 	for _, test := range tests {
-		prefix, logical := logicalType(test.resourceType)
-		if logical != test.wantLogical || prefix != test.wantPrefix {
-			t.Errorf("logicalType(%q) = (%q, %v), want (%q, %v)",
-				test.resourceType, prefix, logical, test.wantPrefix, test.wantLogical)
+		lt, logical := ClassifyLogicalType(test.resourceType)
+		if logical != test.wantLogical {
+			t.Errorf("ClassifyLogicalType(%q) ok = %v, want %v", test.resourceType, logical, test.wantLogical)
+			continue
+		}
+		if !logical {
+			continue
+		}
+		if lt.Class != test.wantClass {
+			t.Errorf("ClassifyLogicalType(%q).Class = %q, want %q", test.resourceType, lt.Class, test.wantClass)
+		}
+		if lt.Prefix != test.wantPrefix {
+			t.Errorf("ClassifyLogicalType(%q).Prefix = %q, want %q", test.resourceType, lt.Prefix, test.wantPrefix)
+		}
+		if lt.Type != test.resourceType {
+			t.Errorf("ClassifyLogicalType(%q).Type = %q, want %q", test.resourceType, lt.Type, test.resourceType)
 		}
 	}
+}
+
+// TestLogicalTypesTableWellFormed checks the per-type table's internal
+// consistency: every row's map key matches its own Type field, every
+// RECORD_ADMITTED and SECRET_REFUSED row carries non-empty Evidence (the
+// provider-docs citation the classification rests on), no ClassOtherRefused
+// row exists in the hand-written table (that class is only ever the
+// no-row-found default; a hand-written row always has more to say than
+// that), and every row's Prefix - when set - is one resourceType actually
+// starts with, drawn from logicalFamilyPrefixes, except terraform_data's
+// deliberate empty Prefix.
+func TestLogicalTypesTableWellFormed(t *testing.T) {
+	validPrefix := make(map[string]bool, len(logicalFamilyPrefixes))
+	for _, p := range logicalFamilyPrefixes {
+		validPrefix[p] = true
+	}
+
+	for key, lt := range logicalTypes {
+		if lt.Type != key {
+			t.Errorf("logicalTypes[%q].Type = %q, want %q", key, lt.Type, key)
+		}
+		switch lt.Class {
+		case ClassRecordAdmitted, ClassSecretRefused:
+			if lt.Evidence == "" {
+				t.Errorf("logicalTypes[%q] (%s) has no Evidence", key, lt.Class)
+			}
+		case ClassOtherRefused:
+			t.Errorf("logicalTypes[%q] is ClassOtherRefused; that class should never need a hand-written row, only the ClassifyLogicalType default", key)
+		default:
+			t.Errorf("logicalTypes[%q] has unknown Class %q", key, lt.Class)
+		}
+		if lt.Prefix == "" {
+			if key != "terraform_data" {
+				t.Errorf("logicalTypes[%q] has an empty Prefix; only terraform_data is expected to", key)
+			}
+			continue
+		}
+		if !validPrefix[lt.Prefix] {
+			t.Errorf("logicalTypes[%q].Prefix = %q, not one of logicalFamilyPrefixes", key, lt.Prefix)
+		}
+		if !strings.HasPrefix(key, lt.Prefix) {
+			t.Errorf("logicalTypes[%q].Prefix = %q, but the type does not start with it", key, lt.Prefix)
+		}
+	}
+}
+
+// TestLogicalResourceDetailsRenderByClass checks that the Detail lint
+// produces for a logical resource names its class and, for the two
+// audited classes, cites the evidence and (for RECORD_ADMITTED) the #73
+// forwarding address - and that the OTHER_REFUSED wording is exactly the
+// original, class-agnostic template, byte for byte, since that class's
+// whole point is that nothing changed for it.
+func TestLogicalResourceDetailsRenderByClass(t *testing.T) {
+	t.Run("RECORD_ADMITTED names the class and #73", func(t *testing.T) {
+		lt, ok := ClassifyLogicalType("null_resource")
+		if !ok || lt.Class != ClassRecordAdmitted {
+			t.Fatalf("null_resource classified %+v, ok=%v; want ClassRecordAdmitted", lt, ok)
+		}
+		detail := logicalResourceDetail("null_resource", lt)
+		for _, want := range []string{"RECORD_ADMITTED", "#73", lt.Evidence} {
+			if !strings.Contains(detail, want) {
+				t.Errorf("RECORD_ADMITTED Detail = %q, want it to contain %q", detail, want)
+			}
+		}
+	})
+
+	t.Run("SECRET_REFUSED names the class and the no-secrets rule", func(t *testing.T) {
+		lt, ok := ClassifyLogicalType("random_password")
+		if !ok || lt.Class != ClassSecretRefused {
+			t.Fatalf("random_password classified %+v, ok=%v; want ClassSecretRefused", lt, ok)
+		}
+		detail := logicalResourceDetail("random_password", lt)
+		for _, want := range []string{"SECRET_REFUSED", "secret manager", lt.Evidence} {
+			if !strings.Contains(detail, want) {
+				t.Errorf("SECRET_REFUSED Detail = %q, want it to contain %q", detail, want)
+			}
+		}
+	})
+
+	t.Run("OTHER_REFUSED wording is byte-identical to the pre-table template", func(t *testing.T) {
+		lt, ok := ClassifyLogicalType("local_file")
+		if !ok || lt.Class != ClassOtherRefused {
+			t.Fatalf("local_file classified %+v, ok=%v; want ClassOtherRefused", lt, ok)
+		}
+		got := logicalResourceDetail("local_file", lt)
+		want := `"local_file" is a logical resource (local_*): it has no existence outside the record ` +
+			"that OpenTofu keeps of it, so that record is the store live resource " +
+			"markers remove. Nothing can recover its value from the live system, because " +
+			"there is no live system holding it. Pass the value in as a variable or " +
+			"a local, or read it from a resource that really exists"
+		if got != want {
+			t.Errorf("OTHER_REFUSED Detail =\n%q\nwant\n%q", got, want)
+		}
+	})
 }
 
 // assertIssues compares what Check produced against the expected issues, in
