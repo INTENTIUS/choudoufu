@@ -11,6 +11,7 @@ import (
 	"log"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
@@ -117,6 +118,67 @@ type Request struct {
 	// sets it, or sets it with Tagging or Roster left nil, gets the pre-#51
 	// per-type sweep unchanged.
 	TaggingSweep bool
+
+	// ---------------------------------------------------------------------
+	// Snapshot-guided discovery (issue #64's second leg)
+	// ---------------------------------------------------------------------
+
+	// Guided opts the estate-wide sweep into consuming the most recent
+	// observational snapshot (see internal/live/projection's P4.2 doc
+	// comment) as a cost HINT: which admitted types this estate has ever
+	// held, so the sweep's routine pass can skip re-listing a type with no
+	// evidence behind it instead of paying one List call per admitted type
+	// on every plan. Default off: a caller that never sets this gets
+	// exactly today's full enumeration, unchanged.
+	//
+	// The hint is never authority. A type absent from the hint is always
+	// swept in full, on every run - see guidedSweepUniverse - and any
+	// problem reading the hint (no source configured, a missing or
+	// corrupted snapshot, one older than GuidedMaxAge) falls back to full
+	// enumeration silently: [Result.GuidedFallback] names why, and
+	// discovery never returns an error for it. TestGuided_equivalence pins
+	// the load-bearing half of that promise: guided discovery, given any
+	// such problem, produces byte-identical output to Guided: false over
+	// the same estate. See TestSnapshot_noReader's restated invariant in
+	// internal/live/projection for the read side of the same guarantee.
+	//
+	// Guided only narrows the sweep of undeclared types. The config-driven
+	// scan (every type something in configuration is waiting on) is
+	// unaffected either way: it already lists only this estate's own
+	// resources, server-side filtered wherever the type supports it, so
+	// there is no per-run universe for a hint to narrow there.
+	Guided bool
+
+	// SnapshotPath is the file-carrier snapshot to read the guided hint
+	// from - the same path a "live" block's snapshot_path argument names
+	// and [projection.Manager.EnableSnapshot] writes to. Empty disables the
+	// file form. Read through [projection.ReadHintFile].
+	SnapshotPath string
+
+	// SnapshotBranchDir is the module directory whose enclosing git
+	// repository carries the tofu-snapshots/<estate> branch to read the
+	// guided hint from, mirroring [projection.Manager.EnableSnapshotBranch]
+	// and read through [projection.ReadHintBranch]. Empty disables the
+	// branch form. When both this and SnapshotPath are set, the branch is
+	// tried first and the file is the fallback - the same priority the
+	// writer gives the two carriers.
+	SnapshotBranchDir string
+
+	// GuidedMaxAge is how old a snapshot hint may be before guided
+	// discovery treats it exactly like a missing one: readable, but not
+	// trusted. Zero uses defaultGuidedMaxAge. Staleness beyond this bound
+	// falls back to full enumeration for the same reason a missing snapshot
+	// does - see TestGuided_equivalence's stale case.
+	GuidedMaxAge time.Duration
+
+	// GuidedVerify forces this pass to fully sweep every admitted type even
+	// when a fresh hint would otherwise narrow the routine sweep - the
+	// "periodic or flagged full sweep" that re-verifies the hint set, so a
+	// resource of a hinted type created out of band still surfaces. Discover
+	// is stateless between calls; a caller owns the cadence (e.g. "every
+	// 10th plan" or an explicit -verify flag) and sets this when that
+	// cadence says so. Ignored when Guided is false.
+	GuidedVerify bool
 }
 
 // Discover finds the live resources of an estate and binds them to the
@@ -196,7 +258,16 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			// [Request.TaggingSweep].
 			diags = diags.Append(sweepViaTagging(ctx, req, decl, res))
 		} else {
-			for _, typeName := range sweepTypes(req, decl) {
+			// #64's guided leg: guidedSweepUniverse returns sweepTypes(req,
+			// decl) unmodified (and an empty fallback reason) whenever
+			// Request.Guided is false, so this is a no-op for every
+			// existing caller. See the Request.Guided doc comment and
+			// guided.go for what changes when it is set.
+			universe, skipped, fallback := guidedSweepUniverse(req, decl)
+			res.Guided = req.Guided && fallback == ""
+			res.GuidedFallback = fallback
+			res.GuidedSweepSkipped = skipped
+			for _, typeName := range universe {
 				diags = diags.Append(scanType(ctx, req, schemas, decl, typeName, res, true))
 			}
 		}
