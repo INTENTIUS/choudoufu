@@ -475,11 +475,33 @@ func TestDiagnostics(t *testing.T) {
 
 // TestAdmissionTableCoversEstate is a guard on the table itself rather than
 // on the check: every managed resource type used by a fixture must be
-// admitted. The universe is not just the demo estate but its union with
-// every per-cohort verification estate under live/e2e/estates (#48, phase 3
-// of #38's decision) - table == union(estate, estates/*), read straight off
-// the fixtures rather than pinned as a hand-maintained list, so that adding
-// a estates/<cohort> directory extends the pin with no test-file edits.
+// admitted. The universe used to be exactly the union of the demo estate
+// and every per-cohort verification estate under live/e2e/estates (#48,
+// phase 3 of #38's decision) - table == union(estate, estates/*), read
+// straight off the fixtures rather than pinned as a hand-maintained list -
+// and the exact-count half of that check (admittedTypesV0 has no type
+// outside the union) held from the first registry-ratified batch through
+// the sixth.
+//
+// The REMAINDER ratification batch (issue #65) is where that exact count
+// stops holding by design, with the coordinator's own sign-off: the batch's
+// long tail (~90 services, most contributing a handful of types) is ratified
+// at a scale where hand-building a terraform-validate-clean estate resource
+// for every single type is not the bottleneck ratification exists to
+// gate on - the identity evidence is. live/e2e/estates/remainder holds a
+// representative ~25-type subset instead, and every other type this batch
+// admits is "identity-only-verified": in admittedTypesV0 and
+// internal/live/identity.DefaultTable, verified against the provider's own
+// documented Import section, but with no fixture resource of its own. See
+// that cohort's README, "Estate-covered vs identity-only-verified".
+//
+// So only the first half of the historical guard still runs: every
+// fixture-used type must be admitted (a fixture can never race ahead of the
+// table). The reverse direction - every admitted type traces back to a
+// fixture - is what the REMAINDER batch deliberately breaks, so the exact
+// count is now a floor (table >= fixtures) rather than an equality. A type
+// admitted with no fixture of its own must still say why in its own
+// cohort's README, the same way live/e2e/estates/remainder/README.md does.
 func TestAdmissionTableCoversEstate(t *testing.T) {
 	fixtureTypes := map[string]bool{}
 	for _, dir := range flocitest.FixtureDirs(t) {
@@ -493,8 +515,8 @@ func TestAdmissionTableCoversEstate(t *testing.T) {
 			t.Errorf("%s is used by a fixture but is missing from the v0 admission table", resourceType)
 		}
 	}
-	if got, want := len(admittedTypesV0), len(fixtureTypes); got != want {
-		t.Errorf("v0 admission table has %d types, want exactly the fixtures' %d", got, want)
+	if got, min := len(admittedTypesV0), len(fixtureTypes); got < min {
+		t.Errorf("v0 admission table has %d types, want at least the fixtures' %d", got, min)
 	}
 }
 
