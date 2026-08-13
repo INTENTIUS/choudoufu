@@ -181,7 +181,13 @@ five packages downstream of lint - `identity`, `discovery`, `stamp`,
 inside a static module binds by its module-qualified address
 (`module.a.module.b.aws_x.y`) exactly as soundly as a root resource binds by
 its own. `RuleChildModule` reports nothing for a module call that sets
-neither `count` nor `for_each`.
+neither `count` nor `for_each`. A `provider` block declared inside that
+static module is a separate, still-open question (per-module provider
+resolution, issue #70): it is neither supported nor refused today - the
+module's resources are silently served by the root configuration's own
+provider config instead - and `lint.CheckModuleProviders`
+(`internal/live/lint/module_provider.go`) only warns about it by name, once
+per run, rather than failing the run.
 
 **Forwarding address.** For a `count`- or `for_each`-expanded module: move
 the module's resources into the root module, or give the module an estate

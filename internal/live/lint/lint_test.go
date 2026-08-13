@@ -801,3 +801,82 @@ func TestCheckWithNilSchemasByteIdenticalToCheckContext(t *testing.T) {
 		})
 	}
 }
+
+// TestCheckModuleProviders covers GitHub issue #70's interim half: a
+// provider block declared inside a child module warns, by exact text, and
+// every other shape - a root-only configuration, and a child module that
+// declares no provider block at all - stays silent.
+func TestCheckModuleProviders(t *testing.T) {
+	t.Run("default provider block in a child module warns", func(t *testing.T) {
+		cfg := loadConfigDir(t, "testdata/module-provider-default")
+		diags := CheckModuleProviders(cfg)
+		if len(diags) != 1 {
+			t.Fatalf("expected 1 diagnostic, got %d: %v", len(diags), diags)
+		}
+
+		diag := diags[0]
+		if diag.Severity() != tfdiags.Warning {
+			t.Errorf("severity = %v, want Warning", diag.Severity())
+		}
+
+		desc := diag.Description()
+		wantSummary := "Provider block inside a child module has no effect in live mode"
+		if desc.Summary != wantSummary {
+			t.Errorf("summary = %q, want %q", desc.Summary, wantSummary)
+		}
+		wantDetail := `module.compute declares provider "aws". Live mode does not consult a provider block declared inside a child module: this module's resources are served by the root configuration's own provider config, exactly as if this block were absent. Configure providers at root instead. See GitHub issue #70 for the full per-module provider resolution design.`
+		if desc.Detail != wantDetail {
+			t.Errorf("detail = %q, want %q", desc.Detail, wantDetail)
+		}
+
+		src := diag.Source()
+		if src.Subject == nil {
+			t.Fatalf("diagnostic has no source subject")
+		}
+		if got, want := filepath.ToSlash(src.Subject.Filename), "testdata/module-provider-default/child/main.tf"; got != want {
+			t.Errorf("subject file = %q, want %q", got, want)
+		}
+		if got, want := src.Subject.Start.Line, 1; got != want {
+			t.Errorf("subject line = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("aliased provider block in a child module warns", func(t *testing.T) {
+		cfg := loadConfigDir(t, "testdata/module-provider-aliased")
+		diags := CheckModuleProviders(cfg)
+		if len(diags) != 1 {
+			t.Fatalf("expected 1 diagnostic, got %d: %v", len(diags), diags)
+		}
+
+		diag := diags[0]
+		if diag.Severity() != tfdiags.Warning {
+			t.Errorf("severity = %v, want Warning", diag.Severity())
+		}
+
+		desc := diag.Description()
+		wantDetail := `module.compute declares provider "aws", alias "east". Live mode does not consult a provider block declared inside a child module: this module's resources are served by the root configuration's own provider config, exactly as if this block were absent. Configure providers at root instead. See GitHub issue #70 for the full per-module provider resolution design.`
+		if desc.Detail != wantDetail {
+			t.Errorf("detail = %q, want %q", desc.Detail, wantDetail)
+		}
+	})
+
+	t.Run("root-only configuration stays silent", func(t *testing.T) {
+		cfg := loadConfigDir(t, "testdata/clean")
+		if diags := CheckModuleProviders(cfg); len(diags) != 0 {
+			t.Errorf("expected no diagnostics for a root-only configuration, got %d: %v", len(diags), diags)
+		}
+	})
+
+	t.Run("child module with no provider block stays silent", func(t *testing.T) {
+		cfg := loadConfigDir(t, "testdata/child-module")
+		if diags := CheckModuleProviders(cfg); len(diags) != 0 {
+			t.Errorf("expected no diagnostics for a provider-block-free child module, got %d: %v", len(diags), diags)
+		}
+	})
+
+	t.Run("nil config stays silent", func(t *testing.T) {
+		if diags := CheckModuleProviders(nil); len(diags) != 0 {
+			t.Errorf("expected no diagnostics for a nil config, got %d: %v", len(diags), diags)
+		}
+	})
+}
