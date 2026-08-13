@@ -253,6 +253,18 @@ test-floci: ## Runs the stateless-mode tests against the floci AWS emulator.
 	@ $(info $(infoTestFloci))
 	@ TF_FLOCI_TEST=1 go test -count=1 -timeout 60m ./internal/live/...
 
+# issue #64's scale benchmark: an N-resource estate (tools/estate-gen -count),
+# planned against floci with every API call counted. ESTATE_BENCH_N overrides
+# the estate size (default 200, the committed live/plan-budget.json's own N);
+# a run at that default N also ratchets against the budget. See
+# internal/live/discovery/scale_bench_test.go's doc comment for the measured
+# scaling curve and internal/live/cloudcontrol/doc.go's "Retries" section for
+# the backoff policy this same issue asked for.
+.PHONY: bench-estate
+
+bench-estate: ## Runs issue #64's estate-scale benchmark against floci. ESTATE_BENCH_N sets the estate size (default 200).
+	@ TF_FLOCI_TEST=1 go test -count=1 -timeout 30m -v ./internal/live/discovery/ -run TestScaleAgainstFloci
+
 test-floci-clean: ## Removes floci containers left behind by `test-floci`.
 	@ docker ps -aq --filter ancestor=$(FLOCI_IMAGE) | while read -r id; do docker rm -f $$id > /dev/null; done
 

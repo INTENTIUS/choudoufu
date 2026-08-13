@@ -670,7 +670,12 @@ func ccResolutionFor(t *testing.T, typeName string) identity.Resolution {
 func runCCDiscovery(t *testing.T, srv *ccServer, server *httptest.Server, typeName, cfnType string) *Result {
 	t.Helper()
 
-	cc := cloudcontrol.New(cloudcontrol.Config{Endpoint: server.URL})
+	// MaxAttempts: 1 - TestCloudControlListResourcesFailure drives this
+	// through a server that answers ThrottlingException on every call; this
+	// helper is about discovery's handling of a list failure, not the
+	// client's retry policy (internal/live/cloudcontrol/retry_test.go), so
+	// it must not sit through real backoff sleeps.
+	cc := cloudcontrol.New(cloudcontrol.Config{Endpoint: server.URL, MaxAttempts: 1})
 	roster := ccRoster(t,
 		map[string]string{typeName: cfnType},
 		map[string]bool{cfnType: true},

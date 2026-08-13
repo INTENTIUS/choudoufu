@@ -151,7 +151,12 @@ func TestGetResourceByIdentityPropagatesListFailureDuringFallback(t *testing.T) 
 	}))
 	defer server.Close()
 
-	c := New(Config{Endpoint: server.URL})
+	// MaxAttempts: 1 - this test is about fallback propagation, not the
+	// retry policy (retry_test.go's job); the ListResources leg always
+	// answers ThrottlingException, so leaving the default policy in place
+	// would sit through real backoff sleeps for no assertion this test
+	// makes.
+	c := New(Config{Endpoint: server.URL, MaxAttempts: 1})
 	_, err := GetResourceByIdentity(context.Background(), c, "AWS::EFS::FileSystem", "fs-0123")
 	if err == nil {
 		t.Fatal("expected the ListResources failure during fallback to propagate")

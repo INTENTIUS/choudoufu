@@ -12,6 +12,10 @@ test:
 test-floci:
     make test-floci
 
+# Issue #64's estate-scale benchmark against floci. ESTATE_BENCH_N=<n> just bench-estate sets the size (default 200).
+bench-estate:
+    make bench-estate
+
 # The demo: real estate on a local emulator, state file deleted mid-run, plans stay exact. Needs Docker, ~2 minutes, exit 0 = every claim held.
 demo:
     bash live/e2e/run.sh --expect 5
