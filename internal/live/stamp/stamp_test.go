@@ -571,6 +571,15 @@ var (
 		"aws_cloudfront_multitenant_distribution",
 		"aws_cloudfront_trust_store",
 		"aws_cloudfront_vpc_origin",
+		// Registry-ratified identity batch (#40, #44, #65): Cognito, IAM
+		// leftovers, SSO Admin. See live/e2e/estates/identity/README.md.
+		"aws_cognito_identity_pool",
+		"aws_cognito_user_pool",
+		"aws_iam_openid_connect_provider",
+		"aws_iam_policy",
+		"aws_iam_server_certificate",
+		"aws_ssoadmin_application",
+		"aws_ssoadmin_permission_set",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -678,6 +687,25 @@ var (
 		"aws_cloudfront_monitoring_subscription",
 		"aws_cloudfront_origin_access_control",
 		"aws_cloudfront_realtime_log_config",
+		// Registry-ratified identity batch (#40, #44, #65): Cognito, IAM
+		// leftovers, SSO Admin. Fifteen untaggable types, confirmed against
+		// the real provider's documented Argument Reference for each - see
+		// live/e2e/estates/identity/README.md, "Untaggable types".
+		"aws_cognito_identity_pool_provider_principal_tag",
+		"aws_cognito_identity_pool_roles_attachment",
+		"aws_cognito_identity_provider",
+		"aws_cognito_resource_server",
+		"aws_cognito_user",
+		"aws_cognito_user_group",
+		"aws_cognito_user_in_group",
+		"aws_cognito_user_pool_domain",
+		"aws_iam_group_policy",
+		"aws_iam_group_policy_attachment",
+		"aws_iam_user_policy",
+		"aws_iam_user_policy_attachment",
+		"aws_ssoadmin_account_assignment",
+		"aws_ssoadmin_application_assignment",
+		"aws_ssoadmin_instance_access_control_attributes",
 	}
 )
 
@@ -1285,6 +1313,33 @@ func testSchemas() Schemas {
 		"aws_cloudfront_realtime_log_config":                   untagged("id", "arn", "name", "sampling_rate"),
 		"aws_cloudfront_trust_store":                           tagged("id", "arn", "name"),
 		"aws_cloudfront_vpc_origin":                            tagged("id", "arn"),
+		// Registry-ratified identity batch (#40, #44, #65): Cognito, IAM
+		// leftovers, SSO Admin. Taggable/untaggable per the real provider's
+		// documented Argument Reference for each type - the fifteen
+		// untaggable rows are exactly this batch's own "Untaggable types"
+		// list in live/e2e/estates/identity/README.md.
+		"aws_cognito_identity_pool":                        tagged("id", "identity_pool_name"),
+		"aws_cognito_identity_pool_provider_principal_tag": untagged("id", "identity_pool_id", "identity_provider_name"),
+		"aws_cognito_identity_pool_roles_attachment":       untagged("id", "identity_pool_id"),
+		"aws_cognito_identity_provider":                    untagged("id", "user_pool_id", "provider_name", "provider_type"),
+		"aws_cognito_resource_server":                      untagged("id", "user_pool_id", "identifier", "name"),
+		"aws_cognito_user":                                 untagged("id", "user_pool_id", "username"),
+		"aws_cognito_user_group":                           untagged("id", "user_pool_id", "name"),
+		"aws_cognito_user_in_group":                        untagged("id", "user_pool_id", "group_name", "username"),
+		"aws_cognito_user_pool":                            tagged("id", "arn", "name"),
+		"aws_cognito_user_pool_domain":                     untagged("id", "domain", "user_pool_id"),
+		"aws_iam_group_policy":                             untagged("id", "group", "name", "policy"),
+		"aws_iam_group_policy_attachment":                  untagged("id", "group", "policy_arn"),
+		"aws_iam_openid_connect_provider":                  tagged("id", "arn", "url"),
+		"aws_iam_policy":                                   tagged("id", "arn", "name"),
+		"aws_iam_server_certificate":                       tagged("id", "arn", "name"),
+		"aws_iam_user_policy":                              untagged("id", "user", "name", "policy"),
+		"aws_iam_user_policy_attachment":                   untagged("id", "user", "policy_arn"),
+		"aws_ssoadmin_account_assignment":                  untagged("id", "instance_arn", "permission_set_arn", "principal_id", "principal_type", "target_id", "target_type"),
+		"aws_ssoadmin_application":                         tagged("id", "arn", "name", "instance_arn", "application_provider_arn"),
+		"aws_ssoadmin_application_assignment":              untagged("id", "application_arn", "principal_id", "principal_type"),
+		"aws_ssoadmin_instance_access_control_attributes":  untagged("id", "instance_arn"),
+		"aws_ssoadmin_permission_set":                      tagged("id", "arn", "name", "instance_arn"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.
