@@ -126,6 +126,15 @@ func SplitAddress(escaped string) []string {
 func GatherAddress(tags map[string]string) (raw string, corrupt bool) {
 	primary, ok := tags[TagAddress]
 	if !ok {
+		// tofu-address itself is missing. That is the ordinary "no marker at
+		// all" case only if no continuation tag is present either; a
+		// continuation tag surviving without the primary it continues is the
+		// n=2 gap this function's doc comment names explicitly.
+		for n := 2; n <= MaxContinuations; n++ {
+			if _, present := tags[ContinuationTag(n)]; present {
+				return "", true
+			}
+		}
 		return "", false
 	}
 
