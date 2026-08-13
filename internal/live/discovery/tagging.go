@@ -166,6 +166,14 @@ var arnJoinTable = map[string]map[string]arnJoinEntry{
 		"volume":           single("AWS::EC2::Volume"),
 		"launch-template":  single("AWS::EC2::LaunchTemplate"),
 		"instance":         single("AWS::EC2::Instance"),
+		// natgateway carries no hyphen, unlike most of this table's other
+		// two-word ec2 segments (AWS's own ARN grammar, not a typo) - aws_nat_gateway
+		// is not in identity.DefaultTable, so this is the mapped-but-unadmitted
+		// case tagging_test.go's real-artifacts suite exercises; every other
+		// ec2 entry above joined an admitted type as of the EC2 core batch
+		// (issue #65), which is what made adding this one necessary to keep
+		// that test case meaningful at all.
+		"natgateway": single("AWS::EC2::NatGateway"),
 		// A security group rule's ARN does not say whether it is an ingress
 		// or an egress rule - both share this exact shape - so the join
 		// cannot pick one. See [ambiguous].

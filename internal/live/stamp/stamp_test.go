@@ -453,6 +453,17 @@ var (
 		"aws_cloudwatch_composite_alarm",
 		"aws_cloudwatch_metric_stream",
 		"aws_sqs_queue",
+		// Registry-ratified EC2 core batch (#40, #44, issue #65). See
+		// live/e2e/estates/ec2-core/README.md, "Untaggable types", for
+		// the five untaggable types this batch also admits.
+		"aws_instance",
+		"aws_key_pair",
+		"aws_placement_group",
+		"aws_ec2_fleet",
+		"aws_ec2_capacity_reservation",
+		"aws_ec2_host",
+		"aws_network_interface",
+		"aws_spot_fleet_request",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -484,6 +495,16 @@ var (
 		"aws_cloudwatch_dashboard",
 		"aws_sns_topic_policy",
 		"aws_sqs_queue_policy",
+		// Registry-ratified EC2 core batch (#40, #44, issue #65): five
+		// untaggable types — four whose Argument Reference names no tags
+		// block at all, plus aws_ebs_snapshot_block_public_access, a
+		// per-region singleton with no arguments at all beyond `state`. See
+		// live/e2e/estates/ec2-core/README.md, "Untaggable types".
+		"aws_network_interface_attachment",
+		"aws_network_interface_permission",
+		"aws_eip_association",
+		"aws_volume_attachment",
+		"aws_ebs_snapshot_block_public_access",
 	}
 )
 
@@ -911,6 +932,27 @@ func testSchemas() Schemas {
 		"aws_sns_topic_policy":           untagged("id", "arn", "policy"),
 		"aws_sqs_queue":                  tagged("id", "arn", "url", "name"),
 		"aws_sqs_queue_policy":           untagged("id", "queue_url", "policy"),
+
+		// Registry-ratified EC2 core batch (#40, #44, issue #65).
+		// Taggable/untaggable per the real provider's documented Argument
+		// Reference for each type: aws_network_interface_attachment,
+		// aws_network_interface_permission, aws_eip_association and
+		// aws_volume_attachment carry no tags argument at all, and
+		// aws_ebs_snapshot_block_public_access carries no argument beyond
+		// `state`.
+		"aws_instance":                         tagged("id", "arn", "ami", "instance_type"),
+		"aws_key_pair":                         tagged("id", "arn", "key_name", "public_key"),
+		"aws_placement_group":                  tagged("id", "arn", "name", "strategy"),
+		"aws_ec2_fleet":                        tagged("id", "arn"),
+		"aws_ec2_capacity_reservation":         tagged("id", "arn", "instance_type", "availability_zone"),
+		"aws_ec2_host":                         tagged("id", "arn", "availability_zone"),
+		"aws_network_interface":                tagged("id", "arn", "subnet_id"),
+		"aws_network_interface_attachment":     untagged("instance_id", "network_interface_id", "attachment_id", "device_index"),
+		"aws_network_interface_permission":     untagged("network_interface_id", "aws_account_id", "permission", "network_interface_permission_id"),
+		"aws_eip_association":                  untagged("id", "allocation_id", "instance_id"),
+		"aws_volume_attachment":                untagged("device_name", "instance_id", "volume_id"),
+		"aws_spot_fleet_request":               tagged("id", "arn"),
+		"aws_ebs_snapshot_block_public_access": untagged("state"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.

@@ -385,8 +385,8 @@ func TestResolveErrors(t *testing.T) {
 		{
 			dir:         "unknown-type",
 			wantSummary: "Resource type outside the live-markers subset",
-			wantDetail:  `"aws_instance"`,
-			wantAbsent:  `aws_instance.app`,
+			wantDetail:  `"aws_customer_gateway"`,
+			wantAbsent:  `aws_customer_gateway.app`,
 		},
 		{
 			dir:         "unevaluable-name",

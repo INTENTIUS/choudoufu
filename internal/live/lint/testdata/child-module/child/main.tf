@@ -1,3 +1,3 @@
-resource "aws_instance" "web" {
-  ami = "ami-12345678"
+resource "aws_customer_gateway" "web" {
+  bgp_asn = 65000
 }
