@@ -151,7 +151,9 @@ func TestCurated68Pin(t *testing.T) {
 // from under a hand-written row), and every alias must still be needed (a
 // no-cliff check, chant's aws-resources.test.ts:7-14 - an alias the name
 // heuristic has since grown to derive on its own is a stale row that should
-// be deleted, not carried forever).
+// be deleted, not carried forever). heuristic_overrides (issue #58) gets
+// the mirror-image version of that same "still needed" check - see the
+// table's own loop below.
 func TestOverlayTwoWayStaleness(t *testing.T) {
 	root, err := repoRoot()
 	if err != nil {
@@ -204,6 +206,22 @@ func TestOverlayTwoWayStaleness(t *testing.T) {
 		}
 		if !cfnSet[parent] {
 			t.Errorf("fold %s -> %s: %s is no longer in the CFN roster (%s); remove or update this overlay entry", tf, parent, parent, cfnRosterRel)
+		}
+	}
+	// heuristic_overrides' two-way check (issue #58) is the mirror image of
+	// the alias check above: an alias is stale when the heuristic DOES
+	// derive it (redundant curation, delete the alias); an override is
+	// stale when the heuristic does NOT derive a hit for it any more (the
+	// CFN type it used to wrongly claim was renamed or removed out from
+	// under it), because at that point there is no heuristic hit left to
+	// override - delete the entry.
+	for tf := range overlay.HeuristicOverrides {
+		if !tfSet[tf] {
+			t.Errorf("heuristic_overrides entry for %s: %s is no longer in the TF roster (%s); remove or update this overlay entry", tf, tf, tfRosterRel)
+			continue
+		}
+		if _, ok := index[tf]; !ok {
+			t.Errorf("heuristic_overrides entry for %s is stale: the name heuristic no longer derives any hit for %s to override; delete the overlay entry", tf, tf)
 		}
 	}
 	for tf := range overlay.Nones {
@@ -328,6 +346,103 @@ func TestNoUnflaggedCollisions(t *testing.T) {
 			sort.Strings(all)
 			t.Errorf("%s is claimed by more than one unflagged name-heuristic hit (%v); every TF type past the first must be an explicit overlay alias. Full group: %v",
 				cfn, nameHits, all)
+		}
+	}
+}
+
+// TestHeuristicOverrideSkipsNameHeuristic is classifyRow's own unit test for
+// issue #58's heuristic_overrides table, exercised directly against a
+// synthetic index/overlay rather than the real rosters: a TF type the name
+// heuristic would otherwise hit falls through to via:none (unclaimed by any
+// other source) once it is listed in HeuristicOverrides, and an
+// unlisted sibling with the identical index entry still resolves via:name
+// as normal - proving the override is scoped to the one type, not a global
+// toggle.
+func TestHeuristicOverrideSkipsNameHeuristic(t *testing.T) {
+	index := map[string]string{
+		"aws_lex_bot":         "AWS::Lex::Bot",
+		"aws_other_untouched": "AWS::Other::Untouched",
+	}
+	cfnSet := map[string]bool{"AWS::Lex::Bot": true, "AWS::Other::Untouched": true}
+	ov := Overlay{
+		HeuristicOverrides: map[string]string{
+			"aws_lex_bot": "the heuristic hit is wrong - see the issue #58 reasoning",
+		},
+	}
+
+	row, ambiguous, err := classifyRow("aws_lex_bot", index, cfnSet, ov, nil, nil, serviceIndexCache{})
+	if err != nil {
+		t.Fatalf("classifyRow: %v", err)
+	}
+	if len(ambiguous) != 0 {
+		t.Fatalf("classifyRow: unexpected ambiguous candidates %v", ambiguous)
+	}
+	if row.Via != viaNone {
+		t.Fatalf("aws_lex_bot: via = %q, cfn_type = %v - want via:none (the override must suppress the name-heuristic hit entirely, not merely change it)", row.Via, row.CFNType)
+	}
+	if row.CFNType != nil {
+		t.Fatalf("aws_lex_bot: cfn_type = %v, want nil once the heuristic hit is overridden", *row.CFNType)
+	}
+
+	// The untouched sibling, sharing the same index and overlay but no
+	// override entry of its own, must still resolve normally.
+	row2, _, err := classifyRow("aws_other_untouched", index, cfnSet, ov, nil, nil, serviceIndexCache{})
+	if err != nil {
+		t.Fatalf("classifyRow: %v", err)
+	}
+	if row2.Via != viaName || row2.CFNType == nil || *row2.CFNType != "AWS::Other::Untouched" {
+		t.Fatalf("aws_other_untouched: via = %q, cfn_type = %v - want an ordinary via:name hit, unaffected by another type's override", row2.Via, row2.CFNType)
+	}
+}
+
+// TestLexV1BotFamilyReclassified pins issue #58's fix at the row level,
+// through the real, committed overlay (base + overlay.d/fix-58-lex.json)
+// rather than a synthetic one: aws_lex_bot and its sibling
+// aws_lex_bot_alias - the legacy Lex V1 bot and its alias resource - both
+// name-heuristic-hit a CFN type whose own docs say it models Lex V2 only
+// (AWS::Lex::Bot / AWS::Lex::BotAlias), so both must land on
+// via:cfn-unmodeled, not via:name, once the overlay's heuristic_overrides
+// and cfn_unmodeled entries are in play. aws_lexv2models_bot keeps the
+// alias those V1 CFN types actually belong to, and aws_lex_intent/
+// aws_lex_slot_type (already cfn_unmodeled before this issue, and never a
+// heuristic hit in the first place - the registry has no AWS::Lex::Intent
+// or AWS::Lex::SlotType type) stay exactly where they were.
+func TestLexV1BotFamilyReclassified(t *testing.T) {
+	tfTypes, cfnTypes, overlay, generated, former2Usable, registryHandlerless, identitySchema := testSources(t)
+	mapping, _, _, err := buildMapping(tfTypes, cfnTypes, Sources{Overlay: overlay, GeneratedServiceAliases: generated, Former2: former2Usable, RegistryHandlerless: registryHandlerless, IdentitySchema: identitySchema})
+	if err != nil {
+		t.Fatalf("buildMapping: %v", err)
+	}
+	byType := make(map[string]Row, len(mapping.Rows))
+	for _, r := range mapping.Rows {
+		byType[r.TFType] = r
+	}
+
+	for _, tf := range []string{"aws_lex_bot", "aws_lex_bot_alias"} {
+		row, ok := byType[tf]
+		if !ok {
+			t.Fatalf("%s: not in the regenerated mapping at all", tf)
+		}
+		if row.Via != viaCFNUnmodeled {
+			t.Errorf("%s: via = %q, cfn_type = %v - want via:cfn-unmodeled with no cfn_type (issue #58: the name heuristic's hit for this V1 type is a V2-only CFN type)", tf, row.Via, row.CFNType)
+			continue
+		}
+		if row.CFNType != nil {
+			t.Errorf("%s: cfn_type = %v, want nil for a cfn-unmodeled row", tf, *row.CFNType)
+		}
+		if row.Note == nil || *row.Note == "" {
+			t.Errorf("%s: cfn-unmodeled row carries no note", tf)
+		}
+	}
+
+	if row, ok := byType["aws_lexv2models_bot"]; !ok || row.Via != viaAlias || row.CFNType == nil || *row.CFNType != "AWS::Lex::Bot" {
+		t.Errorf("aws_lexv2models_bot: want via:alias -> AWS::Lex::Bot unchanged, got via=%q cfn_type=%v", row.Via, row.CFNType)
+	}
+
+	for _, tf := range []string{"aws_lex_intent", "aws_lex_slot_type"} {
+		row, ok := byType[tf]
+		if !ok || row.Via != viaCFNUnmodeled {
+			t.Errorf("%s: want via:cfn-unmodeled (unchanged by issue #58), got %+v", tf, row)
 		}
 	}
 }

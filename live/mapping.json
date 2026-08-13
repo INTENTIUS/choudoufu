@@ -2,19 +2,19 @@
   "generated_by": "tools/mapping-gen (go run ./tools/mapping-gen)",
   "counts": {
     "types": 1691,
-    "mapped": 1085,
+    "mapped": 1083,
     "fold": 170,
     "tf_only": 116,
-    "cfn_unmodeled": 300,
+    "cfn_unmodeled": 302,
     "deprecated_service": 7,
     "unclassified": 13,
     "by_via": {
       "alias": 173,
-      "cfn-unmodeled": 300,
+      "cfn-unmodeled": 302,
       "deprecated-service": 7,
       "fold": 170,
       "former2": 47,
-      "name": 742,
+      "name": 740,
       "service-alias": 123,
       "tf-only": 116
     }
@@ -6272,17 +6272,17 @@
     },
     {
       "tf_type": "aws_lex_bot",
-      "cfn_type": "AWS::Lex::Bot",
-      "via": "name",
+      "cfn_type": null,
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": null
+      "note": "Lex V1 has no registry model; AWS::Lex::Bot is V2-only per its own docs, corresponding to aws_lexv2models_bot"
     },
     {
       "tf_type": "aws_lex_bot_alias",
-      "cfn_type": "AWS::Lex::BotAlias",
-      "via": "name",
+      "cfn_type": null,
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": null
+      "note": "Lex V1 has no registry model; AWS::Lex::BotAlias is V2-only per its own docs (same note as AWS::Lex::Bot), and the provider has no V2 bot-alias resource to claim it instead"
     },
     {
       "tf_type": "aws_lex_intent",

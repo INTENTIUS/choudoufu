@@ -186,8 +186,11 @@ func mergedServiceAliases(generated map[string][]string, overlay map[string][]st
 
 // buildMapping joins the TF roster against the CFN roster: the overlay's
 // aliases, folds, tf_only, cfn_unmodeled and nones win outright (curated,
-// exact, and validated against the current CFN roster), the name heuristic
-// tries next for anything the overlay does not cover, the service-alias
+// exact, and validated against the current CFN roster), the overlay's
+// heuristic_overrides table (issue #58) then vetoes the name heuristic for
+// any TF type still unclaimed whose heuristic hit is known to be wrong
+// without asserting an answer of its own, the name heuristic tries next for
+// anything neither of those covers, the service-alias
 // heuristic (its own table merged from names_data.hcl and the overlay's
 // remaining conflicts) tries next for anything still unclaimed, former2's
 // per-resource pairing tries next for anything STILL unclaimed by any of
@@ -283,16 +286,20 @@ func buildMapping(tfTypes, cfnTypes []string, src Sources) (Mapping, []NeedsAlia
 // classifyRow decides one TF type's row, in priority order: a curated
 // overlay entry (alias, fold, tf_only, cfn_unmodeled, or none) wins outright
 // over both heuristics, since curation exists precisely to override or fill
-// in what a heuristic gets wrong or cannot reach; the plain name heuristic
-// wins next over the service-alias heuristic, since an unscoped exact match
-// needs no service hint at all. When the service-alias heuristic finds more
-// than one CFN type within its aliased service, the row still falls through
-// to via:none (an ambiguous guess is not a mapping), but the candidates come
-// back as this call's second return value for buildMapping to collect.
-// former2, then issue #53's own mechanical classifiers (taxonomy.go), are
-// applied by the caller afterward, only to rows this function leaves at the
-// generic unexplained via:none (never an explicit ov.Nones/TFOnly/
-// CFNUnmodeled judgment) - see buildMapping.
+// in what a heuristic gets wrong or cannot reach; next, HeuristicOverrides
+// is consulted (issue #58) - a type listed there skips the name heuristic
+// entirely, even though none of the five tables just checked classified it,
+// because the heuristic's own hit for that type is known to be wrong (see
+// overlay.go's HeuristicOverrides doc comment); the plain name heuristic
+// then wins next over the service-alias heuristic, since an unscoped exact
+// match needs no service hint at all. When the service-alias heuristic
+// finds more than one CFN type within its aliased service, the row still
+// falls through to via:none (an ambiguous guess is not a mapping), but the
+// candidates come back as this call's second return value for buildMapping
+// to collect. former2, then issue #53's own mechanical classifiers
+// (taxonomy.go), are applied by the caller afterward, only to rows this
+// function leaves at the generic unexplained via:none (never an explicit
+// ov.Nones/TFOnly/CFNUnmodeled judgment) - see buildMapping.
 func classifyRow(tf string, index map[string]string, cfnSet map[string]bool, ov Overlay, cfnTypes []string, serviceAliases map[string][]string, svcCache serviceIndexCache) (Row, []string, error) {
 	row := Row{TFType: tf}
 
@@ -327,10 +334,12 @@ func classifyRow(tf string, index map[string]string, cfnSet map[string]bool, ov 
 		row.Note = &note
 		return row, nil, nil
 	}
-	if cfn, ok := index[tf]; ok {
-		row.Via = viaName
-		row.CFNType = &cfn
-		return row, nil, nil
+	if _, overridden := ov.HeuristicOverrides[tf]; !overridden {
+		if cfn, ok := index[tf]; ok {
+			row.Via = viaName
+			row.CFNType = &cfn
+			return row, nil, nil
+		}
 	}
 
 	unexplainedNote := unexplainedNoteText
