@@ -8,6 +8,8 @@ package stamp
 import (
 	"strings"
 	"testing"
+
+	"github.com/intentius/choudoufu/internal/addrs"
 )
 
 // TestStamp_PolicyUntagReleasesEstateMarker: GitHub issue #67's
@@ -170,12 +172,14 @@ resource "aws_vpc" "main" {
 }
 `).Module.ManagedResources["aws_vpc.main"]
 
-	u := Untagged{Addr: rc.Addr(), Key: TagEstate, EstateMarker: true}
+	cr := addrs.ConfigResource{Module: addrs.RootModule, Resource: rc.Addr()}
+
+	u := Untagged{Addr: cr, Key: TagEstate, EstateMarker: true}
 	if s := u.String(); !strings.Contains(s, "leaves management") {
 		t.Errorf("String() = %q, want it to mention leaving management", s)
 	}
 
-	u2 := Untagged{Addr: rc.Addr(), Key: "team-owns", EstateMarker: false}
+	u2 := Untagged{Addr: cr, Key: "team-owns", EstateMarker: false}
 	if s := u2.String(); strings.Contains(s, "leaves management") {
 		t.Errorf("String() = %q, a non-estate-marker release must not mention leaving management", s)
 	}

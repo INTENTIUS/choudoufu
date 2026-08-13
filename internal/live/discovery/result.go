@@ -118,6 +118,30 @@ type Result struct {
 	// swept orphan - see [identity.ParentReadRemovable] for which types
 	// this pass trusts to remove rather than only report.
 	ParentReads []ParentReadFinding
+
+	// Guided is true when this pass actually consumed a snapshot hint:
+	// Request.Guided was set, a source was configured, and a fresh,
+	// well-formed snapshot was read from it. False whenever Request.Guided
+	// was never set, and also false when it was set but the pass fell back
+	// to full enumeration - see GuidedFallback for why. Scan metadata only;
+	// nothing else in this Result depends on how Guided came to be true.
+	Guided bool
+
+	// GuidedFallback is empty whenever Guided is true, or whenever
+	// Request.Guided was never set. Otherwise it names, in one sentence, why
+	// a requested guided pass fell back to today's full enumeration: no
+	// snapshot source configured, a missing or corrupted snapshot, or one
+	// older than Request.GuidedMaxAge. Falling back is never an error and
+	// never changes what the plan proposes - see Request.Guided - only how
+	// many calls it cost to compute.
+	GuidedFallback string
+
+	// GuidedSweepSkipped lists the sweep types this pass skipped, sorted,
+	// because a fresh hint reported no evidence of them and this was not a
+	// verification pass (Request.GuidedVerify). Empty whenever Guided is
+	// false. A type here is not swept this run; an orphan of it surfaces at
+	// the next full or verification sweep instead of this one.
+	GuidedSweepSkipped []string
 }
 
 // ParentReadFinding is one live child a parent read found: an untaggable,
@@ -935,6 +959,7 @@ func (r *Result) sortEverything() {
 		return r.ParentReads[i].ImportID < r.ParentReads[j].ImportID
 	})
 	sort.Strings(r.SweepCovered)
+	sort.Strings(r.GuidedSweepSkipped)
 	sort.Slice(r.Resolutions, func(i, j int) bool {
 		return r.Resolutions[i].Addr.String() < r.Resolutions[j].Addr.String()
 	})

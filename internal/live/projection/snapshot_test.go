@@ -714,29 +714,59 @@ func TestWriteSnapshot_atomic(t *testing.T) {
 // The no-reader honesty test
 // ---------------------------------------------------------------------------
 
-// TestSnapshot_noReader is the sweeping half of P4.2 rule 3's enforcement
-// ("no code path may read this file"). The other half is the compiler:
-// [snapshot], [snapshotResource] and [snapshotFormatVersion] are unexported,
-// so no package outside this one can name the format constant or decode the
-// file into the shape the writer declares. That is a real wall, and the audit
-// was right that the previous version of this test was not one - it grepped
-// for the constant while EXCLUDING the writer's own package, so a reader
-// added next to the writer, or one that spelled the literal itself, walked
-// straight past.
+// TestSnapshot_noReader is the sweeping half of P4.2 rule 3's enforcement.
+// The rule itself was restated, not weakened, the day issue #64's
+// snapshot-guided discovery leg landed: the founding claim used to be "no
+// code path may read this file", full stop, and hint.go's [ReadHintFile] /
+// [ReadHintBranch] make that sentence literally false now. The precise claim
+// that survives - the one this test still enforces absolutely - is "nothing
+// reads a snapshot AS AUTHORITY": a stale, corrupted, or missing snapshot
+// must produce the identical plan a cold run with no snapshot at all would
+// produce, only slower, never a different or a wrong one. See
+// TestReadHintFile_corrupted, TestReadHintFile_missing,
+// TestReadHintBranch_corruptedBlob and TestReadHintBranch_missing in
+// hint_test.go for the reader half of that proof (every failure mode hands
+// back an error and a nil Hint, never a partial guess), and
+// internal/live/discovery's TestGuided_equivalence for the consumer half
+// (guided discovery, given any of those failures, produces byte-identical
+// output to an unguided pass over the same estate). Loosening this far was a
+// deliberate, reviewed decision - the tool's central promise is what it
+// touches - and it is this test, restated, that is the reviewed record of
+// where the new line sits.
+//
+// hint.go is the one reader this package now contains, and it is held to a
+// narrower promise than "may read the bytes": [ReadHintFile] and
+// [ReadHintBranch] may only ever hand back [Hint], the reduced shape
+// (which types, which identifiers, when) that [TestHint_reducedShapeOnly]
+// keeps from growing back toward the snapshot's full per-resource record.
+// Nothing outside this package may do even that much - the compiler wall
+// below is unchanged - and nothing inside it may do more.
+//
+// The other half is the compiler: [snapshot], [snapshotResource] and
+// [snapshotFormatVersion] are unexported, so no package outside this one can
+// name the format constant or decode the file into the shape the writer
+// declares. That is a real wall, and the audit was right that an earlier
+// version of this test was not one - it grepped for the constant while
+// EXCLUDING the writer's own package, so a reader added next to the writer,
+// or one that spelled the literal itself, walked straight past.
 //
 // What this test adds on top of the compiler, both checks walking the tree
 // rather than trusting a list:
 //
 //  1. The format literal may appear in exactly one place in the repository,
 //     snapshot.go, where it is declared. Every other .go file - this
-//     package's own included, which is the hole that is now closed - is
-//     checked. Spelling the literal instead of importing the constant is the
-//     obvious way around an unexported identifier, so that is the way this
-//     looks for.
+//     package's own included (hint.go names the constant by identifier, from
+//     inside the package, never by spelling the literal) - is checked.
+//     Spelling the literal instead of importing the constant is the obvious
+//     way around an unexported identifier, so that is the way this looks
+//     for.
 //  2. No non-test .go file outside this package may redeclare the snapshot's
 //     struct shape, recognized by its two distinctive JSON tags. Hand-rolling
 //     the struct is the other way around an unexported type, and a reader
-//     that does it has to write those tags to decode anything.
+//     that does it has to write those tags to decode anything. hint.go itself
+//     decodes into the real [snapshot] type - it is inside this package, so
+//     this check does not and need not apply to it; [TestHint_reducedShapeOnly]
+//     is what keeps what hint.go hands OUT reduced instead.
 //
 // Test files are exempt from (2) on purpose, and
 // internal/live/lifecycle's snapshot integration test uses the

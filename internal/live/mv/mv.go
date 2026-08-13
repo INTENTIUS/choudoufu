@@ -161,13 +161,6 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			"No configuration to rename against",
 			"A rename reads the configuration to find which resource block owns the destination address and which provider to reach the live resource through, and none was given.",
 		))
-	case len(req.Config.Children) > 0:
-		// Defense in depth: lint's RuleChildModule is what an operator sees.
-		return res, diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Configuration with child modules reached the rename",
-			"Live resource markers v0 cover the root module only. Lint rejects module calls before this point, so this is a bug in the live-markers pipeline.",
-		))
 	case req.Providers == nil:
 		return res, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
@@ -205,8 +198,19 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	}
 	res.Anchor = anchor
 
-	rc := req.Config.Module.ManagedResources[anchor.Resource.Resource.String()]
-	providerAddr := providerConfigAddr(rc)
+	var rc *configs.Resource
+	if modCfg, ok := identity.ConfigForModule(req.Config, anchor.Module); ok && modCfg.Module != nil {
+		rc = modCfg.Module.ManagedResources[anchor.Resource.Resource.String()]
+	}
+	if rc == nil {
+		// anchorAddr only returns declared addresses, so this is a bug.
+		return res, diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"No resource block for the rename's anchor address",
+			fmt.Sprintf("%s is declared per identity resolution, but no resource block was found for it in the configuration. This is a bug.", anchor),
+		))
+	}
+	providerAddr := providerConfigAddr(rc, anchor.Module.Module())
 	provider, err := req.Providers.ConfiguredProvider(ctx, providerAddr)
 	if err != nil {
 		return res, diags.Append(tfdiags.Sourceless(
@@ -252,7 +256,16 @@ type mover struct {
 
 // checkAddresses rejects the pairs of addresses that describe no move: the
 // same address twice, two different resource types, anything that is not a
-// managed resource, and anything outside the root module.
+// managed resource, and either address passing through a keyed module
+// instance.
+//
+// A root address and a static-module address are both fine, and so is one
+// of each: crossing the module boundary either way - flattening an estate
+// into its root, or moving a resource into a module another config tree
+// declares - is an ordinary rename once both ends are legal addresses,
+// because a marker records an address, not which side of a module call
+// wrote it (see mv.go's package doc, "the migration path for estates that
+// flattened to try v0").
 func checkAddresses(req Request) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
@@ -280,17 +293,31 @@ func checkAddresses(req Request) tfdiags.Diagnostics {
 				"%s is a %s and %s is a %s. A rename rewrites the marker on one live resource; it does not turn one kind of cloud object into another. See live/MARKERS.md, \"The rename rule\".",
 				req.Old, oldRes.Type, req.New, newRes.Type),
 		))
-	case !req.Old.Module.IsRoot() || !req.New.Module.IsRoot():
+	case hasKeyedModuleStep(req.Old.Module) || hasKeyedModuleStep(req.New.Module):
 		// Unlike the guard at the top of Move, this one is about the two
 		// addresses on the command line rather than about the configuration,
 		// so lint cannot have caught it and it stays a full explanation.
 		return diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
-			"Child modules are not available under live resource markers",
-			fmt.Sprintf("%s or %s is inside a module, and live resource markers v0 cover the root module only. See live/LIMITATIONS.md, \"child-module\".", req.Old, req.New),
+			"Keyed module instances are not available under live resource markers",
+			fmt.Sprintf("%s or %s passes through a module instance carrying a count or for_each key, and live resource markers admit only static module calls today. See live/LIMITATIONS.md, \"child-module\".", req.Old, req.New),
 		))
 	}
 	return diags
+}
+
+// hasKeyedModuleStep reports whether a module instance path carries an
+// instance key anywhere in it: a module expanded with count or for_each,
+// neither of which live resource markers admit yet (count permanently,
+// for_each pending 59c). A static path - every step's key is
+// [addrs.NoKey] - is fine at any depth.
+func hasKeyedModuleStep(modInst addrs.ModuleInstance) bool {
+	for _, step := range modInst {
+		if step.InstanceKey != addrs.NoKey {
+			return true
+		}
+	}
+	return false
 }
 
 // checkMarkers rejects addresses that cannot be carried as a tag value at
@@ -395,10 +422,10 @@ func resolutionFor(req Request, addr addrs.AbsResourceInstance) (identity.Resolu
 }
 
 // providerConfigAddr is the absolute provider configuration a resource block
-// uses. Only the root module exists in stateless mode v0.
-func providerConfigAddr(rc *configs.Resource) addrs.AbsProviderConfig {
+// uses, modPath being the static module the block itself is declared in.
+func providerConfigAddr(rc *configs.Resource, modPath addrs.Module) addrs.AbsProviderConfig {
 	return addrs.AbsProviderConfig{
-		Module:   addrs.RootModule,
+		Module:   modPath,
 		Provider: rc.Provider,
 		Alias:    rc.ProviderConfigAddr().Alias,
 	}

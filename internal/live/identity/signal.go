@@ -260,11 +260,20 @@ func ScanConfig(ctx context.Context, cfg *configs.Config) (*ConfigSignal, tfdiag
 	return signal, r.diags
 }
 
-// collectSignal walks every managed resource in the module and records what
-// each of its instances sets. It is the shared body of [ScanConfig] and of
-// the collection [ResolveIn] does as it goes.
+// collectSignal walks every managed resource in the configuration's whole
+// static module tree and records what each of its instances sets. It is the
+// shared body of [ScanConfig] and of the collection [ResolveIn] does as it
+// goes.
 func (r *resolver) collectSignal(cfg *configs.Config) *ConfigSignal {
 	signal := newConfigSignal()
+	r.collectSignalInto(cfg, signal)
+	return signal
+}
+
+// collectSignalInto is [resolver.collectSignal]'s recursive step: one
+// module's resources, then its children in name order.
+func (r *resolver) collectSignalInto(cfg *configs.Config, signal *ConfigSignal) {
+	r.enterModule(cfg)
 	for _, rc := range sortedResources(cfg.Module.ManagedResources) {
 		exp, ok := r.expansionFor(rc)
 		if !ok {
@@ -272,7 +281,9 @@ func (r *resolver) collectSignal(cfg *configs.Config) *ConfigSignal {
 		}
 		r.signalFor(signal, rc, exp)
 	}
-	return signal
+	for _, name := range SortedChildNames(cfg.Children) {
+		r.collectSignalInto(cfg.Children[name], signal)
+	}
 }
 
 // signalFor records one resource block's instances.
@@ -292,7 +303,7 @@ func (r *resolver) signalFor(signal *ConfigSignal, rc *configs.Resource, exp *ex
 	sort.Strings(names)
 
 	for _, key := range exp.keys {
-		addr := rc.Addr().Instance(key).Absolute(addrs.RootModuleInstance)
+		addr := rc.Addr().Instance(key).Absolute(r.modInst)
 		scope := exp.scope(key)
 		set := make(map[string]bool, len(names))
 		for _, name := range names {

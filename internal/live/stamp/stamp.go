@@ -20,6 +20,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/discovery"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -52,9 +53,12 @@ type Request struct {
 	// with can never drift apart.
 	Estate string
 
-	// Config is the configuration to stamp, in place. Only the root module is
-	// walked; stateless mode v0 has no child modules, and a configuration
-	// with any is refused rather than half-stamped.
+	// Config is the configuration to stamp, in place. The whole static
+	// module tree is walked: a resource inside a static module call is
+	// stamped exactly as a root resource is, with a module-qualified
+	// tofu-address. Count- and for_each-expanded module blocks are refused
+	// by lint before a run reaches this package, so nothing here has to
+	// tell them apart from a static one.
 	Config *configs.Config
 
 	// Schemas answers which resource types carry tags.
@@ -77,7 +81,9 @@ type Request struct {
 
 	// NeedsDiscovery names the resource blocks whose instances can only be
 	// found by their ownership marker - the identity package's
-	// ClassNeedsDiscovery - keyed by block address ("aws_subnet.this").
+	// ClassNeedsDiscovery - keyed by module-qualified block address
+	// ("aws_subnet.this", or "module.net.aws_subnet.this" inside a static
+	// module).
 	//
 	// It is what turns a failure to stamp from a warning into an error. For a
 	// resource whose identity is in its own configuration, an unstamped apply
@@ -140,8 +146,10 @@ type Result struct {
 // Untagged is one resource block whose configuration this pass left one tag
 // key out of, at policy's request.
 type Untagged struct {
-	// Addr is the resource block's address.
-	Addr addrs.Resource
+	// Addr is the resource block's address, module-qualified for a block
+	// inside a static module - the same shape [Stamped.Addr] and
+	// [Skip.Addr] carry.
+	Addr addrs.ConfigResource
 
 	// Key is the tag key that was released.
 	Key string
@@ -165,8 +173,9 @@ func (u Untagged) String() string {
 
 // Stamped is one resource whose configuration this pass rewrote.
 type Stamped struct {
-	// Addr is the resource block's address.
-	Addr addrs.Resource
+	// Addr is the resource block's address, module-qualified for a block
+	// inside a static module.
+	Addr addrs.ConfigResource
 
 	// Keys are the marker keys that were added, in the order they appear in
 	// MARKERS.md.
@@ -232,7 +241,9 @@ const (
 
 // Skip is one resource this pass left alone, and why.
 type Skip struct {
-	Addr   addrs.Resource
+	// Addr is the resource block's address, module-qualified for a block
+	// inside a static module.
+	Addr   addrs.ConfigResource
 	Reason SkipReason
 
 	// Detail is one sentence aimed at an operator. Empty for the reasons
@@ -278,13 +289,6 @@ func Stamp(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			"No configuration to stamp",
 			"Stamping ownership markers needs the configuration this run planned from, and none was given.",
 		))
-	case len(req.Config.Children) > 0:
-		// Defense in depth: lint's RuleChildModule is what an operator sees.
-		return res, diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Configuration with child modules reached marker stamping",
-			"Live resource markers v0 cover the root module only. Lint rejects module calls before this point, so this is a bug in the live-markers pipeline.",
-		))
 	case req.Schemas == nil:
 		return res, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
@@ -293,18 +297,11 @@ func Stamp(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		))
 	}
 
-	s := &stamper{req: req, res: res, mod: req.Config.Module}
-
-	mod := req.Config.Module
-	names := make([]string, 0, len(mod.ManagedResources))
-	for name := range mod.ManagedResources {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	s := &stamper{req: req, res: res}
 
 	var pending []*rewrite
-	for _, name := range names {
-		rw, resDiags := s.resource(ctx, mod.ManagedResources[name])
+	for _, mr := range moduleResources(req.Config) {
+		rw, resDiags := s.resource(ctx, mr.rc, mr.mod, mr.modInst)
 		diags = diags.Append(resDiags)
 		if rw != nil {
 			pending = append(pending, rw)
@@ -323,11 +320,55 @@ func Stamp(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	return res, diags
 }
 
+// moduleResource is one managed resource block together with the module it
+// is declared in, both forms: the *configs.Module for reading its own static
+// evaluator, and the module's instance path for module-qualifying its
+// address.
+type moduleResource struct {
+	rc      *configs.Resource
+	mod     *configs.Module
+	modInst addrs.ModuleInstance
+}
+
+// moduleResources walks the whole static module tree in deterministic order
+// - one module's resources, sorted by name, then its children in name order
+// - so that two runs over one configuration stamp in the same order and
+// [Result.Stamped] comes out sorted exactly as it always has for a
+// root-only configuration.
+func moduleResources(cfg *configs.Config) []moduleResource {
+	if cfg == nil || cfg.Module == nil {
+		return nil
+	}
+	modInst := identity.ModuleInstance(cfg)
+	mod := cfg.Module
+
+	names := make([]string, 0, len(mod.ManagedResources))
+	for name := range mod.ManagedResources {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	out := make([]moduleResource, 0, len(names))
+	for _, name := range names {
+		out = append(out, moduleResource{rc: mod.ManagedResources[name], mod: mod, modInst: modInst})
+	}
+	for _, name := range identity.SortedChildNames(cfg.Children) {
+		out = append(out, moduleResources(cfg.Children[name])...)
+	}
+	return out
+}
+
 // stamper carries one pass's inputs and accumulates its result.
 type stamper struct {
 	req Request
 	res *Result
-	mod *configs.Module
+
+	// mod and modInst are the module currently being stamped: set at the
+	// top of [stamper.resource] for each resource in turn, since resources
+	// from different modules in the walk need different static evaluators
+	// and different address prefixes.
+	mod     *configs.Module
+	modInst addrs.ModuleInstance
 }
 
 // rewrite is one resource's decided mutation, held until the whole
@@ -410,10 +451,12 @@ func (rw *rewrite) markerObject() *hclsyntax.ObjectConsExpr {
 }
 
 // resource decides what one resource block needs, without writing anything.
-func (s *stamper) resource(ctx context.Context, rc *configs.Resource) (*rewrite, tfdiags.Diagnostics) {
+func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *configs.Module, modInst addrs.ModuleInstance) (*rewrite, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
-	addr := rc.Addr()
+	s.mod = mod
+	s.modInst = modInst
+	addr := addrs.ConfigResource{Module: modInst.Module(), Resource: rc.Addr()}
 
 	schema, _ := s.req.Schemas.ResourceTypeConfig(rc.Provider, rc.Mode, rc.Type)
 	if schema == nil || schema.Block == nil {
@@ -458,7 +501,7 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource) (*rewrite,
 		return nil, diags.Append(s.unstampable(rc, detail))
 	}
 
-	wantAddr, addrDisplay, perInstance := addressExpr(rc)
+	wantAddr, addrDisplay, perInstance := addressExpr(rc, modInst)
 	markers := []marker{
 		{key: TagEstate, expr: &hclsyntax.LiteralValueExpr{Val: cty.StringVal(s.req.Estate), SrcRange: rc.DeclRange}, want: s.req.Estate},
 		{key: TagAddress, expr: wantAddr, want: addrDisplay, perInstance: perInstance},
@@ -570,7 +613,8 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource) (*rewrite,
 // by their ownership marker, which is what decides the severity of every
 // failure to write one. See [Request.NeedsDiscovery].
 func (s *stamper) mustStamp(rc *configs.Resource) bool {
-	return s.req.NeedsDiscovery[rc.Addr().String()]
+	key := addrs.ConfigResource{Module: s.modInst.Module(), Resource: rc.Addr()}.String()
+	return s.req.NeedsDiscovery[key]
 }
 
 // unstampable is the diagnostic for a resource that did not get its markers,
@@ -593,20 +637,20 @@ func (s *stamper) unstampableAt(rc *configs.Resource, rng hcl.Range, summary, de
 	return &hcl.Diagnostic{
 		Severity: hcl.DiagError,
 		Summary:  "Unmarked apply of a marker-only resource",
-		Detail:   detail + " " + unmarkedDiscoveryDetail(rc.Addr()),
+		Detail:   detail + " " + unmarkedDiscoveryDetail(addrs.ConfigResource{Module: s.modInst.Module(), Resource: rc.Addr()}),
 		Subject:  rng.Ptr(),
 	}
 }
 
 // unmarkedDiscoveryDetail is the sentence that makes an unstamped
 // marker-discovered resource an error rather than a warning.
-func unmarkedDiscoveryDetail(addr addrs.Resource) string {
+func unmarkedDiscoveryDetail(addr addrs.ConfigResource) string {
 	return fmt.Sprintf(
 		"%s has an identity the provider assigns at create time, so the ownership marker is the only thing any later run can find it by. Applying it unmarked would create a resource this configuration can never see again, and every later plan would propose creating another one.",
 		addr)
 }
 
-func (s *stamper) skip(addr addrs.Resource, reason SkipReason, detail string) {
+func (s *stamper) skip(addr addrs.ConfigResource, reason SkipReason, detail string) {
 	s.res.Skipped = append(s.res.Skipped, Skip{Addr: addr, Reason: reason, Detail: detail})
 }
 
@@ -736,7 +780,7 @@ func (s *stamper) staticValue(ctx context.Context, rc *configs.Resource, expr hc
 		return cty.NilVal, false
 	}
 	val, diags := s.mod.StaticEvaluator.Evaluate(ctx, expr, configs.StaticIdentifier{
-		Module:    addrs.RootModule,
+		Module:    s.modInst.Module(),
 		Subject:   fmt.Sprintf("%s.tags", rc.Addr()),
 		DeclRange: expr.Range(),
 	})
@@ -938,8 +982,8 @@ func objectKeyLiteral(keyExpr hclsyntax.Expression) (string, bool) {
 //
 // The second return is the value in operator-readable form, and the third is
 // whether it varies per instance.
-func addressExpr(rc *configs.Resource) (hclsyntax.Expression, string, bool) {
-	base := rc.Addr().String()
+func addressExpr(rc *configs.Resource, modInst addrs.ModuleInstance) (hclsyntax.Expression, string, bool) {
+	base := addrs.ConfigResource{Module: modInst.Module(), Resource: rc.Addr()}.String()
 	rng := rc.DeclRange
 
 	switch {
@@ -984,7 +1028,7 @@ func (s *stamper) slotExpr(rc *configs.Resource) (hclsyntax.Expression, string, 
 	}
 
 	rng := rc.DeclRange
-	prefix := discovery.EscapeAddress(rc.Addr().String() + "[")
+	prefix := discovery.EscapeAddress(addrs.ConfigResource{Module: s.modInst.Module(), Resource: rc.Addr()}.String() + "[")
 
 	keys := make([]string, 0, len(s.req.Slots))
 	for key := range s.req.Slots {

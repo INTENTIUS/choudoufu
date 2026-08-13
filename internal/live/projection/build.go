@@ -138,14 +138,6 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 			"Building a projection requires configured provider instances to read the live system with, and none were given.",
 		))
 		return empty, diags
-	case len(cfg.Children) > 0:
-		// Defense in depth: lint's RuleChildModule is what an operator sees.
-		diags = diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Configuration with child modules reached the projection",
-			"Live resource markers v0 cover the root module only. Lint rejects module calls before this point, so this is a bug in the live-markers pipeline.",
-		))
-		return empty, diags
 	}
 
 	// The config-side naming signal, for the identity check the provider
@@ -564,8 +556,12 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 	importID := w.importID
 	typeName := addr.Resource.Resource.Type
 
-	rc, ok := b.cfg.Module.ManagedResources[addr.Resource.Resource.String()]
-	if !ok && !w.undeclared {
+	modPath := addr.Module.Module()
+	var rc *configs.Resource
+	if modCfg, ok := identity.ConfigForModule(b.cfg, addr.Module); ok && modCfg.Module != nil {
+		rc = modCfg.Module.ManagedResources[addr.Resource.Resource.String()]
+	}
+	if rc == nil && !w.undeclared {
 		detail := fmt.Sprintf(
 			"Identity resolution produced %s, but that resource block is not in the configuration the projection was given. The configuration and the resolutions do not match.",
 			addr,
@@ -575,7 +571,7 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 		return
 	}
 
-	providerAddr, providerOK := b.providerFor(rc, typeName)
+	providerAddr, providerOK := b.providerFor(rc, modPath, typeName)
 	if !providerOK {
 		detail := fmt.Sprintf(
 			"%s is a resource this estate owns whose resource block is no longer in the configuration, and nothing in the configuration says which provider to read a %s through: it declares no provider that could serve the type and the run supplied none. The resource is left alone rather than read.",
@@ -643,7 +639,7 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 	}
 
 	if rc != nil {
-		obj.Dependencies = b.dependencies(rc, schema)
+		obj.Dependencies = b.dependencies(rc, modPath, schema)
 	}
 
 	src, err := obj.Encode(schema.Block.ImpliedType(), uint64(schema.Version), uint64(schema.IdentitySchemaVersion))
@@ -864,18 +860,22 @@ func pickImported(imported []providers.ImportedResource, typeName string) (*prov
 // the wrong account: [statelessDiscoveryProvider] already refuses to
 // discover across several provider configurations, so a run that got this
 // far has exactly one.
-func (b *builder) providerFor(rc *configs.Resource, typeName string) (addrs.AbsProviderConfig, bool) {
+func (b *builder) providerFor(rc *configs.Resource, modPath addrs.Module, typeName string) (addrs.AbsProviderConfig, bool) {
 	if rc != nil {
-		return providerConfigAddr(rc), true
+		return providerConfigAddr(rc, modPath), true
 	}
 	if b.opts.UndeclaredProvider.Provider.Type != "" {
 		return b.opts.UndeclaredProvider, true
 	}
-	implied := b.cfg.Module.ImpliedProviderForUnqualifiedType(impliedProviderName(typeName))
+	modCfg, ok := identity.ConfigForModule(b.cfg, modPath.UnkeyedInstanceShim())
+	if !ok || modCfg.Module == nil {
+		return addrs.AbsProviderConfig{}, false
+	}
+	implied := modCfg.Module.ImpliedProviderForUnqualifiedType(impliedProviderName(typeName))
 	if implied.Type == "" {
 		return addrs.AbsProviderConfig{}, false
 	}
-	return addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: implied}, true
+	return addrs.AbsProviderConfig{Module: modPath, Provider: implied}, true
 }
 
 // impliedProviderName is the local provider name a resource type implies:
@@ -901,8 +901,8 @@ func impliedProviderName(typeName string) string {
 // cases that matter are handled by the cloud itself, which refuses to delete
 // a VPC that still has a subnet in it, and a refusal is a legible error
 // rather than a silent wrong order.
-func (b *builder) dependencies(rc *configs.Resource, schema providers.Schema) []addrs.ConfigResource {
-	key := rc.Addr().String()
+func (b *builder) dependencies(rc *configs.Resource, modPath addrs.Module, schema providers.Schema) []addrs.ConfigResource {
+	key := modPath.String() + "\x00" + rc.Addr().String()
 	if deps, ok := b.depsByType[key]; ok {
 		return deps
 	}
@@ -933,7 +933,7 @@ func (b *builder) dependencies(rc *configs.Resource, schema providers.Schema) []
 		if res.Equal(self) {
 			continue
 		}
-		cr := res.InModule(addrs.RootModule)
+		cr := res.InModule(modPath)
 		seen[cr.String()] = cr
 	}
 
@@ -993,9 +993,9 @@ func discoveryReason(r identity.Resolution) string {
 // providerConfigAddr is the absolute provider configuration a resource
 // block uses. Only the root module exists in stateless mode v0, so the
 // module path is always the root.
-func providerConfigAddr(rc *configs.Resource) addrs.AbsProviderConfig {
+func providerConfigAddr(rc *configs.Resource, modPath addrs.Module) addrs.AbsProviderConfig {
 	return addrs.AbsProviderConfig{
-		Module:   addrs.RootModule,
+		Module:   modPath,
 		Provider: rc.Provider,
 		Alias:    rc.ProviderConfigAddr().Alias,
 	}

@@ -51,20 +51,32 @@ const (
 // name the format constant or decode the file into its declared shape, and
 // that is the compiler's judgement rather than a convention. The second half
 // is [TestSnapshot_noReader], which sweeps every .go file in the repository -
-// this package's own included - for the literal value and for a redeclared
-// copy of the struct shape, because an unexported identifier is a wall a
-// hand-rolled struct can still walk around.
+// this package's own included, hint.go aside - for the literal value and for
+// a redeclared copy of the struct shape, because an unexported identifier is
+// a wall a hand-rolled struct can still walk around.
 //
 // Neither half can catch a reader that opens the path and decodes into
 // map[string]any without naming anything. That residue is stated honestly
 // in stateless/ docs rather than papered over: enforcement is real for
 // typed readers and a convention for untyped ones.
 //
+// hint.go's [ReadHintFile] and [ReadHintBranch] are the one reviewed
+// exception: a reader lives in this package, decodes into this exact type,
+// and hands back [Hint] - a reduced, advisory shape with no way to
+// reconstruct a resource's attributes, identity or markers from it. See
+// TestSnapshot_noReader's doc comment for the restated invariant this
+// exception is held to ("nothing reads a snapshot as authority", not
+// "nothing reads one at all") and [TestHint_reducedShapeOnly] for the test
+// that keeps Hint from growing back toward the full record.
+//
 // Bumped from "tofu-stateless-snapshot-v1" to "tofu-live-snapshot-v1" by
-// PN.1, the "live" rename: the value is free to move because, by the same
-// no-reader guarantee this comment describes, nothing anywhere parses it
-// back, so there is no format to migrate and no old snapshot file that ever
-// needs to be understood again.
+// PN.1, the "live" rename: the value was free to move because, at the time,
+// nothing anywhere parsed it back, so there was no format to migrate and no
+// old snapshot file that ever needed to be understood again. A future bump
+// is no longer quite that free: hint.go's decodeHint treats an unrecognized
+// FormatVersion as "no hint" and falls back rather than erroring, so a
+// version bump costs guided discovery one cold pass against old snapshots,
+// never a wrong plan - see decodeHint and internal/live/discovery's guided.go.
 const snapshotFormatVersion = "tofu-live-snapshot-v1"
 
 // snapshot is the optional, observational post-operation cache (P4.2): a
@@ -80,8 +92,10 @@ const snapshotFormatVersion = "tofu-live-snapshot-v1"
 // "(sensitive value)" is not written here in the clear either. See
 // [objectSensitivity] for what "sensitive" is decided from.
 //
-// Nothing in stateless mode opens this file to read it back; see the manager's
-// PersistState for where it is written and why that is the only such place.
+// Nothing in stateless mode treats this file as authority; see the manager's
+// PersistState for where it is written and hint.go for the one place - the
+// only one - that reads it back, and only ever into [Hint], never into a
+// decision this package or its caller could be wrong about.
 type snapshot struct {
 	// FormatVersion is always [snapshotFormatVersion].
 	FormatVersion string `json:"formatVersion"`

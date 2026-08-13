@@ -29,10 +29,12 @@ import (
 // branch's previous tip, so history accumulates without ever joining the
 // repository's own history.
 //
-// This file is a writer with no reader, exactly like snapshot.go's file path:
-// no function here (or anywhere else in the fork, per TestSnapshot_noReader)
-// reads a snapshot back out of the branch. Deleting the branch changes
-// nothing about any run.
+// This file is the writer; hint.go's ReadHintBranch is this branch's one
+// sanctioned reader, exactly as it is for snapshot.go's file path - see
+// TestSnapshot_noReader's restated invariant for what "sanctioned" is
+// allowed to mean (a reduced, advisory Hint, never the branch's content
+// treated as authority). Deleting the branch changes nothing about any run
+// beyond costing a guided pass its hint; see decodeHint.
 const (
 	snapshotBranchNamespace = "refs/heads/tofu-snapshots/"
 	snapshotBranchFileName  = "snapshot.json"

@@ -156,6 +156,38 @@
 // route tables, gateway and security groups but not the default VPC, and no
 // call this package can make changes that.
 //
+// # Snapshot-guided discovery (issue #64)
+//
+// [Request.Guided] is an opt-in (default off) cost optimization over the
+// estate-wide sweep, nothing more: it reads the most recent observational
+// snapshot (internal/live/projection's P4.2 cache) through
+// [projection.ReadHintFile] / [projection.ReadHintBranch] as a HINT of which
+// admitted types this estate has ever held, and skips re-listing a type the
+// hint has no record of on a routine pass rather than paying one List call
+// per admitted type on every plan.
+//
+// The hint is never authority, and the package's central safety claim -
+// nothing here guesses at ownership - extends to it without exception. A
+// type absent from the hint is swept in full on every run regardless, and
+// any problem trusting the hint at all (no source configured, a missing or
+// corrupted snapshot, one older than [Request.GuidedMaxAge]) falls back to
+// exactly today's full enumeration, silently: [Result.GuidedFallback] names
+// why for an operator who wants to know, and Discover never returns an
+// error for it. See guided.go and TestGuided_equivalence for the mechanism
+// and its proof: guided discovery, given any such problem, produces
+// byte-identical output to an unguided pass over the same estate, only
+// slower.
+//
+// What guided mode trades away, on purpose, on a routine (non-verification)
+// pass: a type the hint already has evidence for is not re-swept this run,
+// so a standing orphan of that type may not resurface on every single plan -
+// only at the next full sweep or the next [Request.GuidedVerify] pass, which
+// a caller schedules on its own cadence (Discover is stateless between
+// calls and only honors the flag it is given). That is a cost/latency trade
+// on when a real removal gets proposed, never a change to what gets
+// destroyed once it is - the only thing Guided ever changes is which run
+// notices something, not what the something is.
+//
 // # Server-side filtering and the owner-id trap
 //
 // Where a type's list configuration schema offers EC2-style filter blocks,

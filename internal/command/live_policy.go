@@ -173,6 +173,15 @@ func statelessPolicyTagKey(pol *policy.Policy) string {
 // [policy.Untag], keyed by its resource block's address (stamping works at
 // block granularity - see [stamp.Request.PolicyUntag]'s own doc comment for
 // why).
+//
+// The key is built as [addrs.ConfigResource], module-qualified, to match
+// the address stamping's own PolicyUntag lookup uses (see
+// internal/live/stamp's markerObject caller): 59b's static-module
+// traversal means a declared_tagged instance's block can be inside a
+// module, and collapsing that to the bare resource address the way a
+// root-only build once could would either miscount two same-named blocks
+// in different modules as one, or simply never match stamp's own key at
+// all.
 func statelessPolicyUntagMap(outcomes []projection.PolicyOutcome, tagKey string) map[string]string {
 	if len(outcomes) == 0 {
 		return nil
@@ -182,7 +191,8 @@ func statelessPolicyUntagMap(outcomes []projection.PolicyOutcome, tagKey string)
 		if o.Verb != policy.Untag {
 			continue
 		}
-		out[o.Addr.Resource.Resource.String()] = tagKey
+		cr := addrs.ConfigResource{Module: o.Addr.Module.Module(), Resource: o.Addr.Resource.Resource}
+		out[cr.String()] = tagKey
 	}
 	if len(out) == 0 {
 		return nil
