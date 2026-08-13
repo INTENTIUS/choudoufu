@@ -26,6 +26,15 @@
 //
 // It needs network for the provider download (or a warm
 // TF_PLUGIN_CACHE_DIR) and a terraform binary on PATH (-init-bin overrides).
+//
+// A second mode rewrites live/SURVEY.md's derived spans (the raw-signal
+// counts sentence and the Summary path-count table, each between
+// survey-gen marker comments) from the committed artifact, with no
+// provider and no network:
+//
+//	go run ./tools/survey-gen -render
+//
+// See render.go.
 package main
 
 import (
@@ -75,9 +84,15 @@ func repoRoot() (string, error) {
 func main() {
 	initBin := flag.String("init-bin", defaultInitBin,
 		"binary that downloads the pinned provider (terraform, tofu or choudoufu)")
+	render := flag.Bool("render", false,
+		"rewrite live/SURVEY.md's derived spans from the committed live/survey.json instead of regenerating the artifact (needs no provider)")
 	flag.Parse()
 
-	if err := run(*initBin); err != nil {
+	mode := run
+	if *render {
+		mode = func(string) error { return runRender() }
+	}
+	if err := mode(*initBin); err != nil {
 		fmt.Fprintf(os.Stderr, "survey-gen: %v\n", err)
 		os.Exit(1)
 	}
