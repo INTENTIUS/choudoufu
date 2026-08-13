@@ -69,8 +69,17 @@ type argSource string
 const (
 	argSourceIdentitySchema argSource = "provider identity schema (live/survey-full.json)"
 	argSourceImportGrammar  argSource = "import grammar (live/import-grammar.json)"
-	argSourceCarveSeed      argSource = "carve seed (tools/mapping-gen/carve-seed.json)"
-	argSourceGuessed        argSource = "GUESSED: snake_cased CFN property name"
+	// argSourceArgumentReference names live/import-grammar.json's widened
+	// Argument Reference scrape specifically (tools/row-gen/
+	// importprecedence.go's tryArgumentReferenceConfirmedGuess,
+	// tryArgumentReferenceValueMatch and tryArgumentReferenceComposite) -
+	// distinct from argSourceImportGrammar, which names the older
+	// composed_of_arguments/Arguments signal derived from the Import
+	// section's own prose and Identity Schema, so a report reader can tell
+	// the two evidence sources apart.
+	argSourceArgumentReference argSource = "import grammar argument reference (live/import-grammar.json)"
+	argSourceCarveSeed         argSource = "carve seed (tools/mapping-gen/carve-seed.json)"
+	argSourceGuessed           argSource = "GUESSED: snake_cased CFN property name"
 )
 
 // proposal is one TF type's classification, with the registry evidence that

@@ -123,6 +123,97 @@ func identitySchemaRequired(section string) (required []string, ok bool) {
 	return dedupe(bulletNameRe.FindAllStringSubmatch(rest[:end], -1), 1), true
 }
 
+// identitySchemaOptional returns the provider's own "Identity Schema"
+// Optional attribute names - identitySchemaRequired's sibling, over the same
+// "### Identity Schema" block's "#### Optional" list. Unlike
+// identitySchemaRequired this carries no separate "ok" return: an absent
+// block or an absent Optional list are both simply "nothing here", since
+// nothing downstream needs to tell them apart the way Composed's
+// true/false/nil three-way split needs identitySchemaRequired's own ok.
+func identitySchemaOptional(section string) []string {
+	idx := strings.Index(section, "### Identity Schema")
+	if idx == -1 {
+		return nil
+	}
+	rest := section[idx:]
+	optIdx := strings.Index(rest, "#### Optional")
+	if optIdx == -1 {
+		return nil
+	}
+	rest = rest[optIdx:]
+	end := len(rest)
+	if i := strings.Index(rest, "\n### "); i != -1 && i < end {
+		end = i
+	}
+	if i := strings.Index(rest, "\n## "); i != -1 && i < end {
+		end = i
+	}
+	return dedupe(bulletNameRe.FindAllStringSubmatch(rest[:end], -1), 1)
+}
+
+// forceNewPhraseRe matches either spelling the provider's docs use for a
+// ForceNew argument's own parenthetical marker: the literal SDK term
+// "ForceNew" itself (a handful of resources spell it this way verbatim) or
+// the far more common human-readable "Forces new resource"/"Forces new
+// resources".
+var forceNewPhraseRe = regexp.MustCompile(`(?i)forcenew|forces new resources?`)
+
+// argEntryRe matches one Argument Reference bullet's backtick-quoted name
+// and, when present, its full parenthetical - allowing for the doc's
+// inconsistent "- (X)", ": (X)" or bare " (X)" separator between the name
+// and the paren, and the occasional doubled space. The parenthetical itself
+// is optional: a bullet with no leading marker at all (rare) still yields a
+// name, just with Required/ForceNew left at their zero value rather than
+// guessed.
+var argEntryRe = regexp.MustCompile("(?m)^[*-]\\s+`([A-Za-z0-9_]+)`(?:\\s*[-:]?\\s*\\(([^)]*)\\))?")
+
+// ArgumentRefEntry is one Argument Reference bullet: a top-level
+// configuration argument's name, whether the doc marks it (Required) as
+// opposed to (Optional) - the doc's own binary, not inferred - and whether
+// its parenthetical carries a ForceNew/"Forces new resource" annotation.
+type ArgumentRefEntry struct {
+	Name     string `json:"name"`
+	Required bool   `json:"required"`
+	ForceNew bool   `json:"force_new,omitempty"`
+}
+
+// argumentReferenceEntries returns the resource's top-level configuration
+// arguments with their Required/ForceNew status: the widened sibling of
+// argumentReferenceNames, over the same "## Argument Reference" bullet scan
+// and the same boundary rule (stopping at the first "### " sub-heading,
+// since a nested block's own arguments are never import-ID material) -
+// kept as a separate function rather than folded into
+// argumentReferenceNames so every existing caller of that function keeps
+// its original, narrower return shape untouched.
+func argumentReferenceEntries(doc string) []ArgumentRefEntry {
+	loc := argHeadingRe.FindStringIndex(doc)
+	if loc == nil {
+		return nil
+	}
+	rest := doc[loc[1]:]
+	if end := strings.Index(rest, "\n## "); end != -1 {
+		rest = rest[:end]
+	}
+	if end := strings.Index(rest, "\n### "); end != -1 {
+		rest = rest[:end]
+	}
+	seen := map[string]bool{}
+	var out []ArgumentRefEntry
+	for _, m := range argEntryRe.FindAllStringSubmatch(rest, -1) {
+		name, paren := m[1], m[2]
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		out = append(out, ArgumentRefEntry{
+			Name:     name,
+			Required: strings.HasPrefix(strings.TrimSpace(paren), "Required"),
+			ForceNew: forceNewPhraseRe.MatchString(paren),
+		})
+	}
+	return out
+}
+
 func dedupe(matches [][]string, group int) []string {
 	seen := map[string]bool{}
 	var out []string
@@ -368,6 +459,17 @@ type composedResult struct {
 	Composed  *bool
 	Separator *string
 	Arguments []string
+
+	// ArgumentsInOrder is Arguments' own left-to-right doc order, recovered
+	// only from the format-token signal ("using `REST-API-ID/RESPONSE-
+	// TYPE`") when every segment fuzzy-matches exactly one Argument
+	// Reference name - unlike Arguments (always alphabetized below), this
+	// preserves the order the doc's own prose states the segments in,
+	// independent of whatever the literal example value's own segments
+	// look like. Empty whenever that order could not be recovered
+	// unambiguously (no format token, or an ambiguous/partial segment
+	// match).
+	ArgumentsInOrder []string
 }
 
 // classifyGrammar turns one doc's Import section, plus its Argument
@@ -425,10 +527,21 @@ func classifyGrammar(section string, argNames []string) composedResult {
 			t := true
 			result.Composed = &t
 			var fuzzy []string
+			ordered := make([]string, 0, len(segs))
+			orderedOK := true
 			for _, s := range segs {
-				fuzzy = append(fuzzy, fuzzySegmentMatches(s, argNames)...)
+				m := fuzzySegmentMatches(s, argNames)
+				fuzzy = append(fuzzy, m...)
+				if len(m) == 1 {
+					ordered = append(ordered, m[0])
+				} else {
+					orderedOK = false
+				}
 			}
 			result.Arguments = unionStrings(result.Arguments, fuzzy)
+			if orderedOK && len(dedupeStrings(ordered)) == len(ordered) {
+				result.ArgumentsInOrder = ordered
+			}
 		}
 	}
 

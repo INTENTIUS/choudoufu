@@ -42,6 +42,39 @@ type Row struct {
 
 	// EvidenceExcerpt is the doc's raw "## Import" section, verbatim.
 	EvidenceExcerpt string `json:"evidence_excerpt"`
+
+	// ArgumentReference is the resource's top-level Argument Reference
+	// bullets - name, Required/Optional and ForceNew where the doc marks
+	// it - scraped from the same doc page's own "## Argument Reference"
+	// section already read (via argumentReferenceNames) to produce
+	// Arguments above. Widens the scrape past the Import section alone
+	// (issue: the decisive identity evidence for many types sits in the
+	// Argument Reference or the Identity Schema, not the Import section's
+	// own prose). Additive: every existing reader of this file that only
+	// looks at the fields above is unaffected by this field's presence.
+	ArgumentReference []ArgumentRefEntry `json:"argument_reference,omitempty"`
+
+	// ArgumentsInOrder is Arguments' own left-to-right order as the doc's
+	// format-string prose states it, when classifyGrammar's format-token
+	// signal resolved every segment to exactly one Argument Reference name
+	// unambiguously - see composedResult.ArgumentsInOrder's own doc
+	// comment. Empty whenever that order could not be recovered.
+	ArgumentsInOrder []string `json:"arguments_in_doc_order,omitempty"`
+
+	// IdentitySchemaRequired and IdentitySchemaOptional are the provider's
+	// own Terraform 1.12+ "### Identity Schema" block's attribute names,
+	// verbatim - recorded whenever the block exists, whether or not every
+	// name resolves to a real configuration argument (unlike Arguments,
+	// which is cross-checked against Argument Reference and populated only
+	// when it does). A required identity attribute that is NOT a
+	// configuration argument (aws_batch_compute_environment's "arn",
+	// present only in Attribute Reference) is exactly the shape a
+	// server-assigned type's real identity attribute needs, which Composed
+	// and Arguments alone cannot express - they only ever answer the
+	// composed-of-arguments question, not name the exported attribute
+	// itself.
+	IdentitySchemaRequired []string `json:"identity_schema_required,omitempty"`
+	IdentitySchemaOptional []string `json:"identity_schema_optional,omitempty"`
 }
 
 // Counts are the sweep-wide totals a reviewer reads off the header without
@@ -116,13 +149,19 @@ func buildRow(tfType, doc string) (Row, bool) {
 	}
 	argNames := argumentReferenceNames(doc)
 	cr := classifyGrammar(section, argNames)
+	idReq, _ := identitySchemaRequired(section)
+	idOpt := identitySchemaOptional(section)
 	return Row{
-		TFType:              tfType,
-		ImportIDExample:     idExample,
-		Separator:           cr.Separator,
-		ComposedOfArguments: cr.Composed,
-		Arguments:           cr.Arguments,
-		EvidenceExcerpt:     section,
+		TFType:                 tfType,
+		ImportIDExample:        idExample,
+		Separator:              cr.Separator,
+		ComposedOfArguments:    cr.Composed,
+		Arguments:              cr.Arguments,
+		EvidenceExcerpt:        section,
+		ArgumentReference:      argumentReferenceEntries(doc),
+		ArgumentsInOrder:       cr.ArgumentsInOrder,
+		IdentitySchemaRequired: idReq,
+		IdentitySchemaOptional: idOpt,
 	}, true
 }
 
