@@ -16,28 +16,29 @@ import (
 // ratchet, the "delete-me ratchet idiom" tools/mapping-gen's own
 // unclassifiedRatchetMax already uses for live/mapping.json's unclassified
 // count (mapping_gen_test.go): the highest live/rowgen-convergence.json's
-// summary.unannotated_mismatches may be. This pass measured 170 genuine
-// mismatches between row-gen's fresh proposals and internal/live/identity's
-// ratified DefaultTable entries (over 571 admitted types, after merging
-// origin/main's ratify-sagemaker/ratify-governance/ratify-media batches),
-// none of them annotated - see tools/row-gen/annotations.json's own doc
-// comment for why: every mismatch found in this pass is either a
-// scrape-gap (import-grammar.json's Import-section-only scrape falling
-// short of a fuller doc-page read - 101 of the 170, tagged scrape_gap in
-// the artifact; SageMaker's own batch report named exactly this class) or a
-// still-mechanical gap this pass's own heuristics decline to guess at
-// rather than risk a wrong proposal (fold-child Components derivation,
-// ~35; order-unrecoverable composites like the API Gateway and IAM
-// inline-policy families, ~30) - not a maintainer's own scoping judgment
-// the way keeping aws_elasticsearch_domain separate from
-// aws_opensearch_domain would be. Lower this constant to match
+// summary.unannotated_mismatches may be. This pass originally measured 170
+// genuine mismatches over 571 admitted types, after merging
+// ratify-sagemaker/ratify-governance/ratify-media. Merging this branch
+// itself landed after a further eight ratification batches
+// (ratify-data-movement, ratify-networking-advanced, ratify-databases,
+// ratify-security, ratify-ec2-networking, ratify-iot,
+// ratify-ai-location/stragglers/connect-euc among them) had already raised
+// the admitted count to 652 - none of those batches ever passed through
+// this convergence check, since it did not exist yet when they were
+// ratified, so their own row-gen/DefaultTable disagreements show up here
+// for the first time as 207 unannotated mismatches (125 scrape-gap, the
+// rest the same still-mechanical gaps the original comment named: fold-child
+// Components derivation, order-unrecoverable composites). This is a reviewed
+// bump reflecting that backlog, not a quality regression introduced by this
+// merge - see tools/row-gen/annotations.json's own doc comment for why none
+// of the 207 is annotated yet. Lower this constant to match
 // live/rowgen-convergence.json's own committed count whenever a future
 // change (a wider importdocs-gen scrape, a fold-child Components rule,
 // annotations.json gaining real rulings) closes some of the gap. Raising
-// it back up needs a reviewed reason, not a silent increase -
+// it back up again needs its own reviewed reason, not a silent increase -
 // TestUnannotatedMismatchRatchet below fails the build the moment a
 // regeneration would do that.
-const unannotatedMismatchRatchetMax = 170
+const unannotatedMismatchRatchetMax = 207
 
 // TestUnannotatedMismatchRatchet reads the committed live/rowgen-
 // convergence.json directly (not a fresh regeneration - see
