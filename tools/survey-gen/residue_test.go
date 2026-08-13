@@ -15,12 +15,14 @@ import (
 )
 
 // TestLimitationsMDResidueRosterSpans holds live/LIMITATIONS.md's five
-// residue-roster spans byte-for-byte to what live/residue.go's accessors
-// produce from the committed live/mapping.json and live/registry.json —
-// the same drift pattern TestSurveyMDRenderedSpans applies to SURVEY.md,
-// applied here to the residue roster (issue #49). Two committed artifacts
-// and one doc, no provider, so it is not gated; drift fails here with the
-// command that fixes it.
+// residue-roster spans and its untaggable-admitted span (issue #54)
+// byte-for-byte to what live/residue.go's accessors and
+// untaggable_render.go's derivation produce from the committed
+// live/mapping.json, live/registry.json and live/survey-full.json — the
+// same drift pattern TestSurveyMDRenderedSpans applies to SURVEY.md,
+// applied here to the residue roster (issue #49) and the untaggable entry
+// (issue #54). Committed artifacts and one doc, no provider, so it is not
+// gated; drift fails here with the command that fixes it.
 func TestLimitationsMDResidueRosterSpans(t *testing.T) {
 	root, err := repoRoot()
 	if err != nil {
@@ -34,6 +36,11 @@ func TestLimitationsMDResidueRosterSpans(t *testing.T) {
 	}
 	md := string(mdBytes)
 
+	untaggable, err := untaggableAdmittedTypes(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	for _, span := range []struct {
 		name, want string
 	}{
@@ -42,6 +49,7 @@ func TestLimitationsMDResidueRosterSpans(t *testing.T) {
 		{spanResidueUnmapped, renderResidueUnmapped()},
 		{spanResidueLaggard, renderResidueLaggard()},
 		{spanResidueEmulator, renderResidueEmulator()},
+		{spanUntaggableAdmitted, renderUntaggableAdmitted(untaggable)},
 	} {
 		got, err := spanContent(limitationsMDRel, md, span.name)
 		if err != nil {
@@ -56,8 +64,8 @@ func TestLimitationsMDResidueRosterSpans(t *testing.T) {
 
 	// The whole-file check catches what the per-span one cannot: a marker
 	// pair going missing or duplicated.
-	if out, err := renderResidueSpans(md); err != nil {
-		t.Errorf("rendering %s's residue-roster spans: %v", limitationsMDRel, err)
+	if out, err := renderLimitationsSpans(md, untaggable); err != nil {
+		t.Errorf("rendering %s's spans: %v", limitationsMDRel, err)
 	} else if out != md {
 		t.Errorf("%s differs from its rendered form; run `go run ./tools/survey-gen -render` and commit the result", limitationsMDRel)
 	}

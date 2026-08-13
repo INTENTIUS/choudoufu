@@ -152,23 +152,25 @@ token per row.
 
 | Status | Meaning | Rows |
 |---|---|---|
-| `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | 55 |
+| `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | <!-- survey-gen:begin wired-count -->55<!-- survey-gen:end wired-count --> |
 | `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 8 |
 | `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components | 0 |
 | `ops` | excluded by the rule, forwarded to the lifecycle layer | 3 |
 | `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 15 |
 | `unknown` | path not determined | 0 |
 
-`wired`'s count is the admission table's global size, not a tally of this
-table's own rows: 42 of the 55 are rows below, classified and wired the way
-every batch before #40 was or later reclassified from blocked-emulator by
-a registry-ratified batch, and 18 come from the three registry-ratified
-batches (#40, #44) so far. The first (Lambda) contributed
-`aws_lambda_capacity_provider`, `aws_lambda_code_signing_config`,
-`aws_lambda_event_source_mapping` and `aws_lambda_layer_version`, plus
-`aws_lambda_function`, already a row below and reclassified `wired` in
-that batch. The second (IAM and ECR, issue #26) contributed
-`aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
+`wired`'s count above is the admission table's global size
+(`identity.AdmittedTypes`, rendered rather than tallied from this file's
+own rows), not a count of the rows below it. Most of it is rows below,
+classified and wired the way every batch before #40 was, or later
+reclassified from `blocked-emulator` by a registry-ratified batch; the
+rest comes from the three registry-ratified batches (#40, #44) so far. The
+first (Lambda) contributed `aws_lambda_capacity_provider`,
+`aws_lambda_code_signing_config`, `aws_lambda_event_source_mapping` and
+`aws_lambda_layer_version`, plus `aws_lambda_function`, already a row
+below and reclassified `wired` in that batch. The second (IAM and ECR,
+issue #26) contributed `aws_ecr_registry_policy`,
+`aws_ecr_registry_scanning_configuration`,
 `aws_ecr_replication_configuration` and `aws_iam_service_linked_role`,
 plus `aws_ecr_repository`, `aws_iam_instance_profile` and `aws_iam_user`,
 all three already rows below and reclassified `wired` in that batch. The
@@ -178,16 +180,17 @@ third (messaging: SQS, SNS beyond `aws_sns_topic`, CloudWatch) contributed
 `aws_sqs_queue_policy`, plus `aws_sqs_queue`, already a row below
 (`blocked-emulator`) and reclassified `wired` in that batch despite the
 emulator gap that row's own note still names — see
-`live/e2e/estates/messaging/README.md`. Thirteen of the eighteen
-registry-ratified types have no row in this table at all: they are outside
-the curated 68 this survey measures, reached by `live/registry.json` and
-`tools/row-gen` (#44) rather than by this file's own provider-schema path.
-The messaging batch also proposed `aws_sns_topic_subscription`, whose row
-below stays `ready`: it classifies cleanly but is deferred for a
-`live/LIMITATIONS.md` reason that has nothing to do with its identity —
-see the same README. Extending this roster and `live/survey.json` to the
-full registry-backed universe is #40's and #54's own follow-on work, not
-any batch's.
+`live/e2e/estates/messaging/README.md`. Most registry-ratified types have
+no row in this table at all: they are outside the curated 68 this survey
+measures, reached by `live/registry.json` and `tools/row-gen` (#44) rather
+than by this file's own provider-schema path. The messaging batch also
+proposed `aws_sns_topic_subscription`, whose row below stays `ready`: it
+classifies cleanly but is deferred for a `live/LIMITATIONS.md` reason that
+has nothing to do with its identity — see the same README. Extending this
+roster and `live/survey.json` to the full registry-backed universe was
+#54's own follow-on work, not any batch's; a future batch's roster growth
+shows up only in the rendered count above and in
+`internal/live/lint/admission.go`, never as a hand edit here.
 
 The `blocked-emulator` rows were found by the #19 and #20 wiring lanes, by
 probing each candidate end to end through the provider against the harness's

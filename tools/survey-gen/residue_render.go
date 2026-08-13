@@ -44,8 +44,10 @@ const (
 )
 
 // renderLimitationsMD rewrites live/LIMITATIONS.md's five residue-roster
-// spans in place, from live/residue.go's accessors (which in turn read the
-// committed live/mapping.json and live/registry.json).
+// spans, from live/residue.go's accessors (which in turn read the committed
+// live/mapping.json and live/registry.json), plus its untaggable-admitted
+// span (issue #54, untaggable_render.go), from the committed
+// live/survey-full.json and the compiled admission table.
 func renderLimitationsMD(root string) error {
 	mdPath := filepath.Join(root, limitationsMDRel)
 	md, err := os.ReadFile(mdPath) //nolint:gosec // a fixed path in the checkout
@@ -53,19 +55,35 @@ func renderLimitationsMD(root string) error {
 		return err
 	}
 
-	out, err := renderResidueSpans(string(md))
+	untaggable, err := untaggableAdmittedTypes(root)
+	if err != nil {
+		return err
+	}
+
+	out, err := renderLimitationsSpans(string(md), untaggable)
 	if err != nil {
 		return err
 	}
 	if out == string(md) {
-		fmt.Fprintf(os.Stderr, "survey-gen: %s's residue-roster spans are already current\n", limitationsMDRel)
+		fmt.Fprintf(os.Stderr, "survey-gen: %s's spans are already current\n", limitationsMDRel)
 		return nil
 	}
 	if err := os.WriteFile(mdPath, []byte(out), 0o644); err != nil { //nolint:gosec // a committed doc, not a secret
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "survey-gen: rewrote %s's residue-roster spans\n", limitationsMDRel)
+	fmt.Fprintf(os.Stderr, "survey-gen: rewrote %s's spans\n", limitationsMDRel)
 	return nil
+}
+
+// renderLimitationsSpans returns live/LIMITATIONS.md with all five
+// residue-roster spans and the untaggable-admitted span replaced by their
+// rendered bodies. The rest of the file passes through byte-for-byte.
+func renderLimitationsSpans(md string, untaggable []string) (string, error) {
+	md, err := renderResidueSpans(md)
+	if err != nil {
+		return "", err
+	}
+	return replaceSpan(limitationsMDRel, md, spanUntaggableAdmitted, renderUntaggableAdmitted(untaggable))
 }
 
 // renderResidueSpans returns live/LIMITATIONS.md with all five
