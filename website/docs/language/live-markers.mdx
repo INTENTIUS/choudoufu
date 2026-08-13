@@ -316,7 +316,7 @@ outcomes at all. They are named below.
 ## The Contract
 
 - **AWS only, <!-- survey-gen:begin contract-count -->
-502<!-- survey-gen:end contract-count --> resource types, root module only.** The v0 admission table
+514<!-- survey-gen:end contract-count --> resource types, root module only.** The v0 admission table
   (`internal/live/lint/admission.go`) is the whole subset. It holds <!-- survey-gen:begin contract-types -->
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
@@ -415,9 +415,11 @@ outcomes at all. They are named below.
   `aws_ec2_transit_gateway_route`, `aws_ec2_transit_gateway_route_table`,
   `aws_ec2_transit_gateway_route_table_association`,
   `aws_ec2_transit_gateway_route_table_propagation`,
-  `aws_ec2_transit_gateway_vpc_attachment`, `aws_ecr_registry_policy`,
-  `aws_ecr_registry_scanning_configuration`,
+  `aws_ec2_transit_gateway_vpc_attachment`, `aws_ecr_lifecycle_policy`,
+  `aws_ecr_pull_through_cache_rule`, `aws_ecr_pull_time_update_exclusion`,
+  `aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
   `aws_ecr_replication_configuration`, `aws_ecr_repository`,
+  `aws_ecr_repository_creation_template`, `aws_ecr_repository_policy`,
   `aws_ecrpublic_repository`, `aws_ecrpublic_repository_policy`,
   `aws_ecs_cluster`, `aws_ecs_cluster_capacity_providers`, `aws_ecs_daemon`,
   `aws_efs_access_point`, `aws_efs_file_system`, `aws_eip`,
@@ -492,6 +494,7 @@ outcomes at all. They are named below.
   `aws_networkfirewall_vpc_endpoint_association`,
   `aws_networkmanager_connect_attachment`, `aws_networkmanager_connect_peer`,
   `aws_networkmanager_core_network`,
+  `aws_networkmanager_core_network_policy_attachment`,
   `aws_networkmanager_customer_gateway_association`,
   `aws_networkmanager_device`, `aws_networkmanager_dx_gateway_attachment`,
   `aws_networkmanager_global_network`, `aws_networkmanager_link`,
@@ -553,11 +556,14 @@ outcomes at all. They are named below.
   `aws_ssoadmin_account_assignment`, `aws_ssoadmin_application`,
   `aws_ssoadmin_application_assignment`,
   `aws_ssoadmin_instance_access_control_attributes`,
-  `aws_ssoadmin_permission_set`, `aws_subnet`, `aws_synthetics_canary`,
-  `aws_synthetics_group`, `aws_timestreaminfluxdb_db_cluster`,
-  `aws_timestreaminfluxdb_db_instance`, `aws_timestreamquery_scheduled_query`,
-  `aws_timestreamwrite_database`, `aws_timestreamwrite_table`,
-  `aws_transfer_connector`, `aws_transfer_server`, `aws_transfer_user`,
+  `aws_ssoadmin_permission_set`, `aws_storagegateway_tape_pool`, `aws_subnet`,
+  `aws_synthetics_canary`, `aws_synthetics_group`,
+  `aws_timestreaminfluxdb_db_cluster`, `aws_timestreaminfluxdb_db_instance`,
+  `aws_timestreamquery_scheduled_query`, `aws_timestreamwrite_database`,
+  `aws_timestreamwrite_table`, `aws_transfer_agreement`,
+  `aws_transfer_certificate`, `aws_transfer_connector`,
+  `aws_transfer_profile`, `aws_transfer_server`, `aws_transfer_user`,
+  `aws_transfer_web_app`, `aws_transfer_web_app_customization`,
   `aws_transfer_workflow`, `aws_volume_attachment`, `aws_vpc`,
   `aws_vpc_dhcp_options`, `aws_vpc_dhcp_options_association`,
   `aws_vpc_endpoint`, `aws_vpc_endpoint_policy`,

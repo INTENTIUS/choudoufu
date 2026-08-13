@@ -449,8 +449,11 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_ec2_transit_gateway_route`,
 `aws_ec2_transit_gateway_route_table_association`,
 `aws_ec2_transit_gateway_route_table_propagation`,
-`aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
-`aws_ecr_replication_configuration`, `aws_ecrpublic_repository_policy`,
+`aws_ecr_lifecycle_policy`, `aws_ecr_pull_through_cache_rule`,
+`aws_ecr_pull_time_update_exclusion`, `aws_ecr_registry_policy`,
+`aws_ecr_registry_scanning_configuration`,
+`aws_ecr_replication_configuration`, `aws_ecr_repository_creation_template`,
+`aws_ecr_repository_policy`, `aws_ecrpublic_repository_policy`,
 `aws_ecs_cluster_capacity_providers`, `aws_eip_association`,
 `aws_eks_access_policy_association`, `aws_emr_security_configuration`,
 `aws_fsx_s3_access_point_attachment`,
@@ -471,6 +474,7 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_nat_gateway_eip_association`, `aws_network_acl_rule`,
 `aws_network_interface_attachment`, `aws_network_interface_permission`,
 `aws_networkfirewall_logging_configuration`,
+`aws_networkmanager_core_network_policy_attachment`,
 `aws_networkmanager_customer_gateway_association`,
 `aws_networkmanager_link_association`,
 `aws_networkmanager_prefix_list_association`,
@@ -494,7 +498,8 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_sqs_queue_policy`, `aws_ssm_patch_group`, `aws_ssm_resource_data_sync`,
 `aws_ssm_service_setting`, `aws_ssoadmin_account_assignment`,
 `aws_ssoadmin_application_assignment`,
-`aws_ssoadmin_instance_access_control_attributes`, `aws_volume_attachment`,
+`aws_ssoadmin_instance_access_control_attributes`,
+`aws_transfer_web_app_customization`, `aws_volume_attachment`,
 `aws_vpc_dhcp_options_association`, `aws_vpc_endpoint_policy`,
 `aws_vpc_endpoint_private_dns`, `aws_vpc_endpoint_route_table_association`,
 `aws_vpc_endpoint_security_group_association`,
@@ -559,6 +564,8 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_ec2_transit_gateway_policy_table_association` | `aws_ec2_transit_gateway_policy_table` | no (report-only) |
 | `aws_ec2_transit_gateway_route_table_association` | `aws_ec2_transit_gateway_route_table` | no (report-only) |
 | `aws_ec2_transit_gateway_route_table_propagation` | `aws_ec2_transit_gateway_route_table` | no (report-only) |
+| `aws_ecr_lifecycle_policy` | `aws_ecr_repository` | no (report-only) |
+| `aws_ecr_repository_policy` | `aws_ecr_repository` | no (report-only) |
 | `aws_ecrpublic_repository_policy` | `aws_ecrpublic_repository` | no (report-only) |
 | `aws_eks_access_policy_association` | `aws_iam_policy` | no (report-only) |
 | `aws_emr_security_configuration` | `aws_api_gateway_domain_name` | no (report-only) |
@@ -582,6 +589,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_nat_gateway_eip_association` | `aws_nat_gateway` | no (report-only) |
 | `aws_network_acl_rule` | `aws_network_acl` | no (report-only) |
 | `aws_networkfirewall_logging_configuration` | `aws_networkfirewall_firewall` | no (report-only) |
+| `aws_networkmanager_core_network_policy_attachment` | `aws_networkmanager_core_network` | no (report-only) |
 | `aws_networkmanager_customer_gateway_association` | `aws_customer_gateway` | no (report-only) |
 | `aws_networkmanager_link_association` | `aws_networkmanager_link` | no (report-only) |
 | `aws_networkmanager_prefix_list_association` | `aws_ec2_managed_prefix_list` | no (report-only) |
@@ -609,6 +617,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_ssoadmin_account_assignment` | `aws_instance` | no (report-only) |
 | `aws_ssoadmin_application_assignment` | `aws_ssoadmin_application` | no (report-only) |
 | `aws_ssoadmin_instance_access_control_attributes` | `aws_instance` | no (report-only) |
+| `aws_transfer_web_app_customization` | `aws_transfer_web_app` | no (report-only) |
 | `aws_volume_attachment` | `aws_ebs_volume` | no (report-only) |
 | `aws_vpc_endpoint_policy` | `aws_vpc_endpoint` | no (report-only) |
 | `aws_vpc_endpoint_private_dns` | `aws_vpc_endpoint` | no (report-only) |
@@ -618,7 +627,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_vpc_ipam_pool_cidr` | `aws_vpc_ipam_pool` | no (report-only) |
 | `aws_wafv2_web_acl_rule` | `aws_wafv2_web_acl` | no (report-only) |
 
-**Total.** 91 types swept via a parent read.
+**Total.** 95 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
@@ -656,11 +665,12 @@ per-type reasoning as it stands.
 `aws_codedeploy_deployment_config`, `aws_cognito_user_pool_domain`,
 `aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
 `aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
-`aws_ec2_transit_gateway_route`, `aws_ecr_registry_policy`,
+`aws_ec2_transit_gateway_route`, `aws_ecr_pull_through_cache_rule`,
+`aws_ecr_pull_time_update_exclusion`, `aws_ecr_registry_policy`,
 `aws_ecr_registry_scanning_configuration`,
-`aws_ecr_replication_configuration`, `aws_ecs_cluster_capacity_providers`,
-`aws_eip_association`, `aws_globalaccelerator_endpoint_group`,
-`aws_globalaccelerator_listener`,
+`aws_ecr_replication_configuration`, `aws_ecr_repository_creation_template`,
+`aws_ecs_cluster_capacity_providers`, `aws_eip_association`,
+`aws_globalaccelerator_endpoint_group`, `aws_globalaccelerator_listener`,
 `aws_glue_data_catalog_encryption_settings`,
 `aws_guardduty_organization_admin_account`,
 `aws_inspector2_delegated_admin_account`,
