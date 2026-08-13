@@ -1086,6 +1086,94 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_ivs_recording_configuration":   {},
 	"aws_ivschat_logging_configuration": {},
 	"aws_ivschat_room":                  {},
+	// ---- Registry-ratified (#40, #44, #65): eighth batch, Connect and
+	// ---- end-user computing (Amazon Connect, WorkSpaces, WorkSpacesWeb).
+	// ---- Same tools/row-gen pipeline as the batches above, cross-checked
+	// ---- against the AWS provider's documented Argument/Attribute/Import
+	// ---- sections at the pinned v6.59.0 tag, not accepted on row-gen's own
+	// ---- classification alone. AppStream is a deprecated AWS service and
+	// ---- was never evaluated (out of scope by this batch's own recipe,
+	// ---- not rejected on the merits). WorkSpaces' directory and bundle
+	// ---- surface is likewise absent here on purpose:
+	// ---- aws_workspaces_directory is real but registry-absent
+	// ---- (live/mapping.json: via "cfn-unmodeled", "real WorkSpaces
+	// ---- directory registration with no CFN model") and
+	// ---- aws_workspaces_bundle does not exist as a managed resource in
+	// ---- the pinned provider at all (a data source only) — row-gen prints
+	// ---- nothing for either, so there is no proposal to ratify.
+	// ----
+	// ---- Nine of the twelve Connect rows below are corrections: row-gen's
+	// ---- own registry evidence reads each as primaryIdentifier ⊆
+	// ---- readOnlyProperties (a clean server-assigned shape), but issue
+	// ---- #55's applyImportGrammarDemotions caught every one first —
+	// ---- live/import-grammar.json shows each documented import id is
+	// ---- argument-composed (instance_id, colon-joined with the type's own
+	// ---- id) — so row-gen printed evidence-only rather than a
+	// ---- string-buildable row. Reading each Import section directly
+	// ---- confirms the composite is real but not reconstructable from
+	// ---- configuration alone (the second half is a server-assigned
+	// ---- output), the same shape aws_ssoadmin_application's own entry in
+	// ---- the identity batch above already ratified: taggable, so
+	// ---- recoverable by tag-filtered list rather than by building the
+	// ---- import string. This is not the streaming batch's
+	// ---- aws_appsync_function shape, which was rejected for the same
+	// ---- composite pattern — the deciding difference is taggability, and
+	// ---- every Connect child below carries a real tags argument;
+	// ---- aws_connect_instance_storage_config does not, and is rejected on
+	// ---- exactly that ground. See internal/live/identity/table.go for the
+	// ---- per-type evidence. WorkSpacesWeb's eight *_association
+	// ---- property-children of AWS::WorkSpacesWeb::Portal ratify too: this
+	// ---- batch found issue #68's fold-child branch merged to main
+	// ---- mid-write (re-checked by grep against this file immediately
+	// ---- before finishing, per this batch's own recipe), but none of the
+	// ---- eight actually needs identity.FoldParentTypes' machinery at all —
+	// ---- each is an ordinary two-argument concrete composite
+	// ---- (SETTINGSARN,PORTALARN, both already-required configuration
+	// ---- arguments of the child's own, comma-joined), the same shape
+	// ---- aws_eks_access_entry and aws_iam_role_policy already ratify
+	// ---- elsewhere in this table, not the API Gateway four's "duplicate
+	// ---- the parent's whole composite" shape that machinery exists for.
+	// ---- Untaggable (no tags argument in any of the eight), so removal
+	// ---- sweep coverage stays the same accepted gap
+	// ---- live/LIMITATIONS.md's "Untaggable types cannot be removed by the
+	// ---- sweep" entry already carries; declared-instance resolution
+	// ---- (plan, apply, read-back) is unaffected either way. See
+	// ---- internal/live/identity/table.go for the per-type evidence.
+	// ---- Cohort estate: live/e2e/estates/connect-euc.
+	"aws_connect_instance":                                       {},
+	"aws_connect_phone_number":                                   {},
+	"aws_connect_contact_flow":                                   {},
+	"aws_connect_contact_flow_module":                            {},
+	"aws_connect_hours_of_operation":                             {},
+	"aws_connect_queue":                                          {},
+	"aws_connect_quick_connect":                                  {},
+	"aws_connect_routing_profile":                                {},
+	"aws_connect_security_profile":                               {},
+	"aws_connect_user":                                           {},
+	"aws_connect_user_hierarchy_group":                           {},
+	"aws_connect_user_hierarchy_structure":                       {},
+	"aws_workspaces_connection_alias":                            {},
+	"aws_workspaces_ip_group":                                    {},
+	"aws_workspaces_pool":                                        {},
+	"aws_workspaces_workspace":                                   {},
+	"aws_workspacesweb_browser_settings":                         {},
+	"aws_workspacesweb_data_protection_settings":                 {},
+	"aws_workspacesweb_identity_provider":                        {},
+	"aws_workspacesweb_ip_access_settings":                       {},
+	"aws_workspacesweb_network_settings":                         {},
+	"aws_workspacesweb_portal":                                   {},
+	"aws_workspacesweb_session_logger":                           {},
+	"aws_workspacesweb_trust_store":                              {},
+	"aws_workspacesweb_user_access_logging_settings":             {},
+	"aws_workspacesweb_user_settings":                            {},
+	"aws_workspacesweb_browser_settings_association":             {},
+	"aws_workspacesweb_data_protection_settings_association":     {},
+	"aws_workspacesweb_ip_access_settings_association":           {},
+	"aws_workspacesweb_network_settings_association":             {},
+	"aws_workspacesweb_session_logger_association":               {},
+	"aws_workspacesweb_trust_store_association":                  {},
+	"aws_workspacesweb_user_access_logging_settings_association": {},
+	"aws_workspacesweb_user_settings_association":                {},
 
 	// ---- Registry-ratified (#40, #44, #65): sixth batch, data movement and
 	// ---- transfer (Transfer Family's server/user/workflow/connector core,
@@ -1145,6 +1233,7 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_dms_replication_task":                      {},
 	"aws_appintegrations_data_integration":          {},
 	"aws_appintegrations_event_integration":         {},
+
 	// ---- Registry-ratified (#40, #44, #65): sixth batch, databases beyond
 	// ---- RDS/DynamoDB/ElastiCache (issue #65's own recipe: Redshift,
 	// ---- OpenSearch/OpenSearchServerless, Neptune, DocDB, Timestream, QLDB,
@@ -1193,38 +1282,158 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_keyspaces_keyspace":                    {},
 	"aws_keyspaces_table":                       {},
 
+	// ---- Registry-ratified (#40, #44, #65): SageMaker batch (domains,
+	// ---- user profiles, models, endpoints and their configs, notebook
+	// ---- instances, feature groups, model package groups, pipelines,
+	// ---- spaces and apps, plus the surrounding algorithm/hub/image/
+	// ---- workteam/monitoring family; issue #65's ratification campaign).
+	// ---- Same tools/row-gen pipeline as the batches above, cross-checked
+	// ---- against the AWS provider's own website/docs/r/ source (fetched
+	// ---- from GitHub at the pinned v6.58.0 tag) rather than accepted on
+	// ---- row-gen's classification alone: most of this batch's rows
+	// ---- correct a registry-laggard "evidence-only" or GUESSED-argument
+	// ---- verdict once the real Argument/Attribute Reference and, for
+	// ---- several types, a genuine Terraform 1.12+ Identity Schema are
+	// ---- read directly. Two of row-gen's 29 SageMaker proposals are
+	// ---- rejected (aws_sagemaker_device: an Optional argument nested in
+	// ---- a block, not a clean top-level identity component;
+	// ---- aws_sagemaker_image_version: its documented composite embeds a
+	// ---- server-assigned version number with no corresponding
+	// ---- configuration argument at all) — see
+	// ---- internal/live/identity/table.go for the full per-type evidence
+	// ---- and live/e2e/estates/sagemaker/README.md for the account.
+	// ---- Cohort estate: live/e2e/estates/sagemaker.
+	"aws_sagemaker_algorithm":                                 {},
+	"aws_sagemaker_app":                                       {},
+	"aws_sagemaker_app_image_config":                          {},
+	"aws_sagemaker_code_repository":                           {},
+	"aws_sagemaker_data_quality_job_definition":               {},
+	"aws_sagemaker_device_fleet":                              {},
+	"aws_sagemaker_domain":                                    {},
+	"aws_sagemaker_endpoint":                                  {},
+	"aws_sagemaker_endpoint_configuration":                    {},
+	"aws_sagemaker_feature_group":                             {},
+	"aws_sagemaker_hub":                                       {},
+	"aws_sagemaker_image":                                     {},
+	"aws_sagemaker_mlflow_app":                                {},
+	"aws_sagemaker_mlflow_tracking_server":                    {},
+	"aws_sagemaker_model":                                     {},
+	"aws_sagemaker_model_card":                                {},
+	"aws_sagemaker_model_package_group":                       {},
+	"aws_sagemaker_model_package_group_policy":                {},
+	"aws_sagemaker_monitoring_schedule":                       {},
+	"aws_sagemaker_notebook_instance":                         {},
+	"aws_sagemaker_notebook_instance_lifecycle_configuration": {},
+	"aws_sagemaker_pipeline":                                  {},
+	"aws_sagemaker_project":                                   {},
+	"aws_sagemaker_space":                                     {},
+	"aws_sagemaker_studio_lifecycle_config":                   {},
+	"aws_sagemaker_user_profile":                              {},
+	"aws_sagemaker_workteam":                                  {},
+	// ---- Registry-ratified (#40, #44, #65): sixth batch, AI services and
+	// ---- Location (Bedrock, Bedrock Agents, BedrockAgentCore, Location
+	// ---- Service, Lex V2 Models, plus the thin-coverage Comprehend,
+	// ---- Kendra, Rekognition and Q Business slices). Same tools/row-gen
+	// ---- pipeline and verification standard as the batches above, cross-
+	// ---- checked against live/survey-full.json's per-type taggable/
+	// ---- listable/identity-schema signals (the same v6.59.0 survey the
+	// ---- BedrockAgentCore types were added to) and the AWS provider's
+	// ---- documented Argument/Attribute/Import sections at the pinned
+	// ---- v6.59.0 tag. Twelve of row-gen's proposals or evidence-only
+	// ---- rows in this batch's scope are rejected on independent
+	// ---- verification and five more are deferred as out of this batch's
+	// ---- mechanism (matchTable content-match adoption, not this table) —
+	// ---- see internal/live/identity/table.go for the per-type evidence
+	// ---- and live/e2e/estates/ai-location/README.md for the full
+	// ---- account. Textract and Polly never entered scope at all: neither
+	// ---- has any AWS::Textract::* or AWS::Polly::* entry anywhere in
+	// ---- live/registry.json, the same registry-absent shape as the
+	// ---- streaming batch's SWF. Lex V1 (aws_lex_bot, aws_lex_bot_alias,
+	// ---- aws_lex_intent, aws_lex_slot_type) is untouched per #58's
+	// ---- override precedent — live/mapping.json already carries all four
+	// ---- as cfn-unmodeled, so row-gen never proposes them. Cohort
+	// ---- estate: live/e2e/estates/ai-location.
+	"aws_bedrock_guardrail":                            {},
+	"aws_bedrock_inference_profile":                    {},
+	"aws_bedrockagent_agent":                           {},
+	"aws_bedrockagent_agent_alias":                     {},
+	"aws_bedrockagent_flow":                            {},
+	"aws_bedrockagent_knowledge_base":                  {},
+	"aws_bedrockagent_prompt":                          {},
+	"aws_bedrockagentcore_agent_runtime":               {},
+	"aws_bedrockagentcore_agent_runtime_endpoint":      {},
+	"aws_bedrockagentcore_api_key_credential_provider": {},
+	"aws_bedrockagentcore_browser":                     {},
+	"aws_bedrockagentcore_browser_profile":             {},
+	"aws_bedrockagentcore_code_interpreter":            {},
+	"aws_bedrockagentcore_evaluator":                   {},
+	"aws_bedrockagentcore_gateway":                     {},
+	"aws_bedrockagentcore_harness":                     {},
+	"aws_bedrockagentcore_memory":                      {},
+	"aws_bedrockagentcore_oauth2_credential_provider":  {},
+	"aws_bedrockagentcore_online_evaluation_config":    {},
+	"aws_bedrockagentcore_policy_engine":               {},
+	"aws_bedrockagentcore_resource_policy":             {},
+	"aws_location_geofence_collection":                 {},
+	"aws_location_map":                                 {},
+	"aws_location_place_index":                         {},
+	"aws_location_route_calculator":                    {},
+	"aws_location_tracker":                             {},
+	"aws_location_tracker_association":                 {},
+	"aws_lexv2models_bot":                              {},
+	"aws_lexv2models_bot_locale":                       {},
+	"aws_comprehend_document_classifier":               {},
+	"aws_kendra_index":                                 {},
+	"aws_qbusiness_application":                        {},
+	"aws_rekognition_collection":                       {},
+	"aws_rekognition_project":                          {},
+	"aws_rekognition_stream_processor":                 {},
+	// ---- Registry-ratified (#40, #44, #65): stragglers batch. Not a new
+	// ---- service sweep — every row here is a type an earlier ratified
+	// ---- batch's own README named as reachable but left outside that
+	// ---- batch's stated named scope (Transfer Family beyond
+	// ---- server/user/workflow/connector, NetworkManager's
+	// ---- core-network-policy fold, Storage Gateway's one registry-present
+	// ---- type, and the IAM/ECR batch's own deferred ECR remainder). Same
+	// ---- tools/row-gen pipeline as every batch above, cross-checked
+	// ---- against the pinned v6.58.0 provider docs fetched directly (the
+	// ---- Transfer Family entries) or already-scraped
+	// ---- live/import-grammar.json evidence (NetworkManager, Storage
+	// ---- Gateway, ECR) rather than accepted on the registry's
+	// ---- classification alone. One proposal in this batch's own reach,
+	// ---- aws_transfer_ssh_key, is rejected on independent verification
+	// ---- (see internal/live/identity/table.go for the evidence). Cohort
+	// ---- estate: live/e2e/estates/stragglers.
+	"aws_transfer_certificate":                          {},
+	"aws_transfer_profile":                              {},
+	"aws_transfer_web_app":                              {},
+	"aws_transfer_web_app_customization":                {},
+	"aws_transfer_agreement":                            {},
+	"aws_networkmanager_core_network_policy_attachment": {},
+	"aws_storagegateway_tape_pool":                      {},
+	"aws_ecr_lifecycle_policy":                          {},
+	"aws_ecr_pull_through_cache_rule":                   {},
+	"aws_ecr_pull_time_update_exclusion":                {},
+	"aws_ecr_repository_creation_template":              {},
+	"aws_ecr_repository_policy":                         {},
+
 	// ---- Registry-ratified (#40, #44, #65): the REMAINDER ratification
 	// ---- batch. Issue #65 pool worked down service by service,
-	// ---- excluding every service already owned by a concurrent batch
-	// ---- (SageMaker; the Media* family and IVS/IVSChat; Connect,
-	// ---- WorkSpaces and WorkSpacesWeb; Bedrock*, Location, Lex and the
-	// ---- other AI services; Config, Organizations, the Resource*
-	// ---- services, LicenseManager, ServiceCatalog*, ControlTower and
-	// ---- AuditManager; and the databases and networking-advanced
-	// ---- agents own scopes: Redshift*, OpenSearch*, Neptune*, DocDB*,
-	// ---- Timestream, QLDB, MemoryDB, Cassandra, NetworkFirewall,
-	// ---- NetworkManager, VpcLattice and GlobalAccelerator). Everything
-	// ---- else with a clean row-gen proposal for a type not yet admitted
-	// ---- is here: a long tail of services, most contributing only a
-	// ---- handful of types each. Every row below was independently
-	// ---- verified against the pinned v6.58.0 provider own documented
-	// ---- Import section (or, missing one, its source and Identity
-	// ---- Schema), not accepted on row-gen registry classification
-	// ---- alone - see internal/live/identity/table.go for the per-type
-	// ---- corrections this verification made to row-gen raw proposals
-	// ---- and live/e2e/estates/remainder/README.md for the full
-	// ---- accounting of what was rejected and why, including 24 types
-	// ---- that verified clean on the provider docs alone but were held
-	// ---- back for reasons the docs check does not see (a standing
-	// ---- policy exclusion, a type this repo own test suite reserves as
-	// ---- a canonical unadmitted-type example, or a naming collision),
-	// ---- and a further 21 types that verified clean here too but were
-	// ---- dropped from this batch own contribution when a concurrently-
-	// ---- landed batch turned out to already admit them first - see
-	// ---- live/e2e/estates/remainder/README.md for the full
-	// ---- reconciliation. Cohort estate: live/e2e/estates/remainder,
-	// ---- capped at a representative subset rather than one resource
-	// ---- per admitted type - see that README own "Estate-covered vs
+	// ---- excluding every service already owned by a concurrent batch,
+	// ---- and dropping types a concurrently-landed batch admitted (or
+	// ---- deliberately rejected, for aws_elasticache_global_replication_group)
+	// ---- first when this session own scope also reached them
+	// ---- independently - see live/e2e/estates/remainder/README.md,
+	// ---- "Dropped to a concurrent batch", for the full reconciliation
+	// ---- across three separate merge waves. Every row below was
+	// ---- independently verified against the pinned v6.58.0 provider own
+	// ---- documented Import section, not accepted on row-gen registry
+	// ---- classification alone - see internal/live/identity/table.go for
+	// ---- the per-type corrections and live/e2e/estates/remainder/README.md
+	// ---- for the full accounting of what was rejected, excluded, or
+	// ---- dropped and why. Cohort estate: live/e2e/estates/remainder,
+	// ---- capped at a representative subset rather than one resource per
+	// ---- admitted type - see that README own "Estate-covered vs
 	// ---- identity-only-verified" section.
 	"aws_datapipeline_pipeline":          {},
 	"aws_datazone_domain":                {},
@@ -1248,149 +1457,140 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_ec2_traffic_mirror_filter":                                         {},
 	"aws_ec2_traffic_mirror_session":                                        {},
 	"aws_ec2_traffic_mirror_target":                                         {},
-	"aws_ecr_pull_through_cache_rule":                                       {},
-	"aws_ecr_pull_time_update_exclusion":                                    {},
-	"aws_ecr_repository_creation_template":                                  {},
 	"aws_ecs_daemon_task_definition":                                        {},
 	"aws_ecs_express_gateway_service":                                       {},
 	"aws_ecs_task_definition":                                               {},
 	"aws_efs_mount_target":                                                  {},
 	"aws_egress_only_internet_gateway":                                      {},
-	"aws_elasticache_global_replication_group":                              {},
-	"aws_elb":                                           {},
-	"aws_evidently_project":                             {},
-	"aws_evidently_segment":                             {},
-	"aws_fis_experiment_template":                       {},
-	"aws_fms_resource_set":                              {},
-	"aws_gamelift_alias":                                {},
-	"aws_gamelift_build":                                {},
-	"aws_gamelift_fleet":                                {},
-	"aws_gamelift_script":                               {},
-	"aws_glue_data_quality_ruleset":                     {},
-	"aws_glue_schema":                                   {},
-	"aws_glue_security_configuration":                   {},
-	"aws_glue_workflow":                                 {},
-	"aws_iam_access_key":                                {},
-	"aws_iam_saml_provider":                             {},
-	"aws_iam_virtual_mfa_device":                        {},
-	"aws_imagebuilder_component":                        {},
-	"aws_imagebuilder_container_recipe":                 {},
-	"aws_imagebuilder_distribution_configuration":       {},
-	"aws_imagebuilder_image":                            {},
-	"aws_imagebuilder_image_pipeline":                   {},
-	"aws_imagebuilder_image_recipe":                     {},
-	"aws_imagebuilder_infrastructure_configuration":     {},
-	"aws_imagebuilder_lifecycle_policy":                 {},
-	"aws_imagebuilder_workflow":                         {},
-	"aws_inspector_assessment_target":                   {},
-	"aws_inspector_assessment_template":                 {},
-	"aws_internetmonitor_monitor":                       {},
-	"aws_invoicing_invoice_unit":                        {},
-	"aws_kinesis_analytics_application":                 {},
-	"aws_kinesis_resource_policy":                       {},
-	"aws_lb_listener_rule":                              {},
-	"aws_lb_trust_store":                                {},
-	"aws_m2_application":                                {},
-	"aws_m2_environment":                                {},
-	"aws_macie2_account":                                {},
-	"aws_mailmanager_rule_set":                          {},
-	"aws_mailmanager_traffic_policy":                    {},
-	"aws_msk_cluster_policy":                            {},
-	"aws_msk_replicator":                                {},
-	"aws_msk_vpc_connection":                            {},
-	"aws_mwaa_environment":                              {},
-	"aws_notifications_event_rule":                      {},
-	"aws_notifications_notification_configuration":      {},
-	"aws_notifications_notification_hub":                {},
-	"aws_notificationscontacts_email_contact":           {},
-	"aws_oam_link":                                      {},
-	"aws_oam_sink":                                      {},
-	"aws_observabilityadmin_s3_table_integration":       {},
-	"aws_observabilityadmin_telemetry_pipeline":         {},
-	"aws_odb_cloud_autonomous_vm_cluster":               {},
-	"aws_odb_cloud_exadata_infrastructure":              {},
-	"aws_odb_cloud_vm_cluster":                          {},
-	"aws_odb_network":                                   {},
-	"aws_odb_network_peering_connection":                {},
-	"aws_paymentcryptography_key":                       {},
-	"aws_pinpointsmsvoicev2_configuration_set":          {},
-	"aws_pinpointsmsvoicev2_opt_out_list":               {},
-	"aws_pinpointsmsvoicev2_phone_number":               {},
-	"aws_pinpointsmsvoicev2_pool":                       {},
-	"aws_ram_permission":                                {},
-	"aws_ram_resource_share":                            {},
-	"aws_rbin_rule":                                     {},
-	"aws_resiliencehub_resiliency_policy":               {},
-	"aws_resiliencehubv2_policy":                        {},
-	"aws_rolesanywhere_profile":                         {},
-	"aws_rolesanywhere_trust_anchor":                    {},
-	"aws_route53_cidr_collection":                       {},
-	"aws_route53_resolver_dnssec_config":                {},
-	"aws_route53_resolver_query_log_config_association": {},
-	"aws_route53profiles_resource_association":          {},
-	"aws_route53recoverycontrolconfig_routing_control":  {},
-	"aws_s3_directory_bucket":                           {},
-	"aws_s3control_bucket":                              {},
-	"aws_s3control_multi_region_access_point":           {},
-	"aws_s3files_access_point":                          {},
-	"aws_s3files_file_system":                           {},
-	"aws_s3files_file_system_policy":                    {},
-	"aws_s3files_mount_target":                          {},
-	"aws_s3tables_table_bucket":                         {},
-	"aws_s3tables_table_bucket_policy":                  {},
-	"aws_s3vectors_index":                               {},
-	"aws_s3vectors_vector_bucket":                       {},
-	"aws_s3vectors_vector_bucket_policy":                {},
-	"aws_schemas_discoverer":                            {},
-	"aws_securityhub_account":                           {},
-	"aws_securityhub_configuration_policy":              {},
-	"aws_securityhub_finding_aggregator":                {},
-	"aws_securityhub_insight":                           {},
-	"aws_securityhub_organization_configuration":        {},
-	"aws_securityhub_standards_subscription":            {},
-	"aws_securitylake_data_lake":                        {},
-	"aws_securitylake_subscriber":                       {},
-	"aws_service_discovery_http_namespace":              {},
-	"aws_service_discovery_public_dns_namespace":        {},
-	"aws_service_discovery_service":                     {},
-	"aws_sesv2_account_vdm_attributes":                  {},
-	"aws_sesv2_configuration_set":                       {},
-	"aws_sesv2_dedicated_ip_pool":                       {},
-	"aws_sesv2_email_identity":                          {},
-	"aws_sesv2_tenant":                                  {},
-	"aws_sfn_alias":                                     {},
-	"aws_shield_proactive_engagement":                   {},
-	"aws_shield_protection":                             {},
-	"aws_sns_topic_subscription":                        {},
-	"aws_ssmcontacts_contact":                           {},
-	"aws_ssmcontacts_contact_channel":                   {},
-	"aws_ssmcontacts_plan":                              {},
-	"aws_ssmcontacts_rotation":                          {},
-	"aws_ssmincidents_replication_set":                  {},
-	"aws_ssmincidents_response_plan":                    {},
-	"aws_ssmquicksetup_configuration_manager":           {},
-	"aws_storagegateway_tape_pool":                      {},
-	"aws_transfer_certificate":                          {},
-	"aws_transfer_profile":                              {},
-	"aws_transfer_web_app":                              {},
-	"aws_verifiedaccess_endpoint":                       {},
-	"aws_verifiedaccess_instance":                       {},
-	"aws_verifiedaccess_trust_provider":                 {},
-	"aws_verifiedpermissions_policy_store":              {},
-	"aws_vpc_block_public_access_exclusion":             {},
-	"aws_vpc_encryption_control":                        {},
-	"aws_vpc_route_server":                              {},
-	"aws_vpc_route_server_endpoint":                     {},
-	"aws_vpc_route_server_peer":                         {},
-	"aws_vpn_concentrator":                              {},
+	"aws_elb":                                                               {},
+	"aws_evidently_project":                                                 {},
+	"aws_evidently_segment":                                                 {},
+	"aws_fis_experiment_template":                                           {},
+	"aws_fms_resource_set":                                                  {},
+	"aws_gamelift_alias":                                                    {},
+	"aws_gamelift_build":                                                    {},
+	"aws_gamelift_fleet":                                                    {},
+	"aws_gamelift_script":                                                   {},
+	"aws_glue_data_quality_ruleset":                                         {},
+	"aws_glue_schema":                                                       {},
+	"aws_glue_security_configuration":                                       {},
+	"aws_glue_workflow":                                                     {},
+	"aws_iam_access_key":                                                    {},
+	"aws_iam_saml_provider":                                                 {},
+	"aws_iam_virtual_mfa_device":                                            {},
+	"aws_imagebuilder_component":                                            {},
+	"aws_imagebuilder_container_recipe":                                     {},
+	"aws_imagebuilder_distribution_configuration":                           {},
+	"aws_imagebuilder_image":                                                {},
+	"aws_imagebuilder_image_pipeline":                                       {},
+	"aws_imagebuilder_image_recipe":                                         {},
+	"aws_imagebuilder_infrastructure_configuration":                         {},
+	"aws_imagebuilder_lifecycle_policy":                                     {},
+	"aws_imagebuilder_workflow":                                             {},
+	"aws_inspector_assessment_target":                                       {},
+	"aws_inspector_assessment_template":                                     {},
+	"aws_internetmonitor_monitor":                                           {},
+	"aws_invoicing_invoice_unit":                                            {},
+	"aws_kinesis_analytics_application":                                     {},
+	"aws_kinesis_resource_policy":                                           {},
+	"aws_lb_listener_rule":                                                  {},
+	"aws_lb_trust_store":                                                    {},
+	"aws_m2_application":                                                    {},
+	"aws_m2_environment":                                                    {},
+	"aws_macie2_account":                                                    {},
+	"aws_mailmanager_rule_set":                                              {},
+	"aws_mailmanager_traffic_policy":                                        {},
+	"aws_msk_cluster_policy":                                                {},
+	"aws_msk_replicator":                                                    {},
+	"aws_msk_vpc_connection":                                                {},
+	"aws_mwaa_environment":                                                  {},
+	"aws_notifications_event_rule":                                          {},
+	"aws_notifications_notification_configuration":                          {},
+	"aws_notifications_notification_hub":                                    {},
+	"aws_notificationscontacts_email_contact":                               {},
+	"aws_oam_link":                                                          {},
+	"aws_oam_sink":                                                          {},
+	"aws_observabilityadmin_s3_table_integration":                           {},
+	"aws_observabilityadmin_telemetry_pipeline":                             {},
+	"aws_odb_cloud_autonomous_vm_cluster":                                   {},
+	"aws_odb_cloud_exadata_infrastructure":                                  {},
+	"aws_odb_cloud_vm_cluster":                                              {},
+	"aws_odb_network":                                                       {},
+	"aws_odb_network_peering_connection":                                    {},
+	"aws_paymentcryptography_key":                                           {},
+	"aws_pinpointsmsvoicev2_configuration_set":                              {},
+	"aws_pinpointsmsvoicev2_opt_out_list":                                   {},
+	"aws_pinpointsmsvoicev2_phone_number":                                   {},
+	"aws_pinpointsmsvoicev2_pool":                                           {},
+	"aws_ram_permission":                                                    {},
+	"aws_ram_resource_share":                                                {},
+	"aws_rbin_rule":                                                         {},
+	"aws_resiliencehub_resiliency_policy":                                   {},
+	"aws_resiliencehubv2_policy":                                            {},
+	"aws_rolesanywhere_profile":                                             {},
+	"aws_rolesanywhere_trust_anchor":                                        {},
+	"aws_route53_cidr_collection":                                           {},
+	"aws_route53_resolver_dnssec_config":                                    {},
+	"aws_route53_resolver_query_log_config_association":                     {},
+	"aws_route53profiles_resource_association":                              {},
+	"aws_route53recoverycontrolconfig_routing_control":                      {},
+	"aws_s3_directory_bucket":                                               {},
+	"aws_s3control_bucket":                                                  {},
+	"aws_s3control_multi_region_access_point":                               {},
+	"aws_s3files_access_point":                                              {},
+	"aws_s3files_file_system":                                               {},
+	"aws_s3files_file_system_policy":                                        {},
+	"aws_s3files_mount_target":                                              {},
+	"aws_s3tables_table_bucket":                                             {},
+	"aws_s3tables_table_bucket_policy":                                      {},
+	"aws_s3vectors_index":                                                   {},
+	"aws_s3vectors_vector_bucket":                                           {},
+	"aws_s3vectors_vector_bucket_policy":                                    {},
+	"aws_schemas_discoverer":                                                {},
+	"aws_securityhub_account":                                               {},
+	"aws_securityhub_configuration_policy":                                  {},
+	"aws_securityhub_finding_aggregator":                                    {},
+	"aws_securityhub_insight":                                               {},
+	"aws_securityhub_organization_configuration":                            {},
+	"aws_securityhub_standards_subscription":                                {},
+	"aws_securitylake_data_lake":                                            {},
+	"aws_securitylake_subscriber":                                           {},
+	"aws_service_discovery_http_namespace":                                  {},
+	"aws_service_discovery_public_dns_namespace":                            {},
+	"aws_service_discovery_service":                                         {},
+	"aws_sesv2_account_vdm_attributes":                                      {},
+	"aws_sesv2_configuration_set":                                           {},
+	"aws_sesv2_dedicated_ip_pool":                                           {},
+	"aws_sesv2_email_identity":                                              {},
+	"aws_sesv2_tenant":                                                      {},
+	"aws_sfn_alias":                                                         {},
+	"aws_shield_proactive_engagement":                                       {},
+	"aws_shield_protection":                                                 {},
+	"aws_sns_topic_subscription":                                            {},
+	"aws_ssmcontacts_contact":                                               {},
+	"aws_ssmcontacts_contact_channel":                                       {},
+	"aws_ssmcontacts_plan":                                                  {},
+	"aws_ssmcontacts_rotation":                                              {},
+	"aws_ssmincidents_replication_set":                                      {},
+	"aws_ssmincidents_response_plan":                                        {},
+	"aws_ssmquicksetup_configuration_manager":                               {},
+	"aws_verifiedaccess_endpoint":                                           {},
+	"aws_verifiedaccess_instance":                                           {},
+	"aws_verifiedaccess_trust_provider":                                     {},
+	"aws_verifiedpermissions_policy_store":                                  {},
+	"aws_vpc_block_public_access_exclusion":                                 {},
+	"aws_vpc_encryption_control":                                            {},
+	"aws_vpc_route_server":                                                  {},
+	"aws_vpc_route_server_endpoint":                                         {},
+	"aws_vpc_route_server_peer":                                             {},
+	"aws_vpn_concentrator":                                                  {},
 	// ---- Registry-ratified (#40, #44, #65): the REMAINDER ratification
 	// ---- batch, second slice - APS, ARC Region Switch, ARC Zonal Shift,
 	// ---- AppConfig, AppIntegrations, AppSync own newer Api-family types,
 	// ---- Athena, AutoScaling own launch-configuration pair, BCM Data
 	// ---- Exports, Billing, Cost Explorer, Cost and Usage Reports,
 	// ---- Chatbot, Clean Rooms, Cloud9, CloudFront own policy/identity
-	// ---- family, and CloudTrail. Same verification standard as the first
-	// ---- slice above.
+	// ---- family, and CloudTrail.
 	"aws_prometheus_rule_group_namespace":                      {},
 	"aws_arcregionswitch_plan":                                 {},
 	"aws_arczonalshift_zonal_autoshift_configuration":          {},

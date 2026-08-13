@@ -3275,6 +3275,261 @@ DATA
 	},
 	// ---- data-movement batch (issue #65) ---------------------------------
 
+	// Connect and end-user computing batch (issue #65). Every argument below
+	// is Optional-shaped in the wire schema (a validation rule the schema
+	// itself does not carry enforces it in practice) or a closed enum the
+	// generic pass's "placeholder" string is never a member of - the same
+	// two failure shapes issue #56 named for the Lambda and S3 cohorts.
+	"aws_connect_hours_of_operation": {
+		Reasons: []string{
+			`config.day is Required and the provider validates it against a closed enum (validate: "expected day to be one of [SUNDAY MONDAY ...]"); the generic pass's "placeholder" string is not a member`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "config" {
+					blk.Body().SetAttributeRaw("day", exprTokens(`"MONDAY"`))
+				}
+			}
+		},
+	},
+	"aws_connect_instance": {
+		Reasons: []string{
+			`directory_id and instance_alias are both Optional in the schema, but the provider requires exactly one (validate: "Missing required argument": "one of directory_id,instance_alias must be specified"); identity_management_type is Required and validated against a closed enum (validate: "expected identity_management_type to be one of [...]"), and the generic placeholder string is not a member`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("instance_alias", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-connect"`, g.cohort)))
+			body.SetAttributeRaw("identity_management_type", exprTokens(`"CONNECT_MANAGED"`))
+		},
+	},
+	"aws_connect_phone_number": {
+		Reasons: []string{
+			`country_code and type are both Required and validated against closed enums (validate: "expected country_code/type to be one of [...]"); target_arn is Required and validated as a well-formed ARN (validate: "is an invalid ARN"), wired to this cohort's own aws_connect_instance for a real one`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("country_code", exprTokens(`"US"`))
+			body.SetAttributeRaw("type", exprTokens(`"DID"`))
+			targetExpr := `"arn:aws:connect:us-east-1:000000000000:instance/00000000-0000-0000-0000-000000000000"`
+			if instance, ok := g.byType["aws_connect_instance"]; ok {
+				targetExpr = instance.String() + ".arn"
+			}
+			body.SetAttributeRaw("target_arn", exprTokens(targetExpr))
+		},
+	},
+	"aws_connect_quick_connect": {
+		Reasons: []string{
+			`quick_connect_config is a required block whose own quick_connect_type is Required and validated against a closed enum (validate: "expected quick_connect_type to be one of [...]"); the provider additionally requires exactly one of phone_config/queue_config/user_config depending on quick_connect_type (documented, not schema-Required) - PHONE_NUMBER chosen as the type needing the fewest nested fields, with phone_config.phone_number set to a well-formed E.164 number`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "quick_connect_config" {
+					blk.Body().SetAttributeRaw("quick_connect_type", exprTokens(`"PHONE_NUMBER"`))
+					phone := blk.Body().AppendNewBlock("phone_config", nil)
+					phone.Body().SetAttributeRaw("phone_number", exprTokens(`"+12345550100"`))
+				}
+			}
+		},
+	},
+	"aws_connect_routing_profile": {
+		Reasons: []string{
+			`media_concurrencies is a required block whose own channel is Required and validated against a closed enum (validate: "expected channel to be one of [...]"), and concurrency is Required and validated against the range 1-10 (validate: "expected media_concurrencies.0.concurrency to be in the range (1 - 10)") - the generic pass's zero value fails it`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "media_concurrencies" {
+					blk.Body().SetAttributeRaw("channel", exprTokens(`"VOICE"`))
+					blk.Body().SetAttributeRaw("concurrency", exprTokens(`1`))
+				}
+			}
+		},
+	},
+	"aws_connect_user": {
+		Reasons: []string{
+			`phone_config.phone_type is Required and validated against a closed enum (validate: "expected phone_type to be one of [SOFT_PHONE DESK_PHONE]"); the generic placeholder string is not a member`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "phone_config" {
+					blk.Body().SetAttributeRaw("phone_type", exprTokens(`"SOFT_PHONE"`))
+				}
+			}
+		},
+	},
+	"aws_workspaces_pool": {
+		Reasons: []string{
+			`bundle_id and directory_id are both Required and the provider validates each against its own fixed prefix-and-length shape (validate: "Bundle ID must be in the format 'wsb-xxxxxxxx'", "Directory ID must be in the format 'wsd-xxxxxxxx'"), which the generic "placeholder" string satisfies neither; running_mode is Required and validated against a closed enum (validate: "expected running_mode to be one of [AUTO_STOP ALWAYS_ON]"); capacity is a required block (Argument Reference: "(Required) Capacity configuration") that is Optional-shaped in the wire schema, so terraform validate does not catch its absence - found only by exercising a create against floci during this batch's verification (operation error WorkSpaces: CreateWorkspacesPool, "missing required field, CreateWorkspacesPoolInput.Capacity")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("bundle_id", exprTokens(`"wsb-0123456789"`))
+			body.SetAttributeRaw("directory_id", exprTokens(`"wsd-0123456789"`))
+			body.SetAttributeRaw("running_mode", exprTokens(`"AUTO_STOP"`))
+			capBlk := body.AppendNewBlock("capacity", nil)
+			capBlk.Body().SetAttributeRaw("desired_user_sessions", exprTokens(`1`))
+		},
+	},
+	"aws_workspacesweb_browser_settings": {
+		Reasons: []string{
+			`browser_policy is Required and the provider validates it is well-formed JSON (validate: "not valid JSON string format"); the generic placeholder string is not JSON`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("browser_policy", exprTokens(`jsonencode({
+    chromePolicies = {
+      DefaultDownloadDirectory = {
+        value = "/tmp"
+      }
+    }
+  })`))
+		},
+	},
+	"aws_workspacesweb_identity_provider": {
+		Reasons: []string{
+			`identity_provider_type is Required and validated against a closed enum (validate: "expected identity_provider_type to be one of [SAML Facebook Google LoginWithAmazon SignInWithApple OIDC]"); portal_arn is Required and validated as a well-formed ARN (validate: "cannot be parsed as an ARN"), wired to this cohort's own aws_workspacesweb_portal for a real one; identity_provider_details is a required map the generic pass leaves empty, which the schema alone does not reject but the provider needs SAML metadata in practice for a SAML provider`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("identity_provider_type", exprTokens(`"SAML"`))
+			portalExpr := `"arn:aws:workspaces-web:us-east-1:000000000000:portal/tofucohortid00"`
+			if portal, ok := g.byType["aws_workspacesweb_portal"]; ok {
+				portalExpr = portal.String() + ".portal_arn"
+			}
+			body.SetAttributeRaw("portal_arn", exprTokens(portalExpr))
+			body.SetAttributeRaw("identity_provider_details", exprTokens(fmt.Sprintf(`{
+    MetadataURL = "https://example.com/tofu-%s-cohort-saml-metadata.xml"
+  }`, g.cohort)))
+		},
+	},
+	"aws_workspacesweb_ip_access_settings": {
+		Reasons: []string{
+			`ip_rule is optional-shaped in the schema (MinItems 0) but the provider requires at least one in practice (validate: "Block ip_rule must have a configuration value as the provider has marked it as required"), and each rule needs a well-formed CIDR ip_range`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			rule := body.AppendNewBlock("ip_rule", nil)
+			rule.Body().SetAttributeRaw("ip_range", exprTokens(`"10.0.0.0/16"`))
+		},
+	},
+	"aws_workspacesweb_network_settings": {
+		Reasons: []string{
+			`subnet_ids is Required and the provider validates it has between 2 and 5 elements (validate: "set must contain at least 2 elements and at most 5 elements, got: 1"); the generic pass's single-element placeholder list is one short`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("subnet_ids", exprTokens(`["subnet-0123456789abcdef0", "subnet-0fedcba9876543210"]`))
+		},
+	},
+	"aws_workspacesweb_session_logger": {
+		Reasons: []string{
+			`event_filter and log_configuration are both optional-shaped in the schema (MinItems 0) but the provider requires both in practice (validate: "Block event_filter/log_configuration must have a configuration value as the provider has marked it as required"); event_filter needs exactly one of all/include (documented, not schema-Required - all{} chosen as the simpler member), and log_configuration.s3 needs bucket, folder_structure and log_file_format, all three Required once the s3 block itself is reached. folder_structure is "Flat", not the provider's own Argument Reference prose ("FlatStructure") - the real validator disagrees with its own docs text (validate: "Valid Values: [Flat NestedByDate]"), found only by running this override through terraform validate, the same doc/validator mismatch this batch's ratification work is built to catch`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			ef := body.AppendNewBlock("event_filter", nil)
+			ef.Body().AppendNewBlock("all", nil)
+
+			lc := body.AppendNewBlock("log_configuration", nil)
+			s3 := lc.Body().AppendNewBlock("s3", nil)
+			s3.Body().SetAttributeRaw("bucket", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-session-logs"`, g.cohort)))
+			s3.Body().SetAttributeRaw("folder_structure", exprTokens(`"Flat"`))
+			s3.Body().SetAttributeRaw("log_file_format", exprTokens(`"Json"`))
+		},
+	},
+	"aws_workspacesweb_user_access_logging_settings": {
+		Reasons: []string{
+			`kinesis_stream_arn is Required and validated as a well-formed ARN (validate: "cannot be parsed as an ARN"); the generic placeholder string is not one`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("kinesis_stream_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:kinesis:us-east-1:000000000000:stream/tofu-%s-cohort-user-access-logs"`, g.cohort)))
+		},
+	},
+	"aws_workspacesweb_user_settings": {
+		Reasons: []string{
+			`copy_allowed, download_allowed, paste_allowed, print_allowed and upload_allowed are all Required and validated against the same closed enum (validate: "expected ... to be one of [Disabled Enabled]"); the generic placeholder string is a member of none of the five`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("copy_allowed", exprTokens(`"Enabled"`))
+			body.SetAttributeRaw("download_allowed", exprTokens(`"Enabled"`))
+			body.SetAttributeRaw("paste_allowed", exprTokens(`"Enabled"`))
+			body.SetAttributeRaw("print_allowed", exprTokens(`"Enabled"`))
+			body.SetAttributeRaw("upload_allowed", exprTokens(`"Enabled"`))
+		},
+	},
+	// WorkSpacesWeb's eight *_association fold-children (issue #68's
+	// fold-child admission path merged mid-batch; see the batch banner
+	// comment in internal/live/identity/table.go for why none of the
+	// eight actually needs that path's own machinery). Both arguments are
+	// ARNs of server-assigned siblings, so gen.go's identityArgName-based
+	// auto-wiring never fires (the same reason aws_eip_association's own
+	// instance_id above needs an explicit override) - each is wired here
+	// to the real sibling this cohort renders, or a literal placeholder
+	// ARN otherwise.
+	"aws_workspacesweb_browser_settings_association": {
+		Reasons: []string{
+			`browser_settings_arn and portal_arn are both required strings the provider validates are well-formed ARNs (validate: "cannot be parsed as an ARN"); the generic placeholder string is neither - wired to this cohort's own aws_workspacesweb_browser_settings.app and aws_workspacesweb_portal.app for real ones`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("browser_settings_arn", exprTokens(workspacesWebArnRef(g, "aws_workspacesweb_browser_settings", "browser_settings_arn", "browserSettings")))
+			body.SetAttributeRaw("portal_arn", exprTokens(workspacesWebPortalArnRef(g)))
+		},
+	},
+	"aws_workspacesweb_data_protection_settings_association": {
+		Reasons: []string{
+			`data_protection_settings_arn and portal_arn are both required strings the provider validates are well-formed ARNs (validate: "cannot be parsed as an ARN"); the generic placeholder string is neither - wired to this cohort's own aws_workspacesweb_data_protection_settings.app and aws_workspacesweb_portal.app for real ones`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("data_protection_settings_arn", exprTokens(workspacesWebArnRef(g, "aws_workspacesweb_data_protection_settings", "data_protection_settings_arn", "dataProtectionSettings")))
+			body.SetAttributeRaw("portal_arn", exprTokens(workspacesWebPortalArnRef(g)))
+		},
+	},
+	"aws_workspacesweb_ip_access_settings_association": {
+		Reasons: []string{
+			`ip_access_settings_arn and portal_arn are both required strings the provider validates are well-formed ARNs (validate: "cannot be parsed as an ARN"); the generic placeholder string is neither - wired to this cohort's own aws_workspacesweb_ip_access_settings.app and aws_workspacesweb_portal.app for real ones`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("ip_access_settings_arn", exprTokens(workspacesWebArnRef(g, "aws_workspacesweb_ip_access_settings", "ip_access_settings_arn", "ipAccessSettings")))
+			body.SetAttributeRaw("portal_arn", exprTokens(workspacesWebPortalArnRef(g)))
+		},
+	},
+	"aws_workspacesweb_network_settings_association": {
+		Reasons: []string{
+			`network_settings_arn and portal_arn are both required strings the provider validates are well-formed ARNs (validate: "cannot be parsed as an ARN"); the generic placeholder string is neither - wired to this cohort's own aws_workspacesweb_network_settings.app and aws_workspacesweb_portal.app for real ones`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("network_settings_arn", exprTokens(workspacesWebArnRef(g, "aws_workspacesweb_network_settings", "network_settings_arn", "networkSettings")))
+			body.SetAttributeRaw("portal_arn", exprTokens(workspacesWebPortalArnRef(g)))
+		},
+	},
+	"aws_workspacesweb_session_logger_association": {
+		Reasons: []string{
+			`session_logger_arn and portal_arn are both required strings the provider validates are well-formed ARNs (validate: "cannot be parsed as an ARN"); the generic placeholder string is neither - wired to this cohort's own aws_workspacesweb_session_logger.app and aws_workspacesweb_portal.app for real ones`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("session_logger_arn", exprTokens(workspacesWebArnRef(g, "aws_workspacesweb_session_logger", "session_logger_arn", "sessionLogger")))
+			body.SetAttributeRaw("portal_arn", exprTokens(workspacesWebPortalArnRef(g)))
+		},
+	},
+	"aws_workspacesweb_trust_store_association": {
+		Reasons: []string{
+			`trust_store_arn and portal_arn are both required strings the provider validates are well-formed ARNs (validate: "cannot be parsed as an ARN"); the generic placeholder string is neither - wired to this cohort's own aws_workspacesweb_trust_store.app and aws_workspacesweb_portal.app for real ones`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("trust_store_arn", exprTokens(workspacesWebArnRef(g, "aws_workspacesweb_trust_store", "trust_store_arn", "trustStore")))
+			body.SetAttributeRaw("portal_arn", exprTokens(workspacesWebPortalArnRef(g)))
+		},
+	},
+	"aws_workspacesweb_user_access_logging_settings_association": {
+		Reasons: []string{
+			`user_access_logging_settings_arn and portal_arn are both required strings the provider validates are well-formed ARNs (validate: "cannot be parsed as an ARN"); the generic placeholder string is neither - wired to this cohort's own aws_workspacesweb_user_access_logging_settings.app and aws_workspacesweb_portal.app for real ones`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("user_access_logging_settings_arn", exprTokens(workspacesWebArnRef(g, "aws_workspacesweb_user_access_logging_settings", "user_access_logging_settings_arn", "userAccessLoggingSettings")))
+			body.SetAttributeRaw("portal_arn", exprTokens(workspacesWebPortalArnRef(g)))
+		},
+	},
+	"aws_workspacesweb_user_settings_association": {
+		Reasons: []string{
+			`user_settings_arn and portal_arn are both required strings the provider validates are well-formed ARNs (validate: "cannot be parsed as an ARN"); the generic placeholder string is neither - wired to this cohort's own aws_workspacesweb_user_settings.app and aws_workspacesweb_portal.app for real ones`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("user_settings_arn", exprTokens(workspacesWebArnRef(g, "aws_workspacesweb_user_settings", "user_settings_arn", "userSettings")))
+			body.SetAttributeRaw("portal_arn", exprTokens(workspacesWebPortalArnRef(g)))
+		},
+	},
 	"aws_appintegrations_data_integration": {
 		Reasons: []string{
 			`source_uri is a required string the schema does not constrain, but the provider validates it against a fixed pattern (validate: "invalid value for source_uri (should be a valid source uri)"), documented as a connector-profile scheme like "Salesforce://AppFlow/example"; the generic placeholder string does not match it`,
@@ -4428,6 +4683,134 @@ DATA
 		},
 	},
 
+	// ---- stragglers batch (issue #65's ratification campaign) -----------
+	"aws_ecr_lifecycle_policy": {
+		Reasons: []string{
+			`"policy" is a required string the schema does not constrain, but the provider validates it is well-formed JSON (validate: "\"policy\" contains an invalid JSON"); the generic placeholder string is not`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("policy", exprTokens(`jsonencode({
+    rules = [{
+      rulePriority = 1
+      description  = "expire untagged images"
+      selection = {
+        tagStatus   = "untagged"
+        countType   = "imageCountMoreThan"
+        countNumber = 1
+      }
+      action = {
+        type = "expire"
+      }
+    }]
+  })`))
+		},
+	},
+	"aws_ecr_pull_through_cache_rule": {
+		Reasons: []string{
+			`"ecr_repository_prefix" is a required string the provider length-constrains to 2-30 characters (validate: "expected length of ecr_repository_prefix to be in the range (2 - 30)"); the generic tofu-<cohort>-cohort-<type> placeholder is 44 characters`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("ecr_repository_prefix", exprTokens(`"tofu-stragglers"`))
+		},
+	},
+	"aws_ecr_pull_time_update_exclusion": {
+		Reasons: []string{
+			`"principal_arn" is a required string the provider validates is a well-formed ARN (validate: "The provided value cannot be parsed as an ARN"); the generic placeholder string is not one`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("principal_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:iam::000000000000:role/tofu-%s-cohort-ecr-pull-exclusion"`, g.cohort)))
+		},
+	},
+	"aws_ecr_repository_creation_template": {
+		Reasons: []string{
+			`"applied_for" is a required set of strings the provider validates against a fixed set (validate: "expected applied_for to be one of [\"REPLICATION\" \"PULL_THROUGH_CACHE\" \"CREATE_ON_PUSH\"]"); the generic placeholder string matches none of them`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("applied_for", exprTokens(`["CREATE_ON_PUSH"]`))
+		},
+	},
+	"aws_ecr_repository_policy": {
+		Reasons: []string{
+			`schema requires "policy" as a plain string, but the provider validates it is well-formed JSON (validate: "\"policy\" contains an invalid JSON"), the same shape as aws_s3_bucket_policy above`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("policy", exprTokens(fmt.Sprintf(`jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "AllowPull"
+      Effect    = "Allow"
+      Principal = "*"
+      Action    = ["ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage"]
+      Resource  = "arn:aws:ecr:us-east-1:000000000000:repository/tofu-%s-cohort-ecr-repository-policy"
+    }]
+  })`, g.cohort)))
+		},
+	},
+	"aws_networkmanager_core_network_policy_attachment": {
+		Reasons: []string{
+			`"core_network_id" is a required string the provider length- and format-constrains (validate: "expected length of core_network_id to be in the range (0 - 50)" and "invalid value for core_network_id (must be a valid Core Network ID)"); the generic tofu-<cohort>-cohort-<type> placeholder matches neither. "policy_document" is a required string the schema does not constrain, but the provider validates it is well-formed JSON (validate: "\"policy_document\" contains an invalid JSON") - set to the shape the provider's own Core Network Policy documentation describes (version, core-network-configuration, segments), the same minimal-but-well-formed-JSON standard aws_networkfirewall_rule_group's own override uses for its own service-specific document shape.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("core_network_id", exprTokens(`"core-network-0123456789abcdef0"`))
+			body.SetAttributeRaw("policy_document", exprTokens(`jsonencode({
+    version = "2021.12"
+    "core-network-configuration" = {
+      "vpn-ecmp-support" = false
+      "asn-ranges"        = ["64512-64555"]
+    }
+    segments = [{
+      name = "segment1"
+    }]
+  })`))
+		},
+	},
+	"aws_storagegateway_tape_pool": {
+		Reasons: []string{
+			`"storage_class" is a required string the provider validates against a fixed set (validate: "expected storage_class to be one of [\"DEEP_ARCHIVE\" \"GLACIER\"]"); the generic placeholder string matches neither`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("storage_class", exprTokens(`"GLACIER"`))
+		},
+	},
+	"aws_transfer_agreement": {
+		Reasons: []string{
+			`"access_role" is a required string the schema does not constrain, but the provider validates it is a well-formed ARN (validate: "\"access_role\" (placeholder) is an invalid ARN: arn: invalid prefix"); the generic placeholder string is not one`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("access_role", exprTokens(fmt.Sprintf(
+				`"arn:aws:iam::000000000000:role/tofu-%s-cohort-transfer-agreement"`, g.cohort)))
+		},
+	},
+	"aws_transfer_certificate": {
+		Reasons: []string{
+			`"usage" is a required string the provider validates against a fixed set (validate: "expected usage to be one of [\"SIGNING\" \"ENCRYPTION\" \"TLS\"]"); the generic placeholder string matches none of them`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("usage", exprTokens(`"SIGNING"`))
+		},
+	},
+	"aws_transfer_profile": {
+		Reasons: []string{
+			`"profile_type" is a required string the provider validates against a fixed set (validate: "expected profile_type to be one of [\"LOCAL\" \"PARTNER\"]"); the generic placeholder string matches neither`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("profile_type", exprTokens(`"LOCAL"`))
+		},
+	},
+	"aws_transfer_web_app": {
+		Reasons: []string{
+			`identity_provider_details is a required block appearing zero times in the generic pass's output (the wire schema's own MinItems does not force it, unlike a required string argument) - not caught by the generic required-only pass, only surfaced by "terraform validate" ("Block identity_provider_details must have a configuration value as the provider has marked it as required"). A wholly empty block satisfies validate, but not apply: hand-verifying this cohort against the pinned floci image surfaced a provider-side panic expanding an empty identity_provider_details ("Expanding ...webAppIdentityProviderDetailsModel returned nil"), reachable independently of floci since it happens client-side during request marshaling, before any HTTP call. identity_center_config's own fields are Optional, but populating them with placeholder values avoids the empty-block panic entirely.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			details := body.AppendNewBlock("identity_provider_details", nil)
+			idc := details.Body().AppendNewBlock("identity_center_config", nil)
+			idc.Body().SetAttributeRaw("instance_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:sso:::instance/ssoins-%s"`, "1234567890abcdef")))
+			idc.Body().SetAttributeRaw("role", exprTokens(fmt.Sprintf(
+				`"arn:aws:iam::000000000000:role/tofu-%s-cohort-transfer-web-app"`, g.cohort)))
+		},
+	},
 	// REMAINDER ratification batch (issue #65) overrides, live/e2e/estates/remainder.
 	"aws_arcregionswitch_plan": {
 		Reasons: []string{
@@ -4624,4 +5007,32 @@ func ssoadminPermissionSetArnRef(g *generator) string {
 		return `"arn:aws:sso:::permissionSet/ssoins-tofucohortid00/ps-tofucohortid00"`
 	}
 	return fmt.Sprintf("%s.arn", addr)
+}
+
+// workspacesWebPortalArnRef is the sibling aws_workspacesweb_portal's own
+// portal_arn attribute as HCL source when this run renders one, or a
+// literal placeholder portal ARN otherwise - shared by all eight
+// WorkSpacesWeb *_association fold-children's own portal_arn argument,
+// same conditional-sibling shape as ssoadminApplicationArnRef above.
+func workspacesWebPortalArnRef(g *generator) string {
+	addr, ok := g.byType["aws_workspacesweb_portal"]
+	if !ok {
+		return `"arn:aws:workspaces-web:us-east-1:000000000000:portal/tofucohortid00"`
+	}
+	return fmt.Sprintf("%s.portal_arn", addr)
+}
+
+// workspacesWebArnRef is one WorkSpacesWeb *_association fold-child's own
+// settings-type ARN argument as HCL source: the named sibling's own
+// exported *_arn attribute when this run renders one, or a literal
+// placeholder ARN of the given resource-path segment otherwise (each
+// WorkSpacesWeb settings type's own ARN embeds a different path segment,
+// e.g. "browserSettings", confirmed against each type's own documented
+// import ID example).
+func workspacesWebArnRef(g *generator, siblingType, attrName, arnPathSegment string) string {
+	addr, ok := g.byType[siblingType]
+	if !ok {
+		return fmt.Sprintf(`"arn:aws:workspaces-web:us-east-1:000000000000:%s/tofucohortid00"`, arnPathSegment)
+	}
+	return fmt.Sprintf("%s.%s", addr, attrName)
 }

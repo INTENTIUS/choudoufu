@@ -7052,6 +7052,299 @@ var DefaultTable = buildTable(
 		"IVS Chat mints the room's own ARN at create time; name is optional and client-chosen but does not reconstruct the ARN. Real v6.58.0 identity schema (Required: arn) and documented import command (terraform import aws_ivschat_room.example arn:aws:ivschat:us-west-2:326937407773:room/GoXEXyB4VwHb) agree.",
 		"ARN", "arn"),
 
+	// ---- Registry-ratified (#40, #44, #65): eighth batch, Connect and
+	// ---- end-user computing ------------------------------------------------
+	//
+	// Same pipeline as the batches above: every row started as a
+	// tools/row-gen proposal from live/registry.json, cross-checked against
+	// the AWS provider's documented Argument Reference, Attribute Reference
+	// and Import section (fetched from the provider's own website/docs/r/
+	// source at the pinned v6.59.0 tag), not accepted on the registry's
+	// classification alone. Cohort estate: live/e2e/estates/connect-euc.
+	//
+	// Scope: Amazon Connect (13 mapped types), WorkSpaces (4) and
+	// WorkSpacesWeb (18, 10 of them a type of their own and 8
+	// property-child folds of AWS::WorkSpacesWeb::Portal). AppStream is a
+	// deprecated AWS service and was never evaluated here — out of scope
+	// by this batch's recipe, not rejected on the merits. WorkSpaces'
+	// wider surface stays out too, for a different reason: an
+	// aws_workspaces_directory resource is real in the provider but
+	// live/mapping.json carries it via "cfn-unmodeled" ("real WorkSpaces
+	// directory registration with no CFN model — the registry's four
+	// AWS::WorkSpaces::* types carry no Directory type at all"), so
+	// row-gen — which walks the CFN registry — never proposes it; a
+	// aws_workspaces_bundle resource does not exist in the pinned
+	// provider release at all (bundles are a data source only). Neither
+	// is a row-gen proposal this batch could ratify or reject.
+	//
+	// Nine of the twelve Connect rows below are corrections. row-gen's own
+	// registry evidence reads each of aws_connect_contact_flow,
+	// _contact_flow_module, _hours_of_operation, _queue, _quick_connect,
+	// _routing_profile, _security_profile, _user and _user_hierarchy_group
+	// as primaryIdentifier ⊆ readOnlyProperties (a clean server-assigned
+	// shape by rule 1), but issue #55's applyImportGrammarDemotions caught
+	// every one first: live/import-grammar.json shows each documented
+	// import id is argument-composed, so row-gen printed evidence-only
+	// rather than a wrong pastable row. Reading each provider Import
+	// section directly confirms the same shape nine times over: Connect
+	// requires instance_id (a Required, client-supplied argument naming
+	// the hosting instance) in configuration, and mints the child's own id
+	// itself, colon-joining the two into the documented import string and
+	// exporting the join verbatim as the resource's own "id" attribute.
+	// The child's own id half is never a configuration argument — this
+	// table's Components vocabulary has no way to compose a
+	// not-yet-created output, the same gap the streaming batch's
+	// aws_appsync_function rejection named — so none of the nine builds an
+	// import string. All nine are taggable (a real tags argument
+	// confirmed in each provider doc), which is what makes them
+	// ratifiable anyway: the same marker path (server-assigned, taggable,
+	// recovered by tag-filtered list rather than by building the import
+	// string) aws_ssoadmin_application's entry in the identity batch above
+	// already established. aws_connect_instance_storage_config is the
+	// tenth row-gen evidence-only Connect proposal in scope and is the one
+	// this batch rejects: its own composite (instance_id, its own
+	// server-minted association_id, and resource_type, colon-joined) is
+	// the same shape as the nine ratified above, but its Argument
+	// Reference carries no tags block at all — untaggable, so no marker
+	// path recovers it either, the same "no admission path recovers it"
+	// verdict the identity batch already gave
+	// aws_identitystore_group(_membership).
+	//
+	// aws_connect_user_hierarchy_structure is a different correction
+	// entirely: row-gen's registry evidence (primaryIdentifier=
+	// [UserHierarchyStructureArn], wholly read-only) again reads
+	// server-assigned, demoted the same way by the import-grammar check.
+	// But the real Import section shows no composite and no server-minted
+	// second half at all — the documented import id is instance_id alone,
+	// a Required, already-in-configuration argument, because a Connect
+	// instance has at most one hierarchy structure. The registry's
+	// read-only-ARN claim oversold the real grammar the same way the EC2
+	// batch's aws_vpc_dhcp_options_association correction found: a
+	// named-singleton-child of an already-admitted parent, Components-built
+	// from that parent's own id argument alone.
+	//
+	// aws_connect_instance and aws_connect_phone_number are row-gen's own
+	// clean server-assigned proposals, confirmed against the real docs
+	// with one correction each: row-gen's TEMPLATED "ARN" import-syntax
+	// guess is wrong for both — the provider's own Identity Schema and
+	// documented import command both use the bare "id" attribute, not the
+	// arn, so IdentityAttrs below names "id" rather than "arn".
+	//
+	// WorkSpaces' four types and WorkSpacesWeb's ten non-fold types are
+	// all row-gen's own clean server-assigned proposals (primaryIdentifier
+	// ⊆ readOnlyProperties, list-free or single-parent-scoped enumeration,
+	// no import-grammar demotion), confirmed against the real docs with no
+	// correction needed beyond naming the exact exported attribute each
+	// provider doc gives (a bare "id" for the WorkSpaces family's older
+	// SDK-based resources; a dedicated *_arn attribute for the
+	// WorkSpacesWeb family's newer plugin-framework resources, which
+	// export no generic "id" at all).
+	//
+	// WorkSpacesWeb's eight *_association property-children of
+	// AWS::WorkSpacesWeb::Portal (browser_settings, data_protection_settings,
+	// ip_access_settings, network_settings, session_logger, trust_store,
+	// user_access_logging_settings and user_settings, each doubled into a
+	// standalone type above and a Portal-scoped association fold) ratify
+	// too, below. row-gen's own notes propose each as "parent-derived
+	// admission keyed on aws_workspacesweb_portal once it is ratified" —
+	// this batch started under the assumption that needed issue #68's
+	// fold-child admission path (identity.FoldParentTypes,
+	// discovery.foldChildReadSweep), on a branch that had not merged to
+	// main when this batch's recipe was first read. It merged mid-batch;
+	// re-checking (grep for a fold-child section in
+	// internal/live/lint/admission.go on main) found it landed. Reading
+	// each type's real Import section directly settles the question that
+	// prompted the re-check either way: none of the eight actually needs
+	// [FoldParentTypes] at all. Each is an ordinary two-argument concrete
+	// composite — the child's own settings-type ARN and portal_arn,
+	// comma-joined, both already-Required configuration arguments of the
+	// association type itself — the same shape aws_eks_access_entry and
+	// aws_iam_role_policy already ratify elsewhere in this table, not the
+	// API Gateway four's "duplicate the parent's whole composite Components
+	// verbatim" shape [FoldParentTypes] exists for. None of the eight is
+	// taggable (confirmed against each Argument Reference: settings-type
+	// ARN, portal_arn and region only, no tags block), so none can carry an
+	// ownership marker of its own — the same accepted removal-sweep gap
+	// live/LIMITATIONS.md's "Untaggable types cannot be removed by the
+	// sweep" entry already carries for aws_iam_role_policy_attachment and
+	// aws_vpc_dhcp_options_association above. Declared-instance resolution
+	// (plan, apply, read-back) is unaffected either way.
+
+	serverAssigned("aws_connect_instance",
+		"Connect assigns the instance's own id at create time; instance_alias is client-chosen (required only when directory_id is not set) but is not the import identity. Confirmed against the provider's own Identity Schema (required: id) and its documented import command (terraform import aws_connect_instance.example f1288a1f-6193-445a-b47e-af739b2) — row-gen's own ARN guess corrected to the bare id its own Attribute Reference and Identity Schema both document.",
+		"ID", "id"),
+	serverAssigned("aws_connect_phone_number",
+		"Connect assigns the phone number's own id at create time; target_arn names the Connect instance (or traffic distribution group) the number is claimed to, but is not the phone number's own identity. Confirmed against the provider's own Identity Schema (required: id) and its documented import command (terraform import aws_connect_phone_number.example 12345678-abcd-1234-efgh-9876543210ab) — row-gen's own ARN guess corrected to the bare id its own Attribute Reference and Identity Schema both document.",
+		"ID", "id"),
+
+	serverAssigned("aws_connect_contact_flow",
+		"row-gen filed this evidence-only (import-grammar demotion): Connect mints the contact flow's own id at create time; instance_id (Required) names the hosting instance but not the contact flow itself, and the documented import id is instance_id:contact_flow_id, colon-joined, exported verbatim as the resource's own id (\"The identifier of the hosting Amazon Connect Instance and identifier of the Contact Flow separated by a colon\"). contact_flow_id is never a configuration argument, so no Components string build reaches it — taggable (a real tags argument), so recovered by tag-filtered list instead, the same marker-path shape as aws_ssoadmin_application above.",
+		"INSTANCEID:CONTACTFLOWID", "id"),
+	serverAssigned("aws_connect_contact_flow_module",
+		"Same shape as aws_connect_contact_flow above, the contact-flow-module sibling: row-gen filed this evidence-only (import-grammar demotion), the real Import section documents instance_id:contact_flow_module_id colon-joined, exported verbatim as id, and contact_flow_module_id is never a configuration argument. Taggable, recovered by tag-filtered list.",
+		"INSTANCEID:CONTACTFLOWMODULEID", "id"),
+	serverAssigned("aws_connect_hours_of_operation",
+		"Same shape as aws_connect_contact_flow above: row-gen filed this evidence-only (import-grammar demotion), the real Import section documents instance_id:hours_of_operation_id colon-joined, exported verbatim as id, and hours_of_operation_id is never a configuration argument. Taggable, recovered by tag-filtered list.",
+		"INSTANCEID:HOURSOFOPERATIONID", "id"),
+	serverAssigned("aws_connect_queue",
+		"Same shape as aws_connect_contact_flow above: row-gen filed this evidence-only (import-grammar demotion), the real Import section documents instance_id:queue_id colon-joined, exported verbatim as id, and queue_id is never a configuration argument. Taggable, recovered by tag-filtered list.",
+		"INSTANCEID:QUEUEID", "id"),
+	serverAssigned("aws_connect_quick_connect",
+		"Same shape as aws_connect_contact_flow above: row-gen filed this evidence-only (import-grammar demotion), the real Import section documents instance_id:quick_connect_id colon-joined, exported verbatim as id, and quick_connect_id is never a configuration argument. Taggable, recovered by tag-filtered list.",
+		"INSTANCEID:QUICKCONNECTID", "id"),
+	serverAssigned("aws_connect_routing_profile",
+		"Same shape as aws_connect_contact_flow above: row-gen filed this evidence-only (import-grammar demotion), the real Import section documents instance_id:routing_profile_id colon-joined, exported verbatim as id, and routing_profile_id is never a configuration argument. Taggable, recovered by tag-filtered list.",
+		"INSTANCEID:ROUTINGPROFILEID", "id"),
+	serverAssigned("aws_connect_security_profile",
+		"Same shape as aws_connect_contact_flow above: row-gen filed this evidence-only (import-grammar demotion), the real Import section documents instance_id:security_profile_id colon-joined, exported verbatim as id, and security_profile_id is never a configuration argument. Taggable, recovered by tag-filtered list.",
+		"INSTANCEID:SECURITYPROFILEID", "id"),
+	serverAssigned("aws_connect_user",
+		"Same shape as aws_connect_contact_flow above: row-gen filed this evidence-only (import-grammar demotion), the real Import section documents instance_id:user_id colon-joined, exported verbatim as id, and user_id is never a configuration argument. Taggable, recovered by tag-filtered list. routing_profile_id and security_profile_ids are both Required arguments referencing aws_connect_routing_profile and aws_connect_security_profile above, but that is a data-flow dependency, not part of this type's own identity.",
+		"INSTANCEID:USERID", "id"),
+	serverAssigned("aws_connect_user_hierarchy_group",
+		"Same shape as aws_connect_contact_flow above: row-gen filed this evidence-only (import-grammar demotion), the real Import section documents instance_id:hierarchy_group_id colon-joined, exported verbatim as id, and hierarchy_group_id is never a configuration argument. Taggable, recovered by tag-filtered list.",
+		"INSTANCEID:HIERARCHYGROUPID", "id"),
+
+	TypeIdentity{
+		// row-gen filed this evidence-only (import-grammar demotion of a
+		// primaryIdentifier=[UserHierarchyStructureArn], wholly
+		// read-only registry claim). The real Import section shows no
+		// composite and no server-minted second half at all: the
+		// documented import id is instance_id alone (terraform import
+		// aws_connect_user_hierarchy_structure.example
+		// f1288a1f-6193-445a-b47e-af739b2), because a Connect instance has
+		// at most one hierarchy structure — a named-singleton child of the
+		// already-admitted aws_connect_instance above, the same
+		// "registry's composite/read-only evidence oversold the real
+		// grammar" correction the EC2 batch's own
+		// aws_vpc_dhcp_options_association made. The provider's own
+		// Attribute Reference confirms it: "id - The identifier of the
+		// hosting Amazon Connect Instance."
+		Type:          "aws_connect_user_hierarchy_structure",
+		Components:    []Component{attr("instance_id")},
+		ImportSyntax:  "INSTANCEID",
+		IdentityAttrs: []string{"id"},
+	},
+
+	serverAssigned("aws_workspaces_connection_alias",
+		"WorkSpaces assigns the connection alias's own id (rft-…) at create time; connection_string is client-chosen but is not the import identity. Confirmed against the provider's documented import command (terraform import aws_workspaces_connection_alias.example rft-8012925589) and its Attribute Reference (\"id - The identifier of the connection alias\").",
+		"ID", "id"),
+	serverAssigned("aws_workspaces_ip_group",
+		"WorkSpaces assigns the IP group's own id (wsipg-…) at create time; group_name is client-chosen but is not the import identity. Confirmed against the provider's documented import command (terraform import aws_workspaces_ip_group.example wsipg-488lrtl3k) and its Attribute Reference (\"id - The IP group identifier\").",
+		"ID", "id"),
+	serverAssigned("aws_workspaces_pool",
+		"WorkSpaces assigns the pool's own id (wspool-…) at create time; pool_name is client-chosen but is not the import identity. Confirmed against the provider's own Identity Schema (required: pool_id) and its documented import command (terraform import aws_workspaces_pool.example wspool-12345678).",
+		"POOLID", "pool_id"),
+	serverAssigned("aws_workspaces_workspace",
+		"WorkSpaces assigns the workspace's own id (ws-…) at create time; user_name and directory_id configure it but do not identify it. Confirmed against the provider's documented import command (terraform import aws_workspaces_workspace.example ws-9z9zmbkhv) and its Attribute Reference (\"id - The workspaces ID\").",
+		"ID", "id"),
+
+	serverAssigned("aws_workspacesweb_browser_settings",
+		"WorkSpacesWeb assigns the browser settings' own ARN at create time; customer_managed_key configures encryption but does not identify the resource. Confirmed against the provider's documented import command (terraform import aws_workspacesweb_browser_settings.example arn:aws:workspaces-web:us-west-2:123456789012:browsersettings/abcdef12345) and its Attribute Reference, which exports the ARN as browser_settings_arn — this newer plugin-framework resource has no generic id attribute at all.",
+		"BROWSERSETTINGSARN", "browser_settings_arn"),
+	serverAssigned("aws_workspacesweb_data_protection_settings",
+		"Same shape as aws_workspacesweb_browser_settings above: WorkSpacesWeb assigns the data protection settings' own ARN at create time, exported as data_protection_settings_arn, no generic id attribute.",
+		"DATAPROTECTIONSETTINGSARN", "data_protection_settings_arn"),
+	serverAssigned("aws_workspacesweb_identity_provider",
+		"WorkSpacesWeb assigns the identity provider's own ARN at create time, embedding the required portal_arn argument (a reference to the already-admitted aws_workspacesweb_portal below) as a path segment the provider computes rather than one this table treats as reconstructible. Confirmed against the provider's documented import command and its Attribute Reference, which exports the ARN as identity_provider_arn — no generic id attribute.",
+		"IDENTITYPROVIDERARN", "identity_provider_arn"),
+	serverAssigned("aws_workspacesweb_ip_access_settings",
+		"Same shape as aws_workspacesweb_browser_settings above: WorkSpacesWeb assigns the IP access settings' own ARN at create time, exported as ip_access_settings_arn, no generic id attribute.",
+		"IPACCESSSETTINGSARN", "ip_access_settings_arn"),
+	serverAssigned("aws_workspacesweb_network_settings",
+		"Same shape as aws_workspacesweb_browser_settings above: WorkSpacesWeb assigns the network settings' own ARN at create time, exported as network_settings_arn, no generic id attribute.",
+		"NETWORKSETTINGSARN", "network_settings_arn"),
+	serverAssigned("aws_workspacesweb_portal",
+		"WorkSpacesWeb assigns the portal's own ARN at create time; display_name and instance_type configure it but do not identify it. Confirmed against the provider's documented import command (terraform import aws_workspacesweb_portal.example arn:aws:workspaces-web:us-west-2:123456789012:portal/abcdef12345678) and its Attribute Reference, which exports the ARN as portal_arn — no generic id attribute. Every WorkSpacesWeb *_settings type above whose Attribute Reference lists an AssociatedPortalArns/portal-scoped attribute references this type once it is created, but none composes this type's own identity.",
+		"PORTALARN", "portal_arn"),
+	serverAssigned("aws_workspacesweb_session_logger",
+		"Same shape as aws_workspacesweb_browser_settings above: WorkSpacesWeb assigns the session logger's own ARN at create time, exported as session_logger_arn, no generic id attribute.",
+		"SESSIONLOGGERARN", "session_logger_arn"),
+	serverAssigned("aws_workspacesweb_trust_store",
+		"Same shape as aws_workspacesweb_browser_settings above: WorkSpacesWeb assigns the trust store's own ARN at create time, exported as trust_store_arn, no generic id attribute.",
+		"TRUSTSTOREARN", "trust_store_arn"),
+	serverAssigned("aws_workspacesweb_user_access_logging_settings",
+		"Same shape as aws_workspacesweb_browser_settings above: WorkSpacesWeb assigns the user access logging settings' own ARN at create time, exported as user_access_logging_settings_arn, no generic id attribute.",
+		"USERACCESSLOGGINGSETTINGSARN", "user_access_logging_settings_arn"),
+	serverAssigned("aws_workspacesweb_user_settings",
+		"Same shape as aws_workspacesweb_browser_settings above: WorkSpacesWeb assigns the user settings' own ARN at create time, exported as user_settings_arn, no generic id attribute.",
+		"USERSETTINGSARN", "user_settings_arn"),
+
+	// WorkSpacesWeb's eight *_association property-children of
+	// AWS::WorkSpacesWeb::Portal: row-gen filed all eight evidence-only
+	// (via==fold, no CFN type of their own), but every one has a real,
+	// documented import grammar the provider's own docs give directly —
+	// the settings type's own ARN and portal_arn, comma-joined, in that
+	// order, confirmed against each type's real Import section
+	// individually (not inferred from one and assumed for the rest). Both
+	// halves are Required configuration arguments of the association type
+	// itself, so this is an ordinary concrete composite, not a
+	// [FoldParentOf] case — see the batch banner comment above.
+	TypeIdentity{
+		Type: "aws_workspacesweb_browser_settings_association",
+		Components: []Component{
+			attr("browser_settings_arn"), sep(","), attr("portal_arn"),
+		},
+		ImportSyntax:  "BROWSERSETTINGSARN,PORTALARN",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_workspacesweb_data_protection_settings_association",
+		Components: []Component{
+			attr("data_protection_settings_arn"), sep(","), attr("portal_arn"),
+		},
+		ImportSyntax:  "DATAPROTECTIONSETTINGSARN,PORTALARN",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_workspacesweb_ip_access_settings_association",
+		Components: []Component{
+			attr("ip_access_settings_arn"), sep(","), attr("portal_arn"),
+		},
+		ImportSyntax:  "IPACCESSSETTINGSARN,PORTALARN",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_workspacesweb_network_settings_association",
+		Components: []Component{
+			attr("network_settings_arn"), sep(","), attr("portal_arn"),
+		},
+		ImportSyntax:  "NETWORKSETTINGSARN,PORTALARN",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_workspacesweb_session_logger_association",
+		Components: []Component{
+			attr("session_logger_arn"), sep(","), attr("portal_arn"),
+		},
+		ImportSyntax:  "SESSIONLOGGERARN,PORTALARN",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_workspacesweb_trust_store_association",
+		Components: []Component{
+			attr("trust_store_arn"), sep(","), attr("portal_arn"),
+		},
+		ImportSyntax:  "TRUSTSTOREARN,PORTALARN",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_workspacesweb_user_access_logging_settings_association",
+		Components: []Component{
+			attr("user_access_logging_settings_arn"), sep(","), attr("portal_arn"),
+		},
+		ImportSyntax:  "USERACCESSLOGGINGSETTINGSARN,PORTALARN",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_workspacesweb_user_settings_association",
+		Components: []Component{
+			attr("user_settings_arn"), sep(","), attr("portal_arn"),
+		},
+		ImportSyntax:  "USERSETTINGSARN,PORTALARN",
+		IdentityAttrs: nil,
+	},
+
 	// ---- Registry-ratified (#40, #44, #65): governance batch (Config
 	// ---- remainder, Control Tower, License Manager, Organizations,
 	// ---- Resource Explorer, Resource Groups, Service Catalog remainder
@@ -8698,21 +8991,517 @@ var DefaultTable = buildTable(
 		IdentityAttrs: []string{"id", "workteam_name"},
 	},
 
+	// ---- Registry-ratified (#40, #44, #65): sixth batch, AI services and
+	// ---- Location ---------------------------------------------------------
+	//
+	// Bedrock, Bedrock Agents (agents, knowledge bases, guardrails,
+	// prompts), BedrockAgentCore (the v6.59.0 bump's new runtime/gateway/
+	// memory/policy surface), Location Service, the Lex V2 Models family,
+	// and the thin-coverage Comprehend/Kendra/Rekognition/Q Business
+	// slices. Same tools/row-gen pipeline as the batches above, but this
+	// batch leans harder on live/survey-full.json's per-type
+	// taggable/listable/identity-schema signals than row-gen's own
+	// registry-only classification: several of these newer Plugin
+	// Framework resources are taggable and thus marker-path admittable
+	// even where row-gen filed them "needs hand separator" or
+	// "evidence-only" because their real import ID is a server-assigned
+	// composite no config argument reconstructs (row-gen only tries the
+	// client-named/parent-derived paths, never marker path, against a
+	// composite primaryIdentifier). Every row below is additionally
+	// confirmed against the AWS provider's documented Argument/Attribute/
+	// Import sections at the pinned v6.59.0 tag, not accepted on the
+	// registry's or the survey's classification alone. See the rejected-
+	// and deferred-proposals note below this section for the disposition
+	// of every row-gen row in scope that is not here, and
+	// live/e2e/estates/ai-location/README.md for the full account. Cohort
+	// estate: live/e2e/estates/ai-location.
+
+	serverAssigned("aws_bedrock_guardrail",
+		"Bedrock mints the guardrail's own guardrail_id at create time and a new version identifier each time it is published; the provider's real Import section documents a guardrail_id,version composite, not the single GuardrailArn the CFN registry's primaryIdentifier alone would suggest. No id attribute is separately documented, so IdentityAttrs stays empty.",
+		"GUARDRAILID,VERSION"),
+	serverAssigned("aws_bedrock_inference_profile",
+		"Bedrock mints the inference profile's own identifier at create time; the provider's documented import example (inference_profile-id-12345678) is a server-assigned string distinct from the client-chosen name argument, correcting row-gen's own evidence-only flag (which read the registry's primaryIdentifier as argument-composed). Taggable per live/survey-full.json, so the marker path applies regardless.",
+		"ID", "id"),
+	serverAssigned("aws_bedrockagent_agent",
+		"Bedrock mints the agent's own agent_id at create time; agent_name configures it but does not identify it. Its Attribute Reference documents id as \"Unique identifier of the agent\", the same value as agent_id.",
+		"AGENTID", "id"),
+	serverAssigned("aws_bedrockagent_agent_alias",
+		"Bedrock mints the alias's own agent_alias_id at create time, scoped under its parent agent; the provider's documented import id is a comma-delimited agent_alias_id,agent_id composite with no single reconstructable value, which is why row-gen filed this \"needs hand separator\" rather than proposing a row. Taggable (the resource has its own tags/tags_all pair), so the marker path recovers it independently of that composite — the correction this batch makes to row-gen's classification, the same shape as aws_ec2_transit_gateway_connect_peer in the ec2-networking batch.",
+		"ALIASID,AGENTID"),
+	serverAssigned("aws_bedrockagent_flow",
+		"Bedrock mints the flow's own identifier at create time; its Attribute Reference documents id as \"The unique identifier of the flow.\"",
+		"ID", "id"),
+	serverAssigned("aws_bedrockagent_knowledge_base",
+		"Bedrock mints the knowledge base's own identifier at create time; its Attribute Reference documents id as \"Unique identifier of the knowledge base.\"",
+		"ID", "id"),
+	serverAssigned("aws_bedrockagent_prompt",
+		"Bedrock mints the prompt's own identifier at create time; its Attribute Reference documents id as \"Unique identifier of the prompt.\"",
+		"ID", "id"),
+
+	serverAssigned("aws_bedrockagentcore_agent_runtime",
+		"BedrockAgentCore mints the runtime's own agent_runtime_id at create time; agent_runtime_name configures it but does not identify it. No id attribute is documented (a Plugin Framework resource with its own Identity Schema instead), so IdentityAttrs stays empty.",
+		"AGENTRUNTIMEID"),
+	serverAssigned("aws_bedrockagentcore_agent_runtime_endpoint",
+		"BedrockAgentCore mints the endpoint's own identifier at create time, scoped under its parent runtime; the provider's documented import id is an agent_runtime_id,endpoint-name composite, which is why row-gen filed this evidence-only rather than proposing a row (its argument-composed note). Taggable (tags/tags_all documented), so the marker path recovers it independently — the same correction this batch makes for aws_bedrockagent_agent_alias above.",
+		"AGENTRUNTIMEID,NAME"),
+	serverAssigned("aws_bedrockagentcore_api_key_credential_provider",
+		"BedrockAgentCore mints the credential provider's own credential_provider_arn at create time; the name argument configures it but the provider's own import id is the ARN, not the name. No id attribute is documented.",
+		"CREDENTIALPROVIDERARN"),
+	serverAssigned("aws_bedrockagentcore_browser",
+		"BedrockAgentCore mints the browser's own browser_id at create time; name configures it but does not identify it. No id attribute is documented.",
+		"BROWSERID"),
+	serverAssigned("aws_bedrockagentcore_browser_profile",
+		"BedrockAgentCore mints the browser profile's own profile_id at create time; live/survey-full.json's v6.59.0 identity schema confirms profile_id as the sole required-for-import attribute. No id attribute is documented.",
+		"PROFILEID"),
+	serverAssigned("aws_bedrockagentcore_code_interpreter",
+		"BedrockAgentCore mints the code interpreter's own code_interpreter_id at create time; name configures it but does not identify it. No id attribute is documented.",
+		"CODEINTERPRETERID"),
+	serverAssigned("aws_bedrockagentcore_evaluator",
+		"BedrockAgentCore mints the evaluator's own evaluator_id at create time; live/survey-full.json's v6.59.0 identity schema confirms evaluator_id as the sole required-for-import attribute. No id attribute is documented.",
+		"EVALUATORID"),
+	serverAssigned("aws_bedrockagentcore_gateway",
+		"BedrockAgentCore mints the gateway's own gateway_id at create time; no create-only argument in the registry evidence reconstructs it. No id attribute is documented.",
+		"GATEWAYIDENTIFIER"),
+	serverAssigned("aws_bedrockagentcore_harness",
+		"BedrockAgentCore mints the harness's own harness_id at create time; live/survey-full.json's v6.59.0 identity schema confirms harness_id as the sole required-for-import attribute. No id attribute is documented.",
+		"HARNESSID"),
+	serverAssigned("aws_bedrockagentcore_memory",
+		"BedrockAgentCore mints the memory's own identifier at create time; its Attribute Reference documents id as \"Unique identifier of the Memory.\"",
+		"MEMORYID", "id"),
+	serverAssigned("aws_bedrockagentcore_oauth2_credential_provider",
+		"BedrockAgentCore mints the credential provider's own credential_provider_arn at create time; name configures it but the provider's own import id is the ARN. No id attribute is documented.",
+		"CREDENTIALPROVIDERARN"),
+	serverAssigned("aws_bedrockagentcore_online_evaluation_config",
+		"BedrockAgentCore mints the config's own online_evaluation_config_id at create time; live/survey-full.json's v6.59.0 identity schema confirms it as the sole required-for-import attribute. No id attribute is documented.",
+		"ONLINEEVALUATIONCONFIGID"),
+	serverAssigned("aws_bedrockagentcore_policy_engine",
+		"BedrockAgentCore mints the policy engine's own policy_engine_id at create time; live/survey-full.json's v6.59.0 identity schema confirms it as the sole required-for-import attribute. No id attribute is documented.",
+		"POLICYENGINEID"),
+
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[ResourceArn], client-named,
+		// proposed correctly (row-gen's argument line came from the
+		// provider's own v6.59.0 identity schema). Confirmed against the
+		// provider's documented Identity Schema (required: resource_arn)
+		// and its terraform import example.
+		Type:          "aws_bedrockagentcore_resource_policy",
+		Components:    []Component{attr("resource_arn")},
+		ImportSyntax:  "RESOURCE_ARN",
+		IdentityAttrs: []string{"resource_arn"},
+	},
+
+	// Location Service. All five of the service's base types are taggable
+	// (live/survey-full.json's "marker" signal), but each also has a
+	// clean, single-argument client-named import grammar confirmed
+	// against the provider's own Argument and Import sections — the more
+	// precise path, so this batch prefers it over the coarser marker
+	// path the taggable signal alone would justify, the same choice the
+	// storage and ec2-networking batches made for their own taggable
+	// client-named types. row-gen filed four of these five evidence-only
+	// (GUESSED argument names, unconfirmed against an identity schema or
+	// live/import-grammar.json); the argument names below are confirmed
+	// directly against the pinned v6.59.0 provider docs' Argument
+	// Reference sections, not guessed.
+	TypeIdentity{
+		Type:          "aws_location_geofence_collection",
+		Components:    []Component{attr("collection_name")},
+		ImportSyntax:  "COLLECTION_NAME",
+		IdentityAttrs: []string{"collection_name"},
+	},
+	TypeIdentity{
+		// row-gen: evidence-only (GUESSED argument name). Confirmed
+		// against the provider's Argument Reference ("map_name - (Required)
+		// The name for the map resource.") and Import section ("import
+		// aws_location_map resources using the map name").
+		Type:          "aws_location_map",
+		Components:    []Component{attr("map_name")},
+		ImportSyntax:  "MAP_NAME",
+		IdentityAttrs: []string{"map_name"},
+	},
+	TypeIdentity{
+		// row-gen: evidence-only (GUESSED argument name). Confirmed
+		// against the provider's Argument Reference ("index_name -
+		// (Required) Name of the place index resource.") and Import
+		// section.
+		Type:          "aws_location_place_index",
+		Components:    []Component{attr("index_name")},
+		ImportSyntax:  "INDEX_NAME",
+		IdentityAttrs: []string{"index_name"},
+	},
+	TypeIdentity{
+		// row-gen: evidence-only (GUESSED argument name). Confirmed
+		// against the provider's Argument Reference ("calculator_name -
+		// (Required) The name of the route calculator resource.") and
+		// Import section.
+		Type:          "aws_location_route_calculator",
+		Components:    []Component{attr("calculator_name")},
+		ImportSyntax:  "CALCULATOR_NAME",
+		IdentityAttrs: []string{"calculator_name"},
+	},
+	TypeIdentity{
+		// row-gen: evidence-only (GUESSED argument name). Confirmed
+		// against the provider's Argument Reference ("tracker_name -
+		// (Required) The name of the tracker resource.") and Import
+		// section.
+		Type:          "aws_location_tracker",
+		Components:    []Component{attr("tracker_name")},
+		ImportSyntax:  "TRACKER_NAME",
+		IdentityAttrs: []string{"tracker_name"},
+	},
+	TypeIdentity{
+		// row-gen: needs hand separator (composite TrackerName+ConsumerArn,
+		// no join character in the registry). The provider's own Import
+		// section supplies the separator directly: "tracker_name|consumer_arn",
+		// confirmed against the pinned v6.59.0 tag rather than guessed —
+		// the same correction shape as the ec2-networking batch's
+		// network_acl_rule. Both halves are the resource's own required
+		// config arguments (tracker_name, consumer_arn), so this is
+		// parent-derived and untaggable-swept like the rest of this
+		// table's composite associations, even though the type is not in
+		// live/mapping.json's marker set.
+		Type: "aws_location_tracker_association",
+		Components: []Component{
+			attr("tracker_name"),
+			sep("|"),
+			attr("consumer_arn"),
+		},
+		ImportSyntax:  "TRACKER_NAME|CONSUMER_ARN",
+		IdentityAttrs: nil,
+	},
+
+	serverAssigned("aws_lexv2models_bot",
+		"Lex mints the bot's own id at create time; bot_type configures it but does not identify it. Its Attribute Reference documents id as \"Unique identifier for a particular bot.\" The V1 aws_lex_bot type is a separate, cfn-unmodeled resource per #58 and is untouched by this row.",
+		"ID", "id"),
+	TypeIdentity{
+		// row-gen: evidence-only (fold of AWS::Lex::Bot, proposed as
+		// "parent-derived admission keyed on aws_lexv2models_bot once
+		// ratified"). Unlike its sibling folds (bot_version, intent, slot,
+		// slot_type — all rejected below because each mints its own
+		// server-assigned id with no config argument supplying it),
+		// aws_lexv2models_bot_locale's identity is the one genuinely
+		// reconstructable from configuration alone: its own Argument
+		// Reference requires locale_id, bot_id and bot_version, and its
+		// documented Import id is exactly those three, comma-delimited,
+		// in that order ("en_US,abcd-12345678,1"), confirmed against the
+		// pinned v6.59.0 tag.
+		Type: "aws_lexv2models_bot_locale",
+		Components: []Component{
+			attr("locale_id"),
+			sep(","),
+			attr("bot_id"),
+			sep(","),
+			attr("bot_version"),
+		},
+		ImportSyntax:  "LOCALE_ID,BOT_ID,BOT_VERSION",
+		IdentityAttrs: nil,
+	},
+
+	serverAssigned("aws_comprehend_document_classifier",
+		"Comprehend mints the classifier's own ARN at create time; the registry's primaryIdentifier (Arn) is confirmed by the provider's own Import section, which imports by ARN. No id attribute is separately documented.",
+		"ARN"),
+	serverAssigned("aws_kendra_index",
+		"Kendra mints the index's own id at create time; edition and encryption configuration do not identify it. Its Attribute Reference documents id as \"The identifier of the Index.\"",
+		"ID", "id"),
+	serverAssigned("aws_qbusiness_application",
+		"Q Business mints the application's own application_id at create time; identity_type and the OIDC/QuickSight configuration blocks do not identify it. No id attribute is documented.",
+		"APPLICATIONID"),
+
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[CollectionId], client-named,
+		// proposed correctly. Confirmed against the provider's own
+		// v6.59.0 identity schema (required_for_import: collection_id)
+		// and its documented import command.
+		Type:          "aws_rekognition_collection",
+		Components:    []Component{attr("collection_id")},
+		ImportSyntax:  "COLLECTION_ID",
+		IdentityAttrs: []string{"collection_id"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[ProjectName], client-named,
+		// proposed correctly. Confirmed against the provider's own
+		// v6.59.0 identity schema (required_for_import: name) and its
+		// documented import command.
+		Type:          "aws_rekognition_project",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[Name], client-named, proposed
+		// correctly. Confirmed against the provider's own v6.59.0 identity
+		// schema (required_for_import: name) and its documented import
+		// command.
+		Type:          "aws_rekognition_stream_processor",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+
+	// Rejected on independent verification, all cross-checked against
+	// live/survey-full.json's per-type taggable/listable signals in
+	// addition to the provider's documented Argument/Attribute/Import
+	// sections at the pinned v6.59.0 tag:
+	//
+	//   - aws_bedrock_guardrail_version: row-gen proposed this cleanly
+	//     (registry primaryIdentifier=[GuardrailId,Version] ⊆
+	//     readOnlyProperties), but the provider's own docs show it
+	//     untaggable (no tags argument, no tags_all attribute) with no
+	//     Cloud Control list fallback (registry: "not listable") and no
+	//     native provider list resource — the same "moves to Ops"
+	//     mechanism gap as aws_vpc_ipam_pool_cidr_allocation in the
+	//     ec2-networking batch. The registry's server-assigned evidence
+	//     is real; there is simply nothing to discover it by.
+	//   - aws_bedrockagent_agent_action_group, aws_bedrockagent_agent_collaborator,
+	//     aws_bedrockagent_agent_knowledge_base_association: all three
+	//     mint their own server-assigned id (action_group_id,
+	//     collaborator_id — the knowledge-base association has no
+	//     standalone id at all, per its Bedrock Agent API) scoped under a
+	//     parent agent, with no config argument supplying it, and all
+	//     three are untaggable with no native list resource
+	//     (live/survey-full.json: "moves to Ops"). Unlike
+	//     aws_bedrockagent_agent_alias and aws_bedrockagentcore_agent_runtime_endpoint
+	//     above, taggability does not rescue these — there is no
+	//     discovery mechanism at all, not just an unreconstructable
+	//     import id.
+	//   - aws_bedrockagent_data_source: same shape — data_source_id is
+	//     server-assigned, scoped under knowledge_base_id, and the type
+	//     is untaggable with no native list resource. row-gen's own
+	//     "needs hand separator" filing undersold the real gap: even with
+	//     a human-chosen separator, data_source_id itself is not
+	//     reconstructable from configuration.
+	//   - aws_bedrockagentcore_gateway_target, aws_bedrockagentcore_memory_strategy,
+	//     aws_bedrockagentcore_workload_identity: each mints its own
+	//     server-assigned id (target_id, strategy_id, the workload
+	//     identity's own name/ARN pair) with no config argument supplying
+	//     it, and each is untaggable with no native list resource
+	//     (live/survey-full.json: "moves to Ops" for all three).
+	//     aws_bedrockagentcore_workload_identity in particular is the one
+	//     row-gen filed with a GUESSED argument (name); the provider's own
+	//     schema confirms name is create-only but not exported back as
+	//     the resource's identity, so the guess would have been wrong
+	//     regardless of the taggability gap.
+	//   - aws_lexv2models_bot_version, aws_lexv2models_intent,
+	//     aws_lexv2models_slot, aws_lexv2models_slot_type: siblings of
+	//     aws_lexv2models_bot_locale (ratified above) that do NOT share
+	//     its fully-reconstructable shape. Each mints its own
+	//     server-assigned id (bot_version's own version number,
+	//     intent_id, slot_id, slot_type_id respectively) that is exported
+	//     but never a config argument on the resource itself, and all
+	//     four are untaggable with no native list resource
+	//     (live/survey-full.json: "moves to Ops" for all four). Confirmed
+	//     against each type's own documented Attribute Reference at the
+	//     pinned v6.59.0 tag, not assumed from the family resemblance to
+	//     bot_locale.
+	//
+	// Deferred as out of this batch's mechanism, not rejected on the
+	// merits — each needs live/foreign/classify.go's matchTable
+	// (list-plus-content-match adoption), which row-gen's own non-goals
+	// explicitly exclude (issue #44) and no ratification batch to date
+	// has touched:
+	//
+	//   - aws_bedrockagentcore_gateway_rule, aws_bedrockagentcore_policy:
+	//     both untaggable with a native list resource that requires a
+	//     parent-scoped list argument (gateway_identifier,
+	//     policy_engine_id respectively) — live/survey-full.json's own
+	//     "list + content match" path, a mechanism this table's four
+	//     Components-based admission paths do not reach.
+	//   - aws_bedrockagentcore_registry: never proposed by row-gen at all
+	//     (no AWS::BedrockAgentCore::Registry entry in live/registry.json
+	//     — the provider's own v6.59.0 identity schema is the only
+	//     evidence for it), but live/survey-full.json shows the same
+	//     "list + content match" shape as the two above, noted here so a
+	//     future matchTable batch does not have to re-derive it.
+	//
+	// Out of this batch's named scope, not rejected on the merits — issue
+	// #65's recipe scopes Comprehend, Kendra, Rekognition and Polly to
+	// "only clean proposals":
+	//
+	//   - aws_kendra_data_source, aws_kendra_faq: both "needs hand
+	//     separator" per row-gen (composite Id+IndexId, parent-input
+	//     IndexId, no join character in the registry) — Kendra's own
+	//     thin CFN registry coverage (3 types total, only Index proposed
+	//     cleanly) is exactly the "mostly thin provider coverage" this
+	//     batch's recipe calls out, so the correction work this batch
+	//     spent on Location and Lex V2 Models is not repeated here.
+	//   - aws_textract_*, aws_polly_*: no AWS::Textract::* or
+	//     AWS::Polly::* entry anywhere in live/registry.json — the same
+	//     registry-absent shape as the streaming batch's SWF family, so
+	//     row-gen proposes nothing for either service and neither ever
+	//     entered this batch's scope.
+	//   - aws_comprehend_entity_recognizer: the provider ships this
+	//     resource, but it has no AWS::Comprehend::* registry entry
+	//     beyond DocumentClassifier (row-gen's own "Comprehend (1 types)"
+	//     count), so there is no CFN evidence for it to ratify against.
+
+	// ---- Registry-ratified (#40, #44, #65): stragglers batch (issue #65's
+	// ---- ratification campaign) ------------------------------------------
+	//
+	// Every row below is a type an earlier ratified batch's own cohort
+	// README named as reachable but left outside that batch's stated named
+	// scope. Same verification standard as every batch above: the pinned
+	// v6.58.0 provider docs (fetched directly from
+	// raw.githubusercontent.com/hashicorp/terraform-provider-aws at that
+	// tag) or live/import-grammar.json's own scrape of the same source, not
+	// the CFN registry's classification alone. Cohort estate:
+	// live/e2e/estates/stragglers.
+	//
+	// Transfer Family: the data-movement batch named servers, users,
+	// workflows and connectors only, leaving six more Transfer types
+	// reachable. Five ratify here; the sixth, aws_transfer_ssh_key, is
+	// rejected (see below).
+	serverAssigned("aws_transfer_certificate",
+		"the provider's Attribute Reference documents certificate_id as a resource-exported attribute, absent from the Argument Reference entirely (Required arguments are only certificate, usage; tags is Optional) - the documented import command uses certificate_id, which no configuration argument reconstructs.",
+		"CERTIFICATE_ID", "id", "arn"),
+	serverAssigned("aws_transfer_profile",
+		"the provider's Attribute Reference documents profile_id as a resource-exported attribute, absent from the Argument Reference entirely (Required arguments are only as2_id, profile_type; tags is Optional) - the documented import command uses profile_id, which no configuration argument reconstructs.",
+		"PROFILE_ID", "id", "arn"),
+	serverAssigned("aws_transfer_web_app",
+		"the provider's Attribute Reference documents web_app_id as a resource-exported attribute, absent from the Argument Reference entirely (the sole Required argument is the identity_provider_details block; tags is Optional) - the documented import command uses web_app_id, which no configuration argument reconstructs.",
+		"WEB_APP_ID", "id", "arn"),
+	TypeIdentity{
+		// A web app customization is a named singleton child: exactly one
+		// per web app, identified by the web app's own id. web_app_id is a
+		// Required argument in the provider's own Argument Reference (not
+		// merely an exported attribute), and the documented import command
+		// uses that same value verbatim - the same named-singleton-child
+		// shape as aws_s3_bucket_policy and
+		// aws_networkmanager_core_network_policy_attachment below. The
+		// provider ships no tags argument for this type at all.
+		Type:          "aws_transfer_web_app_customization",
+		Components:    []Component{attr("web_app_id")},
+		ImportSyntax:  "WEB_APP_ID",
+		IdentityAttrs: []string{"id", "web_app_id"},
+	},
+	serverAssigned("aws_transfer_agreement",
+		"the documented import composite is server_id/agreement_id; server_id is a real Required argument, but agreement_id is documented only in the Attribute Reference (\"The unique identifier for the AS2 agreement\"), absent from the Argument Reference entirely - no configuration argument reconstructs the full identity. tags is Optional, so the type is taggable.",
+		"SERVER_ID/AGREEMENT_ID", "id", "arn"),
+
+	// NetworkManager: row-gen marks aws_networkmanager_core_network_policy_attachment
+	// a property-child fold of AWS::NetworkManager::CoreNetwork with no
+	// pastable row - but the provider's own Argument Reference shows its
+	// sole identifying component, core_network_id, is a real Required
+	// argument, and the documented import command uses that value alone,
+	// with no separator. The same named-singleton-child shape as
+	// aws_s3_bucket_policy: at most one policy attachment per core network,
+	// concrete whenever the core network is. The provider ships no tags
+	// argument for this type (policy_document is the only other argument).
+	// Every other NetworkManager type row-gen proposes is already ratified
+	// by the networking-advanced batch; this is the sole straggler in the
+	// service.
+	TypeIdentity{
+		Type:          "aws_networkmanager_core_network_policy_attachment",
+		Components:    []Component{attr("core_network_id")},
+		ImportSyntax:  "CORE_NETWORK_ID",
+		IdentityAttrs: []string{"id", "core_network_id"},
+	},
+
+	// Storage Gateway: registry-present for exactly one type, TapePool
+	// (cfn-unmodeled beyond it - every other real Storage Gateway resource
+	// has no CFN Registry entry at all, per live/mapping.json's own sweep).
+	// The provider's documented import command uses the tape pool's ARN,
+	// which the Attribute Reference confirms is a resource-exported
+	// attribute (pool_name is the client-chosen argument, but the ARN's
+	// own pool-NNNNNNNN suffix is server-minted, not pool_name). tags is
+	// Optional, so the type is taggable.
+	serverAssigned("aws_storagegateway_tape_pool",
+		"the documented import id is the tape pool's ARN (arn:...:tapepool/pool-12345678); the Attribute Reference confirms arn is a resource-exported attribute, and the ARN's pool-NNNNNNNN suffix is server-minted, distinct from the client-chosen pool_name argument - no configuration argument reconstructs it.",
+		"ARN", "id", "arn"),
+
+	// ECR remainder: the IAM/ECR batch's own row-gen output classified all
+	// five of these evidence-only (per #44's non-goals, no pastable row was
+	// ever generated for any of them), not on any identity weakness -
+	// independent verification against the pinned provider docs supplies a
+	// clean, single-argument, Required-in-schema identity for each, the
+	// same registry-undersold shape earlier batches corrected repeatedly
+	// (aws_sns_topic_policy, aws_qldb_ledger, aws_memorydb_subnet_group).
+	// None of the five carries a tags argument.
+	TypeIdentity{
+		// Named singleton child of aws_ecr_repository: at most one lifecycle
+		// policy per repository, identified by the repository's own name
+		// (a real Required argument, confirmed against the provider's own
+		// Identity Schema: "repository - Name of the ECR repository").
+		Type:          "aws_ecr_lifecycle_policy",
+		Components:    []Component{attr("repository")},
+		ImportSyntax:  "REPOSITORY",
+		IdentityAttrs: []string{"id", "repository"},
+	},
+	TypeIdentity{
+		// ecr_repository_prefix is a Required, ForceNew argument, and the
+		// documented import command uses that value verbatim, with no
+		// separator - a plain client-named type, not a fold of anything.
+		Type:          "aws_ecr_pull_through_cache_rule",
+		Components:    []Component{attr("ecr_repository_prefix")},
+		ImportSyntax:  "ECR_REPOSITORY_PREFIX",
+		IdentityAttrs: []string{"id"},
+	},
+	TypeIdentity{
+		// principal_arn is a Required, ForceNew argument (the IAM principal
+		// excluded from image-pull-time recording), and the documented
+		// import command uses that value verbatim.
+		Type:          "aws_ecr_pull_time_update_exclusion",
+		Components:    []Component{attr("principal_arn")},
+		ImportSyntax:  "PRINCIPAL_ARN",
+		IdentityAttrs: []string{"id"},
+	},
+	TypeIdentity{
+		// prefix is a Required, ForceNew argument, and the documented
+		// import command uses that value verbatim; resource_tags (tags
+		// applied to repositories this template creates) is a distinct
+		// concept from a tags argument on the template resource itself,
+		// which does not exist.
+		Type:          "aws_ecr_repository_creation_template",
+		Components:    []Component{attr("prefix")},
+		ImportSyntax:  "PREFIX",
+		IdentityAttrs: []string{"id"},
+	},
+	TypeIdentity{
+		// Named singleton child of aws_ecr_repository, the same shape as
+		// aws_ecr_lifecycle_policy above and the same type the IAM/ECR
+		// batch's own devtools-batch follow-up (aws_ecrpublic_repository_policy)
+		// already cites as this type's deferred sibling.
+		Type:          "aws_ecr_repository_policy",
+		Components:    []Component{attr("repository")},
+		ImportSyntax:  "REPOSITORY",
+		IdentityAttrs: []string{"id", "repository"},
+	},
+
+	// ---- Rejected, stragglers batch --------------------------------------
+	//
+	// aws_transfer_ssh_key: the documented import composite is
+	// server_id/user_name/ssh_public_key_id. server_id and user_name are
+	// both real Required arguments, but ssh_public_key_id is absent from
+	// both the Argument Reference and the Attribute Reference entirely
+	// ("This resource exports no additional attributes") - it exists only
+	// inside the opaque id string the provider mints at create time. Unlike
+	// aws_transfer_web_app_customization above, server_id/user_name is not
+	// a singleton key either: a single user can hold more than one SSH key,
+	// so the pair does not uniquely determine the resource the way a
+	// bucket name determines its policy. The provider ships no tags
+	// argument for this type at all (Argument Reference: region, server_id,
+	// user_name, body only), so there is no marker path either. No
+	// admission path recovers it - the same genuine, unrecoverable gap as
+	// aws_qldb_stream and aws_elasticache_global_replication_group's own
+	// rejections, not a row-gen misclassification.
+
 	// ---- Registry-ratified (#40, #44, #65): the REMAINDER ratification
 	// ---- batch. Same scope and exclusions as admission.go own matching
 	// ---- banner above admittedTypesV0. Every entry below carries the
-	// ---- correction a verification pass made to row-gen raw proposal in
-	// ---- its own comment where one was needed (a wrong identity field, a
-	// ---- wrong argument name or case, a fixed-sentinel import id in
-	// ---- place of a fabricated server-assigned one, or - for
+	// ---- correction a verification pass made to row-gen own raw proposal
+	// ---- in its own comment where one was needed (a wrong identity
+	// ---- field, a wrong argument name or case, a fixed-sentinel import
+	// ---- id in place of a fabricated server-assigned one, or - for
 	// ---- aws_devopsguru_resource_collection and the two AppSync
 	// ---- parent-derived corrections - the whole admission path corrected
 	// ---- from server-assigned to client-named); every other entry is
 	// ---- accepted as row-gen printed it, its reason text kept rather
-	// ---- than embellished. Twenty-one types this batch also verified
-	// ---- (DataSync/DMS/Transfer remainder, two AppIntegrations types,
-	// ---- APS scraper and workspace) are deliberately absent here: a
-	// ---- concurrently-landed batch already admitted them first - see
+	// ---- than embellished. Twenty-eight types this batch also verified
+	// ---- are deliberately absent here: 21 (DataSync/DMS/Transfer
+	// ---- remainder, two AppIntegrations types, APS scraper and
+	// ---- workspace) plus 7 more (ECR pull-through-cache family,
+	// ---- StorageGateway tape pool, Transfer certificate/profile/web-app)
+	// ---- to concurrently-landed batches that admitted them first, and one
+	// ---- (aws_elasticache_global_replication_group) to a concurrent
+	// ---- batch own reasoned rejection this batch defers to - see
 	// ---- live/e2e/estates/remainder/README.md.
 	serverAssigned("aws_datapipeline_pipeline",
 		"the DataPipeline service assigns this identity at create time; no argument reconstructs it.",
@@ -8892,24 +9681,6 @@ var DefaultTable = buildTable(
 		// does not make (issue #44 non-goals). Add "id" and any other alias
 		// only after confirming it against the provider schema or docs.
 	),
-	TypeIdentity{
-		Type:          "aws_ecr_pull_through_cache_rule",
-		Components:    []Component{attr("ecr_repository_prefix")},
-		ImportSyntax:  "ECR_REPOSITORY_PREFIX",
-		IdentityAttrs: []string{"ecr_repository_prefix"}, // "id" intentionally omitted; see issue #44 non-goals
-	},
-	TypeIdentity{
-		Type:          "aws_ecr_pull_time_update_exclusion",
-		Components:    []Component{attr("principal_arn")},
-		ImportSyntax:  "PRINCIPAL_ARN",
-		IdentityAttrs: []string{"principal_arn"}, // "id" intentionally omitted; see issue #44 non-goals
-	},
-	TypeIdentity{
-		Type:          "aws_ecr_repository_creation_template",
-		Components:    []Component{attr("prefix")},
-		ImportSyntax:  "PREFIX",
-		IdentityAttrs: []string{"prefix"}, // "id" intentionally omitted; see issue #44 non-goals
-	},
 	serverAssigned("aws_ecs_daemon_task_definition",
 		"the ECS service assigns this identity at create time; no argument reconstructs it.",
 		"DAEMONTASKDEFINITIONARN",
@@ -8945,14 +9716,6 @@ var DefaultTable = buildTable(
 	serverAssigned("aws_egress_only_internet_gateway",
 		"the EC2 service assigns this identity at create time; no argument reconstructs it.",
 		"ID",
-		// IdentityAttrs intentionally omitted: whether this type's own "id"
-		// attribute equals the identity above is the id-alias inference row-gen
-		// does not make (issue #44 non-goals). Add "id" and any other alias
-		// only after confirming it against the provider schema or docs.
-	),
-	serverAssigned("aws_elasticache_global_replication_group",
-		"the ElastiCache service assigns this identity at create time; no argument reconstructs it.",
-		"GLOBALREPLICATIONGROUPID",
 		// IdentityAttrs intentionally omitted: whether this type's own "id"
 		// attribute equals the identity above is the id-alias inference row-gen
 		// does not make (issue #44 non-goals). Add "id" and any other alias
@@ -9809,38 +10572,6 @@ var DefaultTable = buildTable(
 	serverAssigned("aws_ssmquicksetup_configuration_manager",
 		"the SSMQuickSetup service assigns this identity at create time; no argument reconstructs it.",
 		"MANAGERARN",
-		// IdentityAttrs intentionally omitted: whether this type's own "id"
-		// attribute equals the identity above is the id-alias inference row-gen
-		// does not make (issue #44 non-goals). Add "id" and any other alias
-		// only after confirming it against the provider schema or docs.
-	),
-	serverAssigned("aws_storagegateway_tape_pool",
-		"the StorageGateway service assigns this identity at create time; no argument reconstructs it.",
-		"POOLARN",
-		// IdentityAttrs intentionally omitted: whether this type's own "id"
-		// attribute equals the identity above is the id-alias inference row-gen
-		// does not make (issue #44 non-goals). Add "id" and any other alias
-		// only after confirming it against the provider schema or docs.
-	),
-	serverAssigned("aws_transfer_certificate",
-		"the Transfer service assigns this identity at create time; no argument reconstructs it.",
-		"CERTIFICATEID",
-		// IdentityAttrs intentionally omitted: whether this type's own "id"
-		// attribute equals the identity above is the id-alias inference row-gen
-		// does not make (issue #44 non-goals). Add "id" and any other alias
-		// only after confirming it against the provider schema or docs.
-	),
-	serverAssigned("aws_transfer_profile",
-		"the Transfer service assigns this identity at create time; no argument reconstructs it.",
-		"PROFILEID",
-		// IdentityAttrs intentionally omitted: whether this type's own "id"
-		// attribute equals the identity above is the id-alias inference row-gen
-		// does not make (issue #44 non-goals). Add "id" and any other alias
-		// only after confirming it against the provider schema or docs.
-	),
-	serverAssigned("aws_transfer_web_app",
-		"the Transfer service assigns this identity at create time; no argument reconstructs it.",
-		"ID",
 		// IdentityAttrs intentionally omitted: whether this type's own "id"
 		// attribute equals the identity above is the id-alias inference row-gen
 		// does not make (issue #44 non-goals). Add "id" and any other alias

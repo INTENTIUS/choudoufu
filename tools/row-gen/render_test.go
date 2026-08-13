@@ -93,6 +93,10 @@ func TestPastableSnippetsParseAsGo(t *testing.T) {
 			admissionLines += renderAdmissionLine(p.TFType)
 			tableEntries += renderClientNamedEntry(p)
 			n++
+		case bucketComposite:
+			admissionLines += renderAdmissionLine(p.TFType)
+			tableEntries += renderCompositeEntry(p)
+			n++
 		}
 	}
 	if n == 0 {
