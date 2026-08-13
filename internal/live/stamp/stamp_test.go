@@ -453,6 +453,14 @@ var (
 		"aws_cloudwatch_composite_alarm",
 		"aws_cloudwatch_metric_stream",
 		"aws_sqs_queue",
+		// Registry-ratified ECS/EKS batch (#40, #44, issue #65).
+		"aws_ecs_daemon",
+		"aws_eks_access_entry",
+		"aws_eks_addon",
+		"aws_eks_capability",
+		"aws_eks_cluster",
+		"aws_eks_fargate_profile",
+		"aws_eks_node_group",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -480,10 +488,19 @@ var (
 		// Registry-ratified messaging batch (#40, #44). See
 		// live/e2e/estates/messaging/README.md, "Untaggable types", for why
 		// aws_sns_topic_subscription — untaggable and inside the curated 68
-		// — is deferred rather than joining this list.
+		// — is still not admitted (issue #65 re-examined and confirmed the
+		// deferral, for a mechanism reason rather than the doc gate #54
+		// already closed).
 		"aws_cloudwatch_dashboard",
 		"aws_sns_topic_policy",
 		"aws_sqs_queue_policy",
+		// Registry-ratified ECS/EKS batch (#40, #44, issue #65): the
+		// deferred aws_iam_group (its own old blocker, the doc gate, closed
+		// by #54) plus this batch's two untaggable ECS/EKS rows. See
+		// live/e2e/estates/ecs-eks/README.md, "Untaggable types".
+		"aws_iam_group",
+		"aws_ecs_cluster_capacity_providers",
+		"aws_eks_access_policy_association",
 	}
 )
 
@@ -911,6 +928,23 @@ func testSchemas() Schemas {
 		"aws_sns_topic_policy":           untagged("id", "arn", "policy"),
 		"aws_sqs_queue":                  tagged("id", "arn", "url", "name"),
 		"aws_sqs_queue_policy":           untagged("id", "queue_url", "policy"),
+
+		// Registry-ratified ECS/EKS batch (#40, #44, issue #65). Taggable
+		// per the real provider's documented Argument Reference, except
+		// aws_ecs_cluster_capacity_providers and
+		// aws_eks_access_policy_association, whose Argument Reference names
+		// no tags block at all, and the deferred aws_iam_group (#54
+		// unblocked it; IAM groups have no TagGroup API to begin with).
+		"aws_iam_group":                      untagged("id", "arn", "name"),
+		"aws_ecs_cluster_capacity_providers": untagged("id", "cluster_name", "capacity_providers"),
+		"aws_ecs_daemon":                     tagged("id", "arn", "name", "cluster_arn"),
+		"aws_eks_access_entry":               tagged("cluster_name", "principal_arn"),
+		"aws_eks_access_policy_association":  untagged("cluster_name", "principal_arn", "policy_arn"),
+		"aws_eks_addon":                      tagged("id", "arn", "cluster_name", "addon_name"),
+		"aws_eks_capability":                 tagged("arn", "cluster_name", "capability_name"),
+		"aws_eks_cluster":                    tagged("id", "arn", "name", "role_arn"),
+		"aws_eks_fargate_profile":            tagged("id", "arn", "cluster_name", "fargate_profile_name"),
+		"aws_eks_node_group":                 tagged("id", "arn", "cluster_name", "node_group_name"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.

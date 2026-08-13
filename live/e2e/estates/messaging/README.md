@@ -49,29 +49,50 @@ against the registry:
   guess this batch writes blind, the same stance as the Lambda batch's two
   rejections.
 
-One more is deferred for a reason that has nothing to do with its identity:
+One more was deferred by this batch and is still not admitted, though the
+reason changed under it:
 
 - `aws_sns_topic_subscription` — row-gen proposed server-assigned via the
   registry's `Arn`, and the provider agrees: SNS mints the subscription's
   own ARN (the topic ARN plus a UUID) only once the subscription confirms,
   and `live/SURVEY.md`'s own curated-68 row already reaches the same
   "ready" verdict by hand. Verified live, too — a manual apply against
-  floci (below) created and destroyed it cleanly. It is still left out of
-  `admittedTypesV0` and `DefaultTable`: the type carries no `tags`
-  argument, and it is one of `live/survey.json`'s curated 68 rows, so
-  admitting it obligates `live/LIMITATIONS.md`'s "Untaggable types cannot
-  be removed by the sweep" entry — `tools/survey-gen/limitations_test.go`
-  derives that entry's roster mechanically from the survey intersected
-  with the admission table, with no escape hatch the way
-  `internal/live/stamp/stamp_test.go`'s `untaggableOutsideCuratedSurvey`
-  list gives types outside the curated 68. This batch's mandate is to
-  leave `live/LIMITATIONS.md` and the curated-68 apparatus alone (issue
-  #54 is where extending that apparatus to the full registry roster
-  belongs), so the honest move is to defer this one type rather than
-  either break that rule or ratify it with a doc left silently
-  inconsistent. Nothing about the identity classification is in question;
-  a future batch that also touches `live/LIMITATIONS.md`'s derivation can
-  pick it straight up.
+  floci (below) created and destroyed it cleanly. This batch left it out of
+  `admittedTypesV0` and `DefaultTable` because the type carries no `tags`
+  argument and admitting it obligated a `live/LIMITATIONS.md` edit this
+  batch's mandate left untouched — issue #54's own scope.
+
+  **Update, issue #65:** #54 has since landed, closing that doc gate — see
+  `live/e2e/estates/ecs-eks/README.md`'s own "Untaggable types" section and
+  `tools/survey-gen/untaggable_render.go`. The ECS/EKS batch went back to
+  ratify this deferral normally, the same way it ratified `aws_iam_group`'s,
+  and found a second, deeper gate underneath the first one that this
+  section's original evidence did not reach: this fork's only mechanism for
+  resolving a `ClassNeedsDiscovery` (server-assigned) type is the
+  tag-filtered marker read `internal/live/discovery/discovery.go`'s
+  `scanType` implements — every live result the provider lists is read for
+  a `tofu-address` tag, and a result with no `tags` attribute at all is
+  skipped with `ProblemNoTags` ("a provider bug or a type that should not
+  be marker-discoverable") rather than bound to anything. `live/SURVEY.md`
+  already said as much in its own words — this row's note reads "which
+  neither derivation nor a marker recovers" — but that sentence read, before
+  this re-examination, as a survey-time approximation rather than a
+  standing claim about the fork's actual code. It is the latter: the
+  subscription's ARN suffix is a UUID SNS mints only once the subscription
+  confirms, with no client-visible precursor and no already-resolved
+  parent's identity attribute to inherit it from (unlike
+  `aws_route53_record`'s `zone_id`, drawn from the zone marker), so no
+  `Components` composition can build it either. Untaggable *and*
+  unbuildable from configuration is not a documentation gap the way
+  `aws_iam_group`'s was — it is the honest absence of a fifth admission
+  path this table does not have. Rejected rather than ratified; a future
+  batch that gives `internal/live/discovery` a content-match mechanism for
+  untaggable, listable, server-assigned types (the same shape
+  `internal/live/slots` already built for `aws_eip`'s fungible-set case,
+  but keyed on real distinguishing content — `topic_arn` + `protocol` +
+  `endpoint` here — rather than on mere count) can pick this one straight
+  back up. Nothing about the identity classification changed; what changed
+  is which of this fork's gaps was actually in the way.
 
 Most of the Logs and Events resource family carries no `cfn_type` in
 `live/mapping.json` at all — `aws_cloudwatch_log_stream`,

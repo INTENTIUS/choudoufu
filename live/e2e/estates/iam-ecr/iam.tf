@@ -4,6 +4,13 @@
 # comment for the per-type evidence, and for the row-gen proposals this
 # batch rejected or deferred (aws_iam_access_key, aws_iam_policy,
 # aws_iam_saml_provider, aws_iam_virtual_mfa_device, aws_iam_group).
+#
+# aws_iam_group (below) was the one deferral: correctly proposed client-named
+# by hand, but held back because admitting an untaggable curated-68 type
+# obligated a live/LIMITATIONS.md edit this batch's own mandate left
+# untouched. #54 generalized that doc's derivation past the curated 68, and
+# the ECS/EKS batch (issue #65) ratifies the deferral here rather than
+# opening a second cohort for one already-settled type.
 
 # Supporting, not coverage: aws_iam_role.support exists only so
 # aws_iam_instance_profile.app has a role to carry. It is itself
@@ -73,4 +80,14 @@ resource "aws_iam_user" "app" {
     tofu-estate  = local.estate_tag
     tofu-address = "aws_iam_user.app"
   }
+}
+
+# Coverage: client-named path, docs tier (aws_iam_group — identity is the
+# name argument, already in config; no identity schema shipped in v6.58.0,
+# so the evidence is the documented import command, which sets id to the
+# group name verbatim). Untaggable: IAM has no TagGroup API, so this type
+# carries no tags argument at all and no ownership marker — see this
+# cohort's README, "Untaggable types".
+resource "aws_iam_group" "app" {
+  name = "tofu-iam-ecr-cohort-group"
 }
