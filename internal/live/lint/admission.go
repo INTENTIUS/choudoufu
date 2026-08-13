@@ -514,6 +514,67 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_cloudfront_trust_store":                           {},
 	"aws_cloudfront_vpc_origin":                            {},
 
+	// ---- Registry-ratified (#40, #44, #65): fifth batch, EC2 networking
+	// ---- beyond the core (VPC endpoints, Transit Gateway, VPN, Client VPN,
+	// ---- IPAM, prefix lists, VPC peering, DHCP options, network ACLs, flow
+	// ---- logs, NAT gateway; issue #65's own next-batch suggestion). Same
+	// ---- tools/row-gen pipeline and verification standard as the batches
+	// ---- above, cross-checked against the AWS provider's documented import
+	// ---- behaviour (its Argument Reference, Attribute Reference and Import
+	// ---- section, fetched from the provider's own website/docs/r/ source at
+	// ---- the pinned v6.58.0 tag) and against live/import-grammar.json's
+	// ---- scraped evidence directly — see internal/live/identity/table.go
+	// ---- for the per-type evidence and for the rows this batch rejected.
+	// ---- Cohort estate: live/e2e/estates/ec2-networking.
+	//
+	// aws_nat_gateway is this batch's headline type: the repo's
+	// long-standing canonical unadmitted-type example
+	// (live/e2e/limits/unadmitted-type, live/LIMITATIONS.md) swaps to
+	// aws_cloudwatch_event_rule in the same change — see that fixture's own
+	// comment for why.
+	"aws_vpc_endpoint":                                 {},
+	"aws_vpc_endpoint_service":                         {},
+	"aws_vpc_endpoint_policy":                          {},
+	"aws_vpc_endpoint_private_dns":                     {},
+	"aws_vpc_endpoint_route_table_association":         {},
+	"aws_vpc_endpoint_subnet_association":              {},
+	"aws_vpc_endpoint_security_group_association":      {},
+	"aws_ec2_transit_gateway":                          {},
+	"aws_ec2_transit_gateway_connect":                  {},
+	"aws_ec2_transit_gateway_connect_peer":             {},
+	"aws_ec2_transit_gateway_metering_policy":          {},
+	"aws_ec2_transit_gateway_metering_policy_entry":    {},
+	"aws_ec2_transit_gateway_multicast_domain":         {},
+	"aws_ec2_transit_gateway_peering_attachment":       {},
+	"aws_ec2_transit_gateway_policy_table":             {},
+	"aws_ec2_transit_gateway_policy_table_association": {},
+	"aws_ec2_transit_gateway_route":                    {},
+	"aws_ec2_transit_gateway_route_table":              {},
+	"aws_ec2_transit_gateway_route_table_association":  {},
+	"aws_ec2_transit_gateway_route_table_propagation":  {},
+	"aws_ec2_transit_gateway_vpc_attachment":           {},
+	"aws_customer_gateway":                             {},
+	"aws_vpn_connection":                               {},
+	"aws_vpn_gateway":                                  {},
+	"aws_ec2_client_vpn_endpoint":                      {},
+	"aws_ec2_client_vpn_route":                         {},
+	"aws_vpc_ipam":                                     {},
+	"aws_vpc_ipam_pool":                                {},
+	"aws_vpc_ipam_pool_cidr":                           {},
+	"aws_vpc_ipam_resource_discovery":                  {},
+	"aws_vpc_ipam_resource_discovery_association":      {},
+	"aws_vpc_ipam_scope":                               {},
+	"aws_ec2_managed_prefix_list":                      {},
+	"aws_ec2_managed_prefix_list_entry":                {},
+	"aws_vpc_peering_connection":                       {},
+	"aws_vpc_dhcp_options":                             {},
+	"aws_vpc_dhcp_options_association":                 {},
+	"aws_network_acl":                                  {},
+	"aws_network_acl_rule":                             {},
+	"aws_flow_log":                                     {},
+	"aws_nat_gateway":                                  {},
+	"aws_nat_gateway_eip_association":                  {},
+
 	// ---- Registry-ratified (#40, #44, #65): fifth batch, compute
 	// ---- platforms (Batch, EMR remainder, App Runner, Elastic
 	// ---- Beanstalk, Amplify, Lightsail). Same tools/row-gen pipeline as
@@ -559,7 +620,71 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_lightsail_lb_certificate":                     {},
 	"aws_lightsail_static_ip":                          {},
 
-	// ---- Registry-ratified (#40, #44, #65): fifth batch, developer tools
+	// ---- Registry-ratified (#40, #44, #65): sixth batch, security and
+	// ---- secrets (Secrets Manager, KMS remainder, SSM remainder, ACM-PCA,
+	// ---- GuardDuty, Macie2, SecurityHub, Inspector2, WAFv2 — issue #65's
+	// ---- ratification campaign). Same tools/row-gen pipeline and
+	// ---- verification standard as the batches above, cross-checked against
+	// ---- the AWS provider's documented import behaviour, live/survey-full.json's
+	// ---- taggability signal (the real provider schema, not merely the
+	// ---- CloudFormation Registry's own tagging claim — SecurityHub's legacy
+	// ---- v1 types are where those two disagree, the "newer-API-generation
+	// ---- false friend" the ram-servicecatalog sweep flagged) and a live
+	// ---- floci probe. See internal/live/identity/table.go for the per-type
+	// ---- evidence, the rejected proposals, and the credential-adjacent
+	// ---- exclusions this batch calls out explicitly (extending
+	// ---- opsExcluded's reasoning to aws_kms_grant and
+	// ---- aws_kms_custom_key_store without touching that hand table, since
+	// ---- both already resolve to "moves to Ops" on ordinary
+	// ---- recoverability grounds). Cohort estate: live/e2e/estates/security.
+	"aws_secretsmanager_secret":                        {},
+	"aws_secretsmanager_secret_policy":                 {},
+	"aws_secretsmanager_secret_rotation":               {},
+	"aws_kms_external_key":                             {},
+	"aws_kms_replica_key":                              {},
+	"aws_ssm_association":                              {},
+	"aws_ssm_maintenance_window":                       {},
+	"aws_ssm_patch_baseline":                           {},
+	"aws_ssm_patch_group":                              {},
+	"aws_ssm_resource_data_sync":                       {},
+	"aws_ssm_service_setting":                          {},
+	"aws_acmpca_certificate_authority":                 {},
+	"aws_acmpca_certificate_authority_certificate":     {},
+	"aws_acmpca_policy":                                {},
+	"aws_guardduty_detector":                           {},
+	"aws_guardduty_filter":                             {},
+	"aws_guardduty_ipset":                              {},
+	"aws_guardduty_threatintelset":                     {},
+	"aws_guardduty_malware_protection_plan":            {},
+	"aws_guardduty_member":                             {},
+	"aws_guardduty_publishing_destination":             {},
+	"aws_guardduty_organization_admin_account":         {},
+	"aws_guardduty_organization_configuration":         {},
+	"aws_macie2_custom_data_identifier":                {},
+	"aws_macie2_findings_filter":                       {},
+	"aws_macie2_classification_job":                    {},
+	"aws_macie2_member":                                {},
+	"aws_macie2_organization_admin_account":            {},
+	"aws_securityhub_account_v2":                       {},
+	"aws_securityhub_aggregator_v2":                    {},
+	"aws_securityhub_automation_rule":                  {},
+	"aws_securityhub_automation_rule_v2":               {},
+	"aws_securityhub_configuration_policy_association": {},
+	"aws_securityhub_connector_v2":                     {},
+	"aws_securityhub_organization_admin_account":       {},
+	"aws_securityhub_standards_control":                {},
+	"aws_securityhub_standards_control_association":    {},
+	"aws_securityhub_member":                           {},
+	"aws_inspector2_filter":                            {},
+	"aws_inspector2_delegated_admin_account":           {},
+	"aws_inspector2_member_association":                {},
+	"aws_wafv2_ip_set":                                 {},
+	"aws_wafv2_regex_pattern_set":                      {},
+	"aws_wafv2_rule_group":                             {},
+	"aws_wafv2_web_acl":                                {},
+	"aws_wafv2_web_acl_rule":                           {},
+
+	// ---- Registry-ratified (#40, #44, #65): seventh batch, developer tools
 	// ---- (CodeArtifact, CodeBuild, CodeCommit, CodeConnections and its
 	// ---- CodeStarConnections predecessor, CodeStarNotifications,
 	// ---- CodeDeploy, CodePipeline, and the ECR-public leftover from the
@@ -594,6 +719,122 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_codepipeline_webhook":                       {},
 	"aws_ecrpublic_repository":                       {},
 	"aws_ecrpublic_repository_policy":                {},
+	// ---- Registry-ratified (#40, #44, #65): fifth batch, identity
+	// ---- (Cognito, IAM leftovers, SSO Admin; issue #65's ratification
+	// ---- campaign). Same tools/row-gen pipeline and verification standard
+	// ---- as the batches above, cross-checked against the AWS provider's
+	// ---- documented import behaviour (its own Argument/Attribute/Import
+	// ---- sections, fetched from the pinned v6.59.0 tag) rather than
+	// ---- accepted on row-gen's classification alone — several rows below
+	// ---- correct a row-gen "needs hand separator" or "evidence-only"
+	// ---- verdict, the same way the route53-cloudfront and RDS batches
+	// ---- did. Two row-gen proposals this batch does not re-litigate,
+	// ---- aws_iam_saml_provider and aws_iam_virtual_mfa_device, were
+	// ---- already rejected by the IAM/ECR batch above on ARN-embedding
+	// ---- grounds; aws_iam_access_key is excluded the same way that
+	// ---- batch excluded it, per SURVEY.md's standing credential rule. See
+	// ---- internal/live/identity/table.go for the per-type evidence and
+	// ---- for every row this batch rejected or deferred. Cohort estate:
+	// ---- live/e2e/estates/identity.
+	"aws_cognito_identity_pool":                        {},
+	"aws_cognito_identity_pool_provider_principal_tag": {},
+	"aws_cognito_identity_pool_roles_attachment":       {},
+	"aws_cognito_identity_provider":                    {},
+	"aws_cognito_resource_server":                      {},
+	"aws_cognito_user":                                 {},
+	"aws_cognito_user_group":                           {},
+	"aws_cognito_user_in_group":                        {},
+	"aws_cognito_user_pool":                            {},
+	"aws_cognito_user_pool_domain":                     {},
+	"aws_iam_group_policy":                             {},
+	"aws_iam_group_policy_attachment":                  {},
+	"aws_iam_openid_connect_provider":                  {},
+	"aws_iam_policy":                                   {},
+	"aws_iam_server_certificate":                       {},
+	"aws_iam_user_policy":                              {},
+	"aws_iam_user_policy_attachment":                   {},
+	"aws_ssoadmin_account_assignment":                  {},
+	"aws_ssoadmin_application":                         {},
+	"aws_ssoadmin_application_assignment":              {},
+	"aws_ssoadmin_instance_access_control_attributes":  {},
+	"aws_ssoadmin_permission_set":                      {},
+	// ---- Registry-ratified (#40, #44, #65): fifth batch, observability and
+	// ---- eventing remainder (CloudWatch, Logs, EventBridge/Events, Step
+	// ---- Functions, X-Ray, Grafana, RUM, Synthetics; issue #65's
+	// ---- ratification campaign). Same tools/row-gen pipeline as the earlier
+	// ---- batches, cross-checked against live/import-grammar.json (the
+	// ---- provider's own documented Import sections, fetched at the pinned
+	// ---- v6.59.0 tag) and, for several corrections, against the provider's
+	// ---- Argument Reference directly — see internal/live/identity/table.go
+	// ---- for the per-type evidence and for the rows this batch rejected or
+	// ---- left out of scope. Amazon Managed Prometheus (AWS::APS::*) is
+	// ---- deliberately untouched here: it is issue #68's concurrent batch,
+	// ---- and admitting any of its nine types from this batch too would be a
+	// ---- straight collision on both this table and DefaultTable. Amazon
+	// ---- Application Signals has no CloudFormation resource type in
+	// ---- live/mapping.json's roster at all, so there is no row-gen evidence
+	// ---- for it to ratify or reject. Cohort estate:
+	// ---- live/e2e/estates/observability.
+	"aws_cloudwatch_alarm_mute_rule":          {},
+	"aws_cloudwatch_contributor_insight_rule": {},
+	"aws_cloudwatch_otel_enrichment":          {},
+	"aws_cloudwatch_log_account_policy":       {},
+	"aws_cloudwatch_log_anomaly_detector":     {},
+	"aws_cloudwatch_log_delivery":             {},
+	"aws_cloudwatch_log_delivery_destination": {},
+	"aws_cloudwatch_log_delivery_source":      {},
+	"aws_cloudwatch_log_destination":          {},
+	"aws_cloudwatch_log_metric_filter":        {},
+	"aws_cloudwatch_log_resource_policy":      {},
+	"aws_cloudwatch_log_stream":               {},
+	"aws_cloudwatch_log_subscription_filter":  {},
+	"aws_cloudwatch_log_transformer":          {},
+	"aws_cloudwatch_query_definition":         {},
+	"aws_cloudwatch_event_api_destination":    {},
+	"aws_cloudwatch_event_archive":            {},
+	"aws_cloudwatch_event_bus":                {},
+	"aws_cloudwatch_event_connection":         {},
+	"aws_cloudwatch_event_endpoint":           {},
+	"aws_cloudwatch_event_permission":         {},
+	"aws_sfn_activity":                        {},
+	"aws_xray_group":                          {},
+	"aws_xray_resource_policy":                {},
+	"aws_xray_sampling_rule":                  {},
+	"aws_grafana_workspace":                   {},
+	"aws_rum_app_monitor":                     {},
+	"aws_synthetics_canary":                   {},
+	"aws_synthetics_group":                    {},
+	// ---- Registry-ratified (#40, #44, #65): fifth batch, streaming and
+	// ---- app integration (MQ, MSK plus its KafkaConnect service-alias,
+	// ---- AppFlow, one AppSync type, EventBridge Pipes, and Scheduler's
+	// ---- schedule group). Same tools/row-gen pipeline as the batches
+	// ---- above, cross-checked against the AWS provider's documented
+	// ---- Argument/Attribute/Import sections and, where the pinned
+	// ---- v6.59.0 release ships one, its own ResourceIdentitySchema
+	// ---- (live/survey-full.json), not accepted on the registry's
+	// ---- classification alone. Six of row-gen's proposals in this
+	// ---- batch's scope are rejected on independent verification
+	// ---- (aws_appsync_api, aws_appsync_api_cache, aws_appsync_api_key,
+	// ---- aws_appsync_domain_name_api_association, aws_appsync_function,
+	// ---- aws_scheduler_schedule) — see internal/live/identity/table.go
+	// ---- for the per-type evidence and live/e2e/estates/streaming/README.md
+	// ---- for the full account, including why SWF (registry-absent; a
+	// ---- prior family sweep found zero AWS::SWF::* types anywhere in
+	// ---- live/registry.json) never entered scope at all. Cohort estate:
+	// ---- live/e2e/estates/streaming.
+	"aws_mq_broker":                       {},
+	"aws_mq_configuration":                {},
+	"aws_msk_cluster":                     {},
+	"aws_msk_configuration":               {},
+	"aws_msk_serverless_cluster":          {},
+	"aws_mskconnect_connector":            {},
+	"aws_mskconnect_custom_plugin":        {},
+	"aws_mskconnect_worker_configuration": {},
+	"aws_appflow_connector_profile":       {},
+	"aws_appflow_flow":                    {},
+	"aws_appsync_graphql_api":             {},
+	"aws_pipes_pipe":                      {},
+	"aws_scheduler_schedule_group":        {},
 
 	// ---- Registry-ratified (#40, #44, #65): sixth batch, data movement and
 	// ---- transfer (Transfer Family's server/user/workflow/connector core,
