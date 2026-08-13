@@ -571,6 +571,27 @@ var (
 		"aws_cloudfront_multitenant_distribution",
 		"aws_cloudfront_trust_store",
 		"aws_cloudfront_vpc_origin",
+		// Registry-ratified developer tools batch (#40, #44, issue #65):
+		// CodeArtifact, CodeBuild, CodeCommit, CodeConnections/
+		// CodeStarConnections, CodeStarNotifications, CodeDeploy,
+		// CodePipeline and the ECR-public leftover types with a top-level
+		// tags argument in the pinned provider's own wire schema. See
+		// live/e2e/estates/devtools/README.md.
+		"aws_codeartifact_domain",
+		"aws_codeartifact_repository",
+		"aws_codebuild_fleet",
+		"aws_codebuild_project",
+		"aws_codebuild_report_group",
+		"aws_codecommit_repository",
+		"aws_codeconnections_connection",
+		"aws_codestarconnections_connection",
+		"aws_codestarnotifications_notification_rule",
+		"aws_codedeploy_app",
+		"aws_codedeploy_deployment_group",
+		"aws_codepipeline",
+		"aws_codepipeline_custom_action_type",
+		"aws_codepipeline_webhook",
+		"aws_ecrpublic_repository",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -678,6 +699,23 @@ var (
 		"aws_cloudfront_monitoring_subscription",
 		"aws_cloudfront_origin_access_control",
 		"aws_cloudfront_realtime_log_config",
+		// Registry-ratified developer tools batch (#40, #44, issue #65):
+		// four types with no tags argument at all, confirmed against the
+		// provider's documented Argument Reference for each —
+		// aws_codebuild_webhook and aws_codedeploy_deployment_config are
+		// explicit in the provider's own docs ("This resource does not
+		// support tags"); the three permission-policy folds
+		// (aws_codeartifact_domain_permissions_policy,
+		// aws_codeartifact_repository_permissions_policy,
+		// aws_ecrpublic_repository_policy) carry only a policy document and
+		// a parent reference, the same shape as aws_sns_topic_policy and
+		// aws_sqs_queue_policy above. See
+		// live/e2e/estates/devtools/README.md, "Untaggable types".
+		"aws_codeartifact_domain_permissions_policy",
+		"aws_codeartifact_repository_permissions_policy",
+		"aws_codebuild_webhook",
+		"aws_codedeploy_deployment_config",
+		"aws_ecrpublic_repository_policy",
 	}
 )
 
@@ -1285,6 +1323,36 @@ func testSchemas() Schemas {
 		"aws_cloudfront_realtime_log_config":                   untagged("id", "arn", "name", "sampling_rate"),
 		"aws_cloudfront_trust_store":                           tagged("id", "arn", "name"),
 		"aws_cloudfront_vpc_origin":                            tagged("id", "arn"),
+		// Registry-ratified developer tools batch (#40, #44, issue #65).
+		// Taggable/untaggable per the real provider's documented Argument
+		// Reference for each type: aws_codebuild_webhook and
+		// aws_codedeploy_deployment_config carry no tags argument at all
+		// (the provider's own docs say so explicitly), and the three
+		// permission-policy folds
+		// (aws_codeartifact_domain_permissions_policy,
+		// aws_codeartifact_repository_permissions_policy,
+		// aws_ecrpublic_repository_policy) carry only a policy document and
+		// a parent reference, the same shape as aws_sns_topic_policy above.
+		"aws_codeartifact_domain":                        tagged("id", "arn", "domain"),
+		"aws_codeartifact_domain_permissions_policy":     untagged("id", "domain", "policy_document"),
+		"aws_codeartifact_repository":                    tagged("id", "arn", "domain", "repository"),
+		"aws_codeartifact_repository_permissions_policy": untagged("id", "domain", "repository", "policy_document"),
+		"aws_codebuild_fleet":                            tagged("id", "arn", "name"),
+		"aws_codebuild_project":                          tagged("id", "arn", "name"),
+		"aws_codebuild_report_group":                     tagged("id", "arn", "name"),
+		"aws_codebuild_webhook":                          untagged("id", "project_name"),
+		"aws_codecommit_repository":                      tagged("id", "arn", "repository_id", "repository_name"),
+		"aws_codeconnections_connection":                 tagged("id", "arn", "name"),
+		"aws_codestarconnections_connection":             tagged("id", "arn", "name"),
+		"aws_codestarnotifications_notification_rule":    tagged("id", "arn", "name", "resource"),
+		"aws_codedeploy_app":                             tagged("id", "name"),
+		"aws_codedeploy_deployment_config":               untagged("id", "deployment_config_name"),
+		"aws_codedeploy_deployment_group":                tagged("id", "app_name", "deployment_group_name"),
+		"aws_codepipeline":                               tagged("id", "arn", "name"),
+		"aws_codepipeline_custom_action_type":            tagged("id", "category", "provider_name", "version"),
+		"aws_codepipeline_webhook":                       tagged("id", "arn", "name"),
+		"aws_ecrpublic_repository":                       tagged("id", "arn", "repository_name"),
+		"aws_ecrpublic_repository_policy":                untagged("registry_id", "repository_name", "policy"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.

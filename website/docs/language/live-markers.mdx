@@ -316,7 +316,7 @@ outcomes at all. They are named below.
 ## The Contract
 
 - **AWS only, <!-- survey-gen:begin contract-count -->
-188<!-- survey-gen:end contract-count --> resource types, root module only.** The v0 admission table
+208<!-- survey-gen:end contract-count --> resource types, root module only.** The v0 admission table
   (`internal/live/lint/admission.go`) is the whole subset. It holds <!-- survey-gen:begin contract-types -->
   `aws_acm_certificate`, `aws_api_gateway_account`, `aws_api_gateway_api_key`,
   `aws_api_gateway_base_path_mapping`, `aws_api_gateway_client_certificate`,
@@ -343,9 +343,18 @@ outcomes at all. They are named below.
   `aws_cloudfront_vpc_origin`, `aws_cloudwatch_composite_alarm`,
   `aws_cloudwatch_dashboard`, `aws_cloudwatch_log_group`,
   `aws_cloudwatch_metric_alarm`, `aws_cloudwatch_metric_stream`,
-  `aws_db_event_subscription`, `aws_db_instance`,
-  `aws_db_instance_role_association`, `aws_db_option_group`,
-  `aws_db_parameter_group`, `aws_db_proxy`,
+  `aws_codeartifact_domain`, `aws_codeartifact_domain_permissions_policy`,
+  `aws_codeartifact_repository`,
+  `aws_codeartifact_repository_permissions_policy`, `aws_codebuild_fleet`,
+  `aws_codebuild_project`, `aws_codebuild_report_group`,
+  `aws_codebuild_webhook`, `aws_codecommit_repository`,
+  `aws_codeconnections_connection`, `aws_codedeploy_app`,
+  `aws_codedeploy_deployment_config`, `aws_codedeploy_deployment_group`,
+  `aws_codepipeline`, `aws_codepipeline_custom_action_type`,
+  `aws_codepipeline_webhook`, `aws_codestarconnections_connection`,
+  `aws_codestarnotifications_notification_rule`, `aws_db_event_subscription`,
+  `aws_db_instance`, `aws_db_instance_role_association`,
+  `aws_db_option_group`, `aws_db_parameter_group`, `aws_db_proxy`,
   `aws_db_proxy_default_target_group`, `aws_db_proxy_endpoint`,
   `aws_db_subnet_group`, `aws_dynamodb_global_table`,
   `aws_dynamodb_resource_policy`, `aws_dynamodb_table`,
@@ -353,6 +362,7 @@ outcomes at all. They are named below.
   `aws_ec2_capacity_reservation`, `aws_ec2_fleet`, `aws_ec2_host`,
   `aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
   `aws_ecr_replication_configuration`, `aws_ecr_repository`,
+  `aws_ecrpublic_repository`, `aws_ecrpublic_repository_policy`,
   `aws_ecs_cluster`, `aws_ecs_cluster_capacity_providers`, `aws_ecs_daemon`,
   `aws_efs_access_point`, `aws_efs_file_system`, `aws_eip`,
   `aws_eip_association`, `aws_eks_access_entry`,
