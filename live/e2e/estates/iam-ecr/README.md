@@ -9,7 +9,11 @@ this one repeats the shape of).
 
 This cohort exercises every type `tools/row-gen`'s IAM and ECR batch
 proposed and this batch ratified into `internal/live/lint/admission.go` and
-`internal/live/identity/table.go`.
+`internal/live/identity/table.go`, plus one addition (`aws_iam_group`): the
+ECS/EKS batch (issue #65) ratified its own deferral here rather than
+opening a second cohort for one already-settled type — see "Issue #26" and
+"Rejected, and deliberately absent" below for the history, and
+`live/e2e/estates/ecs-eks/README.md` for that batch's own cohort.
 
 ## Coverage map
 
@@ -19,6 +23,7 @@ proposed and this batch ratified into `internal/live/lint/admission.go` and
 | Marker path, untaggable | `aws_ecr_registry_policy.app` | A singleton per AWS account; identity is the account's own ECR registry ID, which pre-exists the resource and is never supplied by a configuration argument. |
 | Marker path, untaggable | `aws_ecr_registry_scanning_configuration.app` | Same singleton-per-account shape as the registry policy. |
 | Marker path, untaggable | `aws_ecr_replication_configuration.app` | Same singleton-per-account shape as the registry policy. |
+| Client-named path, untaggable | `aws_iam_group.app` | Identity is the `name` argument, already in config. No identity schema shipped in v6.58.0; the evidence is the documented import command, which sets `id` to the group name verbatim. IAM has no `TagGroup` API, so this type carries no `tags` argument at all — see "Untaggable types" below. Ratified by the ECS/EKS batch (issue #65); see "Issue #26" for why this batch itself deferred it. |
 | Client-named path | `aws_iam_instance_profile.app` | Identity is the `name` argument, already in config — confirmed against the provider's own identity schema. |
 | Marker path | `aws_iam_service_linked_role.app` | IAM computes the role's name from `aws_service_name` using its own internal per-service convention, not a string transform of any configured argument. |
 | Client-named path | `aws_iam_user.app` | Identity is the `name` argument, already in config — confirmed against the provider's own identity schema. Issue #26's second named type. |
@@ -73,42 +78,48 @@ provider's own documented import behavior, not against the registry:
   the fork's own architecture rather than modeled as an ordinary resource.
   Admitting it here would reverse that standing decision.
 
-One more was correctly classified but is deferred rather than wired:
+One more was correctly classified but was deferred rather than wired, by
+this batch:
 
 - `aws_iam_group` — row-gen correctly proposed client-named via `name`,
   confirmed against the provider's documented import (id is the group
   name verbatim). `live/survey.json` — the curated 68
   `live/SURVEY.md` measures — already carries this type, and its own
   signal says untaggable (IAM has no `TagGroup` API). Admitting it would
-  move it into `tools/survey-gen/limitations_test.go`'s
+  have moved it into `tools/survey-gen/limitations_test.go`'s
   `TestLimitationsDocAgainstSurvey` derived set (admitted ∩ curated-68 ∩
-  untaggable), which requires `live/LIMITATIONS.md`'s "Untaggable types
+  untaggable), which required `live/LIMITATIONS.md`'s "Untaggable types
   cannot be removed by the sweep" entry to name it. Unlike
   `aws_lambda_layer_version`, which sidesteps that doc by being outside
-  the curated 68 entirely, `aws_iam_group` cannot dodge it that way — it
+  the curated 68 entirely, `aws_iam_group` could not dodge it that way — it
   is squarely inside the 68. Extending the doc's derivation past the
-  curated 68 is issue #54's own scope, not this batch's; `aws_iam_group`
-  is left for a batch prepared to move that doc.
+  curated 68 was issue #54's own scope, not this batch's, so `aws_iam_group`
+  was left for a batch prepared to move that doc.
+
+  **Update, issue #65:** #54 has since landed —
+  `tools/survey-gen/untaggable_render.go`'s "untaggable-admitted" render now
+  derives `live/LIMITATIONS.md`'s entry from `live/survey-full.json`
+  (the registry-backed roster) intersected with the admission table, with
+  no curated-68 boundary left to carve around. The ECS/EKS batch ratifies
+  this deferral (see the Coverage map above); nothing about the identity
+  evidence changed from what this section already established.
 
 ## Untaggable types
 
-Three types above — `aws_ecr_registry_policy`,
-`aws_ecr_registry_scanning_configuration` and
-`aws_ecr_replication_configuration` — carry no `tags` argument in the AWS
-provider, the same shape as `aws_lambda_layer_version` in the first
-registry-ratified batch. None of the three is added to
+Four types above — `aws_ecr_registry_policy`,
+`aws_ecr_registry_scanning_configuration`,
+`aws_ecr_replication_configuration` and `aws_iam_group` — carry no `tags`
+argument in the AWS provider, the same shape as `aws_lambda_layer_version`
+in the first registry-ratified batch. All four are named in
 `live/LIMITATIONS.md`'s "Untaggable types cannot be removed by the sweep"
-entry, for the same reason that batch's README gives:
-`tools/survey-gen/limitations_test.go`'s `TestLimitationsDocAgainstSurvey`
-derives that entry's roster from `live/survey.json`, the curated 68-type
-roster, intersected with the admission table — not from
-`live/survey-full.json`, the 1,691-type registry-backed roster this
-batch's evidence came from. All three are outside the curated 68, so they
-never enter that test's `derived` set, and adding them to the doc would
-make the test fail instead of documenting anything true. The behavior is
-real (none of the three can be swept by tag once created), but documenting
-it correctly needs the pin test extended to the full registry roster
-first — issue #54's scope, not this batch's.
+entry: `tools/survey-gen/untaggable_render.go` (issue #54) derives that
+entry's roster from `live/survey-full.json`, the 1,691-type registry-backed
+roster, intersected with the admission table — not from `live/survey.json`,
+the curated 68-type roster, the way this derivation used to be scoped. That
+generalization is exactly what let the ECS/EKS batch (issue #65) ratify
+`aws_iam_group`'s own deferral above: the first three ECR types entered the
+doc as soon as #54 landed, and `aws_iam_group` joins them here rather than
+in a cohort of its own.
 
 ## Files
 
@@ -116,7 +127,7 @@ first — issue #54's scope, not this batch's.
 |---|---|
 | `versions.tf` | `terraform`/`provider "aws"` blocks, identical in shape to `live/e2e/estate/versions.tf`. |
 | `locals.tf` | `estate_tag` — `"iam-ecr-cohort"`, distinct from the demo estate's `"stateless-e2e"` and the lambda cohort's `"lambda-cohort"`. |
-| `iam.tf` | The three ratified IAM types, plus `aws_iam_role.support` — supporting infrastructure, not a coverage row. |
+| `iam.tf` | The four ratified IAM types (three from this cohort's own batch, plus `aws_iam_group` from the ECS/EKS batch), plus `aws_iam_role.support` — supporting infrastructure, not a coverage row. |
 | `ecr.tf` | The four ratified ECR types. |
 
 ## Gating
@@ -179,3 +190,10 @@ into any automated tier — see "Gating" above:
   evidence against any of the four types' admission: identity and
   enumeration are properties of the provider and the registry, not of one
   emulator's completeness.
+
+**Update, issue #65:** `aws_iam_group.app` was verified separately, when
+this batch ratified the deferral above — `terraform apply -target
+aws_iam_group.app` against `floci/floci:latest` creates the group cleanly
+(`id = tofu-iam-ecr-cohort-group`) and `terraform destroy -target
+aws_iam_group.app` removes it, with no drift on refresh in between. No
+floci gap on this row.

@@ -53,6 +53,13 @@ var admissionEvidenceExceptions = map[string]evidenceException{
 	"aws_iam_role_policy":      {"name is Optional+Computed (name_prefix idiom); documented import grammar is ROLENAME:POLICYNAME, both halves client-chosen"},
 	"aws_kms_alias":            {"name is Optional+Computed (name_prefix idiom); documented import grammar is the full alias/... name"},
 	"aws_iam_instance_profile": {"name is Optional+Computed (name_prefix idiom); documented import grammar is the instance profile name (registry-ratified, #40/#44/#26)"},
+	// aws_eks_node_group's node_group_name is Optional+Computed (Terraform
+	// assigns a random name when omitted, the name_prefix idiom's own
+	// shape carried onto a composite's second half rather than a lone
+	// argument); documented import grammar is CLUSTERNAME:NODEGROUPNAME,
+	// cluster_name required and node_group_name client-chosen when set
+	// (registry-ratified, #40/#44/#65).
+	"aws_eks_node_group": {"node_group_name is Optional+Computed (name-generation idiom); documented import grammar is CLUSTERNAME:NODEGROUPNAME, cluster_name required and node_group_name client-chosen when set"},
 
 	// --- docs tier: no identity schema in v6.58.0 ---
 	"aws_ecs_cluster": {"no identity schema in v6.58.0; documented import grammar is the cluster name, and the provider sets id to the ARN"},

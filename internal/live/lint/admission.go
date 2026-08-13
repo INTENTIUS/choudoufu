@@ -191,6 +191,14 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_iam_instance_profile":                {},
 	"aws_iam_service_linked_role":             {},
 	"aws_iam_user":                            {},
+	// aws_iam_group: deferred by this IAM/ECR batch pending #54, which has
+	// since generalized live/LIMITATIONS.md's "Untaggable types" derivation
+	// past the curated 68 (see internal/live/identity/table.go for the
+	// evidence, unchanged since this batch's own deferral note). Ratified
+	// here by the ECS/EKS batch (#65), which lands the two #54-unblocked
+	// deferrals alongside its own cohort rather than opening a two-type
+	// cohort.
+	"aws_iam_group": {},
 	// ---- Registry-ratified (#40, #44): second batch, messaging (SQS, SNS
 	// ---- beyond the already-admitted aws_sns_topic, CloudWatch, and
 	// ---- EventBridge/Events). Same tools/row-gen pipeline as the Lambda
@@ -347,6 +355,20 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_rds_global_cluster":            {},
 	"aws_rds_integration":               {},
 	"aws_rds_shard_group":               {},
+	// ---- Registry-ratified (#40, #44): fourth batch, ECS and EKS (issue
+	// ---- #65). Same tools/row-gen pipeline and verification standard as
+	// ---- the batches above; see internal/live/identity/table.go for the
+	// ---- per-type evidence and for the row-gen proposals this batch
+	// ---- rejected. Cohort estate: live/e2e/estates/ecs-eks.
+	"aws_ecs_cluster_capacity_providers": {},
+	"aws_ecs_daemon":                     {},
+	"aws_eks_access_entry":               {},
+	"aws_eks_access_policy_association":  {},
+	"aws_eks_addon":                      {},
+	"aws_eks_capability":                 {},
+	"aws_eks_cluster":                    {},
+	"aws_eks_fargate_profile":            {},
+	"aws_eks_node_group":                 {},
 }
 
 // admitted reports whether the given provider-local resource type may appear

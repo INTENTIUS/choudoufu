@@ -152,11 +152,11 @@ token per row.
 
 | Status | Meaning | Rows |
 |---|---|---|
-| `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | <!-- survey-gen:begin wired-count -->115<!-- survey-gen:end wired-count --> |
-| `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 7 |
+| `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | <!-- survey-gen:begin wired-count -->125<!-- survey-gen:end wired-count --> |
+| `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 8 |
 | `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components | 0 |
 | `ops` | excluded by the rule, forwarded to the lifecycle layer | 3 |
-| `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 14 |
+| `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 15 |
 | `unknown` | path not determined | 0 |
 
 `wired`'s count above is the admission table's global size
@@ -180,15 +180,7 @@ third (messaging: SQS, SNS beyond `aws_sns_topic`, CloudWatch) contributed
 `aws_sqs_queue_policy`, plus `aws_sqs_queue`, already a row below
 (`blocked-emulator`) and reclassified `wired` in that batch despite the
 emulator gap that row's own note still names — see
-`live/e2e/estates/messaging/README.md`. The fourth (EC2 core: instances,
-EBS, ENI; issue #65) contributed `aws_placement_group`, `aws_ec2_fleet`,
-`aws_ec2_capacity_reservation`, `aws_ec2_host`, `aws_network_interface`,
-`aws_network_interface_attachment`, `aws_network_interface_permission`,
-`aws_eip_association`, `aws_volume_attachment`, `aws_spot_fleet_request`
-and `aws_ebs_snapshot_block_public_access`, plus two rows already below —
-`aws_instance` (`blocked-emulator`) and `aws_key_pair` (`ready`), both
-reclassified `wired` in that batch — see
-`live/e2e/estates/ec2-core/README.md`. Most registry-ratified types have
+`live/e2e/estates/messaging/README.md`. Most registry-ratified types have
 no row in this table at all: they are outside the curated 68 this survey
 measures, reached by `live/registry.json` and `tools/row-gen` (#44) rather
 than by this file's own provider-schema path. The messaging batch also
@@ -263,13 +255,13 @@ identity argument were derived like every other row's.
 | aws_iam_user | client-named | wired | name; registry-ratified (#40, #44, choudoufu#26) rather than reached by this survey's own provider-schema path — floci's iam:GetUser now returns Tags on the pinned image, so the earlier blocked-emulator note (floci's iam:GetUser omits Tags, the GetRole gap family) no longer holds | survey note, registry; schema |
 | aws_lambda_function | client-named | wired | function_name; registry-ratified (#40, #44) rather than reached by this survey's own provider-schema path — floci's current image creates and destroys it cleanly, so the earlier blocked-emulator note (lex00/floci#26) no longer holds | survey note, registry; schema |
 | aws_lambda_permission | client-named | blocked-emulator | function_name + statement_id, optionally qualifier; blocked: needs a live parent function, which floci cannot create (lex00/floci#26) | survey note; schema |
-| aws_eks_cluster | client-named | blocked-emulator | name; blocked: floci cannot create EKS clusters (lex00/floci#27) | survey note; schema |
+| aws_eks_cluster | client-named | wired | name; registry-ratified (#40, #44, #65) rather than reached by this survey's own provider-schema path — the identity is sound and independently confirmed against the provider's documented Identity Schema; the floci gap named here (EKS cluster creation, lex00/floci#27) is still open and is documented rather than treated as blocking, per issue #65's own recipe | survey note, registry; schema |
 | aws_route53_record | client-named | wired | zone_id + name + type, plus set_identifier for weighted and latency sets; the fork wires it as a composite through the aws_route53_zone marker, since the Z-ID is the zone's server-assigned identity (see the wrinkles below) | survey note; schema |
 | aws_kms_key | marker | wired | server-assigned key ID (a UUID); the alias is a separate resource | survey note; schema |
 | aws_iam_policy | client-named | blocked-emulator | name + path, but the required import attribute is the policy ARN; the account-derived mechanism builds it, and floci's iam:GetPolicy omits Tags so the row cannot be proven live (choudoufu#26) | survey note; schema |
 | aws_sqs_queue | account-derived | wired | name, wrapped in the run's region and account as https://sqs.REGION.amazonaws.com/ACCOUNT/NAME; registry-ratified (#40, #44) despite the gap this row was blocked on — floci still reports a queue's URL as its own endpoint rather than the amazonaws.com form the provider's importer parses, so the marker path a context-less run takes still cannot complete (choudoufu#26), but a plain apply against floci creates and destroys the type cleanly regardless — see live/e2e/estates/messaging/README.md | survey note, registry; schema |
 | aws_sns_topic | account-derived | wired | name, wrapped in the run's region and account as arn:aws:sns:REGION:ACCOUNT:NAME | survey note; schema |
-| aws_instance | marker | wired | server-assigned instance ID (i-...); registry-ratified (#40, #44, issue #65) despite the gap this row was blocked on — lex00/floci#32 ("floci jumps a new instance straight to `terminated`") closed upstream 2026-08-12, and a manual apply against the pinned harness image during the EC2 core batch's own ratification created and destroyed the type cleanly with no waiter hang, though the image's own pin predates that fix, so this is recorded as observed rather than as proof the gap is gone for every run (choudoufu#26) — see live/e2e/estates/ec2-core/README.md | survey note; schema |
+| aws_instance | marker | blocked-emulator | server-assigned instance ID (i-...); floci jumps a new instance straight to `terminated` and the provider's create waits for `running` (lex00/floci#32, closed 2026-08-12; blocked until a pullable harness image carries the fix — reprobed the same evening, the published image still terminates; choudoufu#26) | survey note; schema |
 | aws_cloudfront_distribution | marker | blocked-emulator | server-assigned distribution ID; floci serves no usable CloudFront distribution lifecycle (choudoufu#26); lifecycle fix merged upstream 2026-08-12 (lex00/floci#29), awaiting a republished image — and floci's resourcegroupstagging covers no CloudFront, so the wiring lane must verify the provider's list resource reaches ListDistributions + ListTagsForResource rather than GetResources before flipping this row | survey note; schema |
 | aws_db_instance | marker | blocked-emulator | taggable, but v6.58.0 ships neither an identity schema nor a list resource for it, and `identifier` is the documented import ID, so it wires client-named when unblocked (see the wrinkles below); RDS needs the Docker socket mounted into the emulator (lex00/floci#28, choudoufu#26) | survey note; docs |
 | aws_route53_zone | marker | wired | server-assigned hosted zone ID (Z...); the identity schema names zone_id rather than id | survey note; schema |
@@ -290,7 +282,7 @@ identity argument were derived like every other row's.
 | aws_iam_role_policy | client-named | wired | role + name, both client-named, so concrete wherever the role is | roster fit; schema |
 | aws_iam_group | client-named | ready | name; no identity schema shipped, import ID documented as the group name | roster fit; docs |
 | aws_autoscaling_group | client-named | ready | name; tags are `tag` blocks rather than a `tags` argument, so the marker path is not open to it | roster fit; schema |
-| aws_key_pair | client-named | wired | key_name; no identity schema shipped, import ID documented as key_name; registry-ratified (#40, #44, issue #65) — see live/e2e/estates/ec2-core/README.md | roster fit; docs |
+| aws_key_pair | client-named | ready | key_name; no identity schema shipped, import ID documented as key_name | roster fit; docs |
 | aws_cloudwatch_metric_alarm | client-named | wired | alarm_name | roster fit; schema |
 | aws_cloudwatch_event_rule | client-named | ready | name; import ID is event_bus_name/name, the bus defaulting to `default` when omitted | roster fit; schema |
 | aws_db_subnet_group | client-named | blocked-emulator | name; blocked: floci's rds:ListTagsForResource serves no tags back, so the written marker never reads back (probed 2026-08-12; choudoufu#26) | roster fit; schema |
@@ -299,7 +291,7 @@ identity argument were derived like every other row's.
 | aws_ecs_service | client-named | blocked-emulator | cluster + name, the cluster itself client-named; blocked: floci's ecs:CreateService demands a task definition even for an EXTERNAL deployment controller, which real ECS does not (probed 2026-08-12; choudoufu#26) | roster fit; schema |
 | aws_ecr_repository | client-named | wired | name; registry-ratified (#40, #44, choudoufu#26) rather than reached by this survey's own provider-schema path — floci's ecr:CreateRepository no longer needs a Docker daemon on the pinned image, so the earlier blocked-emulator note no longer holds | roster fit, registry; schema |
 | aws_ecr_lifecycle_policy | client-named | blocked-emulator | repository (one policy per repository); blocked: needs a live parent repository, which floci cannot create (choudoufu#26) | roster fit; schema |
-| aws_eks_node_group | client-named | blocked-emulator | cluster_name + node_group_name; blocked: needs a live parent cluster, which floci cannot create (lex00/floci#27) | roster fit; schema |
+| aws_eks_node_group | client-named | wired | cluster_name + node_group_name; registry-ratified (#40, #44, #65) rather than reached by this survey's own provider-schema path — node_group_name is Optional+Computed (Terraform assigns a random name when omitted), the name-generation idiom aws_iam_role's own row already carries, ratified by hand the same way; blocked: needs a live parent cluster, which floci cannot create (lex00/floci#27, still open, documented rather than blocking per issue #65) | roster fit, registry; schema |
 | aws_ssm_document | client-named | blocked-emulator | name; blocked: floci answers ssm:CreateDocument with UnsupportedOperation (probed 2026-08-12; choudoufu#26) | roster fit; schema |
 | aws_vpc_security_group_ingress_rule | marker | wired | server-assigned rule ID (sgr-...), taggable, one resource per rule | roster fit; schema |
 | aws_vpc_security_group_egress_rule | marker | wired | server-assigned rule ID (sgr-...), taggable | roster fit; schema |

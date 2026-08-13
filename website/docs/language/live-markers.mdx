@@ -296,7 +296,7 @@ outcomes at all. They are named below.
 ## The Contract
 
 - **AWS only, <!-- survey-gen:begin contract-count -->
-115<!-- survey-gen:end contract-count --> resource types, root module only.** The v0 admission table
+125<!-- survey-gen:end contract-count --> resource types, root module only.** The v0 admission table
   (`internal/live/lint/admission.go`) is the whole subset. It holds <!-- survey-gen:begin contract-types -->
   `aws_acm_certificate`, `aws_api_gateway_account`, `aws_api_gateway_api_key`,
   `aws_api_gateway_base_path_mapping`, `aws_api_gateway_client_certificate`,
@@ -321,12 +321,15 @@ outcomes at all. They are named below.
   `aws_ec2_capacity_reservation`, `aws_ec2_fleet`, `aws_ec2_host`,
   `aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
   `aws_ecr_replication_configuration`, `aws_ecr_repository`,
-  `aws_ecs_cluster`, `aws_eip`, `aws_eip_association`,
+  `aws_ecs_cluster`, `aws_ecs_cluster_capacity_providers`, `aws_ecs_daemon`,
+  `aws_eip`, `aws_eip_association`, `aws_eks_access_entry`,
+  `aws_eks_access_policy_association`, `aws_eks_addon`, `aws_eks_capability`,
+  `aws_eks_cluster`, `aws_eks_fargate_profile`, `aws_eks_node_group`,
   `aws_elasticache_cluster`, `aws_elasticache_parameter_group`,
   `aws_elasticache_replication_group`, `aws_elasticache_serverless_cache`,
   `aws_elasticache_subnet_group`, `aws_elasticache_user`,
-  `aws_elasticache_user_group`, `aws_iam_instance_profile`, `aws_iam_role`,
-  `aws_iam_role_policy`, `aws_iam_role_policy_attachment`,
+  `aws_elasticache_user_group`, `aws_iam_group`, `aws_iam_instance_profile`,
+  `aws_iam_role`, `aws_iam_role_policy`, `aws_iam_role_policy_attachment`,
   `aws_iam_service_linked_role`, `aws_iam_user`, `aws_instance`,
   `aws_internet_gateway`, `aws_key_pair`, `aws_kms_alias`, `aws_kms_key`,
   `aws_lambda_capacity_provider`, `aws_lambda_code_signing_config`,
