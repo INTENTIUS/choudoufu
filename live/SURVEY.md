@@ -152,11 +152,11 @@ token per row.
 
 | Status | Meaning | Rows |
 |---|---|---|
-| `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | <!-- survey-gen:begin wired-count -->158<!-- survey-gen:end wired-count --> |
+| `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | <!-- survey-gen:begin wired-count -->188<!-- survey-gen:end wired-count --> |
 | `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 8 |
 | `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components | 0 |
 | `ops` | excluded by the rule, forwarded to the lifecycle layer | 3 |
-| `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 15 |
+| `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 13 |
 | `unknown` | path not determined | 0 |
 
 `wired`'s count above is the admission table's global size
@@ -191,6 +191,22 @@ roster and `live/survey.json` to the full registry-backed universe was
 #54's own follow-on work, not any batch's; a future batch's roster growth
 shows up only in the rendered count above and in
 `internal/live/lint/admission.go`, never as a hand edit here.
+
+The fourth (Route53 remainder and CloudFront, #65) reclassified two rows
+already below from `blocked-emulator` to `wired`: `aws_cloudfront_distribution`
+(the pinned floci image now creates and reads a distribution back cleanly —
+lex00/floci#29's fix landed in it, closing the gap `blocked-emulator`'s own
+note used to name) and `aws_cloudfront_origin_access_control` (floci creates
+and lists origin access controls cleanly; the row was never blocked on
+identity, only on the emulator). Unlike the messaging batch's
+`aws_sns_topic_subscription`, this batch's own untaggable curated-68 type —
+`aws_cloudfront_origin_access_control` itself — did not need a deferral:
+issue #54 landed between the two batches, and `live/LIMITATIONS.md`'s
+untaggable-admitted span now derives from `live/survey-full.json` across the
+whole registry-backed roster rather than from the curated 68 intersected
+with the admission table, so admitting an untaggable curated-68 type is the
+same mechanical doc fixup any other untaggable type needs, not a hand-edit
+out of scope. See `live/e2e/estates/route53-cloudfront/README.md`.
 
 The `blocked-emulator` rows were found by the #19 and #20 wiring lanes, by
 probing each candidate end to end through the provider against the harness's
@@ -262,7 +278,7 @@ identity argument were derived like every other row's.
 | aws_sqs_queue | account-derived | wired | name, wrapped in the run's region and account as https://sqs.REGION.amazonaws.com/ACCOUNT/NAME; registry-ratified (#40, #44) despite the gap this row was blocked on — floci still reports a queue's URL as its own endpoint rather than the amazonaws.com form the provider's importer parses, so the marker path a context-less run takes still cannot complete (choudoufu#26), but a plain apply against floci creates and destroys the type cleanly regardless — see live/e2e/estates/messaging/README.md | survey note, registry; schema |
 | aws_sns_topic | account-derived | wired | name, wrapped in the run's region and account as arn:aws:sns:REGION:ACCOUNT:NAME | survey note; schema |
 | aws_instance | marker | blocked-emulator | server-assigned instance ID (i-...); floci jumps a new instance straight to `terminated` and the provider's create waits for `running` (lex00/floci#32, closed 2026-08-12; blocked until a pullable harness image carries the fix — reprobed the same evening, the published image still terminates; choudoufu#26) | survey note; schema |
-| aws_cloudfront_distribution | marker | blocked-emulator | server-assigned distribution ID; floci serves no usable CloudFront distribution lifecycle (choudoufu#26); lifecycle fix merged upstream 2026-08-12 (lex00/floci#29), awaiting a republished image — and floci's resourcegroupstagging covers no CloudFront, so the wiring lane must verify the provider's list resource reaches ListDistributions + ListTagsForResource rather than GetResources before flipping this row | survey note; schema |
+| aws_cloudfront_distribution | marker | wired | server-assigned distribution ID; registry-ratified (#40, #44, #65) rather than reached by this survey's own provider-schema path — the pinned floci image now creates and reads a distribution back cleanly (lex00/floci#29's lifecycle fix landed in the image this checkout pins), so the earlier blocked-emulator note no longer holds; floci's resourcegroupstagging still covers no CloudFront, an open question for the marker-discovery wiring lane rather than for admission | survey note, registry; schema |
 | aws_db_instance | marker | blocked-emulator | taggable, but v6.58.0 ships neither an identity schema nor a list resource for it, and `identifier` is the documented import ID, so it wires client-named when unblocked (see the wrinkles below); RDS needs the Docker socket mounted into the emulator (lex00/floci#28, choudoufu#26) | survey note; docs |
 | aws_route53_zone | marker | wired | server-assigned hosted zone ID (Z...); the identity schema names zone_id rather than id | survey note; schema |
 | aws_lb_listener | marker | wired | server-assigned listener ARN | survey note; schema |
@@ -270,7 +286,7 @@ identity argument were derived like every other row's.
 | aws_sns_topic_subscription | parent-derived | ready | subscription ARN: the parent topic ARN plus a server-assigned UUID suffix, which neither derivation nor a marker recovers | survey note; schema |
 | aws_secretsmanager_secret | client-named | ready | name in config, but the required import attribute is the secret ARN, whose six-character server-generated suffix no account/region template reconstructs; deferred, and ready by the marker path since the type is taggable | roster fit; schema |
 | aws_ecs_task_definition | parent-derived | ready | family + revision, the revision assigned server-side per registration | survey note; schema |
-| aws_cloudfront_origin_access_control | list + content match | blocked-emulator | server-assigned OAC ID; no identity schema and no list resource shipped, and floci serves no CloudFront (choudoufu#26) | survey note; docs |
+| aws_cloudfront_origin_access_control | list + content match | wired | server-assigned OAC ID, recovered by listing and matching on the required, AWS-enforced-unique "name" argument rather than a tag (the type carries none); registry-ratified (#40, #44, #65) rather than reached by this survey's own provider-schema path — the pinned floci image creates and lists OACs cleanly, so the earlier blocked-emulator note no longer holds | survey note, registry; docs |
 | aws_iam_access_key | moves to Ops | ops | server-assigned access key ID (AKIA...), and the secret half is unreadable after create | survey note; schema |
 | aws_secretsmanager_secret_version | moves to Ops | ops | secret_id + server-assigned version_id (a UUID) | survey note; schema |
 | aws_acm_certificate_validation | moves to Ops | ops | certificate_arn, recording only that the wait finished | survey note; schema |

@@ -401,7 +401,9 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_api_gateway_documentation_version`, `aws_api_gateway_gateway_response`,
 `aws_api_gateway_method`, `aws_api_gateway_model`,
 `aws_api_gateway_rest_api_policy`, `aws_api_gateway_usage_plan_key`,
-`aws_apigatewayv2_routing_rule`, `aws_cloudwatch_dashboard`,
+`aws_apigatewayv2_routing_rule`, `aws_cloudfront_monitoring_subscription`,
+`aws_cloudfront_origin_access_control`,
+`aws_cloudfront_realtime_log_config`, `aws_cloudwatch_dashboard`,
 `aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
 `aws_dynamodb_global_table`, `aws_dynamodb_resource_policy`,
 `aws_ebs_snapshot_block_public_access`, `aws_ecr_registry_policy`,
@@ -414,9 +416,12 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_kms_alias`, `aws_lambda_layer_version`,
 `aws_lb_target_group_attachment`, `aws_network_interface_attachment`,
 `aws_network_interface_permission`, `aws_rds_cluster_role_association`,
-`aws_route`, `aws_route53_record`, `aws_route_table_association`,
-`aws_s3_bucket_lifecycle_configuration`, `aws_s3_bucket_policy`,
-`aws_s3_bucket_public_access_block`,
+`aws_route`, `aws_route53_hosted_zone_dnssec`,
+`aws_route53_key_signing_key`, `aws_route53_record`,
+`aws_route53_resolver_firewall_rule`,
+`aws_route53_resolver_rule_association`, `aws_route53_zone_association`,
+`aws_route_table_association`, `aws_s3_bucket_lifecycle_configuration`,
+`aws_s3_bucket_policy`, `aws_s3_bucket_public_access_block`,
 `aws_s3_bucket_server_side_encryption_configuration`,
 `aws_s3_bucket_versioning`, `aws_sns_topic_policy`, `aws_sqs_queue_policy`
 and `aws_volume_attachment`<!-- survey-gen:end untaggable-admitted --> carry no tags, so they can carry no
@@ -1072,10 +1077,10 @@ from any artifact, so this roster is curated
 <!-- survey-gen:begin residue-emulator -->
 | Type | Admitted today | Reason |
 |---|---|---|
-| `aws_cloudfront_distribution` | no | floci serves no usable CloudFront distribution lifecycle, and its resourcegroupstagging coverage does not reach CloudFront either (lex00/floci#29) |
 | `aws_db_instance` | yes (standing e2e residue) | RDS only works fully against floci when the docker socket is mounted into the emulator container, which this harness does not do (lex00/floci#28) |
 | `aws_iam_role` | yes (standing e2e residue) | floci's iam:GetRole omits Tags, so the role's own marker never reads back and every plan reports it unowned |
 | `aws_s3_bucket_policy` | yes (standing e2e residue) | downstream of aws_iam_role's residue: its policy document embeds the unowned role's ARN, so its own plan never settles |
+| `aws_ssm_document` | no | floci answers ssm:CreateDocument with UnsupportedOperation, so no SSM document can be created against the emulator at all (choudoufu#26) |
 
 **Total.** 4 types.
 <!-- survey-gen:end residue-emulator -->
