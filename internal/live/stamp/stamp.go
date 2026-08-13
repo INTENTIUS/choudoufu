@@ -95,6 +95,30 @@ type Request struct {
 	// C2). The caller knows which instances are which; this package will not
 	// guess it from type names.
 	NeedsDiscovery map[string]bool
+
+	// PolicyUntag names the resource blocks GitHub issue #67's
+	// declared_tagged = "untag" verb governs, keyed by block address
+	// ("aws_subnet.this"), each mapped to the policy tag key that verb
+	// releases - [policy.Policy.TagKey], almost always TagEstate.
+	//
+	// A block named here is stamped exactly as any other except for that
+	// one key: instead of asserting it, this pass leaves it out of what it
+	// writes, so the object's desired tags lack it and the plan renders an
+	// ordinary "~ tags" update removing it (or the key is simply never
+	// added, when nothing else needed adding either - see [Result.Untagged]
+	// for what actually happened). The caller decides which blocks this
+	// governs - the declared_tagged quadrant is worked out from the live
+	// object's tags, which this package never reads - the same division of
+	// labor [Request.NeedsDiscovery] already has.
+	//
+	// Granularity is the resource block, not the instance: one
+	// configuration body serves every instance of a count or for_each
+	// block, so a block named here has the key released for every instance
+	// it expands to. A caller that found the key present on only SOME
+	// instances' live objects governs the whole block anyway, which is a
+	// documented coarsening rather than a silent one - see
+	// internal/command's PolicyUntagBlocks.
+	PolicyUntag map[string]string
 }
 
 // Result is what one pass did, for callers that want to report it. Every
@@ -111,6 +135,40 @@ type Result struct {
 	// each. An untaggable type is in here too: "nothing to do" and "could
 	// not" are different answers and both are worth being able to see.
 	Skipped []Skip
+
+	// Untagged lists the resources GitHub issue #67's declared_tagged =
+	// "untag" verb released a tag key from, per [Request.PolicyUntag]. Each
+	// resource's other markers are stamped exactly as they would be
+	// otherwise; only the named key is left out.
+	Untagged []Untagged
+}
+
+// Untagged is one resource block whose configuration this pass left one tag
+// key out of, at policy's request.
+type Untagged struct {
+	// Addr is the resource block's address, module-qualified for a block
+	// inside a static module - the same shape [Stamped.Addr] and
+	// [Skip.Addr] carry.
+	Addr addrs.ConfigResource
+
+	// Key is the tag key that was released.
+	Key string
+
+	// EstateMarker is true when Key is the tofu-estate marker itself - the
+	// case GitHub issue #67 says the plan "must say so in so many words":
+	// releasing this key is not a cosmetic tag change, it is this resource
+	// leaving management, because the next run's marker discovery can no
+	// longer find it by the marker that named it.
+	EstateMarker bool
+}
+
+// String renders an untag outcome on one line.
+func (u Untagged) String() string {
+	s := u.Addr.String() + " UNTAG " + u.Key
+	if u.EstateMarker {
+		s += " (leaves management)"
+	}
+	return s
 }
 
 // Stamped is one resource whose configuration this pass rewrote.
@@ -172,6 +230,13 @@ const (
 	// SkipNotHCL is a resource written in JSON syntax, whose body this
 	// package cannot rewrite.
 	SkipNotHCL SkipReason = "NOT_HCL_SYNTAX"
+
+	// SkipUntagHandWritten is a resource GitHub issue #67's declared_tagged
+	// = "untag" verb governs, whose configuration already hardcodes the
+	// key that verb would release. This pass never overwrites a
+	// hand-written tag value anywhere, and untag is not an exception - see
+	// [Request.PolicyUntag].
+	SkipUntagHandWritten SkipReason = "UNTAG_HAND_WRITTEN"
 )
 
 // Skip is one resource this pass left alone, and why.
@@ -445,8 +510,36 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 		markers = append(markers, marker{key: TagSlot, expr: slotExpr, want: slotDisplay, perInstance: true})
 	}
 
+	untagKey := s.req.PolicyUntag[addr.String()]
+
 	var added []string
+	var untagged []string
 	for _, m := range markers {
+		if untagKey != "" && m.key == untagKey {
+			cur, present := existing[m.key]
+			_, knownValue := static[m.key]
+			if !present && !knownValue {
+				// The common case: the configuration does not already
+				// hardcode this key, so simply not adding it is exactly
+				// what "released" means - the desired tags lack it, and
+				// the plan renders the removal as an ordinary "~ tags"
+				// update (or, when nothing else about this resource needed
+				// stamping either, there is nothing to rewrite at all; see
+				// the len(added)==0 handling below).
+				untagged = append(untagged, m.key)
+				continue
+			}
+			// A hand-written value for the key this run was asked to
+			// release. This pass never overwrites a hand-written marker
+			// value anywhere else, and untag is not an exception: the
+			// author wrote it, so it stays, and the release does not
+			// happen this run.
+			_ = cur
+			s.skip(addr, SkipUntagHandWritten, fmt.Sprintf(
+				"%s sets %q directly in its tags argument, so declared_tagged = \"untag\" did not release it: this pass never overwrites a hand-written tag value. Remove it from the configuration to release it.",
+				addr, m.key))
+			continue
+		}
 		cur, present := existing[m.key]
 		got, knownValue := static[m.key]
 		switch {
@@ -487,8 +580,20 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 		}
 	}
 
+	for _, k := range untagged {
+		s.res.Untagged = append(s.res.Untagged, Untagged{Addr: addr, Key: k, EstateMarker: k == TagEstate})
+	}
+
 	if len(added) == 0 {
-		if !diags.HasErrors() {
+		switch {
+		case len(untagged) > 0:
+			// Nothing to rewrite: the configuration already looks the way
+			// "untag" wants it to (the key was never going to be added),
+			// so the release already happened - it just was not a rewrite
+			// this pass had to make. Recorded in Untagged above rather
+			// than folded into SkipAlreadyStamped, which would say nothing
+			// happened when a policy verb did.
+		case !diags.HasErrors():
 			s.skip(addr, SkipAlreadyStamped, "")
 		}
 		return nil, diags

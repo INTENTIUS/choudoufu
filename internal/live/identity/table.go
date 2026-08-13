@@ -26,8 +26,24 @@ type TypeIdentity struct {
 	// ServerAssigned, unused otherwise.
 	Reason string
 
+	// RecordBacked is true when this type's identity is not observed from
+	// the cloud at all: the type is one of GitHub issue #73's
+	// RECORD_ADMITTED logical types (internal/live/lint), whose whole
+	// existence is a persisted micro-state record. Instances of such a
+	// type would always classify [ClassRecordBacked], whatever their
+	// arguments say, the same way ServerAssigned instances always classify
+	// ClassNeedsDiscovery above.
+	//
+	// Staged and currently inert: no entry in [DefaultTable] sets this
+	// field yet, because a RECORD_ADMITTED type is refused by lint before
+	// it ever reaches this table, and [SynthesizeTypeIdentity] never
+	// produces it either. It exists so the projection work #73 stages next
+	// - hydrating a record-backed instance without a cloud read - is an
+	// additive change to this struct's callers rather than a breaking one.
+	RecordBacked bool
+
 	// Components build the import identity by concatenation, in order.
-	// Required unless ServerAssigned.
+	// Required unless ServerAssigned or RecordBacked.
 	Components []Component
 
 	// ImportSyntax documents the provider's import-ID grammar for this
@@ -3930,6 +3946,163 @@ var DefaultTable = buildTable(
 		IdentityAttrs: nil,
 	},
 
+	// ---- Fold-children (issue #68): declared property-children of an
+	// ---- admitted parent whose whole identity is the parent's own plus,
+	// ---- for three of them, one further argument of the child's own ------
+	//
+	// live/mapping.json classifies each of these seven as "fold": a TF type
+	// with no cfn_type of its own, decomposed out of a CFN parent resource
+	// that models it as a nested property rather than a resource of its own
+	// (tools/mapping-gen/overlay.go's own doc comment names the shape:
+	// "Terraform decomposes some resources finer than CloudFormation
+	// does"). Two sub-shapes ratify here:
+	//
+	//   - The API Gateway four duplicate an already-admitted parent's own
+	//     composite Components verbatim: aws_api_gateway_integration reads
+	//     exactly the rest_api_id/resource_id/http_method triple
+	//     aws_api_gateway_method's own row above already builds, and
+	//     aws_api_gateway_method_settings reads the rest_api_id/stage_name
+	//     pair aws_api_gateway_stage's own row already builds. This is
+	//     admission path 3 (parent-derived, live/doc.go) worked exactly the
+	//     way aws_api_gateway_method itself already is above - nothing new
+	//     for declared-instance resolution - and it ratifies on the same
+	//     standard of evidence table.go's own "fourth batch, API Gateway"
+	//     section comment already cited when it deferred these four: every
+	//     component confirmed against live/survey-full.json's identity
+	//     schema, except aws_api_gateway_method_settings (confirmed instead
+	//     against live/import-grammar.json's scraped Import section, that
+	//     type predating the provider's identity-schema mechanism).
+	//   - The APS/Prometheus three key on a single parent argument
+	//     (workspace_id, scraper_id) and nothing else of their own - the
+	//     same named-singleton-child shape aws_s3_bucket_policy and
+	//     aws_sns_topic_policy already ratify above, against a new parent
+	//     family. aws_prometheus_workspace and aws_prometheus_scraper admit
+	//     alongside them below, neither having had a row before this batch.
+	//
+	// Removal (issue #60's parent-read sweep,
+	// internal/live/discovery/parent_read.go): all seven are untaggable,
+	// confirmed against each type's own Argument Reference (none has a tags
+	// argument), so none can carry an ownership marker and every one of them
+	// depends on reading through a parent to be swept at all.
+	//
+	//   - The APS three fit identity.SingleParentComponent unchanged - one
+	//     attribute-supplying component, entirely the parent's - so the
+	//     existing #60 leg covers them with no new discovery code once
+	//     aws_prometheus_workspace and aws_prometheus_scraper are themselves
+	//     taggable admitted parents. Report-only, the same "unverified,
+	//     stays report-only" standard parent_read.go's parentReadRemovable
+	//     comment already holds aws_sns_topic_policy and
+	//     aws_sqs_queue_policy to - a Describe* "no configuration" response
+	//     for either has not been confirmed unambiguous here either.
+	//   - aws_api_gateway_integration's identity has three components, so
+	//     identity.SingleParentComponent's own "exactly one" test excludes
+	//     it, but it needs no argument beyond what its parent
+	//     (aws_api_gateway_method) already supplies: rendering the method's
+	//     own identity - itself parent-derived through
+	//     aws_api_gateway_rest_api, not directly taggable, so #60's original
+	//     leg cannot anchor on it either - settles the integration's
+	//     identity completely too. identity.FoldParentTypes and
+	//     discovery's foldChildReadSweep are the small, explicitly-curated
+	//     extension this batch adds for exactly this shape (see both doc
+	//     comments) - report-only, the same standard as the APS three.
+	//   - aws_api_gateway_integration_response, aws_api_gateway_method_response
+	//     and aws_api_gateway_method_settings each need one further argument
+	//     (status_code, method_path) that a parent read cannot supply once
+	//     the child's own block is gone, so removal-sweep coverage for
+	//     these three stays the same accepted gap live/LIMITATIONS.md's
+	//     "Untaggable types cannot be removed by the sweep" entry already
+	//     carries for aws_api_gateway_method itself and for aws_route.
+	//     Declared-instance resolution (plan, apply, read-back) is
+	//     unaffected either way, since that has never depended on the
+	//     sweep.
+
+	TypeIdentity{
+		Type: "aws_api_gateway_integration",
+		Components: []Component{
+			attr("rest_api_id"), sep("/"), attr("resource_id"), sep("/"), attr("http_method"),
+		},
+		ImportSyntax: "REST-API-ID/RESOURCE-ID/HTTP-METHOD",
+		// "This resource exports no additional attributes" (provider docs);
+		// nothing may derive another resource's identity from it.
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_api_gateway_integration_response",
+		Components: []Component{
+			attr("rest_api_id"), sep("/"), attr("resource_id"), sep("/"), attr("http_method"), sep("/"), attr("status_code"),
+		},
+		ImportSyntax: "REST-API-ID/RESOURCE-ID/HTTP-METHOD/STATUS-CODE",
+		// The child's own status_code beyond the method's own triple: not
+		// recoverable from a read of the parent alone, see the section
+		// comment above.
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_api_gateway_method_response",
+		Components: []Component{
+			attr("rest_api_id"), sep("/"), attr("resource_id"), sep("/"), attr("http_method"), sep("/"), attr("status_code"),
+		},
+		ImportSyntax:  "REST-API-ID/RESOURCE-ID/HTTP-METHOD/STATUS-CODE",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// Fold parent is aws_api_gateway_stage (rest_api_id/stage_name,
+		// confirmed against live/survey-full.json's identity schema for
+		// that type above), plus method_path, this type's own argument -
+		// confirmed against live/import-grammar.json's scraped Import
+		// section (composed_of_arguments=true,
+		// arguments=["method_path","rest_api_id","stage_name"]), this type
+		// predating the provider's identity-schema mechanism.
+		Type: "aws_api_gateway_method_settings",
+		Components: []Component{
+			attr("rest_api_id"), sep("/"), attr("stage_name"), sep("/"), attr("method_path"),
+		},
+		ImportSyntax:  "REST-API-ID/STAGE-NAME/METHOD-PATH",
+		IdentityAttrs: nil,
+	},
+
+	serverAssigned("aws_prometheus_workspace",
+		"AMP mints the workspace's own id (ws-...) at create time; row-gen's registry-derived guess (the read-only Arn field) is wrong the same way several earlier batches' rejections were (aws_lambda_alias, aws_iam_policy) - confirmed against the provider's documented import command (terraform import aws_prometheus_workspace.demo ws-C6DCB907-F2D7-4D96-957B-66691F865D8B) and its own source (internal/service/amp/workspace.go's Create path uses schema.ImportStatePassthroughContext on d.Id(), never on the separately-exported arn attribute). No configuration argument names it: alias is an optional, non-unique display name the provider does not import by.",
+		"WORKSPACEID", "id"),
+	serverAssigned("aws_prometheus_scraper",
+		"AMP mints the scraper's own id (s-...) at create time; the same registry-Arn mismatch as the workspace above - confirmed against the provider's documented import command (terraform import aws_prometheus_scraper.example s-b6f487db-4761-4930-9215-e9d588a7efe2) and its generated plugin-framework identity schema, which names the scraper's own id rather than the separately-exported arn.",
+		"SCRAPERID", "id"),
+
+	TypeIdentity{
+		// Named-singleton child of the workspace, the same shape as
+		// aws_s3_bucket_policy and aws_sns_topic_policy above: AMP allows at
+		// most one alert manager definition per workspace, and the
+		// documented import id is the workspace's own id verbatim
+		// (terraform import aws_prometheus_alert_manager_definition.demo
+		// ws-C6DCB907-F2D7-4D96-957B-66691F865D8B). The provider exports no
+		// further attributes for this type.
+		Type:          "aws_prometheus_alert_manager_definition",
+		Components:    []Component{attr("workspace_id")},
+		ImportSyntax:  "WORKSPACEID",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// Same shape as the alert manager definition just above, confirmed
+		// against the provider's own DescribeQueryLoggingConfiguration
+		// operation (not the older, unrelated DescribeLoggingConfiguration)
+		// and its documented import (the workspace id, verbatim).
+		Type:          "aws_prometheus_query_logging_configuration",
+		Components:    []Component{attr("workspace_id")},
+		ImportSyntax:  "WORKSPACEID",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// Named-singleton child of the scraper rather than the workspace:
+		// AMP allows at most one logging configuration per scraper, imported
+		// by the scraper's own id verbatim (terraform import
+		// aws_prometheus_scraper_logging_configuration.example
+		// s-b6f487db-4761-4930-9215-e9d588a7efe2).
+		Type:          "aws_prometheus_scraper_logging_configuration",
+		Components:    []Component{attr("scraper_id")},
+		ImportSyntax:  "SCRAPERID",
+		IdentityAttrs: nil,
+	},
+
 	// ---- Registry-ratified (#40, #44, #65): fifth batch, compute
 	// ---- platforms -------------------------------------------------------
 	//
@@ -5252,6 +5425,618 @@ var DefaultTable = buildTable(
 		IdentityAttrs: nil,
 	},
 
+	// ---- Registry-ratified (#40, #44, #65): sixth batch, IoT core
+	// ---- (issue #65) ------------------------------------------------------
+	//
+	// Same pipeline as the batches above: every row started as a
+	// tools/row-gen proposal from live/registry.json, cross-checked against
+	// the AWS provider's documented Argument Reference, Attribute Reference
+	// and Import section (fetched from the provider's own website/docs/r/
+	// source at the pinned v6.59.0 tag — this checkout's merge of origin/main
+	// moved the pin from v6.58.0, the tag the fifth batch cited, to v6.59.0),
+	// not accepted on the registry's classification alone. Six of the eleven
+	// rows below (aws_iot_authorizer, aws_iot_billing_group,
+	// aws_iot_domain_configuration, aws_iot_thing, aws_iot_thing_group,
+	// aws_iot_thing_type) were row-gen "evidence-only" proposals it declined
+	// to paste, because their sole identifying argument was GUESSED by
+	// snake-casing the CFN property name rather than backed by a provider
+	// identity schema or live/import-grammar.json; the provider's own docs
+	// confirm all six actually import by the plain `name` argument, not
+	// row-gen's guessed `authorizer_name`, `billing_group_name`,
+	// `domain_configuration_name`, `thing_name`, `thing_group_name` or
+	// `thing_type_name` — the argument these resources document is shorter
+	// than the CFN property name row-gen snake-cased it from. A seventh,
+	// aws_iot_role_alias, is the same evidence-only shape but the correction
+	// runs the other way: the provider's required argument is the bare
+	// `alias`, not row-gen's guessed `role_alias`. aws_iot_policy is an
+	// eighth evidence-only row-gen left entirely unpasted ("no pastable
+	// row") with a note that the provider's own import docs show an
+	// argument-composed ID (`PubSubToAnyTopic`); the provider's Import
+	// section confirms that value is the required `name` argument verbatim.
+	// aws_iot_provisioning_template and aws_iot_topic_rule are the two rows
+	// row-gen proposed correctly the first time (client-named via `name`,
+	// sourced from live/import-grammar.json rather than a guess), confirmed
+	// unchanged against the provider's docs. aws_iot_topic_rule_destination
+	// is the one server-assigned row row-gen proposed, confirmed unchanged:
+	// the provider's own documented import command uses the type's `arn`
+	// verbatim, no account/region reconstruction needed since the resource
+	// carries no argument that would rebuild it. Cohort estate:
+	// live/e2e/estates/iot.
+	//
+	// Rejected, and deliberately absent from this table:
+	//
+	//   - aws_iot_ca_certificate: row-gen proposed server-assigned via the
+	//     registry's opaque "Id". The provider's own docs (fetched as raw
+	//     markdown source, not the rendered page, to rule out a fetch
+	//     artifact) carry no "## Import" heading anywhere in the file — no
+	//     classic import command, no import-block identity schema, nothing.
+	//     A CA certificate is client-supplied (`ca_certificate_pem` is a
+	//     required argument, not a server-generated output) so this
+	//     rejection is not the credential-material one below; it is the
+	//     plainer "the provider documents no way in" rejection, the same
+	//     kind aws_codebuild_source_credential got in the developer-tools
+	//     batch, just for a structural reason (no Import section at all)
+	//     rather than a missing-argument one.
+	//   - aws_iot_certificate: row-gen proposed server-assigned via the
+	//     registry's opaque "Id". Same structural gap as the CA certificate
+	//     above — no "## Import" heading anywhere in the provider's raw doc
+	//     source — but this type also fails a second, independent bar this
+	//     batch was asked to check it against explicitly: live/SURVEY.md's
+	//     "three the rule excludes" permanently bars a type that is a
+	//     credential born server-side alongside a secret that can never be
+	//     read again, the same standing exclusion that keeps
+	//     aws_iam_access_key out (internal/live/identity/table.go's own IAM
+	//     batch comment above, and live/SURVEY.md's "The three the rule
+	//     excludes" section). The provider's own Attribute Reference for
+	//     this type: "When neither CSR nor certificate is provided, the
+	//     public key" / "...the private key" — confirmed against the
+	//     example usage's own "Without CSR" case, which creates the
+	//     resource with no `csr` and no `certificate_pem` argument set at
+	//     all. A caller who omits both arguments (a legal, documented
+	//     configuration) gets a resource whose live state carries a private
+	//     key AWS mints once and never returns again — exactly the
+	//     forwarding-to-Ops shape live/SURVEY.md draws for
+	//     aws_iam_access_key and aws_secretsmanager_secret_version. Ruling:
+	//     excluded by that rule, independent of and in addition to the
+	//     missing Import section. Unlike aws_iam_access_key, whether a given
+	//     instance actually carries key material depends on how it was
+	//     created (a `csr`- or `certificate_pem`-supplied instance carries
+	//     none) — but the admission table has no per-instance granularity,
+	//     only per-type, so the type as a whole is excluded rather than
+	//     admitted on the optimistic case.
+	//   - aws_iot_policy_attachment: row-gen proposed server-assigned via
+	//     the registry's opaque "Id" (registry primary_identifier=["Id"],
+	//     but this type's own CFN read_only_properties list is also just
+	//     ["Id"] with no Arn alongside it, already a thinner evidence shape
+	//     than most server-assigned proposals in this table). The provider's
+	//     own docs carry no "## Import" heading at all, and its Attribute
+	//     Reference is explicit that the resource "exports no additional
+	//     attributes" beyond the two required arguments (`policy`,
+	//     `target`) — no id-bearing output of any kind for an import
+	//     mechanism to key off even if one existed.
+	//   - aws_iot_thing_principal_attachment: the same shape as the policy
+	//     attachment just above, one binding away (`principal`, `thing`
+	//     instead of `policy`, `target`): no "## Import" heading in the
+	//     provider's docs, and an Attribute Reference that "exports no
+	//     additional attributes" beyond the two required arguments.
+	//
+	// Out of this batch's named scope, per issue #65's own recipe wording
+	// ("IoT SiteWise, IoT TwinMaker if proposed with clean evidence" and
+	// "GreengrassV2 if proposed"): IoT Events, IoT Analytics, Greengrass
+	// (v1 and v2), IoT SiteWise and IoT TwinMaker are none of them proposed.
+	// live/registry.json carries CFN schemas for all five services'
+	// resources (AWS::IoTEvents::*, AWS::IoTAnalytics::*,
+	// AWS::Greengrass::* and AWS::GreengrassV2::*, AWS::IoTSiteWise::*,
+	// AWS::IoTTwinMaker::*), but live/mapping.json carries zero rows for
+	// any of them, and tools/row-gen's own service listing has no section
+	// for any of the five — confirmed independently against the pinned
+	// provider's own website/docs/r/ directory listing at the v6.59.0 tag,
+	// which ships no aws_iotevents_*, aws_iotanalytics_*, aws_greengrass*
+	// (either version) aws_iotsitewise_* or aws_iottwinmaker_* resource at
+	// all. This is a provider gap, not a live/mapping.json curation gap:
+	// there is nothing to admit or reject for any of the five services in
+	// this checkout's pinned provider release. Greengrass V1 would be
+	// deprecated-service skip regardless, per issue #65's recipe.
+	// live/mapping.json's own aws_iot_event_configurations,
+	// aws_iot_indexing_configuration, aws_iot_logging_options and
+	// aws_iot_thing_group_membership rows are marked "tf-only" (no CFN
+	// model), so row-gen's registry-driven pipeline does not - and
+	// structurally cannot - propose them either; they are left for a batch
+	// prepared to evidence tf-only rows some other way.
+
+	TypeIdentity{
+		// row-gen filed this evidence-only (registry primaryIdentifier
+		// ["AuthorizerName"], GUESSED argument "authorizer_name" from the
+		// snake-cased CFN property name, not backed by a provider identity
+		// schema or live/import-grammar.json). The provider's own Argument
+		// Reference names the required argument plain "name", not
+		// "authorizer_name", confirmed against the documented import
+		// command (terraform import aws_iot_authorizer.example example),
+		// which uses that "name" argument verbatim.
+		Type:          "aws_iot_authorizer",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// Same correction as aws_iot_authorizer above: row-gen guessed
+		// "billing_group_name" (evidence-only), the provider's actual
+		// required argument is plain "name", confirmed against the
+		// documented import command (terraform import
+		// aws_iot_billing_group.example example). The type's own "id" is
+		// documented as "The Billing Group ID", a distinct field from name
+		// rather than a restatement of it, so it is not claimed here (the
+		// same caution this table already applies to aws_codebuild_project
+		// in the developer-tools batch above).
+		Type:          "aws_iot_billing_group",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// Same correction again: row-gen guessed "domain_configuration_name"
+		// (evidence-only), the provider's actual required argument is plain
+		// "name", confirmed against the documented import command
+		// (terraform import aws_iot_domain_configuration.example example).
+		// The type's own "id" is documented as "The name of the created
+		// domain configuration" — literally the name — but IdentityAttrs
+		// still claims only "name" itself, consistent with this table's
+		// standing non-goal of not inferring an id-alias without a row-gen
+		// mechanism to do it (issue #44 non-goals).
+		Type:          "aws_iot_domain_configuration",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// row-gen left this "no pastable row" — its own note reads "import
+		// docs show argument-composed ID: PubSubToAnyTopic" rather than a
+		// guess, flagging that the registry's Id-keyed evidence disagreed
+		// with what the docs already showed. The provider's documented
+		// import command (terraform import aws_iot_policy.pubsub
+		// PubSubToAnyTopic) confirms the value is the required "name"
+		// argument verbatim; the Attribute Reference echoes "name - The
+		// name of this policy" but documents no separate "id" field at all
+		// for this type, so only "name" is claimed.
+		Type:          "aws_iot_policy",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// row-gen proposed this correctly the first time: client-named via
+		// live/import-grammar.json's scraped argument, confirmed against
+		// the provider's documented import command (terraform import
+		// aws_iot_provisioning_template.fleet FleetProvisioningTemplate),
+		// which uses the required "name" argument verbatim.
+		Type:          "aws_iot_provisioning_template",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// row-gen filed this evidence-only with a guess that does not
+		// survive the check: "role_alias" (a snake-cased echo of the CFN
+		// property "RoleAlias"). The provider's actual required argument is
+		// the bare "alias", confirmed against the documented import command
+		// (terraform import aws_iot_role_alias.example myalias), which uses
+		// "alias" verbatim — the correction runs the opposite direction
+		// from aws_iot_authorizer and its siblings above, where row-gen's
+		// guess was too long rather than the wrong word.
+		Type:          "aws_iot_role_alias",
+		Components:    []Component{attr("alias")},
+		ImportSyntax:  "ALIAS",
+		IdentityAttrs: []string{"alias"},
+	},
+	TypeIdentity{
+		// row-gen filed this evidence-only (GUESSED "thing_name"). The
+		// provider's actual required argument is plain "name", confirmed
+		// against the documented import command (terraform import
+		// aws_iot_thing.example example). The Attribute Reference documents
+		// default_client_id, version and arn but no separate "id" field, so
+		// only "name" is claimed.
+		Type:          "aws_iot_thing",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// Same correction as aws_iot_thing above: row-gen guessed
+		// "thing_group_name" (evidence-only), the provider's actual
+		// required argument is plain "name", confirmed against the
+		// documented import command (terraform import
+		// aws_iot_thing_group.example example). The type's own "id" is
+		// documented as "The Thing Group ID", a distinct field, so it is
+		// not claimed here, the same caution as aws_iot_billing_group
+		// above.
+		Type:          "aws_iot_thing_group",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// Same correction again: row-gen guessed "thing_type_name"
+		// (evidence-only), the provider's actual required argument is
+		// plain "name", confirmed against the documented import command
+		// (terraform import aws_iot_thing_type.example example).
+		Type:          "aws_iot_thing_type",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// row-gen proposed this correctly the first time: client-named via
+		// live/import-grammar.json's scraped argument, confirmed against
+		// the provider's documented import command (terraform import
+		// aws_iot_topic_rule.rule <name>), which uses the required "name"
+		// argument verbatim.
+		Type:          "aws_iot_topic_rule",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	serverAssigned("aws_iot_topic_rule_destination",
+		"IoT mints the rule destination's own ARN at create time, embedding a random UUID; the required vpc_configuration block (role_arn, subnet_ids, vpc_id, and the optional security_groups) describes the VPC endpoint being confirmed, not what comes back. The pinned v6.59.0 provider's Argument Reference offers only vpc_configuration — no http_url_config alternative — so the arn's \"vpc\" path segment is the only shape this provider release documents.",
+		"arn:aws:iot:REGION:ACCOUNT:ruledestination/vpc/UUID", "arn", "id"),
+
+	// ---- Registry-ratified (#40, #44, #65): sixth batch, advanced
+	// ---- networking (issue #65) --------------------------------------------
+	//
+	// Same pipeline as the batches above: every row started as a
+	// tools/row-gen proposal from live/registry.json, cross-checked against
+	// the AWS provider's documented Argument Reference, Attribute Reference
+	// and Import section (fetched from the provider's own website/docs/r/
+	// source, and from internal/service/... source where the doc text alone
+	// left an argument name or the exact import-ID mechanics ambiguous, both
+	// off the pinned v6.59.0 tag). Scope: Network Firewall, NetworkManager
+	// (Cloud WAN is not a distinct CFN service — its constructs are
+	// NetworkManager's own CoreNetwork family, already covered here), VPC
+	// Lattice, Global Accelerator, and Route53 Recovery Readiness. App Mesh
+	// is a deprecated service, skipped entirely per this batch's own recipe.
+	// Cohort estate: live/e2e/estates/networking-advanced.
+	//
+	// VPC Lattice is this batch's major catch: row-gen's flat
+	// serverAssigned() template read the CFN registry's primaryIdentifier
+	// field name ("Arn") for eleven of its fourteen types and proposed an
+	// ARN-based identity for each — but the provider's own documented Import
+	// sections disagree for nine of them. VPC Lattice imports almost its
+	// whole family by the short, provider-minted id (svc-…, sn-…, tg-…,
+	// rgw-…, rcfg-…, dv-…, snra-…, rft-…) that the SDK resources' own
+	// d.SetId() calls set, not the arn attribute the same resources also
+	// export from a separate d.Set(names.AttrARN, …) call. Two more
+	// (listener, listener_rule) are genuinely server-assigned but via a
+	// composite of server-normalized ids (SERVICE-ID/LISTENER-ID[/RULE-ID]),
+	// confirmed against internal/service/vpclattice/listener.go's own
+	// listenerCreateResourceID; neither the service_identifier argument
+	// (which accepts either an ARN or an id) nor any other configuration
+	// value reconstructs the normalized form, so no IdentityAttrs are
+	// claimed for either. NetworkManager's four association/registration
+	// types (customer_gateway_association, link_association,
+	// prefix_list_association, transit_gateway_registration) were row-gen
+	// "needs hand separator" refusals — composite registry
+	// primaryIdentifiers with no separator in any schema row-gen reads —
+	// resolved here from the provider's own documented Import sections and
+	// internal/service/networkmanager/*.go's own *CreateResourceID
+	// functions, the same resolution issue #65 anticipated ("largely
+	// resolvable from live/import-grammar.json's separators"). NetworkManager's
+	// device, site and link were the same refusal, resolved the other way:
+	// the provider imports each by its own arn attribute
+	// (@Testing(importStateIdAttribute="arn") in the provider source), not by
+	// the registry's GlobalNetworkId+DeviceId composite at all. Route53
+	// Recovery Readiness's four types were row-gen evidence-only (its
+	// snake_cased argument guesses unconfirmed by any evidence row-gen
+	// reads) — confirmed correct here against both the provider's documented
+	// Import sections and internal/service/route53recoveryreadiness/*.go's
+	// own d.Get calls, so all four are promoted to ratified rows.
+	//
+	// Deferred, out of this batch's named scope: NetworkManager's
+	// core_network_policy_attachment (row-gen: "(property-child of
+	// AWS::NetworkManager::CoreNetwork) [evidence-only]" — a parent-derived
+	// fold row-gen does not propose and this batch does not construct by
+	// hand) and the CFN-unmodeled
+	// aws_networkmanager_attachment_routing_policy_label residue row (already
+	// terminal "reasoned-none" in live/mapping.json's sweep overlay — CFN
+	// models RoutingPolicyLabel as a property on several NetworkManager
+	// attachment types, the TF resource attaches generically across all of
+	// them, and nothing in this batch changes that).
+
+	// NetworkFirewall: row-gen's server-assigned "ARN" proposals check out
+	// unchanged for firewall, firewall_policy and rule_group — the
+	// provider's documented Import sections all use the type's own arn
+	// verbatim, and each Attribute Reference states plainly that id and arn
+	// are the same ARN. tls_inspection_configuration and
+	// vpc_endpoint_association are newer plugin-framework resources; the
+	// former's Identity Schema requires arn and its Import section matches,
+	// but the pinned provider does not document a separate id equal to it,
+	// so only arn is claimed. vpc_endpoint_association's own identity
+	// attribute is not a bare "arn" but the type-specific
+	// vpc_endpoint_association_arn the schema actually exports — row-gen's
+	// generic "VPCENDPOINTASSOCIATIONARN" name happened to match the real
+	// argument this time. logging_configuration is the client-named
+	// exception row-gen already had right: its sole argument, firewall_arn,
+	// is exactly what the provider's Import section documents.
+	serverAssigned("aws_networkfirewall_firewall",
+		"NetworkFirewall assigns the firewall's ARN at create time; no argument reconstructs it.",
+		"ARN", "arn", "id"),
+	serverAssigned("aws_networkfirewall_firewall_policy",
+		"NetworkFirewall assigns the firewall policy's ARN at create time; no argument reconstructs it.",
+		"ARN", "arn", "id"),
+	TypeIdentity{
+		Type:          "aws_networkfirewall_logging_configuration",
+		Components:    []Component{attr("firewall_arn")},
+		ImportSyntax:  "FIREWALL_ARN",
+		IdentityAttrs: []string{"firewall_arn"},
+	},
+	serverAssigned("aws_networkfirewall_rule_group",
+		"NetworkFirewall assigns the rule group's ARN at create time; no argument reconstructs it.",
+		"ARN", "arn", "id"),
+	serverAssigned("aws_networkfirewall_tls_inspection_configuration",
+		"NetworkFirewall assigns the TLS inspection configuration's ARN at create time; no argument reconstructs it.",
+		"ARN", "arn"),
+	serverAssigned("aws_networkfirewall_vpc_endpoint_association",
+		"NetworkFirewall assigns the VPC endpoint association's ARN at create time; no argument reconstructs it.",
+		"VPCENDPOINTASSOCIATIONARN", "vpc_endpoint_association_arn"),
+
+	// NetworkManager's association/registration quartet: row-gen filed all
+	// four "needs hand separator" (composite registry primaryIdentifier, no
+	// separator in any schema it reads). Each provider resource's own
+	// *CreateResourceID function (internal/service/networkmanager/*.go)
+	// settles both the separator and the argument order, and every argument
+	// named is a real, required schema field confirmed against the same
+	// source: a comma joins global_network_id and customer_gateway_arn for
+	// the customer gateway association, global_network_id, link_id and
+	// device_id for the link association, global_network_id and
+	// transit_gateway_arn for the transit gateway registration, and
+	// core_network_id and prefix_list_arn for the prefix list association
+	// (this last one also carries a Terraform-native
+	// @IdentityAttribute("core_network_id")/@IdentityAttribute("prefix_list_arn")
+	// pair in the provider source, the strongest possible confirmation).
+	// None of the four exports a single attribute equal to its own
+	// comma-joined id — same standard of care as aws_lb_target_group_attachment
+	// above: hand out nothing rather than something that happens to look
+	// right.
+	TypeIdentity{
+		Type: "aws_networkmanager_customer_gateway_association",
+		Components: []Component{
+			attr("global_network_id"),
+			sep(","),
+			attr("customer_gateway_arn"),
+		},
+		ImportSyntax:  "GLOBALNETWORKID,CUSTOMERGATEWAYARN",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_networkmanager_link_association",
+		Components: []Component{
+			attr("global_network_id"),
+			sep(","),
+			attr("link_id"),
+			sep(","),
+			attr("device_id"),
+		},
+		ImportSyntax:  "GLOBALNETWORKID,LINKID,DEVICEID",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_networkmanager_prefix_list_association",
+		Components: []Component{
+			attr("core_network_id"),
+			sep(","),
+			attr("prefix_list_arn"),
+		},
+		ImportSyntax:  "CORENETWORKID,PREFIXLISTARN",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		Type: "aws_networkmanager_transit_gateway_registration",
+		Components: []Component{
+			attr("global_network_id"),
+			sep(","),
+			attr("transit_gateway_arn"),
+		},
+		ImportSyntax:  "GLOBALNETWORKID,TRANSITGATEWAYARN",
+		IdentityAttrs: nil,
+	},
+
+	// NetworkManager's device, site and link: also row-gen "needs hand
+	// separator" refusals over the registry's GlobalNetworkId+DeviceId (etc.)
+	// composite primaryIdentifier — but the provider does not import these
+	// by that composite at all. Each resource's own StateContext importer
+	// (internal/service/networkmanager/{device,site,link}.go) parses the
+	// type's arn attribute, and each is decorated
+	// @Testing(importStateIdAttribute="arn") in the provider source: the real
+	// identity is the single arn value, embedding the global network id and
+	// the server-minted device/site/link id as ARN path segments no
+	// configuration argument reconstructs (global_network_id is a
+	// create-time argument, but the device/site/link id half is never
+	// client-supplied).
+	serverAssigned("aws_networkmanager_device",
+		"NetworkManager assigns the device's ARN at create time; the global_network_id argument names its parent but does not, alone, reconstruct the ARN.",
+		"ARN", "arn"),
+	serverAssigned("aws_networkmanager_site",
+		"NetworkManager assigns the site's ARN at create time; the global_network_id argument names its parent but does not, alone, reconstruct the ARN.",
+		"ARN", "arn"),
+	serverAssigned("aws_networkmanager_link",
+		"NetworkManager assigns the link's ARN at create time; the global_network_id argument names its parent but does not, alone, reconstruct the ARN.",
+		"ARN", "arn"),
+
+	// NetworkManager's remaining nine row-gen server-assigned proposals check
+	// out unchanged: each provider Import section documents the type's own
+	// short, provider-minted id (attachment-…, connect-peer-…, peering-…,
+	// core-network-… or global-network-…) verbatim, matching row-gen's
+	// registry-derived primaryIdentifier field name exactly (these nine
+	// registry primaryIdentifiers were never "Arn" in the first place, unlike
+	// VPC Lattice's, so the naive template's field-name guess and the
+	// provider's real import syntax happened to agree). Each type also
+	// exports a longer …Arn attribute (CoreNetworkArn, ResourceArn, and
+	// similar) that is a different string from the id and is not claimed
+	// here.
+	serverAssigned("aws_networkmanager_connect_attachment",
+		"NetworkManager assigns the attachment ID at create time; no argument reconstructs it.",
+		"ATTACHMENTID", "id"),
+	serverAssigned("aws_networkmanager_connect_peer",
+		"NetworkManager assigns the connect peer ID at create time; no argument reconstructs it.",
+		"CONNECTPEERID", "id"),
+	serverAssigned("aws_networkmanager_core_network",
+		"NetworkManager assigns the core network ID at create time; the global_network_id argument names its parent but does not identify the core network itself.",
+		"CORENETWORKID", "id"),
+	serverAssigned("aws_networkmanager_dx_gateway_attachment",
+		"NetworkManager assigns the attachment ID at create time; no argument reconstructs it.",
+		"ATTACHMENTID", "id"),
+	serverAssigned("aws_networkmanager_global_network",
+		"NetworkManager assigns the global network ID at create time; it has no client-named argument at all.",
+		"ID", "id"),
+	serverAssigned("aws_networkmanager_site_to_site_vpn_attachment",
+		"NetworkManager assigns the attachment ID at create time; no argument reconstructs it.",
+		"ATTACHMENTID", "id"),
+	serverAssigned("aws_networkmanager_transit_gateway_peering",
+		"NetworkManager assigns the peering ID at create time; no argument reconstructs it.",
+		"PEERINGID", "id"),
+	serverAssigned("aws_networkmanager_transit_gateway_route_table_attachment",
+		"NetworkManager assigns the attachment ID at create time; no argument reconstructs it.",
+		"ATTACHMENTID", "id"),
+	serverAssigned("aws_networkmanager_vpc_attachment",
+		"NetworkManager assigns the attachment ID at create time; the vpc_arn argument names the attached VPC but does not identify the attachment itself.",
+		"ATTACHMENTID", "id"),
+
+	// Global Accelerator: all four row-gen server-assigned proposals check
+	// out unchanged — every type's provider Identity Schema requires arn,
+	// every documented Import section uses it, and every type's own d.SetId
+	// (or, for the newer plugin-framework cross_account_attachment,
+	// data.ID = data.AttachmentARN) sets id equal to that same arn.
+	serverAssigned("aws_globalaccelerator_accelerator",
+		"Global Accelerator assigns the accelerator's ARN at create time; no argument reconstructs it.",
+		"ARN", "arn", "id"),
+	serverAssigned("aws_globalaccelerator_cross_account_attachment",
+		"Global Accelerator assigns the cross-account attachment's ARN at create time; the name argument does not identify it.",
+		"ARN", "arn", "id"),
+	serverAssigned("aws_globalaccelerator_endpoint_group",
+		"Global Accelerator assigns the endpoint group's ARN at create time; no argument reconstructs it.",
+		"ARN", "arn", "id"),
+	serverAssigned("aws_globalaccelerator_listener",
+		"Global Accelerator assigns the listener's ARN at create time; no argument reconstructs it.",
+		"ARN", "arn", "id"),
+
+	// VPC Lattice, the corrected majority: row-gen proposed server-assigned
+	// via the registry's opaque "Arn" for each of these — right that no
+	// argument reconstructs the identity, wrong about which exported
+	// attribute it is. Every provider Import section below documents the
+	// type's own short, provider-minted id (confirmed against each
+	// resource's d.SetId(...Id) or, for the newer plugin-framework
+	// resources, their tfsdk:"id" field under framework.WithImportByID /
+	// WithImportByIdentity) — not the arn attribute the same resources also
+	// export from a separate d.Set(names.AttrARN, …) call.
+	serverAssigned("aws_vpclattice_access_log_subscription",
+		"VpcLattice assigns the access log subscription's ID at create time; no argument reconstructs it.",
+		"ID", "id"),
+	serverAssigned("aws_vpclattice_domain_verification",
+		"VpcLattice assigns the domain verification's ID at create time; the domain_name argument names the target but does not identify this resource.",
+		"ID", "id"),
+	serverAssigned("aws_vpclattice_resource_configuration",
+		"VpcLattice assigns the resource configuration's ID at create time; no argument reconstructs it.",
+		"ID", "id"),
+	serverAssigned("aws_vpclattice_resource_gateway",
+		"VpcLattice assigns the resource gateway's ID at create time; no argument reconstructs it.",
+		"ID", "id"),
+	serverAssigned("aws_vpclattice_service",
+		"VpcLattice assigns the service's ID at create time; the name argument names it but does not identify it — a deleted-and-recreated service of the same name has a different ID.",
+		"ID", "id"),
+	serverAssigned("aws_vpclattice_service_network",
+		"VpcLattice assigns the service network's ID at create time; the name argument names it but does not identify it.",
+		"ID", "id"),
+	serverAssigned("aws_vpclattice_service_network_resource_association",
+		"VpcLattice assigns the association's ID at create time; no argument reconstructs it.",
+		"ID", "id"),
+	serverAssigned("aws_vpclattice_service_network_service_association",
+		"VpcLattice assigns the association's ID at create time; no argument reconstructs it.",
+		"ID", "id"),
+	serverAssigned("aws_vpclattice_service_network_vpc_association",
+		"VpcLattice assigns the association's ID at create time; no argument reconstructs it.",
+		"ID", "id"),
+	serverAssigned("aws_vpclattice_target_group",
+		"VpcLattice assigns the target group's ID at create time; the name argument names it but does not identify it.",
+		"ID", "id"),
+
+	// aws_vpclattice_listener and aws_vpclattice_listener_rule: also
+	// server-assigned, but via a composite the provider's own
+	// *CreateResourceID functions (internal/service/vpclattice/{listener,
+	// listener_rule}.go) build from server-normalized ids, not from
+	// configuration verbatim — a listener's id is SERVICE-ID/LISTENER-ID and
+	// a rule's is SERVICE-ID/LISTENER-ID/RULE-ID, joined with "/". The
+	// service_identifier (and listener_identifier) arguments accept either
+	// an ARN or an id, but the identity string always embeds the
+	// server-normalized id form (output.ServiceId, not whatever the argument
+	// held), so no configuration argument reconstructs it and no
+	// IdentityAttrs are claimed.
+	serverAssigned("aws_vpclattice_listener",
+		"VpcLattice assigns the listener's own ID at create time and builds its identity as SERVICE-ID/LISTENER-ID from the server-normalized service ID, not from the service_identifier argument as typed.",
+		"SERVICEID/LISTENERID"),
+	serverAssigned("aws_vpclattice_listener_rule",
+		"VpcLattice assigns the rule's own ID at create time and builds its identity as SERVICE-ID/LISTENER-ID/RULE-ID from the server-normalized service and listener IDs, not from the service_identifier/listener_identifier arguments as typed.",
+		"SERVICEID/LISTENERID/RULEID"),
+
+	// aws_vpclattice_resource_policy: row-gen proposed this correctly the
+	// first time — client-named via live/import-grammar.json's scraped
+	// argument, confirmed against the provider's own source
+	// (internal/service/vpclattice/resource_policy.go: d.SetId(resourceARN)
+	// where resourceARN := d.Get("resource_arn")) and its documented Import
+	// section.
+	TypeIdentity{
+		Type:          "aws_vpclattice_resource_policy",
+		Components:    []Component{attr("resource_arn")},
+		ImportSyntax:  "RESOURCE_ARN",
+		IdentityAttrs: []string{"resource_arn"},
+	},
+
+	// aws_vpclattice_auth_policy: row-gen marked this evidence-only (its
+	// resource_identifier argument name was a GUESSED snake-case of the CFN
+	// property, backed by neither a provider identity schema nor
+	// live/import-grammar.json). Confirmed correct against the provider's
+	// own source (internal/service/vpclattice/auth_policy.go:
+	// d.SetId(resourceID) where resourceID := d.Get("resource_identifier"))
+	// and its documented Import section, and promoted to a ratified row.
+	TypeIdentity{
+		Type:          "aws_vpclattice_auth_policy",
+		Components:    []Component{attr("resource_identifier")},
+		ImportSyntax:  "RESOURCE_IDENTIFIER",
+		IdentityAttrs: []string{"resource_identifier"},
+	},
+
+	// Route53 Recovery Readiness: row-gen marked all four types
+	// evidence-only (each argument name — cell_name, readiness_check_name,
+	// recovery_group_name, resource_set_name — was a GUESSED snake-case of
+	// the CFN property, backed by neither a provider identity schema, the
+	// carve seed, nor a live/import-grammar.json separator row, because
+	// these types' import syntax is undecorated plain text rather than a
+	// composed-of-arguments grammar row row-gen's scraper structures).
+	// Confirmed correct against the provider's own source
+	// (internal/service/route53recoveryreadiness/*.go: each resource's
+	// d.SetId sets the id to exactly the argument row-gen guessed) and each
+	// type's documented Import section, and promoted to ratified rows.
+	TypeIdentity{
+		Type:          "aws_route53recoveryreadiness_cell",
+		Components:    []Component{attr("cell_name")},
+		ImportSyntax:  "CELL_NAME",
+		IdentityAttrs: []string{"cell_name"},
+	},
+	TypeIdentity{
+		Type:          "aws_route53recoveryreadiness_readiness_check",
+		Components:    []Component{attr("readiness_check_name")},
+		ImportSyntax:  "READINESS_CHECK_NAME",
+		IdentityAttrs: []string{"readiness_check_name"},
+	},
+	TypeIdentity{
+		Type:          "aws_route53recoveryreadiness_recovery_group",
+		Components:    []Component{attr("recovery_group_name")},
+		ImportSyntax:  "RECOVERY_GROUP_NAME",
+		IdentityAttrs: []string{"recovery_group_name"},
+	},
+	TypeIdentity{
+		Type:          "aws_route53recoveryreadiness_resource_set",
+		Components:    []Component{attr("resource_set_name")},
+		ImportSyntax:  "RESOURCE_SET_NAME",
+		IdentityAttrs: []string{"resource_set_name"},
+	},
 	// ---- Registry-ratified (#40, #44, #65): fifth batch, identity
 	// ---- (Cognito, IAM leftovers, SSO Admin) ------------------------------
 	//
@@ -6150,6 +6935,884 @@ var DefaultTable = buildTable(
 		Components:    []Component{attr("name")},
 		ImportSyntax:  "NAME",
 		IdentityAttrs: []string{"id", "name"},
+	},
+
+	// ---- Registry-ratified (#40, #44, #65): sixth batch, databases beyond
+	// ---- RDS/DynamoDB/ElastiCache (issue #65's own recipe: Redshift,
+	// ---- OpenSearch/OpenSearchServerless, Neptune, DocDB, Timestream,
+	// ---- QLDB, MemoryDB, Cassandra/Keyspaces). Same tools/row-gen pipeline
+	// ---- as the batches above, cross-checked against
+	// ---- live/import-grammar.json's scraped Import sections — the pinned
+	// ---- v6.58.0 provider docs, fetched directly rather than accepted on
+	// ---- the CFN registry's classification alone. Several rows below
+	// ---- correct a row-gen "evidence-only" demotion the same way the RDS
+	// ---- and messaging batches corrected their own registry-undersold
+	// ---- proposals; the per-type comments say which. Cohort estate:
+	// ---- live/e2e/estates/databases.
+	//
+	// Per-service scope is deliberately narrower than "every row-gen
+	// proposal in the service section", matching issue #65's own sub-lists:
+	//
+	//   - Redshift: clusters, parameter/subnet groups, snapshot schedules
+	//     only. row-gen's other eight Redshift proposals/evidence rows
+	//     (event subscription, scheduled action, integration,
+	//     endpoint access/authorization, logging and iam_roles property
+	//     children, snapshot, hsm client cert/config, usage limit, partner,
+	//     idc application, the two data-share types, resource policy,
+	//     authentication profile) are left for a future batch, not
+	//     rejected.
+	//   - RedshiftServerless: namespaces and workgroups only (both row-gen
+	//     proposed cleanly). Its snapshot, endpoint access, usage limit,
+	//     resource policy and custom-domain-association types are left out
+	//     of scope.
+	//   - RedshiftData: issue #65 says "if proposed" — it is not. row-gen's
+	//     full run carries no "service: RedshiftData" section at all (see
+	//     tools/row-gen's own output), confirming live/mapping.json has no
+	//     aws_redshiftdata_* row mapped to any CloudFormation RedshiftData
+	//     type. Nothing to ratify or reject here.
+	//   - OpenSearch: domains only (both TF resources that import by a
+	//     domain_name argument — see aws_elasticsearch_domain's own
+	//     comment below for the former2 mapping story issue #65 asked to be
+	//     checked first). aws_opensearch_domain_policy,
+	//     aws_opensearch_domain_saml_options and
+	//     aws_elasticsearch_domain_policy (all property-children, all
+	//     evidence-only per row-gen) are left for a future batch once their
+	//     parent domain types have a batch history to follow, the same
+	//     restraint the OpenSearchServerless security_config and
+	//     vpc_endpoint types below get.
+	//   - OpenSearchServerless: collections and policies only, per issue
+	//     #65's own words. aws_opensearchserverless_security_config (a
+	//     SAML/IAM-Identity-Center configuration type, not a policy despite
+	//     living beside them) and aws_opensearchserverless_vpc_endpoint
+	//     (neither a collection nor a policy) are left out of scope even
+	//     though both have the same clean server-assigned/composite
+	//     evidence shape as the ratified rows beside them.
+	//   - Neptune: "registry coverage is partial — only clean proposals"
+	//     per issue #65 — the three row-gen proposed client-named rows
+	//     (both parameter group flavors, the subnet group). Its cluster,
+	//     cluster instance, event subscription and global cluster rows are
+	//     all evidence-only per row-gen (GUESSED argument names); this
+	//     batch does not hand-correct them even though
+	//     live/import-grammar.json documents real Import sections for the
+	//     cluster and cluster instance ("using the cluster identifier" /
+	//     "the instance identifier", without a backtick-quoted argument
+	//     name to confirm cluster_identifier / instance_identifier against)
+	//     — left for a future batch prepared to hand-verify those two
+	//     against the provider's Argument Reference directly. NeptuneGraph
+	//     is a distinct CFN service issue #65 does not name; left alone
+	//     entirely, the same restraint the devtools batch showed CodeGuru.
+	//   - DocDB: "mostly registry-laggard — only what row-gen proposes with
+	//     real evidence" per issue #65 — the one row-gen proposed
+	//     client-named row (event subscription) plus DocDBElastic's one
+	//     proposed server-assigned row (the only other DocDB-family type
+	//     row-gen's own classification made a pastable row for). DocDB's
+	//     other five rows (cluster, cluster instance, cluster parameter
+	//     group, global cluster, subnet group) are all evidence-only per
+	//     row-gen; live/import-grammar.json has real Import-section
+	//     evidence for four of them (cluster_identifier, identifier, name,
+	//     name respectively) that would resolve them the same way this
+	//     batch resolves aws_redshift_subnet_group and aws_qldb_ledger
+	//     below, but issue #65's own restraint on this service keeps them
+	//     out of this batch rather than hand-corrected.
+	//   - Timestream: all five row-gen sections types, all independently
+	//     confirmed against live/import-grammar.json's real Import/Identity
+	//     Schema evidence below.
+	//   - QLDB: the one row-gen evidence-only row this batch corrects
+	//     (aws_qldb_ledger) plus an explicit rejection of the other QLDB
+	//     type, aws_qldb_stream — see its own comment below.
+	//   - MemoryDB: all six row-gen client-named/server-assigned proposals
+	//     plus one correction (aws_memorydb_subnet_group, whose row-gen
+	//     GUESSED argument name does not survive the provider's own docs).
+	//   - Cassandra: both types row-gen's registry evidence carries for
+	//     the service — issue #65's own parenthetical ("the sweeps aliased
+	//     keyspace/table") is live/mapping.json's own note that AWS
+	//     Keyspaces for Apache Cassandra maps to CloudFormation's
+	//     AWS::Cassandra::* types, which is why "Cassandra" is the
+	//     row-gen service section name for aws_keyspaces_keyspace and
+	//     aws_keyspaces_table rather than a literal Cassandra product.
+	//
+	// Rejected, and deliberately absent from this table:
+	//
+	//   - aws_qldb_stream: registry primaryIdentifier is
+	//     ["LedgerName", "Id"], and unlike every composite this table
+	//     resolves, one half is not a configuration argument at all — Id is
+	//     absent from create_only_properties (QLDB mints the stream's own
+	//     id at create time) and CFN registry read_only_properties confirms
+	//     it. No component set built from configuration, literals and cloud
+	//     values reconstructs it, the same unrecoverable shape as
+	//     aws_elasticache_global_replication_group's rejection in the
+	//     DynamoDB/ElastiCache batch above — not a row-gen misclassification
+	//     to correct, a genuine gap in what configuration alone can recover.
+
+	TypeIdentity{
+		// row-gen proposed this correctly the first time: client-named via
+		// live/import-grammar.json's scraped argument, confirmed against
+		// the provider's documented import command (terraform import
+		// aws_redshift_cluster.myprodcluster tf-redshift-cluster-12345),
+		// which uses the required "cluster_identifier" argument verbatim.
+		Type:          "aws_redshift_cluster",
+		Components:    []Component{attr("cluster_identifier")},
+		ImportSyntax:  "CLUSTER_IDENTIFIER",
+		IdentityAttrs: []string{"cluster_identifier"}, // "id" intentionally omitted; see issue #44 non-goals
+	},
+	TypeIdentity{
+		// row-gen proposed this correctly the first time: client-named via
+		// live/import-grammar.json's scraped argument, confirmed against
+		// the provider's documented import command (terraform import
+		// aws_redshift_parameter_group.paramgroup1 parameter-group-test-terraform),
+		// which uses the required "name" argument verbatim.
+		Type:          "aws_redshift_parameter_group",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"}, // "id" intentionally omitted; see issue #44 non-goals
+	},
+	TypeIdentity{
+		// row-gen left this evidence-only: CFN Registry
+		// AWS::Redshift::ClusterSubnetGroup ships an empty
+		// createOnlyProperties, so row-gen's own createOnlyProperties-backed
+		// rule never fires (neither the client-named nor the server-assigned
+		// template matches an empty set). The provider's own documented
+		// Import section settles it independently:
+		// live/import-grammar.json's scraped evidence (terraform import
+		// aws_redshift_subnet_group.testgroup1 test-cluster-subnet-group)
+		// says plainly "import Redshift subnet groups using the `name`" —
+		// client-named, not evidence-only.
+		Type:          "aws_redshift_subnet_group",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"}, // "id" intentionally omitted; see issue #44 non-goals
+	},
+	TypeIdentity{
+		// row-gen left this evidence-only via the registry's opaque "Arn"
+		// (primaryIdentifier ⊆ readOnlyProperties, the server-assigned
+		// shape, but row-gen still filed it evidence-only rather than
+		// proposed since the flat serverAssigned() template had no argument
+		// evidence to offer either). The provider's own documented Import
+		// section resolves it as client-named instead:
+		// live/import-grammar.json's scraped evidence (terraform import
+		// aws_redshift_snapshot_schedule.default tf-redshift-snapshot-schedule)
+		// says "import Redshift Snapshot Schedule using the `identifier`" —
+		// the same Optional+Computed name-generation idiom
+		// aws_s3_bucket/aws_iam_role/aws_db_subnet_group already carry in
+		// this table (the resource also accepts identifier_prefix), not an
+		// opaque server-minted value.
+		Type:          "aws_redshift_snapshot_schedule",
+		Components:    []Component{attr("identifier")},
+		ImportSyntax:  "IDENTIFIER",
+		IdentityAttrs: []string{"identifier"}, // "id" intentionally omitted; see issue #44 non-goals
+	},
+	TypeIdentity{
+		// row-gen proposed this correctly the first time: client-named via
+		// live/import-grammar.json's scraped argument, confirmed against
+		// the provider's documented import command (terraform import
+		// aws_redshiftserverless_namespace.example example), which uses the
+		// required "namespace_name" argument verbatim.
+		Type:          "aws_redshiftserverless_namespace",
+		Components:    []Component{attr("namespace_name")},
+		ImportSyntax:  "NAMESPACE_NAME",
+		IdentityAttrs: []string{"namespace_name"}, // "id" intentionally omitted; see issue #44 non-goals
+	},
+	TypeIdentity{
+		// row-gen proposed this correctly the first time: client-named via
+		// live/import-grammar.json's scraped argument, confirmed against
+		// the provider's documented import command (terraform import
+		// aws_redshiftserverless_workgroup.example example), which uses the
+		// required "workgroup_name" argument verbatim.
+		Type:          "aws_redshiftserverless_workgroup",
+		Components:    []Component{attr("workgroup_name")},
+		ImportSyntax:  "WORKGROUP_NAME",
+		IdentityAttrs: []string{"workgroup_name"}, // "id" intentionally omitted; see issue #44 non-goals
+	},
+	TypeIdentity{
+		// row-gen proposed this correctly the first time: client-named via
+		// live/import-grammar.json's scraped argument, confirmed against
+		// the provider's documented import command (terraform import
+		// aws_opensearch_domain.example domain_name), which uses the
+		// required "domain_name" argument verbatim.
+		Type:          "aws_opensearch_domain",
+		Components:    []Component{attr("domain_name")},
+		ImportSyntax:  "DOMAIN_NAME",
+		IdentityAttrs: []string{"domain_name"}, // "id" intentionally omitted; see issue #44 non-goals
+	},
+	TypeIdentity{
+		// The mapping story issue #65 asked to be checked before touching
+		// anything Elasticsearch-named: live/mapping.json maps
+		// aws_elasticsearch_domain to AWS::Elasticsearch::Domain, its own
+		// real CFN type, not folded into AWS::OpenSearchService::Domain —
+		// and tools/mapping-gen's own former2 comparison disagrees, mapping
+		// this TF type to AWS::OpenSearchService::Domain instead. That
+		// disagreement is a live, acknowledged contradiction
+		// (mapping_gen_test.go's TestFormer2ContradictionsAcknowledged),
+		// kept deliberately: "aws_elasticsearch_domain is TF's deprecated
+		// pre-rename resource and its own docs still document the classic
+		// AWS::Elasticsearch::Domain type; AWS::OpenSearchService::Domain
+		// (former2's answer) is what aws_opensearch_domain, a distinct TF
+		// resource, maps to." So this is not a duplicate of
+		// aws_opensearch_domain above and not a wrong mapping to fix — it
+		// is its own resource type with its own CFN evidence, which row-gen
+		// left evidence-only (AWS::Elasticsearch::Domain's primaryIdentifier
+		// "Id" is opaque and its createOnlyProperties carries only
+		// "DomainName", not an argument name row-gen's classifier could
+		// read as an import identity). The provider's own documented Import
+		// section resolves it independently: live/import-grammar.json's
+		// scraped evidence (terraform import
+		// aws_elasticsearch_domain.example domain_name) says "import
+		// Elasticsearch domains using the `domain_name`" — the same
+		// client-named shape as aws_opensearch_domain above, confirmed by
+		// its own separate CFN registry entry rather than borrowed from
+		// OpenSearchService's.
+		Type:          "aws_elasticsearch_domain",
+		Components:    []Component{attr("domain_name")},
+		ImportSyntax:  "DOMAIN_NAME",
+		IdentityAttrs: []string{"domain_name"}, // "id" intentionally omitted; see issue #44 non-goals
+	},
+	serverAssigned("aws_opensearchserverless_collection",
+		"OpenSearchServerless mints the collection's own id at create time; the required \"name\" argument is a create-time input but the registry's primaryIdentifier is the separate, server-generated Id, confirmed by the provider's own Identity Schema (v1.12.0+ identity-block import), which requires exactly one field: id.",
+		"ID", "id"),
+	serverAssigned("aws_opensearchserverless_collection_group",
+		"Same shape as aws_opensearchserverless_collection above: OpenSearchServerless mints the collection group's own id at create time, confirmed by the provider's own Identity Schema, which requires exactly one field: id.",
+		"ID", "id"),
+	TypeIdentity{
+		// row-gen filed this needs-hand-separator (registry
+		// primaryIdentifier ["Type", "Name"], composite, no separator in
+		// any schema). live/import-grammar.json's own scraped Import
+		// section supplies both the separator and the order: a slash,
+		// name first (terraform import
+		// aws_opensearchserverless_access_policy.example example/data),
+		// confirmed against the provider's own newer Identity Schema
+		// (v1.12.0+, Required: name, type — "Type of access policy").
+		Type: "aws_opensearchserverless_access_policy",
+		Components: []Component{
+			attr("name"),
+			sep("/"),
+			attr("type"),
+		},
+		ImportSyntax:  "NAME/TYPE",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// Same shape as aws_opensearchserverless_access_policy above:
+		// row-gen filed this needs-hand-separator on the same
+		// ["Type", "Name"] primaryIdentifier composite.
+		// live/import-grammar.json's scraped Import section confirms the
+		// same slash separator and name-first order (terraform import
+		// aws_opensearchserverless_lifecycle_policy.example
+		// example/retention), and the provider's Identity Schema requires
+		// the same two fields: name, type ("Type of lifecycle policy").
+		Type: "aws_opensearchserverless_lifecycle_policy",
+		Components: []Component{
+			attr("name"),
+			sep("/"),
+			attr("type"),
+		},
+		ImportSyntax:  "NAME/TYPE",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// Same shape again: row-gen filed this needs-hand-separator on the
+		// same ["Type", "Name"] composite. live/import-grammar.json's
+		// scraped Import section confirms the same slash separator and
+		// name-first order (terraform import
+		// aws_opensearchserverless_security_policy.example
+		// example/encryption), and the provider's Identity Schema requires
+		// name and type ("Type of security policy").
+		Type: "aws_opensearchserverless_security_policy",
+		Components: []Component{
+			attr("name"),
+			sep("/"),
+			attr("type"),
+		},
+		ImportSyntax:  "NAME/TYPE",
+		IdentityAttrs: nil,
+	},
+	TypeIdentity{
+		// row-gen proposed this correctly the first time: client-named via
+		// live/import-grammar.json's scraped argument, confirmed against
+		// the provider's documented import command (terraform import
+		// aws_neptune_cluster_parameter_group.cluster_pg production-pg-1),
+		// which uses the required "name" argument verbatim.
+		Type:          "aws_neptune_cluster_parameter_group",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"}, // "id" intentionally omitted; see issue #44 non-goals
+	},
+	TypeIdentity{
+		// row-gen proposed this correctly the first time: client-named via
+		// live/import-grammar.json's scraped argument, confirmed against
+		// the provider's documented import command (terraform import
+		// aws_neptune_parameter_group.some_pg some-pg), which uses the
+		// required "name" argument verbatim.
+		Type:          "aws_neptune_parameter_group",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"}, // "id" intentionally omitted; see issue #44 non-goals
+	},
+	TypeIdentity{
+		// row-gen proposed this correctly the first time: client-named via
+		// live/import-grammar.json's scraped argument, confirmed against
+		// the provider's documented import command (terraform import
+		// aws_neptune_subnet_group.default production-subnet-group), which
+		// uses the required "name" argument verbatim.
+		Type:          "aws_neptune_subnet_group",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"}, // "id" intentionally omitted; see issue #44 non-goals
+	},
+	TypeIdentity{
+		// row-gen proposed this correctly the first time: client-named via
+		// live/import-grammar.json's scraped argument, confirmed against
+		// the provider's documented import command (terraform import
+		// aws_docdb_event_subscription.example event-sub), which uses the
+		// required "name" argument verbatim.
+		Type:          "aws_docdb_event_subscription",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"}, // "id" intentionally omitted; see issue #44 non-goals
+	},
+	serverAssigned("aws_docdbelastic_cluster",
+		"DocDBElastic mints the cluster's own ARN at create time; the required \"cluster_name\", \"admin_user_name\" and \"auth_type\" arguments do not reconstruct it. The provider's own Identity Schema (v1.12.0+ identity-block import) requires exactly one field, arn — a real, non-templated correction of row-gen's own registry-opaque \"Id\" reason, which named the same value but not by its provider attribute name.",
+		"arn:aws:docdb-elastic:REGION:ACCOUNT:cluster/CLUSTERID", "arn"),
+	TypeIdentity{
+		// row-gen proposed this correctly the first time: client-named via
+		// live/import-grammar.json's scraped argument, confirmed against
+		// the provider's documented import command (terraform import
+		// aws_timestreamwrite_database.example example), which uses the
+		// required "database_name" argument verbatim.
+		Type:          "aws_timestreamwrite_database",
+		Components:    []Component{attr("database_name")},
+		ImportSyntax:  "DATABASE_NAME",
+		IdentityAttrs: []string{"database_name"}, // "id" intentionally omitted; see issue #44 non-goals
+	},
+	TypeIdentity{
+		// row-gen filed this needs-hand-separator (registry
+		// primaryIdentifier ["DatabaseName", "TableName"], composite, no
+		// separator in any schema). live/import-grammar.json's own scraped
+		// Import section supplies both the separator and the order — a
+		// colon, table first (terraform import
+		// aws_timestreamwrite_table.example ExampleTable:ExampleDatabase),
+		// confirmed against the provider's own documented text ("import
+		// Timestream tables using the `table_name` and `database_name`
+		// separate by a colon").
+		Type: "aws_timestreamwrite_table",
+		Components: []Component{
+			attr("table_name"),
+			sep(":"),
+			attr("database_name"),
+		},
+		ImportSyntax:  "TABLE_NAME:DATABASE_NAME",
+		IdentityAttrs: nil,
+	},
+	serverAssigned("aws_timestreaminfluxdb_db_cluster",
+		"Timestream for InfluxDB mints the cluster's own id at create time (e.g. \"hzfuy146ke\"); the required \"name\", \"username\", \"password\", \"organization\" and \"bucket\" arguments do not reconstruct it. The provider's own Identity Schema (v1.12.0+ identity-block import) requires exactly one field, id — a real, non-templated correction of row-gen's registry-opaque \"Id\" reason.",
+		"ID", "id"),
+	serverAssigned("aws_timestreaminfluxdb_db_instance",
+		"Same shape as aws_timestreaminfluxdb_db_cluster above: Timestream for InfluxDB mints the instance's own id at create time (e.g. \"0oo7rzble5\"), confirmed by the provider's own Identity Schema, which requires exactly one field: id.",
+		"ID", "id"),
+	serverAssigned("aws_timestreamquery_scheduled_query",
+		"TimestreamQuery mints the scheduled query's own ARN at create time, embedding a random suffix the required \"name\", \"query_string\" and other arguments do not reconstruct (the provider's documented import example, arn:aws:timestream:...:scheduled-query/tf-acc-test-7774188528604787105-e13659544fe66c8d, is not a plain name-derived ARN the way aws_sns_topic's or aws_codepipeline_webhook's are). The provider's own documented Import section confirms import by \"the `arn`\" alone.",
+		"arn:aws:timestream:REGION:ACCOUNT:scheduled-query/QUERYID", "arn"),
+	TypeIdentity{
+		// row-gen left this evidence-only (registry primaryIdentifier "Id"
+		// ⊆ readOnlyProperties, opaque). The provider's own documented
+		// Import section resolves it as client-named instead:
+		// live/import-grammar.json's scraped evidence (terraform import
+		// aws_qldb_ledger.sample-ledger sample-ledger) says plainly "import
+		// QLDB Ledgers using the `name`" — the same correction shape as
+		// aws_redshift_subnet_group and aws_elasticsearch_domain above.
+		Type:          "aws_qldb_ledger",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"}, // "id" intentionally omitted; see issue #44 non-goals
+	},
+	TypeIdentity{
+		// row-gen proposed this correctly the first time: client-named via
+		// live/import-grammar.json's scraped argument, confirmed against
+		// the provider's documented import command (terraform import
+		// aws_memorydb_acl.example my-acl), which uses the required "name"
+		// argument verbatim.
+		Type:          "aws_memorydb_acl",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"}, // "id" intentionally omitted; see issue #44 non-goals
+	},
+	TypeIdentity{
+		// row-gen proposed this correctly the first time: client-named via
+		// live/import-grammar.json's scraped argument, confirmed against
+		// the provider's documented import command (terraform import
+		// aws_memorydb_cluster.example my-cluster), which uses the required
+		// "name" argument verbatim.
+		Type:          "aws_memorydb_cluster",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"}, // "id" intentionally omitted; see issue #44 non-goals
+	},
+	serverAssigned("aws_memorydb_multi_region_cluster",
+		"row-gen proposed server-assigned via the registry's opaque \"MultiRegionClusterName\" primaryIdentifier, and the provider's own documented Import section names the same attribute (\"import a cluster using the `multi_region_cluster_name`\") — but unlike the other MemoryDB rows in this batch, that value is not a create-time argument: CFN registry createOnlyProperties carries only \"MultiRegionClusterNameSuffix\", not the full name, and the provider's own example (multi_region_cluster_name \"virxk-example\" from a configured suffix \"example\") confirms MemoryDB mints a random prefix onto the client-chosen suffix. No configuration argument reconstructs the full name alone.",
+		"MULTI_REGION_CLUSTER_NAME", "multi_region_cluster_name"),
+	TypeIdentity{
+		// row-gen proposed this correctly the first time: client-named via
+		// live/import-grammar.json's scraped argument, confirmed against
+		// the provider's documented import command (terraform import
+		// aws_memorydb_parameter_group.example my-parameter-group), which
+		// uses the required "name" argument verbatim.
+		Type:          "aws_memorydb_parameter_group",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"}, // "id" intentionally omitted; see issue #44 non-goals
+	},
+	TypeIdentity{
+		// row-gen proposed this correctly the first time: client-named via
+		// live/import-grammar.json's scraped argument, confirmed against
+		// the provider's documented import command (terraform import
+		// aws_memorydb_user.example my-user), which uses the required
+		// "user_name" argument verbatim.
+		Type:          "aws_memorydb_user",
+		Components:    []Component{attr("user_name")},
+		ImportSyntax:  "USER_NAME",
+		IdentityAttrs: []string{"user_name"}, // "id" intentionally omitted; see issue #44 non-goals
+	},
+	TypeIdentity{
+		// row-gen left this evidence-only with a GUESSED argument name
+		// ("subnet_group_name", the snake-cased CFN property
+		// SubnetGroupName) that the provider's own documented Import
+		// section does not confirm: live/import-grammar.json's scraped
+		// evidence (terraform import aws_memorydb_subnet_group.example
+		// my-subnet-group) says plainly "import a subnet group using its
+		// `name`" — the real argument is "name", the same shape as every
+		// other MemoryDB row in this batch, not the CFN-property-derived
+		// guess.
+		Type:          "aws_memorydb_subnet_group",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"}, // "id" intentionally omitted; see issue #44 non-goals
+	},
+	TypeIdentity{
+		// row-gen proposed this correctly the first time: client-named via
+		// live/import-grammar.json's scraped argument, confirmed against
+		// the provider's documented import command (terraform import
+		// aws_keyspaces_keyspace.example my_keyspace), which uses the
+		// required "name" argument verbatim.
+		Type:          "aws_keyspaces_keyspace",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"}, // "id" intentionally omitted; see issue #44 non-goals
+	},
+	TypeIdentity{
+		// row-gen filed this needs-hand-separator (registry
+		// primaryIdentifier ["KeyspaceName", "TableName"], composite, no
+		// separator in any schema). live/import-grammar.json's own scraped
+		// Import section supplies both the separator and the order — a
+		// slash, keyspace first (terraform import
+		// aws_keyspaces_table.example my_keyspace/my_table), confirmed
+		// against the provider's own documented text ("import a table
+		// using the `keyspace_name` and `table_name` separated by `/`").
+		Type: "aws_keyspaces_table",
+		Components: []Component{
+			attr("keyspace_name"),
+			sep("/"),
+			attr("table_name"),
+		},
+		ImportSyntax:  "KEYSPACE_NAME/TABLE_NAME",
+		IdentityAttrs: nil,
+	},
+	// ---- Registry-ratified (#40, #44, #65): sixth batch, data movement and
+	// ---- transfer (issue #65) ----------------------------------------------
+	//
+	// Same pipeline as the batches above: every row started as a
+	// tools/row-gen proposal, cross-checked against the AWS provider's
+	// documented Argument Reference, Attribute Reference and Import section
+	// (fetched from the provider's own website/docs/r/ source at the pinned
+	// v6.58.0 tag), not accepted on the registry's classification alone.
+	// Cohort estate: live/e2e/estates/data-movement.
+	//
+	// Transfer Family: row-gen's registry evidence gets two of this batch's
+	// four types wrong. aws_transfer_server's registry primaryIdentifier is
+	// the opaque "Arn", but the provider's own Attribute Reference documents
+	// "id" as the Server ID ("s-12345678"), a distinct, shorter value the
+	// documented import command uses directly — the
+	// registry-says-ARN-but-the-provider-disagrees shape aws_transfer_user
+	// repeats one level down: its registry primaryIdentifier is also "Arn",
+	// but the provider's documented import command
+	// (terraform import aws_transfer_user.bar s-12345678/test-username)
+	// joins its two required arguments, server_id and user_name, with a
+	// slash — row-gen flagged this one itself ("needs hand separator" /
+	// "no pastable row"), and the separator is confirmed directly against
+	// the docs rather than chosen blind. aws_transfer_workflow and
+	// aws_transfer_connector both confirm row-gen's registry-derived
+	// primaryIdentifier (WorkflowId, ConnectorId) against the provider's own
+	// documented import command and Attribute Reference without correction.
+	// Six further Transfer Family types are outside this batch's named scope
+	// (issue #65 names servers, users, workflows and connectors only) and
+	// are left for a future batch: aws_transfer_certificate,
+	// aws_transfer_profile, aws_transfer_web_app,
+	// aws_transfer_web_app_customization (a property-child of web_app),
+	// aws_transfer_agreement (row-gen's own "needs hand separator" — a
+	// composite of ServerId and a registry-opaque AgreementId, unlike the
+	// user's clean server_id/user_name pair) and aws_transfer_ssh_key (a
+	// property-child of user, admittable via the parent-derived path now
+	// that aws_transfer_user is ratified, but not claimed here since it is
+	// outside the named scope). aws_transfer_tag is not a row-gen proposal
+	// at all: live/mapping.json's own sweep evidence records it as a
+	// generic tag escape-hatch with no CFN resource of its own (via
+	// "tf-only"), the same shape as issue #53's other tf-only types.
+	//
+	// DataSync: all thirteen of row-gen's proposals — the agent, all eleven
+	// location types, and the task — are server-assigned, and row-gen's
+	// registry-derived ImportSyntax placeholder is confirmed as the real
+	// documented import grammar (a plain ARN) for nine of them. Two of the
+	// FSx-backed locations, ONTAP and OpenZFS, correct that placeholder: the
+	// provider's documented import command joins the DataSync location's own
+	// ARN and the FSx filesystem's ARN with "#" (DataSync-ARN#FSx-ARN), the
+	// same compound-ARN grammar the other two FSx-backed locations (Lustre,
+	// Windows) also document — row-gen's flat "LOCATIONARN" placeholder
+	// undersold all four the same way it undersold aws_sns_topic and
+	// aws_cloudfront_realtime_log_config in earlier batches, just with a
+	// second ARN concatenated on rather than a literal prefix. The location
+	// type's own "arn"/"id" attributes still name the location alone
+	// (confirmed per-type below), which is what a referencing resource such
+	// as aws_datasync_task's source_location_arn/destination_location_arn
+	// consumes — the compound string is an import-command peculiarity, not a
+	// second identity. Five of the eleven location types' provider docs
+	// (SMB, HDFS, Object Storage, Azure Blob, and — despite its compound
+	// import grammar — ONTAP) do not carry an explicit "id" line in their
+	// Attribute Reference, unlike the other six; IdentityAttrs below claims
+	// only "arn" for those five, the same documentation-gap standard of care
+	// aws_codebuild_fleet's rejection of "id" got in the devtools batch.
+	//
+	// DMS: three types correct row-gen's evidence-only "no pastable row"
+	// entries once the provider's own documented Import section is read
+	// directly. aws_dms_certificate and aws_dms_endpoint (with its
+	// aws_dms_s3_endpoint alias, which live/mapping.json's own sweep
+	// evidence already records against the same CFN type,
+	// AWS::DMS::Endpoint) all carry a registry primaryIdentifier of an
+	// opaque Arn, but every one of their provider-documented import commands
+	// uses a plain, required, client-chosen identifier argument instead
+	// (certificate_id, endpoint_id) — row-gen's own note on each
+	// ("import docs show argument-composed ID: test-dms-certificate-tf" and
+	// the like) is exactly this gap, flagged but not resolved, because
+	// resolving it means reading the docs rather than the registry.
+	// aws_dms_event_subscription's row-gen proposal (client-named via
+	// "name") is confirmed as-is. aws_dms_replication_config's row-gen
+	// proposal (server-assigned via the registry's opaque
+	// ReplicationConfigArn) is also confirmed as-is — its documented import
+	// command uses the full ARN, whose suffix is an opaque
+	// service-generated token, not the resource's own
+	// replication_config_identifier argument, the same account-derived-ARN
+	// shape as aws_dms_replication_config's sibling entries above; unlike
+	// most ARN-shaped identities in this table, the provider's Attribute
+	// Reference for this one does not separately document "id", so
+	// IdentityAttrs claims only "arn".
+	//
+	// Three more DMS types are the registry-laggard cohort issue #65 names
+	// explicitly: AWS::DMS::ReplicationInstance, ::ReplicationSubnetGroup
+	// and ::ReplicationTask all ship every CFN Registry handler false
+	// (confirmed against live/registry.json directly), which is why row-gen
+	// enumerates each as "not listable -> client-named only" and pastes
+	// nothing. But the CFN Registry's laggardness is a CloudFormation-side
+	// gap, not evidence about the underlying DMS API or the AWS provider,
+	// which documents a clean, unambiguous, client-named import command for
+	// all three (replication_instance_id, replication_subnet_group_id,
+	// replication_task_id — each a required, provider-validated argument),
+	// the same registry-disagrees-but-the-provider-is-clear shape the
+	// devtools batch's CodeBuild::Project and CodeCommit::Repository
+	// corrections established for a registry-handler-less CFN type. All
+	// three are admitted on that provider-native evidence alone.
+	//
+	// AppIntegrations: both of row-gen's proposals are confirmed as-is.
+	// aws_appintegrations_data_integration is server-assigned via the
+	// registry's opaque "Id", confirmed against the provider's own
+	// Attribute Reference ("id - Identifier of the Data Integration") and
+	// its documented import command, which uses a service-generated UUID.
+	// aws_appintegrations_event_integration is client-named via "name",
+	// confirmed against the provider's own Attribute Reference ("id -
+	// Identifier of the Event Integration which is the name of the Event
+	// Integration") and its documented import command.
+	//
+	// Left out of this batch entirely: Storage Gateway is registry-absent
+	// beyond a single CFN type, AWS::StorageGateway::TapePool — every other
+	// real, actively-used Storage Gateway resource (Cache, Gateway, Volume,
+	// FileShare) has no CFN Registry entry at all
+	// (live/mapping.json's own sweep evidence records the gap type by
+	// type), and issue #65's recipe calls the service cfn-unmodeled and
+	// skips it entirely rather than admitting the one sliver the registry
+	// happens to cover. row-gen does propose aws_storagegateway_tape_pool
+	// on that one sliver; it is deliberately left unratified here. MGN and
+	// DRS have no CFN Registry footprint of any kind — row-gen proposes
+	// nothing for either service, and there is nothing here to ratify or
+	// reject.
+
+	// row-gen proposed server-assigned via the registry's opaque "Arn" —
+	// the registry-says-ARN-but-the-provider-disagrees shape. The
+	// provider's own Attribute Reference documents "id" as the Server ID
+	// ("s-12345678"), distinct from "arn", and its documented import
+	// command (terraform import aws_transfer_server.example s-12345678)
+	// uses that shorter value directly, not the ARN.
+	serverAssigned("aws_transfer_server",
+		"the Transfer service assigns the server ID at create time; no argument reconstructs it.",
+		"SERVERID", "id"),
+	TypeIdentity{
+		// row-gen flagged this one itself ("needs hand separator" for the
+		// sibling aws_transfer_agreement type; this type's own registry
+		// evidence read "no pastable row" with a note pointing at the
+		// documented import example). The provider's Argument Reference
+		// makes both halves required arguments (server_id, user_name), and
+		// the documented import command
+		// (terraform import aws_transfer_user.bar s-12345678/test-username)
+		// joins them with a slash — the registry's opaque "Arn"
+		// primaryIdentifier plays no part in it. The type's own Attribute
+		// Reference documents only "arn", not a separate "id" equal to the
+		// composite, so no IdentityAttrs are claimed.
+		Type: "aws_transfer_user",
+		Components: []Component{
+			attr("server_id"),
+			sep("/"),
+			attr("user_name"),
+		},
+		ImportSyntax:  "SERVER-ID/USER-NAME",
+		IdentityAttrs: nil,
+	},
+	// row-gen's registry-derived proposal (server-assigned via the opaque
+	// WorkflowId) is confirmed as-is: the provider's own Attribute
+	// Reference documents "id" as "The Workflow id", and no argument
+	// reconstructs it (Steps/OnExceptionSteps/Description are the type's
+	// only create-time arguments, none of them a name).
+	serverAssigned("aws_transfer_workflow",
+		"the Transfer service assigns this identity at create time; no argument reconstructs it.",
+		"WORKFLOWID", "id"),
+	// row-gen's registry-derived proposal (server-assigned via the opaque
+	// ConnectorId) is confirmed as-is: the provider's own Attribute
+	// Reference documents "connector_id" as "The unique identifier for the
+	// AS2 profile or SFTP Profile", and both the import block and the
+	// classic import command use it directly. The Attribute Reference does
+	// not separately document "id" as equal to it, so only "connector_id"
+	// is claimed.
+	serverAssigned("aws_transfer_connector",
+		"the Transfer service assigns this identity at create time; no argument reconstructs it.",
+		"CONNECTORID", "connector_id"),
+	// row-gen's registry-derived proposal (server-assigned via the opaque
+	// AgentArn) is confirmed as-is: the provider's own Attribute Reference
+	// documents both "id" and "arn" as the Agent's ARN, and the documented
+	// import command uses the ARN directly.
+	serverAssigned("aws_datasync_agent",
+		"the DataSync service assigns this identity at create time; no argument reconstructs it.",
+		"ARN", "id", "arn"),
+	// Same confirmation as the agent above: "id" and "arn" both documented
+	// as the Task's ARN, documented import command uses the ARN directly.
+	serverAssigned("aws_datasync_task",
+		"the DataSync service assigns this identity at create time; no argument reconstructs it.",
+		"ARN", "id", "arn"),
+	// Same confirmation as the agent above, applied to the S3 location:
+	// "id" and "arn" both documented as the Location's ARN, documented
+	// import command uses the ARN directly.
+	serverAssigned("aws_datasync_location_s3",
+		"the DataSync service assigns this identity at create time; no argument reconstructs it.",
+		"ARN", "id", "arn"),
+	// Same confirmation as aws_datasync_location_s3, applied to the EFS
+	// location.
+	serverAssigned("aws_datasync_location_efs",
+		"the DataSync service assigns this identity at create time; no argument reconstructs it.",
+		"ARN", "id", "arn"),
+	// Same confirmation as aws_datasync_location_s3, applied to the NFS
+	// location.
+	serverAssigned("aws_datasync_location_nfs",
+		"the DataSync service assigns this identity at create time; no argument reconstructs it.",
+		"ARN", "id", "arn"),
+	// Same plain-ARN import grammar as aws_datasync_location_s3, but this
+	// type's own Attribute Reference documents only "arn", not a separate
+	// "id" line — the documentation-gap standard of care
+	// aws_codebuild_fleet's rejection of "id" got in the devtools batch.
+	// Only "arn" is claimed.
+	serverAssigned("aws_datasync_location_smb",
+		"the DataSync service assigns this identity at create time; no argument reconstructs it.",
+		"ARN", "arn"),
+	// Same documentation-gap shape as aws_datasync_location_smb above:
+	// plain-ARN import, but only "arn" is documented, not "id".
+	serverAssigned("aws_datasync_location_hdfs",
+		"the DataSync service assigns this identity at create time; no argument reconstructs it.",
+		"ARN", "arn"),
+	// Same documentation-gap shape as aws_datasync_location_smb above:
+	// plain-ARN import, but only "arn" (and "uri") is documented, not
+	// "id".
+	serverAssigned("aws_datasync_location_object_storage",
+		"the DataSync service assigns this identity at create time; no argument reconstructs it.",
+		"ARN", "arn"),
+	// Same documentation-gap shape as aws_datasync_location_smb above:
+	// plain-ARN import, but only "arn" is documented, not "id".
+	serverAssigned("aws_datasync_location_azure_blob",
+		"the DataSync service assigns this identity at create time; no argument reconstructs it.",
+		"ARN", "arn"),
+	// row-gen's flat "LOCATIONARN" placeholder undersells this one: the
+	// provider's documented import command joins the DataSync location's
+	// own ARN and the FSx Lustre file system's ARN with "#" (terraform
+	// import aws_datasync_location_fsx_lustre_file_system.example
+	// arn:aws:datasync:...:location/loc-...#arn:aws:fsx:...:file-system/fs-...),
+	// the same compound-ARN shape aws_sns_topic's account-derived
+	// correction gets in the messaging batch, just concatenating a second
+	// ARN instead of a literal prefix. The location's own "id" and "arn"
+	// attributes are still documented as the location's ARN alone, which
+	// is what a referencing resource such as aws_datasync_task's
+	// source_location_arn consumes.
+	serverAssigned("aws_datasync_location_fsx_lustre_file_system",
+		"the DataSync service assigns this identity at create time; no argument reconstructs it.",
+		"DATASYNC-LOCATION-ARN#FSX-LUSTRE-ARN", "id", "arn"),
+	// Same compound-ARN correction as the Lustre location above (terraform
+	// import aws_datasync_location_fsx_ontap_file_system.example
+	// arn:aws:datasync:...:location/loc-...#arn:aws:fsx:...:storage-virtual-machine/svm-...) —
+	// note the second half is the FSx ONTAP storage virtual machine's ARN,
+	// not the file system's. This type's own Attribute Reference documents
+	// only "arn" (and "fsx_filesystem_arn", "uri"), not a separate "id"
+	// line, so only "arn" is claimed.
+	serverAssigned("aws_datasync_location_fsx_ontap_file_system",
+		"the DataSync service assigns this identity at create time; no argument reconstructs it.",
+		"DATASYNC-LOCATION-ARN#FSX-ONTAP-SVM-ARN", "arn"),
+	// Same compound-ARN correction as the Lustre location above (terraform
+	// import aws_datasync_location_fsx_openzfs_file_system.example
+	// arn:aws:datasync:...:location/loc-...#arn:aws:fsx:...:file-system/fs-...).
+	// Unlike ONTAP, this type's Attribute Reference does document both
+	// "id" and "arn" as the DataSync location's own ARN.
+	serverAssigned("aws_datasync_location_fsx_openzfs_file_system",
+		"the DataSync service assigns this identity at create time; no argument reconstructs it.",
+		"DATASYNC-LOCATION-ARN#FSX-OPENZFS-ARN", "id", "arn"),
+	// Same compound-ARN correction as the Lustre location above (terraform
+	// import aws_datasync_location_fsx_windows_file_system.example
+	// arn:aws:datasync:...:location/loc-...#arn:aws:fsx:...:file-system/fs-...).
+	// Both "id" and "arn" are documented as the DataSync location's own
+	// ARN.
+	serverAssigned("aws_datasync_location_fsx_windows_file_system",
+		"the DataSync service assigns this identity at create time; no argument reconstructs it.",
+		"DATASYNC-LOCATION-ARN#FSX-WINDOWS-ARN", "id", "arn"),
+	TypeIdentity{
+		// row-gen read this evidence-only ("no pastable row"), noting the
+		// documented import example was a plain string
+		// ("test-dms-certificate-tf") rather than the registry's opaque
+		// "CertificateArn" primaryIdentifier — a
+		// registry-says-ARN-but-the-provider-disagrees shape. The provider's
+		// Argument Reference makes "certificate_id" a required argument,
+		// and the documented import command
+		// (terraform import aws_dms_certificate.test test-dms-certificate-tf)
+		// uses it verbatim. The Attribute Reference documents only
+		// "certificate_arn", not a separate "id" equal to certificate_id.
+		Type:          "aws_dms_certificate",
+		Components:    []Component{attr("certificate_id")},
+		ImportSyntax:  "CERTIFICATE-ID",
+		IdentityAttrs: []string{"certificate_id"},
+	},
+	TypeIdentity{
+		// Same registry-says-ARN-but-the-provider-disagrees shape as
+		// aws_dms_certificate above: row-gen read this evidence-only, noting
+		// the documented import example was a plain string
+		// ("test-dms-endpoint-tf") rather than the registry's opaque
+		// "EndpointArn". The provider's Argument Reference makes
+		// "endpoint_id" a required argument, and the documented import
+		// command (terraform import aws_dms_endpoint.test test-dms-endpoint-tf)
+		// uses it verbatim. The Attribute Reference documents only
+		// "endpoint_arn", not a separate "id".
+		Type:          "aws_dms_endpoint",
+		Components:    []Component{attr("endpoint_id")},
+		ImportSyntax:  "ENDPOINT-ID",
+		IdentityAttrs: []string{"endpoint_id"},
+	},
+	TypeIdentity{
+		// live/mapping.json's own sweep evidence records this type as an
+		// alias of the same CFN type as aws_dms_endpoint above,
+		// AWS::DMS::Endpoint, and the correction is identical: the
+		// provider's Argument Reference makes "endpoint_id" a required
+		// argument, and the documented import command
+		// (terraform import aws_dms_s3_endpoint.example example-dms-endpoint-tf)
+		// uses it verbatim, not the registry's opaque "EndpointArn". The
+		// Attribute Reference documents "endpoint_arn", "engine_display_name",
+		// "external_id" and "status", not a separate "id".
+		Type:          "aws_dms_s3_endpoint",
+		Components:    []Component{attr("endpoint_id")},
+		ImportSyntax:  "ENDPOINT-ID",
+		IdentityAttrs: []string{"endpoint_id"},
+	},
+	TypeIdentity{
+		// row-gen's registry-derived proposal (client-named via the
+		// required "name" argument, from live/import-grammar.json's scraped
+		// separator evidence) is confirmed as-is against the provider's own
+		// documented import command
+		// (terraform import aws_dms_event_subscription.test my-awesome-event-subscription).
+		Type:          "aws_dms_event_subscription",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	// row-gen's registry-derived proposal (server-assigned via the opaque
+	// ReplicationConfigArn) is confirmed as-is: the provider's documented
+	// import command uses the full ARN (terraform import
+	// aws_dms_replication_config.example
+	// arn:aws:dms:us-east-1:123456789012:replication-config:UX6OL6MHMMJKFFOXE3H7LLJCMEKBDUG4ZV7DRSI),
+	// whose suffix is an opaque, service-generated token — not the
+	// resource's own replication_config_identifier argument — the same
+	// account-derived-ARN-but-server-minted-suffix shape as
+	// aws_codebuild_report_group's ARN in the devtools batch. The Attribute
+	// Reference documents only "arn", not a separate "id".
+	serverAssigned("aws_dms_replication_config",
+		"the DMS service assigns this identity at create time; no argument reconstructs it.",
+		"ARN", "arn"),
+	TypeIdentity{
+		// AWS::DMS::ReplicationInstance ships every CFN Registry handler
+		// false (confirmed against live/registry.json directly), which is
+		// why row-gen enumerates this type "not listable -> client-named
+		// only" and pastes nothing — the same registry-handler-less shape
+		// the devtools batch's CodeBuild::Project correction established.
+		// The provider's own Argument Reference makes
+		// "replication_instance_id" a required argument, and the documented
+		// import command
+		// (terraform import aws_dms_replication_instance.test test-dms-replication-instance-tf)
+		// uses it verbatim. The Attribute Reference documents
+		// "replication_instance_arn", not a separate "id".
+		Type:          "aws_dms_replication_instance",
+		Components:    []Component{attr("replication_instance_id")},
+		ImportSyntax:  "REPLICATION-INSTANCE-ID",
+		IdentityAttrs: []string{"replication_instance_id"},
+	},
+	TypeIdentity{
+		// Same registry-handler-less shape as aws_dms_replication_instance
+		// above (AWS::DMS::ReplicationSubnetGroup also ships every handler
+		// false). The provider's own Argument Reference makes
+		// "replication_subnet_group_id" a required argument, and the
+		// documented import command
+		// (terraform import aws_dms_replication_subnet_group.test test-dms-replication-subnet-group-tf)
+		// uses it verbatim. The Attribute Reference documents "vpc_id",
+		// not a separate "id".
+		Type:          "aws_dms_replication_subnet_group",
+		Components:    []Component{attr("replication_subnet_group_id")},
+		ImportSyntax:  "REPLICATION-SUBNET-GROUP-ID",
+		IdentityAttrs: []string{"replication_subnet_group_id"},
+	},
+	TypeIdentity{
+		// Same registry-handler-less shape as aws_dms_replication_instance
+		// above (AWS::DMS::ReplicationTask also ships every handler false).
+		// The provider's own Argument Reference makes "replication_task_id"
+		// a required argument, and the documented import command
+		// (terraform import aws_dms_replication_task.test test-dms-replication-task-tf)
+		// uses it verbatim. The Attribute Reference documents
+		// "replication_task_arn" and "status", not a separate "id".
+		Type:          "aws_dms_replication_task",
+		Components:    []Component{attr("replication_task_id")},
+		ImportSyntax:  "REPLICATION-TASK-ID",
+		IdentityAttrs: []string{"replication_task_id"},
+	},
+	// row-gen's registry-derived proposal (server-assigned via the opaque
+	// "Id") is confirmed as-is: the provider's own Attribute Reference
+	// documents "id" as "Identifier of the Data Integration", and the
+	// documented import command uses a service-generated UUID.
+	serverAssigned("aws_appintegrations_data_integration",
+		"the AppIntegrations service assigns this identity at create time; no argument reconstructs it.",
+		"ID", "id"),
+	TypeIdentity{
+		// row-gen's registry-derived proposal (client-named via the
+		// required "name" argument, from live/import-grammar.json's scraped
+		// separator evidence) is confirmed as-is against the provider's own
+		// Attribute Reference ("id - Identifier of the Event Integration
+		// which is the name of the Event Integration") and its documented
+		// import command.
+		Type:          "aws_appintegrations_event_integration",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name", "id"},
 	},
 
 	// ---- Registry-ratified (#40, #44, #65): sixth batch, AI services and

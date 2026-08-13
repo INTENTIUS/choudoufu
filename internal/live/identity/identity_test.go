@@ -156,6 +156,30 @@ func TestResolveEstate(t *testing.T) {
 	assertClassifications(t, result, want)
 }
 
+// TestResolveNeverEmitsRecordBacked pins GitHub issue #73's groundwork:
+// ClassRecordBacked exists in the Class enum, but nothing in this package
+// produces it yet. A RECORD_ADMITTED logical type (internal/live/lint) never
+// reaches Resolve at all today - lint refuses it first - so this checks the
+// weaker, always-true-until-#73's-projection-work claim directly: not one
+// resolution of the estate fixture, which exercises every admission path
+// this package has, carries the new class. The day a resolver starts
+// producing it, this test starts failing, which is the point: the failure
+// is the signal to move this pin, not to loosen it.
+func TestResolveNeverEmitsRecordBacked(t *testing.T) {
+	cfg := loadConfig(t, estateDir(t), nil)
+	result, diags := Resolve(context.Background(), cfg)
+	assertNoErrors(t, diags)
+
+	if result.Len() == 0 {
+		t.Fatal("estate fixture resolved zero instances; this test needs a real result to check")
+	}
+	for _, res := range result.All() {
+		if res.Class == ClassRecordBacked {
+			t.Errorf("%s resolved to ClassRecordBacked; no resolver in this package should produce that class yet (GitHub issue #73's projection work is what will)", res.Addr)
+		}
+	}
+}
+
 // TestResolveEstateDisabled checks the conditional idiom from the other
 // side: with enabled = false the optional log group expands to zero
 // instances and simply is not in the result, rather than appearing with an

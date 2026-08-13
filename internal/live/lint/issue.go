@@ -123,7 +123,7 @@ var ruleInfo = map[Rule]struct {
 	},
 	RuleLogicalResource: {
 		summary: "Logical resources are not available under live resource markers",
-		docsRef: `live/LIMITATIONS.md, "null-resource" / "local-file" / "random-password" / "time-sleep"`,
+		docsRef: `live/LIMITATIONS.md, "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep"`,
 	},
 	RuleUnadmittedType: {
 		summary: "Resource type is outside the live-markers subset",

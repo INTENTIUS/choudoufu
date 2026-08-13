@@ -190,6 +190,64 @@ func ParentReadRemovable(typeName string) bool {
 	return parentReadRemovable[typeName]
 }
 
+// foldParentTypes is issue #68's fold-child extension: a declared
+// property-child whose whole identity is a verbatim duplicate of an
+// already-admitted parent's own identity Components - not one scalar
+// argument the way [SingleParentComponent] requires, but the parent's whole
+// composite tuple. aws_api_gateway_integration is the shape this batch
+// proves: its Components (rest_api_id, resource_id, http_method) are
+// exactly aws_api_gateway_method's own three, so rendering the method's
+// identity - even though the method is untaggable and itself
+// [ClassParentDerived] rather than concrete, which is what puts this case
+// outside [SingleParentComponent]'s and [ParentOf]'s "eligible, taggable
+// parent" model entirely - settles the integration's identity completely
+// too.
+//
+// This is the one hand-curated fact this file allows itself for the shape,
+// the same discipline [parentReadRemovable] holds itself to: a type belongs
+// here only once someone has checked, component by component against
+// live/survey-full.json or the provider's documented Import section (see
+// internal/live/identity/table.go's "Fold-children" section comment), that
+// the child's Components are exactly the parent's own and nothing more. A
+// fold-child needing even one further argument the parent's identity does
+// not supply (aws_api_gateway_integration_response's own status_code,
+// aws_api_gateway_method_settings's own method_path) is deliberately absent:
+// a parent read alone cannot recover an argument that lives nowhere but the
+// child's own deleted block, so there is no honest entry to add for it here,
+// and removal-sweep coverage for those stays the same accepted gap
+// live/LIMITATIONS.md's "Untaggable types cannot be removed by the sweep"
+// entry already carries for aws_api_gateway_method itself. Broadening this
+// map is follow-on work, one type at a time, the same as
+// [parentReadRemovable]'s own growth rule.
+var foldParentTypes = map[string]string{
+	"aws_api_gateway_integration": "aws_api_gateway_method",
+}
+
+// FoldParentOf reports the admitted parent type whose own identity
+// Components, once rendered, are typeName's whole identity too - the
+// [foldParentTypes] map above. Unlike [ParentOf] and [SingleParentComponent],
+// this is not derived from typeName's own Components at request time: the
+// parent named here may itself be untaggable and [ClassParentDerived]
+// (composite, resolved only once its own parents' live values are known),
+// which is exactly the case [SingleParentComponent]'s "taggable eligible
+// parent" model cannot express, so there is nothing to derive it from short
+// of the hand check the map's own doc comment describes.
+func FoldParentOf(typeName string) (string, bool) {
+	parent, ok := foldParentTypes[typeName]
+	return parent, ok
+}
+
+// FoldParentTypes returns the [foldParentTypes] map's own keys, sorted -
+// every type this pass's fold-child leg (internal/live/discovery's
+// foldChildReadSweep) acts on.
+func FoldParentTypes() map[string]string {
+	out := make(map[string]string, len(foldParentTypes))
+	for k, v := range foldParentTypes {
+		out[k] = v
+	}
+	return out
+}
+
 // parentByTypeName reports the longest eligible admitted type whose name,
 // plus an underscore, prefixes typeName's own - rule 1 of [ParentOf]'s doc
 // comment. Searching only the eligible subset (rather than every admitted

@@ -30,8 +30,21 @@ const (
 	bucketNeedsHandSeparator bucket = "needs-hand-separator"
 	// bucketEvidenceOnly: everything else - an ambiguous property shape, a
 	// client-named candidate whose argument had to be GUESSED, and every
-	// fold (property-child) row. Printed for the record; never pastable.
+	// fold (property-child) row whose parent is neither proposed nor
+	// admitted. Printed for the record; never pastable.
 	bucketEvidenceOnly bucket = "evidence-only"
+	// bucketFoldChild: a via:fold row (issue #68) whose fold parent is
+	// either already admitted (internal/live/identity.AdmittedTypes) or
+	// itself proposed server-assigned/client-named in this same run - the
+	// fifth admission path #68 built, a declared property-child whose
+	// existence and identity are wholly determined by an admitted parent
+	// plus its own arguments. Like bucketNeedsHandSeparator, never
+	// pastable: the child's own composite Components (the parent's tuple,
+	// plus any further argument like status_code the parent alone does not
+	// supply) still need a human's separator and shape choice, the way
+	// internal/live/identity/table.go's "Fold-children (issue #68)" section
+	// comment documents for the first slice.
+	bucketFoldChild bucket = "fold-child"
 )
 
 // argSource names where a client-named proposal's TF argument name came
@@ -173,14 +186,39 @@ func classifyMapped(tf, cfn string, e registryEntry, survey map[string]surveyEnt
 }
 
 // classifyFold classifies one via:fold row: a TF type mapping-gen decided is
-// a property-child of a CFN parent rather than a type of its own. It is
-// always evidence-only - row-gen proposes no pastable row for a fold child,
-// only the parent-derived admission note the issue's rule 5 asks for.
-func classifyFold(tf, foldParent string, mapped []proposal) proposal {
+// a property-child of a CFN parent rather than a type of its own.
+//
+// Issue #68 built the fifth admission path this shape needed - a declared
+// property-child whose existence and identity are wholly determined by an
+// admitted parent plus its own arguments - so a fold row is no longer
+// automatically evidence-only: it is bucketFoldChild (proposable, though
+// still never pastable - see that bucket's own doc comment) whenever its
+// fold parent already has an admission this run can see, checked two ways,
+// weakest last:
+//
+//  1. admitted[parentTFType] - the fold parent's TF type is already in
+//     internal/live/identity.AdmittedTypes(), a fact this run reads
+//     straight off the real table rather than from its own registry-only
+//     classification of that parent. This is what catches
+//     aws_api_gateway_method: row-gen's own classifyMapped rule puts it in
+//     bucketNeedsHandSeparator (a composite primaryIdentifier, the same as
+//     aws_route), but a human already hand-ratified it into DefaultTable,
+//     and the fold rule only cares whether an admission exists to key on,
+//     not which bucket produced it.
+//  2. Failing that, the same check the pre-#68 rule already made: the fold
+//     parent is itself proposed server-assigned or client-named by this
+//     same run (mapped), which is not yet an admission but is strong
+//     enough evidence to name a future one - the aws_prometheus_workspace
+//     shape.
+//
+// admitted may be nil, which is "run me over evidence alone, the way a
+// caller with no built identity table has to" - every admitted-only match
+// simply never fires, falling through to the weaker mapped-parent check or
+// to evidence-only, never a panic.
+func classifyFold(tf, foldParent string, mapped []proposal, admitted map[string]bool) proposal {
 	p := proposal{
 		TFType:     tf,
 		Service:    serviceOf(foldParent),
-		Bucket:     bucketEvidenceOnly,
 		Rule:       "via==fold: property-child of " + foldParent,
 		FoldParent: foldParent,
 	}
@@ -192,11 +230,18 @@ func classifyFold(tf, foldParent string, mapped []proposal) proposal {
 			break
 		}
 	}
-	if p.ParentKnown && (p.ParentBucket == bucketServerAssigned || p.ParentBucket == bucketClientNamed) {
-		p.Notes = append(p.Notes, "proposal: parent-derived admission keyed on "+p.ParentTFType+" once it is ratified ("+string(p.ParentBucket)+")")
-	} else if p.ParentKnown {
-		p.Notes = append(p.Notes, "parent "+p.ParentTFType+" is not itself proposed ("+string(p.ParentBucket)+"); no parent-derived admission to propose yet")
-	} else {
+	switch {
+	case p.ParentKnown && admitted[p.ParentTFType]:
+		p.Bucket = bucketFoldChild
+		p.Notes = append(p.Notes, "proposal: parent-derived admission (issue #68's fold-child path) keyed on "+p.ParentTFType+", already admitted")
+	case p.ParentKnown && (p.ParentBucket == bucketServerAssigned || p.ParentBucket == bucketClientNamed):
+		p.Bucket = bucketFoldChild
+		p.Notes = append(p.Notes, "proposal: parent-derived admission (issue #68's fold-child path) keyed on "+p.ParentTFType+" once it is ratified ("+string(p.ParentBucket)+")")
+	case p.ParentKnown:
+		p.Bucket = bucketEvidenceOnly
+		p.Notes = append(p.Notes, "parent "+p.ParentTFType+" is neither admitted nor itself proposed ("+string(p.ParentBucket)+"); no parent-derived admission to propose yet")
+	default:
+		p.Bucket = bucketEvidenceOnly
 		p.Notes = append(p.Notes, "no mapped TF type resolves to the fold parent "+foldParent+"; nothing to key a parent-derived admission on")
 	}
 	return p

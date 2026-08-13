@@ -29,6 +29,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
 // Path literals, centralized on purpose (see tools/survey-gen/main.go's and
@@ -102,8 +104,8 @@ func run(service string, out, errOut *os.File) error {
 
 	fmt.Fprint(out, renderReport(proposals, service))
 	counts := tally(proposals)
-	fmt.Fprintf(errOut, "row-gen: %d mapped types (%d server-assigned, %d client-named, %d needs-hand-separator, %d evidence-only)\n",
-		len(proposals), counts.ServerAssigned, counts.ClientNamed, counts.NeedsHandSeparator, counts.EvidenceOnly)
+	fmt.Fprintf(errOut, "row-gen: %d mapped types (%d server-assigned, %d client-named, %d needs-hand-separator, %d fold-child, %d evidence-only)\n",
+		len(proposals), counts.ServerAssigned, counts.ClientNamed, counts.NeedsHandSeparator, counts.FoldChild, counts.EvidenceOnly)
 	return nil
 }
 
@@ -111,8 +113,15 @@ func run(service string, out, errOut *os.File) error {
 // classifyFold, then applies the import-grammar demotion pass
 // (applyImportGrammarDemotions). cfn_type rows are classified first, since
 // classifyFold needs their results to answer "is the fold parent itself
-// proposed".
+// proposed" - and, since issue #68, also consults identity.AdmittedTypes()
+// to answer "is the fold parent already admitted", independent of what this
+// run's own registry-only evidence says about that parent's shape.
 func classifyAll(rows []mappingRow, registry map[string]registryEntry, survey map[string]surveyEntry, carveSeed map[string]string, importGrammar map[string]importGrammarRow) ([]proposal, error) {
+	admitted := make(map[string]bool)
+	for _, t := range identity.AdmittedTypes() {
+		admitted[t] = true
+	}
+
 	var mapped []proposal
 	var folds []mappingRow
 	for _, r := range rows {
@@ -136,7 +145,7 @@ func classifyAll(rows []mappingRow, registry map[string]registryEntry, survey ma
 		if r.FoldParent == nil {
 			return nil, fmt.Errorf("%s: via=fold but fold_parent is null (a mapping.json invariant broke)", r.TFType)
 		}
-		out = append(out, classifyFold(r.TFType, *r.FoldParent, mapped))
+		out = append(out, classifyFold(r.TFType, *r.FoldParent, mapped, admitted))
 	}
 	applyImportGrammarDemotions(out, importGrammar)
 	return out, nil
