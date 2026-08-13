@@ -247,7 +247,7 @@ func reconcileType(ctx context.Context, req ReconcileRequest, schemas listclient
 		res.Gaps = append(res.Gaps, ReconcileGap{
 			TypeName: typeName,
 			Reason:   "NOT_TAGGABLE",
-			Detail: fmt.Sprintf("%s carries no tags, so it can carry no ownership or preservation marker and this pass has nothing to judge it by.", typeName),
+			Detail:   fmt.Sprintf("%s carries no tags, so it can carry no ownership or preservation marker and this pass has nothing to judge it by.", typeName),
 		})
 		return diags
 	}
