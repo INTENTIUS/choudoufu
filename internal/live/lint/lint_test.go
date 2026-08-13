@@ -7,6 +7,7 @@ package lint
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,9 +16,13 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	version "github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -446,7 +451,7 @@ func TestAdmissionTableCoversEstate(t *testing.T) {
 		"aws_ebs_volume",
 	}
 	for _, resourceType := range estateTypes {
-		if !admitted(resourceType) {
+		if !admitted(resourceType, nil, nil) {
 			t.Errorf("%s is used by the estate fixture but is missing from the v0 admission table", resourceType)
 		}
 	}
@@ -540,4 +545,221 @@ func loadConfigDir(t *testing.T, dir string) *configs.Config {
 		t.Fatalf("failed to build config from %s: %s", dir, diags.Error())
 	}
 	return cfg
+}
+
+// ---------------------------------------------------------------------------
+// #45: CheckWith and the schema fallback admitted() applies when the caller
+// has provider schemas to offer.
+// ---------------------------------------------------------------------------
+
+// fakeType is a minimal provider type shape for building a fake schema,
+// enough to drive [identity.SynthesizeTypeIdentity] the same way
+// internal/live/identity's own tests do. Kept local to this package rather
+// than shared, because sharing it would mean exporting identity's test-only
+// helpers for a use nothing else has.
+type fakeType struct {
+	// args are the type's configuration arguments: name to "req" (required)
+	// or "optcomp" (Optional+Computed, the legacy SDK's shape for an
+	// argument a provider may also fill in).
+	args map[string]string
+	// identity are the identity schema's attributes: name to "req"
+	// (required for import) or "opt" (optional for import).
+	identity map[string]string
+}
+
+func fakeProviderSchemas(types map[string]fakeType) map[string]providers.Schema {
+	out := make(map[string]providers.Schema, len(types))
+	for name, ft := range types {
+		block := &configschema.Block{Attributes: map[string]*configschema.Attribute{}}
+		for argName, kind := range ft.args {
+			attr := &configschema.Attribute{Type: cty.String}
+			switch kind {
+			case "req":
+				attr.Required = true
+			case "optcomp":
+				attr.Optional, attr.Computed = true, true
+			default:
+				panic("unknown argument kind " + kind)
+			}
+			block.Attributes[argName] = attr
+		}
+
+		schema := providers.Schema{Block: block}
+		if ft.identity != nil {
+			body := &configschema.Object{
+				Attributes: map[string]*configschema.Attribute{},
+				Nesting:    configschema.NestingSingle,
+			}
+			for attrName, kind := range ft.identity {
+				attr := &configschema.Attribute{Type: cty.String}
+				switch kind {
+				case "req":
+					attr.Required = true
+				case "opt":
+					attr.Optional = true
+				default:
+					panic("unknown identity attribute kind " + kind)
+				}
+				body.Attributes[attrName] = attr
+			}
+			schema.IdentitySchema = body
+			schema.IdentitySchemaVersion = 1
+		}
+		out[name] = schema
+	}
+	return out
+}
+
+// thingSchema is aws_thing's shape from identity's own fallback tests: a
+// single required identity attribute, name, that is also a required
+// argument, with the AWS context pair (account_id, region) as the only
+// optional-for-import attributes. SynthesizeTypeIdentity admits this shape
+// outright.
+func thingSchema() map[string]providers.Schema {
+	return fakeProviderSchemas(map[string]fakeType{
+		"aws_thing": {
+			args:     map[string]string{"name": "req"},
+			identity: map[string]string{"name": "req", "account_id": "opt", "region": "opt"},
+		},
+	})
+}
+
+// routeSchema is aws_route's own shape, the same one
+// internal/live/identity/synthesize_test.go stands up to pin #39 from the
+// resolver side: one required identity attribute, route_table_id, plus the
+// three destination_* arguments the real AWS provider marks optional for
+// import. A single required attribute that is not the whole identity -
+// exactly the shape #39 taught the fallback to refuse.
+func routeSchema() map[string]providers.Schema {
+	return fakeProviderSchemas(map[string]fakeType{
+		"aws_route": {
+			args: map[string]string{
+				"route_table_id":              "req",
+				"destination_cidr_block":      "optcomp",
+				"destination_ipv6_cidr_block": "optcomp",
+				"destination_prefix_list_id":  "optcomp",
+			},
+			identity: map[string]string{
+				"route_table_id":              "req",
+				"destination_cidr_block":      "opt",
+				"destination_ipv6_cidr_block": "opt",
+				"destination_prefix_list_id":  "opt",
+			},
+		},
+	})
+}
+
+// TestCheckWithSchemaAdmitsTypeOutsideTable is the acceptance case: a type
+// with no row in admittedTypesV0 passes CheckWith once schemas describe it
+// completely enough, and is refused exactly as before when no schemas are
+// offered - admitted() only ever grows with schemas, never shrinks.
+func TestCheckWithSchemaAdmitsTypeOutsideTable(t *testing.T) {
+	cfg := loadConfigDir(t, "testdata/schema-admitted")
+
+	if issues := CheckWith(t.Context(), cfg, Context{Schemas: thingSchema()}); len(issues) != 0 {
+		t.Fatalf("aws_thing was refused even with a schema that admits it: %v", issues)
+	}
+
+	issues := CheckContext(t.Context(), cfg)
+	if len(issues) != 1 || issues[0].Rule != RuleUnadmittedType {
+		t.Fatalf("aws_thing was not refused with no schemas: %v", issues)
+	}
+}
+
+// TestAdmittedRefusesRouteWithTableRowBypassed pins #39's guard from lint's
+// own admission check, not just from the resolver: with aws_route's table
+// row removed for the duration of this test, admitted() falls through to
+// the schema fallback, and the fallback has to refuse it for the same
+// reason [identity.SynthesizeTypeIdentity]'s own test does - route_table_id
+// alone names a route table, not a route.
+//
+// The table row is bypassed rather than left in place because admitted()
+// checks the table first: aws_route is in admittedTypesV0 today, so a
+// fixture-only test would never reach the fallback at all.
+func TestAdmittedRefusesRouteWithTableRowBypassed(t *testing.T) {
+	if _, inTable := admittedTypesV0["aws_route"]; !inTable {
+		t.Fatal("aws_route is not in the table; this test no longer bypasses anything")
+	}
+	delete(admittedTypesV0, "aws_route")
+	t.Cleanup(func() { admittedTypesV0["aws_route"] = struct{}{} })
+
+	cfg := loadConfigDir(t, "testdata/schema-admitted-route-bypassed")
+	signal, diags := identity.ScanConfig(t.Context(), cfg)
+	if diags.HasErrors() {
+		t.Fatalf("scanning the fixture: %s", diags.Err())
+	}
+
+	if admitted("aws_route", routeSchema(), signal) {
+		t.Fatal("aws_route was synthesized from route_table_id alone, which #39 exists to refuse")
+	}
+}
+
+// TestCheckWithRefusesRouteInIdentityLayerVoice is the same guard exercised
+// through the full CheckWith path, checking that the refusal's wording
+// changes once schemas are offered: the plain "not in the table" sentence
+// nil-schema callers have always gotten gains the identity layer's own
+// clause about aws_route's schema, via [identity.SchemaRefusal], rather than
+// staying silent about why schemas did not save it.
+func TestCheckWithRefusesRouteInIdentityLayerVoice(t *testing.T) {
+	delete(admittedTypesV0, "aws_route")
+	t.Cleanup(func() { admittedTypesV0["aws_route"] = struct{}{} })
+
+	cfg := loadConfigDir(t, "testdata/schema-admitted-route-bypassed")
+	schemas := routeSchema()
+
+	// "The provider" only ever appears in the clause [identity.SchemaRefusal]
+	// adds; the base "not in the table" sentence never says it, so it is a
+	// safe marker for "this refusal talked about schemas" without pinning
+	// exact wording. ("identity schema" is not safe: the base sentence's own
+	// closing clause, "...and, later, provider identity schemas", contains
+	// it regardless of whether any were offered.)
+	const schemaVoiceMarker = "The provider"
+
+	withoutSchemas := CheckContext(t.Context(), cfg)
+	if len(withoutSchemas) != 1 || withoutSchemas[0].Rule != RuleUnadmittedType {
+		t.Fatalf("expected one unadmitted-type issue with no schemas, got %v", withoutSchemas)
+	}
+	if strings.Contains(withoutSchemas[0].Detail, schemaVoiceMarker) {
+		t.Errorf("a run with no schemas explained itself in terms of schemas: %s", withoutSchemas[0].Detail)
+	}
+
+	withSchemas := CheckWith(t.Context(), cfg, Context{Schemas: schemas})
+	if len(withSchemas) != 1 || withSchemas[0].Rule != RuleUnadmittedType {
+		t.Fatalf("expected one unadmitted-type issue with schemas that still refuse the type, got %v", withSchemas)
+	}
+	if !strings.Contains(withSchemas[0].Detail, schemaVoiceMarker) {
+		t.Errorf("a run with schemas that refused the type did not explain itself in terms of schemas: %s", withSchemas[0].Detail)
+	}
+}
+
+// TestCheckWithNilSchemasByteIdenticalToCheckContext pins the property the
+// whole #45 design rests on: a caller that offers no schemas gets exactly
+// what CheckContext has always given, over every fixture in this package,
+// full [Issue] value included rather than just the summary [assertIssues]
+// checks elsewhere in this file. CheckContext is defined as CheckWith
+// called with a zero [Context], so this also nails that definition down
+// against a future change that gives Context another field and forgets to
+// keep the two in sync.
+func TestCheckWithNilSchemasByteIdenticalToCheckContext(t *testing.T) {
+	entries, err := os.ReadDir("testdata")
+	if err != nil {
+		t.Fatalf("reading testdata: %s", err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		t.Run(name, func(t *testing.T) {
+			cfg := loadConfigDir(t, filepath.Join("testdata", name))
+
+			withContext := CheckContext(t.Context(), cfg)
+			withNilSchemas := CheckWith(t.Context(), cfg, Context{})
+
+			if diff := cmp.Diff(withContext, withNilSchemas, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("CheckWith with no schemas disagreed with CheckContext\n%s", diff)
+			}
+		})
+	}
 }

@@ -10,13 +10,13 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"unicode"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/markerkey"
 )
 
 // The for_each key rule.
@@ -57,12 +57,6 @@ import (
 // configuration the two sides are the same string by construction. See
 // stamp.addressExpr.
 
-// forEachKeyExtras is the punctuation this rule admits, being the AWS tag
-// value set from live/MARKERS.md minus the two escaped-address
-// separators. `.` and `:` are conspicuously absent and that absence is the
-// whole rule.
-const forEachKeyExtras = "+-=_/@"
-
 // ValidForEachKey reports whether a for_each instance key survives the round
 // trip through a tofu-address marker: escapable to a marker value, and
 // unescapable back to the address it came from.
@@ -72,47 +66,22 @@ const forEachKeyExtras = "+-=_/@"
 // produces a key outside the set, so a configuration that reaches identity
 // resolution without passing lint (a caller that skipped it, an expression
 // lint could not evaluate but identity could) still cannot mint a marker
-// nothing can read back.
+// nothing can read back. The rule itself lives in [markerkey], one level
+// below both packages, so that neither has to import the other to share it.
 func ValidForEachKey(key string) bool {
-	_, bad := InvalidForEachKeyRune(key)
-	return !bad
+	return markerkey.Valid(key)
 }
 
 // InvalidForEachKeyRune returns the first character of key that puts it
-// outside the set, and whether there was one. An empty key is invalid with a
-// zero rune as its offender: nothing about a character is wrong with it, but
-// it is still unrepresentable, because an escaped address ending in a bare
-// `:` does not parse as a marker.
+// outside the set, and whether there was one. See [markerkey.InvalidRune].
 func InvalidForEachKeyRune(key string) (rune, bool) {
-	if key == "" {
-		return 0, true
-	}
-	for _, r := range key {
-		switch {
-		case unicode.IsLetter(r), unicode.IsDigit(r):
-		case r == ' ':
-		case strings.ContainsRune(forEachKeyExtras, r):
-		default:
-			return r, true
-		}
-	}
-	return 0, false
+	return markerkey.InvalidRune(key)
 }
 
-// DescribeForEachKeyRune renders an offending character for a diagnostic: the
-// character itself when it is printable, and its code point either way, so a
-// key that failed on a zero-width or control character says something useful
-// rather than printing nothing. It is exported alongside
-// [InvalidForEachKeyRune] so the rule's second enforcement point in
-// internal/live/identity words its refusal the same way.
+// DescribeForEachKeyRune renders an offending character for a diagnostic. See
+// [markerkey.DescribeRune].
 func DescribeForEachKeyRune(r rune) string {
-	if r == 0 {
-		return "nothing at all (an empty key)"
-	}
-	if unicode.IsPrint(r) && !unicode.IsSpace(r) {
-		return fmt.Sprintf("%q (U+%04X)", string(r), r)
-	}
-	return fmt.Sprintf("U+%04X", r)
+	return markerkey.DescribeRune(r)
 }
 
 // checkForEachKeys reports every for_each key this rule can see that falls
@@ -159,7 +128,7 @@ func checkForEachKeys(ctx context.Context, mod *configs.Module, path addrs.Modul
 						"caught here rather than at apply on purpose: a key like this applies cleanly and "+
 						"wedges every run after it, with no way back that does not go outside OpenTofu. "+
 						"Rename the key",
-					key, DescribeForEachKeyRune(bad), quotedRuneList(forEachKeyExtras),
+					key, DescribeForEachKeyRune(bad), quotedRuneList(markerkey.Extras),
 				),
 				Subject: resource.ForEach.Range(),
 			})

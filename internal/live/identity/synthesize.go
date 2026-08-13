@@ -118,16 +118,23 @@ func SynthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema
 	}, true
 }
 
-// schemaRefusal is the clause the "outside the subset" error adds when the
-// run did have the provider's schemas and the fallback still refused. It says
-// which of the fallback's two bars was not cleared, because "not in the
-// table" is a misleading whole answer once a table entry is no longer the
-// only way in.
-func (r *resolver) schemaRefusal(typeName string) string {
-	if len(r.schemas) == 0 {
+// SchemaRefusal is the clause the "outside the subset" error adds when the
+// caller did have the provider's schemas and the fallback still refused the
+// type. It says which of the fallback's two bars was not cleared, because
+// "not in the table" is a misleading whole answer once a table entry is no
+// longer the only way in.
+//
+// Exported so that a caller outside this package can word its own refusal
+// the same way [Resolve] words its - lint's admission check, principally,
+// which runs before a resolver exists at all and has to explain a refusal in
+// the same voice so that the two points do not read as two different rules.
+// An empty schemas map returns "", the same silence a caller that never
+// offered any gets from [Resolve] itself.
+func SchemaRefusal(typeName string, schemas map[string]providers.Schema, signal *ConfigSignal) string {
+	if len(schemas) == 0 {
 		return ""
 	}
-	schema, served := r.schemas[typeName]
+	schema, served := schemas[typeName]
 	switch {
 	case !served:
 		return fmt.Sprintf(" The provider serves no %s at all.", typeName)
@@ -135,7 +142,7 @@ func (r *resolver) schemaRefusal(typeName string) string {
 		return fmt.Sprintf(" The provider serves no resource identity schema for %s, so nothing but a table entry can say what identifies one.", typeName)
 	}
 
-	admitted := DerivableWith(map[string]providers.Schema{typeName: schema}, r.signal)
+	admitted := DerivableWith(map[string]providers.Schema{typeName: schema}, signal)
 	if len(admitted) == 0 {
 		required, _ := identityAttrs(schema.IdentitySchema)
 		return fmt.Sprintf(
@@ -145,6 +152,12 @@ func (r *resolver) schemaRefusal(typeName string) string {
 	return fmt.Sprintf(
 		" The provider's identity schema for %s is a composite of %s, and the character that joins them into an import ID is in no schema, so that inference has to be written down in the table.",
 		typeName, orList(admitted[0].IdentityAttrs))
+}
+
+// schemaRefusal is [SchemaRefusal] read off the resolver's own schemas and
+// signal.
+func (r *resolver) schemaRefusal(typeName string) string {
+	return SchemaRefusal(typeName, r.schemas, r.signal)
 }
 
 // contextAttrs are the identity attributes the provider fills in itself

@@ -55,14 +55,19 @@ import (
 //     "no state was read or written" a structural property instead of a
 //     promise, and it is why this command works in a directory whose backend
 //     was never initialized.
-//  2. [lint.CheckContext] decides whether the configuration is in the stateless
-//     subset at all. Any issue is fatal.
-//  3. [identity.Resolve] classifies every instance. Error diagnostics are
-//     fatal, because a partial identity map plans creates for things that
-//     already exist.
-//  4. The providers the configuration names are launched from the ordinary
-//     plugin library (the providercache that "choudoufu init" populated) and
-//     configured before anything is read, since a projection is built with
+//  2. The providers the configuration names are launched from the ordinary
+//     plugin library (the providercache that "choudoufu init" populated),
+//     unconfigured, far enough to read their resource identity schemas.
+//  3. [lint.CheckWith] decides whether the configuration is in the stateless
+//     subset at all, with those schemas in hand: a type absent from the v0
+//     admission table still passes when the schemas describe it completely
+//     enough (see [identity.SynthesizeTypeIdentity]), and a refused type is
+//     explained in the identity layer's own words. Any remaining issue is
+//     fatal.
+//  4. [identity.Resolve] classifies every instance, from the same schemas
+//     lint just used. Error diagnostics are fatal, because a partial
+//     identity map plans creates for things that already exist. The
+//     providers are configured only later, once a projection needs to make
 //     provider calls.
 //  5. [discovery.Discover] lists the live resources of every type that has an
 //     instance waiting on marker discovery, binds the ones carrying this
@@ -222,13 +227,6 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		return 1, false, diags
 	}
 
-	// Subset check first: a configuration outside the stateless subset has
-	// to fail with an explanation rather than as a confusing plan.
-	if issues := lint.CheckContext(ctx, config); len(issues) > 0 {
-		diags = diags.Append(lint.Diagnostics(issues))
-		return 1, false, diags
-	}
-
 	enc, encDiags := c.Encryption(ctx)
 	diags = diags.Append(encDiags)
 	if encDiags.HasErrors() {
@@ -245,6 +243,25 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 
 	provs := newStatelessProviders(config, coreOpts.Plugins)
 
+	// Read once and handed to both the subset check and resolution below, so
+	// that a type the schemas admit reads the same answer at both points.
+	// Named apart from the tofu.Schemas the plan itself reads further down -
+	// same provider processes, a different shape - so the two never collide.
+	resourceSchemas := provs.resourceSchemas(ctx)
+
+	// Subset check first: a configuration outside the stateless subset has
+	// to fail with an explanation rather than as a confusing plan. It runs
+	// after the providers are launched now, schemas in hand, so a type with
+	// no admission-table row can still pass when the provider's own identity
+	// schema describes it completely enough, and a type schemas do refuse is
+	// explained in the identity layer's own words rather than only "not in
+	// the table". See [lint.CheckWith].
+	if issues := lint.CheckWith(ctx, config, lint.Context{Schemas: resourceSchemas}); len(issues) > 0 {
+		diags = diags.Append(lint.Diagnostics(issues))
+		diags = diags.Append(provs.close(ctx))
+		return 1, false, diags
+	}
+
 	// Resolution runs ahead of the providers being configured, as it always
 	// has, and is handed their schemas: a resource type the hand table has
 	// never heard of resolves anyway when the provider's own identity schema
@@ -252,7 +269,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// A run whose providers will not start gets no schemas and the hand
 	// table's answers, which is exactly what it got before.
 	resolutions, idDiags := identity.ResolveWith(ctx, config, identity.Context{
-		Schemas: provs.resourceSchemas(ctx),
+		Schemas: resourceSchemas,
 	})
 	diags = diags.Append(idDiags)
 	if idDiags.HasErrors() {

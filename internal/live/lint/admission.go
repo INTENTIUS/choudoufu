@@ -5,7 +5,12 @@
 
 package lint
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/providers"
+)
 
 // admittedTypesV0 is the stateless v0 admission table: the provider-local
 // resource type names that may appear in a configuration planned without
@@ -23,11 +28,13 @@ import "strings"
 //   - The provider survey in the design doc (AWS provider, 2026-08: 65 of the
 //     top 68 types admitted) is the source for the next batch. Adding a type
 //     means naming which of the four admission paths recovers its identity.
-//   - Once the provider identity schemas from opentofu#2854 are plumbed
-//     through (P1.2), most of this table becomes derivable rather than
-//     asserted: a type whose identity schema is fully client-assigned or fully
-//     parent-derived admits itself. The hardcoded list is what stands in until
-//     then, and should shrink as that lands, not grow forever.
+//   - The provider identity schemas from opentofu#2854 are plumbed through as
+//     of #45: [admitted] falls back to [identity.SynthesizeTypeIdentity] for
+//     a type this table does not cover, when the caller has schemas to offer
+//     it. A type whose identity schema is fully client-assigned or fully
+//     parent-derived admits itself that way and needs no row here at all,
+//     which is why this table should shrink as the survey's schema-derivable
+//     types are pulled out of it, not grow forever.
 //
 // Keyed by provider-local type name (the first label of a resource block), not
 // by fully-qualified provider address, because that is what a configuration
@@ -151,10 +158,27 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_eip": {},
 }
 
-// admitted reports whether the given provider-local resource type is in the v0
-// admission table.
-func admitted(resourceType string) bool {
-	_, ok := admittedTypesV0[resourceType]
+// admitted reports whether the given provider-local resource type may appear
+// in a stateless configuration: first by the v0 hand table, and - only when
+// the caller supplied provider schemas - by whatever
+// [identity.SynthesizeTypeIdentity] can derive from those schemas and the
+// configuration's own naming signal.
+//
+// The table lookup runs first and unconditionally, so a type the table
+// already covers never depends on schemas being present at all. The
+// fallback only ever admits a type the table refuses; it never revokes one
+// the table already grants. That asymmetry is the whole point: a caller
+// with no schemas gets exactly the table's answer, and a caller with
+// schemas gets the table's answer plus whatever the schemas additionally
+// justify, never less.
+func admitted(resourceType string, schemas map[string]providers.Schema, signal *identity.ConfigSignal) bool {
+	if _, ok := admittedTypesV0[resourceType]; ok {
+		return true
+	}
+	if len(schemas) == 0 {
+		return false
+	}
+	_, ok := identity.SynthesizeTypeIdentity(resourceType, schemas, signal)
 	return ok
 }
 
