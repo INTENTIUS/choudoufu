@@ -532,6 +532,21 @@ var (
 		"aws_backup_report_plan",
 		"aws_backup_restore_testing_plan",
 		"aws_backup_logically_air_gapped_vault",
+		// Registry-ratified data-plane batch (#40, #44, issue #65): Kinesis,
+		// KinesisFirehose, Glue and Athena types with a top-level tags
+		// argument in the pinned provider's own wire schema.
+		"aws_kinesis_stream",
+		"aws_kinesis_stream_consumer",
+		"aws_kinesis_firehose_delivery_stream",
+		"aws_glue_catalog_database",
+		"aws_glue_registry",
+		"aws_glue_job",
+		"aws_glue_crawler",
+		"aws_glue_connection",
+		"aws_glue_trigger",
+		"aws_glue_ml_transform",
+		"aws_athena_workgroup",
+		"aws_athena_data_catalog",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -612,6 +627,16 @@ var (
 		// attachment with no tags argument at all. See
 		// live/e2e/estates/storage/README.md, "Untaggable types".
 		"aws_fsx_s3_access_point_attachment",
+		// Registry-ratified data-plane batch (#40, #44, issue #65): three
+		// types with no top-level tags argument in the pinned provider's own
+		// wire schema — aws_glue_catalog_table and aws_glue_classifier
+		// mirror aws_cloudwatch_dashboard's shape (a plain client-named
+		// identity, just an untaggable one); aws_glue_data_catalog_encryption_settings
+		// is a singleton-per-account type, the same shape as the IAM/ECR
+		// batch's three ECR registry singletons above.
+		"aws_glue_catalog_table",
+		"aws_glue_classifier",
+		"aws_glue_data_catalog_encryption_settings",
 	}
 )
 
@@ -1162,6 +1187,28 @@ func testSchemas() Schemas {
 		"aws_backup_report_plan":                tagged("id", "arn", "name"),
 		"aws_backup_restore_testing_plan":       tagged("arn", "name", "schedule_expression"),
 		"aws_backup_logically_air_gapped_vault": tagged("id", "arn", "name", "min_retention_days", "max_retention_days"),
+		// Registry-ratified data-plane batch (#40, #44, issue #65):
+		// Kinesis, KinesisFirehose, Glue and Athena. Taggable/untaggable per
+		// the pinned provider's own wire schema (`terraform providers schema
+		// -json` against the real hashicorp/aws 6.58.0 binary) for each
+		// type: aws_glue_catalog_table, aws_glue_classifier and
+		// aws_glue_data_catalog_encryption_settings carry no tags argument
+		// at all.
+		"aws_kinesis_stream":                        tagged("id", "arn", "name"),
+		"aws_kinesis_stream_consumer":               tagged("id", "arn", "name", "stream_arn"),
+		"aws_kinesis_firehose_delivery_stream":      tagged("id", "arn", "name"),
+		"aws_glue_catalog_database":                 tagged("id", "arn", "name", "catalog_id"),
+		"aws_glue_catalog_table":                    untagged("id", "arn", "name", "database_name", "catalog_id"),
+		"aws_glue_registry":                         tagged("id", "arn", "registry_name"),
+		"aws_glue_job":                              tagged("id", "arn", "name", "role_arn"),
+		"aws_glue_crawler":                          tagged("id", "arn", "name", "database_name", "role"),
+		"aws_glue_connection":                       tagged("id", "arn", "name", "catalog_id"),
+		"aws_glue_classifier":                       untagged("id", "name"),
+		"aws_glue_data_catalog_encryption_settings": untagged("id", "catalog_id"),
+		"aws_glue_trigger":                          tagged("id", "arn", "name", "type"),
+		"aws_glue_ml_transform":                     tagged("id", "arn", "name", "role_arn"),
+		"aws_athena_workgroup":                      tagged("id", "arn", "name"),
+		"aws_athena_data_catalog":                   tagged("id", "arn", "name", "type"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.
