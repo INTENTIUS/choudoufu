@@ -726,6 +726,26 @@ var (
 		"aws_appsync_graphql_api",
 		"aws_pipes_pipe",
 		"aws_scheduler_schedule_group",
+		// Registry-ratified governance batch (#40, #44, issue #65). See
+		// live/e2e/estates/governance/README.md.
+		"aws_config_config_rule",
+		"aws_config_configuration_aggregator",
+		"aws_controltower_baseline",
+		"aws_controltower_landing_zone",
+		"aws_organizations_account",
+		"aws_organizations_organizational_unit",
+		"aws_organizations_policy",
+		"aws_organizations_resource_policy",
+		"aws_resourceexplorer2_index",
+		"aws_resourceexplorer2_view",
+		"aws_resourcegroups_group",
+		"aws_servicecatalog_portfolio",
+		"aws_servicecatalog_product",
+		"aws_servicecatalog_provisioned_product",
+		"aws_servicecatalogappregistry_application",
+		"aws_servicecatalogappregistry_attribute_group",
+		"aws_auditmanager_assessment",
+		"aws_auditmanager_framework",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -953,6 +973,16 @@ var (
 		// "Untaggable types".
 		"aws_msk_configuration",
 		"aws_appflow_connector_profile",
+		// Registry-ratified governance batch (#40, #44, issue #65): six
+		// types with no tags argument at all, per
+		// live/survey-full.json's real-schema signal. See
+		// live/e2e/estates/governance/README.md.
+		"aws_config_conformance_pack",
+		"aws_config_organization_conformance_pack",
+		"aws_config_remediation_configuration",
+		"aws_controltower_control",
+		"aws_servicecatalog_portfolio_share",
+		"aws_servicecatalogappregistry_attribute_group_association",
 	}
 )
 
@@ -1801,6 +1831,39 @@ func testSchemas() Schemas {
 		"aws_wafv2_rule_group":                             tagged("id", "arn", "name", "scope"),
 		"aws_wafv2_web_acl":                                tagged("id", "arn", "name", "scope"),
 		"aws_wafv2_web_acl_rule":                           untagged("id", "web_acl_arn", "name"),
+
+		// Registry-ratified governance batch (#40, #44, issue #65).
+		// Taggable/untaggable per live/survey-full.json's real-schema signal
+		// for each type: aws_config_conformance_pack,
+		// aws_config_organization_conformance_pack,
+		// aws_config_remediation_configuration, aws_controltower_control,
+		// aws_servicecatalog_portfolio_share and
+		// aws_servicecatalogappregistry_attribute_group_association carry no
+		// tags argument at all. See live/e2e/estates/governance/README.md.
+		"aws_config_config_rule":                                    tagged("id", "arn", "name"),
+		"aws_config_configuration_aggregator":                       tagged("id", "arn", "name"),
+		"aws_config_conformance_pack":                               untagged("id", "arn", "name"),
+		"aws_config_organization_conformance_pack":                  untagged("id", "arn", "name"),
+		"aws_config_remediation_configuration":                      untagged("id", "config_rule_name"),
+		"aws_controltower_baseline":                                 tagged("id", "arn", "target_identifier"),
+		"aws_controltower_control":                                  untagged("id", "target_identifier", "control_identifier"),
+		"aws_controltower_landing_zone":                             tagged("id", "arn", "manifest_json"),
+		"aws_organizations_account":                                 tagged("id", "arn", "name", "email"),
+		"aws_organizations_organizational_unit":                     tagged("id", "arn", "name", "parent_id"),
+		"aws_organizations_policy":                                  tagged("id", "arn", "name", "type"),
+		"aws_organizations_resource_policy":                         tagged("id", "arn", "content"),
+		"aws_resourceexplorer2_index":                               tagged("id", "arn", "type"),
+		"aws_resourceexplorer2_view":                                tagged("id", "arn", "name"),
+		"aws_resourcegroups_group":                                  tagged("id", "arn", "name"),
+		"aws_servicecatalog_portfolio":                              tagged("id", "arn", "name"),
+		"aws_servicecatalog_portfolio_share":                        untagged("id", "portfolio_id", "type", "principal_id"),
+		"aws_servicecatalog_product":                                tagged("id", "arn", "name"),
+		"aws_servicecatalog_provisioned_product":                    tagged("id", "arn", "name"),
+		"aws_servicecatalogappregistry_application":                 tagged("id", "arn", "name"),
+		"aws_servicecatalogappregistry_attribute_group":             tagged("id", "arn", "name"),
+		"aws_servicecatalogappregistry_attribute_group_association": untagged("id", "application_id", "attribute_group_id"),
+		"aws_auditmanager_assessment":                               tagged("id", "arn", "name", "framework_id"),
+		"aws_auditmanager_framework":                                tagged("id", "arn", "name"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.

@@ -440,10 +440,13 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_cognito_identity_pool_roles_attachment`,
 `aws_cognito_identity_provider`, `aws_cognito_resource_server`,
 `aws_cognito_user`, `aws_cognito_user_group`, `aws_cognito_user_in_group`,
-`aws_cognito_user_pool_domain`, `aws_db_instance_role_association`,
-`aws_db_proxy_default_target_group`, `aws_dynamodb_global_table`,
-`aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
-`aws_ec2_client_vpn_route`, `aws_ec2_managed_prefix_list_entry`,
+`aws_cognito_user_pool_domain`, `aws_config_conformance_pack`,
+`aws_config_organization_conformance_pack`,
+`aws_config_remediation_configuration`, `aws_controltower_control`,
+`aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
+`aws_dynamodb_global_table`, `aws_dynamodb_resource_policy`,
+`aws_ebs_snapshot_block_public_access`, `aws_ec2_client_vpn_route`,
+`aws_ec2_managed_prefix_list_entry`,
 `aws_ec2_transit_gateway_metering_policy_entry`,
 `aws_ec2_transit_gateway_policy_table_association`,
 `aws_ec2_transit_gateway_route`,
@@ -479,10 +482,12 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_securityhub_configuration_policy_association`,
 `aws_securityhub_member`, `aws_securityhub_organization_admin_account`,
 `aws_securityhub_standards_control`,
-`aws_securityhub_standards_control_association`, `aws_sns_topic_policy`,
-`aws_sqs_queue_policy`, `aws_ssm_patch_group`, `aws_ssm_resource_data_sync`,
-`aws_ssm_service_setting`, `aws_ssoadmin_account_assignment`,
-`aws_ssoadmin_application_assignment`,
+`aws_securityhub_standards_control_association`,
+`aws_servicecatalog_portfolio_share`,
+`aws_servicecatalogappregistry_attribute_group_association`,
+`aws_sns_topic_policy`, `aws_sqs_queue_policy`, `aws_ssm_patch_group`,
+`aws_ssm_resource_data_sync`, `aws_ssm_service_setting`,
+`aws_ssoadmin_account_assignment`, `aws_ssoadmin_application_assignment`,
 `aws_ssoadmin_instance_access_control_attributes`, `aws_volume_attachment`,
 `aws_vpc_dhcp_options_association`, `aws_vpc_endpoint_policy`,
 `aws_vpc_endpoint_private_dns`, `aws_vpc_endpoint_route_table_association`,
@@ -541,6 +546,8 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_cognito_user` | `aws_cognito_user_pool` | no (report-only) |
 | `aws_cognito_user_group` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_cognito_user_in_group` | `aws_cognito_user_pool` | no (report-only) |
+| `aws_config_conformance_pack` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_config_organization_conformance_pack` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_dynamodb_global_table` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_ec2_client_vpn_route` | `aws_ec2_client_vpn_endpoint` | no (report-only) |
 | `aws_ec2_managed_prefix_list_entry` | `aws_ec2_managed_prefix_list` | no (report-only) |
@@ -582,6 +589,8 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_s3_bucket_versioning` | `aws_s3_bucket` | no (report-only) |
 | `aws_secretsmanager_secret_policy` | `aws_secretsmanager_secret` | no (report-only) |
 | `aws_secretsmanager_secret_rotation` | `aws_secretsmanager_secret` | no (report-only) |
+| `aws_servicecatalog_portfolio_share` | `aws_servicecatalog_portfolio` | no (report-only) |
+| `aws_servicecatalogappregistry_attribute_group_association` | `aws_servicecatalogappregistry_attribute_group` | no (report-only) |
 | `aws_sns_topic_policy` | `aws_sns_topic` | no (report-only) |
 | `aws_sqs_queue_policy` | `aws_sqs_queue` | no (report-only) |
 | `aws_ssm_patch_group` | `aws_ssm_patch_baseline` | no (report-only) |
@@ -598,7 +607,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_vpc_ipam_pool_cidr` | `aws_vpc_ipam_pool` | no (report-only) |
 | `aws_wafv2_web_acl_rule` | `aws_wafv2_web_acl` | no (report-only) |
 
-**Total.** 83 types swept via a parent read.
+**Total.** 87 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
@@ -633,6 +642,7 @@ per-type reasoning as it stands.
 `aws_cloudwatch_otel_enrichment`, `aws_cloudwatch_query_definition`,
 `aws_codeartifact_repository_permissions_policy`, `aws_codebuild_webhook`,
 `aws_codedeploy_deployment_config`, `aws_cognito_user_pool_domain`,
+`aws_config_remediation_configuration`, `aws_controltower_control`,
 `aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
 `aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
 `aws_ec2_transit_gateway_route`, `aws_ecr_registry_policy`,
