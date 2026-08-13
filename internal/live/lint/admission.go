@@ -512,6 +512,67 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_cloudfront_trust_store":                           {},
 	"aws_cloudfront_vpc_origin":                            {},
 
+	// ---- Registry-ratified (#40, #44, #65): fifth batch, EC2 networking
+	// ---- beyond the core (VPC endpoints, Transit Gateway, VPN, Client VPN,
+	// ---- IPAM, prefix lists, VPC peering, DHCP options, network ACLs, flow
+	// ---- logs, NAT gateway; issue #65's own next-batch suggestion). Same
+	// ---- tools/row-gen pipeline and verification standard as the batches
+	// ---- above, cross-checked against the AWS provider's documented import
+	// ---- behaviour (its Argument Reference, Attribute Reference and Import
+	// ---- section, fetched from the provider's own website/docs/r/ source at
+	// ---- the pinned v6.58.0 tag) and against live/import-grammar.json's
+	// ---- scraped evidence directly — see internal/live/identity/table.go
+	// ---- for the per-type evidence and for the rows this batch rejected.
+	// ---- Cohort estate: live/e2e/estates/ec2-networking.
+	//
+	// aws_nat_gateway is this batch's headline type: the repo's
+	// long-standing canonical unadmitted-type example
+	// (live/e2e/limits/unadmitted-type, live/LIMITATIONS.md) swaps to
+	// aws_cloudwatch_event_rule in the same change — see that fixture's own
+	// comment for why.
+	"aws_vpc_endpoint":                                 {},
+	"aws_vpc_endpoint_service":                         {},
+	"aws_vpc_endpoint_policy":                          {},
+	"aws_vpc_endpoint_private_dns":                     {},
+	"aws_vpc_endpoint_route_table_association":         {},
+	"aws_vpc_endpoint_subnet_association":              {},
+	"aws_vpc_endpoint_security_group_association":      {},
+	"aws_ec2_transit_gateway":                          {},
+	"aws_ec2_transit_gateway_connect":                  {},
+	"aws_ec2_transit_gateway_connect_peer":             {},
+	"aws_ec2_transit_gateway_metering_policy":          {},
+	"aws_ec2_transit_gateway_metering_policy_entry":    {},
+	"aws_ec2_transit_gateway_multicast_domain":         {},
+	"aws_ec2_transit_gateway_peering_attachment":       {},
+	"aws_ec2_transit_gateway_policy_table":             {},
+	"aws_ec2_transit_gateway_policy_table_association": {},
+	"aws_ec2_transit_gateway_route":                    {},
+	"aws_ec2_transit_gateway_route_table":              {},
+	"aws_ec2_transit_gateway_route_table_association":  {},
+	"aws_ec2_transit_gateway_route_table_propagation":  {},
+	"aws_ec2_transit_gateway_vpc_attachment":           {},
+	"aws_customer_gateway":                             {},
+	"aws_vpn_connection":                               {},
+	"aws_vpn_gateway":                                  {},
+	"aws_ec2_client_vpn_endpoint":                      {},
+	"aws_ec2_client_vpn_route":                         {},
+	"aws_vpc_ipam":                                     {},
+	"aws_vpc_ipam_pool":                                {},
+	"aws_vpc_ipam_pool_cidr":                           {},
+	"aws_vpc_ipam_resource_discovery":                  {},
+	"aws_vpc_ipam_resource_discovery_association":      {},
+	"aws_vpc_ipam_scope":                               {},
+	"aws_ec2_managed_prefix_list":                      {},
+	"aws_ec2_managed_prefix_list_entry":                {},
+	"aws_vpc_peering_connection":                       {},
+	"aws_vpc_dhcp_options":                             {},
+	"aws_vpc_dhcp_options_association":                 {},
+	"aws_network_acl":                                  {},
+	"aws_network_acl_rule":                             {},
+	"aws_flow_log":                                     {},
+	"aws_nat_gateway":                                  {},
+	"aws_nat_gateway_eip_association":                  {},
+
 	// ---- Registry-ratified (#40, #44, #65): fifth batch, compute
 	// ---- platforms (Batch, EMR remainder, App Runner, Elastic
 	// ---- Beanstalk, Amplify, Lightsail). Same tools/row-gen pipeline as
@@ -557,7 +618,71 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_lightsail_lb_certificate":                     {},
 	"aws_lightsail_static_ip":                          {},
 
-	// ---- Registry-ratified (#40, #44, #65): fifth batch, developer tools
+	// ---- Registry-ratified (#40, #44, #65): sixth batch, security and
+	// ---- secrets (Secrets Manager, KMS remainder, SSM remainder, ACM-PCA,
+	// ---- GuardDuty, Macie2, SecurityHub, Inspector2, WAFv2 — issue #65's
+	// ---- ratification campaign). Same tools/row-gen pipeline and
+	// ---- verification standard as the batches above, cross-checked against
+	// ---- the AWS provider's documented import behaviour, live/survey-full.json's
+	// ---- taggability signal (the real provider schema, not merely the
+	// ---- CloudFormation Registry's own tagging claim — SecurityHub's legacy
+	// ---- v1 types are where those two disagree, the "newer-API-generation
+	// ---- false friend" the ram-servicecatalog sweep flagged) and a live
+	// ---- floci probe. See internal/live/identity/table.go for the per-type
+	// ---- evidence, the rejected proposals, and the credential-adjacent
+	// ---- exclusions this batch calls out explicitly (extending
+	// ---- opsExcluded's reasoning to aws_kms_grant and
+	// ---- aws_kms_custom_key_store without touching that hand table, since
+	// ---- both already resolve to "moves to Ops" on ordinary
+	// ---- recoverability grounds). Cohort estate: live/e2e/estates/security.
+	"aws_secretsmanager_secret":                        {},
+	"aws_secretsmanager_secret_policy":                 {},
+	"aws_secretsmanager_secret_rotation":               {},
+	"aws_kms_external_key":                             {},
+	"aws_kms_replica_key":                              {},
+	"aws_ssm_association":                              {},
+	"aws_ssm_maintenance_window":                       {},
+	"aws_ssm_patch_baseline":                           {},
+	"aws_ssm_patch_group":                              {},
+	"aws_ssm_resource_data_sync":                       {},
+	"aws_ssm_service_setting":                          {},
+	"aws_acmpca_certificate_authority":                 {},
+	"aws_acmpca_certificate_authority_certificate":     {},
+	"aws_acmpca_policy":                                {},
+	"aws_guardduty_detector":                           {},
+	"aws_guardduty_filter":                             {},
+	"aws_guardduty_ipset":                              {},
+	"aws_guardduty_threatintelset":                     {},
+	"aws_guardduty_malware_protection_plan":            {},
+	"aws_guardduty_member":                             {},
+	"aws_guardduty_publishing_destination":             {},
+	"aws_guardduty_organization_admin_account":         {},
+	"aws_guardduty_organization_configuration":         {},
+	"aws_macie2_custom_data_identifier":                {},
+	"aws_macie2_findings_filter":                       {},
+	"aws_macie2_classification_job":                    {},
+	"aws_macie2_member":                                {},
+	"aws_macie2_organization_admin_account":            {},
+	"aws_securityhub_account_v2":                       {},
+	"aws_securityhub_aggregator_v2":                    {},
+	"aws_securityhub_automation_rule":                  {},
+	"aws_securityhub_automation_rule_v2":               {},
+	"aws_securityhub_configuration_policy_association": {},
+	"aws_securityhub_connector_v2":                     {},
+	"aws_securityhub_organization_admin_account":       {},
+	"aws_securityhub_standards_control":                {},
+	"aws_securityhub_standards_control_association":    {},
+	"aws_securityhub_member":                           {},
+	"aws_inspector2_filter":                            {},
+	"aws_inspector2_delegated_admin_account":           {},
+	"aws_inspector2_member_association":                {},
+	"aws_wafv2_ip_set":                                 {},
+	"aws_wafv2_regex_pattern_set":                      {},
+	"aws_wafv2_rule_group":                             {},
+	"aws_wafv2_web_acl":                                {},
+	"aws_wafv2_web_acl_rule":                           {},
+
+	// ---- Registry-ratified (#40, #44, #65): seventh batch, developer tools
 	// ---- (CodeArtifact, CodeBuild, CodeCommit, CodeConnections and its
 	// ---- CodeStarConnections predecessor, CodeStarNotifications,
 	// ---- CodeDeploy, CodePipeline, and the ECR-public leftover from the
@@ -592,6 +717,53 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_codepipeline_webhook":                       {},
 	"aws_ecrpublic_repository":                       {},
 	"aws_ecrpublic_repository_policy":                {},
+
+	// ---- Registry-ratified (#40, #44, #65): sixth batch, IoT core
+	// ---- (things, thing types/groups, policies, topic rules;
+	// ---- issue #65's recipe). Same tools/row-gen pipeline as the earlier
+	// ---- batches, cross-checked against the AWS provider's documented
+	// ---- Argument/Attribute/Import sections fetched from the pinned
+	// ---- v6.59.0 tag directly, not accepted on row-gen's own
+	// ---- classification: six of these eleven rows are evidence-only
+	// ---- GUESSED-argument proposals row-gen itself declined to paste,
+	// ---- promoted here only after the provider's own docs confirmed (or,
+	// ---- for aws_iot_role_alias, corrected) the guessed argument name.
+	// ---- Four rows are rejected outright: aws_iot_certificate and
+	// ---- aws_iot_ca_certificate, aws_iot_policy_attachment and
+	// ---- aws_iot_thing_principal_attachment carry no "## Import" section
+	// ---- anywhere in the pinned provider's docs at all - confirmed by
+	// ---- fetching the raw doc source, not merely its rendered page - so
+	// ---- no admission path is provider-documented for them.
+	// ---- aws_iot_certificate carries a second, independent
+	// ---- disqualification: evaluated explicitly against the
+	// ---- credential-material bar aws_iam_access_key is excluded by
+	// ---- (live/SURVEY.md's "three the rule excludes"), because when
+	// ---- created with neither `csr` nor `certificate_pem` the provider's
+	// ---- own Attribute Reference has it mint and export `private_key` -
+	// ---- a secret a live read would transit and that AWS never returns
+	// ---- again after create. Excluded by that rule, independent of the
+	// ---- missing Import section. IoT Events, IoT Analytics, Greengrass
+	// ---- (v1 and v2), IoT SiteWise and IoT TwinMaker are all named in
+	// ---- issue #65's recipe as this batch's scope but are not admitted
+	// ---- here: the pinned provider ships no resources for any of the
+	// ---- five services at all (confirmed against the provider's own
+	// ---- website/docs/r/ directory listing at the pinned tag), so
+	// ---- live/mapping.json carries no rows and tools/row-gen emits no
+	// ---- proposals for them - there is nothing this batch could ratify
+	// ---- or reject. See internal/live/identity/table.go for the
+	// ---- per-type evidence. Cohort estate: live/e2e/estates/iot.
+	"aws_iot_authorizer":             {},
+	"aws_iot_billing_group":          {},
+	"aws_iot_domain_configuration":   {},
+	"aws_iot_policy":                 {},
+	"aws_iot_provisioning_template":  {},
+	"aws_iot_role_alias":             {},
+	"aws_iot_thing":                  {},
+	"aws_iot_thing_group":            {},
+	"aws_iot_thing_type":             {},
+	"aws_iot_topic_rule":             {},
+	"aws_iot_topic_rule_destination": {},
+
 	// ---- Registry-ratified (#40, #44, #65): fifth batch, identity
 	// ---- (Cognito, IAM leftovers, SSO Admin; issue #65's ratification
 	// ---- campaign). Same tools/row-gen pipeline and verification standard

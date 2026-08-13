@@ -571,6 +571,37 @@ var (
 		"aws_cloudfront_multitenant_distribution",
 		"aws_cloudfront_trust_store",
 		"aws_cloudfront_vpc_origin",
+		// Registry-ratified EC2 networking beyond the core batch (#40, #44,
+		// #65): the twenty-six marker-path types, confirmed taggable against
+		// live/survey-full.json's signal for each. See
+		// live/e2e/estates/ec2-networking/README.md, "Untaggable types", for
+		// this batch's sixteen untaggable rows, below.
+		"aws_vpc_endpoint",
+		"aws_vpc_endpoint_service",
+		"aws_ec2_transit_gateway",
+		"aws_ec2_transit_gateway_connect",
+		"aws_ec2_transit_gateway_connect_peer",
+		"aws_ec2_transit_gateway_metering_policy",
+		"aws_ec2_transit_gateway_multicast_domain",
+		"aws_ec2_transit_gateway_peering_attachment",
+		"aws_ec2_transit_gateway_policy_table",
+		"aws_ec2_transit_gateway_route_table",
+		"aws_ec2_transit_gateway_vpc_attachment",
+		"aws_customer_gateway",
+		"aws_vpn_connection",
+		"aws_vpn_gateway",
+		"aws_ec2_client_vpn_endpoint",
+		"aws_vpc_ipam",
+		"aws_vpc_ipam_pool",
+		"aws_vpc_ipam_resource_discovery",
+		"aws_vpc_ipam_resource_discovery_association",
+		"aws_vpc_ipam_scope",
+		"aws_ec2_managed_prefix_list",
+		"aws_vpc_peering_connection",
+		"aws_vpc_dhcp_options",
+		"aws_network_acl",
+		"aws_flow_log",
+		"aws_nat_gateway",
 		// Registry-ratified compute-platforms batch (#40, #44, issue #65's
 		// ratification campaign): Batch, EMR remainder, App Runner, Elastic
 		// Beanstalk, Amplify and Lightsail. Three of this batch's types are
@@ -601,6 +632,36 @@ var (
 		"aws_lightsail_distribution",
 		"aws_lightsail_instance",
 		"aws_lightsail_lb",
+		// Registry-ratified security and secrets batch (#40, #44, issue
+		// #65). See live/e2e/estates/security/README.md, "Untaggable
+		// types", for this batch's untaggable rows, below.
+		"aws_secretsmanager_secret",
+		"aws_kms_external_key",
+		"aws_kms_replica_key",
+		"aws_ssm_association",
+		"aws_ssm_maintenance_window",
+		"aws_ssm_patch_baseline",
+		"aws_acmpca_certificate_authority",
+		"aws_guardduty_detector",
+		"aws_guardduty_filter",
+		"aws_guardduty_ipset",
+		"aws_guardduty_threatintelset",
+		"aws_guardduty_malware_protection_plan",
+		"aws_guardduty_publishing_destination",
+		"aws_macie2_custom_data_identifier",
+		"aws_macie2_findings_filter",
+		"aws_macie2_classification_job",
+		"aws_macie2_member",
+		"aws_securityhub_account_v2",
+		"aws_securityhub_aggregator_v2",
+		"aws_securityhub_automation_rule",
+		"aws_securityhub_automation_rule_v2",
+		"aws_securityhub_connector_v2",
+		"aws_inspector2_filter",
+		"aws_wafv2_ip_set",
+		"aws_wafv2_regex_pattern_set",
+		"aws_wafv2_rule_group",
+		"aws_wafv2_web_acl",
 		// Registry-ratified developer tools batch (#40, #44, issue #65):
 		// CodeArtifact, CodeBuild, CodeCommit, CodeConnections/
 		// CodeStarConnections, CodeStarNotifications, CodeDeploy,
@@ -622,6 +683,19 @@ var (
 		"aws_codepipeline_custom_action_type",
 		"aws_codepipeline_webhook",
 		"aws_ecrpublic_repository",
+		// Registry-ratified IoT core batch (#40, #44, issue #65): nine of
+		// the batch's eleven types carry a top-level tags argument in the
+		// pinned provider's own wire schema. See
+		// live/e2e/estates/iot/README.md.
+		"aws_iot_authorizer",
+		"aws_iot_billing_group",
+		"aws_iot_domain_configuration",
+		"aws_iot_policy",
+		"aws_iot_provisioning_template",
+		"aws_iot_role_alias",
+		"aws_iot_thing_group",
+		"aws_iot_thing_type",
+		"aws_iot_topic_rule",
 		// Registry-ratified identity batch (#40, #44, #65): Cognito, IAM
 		// leftovers, SSO Admin. See live/e2e/estates/identity/README.md.
 		"aws_cognito_identity_pool",
@@ -772,6 +846,28 @@ var (
 		"aws_cloudfront_monitoring_subscription",
 		"aws_cloudfront_origin_access_control",
 		"aws_cloudfront_realtime_log_config",
+		// Registry-ratified EC2 networking beyond the core batch (#40, #44,
+		// #65): sixteen parent-derived composites, none carrying a tags
+		// argument (confirmed against live/survey-full.json for each) —
+		// they do not need the marker path at all, since their identity is
+		// built straight from configuration. See
+		// live/e2e/estates/ec2-networking/README.md, "Untaggable types".
+		"aws_ec2_managed_prefix_list_entry",
+		"aws_ec2_transit_gateway_metering_policy_entry",
+		"aws_ec2_transit_gateway_policy_table_association",
+		"aws_ec2_transit_gateway_route",
+		"aws_ec2_transit_gateway_route_table_association",
+		"aws_ec2_transit_gateway_route_table_propagation",
+		"aws_ec2_client_vpn_route",
+		"aws_vpc_ipam_pool_cidr",
+		"aws_vpc_dhcp_options_association",
+		"aws_network_acl_rule",
+		"aws_nat_gateway_eip_association",
+		"aws_vpc_endpoint_policy",
+		"aws_vpc_endpoint_private_dns",
+		"aws_vpc_endpoint_route_table_association",
+		"aws_vpc_endpoint_subnet_association",
+		"aws_vpc_endpoint_security_group_association",
 		// Registry-ratified compute-platforms batch (#40, #44, issue #65's
 		// ratification campaign): three types with no tags argument at all
 		// in the pinned provider's own wire schema, confirmed against
@@ -784,6 +880,29 @@ var (
 		"aws_emr_security_configuration",
 		"aws_lightsail_lb_certificate",
 		"aws_lightsail_static_ip",
+		// Registry-ratified security and secrets batch (#40, #44, issue
+		// #65): parent-derived children and account-id-keyed singletons
+		// with no tags argument at all. See
+		// live/e2e/estates/security/README.md, "Untaggable types".
+		"aws_secretsmanager_secret_policy",
+		"aws_secretsmanager_secret_rotation",
+		"aws_ssm_patch_group",
+		"aws_ssm_resource_data_sync",
+		"aws_ssm_service_setting",
+		"aws_acmpca_certificate_authority_certificate",
+		"aws_acmpca_policy",
+		"aws_guardduty_member",
+		"aws_guardduty_organization_admin_account",
+		"aws_guardduty_organization_configuration",
+		"aws_macie2_organization_admin_account",
+		"aws_securityhub_configuration_policy_association",
+		"aws_securityhub_organization_admin_account",
+		"aws_securityhub_standards_control",
+		"aws_securityhub_standards_control_association",
+		"aws_securityhub_member",
+		"aws_inspector2_delegated_admin_account",
+		"aws_inspector2_member_association",
+		"aws_wafv2_web_acl_rule",
 		// Registry-ratified developer tools batch (#40, #44, issue #65):
 		// four types with no tags argument at all, confirmed against the
 		// provider's documented Argument Reference for each —
@@ -801,6 +920,15 @@ var (
 		"aws_codebuild_webhook",
 		"aws_codedeploy_deployment_config",
 		"aws_ecrpublic_repository_policy",
+		// Registry-ratified IoT core batch (#40, #44, issue #65): two of
+		// the batch's eleven types carry no tags argument at all in the
+		// pinned provider's own wire schema — aws_iot_thing's Argument
+		// Reference names only name, attributes and thing_type_name, and
+		// aws_iot_topic_rule_destination's names only enabled and
+		// vpc_configuration. See live/e2e/estates/iot/README.md,
+		// "Untaggable types".
+		"aws_iot_thing",
+		"aws_iot_topic_rule_destination",
 		// Registry-ratified identity batch (#40, #44, #65): Cognito, IAM
 		// leftovers, SSO Admin. Fifteen untaggable types, confirmed against
 		// the real provider's documented Argument Reference for each - see
@@ -1485,6 +1613,53 @@ func testSchemas() Schemas {
 		"aws_ecrpublic_repository":                       tagged("id", "arn", "repository_name"),
 		"aws_ecrpublic_repository_policy":                untagged("registry_id", "repository_name", "policy"),
 
+		// Registry-ratified EC2 networking beyond the core batch (#40, #44,
+		// #65). Marker-path types first, confirmed taggable against
+		// live/survey-full.json's signal for each; the sixteen
+		// parent-derived composites below carry no tags argument at all.
+		"aws_vpc_endpoint":                                 tagged("id", "vpc_id", "service_name"),
+		"aws_vpc_endpoint_service":                         tagged("id", "service_name"),
+		"aws_ec2_transit_gateway":                          tagged("id", "amazon_side_asn"),
+		"aws_ec2_transit_gateway_connect":                  tagged("id", "transit_gateway_id", "transport_attachment_id"),
+		"aws_ec2_transit_gateway_connect_peer":             tagged("id", "transit_gateway_attachment_id", "peer_address"),
+		"aws_ec2_transit_gateway_metering_policy":          tagged("id", "transit_gateway_id"),
+		"aws_ec2_transit_gateway_multicast_domain":         tagged("id", "transit_gateway_id"),
+		"aws_ec2_transit_gateway_peering_attachment":       tagged("id", "transit_gateway_id", "peer_transit_gateway_id"),
+		"aws_ec2_transit_gateway_policy_table":             tagged("id", "transit_gateway_id"),
+		"aws_ec2_transit_gateway_route_table":              tagged("id", "transit_gateway_id"),
+		"aws_ec2_transit_gateway_vpc_attachment":           tagged("id", "transit_gateway_id", "vpc_id"),
+		"aws_customer_gateway":                             tagged("id", "bgp_asn", "ip_address", "type"),
+		"aws_vpn_connection":                               tagged("id", "customer_gateway_id", "type"),
+		"aws_vpn_gateway":                                  tagged("id", "amazon_side_asn"),
+		"aws_ec2_client_vpn_endpoint":                      tagged("id", "server_certificate_arn", "client_cidr_block"),
+		"aws_vpc_ipam":                                     tagged("id"),
+		"aws_vpc_ipam_pool":                                tagged("id", "ipam_scope_id", "address_family"),
+		"aws_vpc_ipam_resource_discovery":                  tagged("id"),
+		"aws_vpc_ipam_resource_discovery_association":      tagged("id", "ipam_id", "ipam_resource_discovery_id"),
+		"aws_vpc_ipam_scope":                               tagged("id", "ipam_id"),
+		"aws_ec2_managed_prefix_list":                      tagged("id", "name", "address_family", "max_entries"),
+		"aws_vpc_peering_connection":                       tagged("id", "vpc_id", "peer_vpc_id"),
+		"aws_vpc_dhcp_options":                             tagged("id"),
+		"aws_network_acl":                                  tagged("id", "vpc_id"),
+		"aws_flow_log":                                     tagged("id", "vpc_id", "traffic_type"),
+		"aws_nat_gateway":                                  tagged("id", "subnet_id", "allocation_id"),
+		"aws_ec2_managed_prefix_list_entry":                untagged("id", "prefix_list_id", "cidr"),
+		"aws_ec2_transit_gateway_metering_policy_entry":    untagged("id", "transit_gateway_metering_policy_id", "policy_rule_number", "metered_account"),
+		"aws_ec2_transit_gateway_policy_table_association": untagged("id", "transit_gateway_policy_table_id", "transit_gateway_attachment_id"),
+		"aws_ec2_transit_gateway_route":                    untagged("id", "transit_gateway_route_table_id", "destination_cidr_block"),
+		"aws_ec2_transit_gateway_route_table_association":  untagged("id", "transit_gateway_route_table_id", "transit_gateway_attachment_id"),
+		"aws_ec2_transit_gateway_route_table_propagation":  untagged("id", "transit_gateway_route_table_id", "transit_gateway_attachment_id"),
+		"aws_ec2_client_vpn_route":                         untagged("id", "client_vpn_endpoint_id", "target_vpc_subnet_id", "destination_cidr_block"),
+		"aws_vpc_ipam_pool_cidr":                           untagged("id", "ipam_pool_id", "cidr"),
+		"aws_vpc_dhcp_options_association":                 untagged("id", "vpc_id", "dhcp_options_id"),
+		"aws_network_acl_rule":                             untagged("id", "network_acl_id", "rule_number", "protocol", "rule_action"),
+		"aws_nat_gateway_eip_association":                  untagged("id", "nat_gateway_id", "allocation_id"),
+		"aws_vpc_endpoint_policy":                          untagged("id", "vpc_endpoint_id", "policy"),
+		"aws_vpc_endpoint_private_dns":                     untagged("id", "vpc_endpoint_id", "private_dns_enabled"),
+		"aws_vpc_endpoint_route_table_association":         untagged("id", "vpc_endpoint_id", "route_table_id"),
+		"aws_vpc_endpoint_subnet_association":              untagged("id", "vpc_endpoint_id", "subnet_id"),
+		"aws_vpc_endpoint_security_group_association":      untagged("id", "vpc_endpoint_id", "security_group_id"),
+
 		// Registry-ratified compute-platforms batch (#40, #44, issue #65's
 		// ratification campaign). Taggable/untaggable per the real
 		// provider's documented Argument Reference for each type:
@@ -1600,6 +1775,70 @@ func testSchemas() Schemas {
 		"aws_appsync_graphql_api":             tagged("id", "arn", "name"),
 		"aws_pipes_pipe":                      tagged("id", "arn", "name"),
 		"aws_scheduler_schedule_group":        tagged("id", "arn", "name"),
+
+		// Registry-ratified security and secrets batch (#40, #44, issue #65).
+		"aws_secretsmanager_secret":                        tagged("id", "arn", "name"),
+		"aws_secretsmanager_secret_policy":                 untagged("id", "secret_arn", "policy"),
+		"aws_secretsmanager_secret_rotation":               untagged("id", "secret_id"),
+		"aws_kms_external_key":                             tagged("id", "key_id", "arn"),
+		"aws_kms_replica_key":                              tagged("id", "key_id", "arn", "primary_key_arn"),
+		"aws_ssm_association":                              tagged("id", "association_id", "name"),
+		"aws_ssm_maintenance_window":                       tagged("id", "name", "schedule"),
+		"aws_ssm_patch_baseline":                           tagged("id", "name"),
+		"aws_ssm_patch_group":                              untagged("id", "baseline_id", "patch_group"),
+		"aws_ssm_resource_data_sync":                       untagged("id", "name"),
+		"aws_ssm_service_setting":                          untagged("id", "setting_id", "setting_value"),
+		"aws_acmpca_certificate_authority":                 tagged("id", "arn"),
+		"aws_acmpca_certificate_authority_certificate":     untagged("id", "certificate_authority_arn", "certificate"),
+		"aws_acmpca_policy":                                untagged("id", "resource_arn", "policy"),
+		"aws_guardduty_detector":                           tagged("id"),
+		"aws_guardduty_filter":                             tagged("id", "detector_id", "name"),
+		"aws_guardduty_ipset":                              tagged("id", "detector_id", "name"),
+		"aws_guardduty_threatintelset":                     tagged("id", "detector_id", "name"),
+		"aws_guardduty_malware_protection_plan":            tagged("id", "arn", "role"),
+		"aws_guardduty_member":                             untagged("id", "detector_id", "account_id"),
+		"aws_guardduty_publishing_destination":             tagged("id", "detector_id"),
+		"aws_guardduty_organization_admin_account":         untagged("id", "admin_account_id"),
+		"aws_guardduty_organization_configuration":         untagged("id", "detector_id"),
+		"aws_macie2_custom_data_identifier":                tagged("id", "name"),
+		"aws_macie2_findings_filter":                       tagged("id", "name"),
+		"aws_macie2_classification_job":                    tagged("id", "job_id", "name"),
+		"aws_macie2_member":                                tagged("id", "account_id"),
+		"aws_macie2_organization_admin_account":            untagged("id", "admin_account_id"),
+		"aws_securityhub_account_v2":                       tagged("id", "arn"),
+		"aws_securityhub_aggregator_v2":                    tagged("id", "arn"),
+		"aws_securityhub_automation_rule":                  tagged("id", "arn", "rule_name"),
+		"aws_securityhub_automation_rule_v2":               tagged("id", "arn", "rule_name"),
+		"aws_securityhub_configuration_policy_association": untagged("id", "target_id", "policy_id"),
+		"aws_securityhub_connector_v2":                     tagged("id", "arn", "connector_id", "name"),
+		"aws_securityhub_organization_admin_account":       untagged("id", "admin_account_id"),
+		"aws_securityhub_standards_control":                untagged("id", "standards_control_arn"),
+		"aws_securityhub_standards_control_association":    untagged("id", "security_control_id", "standards_arn"),
+		"aws_securityhub_member":                           untagged("id", "account_id"),
+		"aws_inspector2_filter":                            tagged("id", "arn", "name"),
+		"aws_inspector2_delegated_admin_account":           untagged("id", "account_id"),
+		"aws_inspector2_member_association":                untagged("id", "account_id"),
+		"aws_wafv2_ip_set":                                 tagged("id", "arn", "name", "scope"),
+		"aws_wafv2_regex_pattern_set":                      tagged("id", "arn", "name", "scope"),
+		"aws_wafv2_rule_group":                             tagged("id", "arn", "name", "scope"),
+		"aws_wafv2_web_acl":                                tagged("id", "arn", "name", "scope"),
+		"aws_wafv2_web_acl_rule":                           untagged("id", "web_acl_arn", "name"),
+		// Registry-ratified IoT core batch (#40, #44, issue #65).
+		// Taggable/untaggable per the real provider's documented Argument
+		// Reference for each type: aws_iot_thing (name, attributes,
+		// thing_type_name only) and aws_iot_topic_rule_destination
+		// (enabled, vpc_configuration only) carry no tags argument at all.
+		"aws_iot_authorizer":             tagged("arn", "name"),
+		"aws_iot_billing_group":          tagged("id", "arn", "name"),
+		"aws_iot_domain_configuration":   tagged("id", "arn", "name"),
+		"aws_iot_policy":                 tagged("arn", "name"),
+		"aws_iot_provisioning_template":  tagged("arn", "name"),
+		"aws_iot_role_alias":             tagged("arn", "alias"),
+		"aws_iot_thing":                  untagged("arn", "name"),
+		"aws_iot_thing_group":            tagged("id", "arn", "name"),
+		"aws_iot_thing_type":             tagged("arn", "name"),
+		"aws_iot_topic_rule":             tagged("arn", "name"),
+		"aws_iot_topic_rule_destination": untagged("arn"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.
