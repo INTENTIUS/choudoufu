@@ -78,22 +78,60 @@ duplicates.
 
 ## Can I manage my whole infrastructure with this?
 
-Almost certainly not yet. The admitted subset is AWS only, root module
-only, and a fixed list of resource types that grows a batch at a time. In
-practice it is core VPC networking plus the glue around it: buckets, IAM
-roles, log groups, parameters, keys, zones and the like, with no EC2
-instances, no RDS, and no Lambda. The concept page's Contract section has
-the current list, and it is the only place that enumerates it. The gap to the rest of AWS is mechanical rather than
-conceptual. The provider survey found 65 of the top 68 AWS types satisfy
-the admission rule, but each type has to be wired into the hardcoded v0
-admission table by hand until provider identity schemas (opentofu#2854)
-make the table derivable. The survey itself, its method, and its per-type
-table are committed in `live/SURVEY.md`. Beyond types, there are
-construct limits too. No child modules, no provisioners, no `random_*` or
-other logical resources, no workspaces, no saved plan files. Each limit is
-documented with its reasoning and its enforcing lint rule in
-`live/LIMITATIONS.md`, and the lint refuses a config outside the
-subset up front rather than failing halfway through an apply.
+Almost certainly not yet, and the type list is not the main reason. The
+hard limits, in the order they will actually stop you:
+
+**Root module only.** A configuration that uses child modules is refused.
+Most mature Terraform estates are module-structured, which makes this the
+single biggest excluder today - no amount of resource-type coverage
+changes it, and flattening an estate to try the tool is real work.
+
+**AWS only, and no logical resources.** Multi-cloud estates can bring
+only their AWS portion, and configs leaning on `random_*`, `tls_*` or
+similar are refused with a family-level explanation.
+
+**A fixed, growing list of resource types.** The concept page's Contract
+section enumerates the current admitted list - it is rendered from the
+admission table itself, so it cannot go stale. Today it covers core VPC
+networking, S3 and its children, the IAM core, the ALB stack, DynamoDB,
+KMS, Route53, ACM, CloudWatch basics, SQS/SNS, Lambda, and ECR. It does
+not yet cover EC2 instances, RDS, ECS/EKS services, or API Gateway.
+
+Beyond those, the construct limits: no provisioners, no workspaces, no
+saved plan files. Each limit is documented with its reasoning and its
+enforcing lint rule in `live/LIMITATIONS.md`, and the lint refuses a
+config outside the subset up front - naming the specific reason per
+resource - rather than failing halfway through an apply.
+
+## Will my estate's resource types ever be covered?
+
+Almost certainly yes, and this is now a measured claim rather than a
+hope. Every one of the provider's 1,691 resource types has been
+classified, with the classification committed as an artifact
+(`live/mapping.json`) and enforced by tests:
+
+- About three quarters have a CloudFormation-registry counterpart or fold
+  into one as a property-child. For these, identity and enumeration are
+  machine-derivable, and admission proposals are generated with evidence
+  and adopted in reviewed batches - the list grows on a schedule, not by
+  hand.
+- The rest are classified with a recorded reason each: provider-side
+  constructs that manage no cloud resource of their own (waiters,
+  exclusive-set managers), resources CloudFormation does not model, dying
+  services (Pinpoint, Greengrass V1, WAF classic), and a handful of
+  structurally ambiguous types. `live/LIMITATIONS.md`'s exclusion-cohort
+  section names every cohort with its count.
+
+The types a typical estate is actually made of - compute, networking,
+storage, queues, identity, DNS, certificates, observability - sit almost
+entirely in the machine-reachable three quarters. What concentrates in
+the unreachable quarter is what you arguably should not manage this way
+anyway: data-plane objects (`aws_s3_object`, DynamoDB items), credentials
+(access keys, secret versions - excluded by rule so they never transit a
+marker), and services AWS is retiring. If your estate is ordinary
+infrastructure on living services, the type dimension will not be what
+blocks you; the module limit and the tool's experimental status will be,
+and both are stated above rather than discovered mid-apply.
 
 ## Does it really keep no record at all?
 
