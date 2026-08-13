@@ -52,6 +52,21 @@ func untaggableAdmittedTypes(root string) ([]string, error) {
 
 	var out []string
 	for _, typeName := range identity.AdmittedTypes() {
+		// GitHub issue #73's RECORD_ADMITTED logical types (null_resource,
+		// terraform_data, the time_* and random_* rows
+		// internal/live/identity/table_recordbacked.go admits) are not AWS
+		// provider resource types at all - they belong to the null, time and
+		// random providers - so live/survey-full.json, which carries only
+		// the AWS provider's own roster, has no row for any of them and
+		// never will. "Taggable" is not even a meaningful question for a
+		// type whose identity is the persisted micro-state record itself,
+		// not a live AWS object with a tags argument to have or lack, so
+		// this derivation skips them rather than treating their absence
+		// from the AWS survey as the drift it is for every other admitted
+		// type.
+		if entry, ok := identity.LookupType(typeName); ok && entry.RecordBacked {
+			continue
+		}
 		if !known[typeName] {
 			return nil, fmt.Errorf("%s has no row for admitted type %s; regenerate with `go run ./tools/survey-gen -all`", surveyFullJSONRel, typeName)
 		}

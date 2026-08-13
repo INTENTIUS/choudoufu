@@ -704,6 +704,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | Type | Parent | Removed by this leg |
 |---|---|---|
 | `aws_acmpca_certificate_authority_certificate` | `aws_acmpca_certificate_authority` | no (report-only) |
+| `aws_acmpca_policy` | `null_resource` | no (report-only) |
 | `aws_api_gateway_base_path_mapping` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_api_gateway_documentation_version` | `aws_api_gateway_rest_api` | no (report-only) |
 | `aws_api_gateway_gateway_response` | `aws_api_gateway_rest_api` | no (report-only) |
@@ -716,6 +717,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_api_gateway_rest_api_policy` | `aws_api_gateway_rest_api` | no (report-only) |
 | `aws_api_gateway_usage_plan_key` | `aws_api_gateway_usage_plan` | no (report-only) |
 | `aws_appflow_connector_profile` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_bedrockagentcore_resource_policy` | `null_resource` | no (report-only) |
 | `aws_cloudfront_monitoring_subscription` | `aws_lightsail_distribution` | no (report-only) |
 | `aws_cloudfront_realtime_log_config` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_cloudwatch_event_api_destination` | `aws_api_gateway_domain_name` | no (report-only) |
@@ -723,6 +725,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_cloudwatch_event_connection` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_cloudwatch_event_endpoint` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_cloudwatch_log_metric_filter` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_cloudwatch_log_resource_policy` | `null_resource` | no (report-only) |
 | `aws_cloudwatch_log_stream` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_cloudwatch_log_subscription_filter` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_cloudwatch_log_transformer` | `aws_cloudwatch_log_group` | no (report-only) |
@@ -736,6 +739,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_config_conformance_pack` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_config_organization_conformance_pack` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_dynamodb_global_table` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_dynamodb_resource_policy` | `null_resource` | no (report-only) |
 | `aws_ec2_client_vpn_route` | `aws_ec2_client_vpn_endpoint` | no (report-only) |
 | `aws_ec2_managed_prefix_list_entry` | `aws_ec2_managed_prefix_list` | no (report-only) |
 | `aws_ec2_transit_gateway_metering_policy_entry` | `aws_ec2_transit_gateway_metering_policy` | no (report-only) |
@@ -812,6 +816,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_vpc_endpoint_security_group_association` | `aws_vpc_endpoint` | no (report-only) |
 | `aws_vpc_endpoint_subnet_association` | `aws_vpc_endpoint` | no (report-only) |
 | `aws_vpc_ipam_pool_cidr` | `aws_vpc_ipam_pool` | no (report-only) |
+| `aws_vpclattice_resource_policy` | `null_resource` | no (report-only) |
 | `aws_wafv2_web_acl_rule` | `aws_wafv2_web_acl` | no (report-only) |
 | `aws_workspacesweb_browser_settings_association` | `aws_workspacesweb_browser_settings` | no (report-only) |
 | `aws_workspacesweb_data_protection_settings_association` | `aws_workspacesweb_data_protection_settings` | no (report-only) |
@@ -822,7 +827,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_workspacesweb_user_access_logging_settings_association` | `aws_workspacesweb_user_access_logging_settings` | no (report-only) |
 | `aws_workspacesweb_user_settings_association` | `aws_workspacesweb_user_settings` | no (report-only) |
 
-**Total.** 118 types swept via a parent read.
+**Total.** 123 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
@@ -850,22 +855,19 @@ behavior is checked the way the bucket policy's was - see
 per-type reasoning as it stands.
 
 **The residue.** <!-- survey-gen:begin untaggable-residue -->
-`aws_acmpca_policy`, `aws_api_gateway_account`,
-`aws_apigatewayv2_routing_rule`, `aws_bedrockagentcore_resource_policy`,
+`aws_api_gateway_account`, `aws_apigatewayv2_routing_rule`,
 `aws_cloudfront_origin_access_control`, `aws_cloudwatch_dashboard`,
 `aws_cloudwatch_event_permission`, `aws_cloudwatch_log_account_policy`,
-`aws_cloudwatch_log_resource_policy`, `aws_cloudwatch_otel_enrichment`,
-`aws_cloudwatch_query_definition`,
+`aws_cloudwatch_otel_enrichment`, `aws_cloudwatch_query_definition`,
 `aws_codeartifact_domain_permissions_policy`,
 `aws_codeartifact_repository_permissions_policy`, `aws_codebuild_webhook`,
 `aws_codedeploy_deployment_config`, `aws_cognito_user_pool_domain`,
 `aws_config_remediation_configuration`,
 `aws_connect_user_hierarchy_structure`, `aws_controltower_control`,
 `aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
-`aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
-`aws_ec2_transit_gateway_route`, `aws_ecr_pull_through_cache_rule`,
-`aws_ecr_pull_time_update_exclusion`, `aws_ecr_registry_policy`,
-`aws_ecr_registry_scanning_configuration`,
+`aws_ebs_snapshot_block_public_access`, `aws_ec2_transit_gateway_route`,
+`aws_ecr_pull_through_cache_rule`, `aws_ecr_pull_time_update_exclusion`,
+`aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
 `aws_ecr_replication_configuration`, `aws_ecr_repository_creation_template`,
 `aws_ecs_cluster_capacity_providers`, `aws_eip_association`,
 `aws_globalaccelerator_endpoint_group`, `aws_globalaccelerator_listener`,
@@ -881,8 +883,8 @@ per-type reasoning as it stands.
 `aws_securityhub_member`, `aws_securityhub_organization_admin_account`,
 `aws_securityhub_standards_control`,
 `aws_securityhub_standards_control_association`, `aws_ssm_service_setting`,
-`aws_vpc_dhcp_options_association`, `aws_vpclattice_auth_policy`,
-`aws_vpclattice_resource_policy` and `aws_xray_resource_policy`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
+`aws_vpc_dhcp_options_association`, `aws_vpclattice_auth_policy` and
+`aws_xray_resource_policy`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
 parent-readable: the three ECR registry types are account-level singletons
 with no admitted parent resource to read at all, and the dashboard, the
 KMS alias and the Lambda layer version are each client-named on their own

@@ -437,7 +437,7 @@ outcomes at all. They are named below.
 ## The Contract
 
 - **AWS only, <!-- survey-gen:begin contract-count -->
-652<!-- survey-gen:end contract-count --> resource types, count-expanded modules refused.** The admission table
+662<!-- survey-gen:end contract-count --> resource types, count-expanded modules refused.** The admission table
   (`internal/live/lint/admission.go`) is the whole subset of resource types. It holds <!-- survey-gen:begin contract-types -->
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
@@ -786,7 +786,10 @@ outcomes at all. They are named below.
   `aws_workspacesweb_user_access_logging_settings_association`,
   `aws_workspacesweb_user_settings`,
   `aws_workspacesweb_user_settings_association`, `aws_xray_group`,
-  `aws_xray_resource_policy`, and `aws_xray_sampling_rule`<!-- survey-gen:end contract-types -->. Nothing else, no
+  `aws_xray_resource_policy`, `aws_xray_sampling_rule`, `null_resource`,
+  `random_id`, `random_integer`, `random_pet`, `random_shuffle`,
+  `terraform_data`, `time_offset`, `time_rotating`, `time_sleep`, and
+  `time_static`<!-- survey-gen:end contract-types -->. Nothing else, no
   other AWS type, no other provider - with one conditional exception: see
   "`record_store` (optional)" below for the ten non-AWS logical types
   (`null_resource`, `terraform_data`, the `time_*` family, and four
