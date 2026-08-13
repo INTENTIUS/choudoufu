@@ -6,14 +6,16 @@
 package lint
 
 import (
+	"context"
 	"fmt"
 	"sort"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
-// checkChildModules rejects the two module-call shapes whose expansion is
+// checkChildModules rejects the module-call shapes whose expansion is
 // incompatible with address-as-identity, wherever in the tree they are
 // written. A static module call - neither count nor for_each - is not one
 // of them and is not reported at all: 59b gave the five walkers a real
@@ -26,11 +28,22 @@ import (
 //     marker records an address, not a position - a renumbering that leaves
 //     every marker pointing at the wrong instance is not a gap this mode
 //     intends to close.
-//   - for_each on a module block is refused today because nothing downstream
-//     of lint walks into a module's instances yet (#59, phase 3, "59c").
-//     Its keys do not shift under insertion or removal the way count's
-//     positions do, which is what makes it worth admitting - it is not
-//     admitted yet.
+//   - for_each on a module block is admitted (59c, issue #59 phase 3) when
+//     its keys are statically evaluable - a literal collection, or one
+//     built from variables, locals, path and terraform values, exactly the
+//     scope a resource's own for_each is evaluated in - because a keyed
+//     instance's key does not shift under insertion or removal the way
+//     count's position does, which is what makes it worth admitting at all.
+//     A for_each whose keys this pass cannot enumerate is still refused:
+//     the five walkers need every instance key before anything is read
+//     from the cloud, the same reason identity resolution refuses a
+//     resource's own non-static for_each (resolve.go's forEachExpansion).
+//     Whether each individual key survives the trip through a
+//     tofu-address marker is a separate question, asked by
+//     [checkForEachKeys] with the same rule a resource's own for_each key
+//     is held to (live/MARKERS.md, RuleForEachKey) - a module whose keys
+//     are enumerable but contain a bad character is admitted here and
+//     reported there instead, exactly as a resource is.
 //
 // Before 59b landed, identity resolution, discovery, marker stamping, the
 // projection and a rename all stopped at the root, and each of them used to
@@ -40,13 +53,13 @@ import (
 // ran the configuration was a tree rather than a page. Lint runs before all
 // five, in both commands, and it already walks the whole tree - which is
 // what lets this one name the module call and its source range - so a
-// count- or for_each-expanded module is still stopped here, at the one
-// place that can say why in the operator's own configuration.
+// count-expanded or non-statically-keyed module is still stopped here, at
+// the one place that can say why in the operator's own configuration.
 //
 // The walk is per-module rather than "does the root have children", so a
-// configuration three deep reports every count- or for_each-expanded call in
-// one pass instead of one per run of the fix-and-rerun loop.
-func checkChildModules(mod *configs.Module, path addrs.Module, issues *[]Issue) {
+// configuration three deep reports every refused call in one pass instead
+// of one per run of the fix-and-rerun loop.
+func checkChildModules(ctx context.Context, mod *configs.Module, path addrs.Module, issues *[]Issue) {
 	names := make([]string, 0, len(mod.ModuleCalls))
 	for name := range mod.ModuleCalls {
 		names = append(names, name)
@@ -55,7 +68,7 @@ func checkChildModules(mod *configs.Module, path addrs.Module, issues *[]Issue) 
 
 	for _, name := range names {
 		call := mod.ModuleCalls[name]
-		detail, refused := childModuleDetail(call)
+		detail, refused := childModuleDetail(ctx, mod, call)
 		if !refused {
 			continue
 		}
@@ -69,12 +82,13 @@ func checkChildModules(mod *configs.Module, path addrs.Module, issues *[]Issue) 
 	}
 }
 
-// childModuleDetail is the refusal for a count- or for_each-expanded module
-// call, and reports false for a static one: count and for_each are mutually
-// exclusive on a module block - HCL itself refuses a call that sets both -
-// so this is a strict three-way choice (count, for_each, or admitted), not
-// a priority order.
-func childModuleDetail(call *configs.ModuleCall) (string, bool) {
+// childModuleDetail is the refusal for a count-expanded or non-statically-
+// keyed for_each module call, and reports false for a static call or a
+// for_each call whose keys this pass can enumerate: count and for_each are
+// mutually exclusive on a module block - HCL itself refuses a call that
+// sets both - so this is a strict three-way choice (count, for_each, or
+// admitted), not a priority order.
+func childModuleDetail(ctx context.Context, mod *configs.Module, call *configs.ModuleCall) (string, bool) {
 	switch {
 	case call.Count != nil:
 		return "count on a module block expands it positionally, renumbering every " +
@@ -85,13 +99,19 @@ func childModuleDetail(call *configs.ModuleCall) (string, bool) {
 			"resources into the root module, or split the module into an estate of its own " +
 			"with its own live block", true
 	case call.ForEach != nil:
-		return "for_each on a module block is planned (issue #59, phase 3, after the " +
-			"static-module traversal lands): a keyed instance does not renumber the way a " +
-			"counted one does, which is what makes it worth admitting. It is not admitted " +
-			"yet - identity resolution, discovery, marker stamping and the projection do " +
-			"not walk into a module's instances today. Move the module's resources into " +
-			"the root module, or split the module into an estate of its own with its own " +
-			"live block, until keyed module expansion ships", true
+		if _, diag := identity.ChildModuleKeys(ctx, mod, fmt.Sprintf("module %q", call.Name), call.ForEach); diag != nil {
+			return fmt.Sprintf(
+				"for_each on a module block is admitted only when its keys are statically "+
+					"evaluable - a literal collection, or one built from variables, locals, "+
+					"path and terraform values - because every one of them becomes part of an "+
+					"address inside the module, and the five walkers need every instance key "+
+					"before anything is read from the cloud. %s Move the module's resources "+
+					"into the root module, or split the module into an estate of its own with "+
+					"its own live block, until the for_each expression is statically evaluable",
+				diag.Detail,
+			), true
+		}
+		return "", false
 	default:
 		return "", false
 	}

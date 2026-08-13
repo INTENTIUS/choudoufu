@@ -784,6 +784,38 @@ var (
 		"aws_appsync_graphql_api",
 		"aws_pipes_pipe",
 		"aws_scheduler_schedule_group",
+		// Registry-ratified media services batch (#40, #44, issue #65).
+		// aws_medialive_multiplex_program is this batch's one untaggable
+		// type, below. See live/e2e/estates/media/README.md, "Untaggable
+		// types".
+		"aws_medialive_multiplex",
+		"aws_media_package_channel",
+		"aws_media_packagev2_channel_group",
+		"aws_ivs_channel",
+		"aws_ivs_playback_key_pair",
+		"aws_ivs_recording_configuration",
+		"aws_ivschat_logging_configuration",
+		"aws_ivschat_room",
+		// Registry-ratified governance batch (#40, #44, issue #65). See
+		// live/e2e/estates/governance/README.md.
+		"aws_config_config_rule",
+		"aws_config_configuration_aggregator",
+		"aws_controltower_baseline",
+		"aws_controltower_landing_zone",
+		"aws_organizations_account",
+		"aws_organizations_organizational_unit",
+		"aws_organizations_policy",
+		"aws_organizations_resource_policy",
+		"aws_resourceexplorer2_index",
+		"aws_resourceexplorer2_view",
+		"aws_resourcegroups_group",
+		"aws_servicecatalog_portfolio",
+		"aws_servicecatalog_product",
+		"aws_servicecatalog_provisioned_product",
+		"aws_servicecatalogappregistry_application",
+		"aws_servicecatalogappregistry_attribute_group",
+		"aws_auditmanager_assessment",
+		"aws_auditmanager_framework",
 		// Registry-ratified data-movement batch (#40, #44, issue #65): all
 		// twenty-seven types this batch ratified carry a top-level tags
 		// argument in the pinned provider's own wire schema, confirmed
@@ -852,6 +884,38 @@ var (
 		"aws_memorydb_subnet_group",
 		"aws_keyspaces_keyspace",
 		"aws_keyspaces_table",
+		// SageMaker batch (issue #65): 26 of its 27 ratified types carry a
+		// tags argument, confirmed against each type's documented Argument
+		// Reference at the pinned v6.58.0 tag; see
+		// live/e2e/estates/sagemaker/README.md, "Untaggable types" for the
+		// one exception (aws_sagemaker_model_package_group_policy, in
+		// untaggableAdmittedTypes below).
+		"aws_sagemaker_algorithm",
+		"aws_sagemaker_app",
+		"aws_sagemaker_app_image_config",
+		"aws_sagemaker_code_repository",
+		"aws_sagemaker_data_quality_job_definition",
+		"aws_sagemaker_device_fleet",
+		"aws_sagemaker_domain",
+		"aws_sagemaker_endpoint",
+		"aws_sagemaker_endpoint_configuration",
+		"aws_sagemaker_feature_group",
+		"aws_sagemaker_hub",
+		"aws_sagemaker_image",
+		"aws_sagemaker_mlflow_app",
+		"aws_sagemaker_mlflow_tracking_server",
+		"aws_sagemaker_model",
+		"aws_sagemaker_model_card",
+		"aws_sagemaker_model_package_group",
+		"aws_sagemaker_monitoring_schedule",
+		"aws_sagemaker_notebook_instance",
+		"aws_sagemaker_notebook_instance_lifecycle_configuration",
+		"aws_sagemaker_pipeline",
+		"aws_sagemaker_project",
+		"aws_sagemaker_space",
+		"aws_sagemaker_studio_lifecycle_config",
+		"aws_sagemaker_user_profile",
+		"aws_sagemaker_workteam",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -1117,6 +1181,22 @@ var (
 		// "Untaggable types".
 		"aws_msk_configuration",
 		"aws_appflow_connector_profile",
+		// Registry-ratified media services batch (#40, #44, issue #65):
+		// aws_medialive_multiplex_program's Argument Reference names no
+		// tags block at all, and live/registry.json's own
+		// AWS::MediaLive::Multiplexprogram tagging.taggable is false. See
+		// live/e2e/estates/media/README.md, "Untaggable types".
+		"aws_medialive_multiplex_program",
+		// Registry-ratified governance batch (#40, #44, issue #65): six
+		// types with no tags argument at all, per
+		// live/survey-full.json's real-schema signal. See
+		// live/e2e/estates/governance/README.md.
+		"aws_config_conformance_pack",
+		"aws_config_organization_conformance_pack",
+		"aws_config_remediation_configuration",
+		"aws_controltower_control",
+		"aws_servicecatalog_portfolio_share",
+		"aws_servicecatalogappregistry_attribute_group_association",
 		// Registry-ratified databases batch (#40, #44, issue #65): the
 		// three OpenSearchServerless policy types (access, lifecycle,
 		// security) carry only a name/type/policy document, the same
@@ -1127,6 +1207,12 @@ var (
 		"aws_opensearchserverless_access_policy",
 		"aws_opensearchserverless_lifecycle_policy",
 		"aws_opensearchserverless_security_policy",
+		// SageMaker batch (issue #65): the one untaggable type this batch
+		// ratifies — a named-singleton-child of aws_sagemaker_model_package_group
+		// whose Argument Reference names only region and
+		// model_package_group_name, no tags block at all. See
+		// live/e2e/estates/sagemaker/README.md, "Untaggable types".
+		"aws_sagemaker_model_package_group_policy",
 	}
 )
 
@@ -1943,6 +2029,20 @@ func testSchemas() Schemas {
 		"aws_pipes_pipe":                      tagged("id", "arn", "name"),
 		"aws_scheduler_schedule_group":        tagged("id", "arn", "name"),
 
+		// Registry-ratified media services batch (#40, #44, issue #65).
+		// Taggable/untaggable per the real provider's documented Argument
+		// Reference for each type: aws_medialive_multiplex_program's is
+		// this batch's one untaggable row.
+		"aws_medialive_multiplex":           tagged("id", "arn", "name"),
+		"aws_medialive_multiplex_program":   untagged("id", "program_name", "multiplex_id"),
+		"aws_media_package_channel":         tagged("id", "arn", "channel_id"),
+		"aws_media_packagev2_channel_group": tagged("arn", "name"),
+		"aws_ivs_channel":                   tagged("id", "arn"),
+		"aws_ivs_playback_key_pair":         tagged("id", "arn", "public_key"),
+		"aws_ivs_recording_configuration":   tagged("id", "arn"),
+		"aws_ivschat_logging_configuration": tagged("id", "arn"),
+		"aws_ivschat_room":                  tagged("id", "arn", "name"),
+
 		// Registry-ratified security and secrets batch (#40, #44, issue #65).
 		"aws_secretsmanager_secret":                        tagged("id", "arn", "name"),
 		"aws_secretsmanager_secret_policy":                 untagged("id", "secret_arn", "policy"),
@@ -2131,6 +2231,70 @@ func testSchemas() Schemas {
 		"aws_memorydb_subnet_group":                 tagged("id", "arn", "name"),
 		"aws_keyspaces_keyspace":                    tagged("id", "arn", "name"),
 		"aws_keyspaces_table":                       tagged("id", "arn", "keyspace_name", "table_name"),
+
+		// Registry-ratified governance batch (#40, #44, issue #65).
+		// Taggable/untaggable per live/survey-full.json's real-schema signal
+		// for each type: aws_config_conformance_pack,
+		// aws_config_organization_conformance_pack,
+		// aws_config_remediation_configuration, aws_controltower_control,
+		// aws_servicecatalog_portfolio_share and
+		// aws_servicecatalogappregistry_attribute_group_association carry no
+		// tags argument at all. See live/e2e/estates/governance/README.md.
+		"aws_config_config_rule":                                    tagged("id", "arn", "name"),
+		"aws_config_configuration_aggregator":                       tagged("id", "arn", "name"),
+		"aws_config_conformance_pack":                               untagged("id", "arn", "name"),
+		"aws_config_organization_conformance_pack":                  untagged("id", "arn", "name"),
+		"aws_config_remediation_configuration":                      untagged("id", "config_rule_name"),
+		"aws_controltower_baseline":                                 tagged("id", "arn", "target_identifier"),
+		"aws_controltower_control":                                  untagged("id", "target_identifier", "control_identifier"),
+		"aws_controltower_landing_zone":                             tagged("id", "arn", "manifest_json"),
+		"aws_organizations_account":                                 tagged("id", "arn", "name", "email"),
+		"aws_organizations_organizational_unit":                     tagged("id", "arn", "name", "parent_id"),
+		"aws_organizations_policy":                                  tagged("id", "arn", "name", "type"),
+		"aws_organizations_resource_policy":                         tagged("id", "arn", "content"),
+		"aws_resourceexplorer2_index":                               tagged("id", "arn", "type"),
+		"aws_resourceexplorer2_view":                                tagged("id", "arn", "name"),
+		"aws_resourcegroups_group":                                  tagged("id", "arn", "name"),
+		"aws_servicecatalog_portfolio":                              tagged("id", "arn", "name"),
+		"aws_servicecatalog_portfolio_share":                        untagged("id", "portfolio_id", "type", "principal_id"),
+		"aws_servicecatalog_product":                                tagged("id", "arn", "name"),
+		"aws_servicecatalog_provisioned_product":                    tagged("id", "arn", "name"),
+		"aws_servicecatalogappregistry_application":                 tagged("id", "arn", "name"),
+		"aws_servicecatalogappregistry_attribute_group":             tagged("id", "arn", "name"),
+		"aws_servicecatalogappregistry_attribute_group_association": untagged("id", "application_id", "attribute_group_id"),
+		"aws_auditmanager_assessment":                               tagged("id", "arn", "name", "framework_id"),
+		"aws_auditmanager_framework":                                tagged("id", "arn", "name"),
+		// SageMaker batch (issue #65). Taggable per the real provider's
+		// documented Argument Reference for each type, except
+		// aws_sagemaker_model_package_group_policy, whose Argument
+		// Reference names only region and model_package_group_name.
+		"aws_sagemaker_algorithm":                                 tagged("id", "algorithm_name", "arn"),
+		"aws_sagemaker_app":                                       tagged("id", "arn", "app_name", "app_type", "domain_id"),
+		"aws_sagemaker_app_image_config":                          tagged("id", "app_image_config_name", "arn"),
+		"aws_sagemaker_code_repository":                           tagged("id", "code_repository_name", "arn"),
+		"aws_sagemaker_data_quality_job_definition":               tagged("id", "arn", "name", "role_arn"),
+		"aws_sagemaker_device_fleet":                              tagged("id", "device_fleet_name", "arn", "role_arn"),
+		"aws_sagemaker_domain":                                    tagged("id", "arn", "domain_name", "auth_mode"),
+		"aws_sagemaker_endpoint":                                  tagged("id", "arn", "name", "endpoint_config_name"),
+		"aws_sagemaker_endpoint_configuration":                    tagged("id", "arn", "name"),
+		"aws_sagemaker_feature_group":                             tagged("id", "arn", "feature_group_name", "role_arn"),
+		"aws_sagemaker_hub":                                       tagged("id", "arn", "hub_name"),
+		"aws_sagemaker_image":                                     tagged("id", "arn", "image_name", "role_arn"),
+		"aws_sagemaker_mlflow_app":                                tagged("arn", "name", "role_arn"),
+		"aws_sagemaker_mlflow_tracking_server":                    tagged("id", "arn", "tracking_server_name", "role_arn"),
+		"aws_sagemaker_model":                                     tagged("id", "arn", "name", "execution_role_arn"),
+		"aws_sagemaker_model_card":                                tagged("id", "arn", "model_card_name"),
+		"aws_sagemaker_model_package_group":                       tagged("id", "arn", "model_package_group_name"),
+		"aws_sagemaker_model_package_group_policy":                untagged("id", "model_package_group_name", "resource_policy"),
+		"aws_sagemaker_monitoring_schedule":                       tagged("id", "arn", "name"),
+		"aws_sagemaker_notebook_instance":                         tagged("id", "arn", "name", "role_arn", "instance_type"),
+		"aws_sagemaker_notebook_instance_lifecycle_configuration": tagged("id", "arn", "name"),
+		"aws_sagemaker_pipeline":                                  tagged("id", "arn", "pipeline_name"),
+		"aws_sagemaker_project":                                   tagged("id", "arn", "project_name"),
+		"aws_sagemaker_space":                                     tagged("id", "arn", "domain_id", "space_name"),
+		"aws_sagemaker_studio_lifecycle_config":                   tagged("id", "arn", "studio_lifecycle_config_name"),
+		"aws_sagemaker_user_profile":                              tagged("arn", "domain_id", "user_profile_name"),
+		"aws_sagemaker_workteam":                                  tagged("id", "arn", "workteam_name"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.

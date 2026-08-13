@@ -229,6 +229,24 @@ var DeprecatedServices = []DeprecatedService{
 		Service:   "DAX",
 		Reason:    "a service (DynamoDB Accelerator) this fork holds out of scope by policy",
 	},
+	{
+		TFPrefix:  "aws_media_store_",
+		CFNPrefix: "AWS::MediaStore::",
+		Service:   "MediaStore",
+		// AWS announced MediaStore's discontinuation effective November
+		// 13, 2025 (aws.amazon.com/blogs/media/support-for-aws-elemental-
+		// mediastore-ending-soon), already past as of this batch (issue
+		// #65's sixth, 2026-08). The pinned v6.58.0 AWS provider's own
+		// docs for both aws_media_store_container and
+		// aws_media_store_container_policy carry the same notice verbatim
+		// ("This resource is deprecated and will be removed in a future
+		// version"), so this is not just AWS's blog talking - the
+		// provider this fork ships against already flags the family.
+		// Added by the media batch rather than ratified: see
+		// live/e2e/estates/media/README.md's "MediaStore:
+		// deprecated-service, not ratified" section for the full call.
+		Reason: "a service AWS discontinued effective November 13, 2025 (already past), which the pinned provider's own docs also flag as deprecated",
+	},
 }
 
 // CFNOnlyConstruct is one curated entry in [CFNOnlyConstructs].

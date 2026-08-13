@@ -36,8 +36,8 @@ when a configuration opts in.
 ## Where do I download it?
 
 From the [releases page](https://github.com/INTENTIUS/choudoufu/releases).
-Every tagged release carries prebuilt binaries for macOS and Linux on amd64
-and arm64, with a `SHA256SUMS` file. The README's Install section has a
+Every tagged release carries prebuilt binaries for macOS, Linux and Windows
+on amd64 and arm64, with a `SHA256SUMS` file. The README's Install section has a
 copy-paste download snippet. Building from source is still one command,
 `go build ./cmd/choudoufu`, which is what the demo harness does unless you
 point `TOFU_BIN` at a downloaded binary.
@@ -60,6 +60,49 @@ configuration manages gets tagged with it. The concept page
 (`website/docs/language/live-markers.mdx`, rendered on the docs site)
 walks through a full example.
 
+## Will my editor or linters choke on the live block?
+
+Yes, if they parse the `terraform` block strictly against upstream's
+schema, and no if they only tokenize HCL without validating it against a
+schema. Tested directly: stock Terraform (not this fork) rejects a
+configuration containing a `live` block outright, both `terraform init`
+and `terraform validate`, with
+
+```
+Error: Unsupported block type
+
+  on main.tf line 6, in terraform:
+   6:   live {
+
+Blocks of type "live" are not expected here.
+```
+
+exit code 1. This is expected, not a bug to work around: `live` is this
+fork's own addition to the `terraform` block's schema
+(`internal/configs/live.go`), and nothing about it is signaled to a tool
+that never heard of it. `tofu validate` from stock, unmodified OpenTofu
+would refuse the same configuration the same way, for the same reason -
+this was not tested directly (no `tofu` binary was available to test
+against), but the schema mismatch it would hit is identical.
+
+Any tool that decodes the `terraform` block's schema this strictly will
+have the same problem: `tflint` was not available to test against either,
+but it decodes HCL through OpenTofu's own configuration-loading libraries,
+which do exactly this schema check, so expect the same rejection until
+`tflint` (or your fork of it) knows about this fork's schema. A tool that
+only tokenizes or partially parses HCL - most syntax highlighters, `hclfmt`,
+generic HCL linters that check formatting rather than block schemas - has
+no problem with `live`, since nothing about its shape (an ordinary nested
+block with attributes and one nested `policy` block) is unusual HCL.
+
+There is no workaround that keeps a `live`-bearing configuration validating
+against stock tooling today: the block either exists in the schema the tool
+decodes against, or it does not. The practical options are running
+`choudoufu validate` (this fork's own binary, which does know the schema)
+in CI instead of stock `terraform validate`, or keeping the `live` block
+isolated to a small root module that stock tooling never has reason to
+touch.
+
 ## What happens to my existing state file?
 
 For a brand new estate there is nothing to migrate, since you never had a
@@ -78,30 +121,99 @@ duplicates.
 
 ## Can I manage my whole infrastructure with this?
 
-Almost certainly not yet, and the type list is not the main reason. The
-hard limits, in the order they will actually stop you:
+Closer than it used to be. Most mature Terraform estates are
+module-structured, and that used to be the single biggest excluder -
+today, module trees are admitted in the two shapes whose addresses stay
+stable, and refused in the one shape whose addresses do not.
 
-**Root module only.** A configuration that uses child modules is refused.
-Most mature Terraform estates are module-structured, which makes this the
-single biggest excluder today - no amount of resource-type coverage
-changes it, and flattening an estate to try the tool is real work.
+**Static module trees and statically-keyed `for_each` modules are
+supported.** A resource inside a plain `module "app" {}` call binds by
+its module-qualified address (`module.app.aws_x.y`) exactly as soundly as
+a root resource does, at any nesting depth. A module call expanded with
+`for_each` is admitted too, as long as its keys are statically evaluable -
+a literal collection, or one built from variables, locals, `path` and
+`terraform` values - because a key does not shift under insertion or
+removal the way a `count` index does, so `module.app["prod"]` stays a
+stable address for a marker to bind to no matter what happens to
+`module.app["staging"]`. Auto-stamping cannot reach inside a keyed
+module's own instances, though - its several instances share one
+configuration body for the `tags` argument, so there is no single literal
+address that is right for all of them. Build it by hand instead, threading
+the module's own `each.key` through as a variable, the ordinary way a
+value that must vary per instance reaches a child module:
+
+```hcl
+module "app" {
+  for_each = toset(["prod", "staging"])
+  key      = each.key                    # 1. pass each.key through
+}
+# inside the module:
+variable "key" { type = string }         # 2. receive it as a variable
+# tofu-address = "module.app[\"${var.key}\"].aws_x.y"  # 3. build the address by hand
+```
+
+**`count` on a module block is refused, permanently.** `count` renumbers
+every address beneath it positionally on every insertion or removal above
+the changed index, and a `tofu-address` marker records an address, not a
+position - a renumbering that moves addresses out from under their own
+markers is precisely the ambiguity markers exist to remove. Rewrite the
+block as a keyed `for_each` over your own stable names, move its resources
+into the root module, or give it an estate of its own.
+
+The remaining hard limits, in the order they will actually stop you:
+
+**It is experimental.** The admitted subset is real but partial, and the
+command surface can still change. This is not yet something to bet
+production infrastructure on without reading the rest of this list.
+
+**A large, and still growing, list of resource types.** The concept
+page's Contract section enumerates the current admitted list - it is
+rendered from the admission table itself, so it cannot go stale. It now
+covers EC2 instances, RDS, ECS/EKS clusters, and API Gateway alongside the
+core VPC networking, S3 and its children, the IAM core, the ALB stack,
+DynamoDB, KMS, Route53, ACM, CloudWatch basics, SQS/SNS, Lambda, and ECR
+that were there first. It does not yet cover everything - Secrets
+Manager, Cognito, WAF, and MSK are examples of families still missing.
 
 **AWS only, and no logical resources.** Multi-cloud estates can bring
 only their AWS portion, and configs leaning on `random_*`, `tls_*` or
 similar are refused with a family-level explanation.
-
-**A fixed, growing list of resource types.** The concept page's Contract
-section enumerates the current admitted list - it is rendered from the
-admission table itself, so it cannot go stale. Today it covers core VPC
-networking, S3 and its children, the IAM core, the ALB stack, DynamoDB,
-KMS, Route53, ACM, CloudWatch basics, SQS/SNS, Lambda, and ECR. It does
-not yet cover EC2 instances, RDS, ECS/EKS services, or API Gateway.
 
 Beyond those, the construct limits: no provisioners, no workspaces, no
 saved plan files. Each limit is documented with its reasoning and its
 enforcing lint rule in `live/LIMITATIONS.md`, and the lint refuses a
 config outside the subset up front - naming the specific reason per
 resource - rather than failing halfway through an apply.
+
+## What do I get instead of a saved plan, for a plan-approve-apply workflow?
+
+No saved plan file, ever - `-out` is refused everywhere a live-markers run
+appears, on `choudoufu live-plan` and on plain `choudoufu plan` and `apply`
+once a configuration carries a `live` block, and applying a saved plan
+file is refused the same way. There is no separate `live-apply` command
+either: an ordinary `choudoufu apply` is what applies a live-markers
+configuration, made stateless by the same hook `plan` uses. What that
+means concretely, read from the code rather than assumed: every `apply`
+re-reads the live system, re-runs lint and discovery, and rebuilds the
+plan from scratch immediately before applying it - and that freshly built
+plan is rendered and confirmed the same way any ordinary `apply`'s plan is
+(the standard "do you want to perform these actions?" prompt), not applied
+silently. `-auto-approve` skips the prompt exactly as it always has.
+
+The honest gap this leaves, compared to a saved-plan workflow: the plan a
+human reviews and the plan that gets applied are the same plan only when
+nothing else touches the estate between the two, because there is no
+artifact recording what was reviewed for a later step to check against.
+Terraform/OpenTofu's usual plan-approve-apply split - produce a plan file,
+have a person or a gate approve it, apply exactly that file later,
+possibly from a different process or machine - is not available here even
+in spirit: an `apply` always plans again right before it applies, and there
+is no way to say "apply this specific, already-reviewed diff and refuse if
+the live system has moved since." For a single interactive run this is no
+different from approving any ordinary `apply`'s prompt; for a CI pipeline
+built around a separate plan and apply stage with a gate in between, it is
+a real, currently-unfilled gap, not a documented feature under another
+name.
 
 ## Will my estate's resource types ever be covered?
 
@@ -239,6 +351,30 @@ manual tag edit. Until that lands, the honest answer is: choudoufu deletes
 the *category* of one-shot state-surgery constructs, but the specific
 behavior of upstream's `destroy = false` is not yet one of the choices, only
 a documented gap with a manual workaround.
+
+## What stops someone from stripping a resource's markers and getting a duplicate?
+
+Nothing stops the tags from being removed - they are ordinary AWS resource
+tags, and `aws ec2 delete-tags` or a console cleanup can untag anything
+with the right permissions. What it costs afterward depends on the type.
+A client-named resource is a nuisance: the next plan reports it
+`[UNOWNED]` with the adoption command, and the cloud's own uniqueness
+constraint means a duplicate can never actually be created under the same
+name. A server-assigned resource (`aws_vpc`, `aws_security_group`, and the
+rest) has no other handle, so the next plan proposes creating a second
+one beside the orphaned first.
+
+`live/MARKERS.md`'s "Protecting the markers" section has the full answer:
+what an AWS Organizations tag policy can and cannot do here (it enforces
+tag *values*, not tag *survival*, and does not block untagging at all), an
+SCP snippet that denies the untagging actions on the three marker keys to
+everyone but the automation principal, with the caveats that make it
+honest rather than a false sense of safety, and the plan-time backstop -
+every create of an admitted type gets checked against the estate's unowned
+live resources of the same type, and a match earns a `[POSSIBLE
+DUPLICATE]` warning naming the live resource and the adopt command,
+directly above the plan diff. Warn, never block: the create might be
+genuine. But it is never silent.
 
 ## How does this relate to upstream OpenTofu?
 

@@ -153,21 +153,23 @@ func TestLogicalLimitsDetailsRender(t *testing.T) {
 // calls in live/e2e/limits/child-module/main.tf is expected to carry in its
 // Detail, keyed by the call's own name. #59 narrowed RuleChildModule to the
 // two shapes that stay refused - the same rule fires for a count-expanded
-// call and a for_each-expanded call, but each is refused for a different,
-// named reason (live/LIMITATIONS.md, "child-module"). The fixture's third
-// call, "network", is a static module call: 59b admitted the shape
-// entirely, so it carries no RuleChildModule issue at all and is not in
-// this table.
+// call and a non-statically-keyed for_each call, but each is refused for a
+// different, named reason (live/LIMITATIONS.md, "child-module"). The
+// fixture's other two calls, "network" (a static call) and "keyed-static" (a
+// for_each call whose keys are a literal set of strings), are both admitted
+// as of 59b and 59c respectively, so neither carries a RuleChildModule issue
+// and neither is in this table.
 var childModuleFixtureDetails = map[string]string{
 	"counted": "refused permanently",
-	"keyed":   "issue #59, phase 3",
+	"keyed":   "statically evaluable",
 }
 
 // TestChildModuleDichotomy checks that live/e2e/limits/child-module/, which
-// carries a static call, a count call and a for_each call in one tree, gets
-// exactly two RuleChildModule issues back - one for the count call and one
-// for the for_each call, each with the Detail that names its own reason -
-// and none at all for the static call, which 59b admitted.
+// carries a static call, a statically-keyed for_each call, a count call and
+// a non-statically-keyed for_each call in one tree, gets exactly two
+// RuleChildModule issues back - one for the count call and one for the
+// non-static for_each call, each with the Detail that names its own reason
+// - and none at all for the two admitted calls.
 func TestChildModuleDichotomy(t *testing.T) {
 	cfg := loadConfigDir(t, filepath.Join(limitsDir(t), "child-module"))
 	issues := CheckContext(t.Context(), cfg)
@@ -185,6 +187,9 @@ func TestChildModuleDichotomy(t *testing.T) {
 
 	if _, ok := got["network"]; ok {
 		t.Errorf("child-module: the static call \"network\" carries a RuleChildModule issue; 59b admitted static module calls")
+	}
+	if _, ok := got["keyed-static"]; ok {
+		t.Errorf("child-module: the statically-keyed for_each call \"keyed-static\" carries a RuleChildModule issue; 59c admitted a for_each module call whose keys are statically evaluable")
 	}
 
 	if len(got) != len(childModuleFixtureDetails) {

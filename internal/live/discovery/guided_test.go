@@ -219,6 +219,99 @@ func TestGuided_narrowsRoutineSweep(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// GuidedVerifyAge: the automatic, age-based verify cadence
+// ---------------------------------------------------------------------------
+
+// TestGuided_verifyAge is the age-based counterpart of
+// TestGuided_narrowsRoutineSweep's GuidedVerify assertions: a hint old enough
+// to cross Request.GuidedVerifyAge, but still well inside GuidedMaxAge (so
+// still trusted for the narrowing decision itself), runs the pass as a full
+// verifying sweep exactly as an explicit Request.GuidedVerify would - not a
+// fallback, since GuidedFallback stays empty and Guided stays true. A hint
+// younger than GuidedVerifyAge still narrows, and GuidedVerifyAge left at
+// its zero value never forces a verify at all, which is what keeps this new
+// field from changing anything for a caller that never sets it (this file's
+// own equivalence and narrowing tests included).
+func TestGuided_verifyAge(t *testing.T) {
+	sweepTypesUnderTest := []string{"aws_cloudwatch_log_group", "aws_kms_key"}
+
+	buildEstate := func() *fakeCloud {
+		cloud := newFakeCloud()
+		ownWholeEstate(cloud)
+		cloud.listable("aws_cloudwatch_log_group")
+		cloud.own("aws_cloudwatch_log_group", "/estate/deleted", `aws_cloudwatch_log_group.deleted`)
+		return cloud
+	}
+
+	dir := t.TempDir()
+
+	cold, diags := discoverFixture(t, buildEstate(), Request{Sweep: true, SweepTypes: sweepTypesUnderTest})
+	assertNoErrors(t, diags)
+
+	// 36h old: past a 24h GuidedVerifyAge, but nowhere near the 7-day
+	// GuidedMaxAge also in play here - mirroring the fork's own default-on
+	// policy (internal/command/live_plan.go's statelessApplyGuidedDiscovery).
+	agedPath := filepath.Join(dir, "aged.json")
+	writeGuidedHintFixture(t, agedPath, time.Now().Add(-36*time.Hour), "aws_cloudwatch_log_group")
+
+	aged, diags := discoverFixture(t, buildEstate(), Request{
+		Sweep:           true,
+		SweepTypes:      sweepTypesUnderTest,
+		Guided:          true,
+		SnapshotPath:    agedPath,
+		GuidedMaxAge:    7 * 24 * time.Hour,
+		GuidedVerifyAge: 24 * time.Hour,
+	})
+	assertNoErrors(t, diags)
+	if !aged.Guided {
+		t.Fatalf("Guided = false, want true (fallback reason: %q)", aged.GuidedFallback)
+	}
+	if aged.GuidedFallback != "" {
+		t.Errorf("GuidedFallback = %q, want empty: an old-but-still-trusted hint forcing a verify sweep is not a fallback", aged.GuidedFallback)
+	}
+	if len(aged.GuidedSweepSkipped) != 0 {
+		t.Errorf("GuidedSweepSkipped = %v, want none: GuidedVerifyAge should have forced a full sweep", aged.GuidedSweepSkipped)
+	}
+	if got, want := aged.String(), cold.String(); got != want {
+		t.Errorf("a GuidedVerifyAge-forced pass differs from the cold pass:\n--- aged ---\n%s--- cold ---\n%s", got, want)
+	}
+
+	// Younger than GuidedVerifyAge: narrows exactly as
+	// TestGuided_narrowsRoutineSweep's routine case does, confirming
+	// GuidedVerifyAge does not force a verify before its own threshold.
+	freshPath := filepath.Join(dir, "fresh.json")
+	writeGuidedHintFixture(t, freshPath, time.Now(), "aws_cloudwatch_log_group")
+	fresh, diags := discoverFixture(t, buildEstate(), Request{
+		Sweep:           true,
+		SweepTypes:      sweepTypesUnderTest,
+		Guided:          true,
+		SnapshotPath:    freshPath,
+		GuidedMaxAge:    7 * 24 * time.Hour,
+		GuidedVerifyAge: 24 * time.Hour,
+	})
+	assertNoErrors(t, diags)
+	if want := []string{"aws_cloudwatch_log_group"}; !stringSlicesEqual(fresh.GuidedSweepSkipped, want) {
+		t.Errorf("GuidedSweepSkipped = %v, want %v (younger than GuidedVerifyAge should still narrow)", fresh.GuidedSweepSkipped, want)
+	}
+
+	// GuidedVerifyAge left at its zero value disables the check entirely,
+	// even for the same 36h-old hint that forced a verify above - a caller
+	// that never heard of this field (every existing one) gets exactly
+	// today's narrowing behavior.
+	noAutoVerify, diags := discoverFixture(t, buildEstate(), Request{
+		Sweep:        true,
+		SweepTypes:   sweepTypesUnderTest,
+		Guided:       true,
+		SnapshotPath: agedPath,
+		GuidedMaxAge: 7 * 24 * time.Hour,
+	})
+	assertNoErrors(t, diags)
+	if want := []string{"aws_cloudwatch_log_group"}; !stringSlicesEqual(noAutoVerify.GuidedSweepSkipped, want) {
+		t.Errorf("GuidedSweepSkipped = %v, want %v (GuidedVerifyAge=0 must not force a verify)", noAutoVerify.GuidedSweepSkipped, want)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
 

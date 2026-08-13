@@ -135,6 +135,35 @@ type StatelessBindCandidate struct {
 	Hint string
 }
 
+// StatelessLookalike is one lookalike guard warning: a declared instance the
+// plan actually proposes to create, beside a live resource this estate does
+// not own that might be the very thing being duplicated. The fields
+// correspond to [foreign.Lookalike].
+type StatelessLookalike struct {
+	// Addr is the declared instance the plan proposes to create - the same
+	// address the resource diff's own "will be created" line names.
+	Addr     string
+	TypeName string
+
+	// LiveID is the unowned live resource's identity, empty when the
+	// provider sent no usable one.
+	LiveID      string
+	DisplayName string
+
+	// Matched are the identity-bearing arguments that confirmed the match,
+	// empty for the generic, cardinality-only warning.
+	Matched []StatelessTag
+
+	// MarkerEstate and MarkerAddress are the tofu-estate and tofu-address
+	// values that adopt the live resource instead of creating a duplicate.
+	MarkerEstate  string
+	MarkerAddress string
+
+	// Hint is the one-line adoption command, empty for a type this fork has
+	// no composable tagging verb for.
+	Hint string
+}
+
 // StatelessRemoval is one live resource this estate owns and no longer
 // declares, which the plan proposes destroying.
 type StatelessRemoval struct {
@@ -328,11 +357,32 @@ func (r StatelessPolicyReport) Empty() bool {
 	return len(r.Declared) == 0 && len(r.Withheld) == 0 && len(r.Untagged) == 0 && !r.Reconcile.Ran
 }
 
+// StatelessProgress is one discovery heartbeat, already throttled by the
+// caller: how many resource types have been scanned in total and how many
+// live resources scanning has found, as of the type named in TypeName. It
+// mirrors [discovery.ProgressEvent] rather than importing that package,
+// the same way every other type in this file carries the projection and
+// foreign packages' data across without importing them - see this file's
+// other Stateless* types.
+type StatelessProgress struct {
+	TypeName       string
+	TypesScanned   int
+	ResourcesFound int
+}
+
 // StatelessPlan renders the parts of live-plan's output that have no
 // equivalent in a stock plan. The plan itself is rendered by the ordinary
 // [Plan] view, so that live-plan and plan produce identical output for
 // the part they have in common.
 type StatelessPlan interface {
+	// Progress reports one discovery heartbeat. It is the only method on
+	// this interface that writes to stderr rather than stdout: a heartbeat
+	// exists to prove a slow, silent sweep is still running, not to become
+	// part of the plan's own output, and it must never appear in anything a
+	// script reads from this command's stdout. The caller decides how often
+	// to call it; every call here is rendered.
+	Progress(p StatelessProgress)
+
 	// Omissions reports the instances that are missing from the projection,
 	// which is why the plan that follows proposes to create them.
 	Omissions(oms []StatelessOmission)
@@ -353,6 +403,25 @@ type StatelessPlan interface {
 	// account-reconciliation roster when undeclared_untagged = "delete"
 	// ran. A no-op when rep.Empty().
 	Policy(rep StatelessPolicyReport)
+
+	// GuidedFallback reports why a pass that had snapshot-guided discovery
+	// configured (issue #64) fell back to today's full sweep instead of
+	// using it - a stale, missing or unreadable snapshot hint, in one
+	// sentence from [discovery.Result.GuidedFallback]. reason is empty
+	// whenever guided discovery was never configured for this pass, or
+	// whenever it engaged successfully, and an empty reason renders
+	// nothing: this is informational only, never a warning that something
+	// is wrong with the plan itself, which the fallback's own safety
+	// argument (a stale or missing snapshot costs one full re-read, never a
+	// wrong plan) is what makes true.
+	GuidedFallback(reason string)
+
+	// Lookalikes reports the lookalike guard's findings: planned creates
+	// that might duplicate a live resource this estate does not own, each
+	// naming the resource and the adoption remedy. Printed last, immediately
+	// above the plan itself, so the warning sits right next to the create it
+	// is about.
+	Lookalikes(items []StatelessLookalike)
 }
 
 // NewStatelessPlan returns the human-readable implementation. There is no
@@ -370,6 +439,27 @@ type StatelessPlanHuman struct {
 }
 
 var _ StatelessPlan = (*StatelessPlanHuman)(nil)
+
+// Progress writes one heartbeat line to stderr, dark-grey like the
+// horizontal rules elsewhere in this package (see format.HorizontalRule) so
+// it reads as ambient status rather than as a result. It is deliberately
+// plain: no section header, no word wrap, one line that a scrolling
+// terminal simply carries away - the throttling that keeps this from
+// becoming a log is the caller's job, not this method's.
+func (v *StatelessPlanHuman) Progress(p StatelessProgress) {
+	noun := "resource"
+	if p.ResourcesFound != 1 {
+		noun = "resources"
+	}
+	typeNoun := "type"
+	if p.TypesScanned != 1 {
+		typeNoun = "types"
+	}
+	v.view.streams.Eprint(v.view.colorize.Color(fmt.Sprintf(
+		"[dark_gray]discovering: %d %s scanned, %d live %s found (%s)[reset]\n",
+		p.TypesScanned, typeNoun, p.ResourcesFound, noun, p.TypeName,
+	)))
+}
 
 const statelessOmissionsIntro = `A live-markers run builds prior state by reading the live system. It could not read the following resource instances, so they are absent from the prior state and the plan below proposes to create them. This is not a claim that they do not exist: each line says why the instance could not be read.`
 
@@ -398,6 +488,27 @@ func (v *StatelessPlanHuman) Omissions(oms []StatelessOmission) {
 			v.view.streams.Print("      " + line + "\n")
 		}
 	}
+
+	v.view.outputHorizRule()
+}
+
+// GuidedFallback renders the one-sentence reason a configured guided-discovery
+// pass fell back to a full sweep, as a small informational note rather than a
+// titled, itemized section like the ones around it: there is exactly one
+// sentence to say, about the run as a whole rather than about any particular
+// resource, so a heading-plus-intro-plus-list shape would be a lot of
+// scaffolding around one line.
+func (v *StatelessPlanHuman) GuidedFallback(reason string) {
+	if reason == "" {
+		return
+	}
+
+	cols := v.view.outputColumns()
+
+	v.view.streams.Print(v.view.colorize.Color(
+		"\n[reset][bold]Snapshot-guided discovery: fell back to a full sweep[reset]\n\n",
+	))
+	v.view.streams.Print(format.WordWrap(reason, cols) + "\n")
 
 	v.view.outputHorizRule()
 }
@@ -853,4 +964,62 @@ func tagSummary(tags []StatelessTag, n int) string {
 		s += fmt.Sprintf(" (+%d more)", rest)
 	}
 	return s
+}
+
+const statelessLookalikeIntro = `Each of these is an instance the plan below proposes to create, beside a live resource this estate does not own that might be the very thing being duplicated - most often because its tofu-estate and tofu-address tags were stripped or never written. This is a warning, not a block: the create may be genuinely intended, and nothing about the plan below is changed by it. If the create does duplicate the live resource, adopt it instead of applying this plan: write the two tags shown, or run the command, then re-run.`
+
+// Lookalikes renders the lookalike guard's findings, last of the
+// live-plan-only sections and immediately above the plan diff itself, so
+// that a warning about a create sits as close as this report gets to the
+// create it is about.
+//
+// Printed only when there is something to say: unlike Foreign, this section
+// is not a sweep-coverage question with its own thing to report when
+// empty - a plan with nothing to warn about is simply a plan with nothing to
+// warn about.
+func (v *StatelessPlanHuman) Lookalikes(items []StatelessLookalike) {
+	if len(items) == 0 {
+		return
+	}
+
+	cols := v.view.outputColumns()
+
+	out := func(s string) { v.view.streams.Print(s) }
+	colored := func(f string, args ...any) {
+		v.view.streams.Print(v.view.colorize.Color(fmt.Sprintf(f, args...)))
+	}
+	wrapped := func(s string, indent int) {
+		for _, line := range strings.Split(strings.TrimRight(format.WordWrap(s, cols-indent), "\n"), "\n") {
+			out(strings.Repeat(" ", indent) + line + "\n")
+		}
+	}
+
+	colored("\n[reset][bold]Possible duplicates: %d planned %s may duplicate a live resource this estate does not own[reset]\n\n",
+		len(items), noun(len(items), "create", "creates"))
+	wrapped(statelessLookalikeIntro, 0)
+	out("\n")
+
+	for _, l := range items {
+		colored("  [bold]%s[reset] [POSSIBLE DUPLICATE] ~ %s %s%s\n",
+			l.Addr, l.TypeName, liveIDOrNone(l.LiveID), displaySuffix(l.DisplayName, l.LiveID))
+		if len(l.Matched) > 0 {
+			out("      matched on: " + tagSummary(l.Matched, 0) + "\n")
+			wrapped(fmt.Sprintf(
+				"a live %s this estate does not own matches this create exactly (%s); if this create duplicates it, adopt instead:",
+				l.TypeName, liveIDOrNone(l.LiveID)), 6)
+		} else {
+			wrapped(fmt.Sprintf(
+				"a live %s this estate does not own exists (%s); if this create duplicates it, adopt instead:",
+				l.TypeName, liveIDOrNone(l.LiveID)), 6)
+		}
+		if l.Hint != "" {
+			// Deliberately not word-wrapped, like every other adoption
+			// command in this view: this line exists to be copied.
+			out("      adopt with: " + l.Hint + "\n")
+		} else {
+			out("      adopt by writing: tofu-estate=" + l.MarkerEstate + " tofu-address=" + l.MarkerAddress + "\n")
+		}
+	}
+
+	v.view.outputHorizRule()
 }

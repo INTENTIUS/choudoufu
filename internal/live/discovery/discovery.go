@@ -129,6 +129,33 @@ type Request struct {
 	// destroys, in [applyOrphanPolicy].
 	Policy *policy.Policy
 
+	// ScopeProvider narrows which of Resolutions this pass treats as
+	// "waiting to be found" - both the needs-discovery config-driven scan
+	// and the parent-read leg - to the ones whose resource block uses this
+	// provider configuration. It exists for issue #69's multi-provider
+	// sweep ([Merge], run by internal/command/live_plan.go's
+	// statelessDiscover once per distinct provider configuration among an
+	// estate's managed resources): a pass must never bind a needs-discovery
+	// instance, or read a parent-derived child, through the wrong account.
+	//
+	// It deliberately does NOT narrow what counts as "already declared" for
+	// [declared.declares] - the check that keeps a live, client-named
+	// resource matching another pass's declared address from being
+	// misclassified as an orphan. That check stays global, over every
+	// resolution in Resolutions regardless of provider, because a type like
+	// aws_s3_bucket whose list operation is account-global (not
+	// region-scoped - see testdata/alias-e2e/main.tf's comment) will hand
+	// every pass every account's bucket, including ones declared under a
+	// different provider configuration; without whole-config knowledge of
+	// what is declared, a pass would misread another provider's own
+	// resource as undeclared and propose destroying it out from under the
+	// pass that actually owns it.
+	//
+	// The zero value means no scoping: every resolution in Resolutions is
+	// in scope, which is every existing caller's behavior and what keeps a
+	// single-provider Discover call exactly as it always was.
+	ScopeProvider addrs.AbsProviderConfig
+
 	// ---------------------------------------------------------------------
 	// Snapshot-guided discovery (issue #64's second leg)
 	// ---------------------------------------------------------------------
@@ -138,8 +165,12 @@ type Request struct {
 	// comment) as a cost HINT: which admitted types this estate has ever
 	// held, so the sweep's routine pass can skip re-listing a type with no
 	// evidence behind it instead of paying one List call per admitted type
-	// on every plan. Default off: a caller that never sets this gets
-	// exactly today's full enumeration, unchanged.
+	// on every plan. Default off in this package: a direct caller of
+	// [Discover] that never sets this gets exactly today's full
+	// enumeration, unchanged. The fork's own commands (internal/command's
+	// statelessDiscover) turn it on automatically instead of leaving it at
+	// the zero value - see the policy note in guided.go's file doc comment
+	// for exactly when, and with what defaults.
 	//
 	// The hint is never authority. A type absent from the hint is always
 	// swept in full, on every run - see guidedSweepUniverse - and any
@@ -189,6 +220,49 @@ type Request struct {
 	// 10th plan" or an explicit -verify flag) and sets this when that
 	// cadence says so. Ignored when Guided is false.
 	GuidedVerify bool
+
+	// GuidedVerifyAge is an age-based, automatic form of GuidedVerify: a
+	// hint younger than GuidedMaxAge (so still trusted enough to narrow the
+	// sweep) but older than this runs the pass as a full sweep anyway - same
+	// effect as GuidedVerify, but decided from the hint's own age rather
+	// than a caller-tracked cadence. Zero disables it, which leaves
+	// GuidedVerify as the only lever and matches every behavior this field
+	// did not exist to change. See internal/command's statelessDiscover for
+	// the default this fork's own commands set when they turn guided
+	// discovery on automatically - the "drift never hides longer than a
+	// day" half of that policy is this field, not GuidedMaxAge.
+	GuidedVerifyAge time.Duration
+
+	// Progress, when set, is called once after every resource type this
+	// pass scans - both the config-driven scan and the estate-wide sweep -
+	// with a cumulative count of types scanned and live resources found so
+	// far. It exists so a caller working against a large estate can render
+	// a heartbeat while discovery runs, which otherwise stays silent for as
+	// long as the sweep takes: the admission table can run to hundreds of
+	// types, each a separate list call. Nil (the default) disables it, and
+	// every existing caller behaves exactly as it always has.
+	//
+	// The callback runs synchronously on the discovery goroutine, in
+	// between list calls, so it must not block - a caller wanting to
+	// throttle how often it actually prints something owns that decision
+	// itself, since Discover reports every scan and does no throttling of
+	// its own.
+	Progress ProgressFunc
+}
+
+// ProgressFunc is a discovery progress callback. See Request.Progress.
+type ProgressFunc func(ProgressEvent)
+
+// ProgressEvent is one discovery heartbeat, cumulative since Discover
+// started: the resource type just scanned, how many types have been
+// scanned in total so far, and how many live resources scanning has found
+// so far. Sweep is true when the type just scanned came from the
+// estate-wide sweep rather than the config-driven scan.
+type ProgressEvent struct {
+	TypeName       string
+	Sweep          bool
+	TypesScanned   int
+	ResourcesFound int
 }
 
 // Discover finds the live resources of an estate and binds them to the
@@ -229,7 +303,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		))
 	}
 
-	decl, declDiags := declaredInstances(req)
+	decl, declDiags := declaredInstances(ctx, req)
 	diags = diags.Append(declDiags)
 	if declDiags.HasErrors() {
 		return res, diags
@@ -248,8 +322,13 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		return res, diags
 	}
 
+	// typesScanned and resourcesFound are progress's running totals across
+	// both loops below, reported through Request.Progress after each type -
+	// see scanTypeReporting.
+	var typesScanned, resourcesFound int
+
 	for _, typeName := range decl.typeNames() {
-		diags = diags.Append(scanType(ctx, req, schemas, decl, typeName, res, false))
+		diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, false, &typesScanned, &resourcesFound))
 	}
 
 	// The sweep runs after the config-driven scan so that a type appearing
@@ -258,7 +337,9 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		if req.TaggingSweep && req.Tagging != nil && req.Roster != nil {
 			// Issue #51: one estate-wide GetResources call replaces the
 			// per-type loop below. See [sweepViaTagging] and
-			// [Request.TaggingSweep].
+			// [Request.TaggingSweep]. It is one round trip rather than one
+			// per type, so it gets no progress events of its own - there is
+			// nothing to report between, only before and after.
 			diags = diags.Append(sweepViaTagging(ctx, req, decl, res))
 		} else {
 			// #64's guided leg: guidedSweepUniverse returns sweepTypes(req,
@@ -271,7 +352,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			res.GuidedFallback = fallback
 			res.GuidedSweepSkipped = skipped
 			for _, typeName := range universe {
-				diags = diags.Append(scanType(ctx, req, schemas, decl, typeName, res, true))
+				diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, true, &typesScanned, &resourcesFound))
 			}
 		}
 	}
@@ -450,9 +531,30 @@ func (d *declared) typeNames() []string {
 	return out
 }
 
+// inScope reports whether a resource block is this pass's business: every
+// block, when scope is the zero value (every existing caller, unchanged),
+// or only the blocks using that exact provider configuration when it is
+// set (issue #69's multi-provider sweep - see [Request.ScopeProvider]'s own
+// doc comment for what this is and is not used to restrict). modPath is the
+// static module the block itself is declared in, the same module-qualified
+// shape [Request.ScopeProvider] and internal/command/live_plan.go's
+// providerConfigAddr use, so a resource inside a child module scopes
+// correctly rather than being compared as if it were always in the root.
+func inScope(scope addrs.AbsProviderConfig, rc *configs.Resource, modPath addrs.Module) bool {
+	if scope.Provider.Type == "" {
+		return true
+	}
+	addr := addrs.AbsProviderConfig{
+		Module:   modPath,
+		Provider: rc.Provider,
+		Alias:    rc.ProviderConfigAddr().Alias,
+	}
+	return addr.String() == scope.String()
+}
+
 // declaredInstances indexes the needs-discovery resolutions by type and
 // escaped address, checking each against the configuration as it goes.
-func declaredInstances(req Request) (*declared, tfdiags.Diagnostics) {
+func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	d := &declared{
@@ -504,6 +606,15 @@ func declaredInstances(req Request) (*declared, tfdiags.Diagnostics) {
 			continue
 		}
 
+		if !inScope(req.ScopeProvider, block, r.Addr.Module.Module()) {
+			// Declared, but by a different provider configuration than this
+			// pass is scoped to (issue #69's multi-provider sweep). It
+			// already contributed its address to d.all above, which is what
+			// keeps another pass's sweep from mistaking it for an orphan;
+			// this pass simply is not the one that tries to find it.
+			continue
+		}
+
 		escaped := EscapeAddress(r.Addr.String())
 		if len([]rune(escaped)) > MaxTagValue {
 			diags = diags.Append(&hcl.Diagnostic{
@@ -548,7 +659,7 @@ func declaredInstances(req Request) (*declared, tfdiags.Diagnostics) {
 		}
 	}
 
-	d.indexCountBlocks(req)
+	d.indexCountBlocks(ctx, req)
 	return d, diags
 }
 
@@ -566,11 +677,20 @@ func declaredInstances(req Request) (*declared, tfdiags.Diagnostics) {
 // The whole static module tree is walked, not only the root: a resource
 // inside a static module may carry count exactly as a root resource can (it
 // is the module BLOCK'S count, not a resource's, that RuleChildModule
-// refuses permanently). Every block is keyed by its module-qualified
-// address, so two count blocks with the same local name in different
-// modules never collide.
-func (d *declared) indexCountBlocks(req Request) {
-	d.walkCountBlocks(req.Config)
+// refuses permanently). A module reached through a for_each'd module call
+// (59c, issue #59 phase 3) is walked once per instance, so a count block
+// inside a keyed module is recorded once per module instance too, each
+// under its own module-qualified address - "module.app[\"a\"].aws_x.y[2]"
+// and "module.app[\"b\"].aws_x.y[2]" are two different count blocks, not
+// one. Every block is keyed by its module-qualified address, so two count
+// blocks with the same local name in different modules (or different
+// instances of the same for_each'd module) never collide. scope is
+// [Request.ScopeProvider], threaded through the recursion so a block
+// outside this pass's scope (issue #69's multi-provider sweep) never gets
+// a count-set entry - or a marker naming one of its slots would be parked
+// on a block this pass never declared anything into.
+func (d *declared) indexCountBlocks(ctx context.Context, req Request) {
+	d.walkCountBlocks(ctx, req.Config, addrs.RootModuleInstance, req.ScopeProvider)
 
 	for typeName, entries := range d.types {
 		for _, entry := range entries {
@@ -597,14 +717,22 @@ func (d *declared) indexCountBlocks(req Request) {
 }
 
 // walkCountBlocks is [declared.indexCountBlocks]'s recursive step: one
-// module's count blocks, then its children in name order.
-func (d *declared) walkCountBlocks(cfg *configs.Config) {
+// module instance's count blocks, then its children in name order. modInst
+// is the instance cfg is being visited as - see [identity.resolver.walkModule]'s
+// doc for why it has to be threaded down explicitly rather than recomputed
+// from cfg.Path once a for_each module (59c) can be in the tree. scope is
+// [Request.ScopeProvider]; inScope compares it against cfg.Path (the
+// static module a block is declared in - a provider configuration is a
+// static-module fact, unlike modInst, which is a runtime one).
+func (d *declared) walkCountBlocks(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleInstance, scope addrs.AbsProviderConfig) {
 	if cfg == nil || cfg.Module == nil {
 		return
 	}
-	modInst := identity.ModuleInstance(cfg)
 	for _, rc := range cfg.Module.ManagedResources {
 		if rc.Count == nil {
+			continue
+		}
+		if !inScope(scope, rc, cfg.Path) {
 			continue
 		}
 		typeName := rc.Type
@@ -624,13 +752,55 @@ func (d *declared) walkCountBlocks(cfg *configs.Config) {
 		}
 	}
 	for _, name := range identity.SortedChildNames(cfg.Children) {
-		d.walkCountBlocks(cfg.Children[name])
+		child := cfg.Children[name]
+		var forEach hcl.Expression
+		if call, ok := cfg.Module.ModuleCalls[name]; ok && call != nil {
+			forEach = call.ForEach
+		}
+		keys, diag := identity.ChildModuleKeys(ctx, cfg.Module, fmt.Sprintf("module %q", name), forEach)
+		if diag != nil {
+			// RuleChildModule already refused this call before discovery
+			// ever ran; nothing to index under it.
+			continue
+		}
+		for _, key := range keys {
+			d.walkCountBlocks(ctx, child, modInst.Child(name, key), scope)
+		}
 	}
 }
 
 // ---------------------------------------------------------------------------
 // Scanning one type
 // ---------------------------------------------------------------------------
+
+// scanTypeReporting calls scanType and, when req.Progress is set, reports a
+// [ProgressEvent] afterward with the running totals updated in place.
+//
+// The count comes from res.Scans rather than from scanType's return value,
+// because every return path inside scanType (and its Cloud Control cousin,
+// [scanTypeCloudControl]) appends exactly one [TypeScan] before returning,
+// whether the call resolved into a listed count or refused with a gap - that
+// slice is already the one source of truth for "how many resources did this
+// type contribute," so reading it back here needs no second bookkeeping path
+// that could drift from the first.
+func scanTypeReporting(ctx context.Context, req Request, schemas listclient.Schemas, decl *declared, typeName string, res *Result, sweep bool, typesScanned, resourcesFound *int) tfdiags.Diagnostics {
+	before := len(res.Scans)
+	diags := scanType(ctx, req, schemas, decl, typeName, res, sweep)
+	if req.Progress == nil || len(res.Scans) <= before {
+		return diags
+	}
+	for _, scan := range res.Scans[before:] {
+		*resourcesFound += scan.Listed
+	}
+	*typesScanned++
+	req.Progress(ProgressEvent{
+		TypeName:       typeName,
+		Sweep:          sweep,
+		TypesScanned:   *typesScanned,
+		ResourcesFound: *resourcesFound,
+	})
+	return diags
+}
 
 // scanType lists one resource type and files what comes back.
 //

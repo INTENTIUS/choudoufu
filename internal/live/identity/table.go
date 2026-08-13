@@ -6937,6 +6937,409 @@ var DefaultTable = buildTable(
 		IdentityAttrs: []string{"id", "name"},
 	},
 
+	// ---- Sixth registry-ratified batch (#40, #44, #65): media services.
+	// ---- See live/e2e/estates/media/README.md for the full account,
+	// ---- including the MediaStore deprecated-service call
+	// ---- (live/residue.go's DeprecatedServices) and why MediaTailor,
+	// ---- MediaConnect, Elastic Transcoder and the ElementalInference
+	// ---- family never entered scope at all.
+	//
+	// Four of row-gen's proposals in this batch's scope are deferred, not
+	// ratified — each maps to a CloudFormation Registry entry whose
+	// handlers block is create/read/update/delete/list all false
+	// (live/registry.json), the same "supplies no real evidence, whatever
+	// its primaryIdentifier claims" standard the streaming batch's
+	// aws_appsync_api_cache/aws_appsync_api_key rejections set above:
+	//   - aws_medialive_channel, aws_medialive_input and
+	//     aws_medialive_input_security_group: row-gen proposed all three
+	//     server-assigned, and the real provider docs agree with no
+	//     correction needed at all (terraform import
+	//     aws_medialive_channel.example 1234567,
+	//     aws_medialive_input.example 12345678,
+	//     aws_medialive_input_security_group.example 123456, each a plain
+	//     server-assigned numeric id). The registry's handler-less entry
+	//     is the only thing standing between these three and ratification
+	//     — a future registry-laggard sweep should expect to admit all
+	//     three unchanged from row-gen's own rows.
+	//   - aws_media_convert_queue: row-gen proposed server-assigned off
+	//     the registry's primaryIdentifier=[Id], but the provider's own
+	//     docs import it "using the queue name" (terraform import
+	//     aws_media_convert_queue.test tf-test-queue) and its Attribute
+	//     Reference states id is "The same as name" — client-named, not
+	//     server-assigned. Left unratified anyway, same consistency call
+	//     as the three MediaLive rows above.
+
+	serverAssigned("aws_medialive_multiplex",
+		"MediaLive assigns the multiplex's own id at create time; name is required and client-chosen but names the multiplex, not its identity — the provider's Attribute Reference exports only arn (a distinct, longer string) alongside it. Confirmed against the documented import command (terraform import aws_medialive_multiplex.example 12345678), which imports by that server-assigned id directly, not by name or arn.",
+		"ID", "id"),
+
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[ProgramName, MultiplexId],
+		// composite, no separator in any schema — row-gen filed this
+		// "needs hand separator." The provider's own Import section
+		// supplies it directly: "using the id, or a combination of
+		// `program_name`/`multiplex_id`" (terraform import
+		// aws_medialive_multiplex_program.example example_program/1234567,
+		// live/import-grammar.json's evidence_excerpt for this type).
+		// Both segments are Required arguments already in configuration;
+		// multiplex_id names the parent aws_medialive_multiplex ratified
+		// above.
+		Type: "aws_medialive_multiplex_program",
+		Components: []Component{
+			attr("program_name"),
+			sep("/"),
+			attr("multiplex_id"),
+		},
+		ImportSyntax: "PROGRAM_NAME/MULTIPLEX_ID",
+		// The MultiplexProgram's own id ("ID of the MultiplexProgram" per
+		// the provider's Attribute Reference) is a distinct server-assigned
+		// value the docs never equate with the program_name/multiplex_id
+		// pair the import string is built from — not listed here, the
+		// same standard aws_route_table_association holds above.
+		IdentityAttrs: nil,
+	},
+
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[Id], in createOnlyProperties,
+		// not in readOnlyProperties — row-gen filed this evidence-only
+		// (its own argument-name guess, "id", was unconfirmed, GUESSED
+		// rather than backed by a schema). The provider's Import section
+		// and Attribute Reference resolve it directly: "channel_id -
+		// (Required) A unique identifier describing the channel" and
+		// "id - The same as `channel_id`" (terraform import
+		// aws_media_package_channel.kittens kittens-channel). Client-named,
+		// promoted from evidence-only the same way the ec2-networking and
+		// storage batches promoted their own GUESSED rows once the real
+		// docs confirmed them.
+		Type:          "aws_media_package_channel",
+		Components:    []Component{attr("channel_id")},
+		ImportSyntax:  "CHANNEL_ID",
+		IdentityAttrs: []string{"id", "channel_id"},
+	},
+
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[Arn], read-only — row-gen
+		// proposed server-assigned off it. The provider disagrees: its
+		// Import section states the resource is imported "using the
+		// channel group's name" (terraform import
+		// aws_media_packagev2_channel_group.example example), and name is
+		// a Required argument already in configuration; the Attribute
+		// Reference lists no arn-shaped identity export the import command
+		// actually uses. Corrected client-named, the same
+		// registry-vs-provider mismatch the storage batch's
+		// aws_backup_framework/aws_backup_report_plan and the
+		// ec2-networking batch's aws_vpc_dhcp_options_association found.
+		Type:          "aws_media_packagev2_channel_group",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+
+	serverAssigned("aws_ivs_channel",
+		"IVS mints the channel's own ARN at create time; name is optional and client-chosen but does not reconstruct the ARN. The pinned v6.58.0 release ships this type a real resource identity schema (Required: arn) and its documented import command (terraform import aws_ivs_channel.example arn:aws:ivs:us-west-2:326937407773:channel/0Y1lcs4U7jk5) matches it exactly.",
+		"ARN", "arn"),
+	serverAssigned("aws_ivs_playback_key_pair",
+		"IVS mints the playback key pair's own ARN at create time from the client-supplied public_key material; no argument reconstructs it. Real v6.58.0 identity schema (Required: arn) and documented import command (terraform import aws_ivs_playback_key_pair.example arn:aws:ivs:us-west-2:326937407773:playback-key/KDJRJNQhiQzA) agree.",
+		"ARN", "arn"),
+	serverAssigned("aws_ivs_recording_configuration",
+		"IVS mints the recording configuration's own ARN at create time; name is optional and client-chosen but does not reconstruct the ARN. Real v6.58.0 identity schema (Required: arn) and documented import command (terraform import aws_ivs_recording_configuration.example arn:aws:ivs:us-west-2:326937407773:recording-configuration/KAk1sHBl2L47) agree.",
+		"ARN", "arn"),
+
+	serverAssigned("aws_ivschat_logging_configuration",
+		"IVS Chat mints the logging configuration's own ARN at create time; name is optional and client-chosen but does not reconstruct the ARN. Real v6.58.0 identity schema (Required: arn) and documented import command (terraform import aws_ivschat_logging_configuration.example arn:aws:ivschat:us-west-2:326937407773:logging-configuration/MMUQc8wcqZmC) agree.",
+		"ARN", "arn"),
+	serverAssigned("aws_ivschat_room",
+		"IVS Chat mints the room's own ARN at create time; name is optional and client-chosen but does not reconstruct the ARN. Real v6.58.0 identity schema (Required: arn) and documented import command (terraform import aws_ivschat_room.example arn:aws:ivschat:us-west-2:326937407773:room/GoXEXyB4VwHb) agree.",
+		"ARN", "arn"),
+
+	// ---- Registry-ratified (#40, #44, #65): governance batch (Config
+	// ---- remainder, Control Tower, License Manager, Organizations,
+	// ---- Resource Explorer, Resource Groups, Service Catalog remainder
+	// ---- plus AppRegistry, Audit Manager). Same pipeline as the batches
+	// ---- above: every row started as a tools/row-gen proposal from
+	// ---- live/registry.json, cross-checked against the AWS provider's
+	// ---- documented Argument Reference, Attribute Reference and Import
+	// ---- section (fetched from the provider's own website/docs/r/ source),
+	// ---- not accepted on the registry's classification alone. See
+	// ---- internal/live/lint/admission.go for the batch-level rejection and
+	// ---- deferral summary (Config's registry-laggard recorder/delivery-
+	// ---- channel pair, the OrganizationConfigRule aliases, the
+	// ---- accept_language literal-fallback gap that keeps two Service
+	// ---- Catalog association types unratified) and
+	// ---- live/e2e/estates/governance/README.md for the full account,
+	// ---- including the Organizations blast-radius note.
+
+	// Config remainder.
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[ConfigRuleName], client-named,
+		// proposed correctly. Confirmed against the provider's documented
+		// import command (terraform import aws_config_config_rule.example
+		// example) and its identity schema, whose sole required attribute is
+		// name.
+		Type:          "aws_config_config_rule",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[ConfigurationAggregatorName],
+		// client-named, proposed correctly. Confirmed against the
+		// provider's documented import command (terraform import
+		// aws_config_configuration_aggregator.example example).
+		Type:          "aws_config_configuration_aggregator",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[ConformancePackName],
+		// client-named, proposed correctly. Confirmed against the
+		// provider's documented import command (terraform import
+		// aws_config_conformance_pack.example example).
+		Type:          "aws_config_conformance_pack",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[OrganizationConformancePackName],
+		// client-named, proposed correctly. Confirmed against the
+		// provider's documented import command (terraform import
+		// aws_config_organization_conformance_pack.example example).
+		Type:          "aws_config_organization_conformance_pack",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[ConfigRuleName], client-named,
+		// proposed correctly (argument config_rule_name, not row-gen's
+		// default "name" guess - the provider's identity schema names it
+		// explicitly). Confirmed against the provider's documented import
+		// command (terraform import
+		// aws_config_remediation_configuration.example example).
+		Type:          "aws_config_remediation_configuration",
+		Components:    []Component{attr("config_rule_name")},
+		ImportSyntax:  "CONFIG_RULE_NAME",
+		IdentityAttrs: []string{"config_rule_name"},
+	},
+	// Not ratified this batch, per its own named scope of "clean proposals
+	// only": aws_config_aggregate_authorization (needs-hand-separator;
+	// confirmed against the provider's docs to be a colon-joined
+	// account_id:authorized_region composite, but out of scope),
+	// aws_config_configuration_recorder and aws_config_delivery_channel
+	// (both registry-laggard - row-gen calls them evidence-only because
+	// registry.json's primaryIdentifier is the opaque Id CloudFormation
+	// never actually returns for either type, but the provider's own docs
+	// document a clean name-based import for both; still out of scope), and
+	// the three OrganizationConfigRule aliases
+	// (aws_config_organization_custom_policy_rule,
+	// aws_config_organization_custom_rule,
+	// aws_config_organization_managed_rule - same registry-laggard shape,
+	// same out-of-scope call). See the cohort README.
+
+	// Control Tower.
+	serverAssigned("aws_controltower_baseline",
+		"the ControlTower service assigns the enabled baseline its own ARN at create time; target_identifier and baseline_identifier are required arguments but name the OU and the baseline being enabled, not this enablement record itself.",
+		"ID", "id"),
+	// aws_controltower_control: row-gen classified this needs-hand-separator
+	// (registry primaryIdentifier ["TargetIdentifier", "ControlIdentifier"],
+	// composite, no separator in any schema). The provider's own documented
+	// import command supplies it directly: target_identifier and
+	// control_identifier, comma-joined (terraform import
+	// aws_controltower_control.example
+	// arn:aws:organizations::123456789101:ou/o-qqaejywet/ou-qg5o-ufbhdtv3,arn:aws:controltower:us-east-1::control/WTDSMKDKDNLE)
+	// - both required, already-configured arguments, matching the registry's
+	// own primaryIdentifier field-for-field once the separator is supplied.
+	TypeIdentity{
+		Type: "aws_controltower_control",
+		Components: []Component{
+			attr("target_identifier"),
+			sep(","),
+			attr("control_identifier"),
+		},
+		ImportSyntax:  "TARGETIDENTIFIER,CONTROLIDENTIFIER",
+		IdentityAttrs: nil,
+	},
+	serverAssigned("aws_controltower_landing_zone",
+		"an AWS account has at most one landing zone, and the ControlTower service assigns it its own identifier when it is created; nothing in configuration names it.",
+		"ID", "id"),
+
+	// License Manager. Not ratified: aws_licensemanager_grant is row-gen's
+	// only proposal in this service, and its identity is genuinely clean
+	// (server-assigned ARN, confirmed against the provider's Import
+	// section) - but live/survey-full.json's real-schema signal says it is
+	// untaggable with no native list resource in the pinned v6.59.0
+	// provider, which means none of this package's four admission paths
+	// (internal/live/doc.go) actually recovers an existing grant: no
+	// marker (untaggable), no list-and-content-match (no list resource),
+	// and no client-named or parent-derived path either, since the ARN is
+	// wholly server-minted. A clean import grammar is not the same claim
+	// as a working admission path, and row-gen's own proposal only speaks
+	// to the former. See the cohort README.
+
+	// Organizations. Ratified on clean identity evidence for four of the
+	// five types row-gen's own service scope named: accounts, OUs,
+	// policies and the resource policy singleton are all server-assigned
+	// and taggable (live/survey-full.json), so the marker path recovers
+	// them the same way it recovers aws_kms_key. The organization singleton
+	// itself is not ratified - see below. Ratifying identity is not the
+	// same as exercising these types against live infrastructure: this
+	// batch's cohort estate generates and validates HCL for all four but
+	// does not run terraform apply for them against the pinned floci image
+	// (an AWS emulator, but an account/organization-scoped one whose
+	// coverage of Organizations' control-plane operations this batch did
+	// not confirm) - see live/e2e/estates/governance/README.md's "A
+	// deliberate floci gap" section. No delegated-admin type
+	// (AWS::Organizations::* has none; the DelegatedAdmin shape lives on
+	// individual services like SecurityHub, out of this batch's scope)
+	// appeared in this cycle's row-gen pool.
+	serverAssigned("aws_organizations_account",
+		"the Organizations service assigns the member account its own account ID at create time; email and name are required arguments but do not identify an existing account the way the ID does.",
+		"ID", "id"),
+	// Not ratified: aws_organizations_organization is row-gen's proposal
+	// for the org singleton (server-assigned ID, confirmed against the
+	// provider's docs), but live/survey-full.json says it is untaggable
+	// with no native list resource - the same unrecoverable shape as the
+	// LicenseManager grant above, and the reason this batch's own scope
+	// (see the cohort README) named only "accounts, OUs, policies" and not
+	// the organization singleton itself.
+	serverAssigned("aws_organizations_organizational_unit",
+		"the Organizations service assigns the OU its own ID at create time; parent_id and name are required arguments but do not reconstruct this OU's own ID.",
+		"ID", "id"),
+	serverAssigned("aws_organizations_policy",
+		"the Organizations service assigns the policy its own ID at create time; type is a required argument but does not identify a specific policy.",
+		"ID", "id"),
+	serverAssigned("aws_organizations_resource_policy",
+		"an AWS Organization has at most one resource-based delegation policy, and the service assigns its ID when the policy is attached; nothing in configuration names it.",
+		"ID", "id"),
+	// aws_organizations_policy_attachment (row-gen: evidence-only,
+	// property-child of AWS::Organizations::Policy) is not ratified this
+	// batch; a parent-derived admission keyed on the policy marker above is
+	// follow-on work, not named in this batch's scope.
+
+	// Resource Explorer.
+	serverAssigned("aws_resourceexplorer2_index",
+		"an AWS account has at most one Resource Explorer index per region, and the service assigns the index its own ARN at create time; type (LOCAL or AGGREGATOR) is a required argument but does not identify this index.",
+		"ARN", "arn"),
+	serverAssigned("aws_resourceexplorer2_view",
+		"the Resource Explorer service assigns the view its own ARN at create time, embedding a server-minted suffix beyond the client-chosen view_name; the provider's identity schema names arn, not id, as the required import attribute.",
+		"ARN", "arn"),
+
+	// Resource Groups.
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[Name], client-named, proposed
+		// correctly (row-gen's argument line came from
+		// live/import-grammar.json). Confirmed against the provider's
+		// documented import command (terraform import
+		// aws_resourcegroups_group.foo resource-group-name).
+		Type:          "aws_resourcegroups_group",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	// aws_resourcegroups_resource (row-gen: evidence-only, property-child of
+	// AWS::ResourceGroups::Group) is not ratified this batch; same
+	// parent-derived follow-on as the Organizations policy attachment above.
+
+	// Service Catalog remainder. aws_servicecatalog_constraint stays
+	// reasoned-none per this batch's own instruction and is not touched
+	// here at all - it does not even appear in row-gen's pool.
+	serverAssigned("aws_servicecatalog_portfolio",
+		"the Service Catalog service assigns the portfolio its own ID at create time; portfolio names are not unique, so provider_name does not identify a specific portfolio.",
+		"ID", "id"),
+	// aws_servicecatalog_portfolio_share: row-gen classified this
+	// needs-hand-separator (registry primaryIdentifier ["PortfolioId",
+	// "AccountId"], composite, no separator in any schema - and
+	// undercounting the real grammar besides). The provider's own
+	// documented import command is a three-part, colon-joined composite
+	// (terraform import aws_servicecatalog_portfolio_share.example
+	// port-12344321:ACCOUNT:123456789012): portfolio_id, type and
+	// principal_id, all three required, already-configured arguments (type
+	// is one of ACCOUNT, ORGANIZATION, ORGANIZATIONAL_UNIT or
+	// ORGANIZATION_MEMBER_ACCOUNT; the registry only named the AccountId
+	// half of the ACCOUNT case).
+	TypeIdentity{
+		Type: "aws_servicecatalog_portfolio_share",
+		Components: []Component{
+			attr("portfolio_id"),
+			sep(":"),
+			attr("type"),
+			sep(":"),
+			attr("principal_id"),
+		},
+		ImportSyntax:  "PORTFOLIOID:TYPE:PRINCIPALID",
+		IdentityAttrs: nil,
+	},
+	serverAssigned("aws_servicecatalog_product",
+		"the Service Catalog service assigns the product its own ID at create time; product names are not unique, so name and owner do not identify a specific product.",
+		"ID", "id"),
+	serverAssigned("aws_servicecatalog_provisioned_product",
+		"the Service Catalog service assigns the provisioned product its own ID at create time; the product/provisioning-artifact references are required arguments but do not identify this particular provisioned instance.",
+		"ID", "id"),
+	// Not ratified: aws_servicecatalog_service_action and
+	// aws_servicecatalog_tag_option are both row-gen proposals with clean,
+	// confirmed server-assigned import grammars, but
+	// live/survey-full.json says both are untaggable with no native list
+	// resource - the same unrecoverable shape as the LicenseManager grant
+	// and Organizations singleton above. aws_servicecatalog_tag_option_
+	// resource_association's own composite identity (tag_option_id and
+	// resource_id, colon-joined per the provider's documented import
+	// command, correcting row-gen's needs-hand-separator classification
+	// the same way the portfolio share above does) is mechanically fine on
+	// its own terms - both halves are plain, already-configured arguments,
+	// needing no live read - but with the tag option type itself carrying
+	// no admission path, a config referencing an admitted
+	// aws_servicecatalog_tag_option resource could never exist; deferred
+	// alongside tag_option rather than admitted on that technicality. See
+	// the cohort README.
+	//
+	// Not ratified this batch either, on independent verification rather
+	// than row-gen's own classification: aws_servicecatalog_principal_
+	// portfolio_association and aws_servicecatalog_product_portfolio_
+	// association both document an import ID that requires accept_language
+	// (an optional, defaulted argument) as one of its parts - a literal
+	// fallback for an omitted argument, the same table-mechanism gap the
+	// messaging batch's aws_cloudwatch_event_rule left unratified. See the
+	// cohort README.
+
+	// Service Catalog AppRegistry.
+	serverAssigned("aws_servicecatalogappregistry_application",
+		"the ServiceCatalogAppRegistry service assigns the application its own ID at create time; name is a required argument but does not reconstruct it.",
+		"ID", "id"),
+	serverAssigned("aws_servicecatalogappregistry_attribute_group",
+		"the ServiceCatalogAppRegistry service assigns the attribute group its own ID at create time; name is a required argument but does not reconstruct it.",
+		"ID", "id"),
+	// aws_servicecatalogappregistry_attribute_group_association: row-gen
+	// classified this evidence-only (registry primaryIdentifier
+	// ["ApplicationArn", "AttributeGroupArn"], both read-only - but the
+	// provider's own required arguments are application_id and
+	// attribute_group_id, not the ARNs the registry named). The provider's
+	// documented import command is a comma-joined pair of those IDs
+	// (terraform import
+	// aws_servicecatalogappregistry_attribute_group_association.example
+	// 12456778723424sdffsdfsdq34,12234t3564dsfsdf34asff4ww3) -
+	// application_id through the application marker above,
+	// attribute_group_id through the attribute group marker above.
+	TypeIdentity{
+		Type: "aws_servicecatalogappregistry_attribute_group_association",
+		Components: []Component{
+			attr("application_id"),
+			sep(","),
+			attr("attribute_group_id"),
+		},
+		ImportSyntax:  "APPLICATIONID,ATTRIBUTEGROUPID",
+		IdentityAttrs: nil,
+	},
+
+	// Audit Manager.
+	serverAssigned("aws_auditmanager_assessment",
+		"the AuditManager service assigns the assessment its own ID at create time; framework_id is a required argument but does not identify this particular assessment.",
+		"ID", "id"),
+	serverAssigned("aws_auditmanager_framework",
+		"the AuditManager service assigns the framework its own ID at create time; name is a required argument but does not reconstruct it.",
+		"ID", "id"),
+
 	// ---- Registry-ratified (#40, #44, #65): sixth batch, databases beyond
 	// ---- RDS/DynamoDB/ElastiCache (issue #65's own recipe: Redshift,
 	// ---- OpenSearch/OpenSearchServerless, Neptune, DocDB, Timestream,
@@ -7813,6 +8216,486 @@ var DefaultTable = buildTable(
 		Components:    []Component{attr("name")},
 		ImportSyntax:  "NAME",
 		IdentityAttrs: []string{"name", "id"},
+	},
+
+	// ---- Registry-ratified (#40, #44, #65): SageMaker batch (domains,
+	// ---- user profiles, models, endpoints and their configs, notebook
+	// ---- instances, feature groups, model package groups, pipelines,
+	// ---- spaces and apps, plus the surrounding algorithm/hub/image/
+	// ---- workteam/monitoring family; issue #65's ratification campaign).
+	// ---- go run ./tools/row-gen's SageMaker section proposed 29 types;
+	// ---- 27 ratify here and two are rejected (see the two prose notes
+	// ---- below, near aws_sagemaker_device and aws_sagemaker_image_version).
+	// ----
+	// ---- The dominant finding this batch makes is a service-wide
+	// ---- registry-laggard shape, not a one-off correction: for roughly
+	// ---- two thirds of these types, live/registry.json's primaryIdentifier
+	// ---- names a field CFN models as read-only (an opaque "Id" or an ARN),
+	// ---- and row-gen's classifier correctly declines to propose a row on
+	// ---- that evidence alone (either "evidence-only" or a GUESSED argument
+	// ---- name from the CFN property, never backed by a schema). But the
+	// ---- AWS provider's own Argument Reference and Attribute Reference —
+	// ---- fetched directly from https://github.com/hashicorp/terraform-provider-aws
+	// ---- at the pinned v6.58.0 tag, not merely live/import-grammar.json's
+	// ---- cache — show every one of these types is actually client-named:
+	// ---- its Attribute Reference states plainly "id - The name of the
+	// ---- <Type>", and its Import section documents import by that same
+	// ---- name, not by any ARN. Several of these doc pages carry an
+	// ---- unrelated copy-paste artifact in their worked example (the
+	// ---- literal string "my-code-repo" reused verbatim across the Hub,
+	// ---- Image and Model Package Group pages, and "workteam_name" copied
+	// ---- into the MLflow Tracking Server page's prose) — the surrounding
+	// ---- Argument Reference and the "using the `name`" sentence are what
+	// ---- this batch trusts, not the reused example string, which is
+	// ---- immaterial to the argument grammar it demonstrates. This is
+	// ---- exactly the class of correction the security and streaming
+	// ---- batches' own README/table entries already document one or two
+	// ---- instances of (aws_guardduty_filter, aws_appsync_domain_name_api_association);
+	// ---- this batch just finds it concentrated in one service. Cohort
+	// ---- estate: live/e2e/estates/sagemaker.
+
+	serverAssigned("aws_sagemaker_domain",
+		"SageMaker AI assigns the Domain its own ID (d-…) at create time; domain_name is client-chosen but does not reconstruct it — the registry and the provider agree here, one of the few SageMaker markers where they do. Confirmed against the provider's documented import command (terraform import aws_sagemaker_domain.test_domain d-8jgsjtilstu8) and its Attribute Reference, which states id is \"The ID of the Domain\", distinct from arn (a different exported value this table does not claim as an identity source).",
+		"DOMAINID", "id"),
+
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[UserProfileName, DomainId],
+		// row-gen flagged this "needs hand separator" (a genuine composite,
+		// no separator in any schema). The provider's own documented import
+		// command settles the shape directly: an ARN,
+		// arn:aws:sagemaker:REGION:ACCOUNT:user-profile/DOMAIN_ID/PROFILE_NAME
+		// (terraform import aws_sagemaker_user_profile.example
+		// arn:aws:sagemaker:us-west-2:123456789012:user-profile/domain-id/profile-name),
+		// built from the region and account of the cloud the run is
+		// against plus the domain_id and user_profile_name arguments —
+		// both Required in the resource's own schema, so concrete in any
+		// realistic config. A real Terraform 1.12+ Identity Schema
+		// corroborates the same two components directly as a structured
+		// object (required: domain_id, user_profile_name), independent of
+		// the ARN string. Same account/region-embedded-ARN shape as
+		// aws_codeartifact_domain above.
+		Type: "aws_sagemaker_user_profile",
+		Components: []Component{
+			inAttr("arn", sep("arn:aws:sagemaker:")),
+			inAttr("arn", cloud(CloudRegion)),
+			inAttr("arn", sep(":")),
+			inAttr("arn", cloud(CloudAccountID)),
+			inAttr("arn", sep(":user-profile/")),
+			inAttr("arn", attr("domain_id")),
+			inAttr("arn", sep("/")),
+			inAttr("arn", attr("user_profile_name")),
+		},
+		ImportSyntax:  "arn:aws:sagemaker:REGION:ACCOUNT:user-profile/DOMAINID/USERPROFILENAME",
+		IdentityAttrs: []string{"arn", "id"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[DomainId, SpaceName], row-gen
+		// flagged this "needs hand separator" too. Same correction as the
+		// user profile above: the provider's documented import command is
+		// an ARN, arn:aws:sagemaker:REGION:ACCOUNT:space/DOMAIN_ID/SPACE_NAME
+		// (terraform import aws_sagemaker_space.test_space
+		// arn:aws:sagemaker:us-west-2:123456789012:space/domain-id/space-name),
+		// built from domain_id and space_name — both Required arguments —
+		// plus the region and account of the cloud the run is against. Its
+		// Attribute Reference states both arn and id are "The space's
+		// Amazon Resource Name (ARN)."
+		Type: "aws_sagemaker_space",
+		Components: []Component{
+			inAttr("arn", sep("arn:aws:sagemaker:")),
+			inAttr("arn", cloud(CloudRegion)),
+			inAttr("arn", sep(":")),
+			inAttr("arn", cloud(CloudAccountID)),
+			inAttr("arn", sep(":space/")),
+			inAttr("arn", attr("domain_id")),
+			inAttr("arn", sep("/")),
+			inAttr("arn", attr("space_name")),
+		},
+		ImportSyntax:  "arn:aws:sagemaker:REGION:ACCOUNT:space/DOMAINID/SPACENAME",
+		IdentityAttrs: []string{"arn", "id"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[AppName, AppType, DomainId,
+		// UserProfileName], row-gen flagged this "needs hand separator".
+		// The provider's documented import command is again an ARN,
+		// arn:aws:sagemaker:REGION:ACCOUNT:app/DOMAIN_ID/USER_PROFILE_NAME/APP_TYPE/APP_NAME
+		// (terraform import aws_sagemaker_app.example
+		// arn:aws:sagemaker:us-west-2:012345678912:app/domain-id/user-profile-name/app-type/app-name),
+		// built from domain_id, user_profile_name, app_type and app_name —
+		// all four Required or effectively required in the resource's own
+		// schema for the user-profile-owned shape this doc example
+		// demonstrates — plus the region and account of the run.
+		//
+		// The resource also supports space-owned apps (user_profile_name
+		// and space_name are each Optional; "At least one of
+		// user_profile_name or space_name required"), and the provider's
+		// docs demonstrate only the user-profile-owned ARN shape above —
+		// no worked example or Argument/Attribute Reference text confirms
+		// whether a space-owned app's ARN substitutes a "space/space-name"
+		// segment or something else. This entry does not guess: it reads
+		// user_profile_name specifically, not space_name as a fallback, so
+		// a space-owned app's identity simply fails to resolve from
+		// configuration here (ClassNeedsDiscovery, the honest outcome)
+		// rather than construct an unverified ARN. Its Attribute Reference
+		// states both arn and id are "The Amazon Resource Name (ARN) of
+		// the app."
+		Type: "aws_sagemaker_app",
+		Components: []Component{
+			inAttr("arn", sep("arn:aws:sagemaker:")),
+			inAttr("arn", cloud(CloudRegion)),
+			inAttr("arn", sep(":")),
+			inAttr("arn", cloud(CloudAccountID)),
+			inAttr("arn", sep(":app/")),
+			inAttr("arn", attr("domain_id")),
+			inAttr("arn", sep("/")),
+			inAttr("arn", attr("user_profile_name")),
+			inAttr("arn", sep("/")),
+			inAttr("arn", attr("app_type")),
+			inAttr("arn", sep("/")),
+			inAttr("arn", attr("app_name")),
+		},
+		ImportSyntax:  "arn:aws:sagemaker:REGION:ACCOUNT:app/DOMAINID/USERPROFILENAME/APPTYPE/APPNAME",
+		IdentityAttrs: []string{"arn", "id"},
+	},
+
+	// aws_sagemaker_device: row-gen classified this "evidence-only" (its
+	// registry primaryIdentifier is the composite "Device/DeviceName", and
+	// the argument name was GUESSED). Independent verification confirms
+	// row-gen's caution rather than correcting it: the provider's
+	// documented import command is device-fleet-name/device-name
+	// (terraform import aws_sagemaker_device.example my-fleet/my-device),
+	// but the resource's own Argument Reference nests device_name inside a
+	// Required device{} block as an Optional field (alongside an equally
+	// Optional iot_thing_name) — neither is guaranteed present in any
+	// given config, and this table's Component vocabulary reads top-level
+	// resource arguments by name (see [Component.Attrs]'s doc comment),
+	// not fields nested inside a block. Not ratified: no clean proposal.
+
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[Id], evidence-only (an opaque
+		// "Id" in readOnlyProperties — row-gen correctly declined to
+		// propose server-assigned from this alone since it is not ⊆
+		// createOnlyProperties either). The provider's Argument Reference
+		// and Attribute Reference settle it: client-named via
+		// code_repository_name (Required), and id is documented as "The
+		// name of the Code Repository." Confirmed against the documented
+		// import command (terraform import
+		// aws_sagemaker_code_repository.test_code_repository my-code-repo).
+		Type:          "aws_sagemaker_code_repository",
+		Components:    []Component{attr("code_repository_name")},
+		ImportSyntax:  "CODEREPOSITORYNAME",
+		IdentityAttrs: []string{"id", "code_repository_name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[HubArn], row-gen proposed
+		// server-assigned from it — the registry-laggard shape this
+		// batch's intro names: the provider's own Argument Reference shows
+		// hub_name is Required, its Attribute Reference states id is "The
+		// name of the Hub" (arn is a separate, different exported value),
+		// and its documented import command uses the name, not the ARN
+		// (terraform import aws_sagemaker_hub.test_hub my-code-repo —
+		// the worked example string is a copy-paste artifact from the
+		// Code Repository doc page above, immaterial to the "using the
+		// `name`" grammar it demonstrates).
+		Type:          "aws_sagemaker_hub",
+		Components:    []Component{attr("hub_name")},
+		ImportSyntax:  "HUBNAME",
+		IdentityAttrs: []string{"id", "hub_name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[ImageArn], same correction as
+		// the Hub above: the provider's Argument Reference shows image_name
+		// is Required, its Attribute Reference states id is "The name of
+		// the Image", and its documented import command uses the name
+		// (terraform import aws_sagemaker_image.test_image my-code-repo —
+		// again the reused worked-example string, not the argument
+		// grammar, which is unambiguous).
+		Type:          "aws_sagemaker_image",
+		Components:    []Component{attr("image_name")},
+		ImportSyntax:  "IMAGENAME",
+		IdentityAttrs: []string{"id", "image_name"},
+	},
+
+	// aws_sagemaker_image_version: row-gen proposed server-assigned via the
+	// registry's ImageVersionArn. Independent verification finds a real gap
+	// row-gen's registry-only view could not see: the provider's documented
+	// import ID is a comma-delimited image_name,version composite
+	// (terraform import aws_sagemaker_image_version.example
+	// example-name,1), where image_name is the Required argument above but
+	// version is a plain output int ("version - The version of the image."
+	// in the Attribute Reference only, no corresponding argument anywhere
+	// in the Argument Reference) — SageMaker AI assigns each image version
+	// its ordinal at create time, the same way aws_lambda_layer_version's
+	// own version number is server-assigned. This table's Component
+	// vocabulary composes configuration arguments, cloud properties and
+	// fixed literals (see [Component]'s doc comment); it has nothing that
+	// reads a sibling instance's own not-yet-known server-assigned output
+	// mid-composite, the same gap the streaming batch's own
+	// aws_appsync_function rejection above names. Not ratified: no clean
+	// proposal from configuration alone.
+
+	serverAssigned("aws_sagemaker_mlflow_app",
+		"SageMaker AI mints the MLflow App's own ARN at create time; name is Required and client-chosen but names the app, not its identity — the provider's own real Terraform 1.12+ Identity Schema requires arn specifically (the one MLflow proposal in this batch's scope where the registry and the provider agree outright, the same shape aws_msk_cluster's entry above sets). Confirmed against the documented import command (terraform import aws_sagemaker_mlflow_app.example arn:aws:sagemaker:us-east-1:123456789012:mlflow-app/app-ABCD1234).",
+		"ARN", "arn", "id"),
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[TrackingServerName],
+		// evidence-only (GUESSED argument, no schema backing). The
+		// provider's Argument Reference confirms tracking_server_name is
+		// Required ("This string is part of the tracking server ARN"),
+		// and its Attribute Reference states id is "The name of the MLFlow
+		// Tracking Server." The doc page's own Import prose has a
+		// copy-paste bug ("using the `workteam_name`", reused verbatim
+		// from the Workteam page below) but its worked example (terraform
+		// import aws_sagemaker_mlflow_tracking_server.example example)
+		// and the Argument/Attribute Reference agree on tracking_server_name.
+		Type:          "aws_sagemaker_mlflow_tracking_server",
+		Components:    []Component{attr("tracking_server_name")},
+		ImportSyntax:  "TRACKINGSERVERNAME",
+		IdentityAttrs: []string{"id", "tracking_server_name"},
+	},
+
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[ModelArn], row-gen's proposal
+		// would have been server-assigned from it. The provider's Argument
+		// Reference shows name is Optional (Terraform assigns a random
+		// unique name if omitted — the same shape aws_lb's name argument
+		// has, which does not change the identity grammar), and its
+		// Attribute Reference states plainly "name - Name of the model."
+		// Its documented import command uses the name (terraform import
+		// aws_sagemaker_model.example model-foo), not the arn the registry
+		// proposed.
+		Type:          "aws_sagemaker_model",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[EndpointArn], same correction
+		// as the Model above: name is Optional (auto-generated if
+		// omitted) in the Argument Reference, and the documented import
+		// command uses it directly (terraform import
+		// aws_sagemaker_endpoint.test_endpoint my-endpoint). Its Attribute
+		// Reference does not restate id or name explicitly (only arn and
+		// tags_all), so no attribute beyond the argument itself is claimed
+		// as an identity source.
+		Type:          "aws_sagemaker_endpoint",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[Id], evidence-only ("not
+		// listable -> client-named only" per row-gen, but no schema-backed
+		// argument). A real Terraform 1.12+ Identity Schema settles it
+		// directly: required name (String) "Name of the endpoint
+		// configuration." Its Argument Reference shows name is Optional,
+		// conflicting with name_prefix (Terraform assigns a random unique
+		// name, or completes name_prefix, if name itself is unset) — the
+		// same optionality shape several S3 bucket rows above already
+		// carry. Documented import command: terraform import
+		// aws_sagemaker_endpoint_configuration.example example-endpoint-config.
+		Type:          "aws_sagemaker_endpoint_configuration",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[Id], evidence-only. The
+		// provider's Argument Reference shows name is Required (not
+		// Optional, unlike the Model/Endpoint pair above), and its
+		// Attribute Reference states id is "The name of the notebook
+		// instance." Documented import command: terraform import
+		// aws_sagemaker_notebook_instance.test_notebook_instance
+		// my-notebook-instance.
+		Type:          "aws_sagemaker_notebook_instance",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"id", "name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[Id], evidence-only. The
+		// provider's Argument Reference shows name is Optional
+		// (auto-generated if omitted). Its Import prose has a copy-paste
+		// bug ("using the `name`" is right, but the surrounding sentence
+		// says "import models" — reused verbatim from the Model page
+		// above); the worked example (terraform import
+		// aws_sagemaker_notebook_instance_lifecycle_configuration.lc foo)
+		// and the Argument Reference agree on name regardless.
+		Type:          "aws_sagemaker_notebook_instance_lifecycle_configuration",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[FeatureGroupName], evidence-only
+		// (GUESSED argument). The provider's Argument Reference confirms
+		// feature_group_name is Required, and its Attribute Reference
+		// exports a redundant "name" attribute ("The name of the Feature
+		// Group") alongside the arn — a different attribute name than the
+		// argument, both carrying the same value. Documented import
+		// command: terraform import
+		// aws_sagemaker_feature_group.test_feature_group feature_group-foo.
+		Type:          "aws_sagemaker_feature_group",
+		Components:    []Component{attr("feature_group_name")},
+		ImportSyntax:  "FEATUREGROUPNAME",
+		IdentityAttrs: []string{"feature_group_name", "name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[ModelPackageGroupArn], the
+		// same registry-laggard correction as the Hub and Image above:
+		// model_package_group_name is Required per the Argument Reference,
+		// id is documented as "The name of the Model Package Group", and
+		// the documented import command uses the name (terraform import
+		// aws_sagemaker_model_package_group.test_model_package_group
+		// my-code-repo — the reused worked-example string again, not the
+		// argument grammar).
+		Type:          "aws_sagemaker_model_package_group",
+		Components:    []Component{attr("model_package_group_name")},
+		ImportSyntax:  "MODELPACKAGEGROUPNAME",
+		IdentityAttrs: []string{"id", "model_package_group_name"},
+	},
+	TypeIdentity{
+		// row-gen marked this "(property-child of AWS::SageMaker::ModelPackageGroup)
+		// [evidence-only]", proposing parent-derived admission "once [the
+		// model package group] is ratified" — the ram-servicecatalog
+		// family sweep (issue #53, tools/mapping-gen/overlay.d/sweep-ram-servicecatalog.json)
+		// independently records the same fold. Ratified alongside the
+		// group above: a named-singleton-child keyed on the group's own
+		// model_package_group_name, the same shape as
+		// aws_secretsmanager_secret_policy. Its only required argument is
+		// model_package_group_name (already in configuration through the
+		// group marker above), and its Attribute Reference states id is
+		// "The name of the Model Package [Group]" (client-named, not a
+		// separate identity of its own). Untaggable — no tags argument in
+		// its Argument Reference.
+		Type:          "aws_sagemaker_model_package_group_policy",
+		Components:    []Component{attr("model_package_group_name")},
+		ImportSyntax:  "MODELPACKAGEGROUPNAME",
+		IdentityAttrs: nil,
+	},
+
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[PipelineName], client-named,
+		// row-gen proposed it correctly (argument sourced from
+		// live/import-grammar.json). Confirmed against the provider's
+		// Argument Reference (pipeline_name Required) and its documented
+		// import command (terraform import
+		// aws_sagemaker_pipeline.test_pipeline pipeline).
+		Type:          "aws_sagemaker_pipeline",
+		Components:    []Component{attr("pipeline_name")},
+		ImportSyntax:  "PIPELINE_NAME",
+		IdentityAttrs: []string{"pipeline_name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[ModelCardName], client-named,
+		// row-gen proposed it correctly. Confirmed against the provider's
+		// Argument Reference (model_card_name Required) and its documented
+		// import command (terraform import aws_sagemaker_model_card.example
+		// my-model-card).
+		Type:          "aws_sagemaker_model_card",
+		Components:    []Component{attr("model_card_name")},
+		ImportSyntax:  "MODEL_CARD_NAME",
+		IdentityAttrs: []string{"model_card_name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[StudioLifecycleConfigName],
+		// client-named, row-gen proposed it correctly. Confirmed against
+		// the provider's Argument Reference (studio_lifecycle_config_name
+		// Required) and its Attribute Reference, which states id is "The
+		// name of the Studio Lifecycle Config."
+		Type:          "aws_sagemaker_studio_lifecycle_config",
+		Components:    []Component{attr("studio_lifecycle_config_name")},
+		ImportSyntax:  "STUDIO_LIFECYCLE_CONFIG_NAME",
+		IdentityAttrs: []string{"id", "studio_lifecycle_config_name"},
+	},
+
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[AlgorithmArn], evidence-only
+		// (primaryIdentifier ⊆ readOnlyProperties, the server-assigned
+		// shape). A real Terraform 1.12+ Identity Schema settles it the
+		// other way: required algorithm_name (String) "Name of the
+		// algorithm", which is also Required in the plain Argument
+		// Reference. Documented import command: terraform import
+		// aws_sagemaker_algorithm.example example-algorithm.
+		Type:          "aws_sagemaker_algorithm",
+		Components:    []Component{attr("algorithm_name")},
+		ImportSyntax:  "ALGORITHM_NAME",
+		IdentityAttrs: []string{"algorithm_name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=["Device/DeviceName"], different
+		// shape from the rejected aws_sagemaker_device above: this is the
+		// fleet container, not a device within it. Evidence-only per
+		// row-gen (GUESSED argument). The provider's Argument Reference
+		// confirms device_fleet_name is Required (top-level, not nested in
+		// a block), and its Attribute Reference states id is "The name of
+		// the Device Fleet." Documented import command: terraform import
+		// aws_sagemaker_device_fleet.example my-fleet.
+		Type:          "aws_sagemaker_device_fleet",
+		Components:    []Component{attr("device_fleet_name")},
+		ImportSyntax:  "DEVICE_FLEET_NAME",
+		IdentityAttrs: []string{"id", "device_fleet_name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[AppImageConfigName],
+		// evidence-only (GUESSED argument — the guess turns out correct).
+		// The provider's Argument Reference confirms app_image_config_name
+		// is Required, and its Attribute Reference states id is "The name
+		// of the App Image Config." Documented import command: terraform
+		// import aws_sagemaker_app_image_config.example example.
+		Type:          "aws_sagemaker_app_image_config",
+		Components:    []Component{attr("app_image_config_name")},
+		ImportSyntax:  "APP_IMAGE_CONFIG_NAME",
+		IdentityAttrs: []string{"id", "app_image_config_name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[MonitoringScheduleArn),
+		// evidence-only. The provider's Argument Reference shows name is
+		// Optional (auto-generated if omitted), and its Attribute
+		// Reference states plainly "name - The name of the monitoring
+		// schedule." Documented import command: terraform import
+		// aws_sagemaker_monitoring_schedule.test_monitoring_schedule
+		// monitoring-schedule-foo.
+		Type:          "aws_sagemaker_monitoring_schedule",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[JobDefinitionArn],
+		// evidence-only. The provider's Argument Reference shows name is
+		// Optional (auto-generated if omitted), and its Attribute
+		// Reference states plainly "name - The name of the data quality
+		// job definition." Documented import command: terraform import
+		// aws_sagemaker_data_quality_job_definition.test_data_quality_job_definition
+		// data-quality-job-definition-foo.
+		Type:          "aws_sagemaker_data_quality_job_definition",
+		Components:    []Component{attr("name")},
+		ImportSyntax:  "NAME",
+		IdentityAttrs: []string{"name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[ProjectArn], evidence-only.
+		// The provider's Argument Reference confirms project_name is
+		// Required, and its Attribute Reference states id is "The name of
+		// the Project" (project_id, a different value, is a separate
+		// exported attribute this table does not claim). Documented import
+		// command: terraform import aws_sagemaker_project.example example.
+		Type:          "aws_sagemaker_project",
+		Components:    []Component{attr("project_name")},
+		ImportSyntax:  "PROJECT_NAME",
+		IdentityAttrs: []string{"id", "project_name"},
+	},
+	TypeIdentity{
+		// registry.json: primaryIdentifier=[Id], evidence-only ("not
+		// listable -> client-named only" per row-gen). The provider's
+		// Argument Reference confirms workteam_name is Required, and its
+		// Attribute Reference states id is "The name of the Workteam."
+		// Documented import command: terraform import
+		// aws_sagemaker_workteam.example example.
+		Type:          "aws_sagemaker_workteam",
+		Components:    []Component{attr("workteam_name")},
+		ImportSyntax:  "WORKTEAM_NAME",
+		IdentityAttrs: []string{"id", "workteam_name"},
 	},
 )
 
