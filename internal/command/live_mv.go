@@ -280,11 +280,15 @@ func (c *LiveMvCommand) liveMvEstate(ctx context.Context, flagValue string, conf
 // reports the failure with the context to explain it.
 func (c *LiveMvCommand) liveMvRegion(ctx context.Context, config *configs.Config, provs *statelessProviders, candidates ...addrs.AbsResourceInstance) string {
 	for _, addr := range candidates {
-		rc, ok := config.Module.ManagedResources[addr.Resource.Resource.String()]
+		modCfg, ok := identity.ConfigForModule(config, addr.Module)
+		if !ok || modCfg.Module == nil {
+			continue
+		}
+		rc, ok := modCfg.Module.ManagedResources[addr.Resource.Resource.String()]
 		if !ok {
 			continue
 		}
-		providerAddr := providerConfigAddr(rc)
+		providerAddr := providerConfigAddr(rc, addr.Module.Module())
 		if _, err := provs.ConfiguredProvider(ctx, providerAddr); err != nil {
 			return ""
 		}

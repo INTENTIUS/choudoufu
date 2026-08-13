@@ -36,7 +36,7 @@ func TestRefusalNamesUnmappedCohort(t *testing.T) {
 }
 
 func TestRefusalNamesRegistryLaggardCohort(t *testing.T) {
-	assertRefusalNamesCohort(t, "testdata/residue-laggard", "aws_codebuild_project.build", residue.CohortRegistryLaggard)
+	assertRefusalNamesCohort(t, "testdata/residue-laggard", "aws_codebuild_source_credential.github", residue.CohortRegistryLaggard)
 }
 
 func TestRefusalNamesEmulatorBlockedCohort(t *testing.T) {

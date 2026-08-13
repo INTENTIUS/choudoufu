@@ -783,10 +783,10 @@ func statelessStampGaps(res *stamp.Result, needsDiscovery map[string]bool) tfdia
 }
 
 // statelessNeedsDiscovery is the set of resource blocks whose instances can
-// only be found by their ownership marker, keyed by block address, taken from
-// identity resolution rather than from what discovery managed to bind: an
-// instance discovery found is still one that nothing but its marker could
-// have found.
+// only be found by their ownership marker, keyed by module-qualified block
+// address, taken from identity resolution rather than from what discovery
+// managed to bind: an instance discovery found is still one that nothing but
+// its marker could have found.
 func statelessNeedsDiscovery(resolutions *identity.Result) map[string]bool {
 	if resolutions == nil {
 		return nil
@@ -794,7 +794,7 @@ func statelessNeedsDiscovery(resolutions *identity.Result) map[string]bool {
 	needs := resolutions.NeedsDiscovery()
 	out := make(map[string]bool, len(needs))
 	for _, r := range needs {
-		out[r.Addr.Resource.Resource.String()] = true
+		out[r.Addr.ContainingResource().String()] = true
 	}
 	return out
 }
@@ -834,7 +834,7 @@ func statelessUndiscoveredNote(needs []identity.Resolution) string {
 }
 
 // statelessEstateFromConfig reads the distinct tofu-estate values the
-// configuration stamps, sorted.
+// configuration stamps, sorted, over the whole static module tree.
 //
 // Only tag values that evaluate from configuration alone count. A tag built
 // from another resource's attribute is not readable here, and is not treated
@@ -843,15 +843,28 @@ func statelessUndiscoveredNote(needs []identity.Resolution) string {
 func statelessEstateFromConfig(ctx context.Context, config *configs.Config) ([]string, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
-	if config == nil || config.Module == nil {
-		return nil, diags
+	seen := make(map[string]bool)
+	statelessEstateFromModule(ctx, config, seen)
+
+	out := make([]string, 0, len(seen))
+	for s := range seen {
+		out = append(out, s)
 	}
-	mod := config.Module
+	sort.Strings(out)
+	return out, diags
+}
+
+// statelessEstateFromModule is [statelessEstateFromConfig]'s recursive step:
+// one module's resources, then its children in name order.
+func statelessEstateFromModule(ctx context.Context, cfg *configs.Config, seen map[string]bool) {
+	if cfg == nil || cfg.Module == nil {
+		return
+	}
+	mod := cfg.Module
 	if mod.StaticEvaluator == nil {
-		return nil, diags
+		return
 	}
 
-	seen := make(map[string]bool)
 	for _, name := range sortedResourceKeys(mod.ManagedResources) {
 		rc := mod.ManagedResources[name]
 
@@ -877,7 +890,7 @@ func statelessEstateFromConfig(ctx context.Context, config *configs.Config) ([]s
 				continue
 			}
 			val, valDiags := mod.StaticEvaluator.Evaluate(ctx, pair.Value, configs.StaticIdentifier{
-				Module:    addrs.RootModule,
+				Module:    cfg.Path,
 				Subject:   fmt.Sprintf("%s.tags", rc.Addr()),
 				DeclRange: attr.Range,
 			})
@@ -890,12 +903,9 @@ func statelessEstateFromConfig(ctx context.Context, config *configs.Config) ([]s
 		}
 	}
 
-	out := make([]string, 0, len(seen))
-	for s := range seen {
-		out = append(out, s)
+	for _, name := range identity.SortedChildNames(cfg.Children) {
+		statelessEstateFromModule(ctx, cfg.Children[name], seen)
 	}
-	sort.Strings(out)
-	return out, diags
 }
 
 // statelessNeedsDiscoveryProvider is the provider configuration marker
@@ -921,11 +931,15 @@ func statelessNeedsDiscoveryProvider(config *configs.Config, needs []identity.Re
 
 	seen := make(map[string]addrs.AbsProviderConfig)
 	for _, r := range needs {
-		rc, ok := config.Module.ManagedResources[r.Addr.Resource.Resource.String()]
+		modCfg, ok := identity.ConfigForModule(config, r.Addr.Module)
+		if !ok || modCfg.Module == nil {
+			continue
+		}
+		rc, ok := modCfg.Module.ManagedResources[r.Addr.Resource.Resource.String()]
 		if !ok {
 			continue
 		}
-		addr := providerConfigAddr(rc)
+		addr := providerConfigAddr(rc, r.Addr.Module.Module())
 		seen[addr.String()] = addr
 	}
 
@@ -970,14 +984,11 @@ func statelessNeedsDiscoveryProvider(config *configs.Config, needs []identity.Re
 // one provider configuration regardless of whether marker discovery was
 // even implicated.
 func statelessManagedResourceProviders(config *configs.Config) []addrs.AbsProviderConfig {
-	if config == nil || config.Module == nil {
-		return nil
-	}
 	seen := make(map[string]addrs.AbsProviderConfig)
-	for _, rc := range config.Module.ManagedResources {
-		addr := providerConfigAddr(rc)
+	walkManagedResources(config, func(rc *configs.Resource, modPath addrs.Module) {
+		addr := providerConfigAddr(rc, modPath)
 		seen[addr.String()] = addr
-	}
+	})
 	out := make([]addrs.AbsProviderConfig, 0, len(seen))
 	for _, addr := range seen {
 		out = append(out, addr)
@@ -1129,13 +1140,31 @@ func quoteAll(names []string) []string {
 }
 
 // providerConfigAddr is the absolute provider configuration a resource block
-// uses. Only the root module exists in stateless mode v0, so the module path
-// is always the root.
-func providerConfigAddr(rc *configs.Resource) addrs.AbsProviderConfig {
+// uses, modPath being the static module the block itself is declared in
+// (addrs.RootModule for a root resource).
+func providerConfigAddr(rc *configs.Resource, modPath addrs.Module) addrs.AbsProviderConfig {
 	return addrs.AbsProviderConfig{
-		Module:   addrs.RootModule,
+		Module:   modPath,
 		Provider: rc.Provider,
 		Alias:    rc.ProviderConfigAddr().Alias,
+	}
+}
+
+// walkManagedResources calls fn once for every managed resource in cfg's
+// whole static module tree, root first, then children in name order - the
+// command-layer counterpart of the five walkers' own traversal, for the
+// handful of places here that still need to look a resource block up by
+// hand rather than through an identity.Resolution's already module-
+// qualified address.
+func walkManagedResources(cfg *configs.Config, fn func(rc *configs.Resource, modPath addrs.Module)) {
+	if cfg == nil || cfg.Module == nil {
+		return
+	}
+	for _, rc := range cfg.Module.ManagedResources {
+		fn(rc, cfg.Path)
+	}
+	for _, name := range identity.SortedChildNames(cfg.Children) {
+		walkManagedResources(cfg.Children[name], fn)
 	}
 }
 
@@ -1278,6 +1307,16 @@ type statelessProviders struct {
 
 var _ projection.Providers = (*statelessProviders)(nil)
 
+// providerCacheKey is what a configured provider instance is cached and
+// looked up under: the provider and its alias, deliberately not the module
+// path a caller's [addrs.AbsProviderConfig] carries. See
+// [statelessProviders.ConfiguredProvider]'s own comment for why a static
+// module's resources correctly share the root's configured instance rather
+// than each module getting - or needing - one of its own.
+func providerCacheKey(addr addrs.AbsProviderConfig) string {
+	return addr.Provider.String() + "\x00" + addr.Alias
+}
+
 func newStatelessProviders(config *configs.Config, lib plugins.Library) *statelessProviders {
 	return &statelessProviders{
 		config:     config,
@@ -1339,7 +1378,7 @@ func (p *statelessProviders) resourceSchemas(ctx context.Context) map[string]pro
 // own resolution stands.
 func (p *statelessProviders) region(addr addrs.AbsProviderConfig) string {
 	p.mu.Lock()
-	val, ok := p.configVals[addr.String()]
+	val, ok := p.configVals[providerCacheKey(addr)]
 	p.mu.Unlock()
 
 	if ok && val != cty.NilVal && !val.IsNull() && val.Type().IsObjectType() && val.Type().HasAttribute("region") {
@@ -1396,13 +1435,22 @@ func (p *statelessProviders) ConfiguredProvider(ctx context.Context, addr addrs.
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	key := addr.String()
+	// The cache and every lookup below key on the provider and its alias
+	// alone, not on addr.Module: a static module call with no provider
+	// block of its own inherits the root's default (unaliased)
+	// configuration for its implied provider, which is the only shape a
+	// static module's resources ever need (RuleChildModule refuses a
+	// module block's own count/for_each, not a provider block inside one,
+	// but nothing this fork generates or admits declares a provider inside
+	// a child module either). One configured instance per provider+alias
+	// is therefore correct root or not, and
+	// [statelessProviders.providerConfigValue] already reads the provider
+	// block from the root module unconditionally - addr.Module was never
+	// consulted there even when this guard refused every non-root value
+	// outright.
+	key := providerCacheKey(addr)
 	if provider, ok := p.cache[key]; ok {
 		return provider, nil
-	}
-
-	if !addr.Module.IsRoot() {
-		return nil, fmt.Errorf("provider configuration %s is in a child module, which live resource markers v0 do not support", addr)
 	}
 
 	schema, schemaDiags := p.mgr.GetProviderSchema(ctx, addr.Provider)

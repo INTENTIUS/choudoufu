@@ -149,14 +149,17 @@ func parentReadSweepType(ctx context.Context, req Request, schemas listclient.Sc
 		if r.Type() != link.Parent || r.Class != identity.ClassConcrete || r.ImportID == "" {
 			continue
 		}
-		if rc, ok := req.Config.Module.ManagedResources[r.Addr.Resource.Resource.String()]; ok && !inScope(req, rc) {
-			// Issue #69's multi-provider sweep: this parent belongs to a
-			// different provider configuration, which is the pass actually
-			// responsible for reading its children. Reading it here too
-			// would be a call against the wrong account at best, and at
-			// worst a second, duplicate [ParentReadFinding] and synthetic
-			// resolution once every pass's results are merged.
-			continue
+		if modCfg, ok := identity.ConfigForModule(req.Config, r.Addr.Module); ok && modCfg.Module != nil {
+			if rc, ok := modCfg.Module.ManagedResources[r.Addr.Resource.Resource.String()]; ok && !inScope(req.ScopeProvider, rc, r.Addr.Module.Module()) {
+				// Issue #69's multi-provider sweep: this parent belongs to a
+				// different provider configuration, which is the pass
+				// actually responsible for reading its children. Reading it
+				// here too would be a call against the wrong account at
+				// best, and at worst a second, duplicate [ParentReadFinding]
+				// and synthetic resolution once every pass's results are
+				// merged.
+				continue
+			}
 		}
 		parentValue := r.ImportID
 		if declared[parentValue] {
