@@ -157,7 +157,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		))
 	}
 
-	decl, declDiags := declaredInstances(req)
+	decl, declDiags := declaredInstances(ctx, req)
 	diags = diags.Append(declDiags)
 	if declDiags.HasErrors() {
 		return res, diags
@@ -361,7 +361,7 @@ func (d *declared) typeNames() []string {
 
 // declaredInstances indexes the needs-discovery resolutions by type and
 // escaped address, checking each against the configuration as it goes.
-func declaredInstances(req Request) (*declared, tfdiags.Diagnostics) {
+func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	d := &declared{
@@ -457,7 +457,7 @@ func declaredInstances(req Request) (*declared, tfdiags.Diagnostics) {
 		}
 	}
 
-	d.indexCountBlocks(req)
+	d.indexCountBlocks(ctx, req)
 	return d, diags
 }
 
@@ -475,11 +475,16 @@ func declaredInstances(req Request) (*declared, tfdiags.Diagnostics) {
 // The whole static module tree is walked, not only the root: a resource
 // inside a static module may carry count exactly as a root resource can (it
 // is the module BLOCK'S count, not a resource's, that RuleChildModule
-// refuses permanently). Every block is keyed by its module-qualified
-// address, so two count blocks with the same local name in different
-// modules never collide.
-func (d *declared) indexCountBlocks(req Request) {
-	d.walkCountBlocks(req.Config)
+// refuses permanently). A module reached through a for_each'd module call
+// (59c, issue #59 phase 3) is walked once per instance, so a count block
+// inside a keyed module is recorded once per module instance too, each
+// under its own module-qualified address - "module.app[\"a\"].aws_x.y[2]"
+// and "module.app[\"b\"].aws_x.y[2]" are two different count blocks, not
+// one. Every block is keyed by its module-qualified address, so two count
+// blocks with the same local name in different modules (or different
+// instances of the same for_each'd module) never collide.
+func (d *declared) indexCountBlocks(ctx context.Context, req Request) {
+	d.walkCountBlocks(ctx, req.Config, addrs.RootModuleInstance)
 
 	for typeName, entries := range d.types {
 		for _, entry := range entries {
@@ -506,12 +511,14 @@ func (d *declared) indexCountBlocks(req Request) {
 }
 
 // walkCountBlocks is [declared.indexCountBlocks]'s recursive step: one
-// module's count blocks, then its children in name order.
-func (d *declared) walkCountBlocks(cfg *configs.Config) {
+// module instance's count blocks, then its children in name order. modInst
+// is the instance cfg is being visited as - see [identity.resolver.walkModule]'s
+// doc for why it has to be threaded down explicitly rather than recomputed
+// from cfg.Path once a for_each module (59c) can be in the tree.
+func (d *declared) walkCountBlocks(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleInstance) {
 	if cfg == nil || cfg.Module == nil {
 		return
 	}
-	modInst := identity.ModuleInstance(cfg)
 	for _, rc := range cfg.Module.ManagedResources {
 		if rc.Count == nil {
 			continue
@@ -533,7 +540,20 @@ func (d *declared) walkCountBlocks(cfg *configs.Config) {
 		}
 	}
 	for _, name := range identity.SortedChildNames(cfg.Children) {
-		d.walkCountBlocks(cfg.Children[name])
+		child := cfg.Children[name]
+		var forEach hcl.Expression
+		if call, ok := cfg.Module.ModuleCalls[name]; ok && call != nil {
+			forEach = call.ForEach
+		}
+		keys, diag := identity.ChildModuleKeys(ctx, cfg.Module, fmt.Sprintf("module %q", name), forEach)
+		if diag != nil {
+			// RuleChildModule already refused this call before discovery
+			// ever ran; nothing to index under it.
+			continue
+		}
+		for _, key := range keys {
+			d.walkCountBlocks(ctx, child, modInst.Child(name, key))
+		}
 	}
 }
 

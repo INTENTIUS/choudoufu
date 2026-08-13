@@ -172,6 +172,16 @@ const (
 	// SkipNotHCL is a resource written in JSON syntax, whose body this
 	// package cannot rewrite.
 	SkipNotHCL SkipReason = "NOT_HCL_SYNTAX"
+
+	// SkipModuleKeyed is a resource declared inside a module call that sets
+	// for_each (59c, issue #59 phase 3), directly or through an ancestor.
+	// This pass neither writes nor verifies its markers: the module's
+	// several instances share one HCL body for the resource's tags
+	// argument, and there is no way to inject a different literal
+	// tofu-address into it per instance, or to safely re-evaluate an
+	// existing one that may depend on a variable the module call threads
+	// through from its own each.key. See [stamper.moduleKeyedResource].
+	SkipModuleKeyed SkipReason = "MODULE_KEYED"
 )
 
 // Skip is one resource this pass left alone, and why.
@@ -236,7 +246,7 @@ func Stamp(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 
 	var pending []*rewrite
 	for _, mr := range moduleResources(req.Config) {
-		rw, resDiags := s.resource(ctx, mr.rc, mr.mod, mr.modInst)
+		rw, resDiags := s.resource(ctx, mr.rc, mr.mod, mr.modInst, mr.keyedAncestor)
 		diags = diags.Append(resDiags)
 		if rw != nil {
 			pending = append(pending, rw)
@@ -263,6 +273,26 @@ type moduleResource struct {
 	rc      *configs.Resource
 	mod     *configs.Module
 	modInst addrs.ModuleInstance
+
+	// keyedAncestor is true when rc is declared inside a module call that
+	// sets for_each - directly, or through any ancestor module call - at
+	// any depth (59c, issue #59 phase 3). It is what tells [stamper.resource]
+	// to take the "cannot compute a per-instance marker" path instead of the
+	// ordinary one.
+	//
+	// modInst deliberately stays the *unkeyed* self instance
+	// ([identity.ModuleInstance]) even for such a resource, one visit per rc
+	// rather than one per instance: unlike the five walkers that read the
+	// live system, this package rewrites the configuration file's own text,
+	// and a for_each'd module's several instances share exactly one
+	// *hclsyntax.Body for their tags argument. There is no way to inject two
+	// different literal tofu-address values into one shared body - only an
+	// expression that varies per real module instance could, and building
+	// one would mean rewriting the module call block to pass a variable
+	// through from its own each.key, which is configuration surgery well
+	// beyond a tags argument and is not something this pass attempts. See
+	// [stamper.moduleKeyedResource].
+	keyedAncestor bool
 }
 
 // moduleResources walks the whole static module tree in deterministic order
@@ -270,7 +300,19 @@ type moduleResource struct {
 // - so that two runs over one configuration stamp in the same order and
 // [Result.Stamped] comes out sorted exactly as it always has for a
 // root-only configuration.
+//
+// The walk visits each module CALL once, not once per instance: whether a
+// for_each'd module's calls fan out to one instance or a hundred makes no
+// difference to what this pass can do with their shared configuration text
+// (see [moduleResource.keyedAncestor]), so there is nothing to gain and a
+// great deal to lose - a spurious marker-conflict diagnostic, or worse, a
+// rewrite applied twice - by visiting the same *configs.Resource more than
+// once.
 func moduleResources(cfg *configs.Config) []moduleResource {
+	return moduleResourcesFrom(cfg, false)
+}
+
+func moduleResourcesFrom(cfg *configs.Config, keyedAncestor bool) []moduleResource {
 	if cfg == nil || cfg.Module == nil {
 		return nil
 	}
@@ -285,10 +327,14 @@ func moduleResources(cfg *configs.Config) []moduleResource {
 
 	out := make([]moduleResource, 0, len(names))
 	for _, name := range names {
-		out = append(out, moduleResource{rc: mod.ManagedResources[name], mod: mod, modInst: modInst})
+		out = append(out, moduleResource{rc: mod.ManagedResources[name], mod: mod, modInst: modInst, keyedAncestor: keyedAncestor})
 	}
 	for _, name := range identity.SortedChildNames(cfg.Children) {
-		out = append(out, moduleResources(cfg.Children[name])...)
+		childKeyed := keyedAncestor
+		if call, ok := mod.ModuleCalls[name]; ok && call != nil && call.ForEach != nil {
+			childKeyed = true
+		}
+		out = append(out, moduleResourcesFrom(cfg.Children[name], childKeyed)...)
 	}
 	return out
 }
@@ -386,7 +432,7 @@ func (rw *rewrite) markerObject() *hclsyntax.ObjectConsExpr {
 }
 
 // resource decides what one resource block needs, without writing anything.
-func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *configs.Module, modInst addrs.ModuleInstance) (*rewrite, tfdiags.Diagnostics) {
+func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *configs.Module, modInst addrs.ModuleInstance, keyedAncestor bool) (*rewrite, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	s.mod = mod
@@ -416,6 +462,9 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 		return nil, diags.Append(s.unstampable(rc, fmt.Sprintf(
 			"%s is a %s, which has no tags argument in the provider's schema and so has nowhere to carry an ownership marker.",
 			addr, rc.Type)))
+	}
+	if keyedAncestor {
+		return s.moduleKeyedResource(rc, addr)
 	}
 
 	body, ok := rc.Config.(*hclsyntax.Body)
@@ -502,6 +551,50 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 		Merged:      rw.merge != nil || rw.wrap != nil,
 	})
 	return rw, diags
+}
+
+// moduleKeyedResource is [stamper.resource]'s whole handling of a taggable
+// resource declared inside a for_each'd module (directly, or through an
+// ancestor call): see [SkipModuleKeyed] and [moduleResource.keyedAncestor]
+// for why neither writing nor verifying a marker is attempted here.
+//
+// A resource that already declares a tags argument is trusted as written -
+// the operator (or a generator such as tools/estate-gen's -module-wrap
+// keyed mode) is expected to have built its tofu-address from a variable
+// the module call threads through from its own each.key, the ordinary
+// OpenTofu idiom for a value that must vary per module instance, and
+// checking that expression would mean evaluating var.* through the static
+// evaluator with no way to supply the per-instance value it needs - the
+// same evaluation a bare reference to the module's own each.key panics on
+// (internal/configs' static scope has no repetition data at all; see
+// [ChildModuleKeys]'s doc). A resource with no tags argument at all gets
+// the ordinary must-stamp severity: a marker-discovered type applying
+// unmarked is still the unrecoverable mistake [stamper.unstampable] exists
+// to catch, module or not.
+func (s *stamper) moduleKeyedResource(rc *configs.Resource, addr addrs.ConfigResource) (*rewrite, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+
+	body, ok := rc.Config.(*hclsyntax.Body)
+	hasTags := ok && body.Attributes != nil && body.Attributes["tags"] != nil
+	detail := fmt.Sprintf(
+		"%s is declared inside a module call that expands with for_each, so its %s and %s markers cannot be computed here: "+
+			"the module's instances share one configuration body for the resource's tags argument, and there is no single "+
+			"literal address that is right for all of them. Declare tags = { %s = ..., %s = ... } by hand, building the "+
+			"address from a variable the module call passes through from its own each.key (the ordinary way a value that "+
+			"must vary per module instance reaches a child module's resources) - see live/LIMITATIONS.md, \"child-module\".",
+		addr, TagEstate, TagAddress, TagEstate, TagAddress,
+	)
+	if hasTags {
+		// Trusted as written; see the function doc for why this pass cannot
+		// safely check it.
+		s.skip(addr, SkipModuleKeyed, "Declared inside a for_each'd module; its markers are trusted as written, not verified.")
+		return nil, diags
+	}
+	s.skip(addr, SkipModuleKeyed, detail)
+	if !s.mustStamp(rc) {
+		return nil, diags
+	}
+	return nil, diags.Append(s.unstampable(rc, detail))
 }
 
 // mustStamp reports whether this resource's instances can only ever be found
@@ -670,19 +763,33 @@ func (s *stamper) staticString(ctx context.Context, rc *configs.Resource, expr h
 // included. It is [stamper.staticString] without the string requirement, for
 // the tags argument this pass evaluates as a whole in order to see the markers
 // inside it.
-func (s *stamper) staticValue(ctx context.Context, rc *configs.Resource, expr hclsyntax.Expression) (cty.Value, bool) {
+//
+// [moduleKeyedResource] keeps this from ever being reached for a resource
+// declared inside a for_each'd module, but the recover guards it anyway,
+// the same defensive reason [resolver.evalPure] in internal/live/identity
+// carries one: internal/configs' static scope panics rather than errors on
+// a reference it has no repetition data for, and a future caller of this
+// function - or a keyed-module case this pass's own reasoning missed -
+// should degrade to "cannot evaluate" rather than crash the run.
+func (s *stamper) staticValue(ctx context.Context, rc *configs.Resource, expr hclsyntax.Expression) (val cty.Value, ok bool) {
+	defer func() {
+		if recover() != nil {
+			val, ok = cty.NilVal, false
+		}
+	}()
+
 	if s.mod == nil || s.mod.StaticEvaluator == nil {
 		return cty.NilVal, false
 	}
-	val, diags := s.mod.StaticEvaluator.Evaluate(ctx, expr, configs.StaticIdentifier{
+	v, diags := s.mod.StaticEvaluator.Evaluate(ctx, expr, configs.StaticIdentifier{
 		Module:    s.modInst.Module(),
 		Subject:   fmt.Sprintf("%s.tags", rc.Addr()),
 		DeclRange: expr.Range(),
 	})
-	if diags.HasErrors() || !val.IsWhollyKnown() || val.IsMarked() {
+	if diags.HasErrors() || !v.IsWhollyKnown() || v.IsMarked() {
 		return cty.NilVal, false
 	}
-	return val, true
+	return v, true
 }
 
 func instanceKeyword(rc *configs.Resource) string {

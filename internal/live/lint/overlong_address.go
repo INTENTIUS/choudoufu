@@ -44,17 +44,26 @@ import (
 //     monotonically with the index and the highest index is the longest.
 //
 // checkOverlongAddresses runs once per module in the tree (checkConfig calls
-// it at every node), and path is that module's own static path. A static
-// module block's resources measure module-qualified: an instance three
-// levels deep is prefixed with "module.a.module.b.module.c." before the
-// budget is checked, because that prefix is what the marker's tofu-address
-// value actually carries once it is stamped - see identity.ModuleInstance
-// for why an unkeyed instance shim is the right (and lossless) reading of a
-// static path. count- and for_each-expanded module blocks never reach here
-// at all: RuleChildModule refuses both outright, before any module they call
-// is walked for its own resources.
-func checkOverlongAddresses(ctx context.Context, mod *configs.Module, path addrs.Module, issues *[]Issue) {
-	modInst := path.UnkeyedInstanceShim()
+// it at every node), and modInst is that node's own worst-case module
+// instance - unkeyed at every step reached through a static module call,
+// and carrying the longest key of any for_each'd module call in between
+// (59c, issue #59 phase 3; see [worstCaseChildKey]). A static module
+// block's resources measure module-qualified: an instance three levels deep
+// is prefixed with "module.a.module.b.module.c." before the budget is
+// checked, and one reached through a keyed module call is prefixed with
+// that call's longest key instead of an unkeyed step, because that prefix
+// is what the marker's tofu-address value actually carries once it is
+// stamped for the instance that key names - see identity.ModuleInstance for
+// why an unkeyed instance shim is the right (and lossless) reading of a
+// purely static path. Keys multiply length exactly the way a resource's own
+// for_each or count key does, which is why this rule has to measure the
+// expanded instance rather than the bare module path: a module with a long
+// for_each key wrapping a resource with a long for_each key of its own
+// compounds both into one escaped address. count-expanded module blocks
+// never reach here at all: RuleChildModule refuses them outright, before
+// any module they call is walked for its own resources.
+func checkOverlongAddresses(ctx context.Context, mod *configs.Module, modInst addrs.ModuleInstance, issues *[]Issue) {
+	path := modInst.Module()
 	for _, resource := range mod.ManagedResources {
 		switch {
 		case resource.ForEach != nil:
