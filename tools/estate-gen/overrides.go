@@ -3038,6 +3038,241 @@ DATA
 			mskp.Body().SetAttributeRaw("topic_name", exprTokens(`"example"`))
 		},
 	},
+	"aws_ivschat_logging_configuration": {
+		Reasons: []string{
+			`destination_configuration is Required in the provider's own docs (exactly one of cloudwatch_logs/firehose/s3, each with its own Required leaf) but Optional in the wire schema - enforced only by the provider's plan-time validation, so the generic required-only pass never visits it at all; wired to a literal S3 bucket name, the same destination_configuration.s3 shape aws_ivs_recording_configuration already renders (the generic pass fills that one because it is genuinely block-Required there)`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			dc := body.AppendNewBlock("destination_configuration", nil)
+			s3 := dc.Body().AppendNewBlock("s3", nil)
+			s3.Body().SetAttributeRaw("bucket_name", exprTokens(`"placeholder"`))
+		},
+	},
+	"aws_medialive_multiplex": {
+		Reasons: []string{
+			`name is a plain client-chosen string (not this type's identity - aws_medialive_multiplex is server-assigned), but gen.go's parentRef mistakes it for a parent reference: this cohort's other client-named type, aws_media_packagev2_channel_group, also owns a single-component identity argument called "name", and parentRef's own same-name tiebreaker only guards two types that *both* claim "name" as their identity - not a server-assigned type's ordinary same-named argument. Left alone, the generic pass would point the multiplex at an unrelated MediaPackage channel group's name`,
+			`availability_zones is a required list of strings, but the provider validates a 2-item minimum (validate: "attribute availability_zones requires 2 item minimum, but config has only 1 declared"); the generic pass emits one placeholder element`,
+			`multiplex_settings is Required in the provider's own docs (transport_stream_bitrate and transport_stream_id both Required within it) but Optional in the wire schema - enforced only by the provider's plan-time validation, so the generic required-only pass never visits it at all`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-medialive-multiplex"`, g.cohort)))
+			body.SetAttributeRaw("availability_zones", exprTokens(`["us-east-1a", "us-east-1b"]`))
+			ms := body.AppendNewBlock("multiplex_settings", nil)
+			ms.Body().SetAttributeRaw("transport_stream_bitrate", exprTokens(`1000000`))
+			ms.Body().SetAttributeRaw("transport_stream_id", exprTokens(`1`))
+		},
+	},
+	"aws_medialive_multiplex_program": {
+		Reasons: []string{
+			`multiplex_id names the parent aws_medialive_multiplex by its server-assigned id, but this type's identity is a two-component composite (program_name, multiplex_id joined by "/"), and gen.go's identityArgName only links a single-component identity - so parentRef has nothing to match multiplex_id against and the generic pass leaves it a disconnected placeholder, the same "no automatic link to a server-assigned parent" gap cognitoUserPoolIDRef and iamPolicyArnRef below already work around for their own types`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("multiplex_id", exprTokens(medialiveMultiplexIDRef(g)))
+		},
+	},
+	"aws_config_config_rule": {
+		Reasons: []string{
+			`source.owner is Required and the provider validates it against a closed enum (validate: "expected owner to be one of [\"CUSTOM_LAMBDA\" \"AWS\" \"CUSTOM_POLICY\"]"); the generic placeholder string is not a member. Set to AWS, the managed-rule case, which also requires source_identifier (Optional in the schema, Required by the provider in practice when owner=AWS) - a real AWS managed rule identifier.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "source" {
+					blk.Body().SetAttributeRaw("owner", exprTokens(`"AWS"`))
+					blk.Body().SetAttributeRaw("source_identifier", exprTokens(`"S3_BUCKET_VERSIONING_ENABLED"`))
+				}
+			}
+		},
+	},
+	"aws_config_conformance_pack": {
+		Reasons: []string{
+			`schema requires neither template_body nor template_s3_uri, but the provider requires exactly one of them in practice (validate: "one of template_body,template_s3_uri must be specified"); the generic pass sets neither. template_body is set to a minimal, syntactically valid Config conformance pack template wrapping one managed rule.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("template_body", exprTokens(`<<-TEMPLATE
+  Resources:
+    ConformancePackVersioning:
+      Type: AWS::Config::ConfigRule
+      Properties:
+        Source:
+          Owner: AWS
+          SourceIdentifier: S3_BUCKET_VERSIONING_ENABLED
+  TEMPLATE
+`))
+		},
+	},
+	"aws_config_remediation_configuration": {
+		Reasons: []string{
+			`target_type is Required and the provider validates it against a closed enum with exactly one member (validate: "expected target_type to be one of [\"SSM_DOCUMENT\"]"); the generic placeholder string is not it.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("target_type", exprTokens(`"SSM_DOCUMENT"`))
+			body.SetAttributeRaw("target_id", exprTokens(`"AWS-PublishSNSNotification"`))
+		},
+	},
+	"aws_controltower_control": {
+		Reasons: []string{
+			`control_identifier and target_identifier are both Required and validated as well-formed ARNs (validate: "is an invalid ARN: arn: invalid prefix"); the generic placeholder string is neither. Set to the shapes the provider's own documented Import example uses: target_identifier an organizational unit ARN, control_identifier an AWS-defined control ARN - neither references a real sibling resource, the same "no real sibling to reference" shape several other overrides in this file accept.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("target_identifier", exprTokens(
+				`"arn:aws:organizations::123456789012:ou/o-exampleorgid/ou-exampleroot-exampleouid1"`))
+			body.SetAttributeRaw("control_identifier", exprTokens(
+				`"arn:aws:controltower:us-east-1::control/AWS-GR_S3_BUCKET_VERSIONING_ENABLED"`))
+		},
+	},
+	"aws_controltower_landing_zone": {
+		Reasons: []string{
+			`schema requires manifest_json as a plain string, but the provider validates it is well-formed JSON (validate: "\"manifest_json\" contains an invalid JSON"); the generic string placeholder is not JSON.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("manifest_json", exprTokens(`jsonencode({
+    governedRegions = ["us-east-1"]
+    organizationStructure = {
+      security = { name = "Security" }
+      sandbox  = { name = "Sandbox" }
+    }
+    centralizedLogging = {
+      accountId = "123456789012"
+      configurations = {
+        loggingBucket   = { retentionDays = 365 }
+        accessLoggingBucket = { retentionDays = 3650 }
+      }
+    }
+  })`))
+		},
+	},
+	"aws_organizations_resource_policy": {
+		Reasons: []string{
+			`schema requires content as a plain string, but the provider validates it is well-formed JSON (validate: "\"content\" contains an invalid JSON"); the generic string placeholder is not JSON.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("content", exprTokens(`jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = "*"
+      Action    = "organizations:DescribeOrganization"
+      Resource  = "*"
+    }]
+  })`))
+		},
+	},
+	"aws_resourceexplorer2_index": {
+		Reasons: []string{
+			`type is Required and the provider validates it against a closed enum (validate: "Invalid String Enum Value", valid values LOCAL/AGGREGATOR); the generic placeholder string is neither.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("type", exprTokens(`"LOCAL"`))
+		},
+	},
+	"aws_servicecatalog_portfolio_share": {
+		Reasons: []string{
+			`type and principal_id are both Required; type is validated against a closed enum (validate: "expected type to be one of [\"ACCOUNT\" \"ORGANIZATION\" \"ORGANIZATIONAL_UNIT\" \"ORGANIZATION_MEMBER_ACCOUNT\"]") and, for the ACCOUNT case this override picks, principal_id is validated as a 12-digit account ID (validate: "must be a valid account ID, organization ARN/ID, or organizational unit ARN/ID") - the generic placeholder string satisfies neither.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("type", exprTokens(`"ACCOUNT"`))
+			body.SetAttributeRaw("principal_id", exprTokens(`"123456789012"`))
+		},
+	},
+	"aws_auditmanager_assessment": {
+		Reasons: []string{
+			`roles is Optional-shaped in nothing else - the provider requires at least one roles block in practice (validate: "Block roles must have a configuration value as the provider has marked it as required"), with role_arn and role_type both Required inside it (schema doesn't surface either as top-level Required).`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			ref, ok := g.iamRoleRefExpr()
+			if !ok {
+				ref = `"arn:aws:iam::000000000000:role/placeholder"`
+			}
+			roles := body.AppendNewBlock("roles", nil)
+			roles.Body().SetAttributeRaw("role_arn", exprTokens(ref))
+			roles.Body().SetAttributeRaw("role_type", exprTokens(`"PROCESS_OWNER"`))
+		},
+	},
+	"aws_organizations_account": {
+		Reasons: []string{
+			`email is Required and the provider validates it is a well-formed email address (validate: "invalid value for email (must be a valid email address)"); the generic placeholder string is not one.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("email", exprTokens(fmt.Sprintf(`"tofu-%s-cohort@example.com"`, g.cohort)))
+		},
+	},
+	"aws_organizations_organizational_unit": {
+		Reasons: []string{
+			`parent_id is Required and the provider validates it is a well-formed root or OU identifier (validate: "invalid value for parent_id"); the generic placeholder string is neither. Set to a syntactically valid organization root ID - no real root or parent OU is part of this cohort to reference.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("parent_id", exprTokens(`"r-a1b2"`))
+		},
+	},
+	"aws_organizations_policy": {
+		Reasons: []string{
+			`schema requires content as a plain string, but the provider validates it is well-formed JSON (validate: "\"content\" contains an invalid JSON"); the generic string placeholder is not JSON.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("content", exprTokens(`jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "*"
+      Resource = "*"
+    }]
+  })`))
+		},
+	},
+	"aws_servicecatalog_product": {
+		Reasons: []string{
+			`type is Required and the provider validates it against a closed enum (validate: "expected type to be one of [\"CLOUD_FORMATION_TEMPLATE\" \"MARKETPLACE\" \"TERRAFORM_OPEN_SOURCE\" \"TERRAFORM_CLOUD\" \"EXTERNAL\"]"); the generic placeholder string is not a member. provisioning_artifact_parameters is a required block whose own template_physical_id and template_url are both Optional in the schema, but the provider requires exactly one of them in practice (validate: "one of ... must be specified"), and the generic pass sets neither.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("type", exprTokens(`"CLOUD_FORMATION_TEMPLATE"`))
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "provisioning_artifact_parameters" {
+					blk.Body().SetAttributeRaw("template_url", exprTokens(fmt.Sprintf(
+						`"https://s3.amazonaws.com/tofu-%s-cohort/servicecatalog-product-template.json"`, g.cohort)))
+				}
+			}
+		},
+	},
+	"aws_servicecatalog_provisioned_product": {
+		Reasons: []string{
+			`schema requires none of product_id/product_name or provisioning_artifact_id/provisioning_artifact_name; the provider requires exactly one of each pair in practice (validate: "one of ... must be specified" ×4), and the generic pass sets none of the four. product_id is wired to this cohort's own aws_servicecatalog_product; provisioning_artifact_name stays a literal, since no admitted type in this cohort represents a specific provisioning artifact.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			productIDExpr := fmt.Sprintf(`"prod-tofu-%s-cohort-placeholder"`, g.cohort)
+			if product, ok := g.byType["aws_servicecatalog_product"]; ok {
+				productIDExpr = product.String() + ".id"
+			}
+			body.SetAttributeRaw("product_id", exprTokens(productIDExpr))
+			body.SetAttributeRaw("provisioning_artifact_name", exprTokens(`"v1"`))
+		},
+	},
+	"aws_servicecatalogappregistry_attribute_group": {
+		Reasons: []string{
+			`schema requires attributes as a plain string, but the provider validates it is well-formed JSON (validate: "Invalid JSON String Value"); the generic string placeholder is not JSON.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("attributes", exprTokens(`jsonencode({
+    environment = "governance"
+  })`))
+		},
+	},
+	"aws_servicecatalogappregistry_attribute_group_association": {
+		Reasons: []string{
+			`application_id and attribute_group_id both validate fine as generic placeholder strings (no ARN/enum/JSON constraint), so this override exists only to wire them to this cohort's own aws_servicecatalogappregistry_application and aws_servicecatalogappregistry_attribute_group instead - the two markers internal/live/identity/table.go's own entry for this type documents the composite identity as running through.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			appExpr := `"placeholder"`
+			if app, ok := g.byType["aws_servicecatalogappregistry_application"]; ok {
+				appExpr = app.String() + ".id"
+			}
+			agExpr := `"placeholder"`
+			if ag, ok := g.byType["aws_servicecatalogappregistry_attribute_group"]; ok {
+				agExpr = ag.String() + ".id"
+			}
+			body.SetAttributeRaw("application_id", exprTokens(appExpr))
+			body.SetAttributeRaw("attribute_group_id", exprTokens(agExpr))
+		},
+	},
 	// ---- data-movement batch (issue #65) ---------------------------------
 
 	"aws_appintegrations_data_integration": {
@@ -3609,6 +3844,605 @@ DATA
 			dim.Body().SetAttributeRaw("dimension_value_type", exprTokens(`"VARCHAR"`))
 		},
 	},
+	// SageMaker batch (issue #65). Every argument below is Optional in the
+	// wire schema (an ExactlyOneOf/enum/format the provider validates at
+	// plan time, not a schema-Required field) or a required block the
+	// generic pass leaves empty because none of its own children are
+	// individually schema-Required - the same two failure shapes issue #56
+	// already named for the earlier cohorts above. Three entries
+	// (aws_sagemaker_endpoint_configuration, aws_sagemaker_mlflow_app,
+	// aws_sagemaker_notebook_instance_lifecycle_configuration) fix a
+	// different thing: gen.go's parentRef matches a required argument to
+	// another resource's identity by argument *name* alone (see
+	// identityArgName's doc comment), and this cohort admits several types
+	// that all self-identify by a plain "name" argument - endpoint,
+	// notebook_instance and the shared aws_iam_role among them - so the
+	// generic pass wired each of the three affected types' own "name"
+	// argument to whichever same-"name" resource it happened to encounter
+	// first, not to itself. Same collision class as aws_glue_catalog_database's
+	// entry above and the sagemaker cohort's own README, "A collision, three
+	// times over."
+	"aws_sagemaker_algorithm": {
+		Reasons: []string{
+			`training_specification is a required block the schema leaves entirely optional-shaped (validate: "Block training_specification must have a configuration value as the provider has marked it as required"); filled with the provider docs' own minimal worked example (one training channel, one supported instance type, a training image)`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			ts := body.AppendNewBlock("training_specification", nil)
+			ts.Body().SetAttributeRaw("supported_training_instance_types", exprTokens(`["ml.m5.large"]`))
+			ts.Body().SetAttributeRaw("training_image", exprTokens(fmt.Sprintf(
+				`"123456789012.dkr.ecr.us-east-1.amazonaws.com/tofu-%s-cohort-training:latest"`, g.cohort)))
+			tc := ts.Body().AppendNewBlock("training_channels", nil)
+			tc.Body().SetAttributeRaw("name", exprTokens(`"train"`))
+			tc.Body().SetAttributeRaw("supported_content_types", exprTokens(`["text/csv"]`))
+			tc.Body().SetAttributeRaw("supported_input_modes", exprTokens(`["File"]`))
+		},
+	},
+	"aws_sagemaker_app": {
+		Reasons: []string{
+			`schema marks both user_profile_name and space_name Optional, but the provider requires exactly one (validate: "one of ` + "`space_name,user_profile_name`" + ` must be specified"); app_type is Required and validated against a closed enum (validate: "expected app_type to be one of [...]"), and the generic placeholder string is not a member. domain_id is also wired to this cohort's own aws_sagemaker_domain.app.id and user_profile_name to aws_sagemaker_user_profile.app.user_profile_name in place of the generic placeholder strings - not required by validate (domain_id and user_profile_name carry no format check of their own), but the same cross-resource-reference improvement aws_eip_association's entry above makes: both sibling resources exist in this same cohort, so pointing at them is more real than an orphaned placeholder.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if domain, ok := g.byType["aws_sagemaker_domain"]; ok {
+				body.SetAttributeRaw("domain_id", exprTokens(fmt.Sprintf("%s.id", domain)))
+			}
+			if profile, ok := g.byType["aws_sagemaker_user_profile"]; ok {
+				body.SetAttributeRaw("user_profile_name", exprTokens(fmt.Sprintf("%s.user_profile_name", profile)))
+			}
+			body.SetAttributeRaw("app_type", exprTokens(`"JupyterServer"`))
+		},
+	},
+	"aws_sagemaker_data_quality_job_definition": {
+		Reasons: []string{
+			`role_arn is Required and the provider validates it is a well-formed ARN (validate: "is an invalid ARN"), the same shape as aws_db_proxy's role_arn above - wired to the shared aws_iam_role instead. The s3_output.s3_uri leaf is Required and validated against a "^(https|s3)://..." pattern (validate: "expected value ... to match regular expression"); cluster_config.instance_count is Required and validated at least 1 (validate: "expected ... to be at least (1), got 0"); cluster_config.volume_size_in_gb is Required and validated 1-512 (validate: "expected ... to be in the range (1 - 512), got 0"); cluster_config.instance_type is Required and validated against a closed enum (validate: "expected instance_type to be one of [...]")`,
+		},
+		NeedsIAMRole: true,
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			ref, ok := g.iamRoleRefExpr()
+			if !ok {
+				ref = `"arn:aws:iam::000000000000:role/placeholder"`
+			}
+			body.SetAttributeRaw("role_arn", exprTokens(ref))
+			for _, blk := range body.Blocks() {
+				switch blk.Type() {
+				case "data_quality_job_output_config":
+					for _, mo := range blk.Body().Blocks() {
+						if mo.Type() != "monitoring_outputs" {
+							continue
+						}
+						for _, s3out := range mo.Body().Blocks() {
+							if s3out.Type() == "s3_output" {
+								s3out.Body().SetAttributeRaw("s3_uri", exprTokens(fmt.Sprintf(
+									`"s3://tofu-%s-cohort-bucket/data-quality-output"`, g.cohort)))
+							}
+						}
+					}
+				case "job_resources":
+					for _, cc := range blk.Body().Blocks() {
+						if cc.Type() == "cluster_config" {
+							cc.Body().SetAttributeRaw("instance_count", exprTokens(`1`))
+							cc.Body().SetAttributeRaw("instance_type", exprTokens(`"ml.t3.medium"`))
+							cc.Body().SetAttributeRaw("volume_size_in_gb", exprTokens(`20`))
+						}
+					}
+				}
+			}
+		},
+	},
+	"aws_sagemaker_device_fleet": {
+		Reasons: []string{
+			`role_arn is Required and the provider validates it is a well-formed ARN (validate: "is an invalid ARN"); wired to the shared aws_iam_role`,
+		},
+		NeedsIAMRole: true,
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			ref, ok := g.iamRoleRefExpr()
+			if !ok {
+				ref = `"arn:aws:iam::000000000000:role/placeholder"`
+			}
+			body.SetAttributeRaw("role_arn", exprTokens(ref))
+		},
+	},
+	"aws_sagemaker_domain": {
+		Reasons: []string{
+			`auth_mode is Required and the provider validates it against a closed enum (validate: "expected auth_mode to be one of [...]"); default_user_settings.execution_role is Required and the provider validates it is a well-formed ARN (validate: "is an invalid ARN") - wired to the shared aws_iam_role`,
+		},
+		NeedsIAMRole: true,
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("auth_mode", exprTokens(`"IAM"`))
+			ref, ok := g.iamRoleRefExpr()
+			if !ok {
+				ref = `"arn:aws:iam::000000000000:role/placeholder"`
+			}
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "default_user_settings" {
+					blk.Body().SetAttributeRaw("execution_role", exprTokens(ref))
+				}
+			}
+		},
+	},
+	"aws_sagemaker_endpoint": {
+		Reasons: []string{
+			`endpoint_config_name is Required but a generic-string placeholder, not a reference - overridden to point at this cohort's own aws_sagemaker_endpoint_configuration.app.name for the same cross-resource-reference reason as aws_eip_association's entry above (validate does not require this: endpoint_config_name carries no format check of its own)`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if cfg, ok := g.byType["aws_sagemaker_endpoint_configuration"]; ok {
+				body.SetAttributeRaw("endpoint_config_name", exprTokens(fmt.Sprintf("%s.name", cfg)))
+			}
+		},
+	},
+	"aws_sagemaker_endpoint_configuration": {
+		Reasons: []string{
+			`the generic pass's same-name parent search matches this type's own "name" argument against aws_sagemaker_endpoint (an unrelated sibling type that also self-identifies by a plain "name" argument), the same collision class as aws_glue_catalog_database's entry above; overridden back to a real placeholder name of its own`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-endpoint-configuration"`, g.cohort)))
+		},
+	},
+	"aws_sagemaker_feature_group": {
+		Reasons: []string{
+			`role_arn is Required (needed "if an offline_store_config is provided") and the provider validates it is a well-formed ARN once set (validate: "is an invalid ARN"); schema marks offline_store_config and online_store_config both Optional, but the provider requires exactly one (validate: "one of ` + "`offline_store_config,online_store_config`" + ` must be specified") - online_store_config is chosen, with its own required security_config child added empty (its own kms_key_id leaf is genuinely Optional)`,
+		},
+		NeedsIAMRole: true,
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			ref, ok := g.iamRoleRefExpr()
+			if !ok {
+				ref = `"arn:aws:iam::000000000000:role/placeholder"`
+			}
+			body.SetAttributeRaw("role_arn", exprTokens(ref))
+			osc := body.AppendNewBlock("online_store_config", nil)
+			osc.Body().AppendNewBlock("security_config", nil)
+		},
+	},
+	"aws_sagemaker_image": {
+		Reasons: []string{
+			`role_arn is Required and the provider validates it is a well-formed ARN (validate: "is an invalid ARN"); wired to the shared aws_iam_role`,
+		},
+		NeedsIAMRole: true,
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			ref, ok := g.iamRoleRefExpr()
+			if !ok {
+				ref = `"arn:aws:iam::000000000000:role/placeholder"`
+			}
+			body.SetAttributeRaw("role_arn", exprTokens(ref))
+		},
+	},
+	"aws_sagemaker_mlflow_app": {
+		Reasons: []string{
+			`the generic pass's same-name parent search matches this type's own "name" argument against the shared aws_iam_role (which also self-identifies by a plain "name" argument), the same collision class as aws_sagemaker_endpoint_configuration above; overridden back to a real placeholder name of its own. artifact_store_uri is Required and the provider validates it is an HTTPS or S3 URI (validate: "invalid value for artifact_store_uri (must be HTTPS or Amazon S3 URI)"); role_arn is Required and the provider validates it is a well-formed ARN (validate: "Invalid ARN Value") - wired to the shared aws_iam_role`,
+		},
+		NeedsIAMRole: true,
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-mlflow-app"`, g.cohort)))
+			body.SetAttributeRaw("artifact_store_uri", exprTokens(fmt.Sprintf(
+				`"s3://tofu-%s-cohort-bucket/mlflow-app"`, g.cohort)))
+			ref, ok := g.iamRoleRefExpr()
+			if !ok {
+				ref = `"arn:aws:iam::000000000000:role/placeholder"`
+			}
+			body.SetAttributeRaw("role_arn", exprTokens(ref))
+		},
+	},
+	"aws_sagemaker_mlflow_tracking_server": {
+		Reasons: []string{
+			`artifact_store_uri is Required and the provider validates it is an HTTPS or S3 URI (validate: "invalid value for artifact_store_uri (must be HTTPS or Amazon S3 URI)"); role_arn is Required and the provider validates it is a well-formed ARN (validate: "is an invalid ARN") - wired to the shared aws_iam_role`,
+		},
+		NeedsIAMRole: true,
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("artifact_store_uri", exprTokens(fmt.Sprintf(
+				`"s3://tofu-%s-cohort-bucket/mlflow-tracking-server"`, g.cohort)))
+			ref, ok := g.iamRoleRefExpr()
+			if !ok {
+				ref = `"arn:aws:iam::000000000000:role/placeholder"`
+			}
+			body.SetAttributeRaw("role_arn", exprTokens(ref))
+		},
+	},
+	"aws_sagemaker_model_card": {
+		Reasons: []string{
+			`content is Required and the provider validates it is well-formed JSON (validate: "A string value was provided that is not valid JSON string format"); model_card_status is Required and validated against a closed enum (validate: "The provided value does not match any valid values", valid values Draft/PendingReview/Approved/Archived)`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("content", exprTokens(`jsonencode({
+    model_overview = {
+      model_description = "tofu cohort fixture model card"
+    }
+  })`))
+			body.SetAttributeRaw("model_card_status", exprTokens(`"Draft"`))
+		},
+	},
+	"aws_sagemaker_model_package_group_policy": {
+		Reasons: []string{
+			`resource_policy is Required and the provider validates it is well-formed JSON (validate: "\"resource_policy\" contains an invalid JSON"), the same shape as aws_s3_bucket_policy above; the policy's Resource element references the sibling aws_sagemaker_model_package_group.app.arn this cohort also admits`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			resourceExpr := fmt.Sprintf(`"arn:aws:sagemaker:us-east-1:000000000000:model-package-group/tofu-%s-cohort-model-package-group"`, g.cohort)
+			if parent, ok := g.byType["aws_sagemaker_model_package_group"]; ok {
+				resourceExpr = fmt.Sprintf(`"${%s.arn}"`, parent)
+			}
+			body.SetAttributeRaw("resource_policy", exprTokens(fmt.Sprintf(`jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "AddPermModelPackageGroup"
+      Effect    = "Allow"
+      Principal = { AWS = "arn:aws:iam::000000000000:root" }
+      Action    = ["sagemaker:DescribeModelPackage", "sagemaker:ListModelPackages"]
+      Resource  = %s
+    }]
+  })`, resourceExpr)))
+		},
+	},
+	"aws_sagemaker_monitoring_schedule": {
+		Reasons: []string{
+			`monitoring_schedule_config.monitoring_type is Required and the provider validates it against a closed enum (validate: "expected monitoring_type to be one of [...]")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "monitoring_schedule_config" {
+					blk.Body().SetAttributeRaw("monitoring_type", exprTokens(`"DataQuality"`))
+				}
+			}
+		},
+	},
+	"aws_sagemaker_notebook_instance": {
+		Reasons: []string{
+			`instance_type is Required and the provider validates it against a closed enum (validate: "expected instance_type to be one of [...]"); role_arn is Required and the provider validates it is a well-formed ARN (validate: "is an invalid ARN") - wired to the shared aws_iam_role`,
+		},
+		NeedsIAMRole: true,
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("instance_type", exprTokens(`"ml.t3.medium"`))
+			ref, ok := g.iamRoleRefExpr()
+			if !ok {
+				ref = `"arn:aws:iam::000000000000:role/placeholder"`
+			}
+			body.SetAttributeRaw("role_arn", exprTokens(ref))
+		},
+	},
+	"aws_sagemaker_notebook_instance_lifecycle_configuration": {
+		Reasons: []string{
+			`the generic pass's same-name parent search matches this type's own "name" argument against aws_sagemaker_notebook_instance (an unrelated sibling type that also self-identifies by a plain "name" argument), the same collision class as aws_sagemaker_endpoint_configuration above; overridden back to a real placeholder name of its own`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-notebook-instance-lifecycle-configuration"`, g.cohort)))
+		},
+	},
+	"aws_sagemaker_pipeline": {
+		Reasons: []string{
+			`schema marks both pipeline_definition and pipeline_definition_s3_location Optional, but the provider requires exactly one (validate: "one of ` + "`pipeline_definition,pipeline_definition_s3_location`" + ` must be specified"); pipeline_definition is filled with a minimal well-formed pipeline document (a single no-op Fail step, the provider docs' own worked example)`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("pipeline_definition", exprTokens(`jsonencode({
+    Version = "2020-12-01"
+    Steps = [{
+      Name = "Placeholder"
+      Type = "Fail"
+      Arguments = {
+        ErrorMessage = "tofu cohort fixture pipeline"
+      }
+    }]
+  })`))
+		},
+	},
+	"aws_sagemaker_space": {
+		Reasons: []string{
+			`domain_id is Required but a generic-string placeholder, not a reference - overridden to point at this cohort's own aws_sagemaker_domain.app.id for the same cross-resource-reference reason as aws_eip_association's entry above (validate does not require this: domain_id carries no format check of its own)`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if domain, ok := g.byType["aws_sagemaker_domain"]; ok {
+				body.SetAttributeRaw("domain_id", exprTokens(fmt.Sprintf("%s.id", domain)))
+			}
+		},
+	},
+	"aws_sagemaker_studio_lifecycle_config": {
+		Reasons: []string{
+			`studio_lifecycle_config_app_type is Required and the provider validates it against a closed enum (validate: "expected studio_lifecycle_config_app_type to be one of [...]")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("studio_lifecycle_config_app_type", exprTokens(`"JupyterServer"`))
+		},
+	},
+	"aws_sagemaker_user_profile": {
+		Reasons: []string{
+			`domain_id is Required but a generic-string placeholder, not a reference - overridden to point at this cohort's own aws_sagemaker_domain.app.id for the same cross-resource-reference reason as aws_eip_association's entry above (validate does not require this: domain_id carries no format check of its own)`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if domain, ok := g.byType["aws_sagemaker_domain"]; ok {
+				body.SetAttributeRaw("domain_id", exprTokens(fmt.Sprintf("%s.id", domain)))
+			}
+		},
+	},
+	// ---- ai-location cohort (issue #65's sixth registry-backed batch) ----
+	//
+	// Every entry below shares one root cause the generic pass has no way
+	// to see: these newer Plugin Framework resources name their IAM role
+	// argument the bare "role_arn" (not "role" or a "*_role_arn" suffix),
+	// which isRoleArg's curated alias does not match, so the generic pass
+	// falls back to the type-driven string placeholder instead of wiring
+	// the cohort's shared aws_iam_role. Confirmed by `terraform validate`
+	// against the pinned v6.58.0 provider, not guessed.
+
+	"aws_bedrockagent_knowledge_base": {
+		Reasons: []string{
+			`role_arn is named exactly "role_arn", which isRoleArg's curated alias does not match (only "role" or a "*_role_arn" suffix); the generic placeholder string is not a well-formed ARN (validate: "cannot be parsed as an ARN"). knowledge_base_configuration is Required-in-shape but the generic pass never visits it (validate: "Block ... must have a configuration value"); type = "MANAGED" needs no storage_configuration (the provider's own docs: "storage_configuration is not required when knowledge_base_configuration.type is MANAGED"), but the provider still requires the matching managed_knowledge_base_configuration sub-block present even though every field inside it is Optional-with-defaults (validate: "must be configured when ... type equals MANAGED")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			ref, ok := g.iamRoleRefExpr()
+			if !ok {
+				ref = `"arn:aws:iam::000000000000:role/placeholder"`
+			}
+			body.SetAttributeRaw("role_arn", exprTokens(ref))
+			kb := body.AppendNewBlock("knowledge_base_configuration", nil)
+			kb.Body().SetAttributeRaw("type", exprTokens(`"MANAGED"`))
+			kb.Body().AppendNewBlock("managed_knowledge_base_configuration", nil)
+		},
+	},
+	"aws_bedrockagentcore_agent_runtime": {
+		Reasons: []string{
+			`role_arn is the same bare-"role_arn" gap as aws_bedrockagent_knowledge_base above. agent_runtime_artifact and network_configuration are both Required-in-shape blocks the generic pass never visits (validate: "Block ... must have a configuration value"); container_configuration.container_uri and network_mode = "PUBLIC" are the minimal valid choice within each. agent_runtime_name must match ^[a-zA-Z][a-zA-Z0-9_]{0,47}$ (validate: "value must match regular expression"), which the generic tofu-<cohort>-cohort-<type> placeholder's hyphens violate`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("agent_runtime_name", exprTokens(fmt.Sprintf(`"tofu_%s_cohort_agent_runtime"`, strings.ReplaceAll(g.cohort, "-", "_"))))
+			ref, ok := g.iamRoleRefExpr()
+			if !ok {
+				ref = `"arn:aws:iam::000000000000:role/placeholder"`
+			}
+			body.SetAttributeRaw("role_arn", exprTokens(ref))
+			artifact := body.AppendNewBlock("agent_runtime_artifact", nil)
+			container := artifact.Body().AppendNewBlock("container_configuration", nil)
+			container.Body().SetAttributeRaw("container_uri", exprTokens(fmt.Sprintf(
+				`"000000000000.dkr.ecr.us-east-1.amazonaws.com/tofu-%s-cohort-agent-runtime:latest"`, g.cohort)))
+			netCfg := body.AppendNewBlock("network_configuration", nil)
+			netCfg.Body().SetAttributeRaw("network_mode", exprTokens(`"PUBLIC"`))
+		},
+	},
+	"aws_bedrockagentcore_agent_runtime_endpoint": {
+		Reasons: []string{
+			`name was mis-wired to aws_iam_role.<cohort>.name by the generic pass's same-name parentRef search, the same shape aws_bedrockagentcore_code_interpreter's own override above explains - this type's own name pattern (^[a-zA-Z][a-zA-Z0-9_]{0,47}$) surfaced only at apply time (terraform validate does not evaluate cross-resource references), against the pinned floci image during this batch's verification`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu_%s_runtime_endpoint"`, strings.ReplaceAll(g.cohort, "-", "_"))))
+		},
+	},
+	"aws_bedrockagentcore_api_key_credential_provider": {
+		Reasons: []string{
+			`schema requires exactly one of api_key/api_key_wo (validate: "No attribute specified when one (and only one) of [api_key,api_key_wo] is required"); the generic pass renders neither, since api_key is Sensitive and this generator's required-only pass only fills non-sensitive Required arguments`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("api_key", exprTokens(`"tofu-cohort-placeholder-api-key"`))
+		},
+	},
+	"aws_bedrockagentcore_browser": {
+		Reasons: []string{
+			`network_configuration is Required-in-shape but the generic pass never visits it (validate: "Block network_configuration must have a configuration value"); network_mode = "PUBLIC" is the minimal valid choice (vpc_config is Optional, only needed for network_mode = "VPC"). name is also mis-wired to aws_iam_role.<cohort>.name by the generic pass's same-name parentRef search (this type is server-assigned, so identityArgName never supplies its own name); left as-is rather than overridden, since aws_bedrockagentcore_browser's own "name" argument carries no format pattern in the provider's docs and the IAM role's name string is a harmless, if confusing, valid value here — unlike its siblings below, which do enforce ^[a-zA-Z][a-zA-Z0-9_]{0,47}$`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			netCfg := body.AppendNewBlock("network_configuration", nil)
+			netCfg.Body().SetAttributeRaw("network_mode", exprTokens(`"PUBLIC"`))
+		},
+	},
+	"aws_bedrockagentcore_browser_profile": {
+		Reasons: []string{
+			`name was mis-wired to aws_iam_role.<cohort>.name by the generic pass's same-name parentRef search, the same shape aws_bedrockagentcore_code_interpreter's own override below explains - this type's own name pattern (^[a-zA-Z][a-zA-Z0-9_]{0,47}$) surfaced only at apply time (terraform validate does not evaluate cross-resource references), against the pinned floci image during this batch's verification`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu_%s_browser_profile"`, strings.ReplaceAll(g.cohort, "-", "_"))))
+		},
+	},
+	"aws_bedrockagentcore_code_interpreter": {
+		Reasons: []string{
+			`same network_configuration gap as aws_bedrockagentcore_browser above. name was also mis-wired to aws_iam_role.<cohort>.name by the generic pass's same-name parentRef search (this type is server-assigned, so identityArgName never supplies its own name, and parentRef's fallback then matches any sibling that owns a "name" argument) - the same "mis-wired to a same-named sibling" shape the streaming batch's own aws_appsync_graphql_api needed corrected, except here the sibling it lands on happens to be an IAM role whose own name contains hyphens the ^[a-zA-Z][a-zA-Z0-9_]{0,47}$ pattern (validate: "must start with a letter and contain only letters, numbers, and underscores") rejects`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu_%s_code_interpreter"`, strings.ReplaceAll(g.cohort, "-", "_"))))
+			netCfg := body.AppendNewBlock("network_configuration", nil)
+			netCfg.Body().SetAttributeRaw("network_mode", exprTokens(`"PUBLIC"`))
+		},
+	},
+	"aws_bedrockagentcore_evaluator": {
+		Reasons: []string{
+			`evaluator_config is Required-in-shape but the generic pass never visits it (validate: "Block evaluator_config must have a configuration value"); llm_as_a_judge with a numerical rating_scale is the minimal valid variant (code_based would need a real Lambda ARN this cohort has no sibling for). evaluator_name must match ^[a-zA-Z][a-zA-Z0-9_]{0,47}$ (validate: "must begin with a letter and contain only alphanumeric characters and underscores"), which the generic placeholder's hyphens violate. level is a fixed enum (TOOL_CALL/TRACE/SESSION), not the generic placeholder string`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("evaluator_name", exprTokens(fmt.Sprintf(`"tofu_%s_cohort_evaluator"`, strings.ReplaceAll(g.cohort, "-", "_"))))
+			body.SetAttributeRaw("level", exprTokens(`"SESSION"`))
+			cfg := body.AppendNewBlock("evaluator_config", nil)
+			judge := cfg.Body().AppendNewBlock("llm_as_a_judge", nil)
+			judge.Body().SetAttributeRaw("instructions", exprTokens(`"Score the agent's helpfulness on the scale below."`))
+			modelCfg := judge.Body().AppendNewBlock("model_config", nil)
+			bedrockCfg := modelCfg.Body().AppendNewBlock("bedrock_evaluator_model_config", nil)
+			bedrockCfg.Body().SetAttributeRaw("model_id", exprTokens(`"anthropic.claude-3-haiku-20240307-v1:0"`))
+			scale := judge.Body().AppendNewBlock("rating_scale", nil)
+			numerical := scale.Body().AppendNewBlock("numerical", nil)
+			numerical.Body().SetAttributeRaw("definition", exprTokens(`"How helpful the agent's response was."`))
+			numerical.Body().SetAttributeRaw("label", exprTokens(`"Helpfulness"`))
+			numerical.Body().SetAttributeRaw("value", exprTokens(`1`))
+		},
+	},
+	"aws_bedrockagentcore_gateway": {
+		Reasons: []string{
+			`role_arn is the same bare-"role_arn" gap as aws_bedrockagent_knowledge_base above. authorizer_type = "AWS_IAM" avoids the Optional-in-shape-but-Required-in-practice authorizer_configuration block CUSTOM_JWT would need (validate confirms authorizer_configuration is required only "when authorizer_type is set to CUSTOM_JWT")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("authorizer_type", exprTokens(`"AWS_IAM"`))
+			ref, ok := g.iamRoleRefExpr()
+			if !ok {
+				ref = `"arn:aws:iam::000000000000:role/placeholder"`
+			}
+			body.SetAttributeRaw("role_arn", exprTokens(ref))
+		},
+	},
+	"aws_bedrockagentcore_harness": {
+		Reasons: []string{
+			`model is Required-in-shape but the generic pass never visits it (validate: "Block model must have a configuration value"); bedrock_model_config is the minimal valid variant. harness_name must be 1-40 characters (validate: "string length must be between 1 and 40"), shorter than the generic tofu-<cohort>-cohort-<type> placeholder's 48`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("harness_name", exprTokens(fmt.Sprintf(`"tofu_%s_harness"`, strings.ReplaceAll(g.cohort, "-", "_"))))
+			model := body.AppendNewBlock("model", nil)
+			bedrockCfg := model.Body().AppendNewBlock("bedrock_model_config", nil)
+			bedrockCfg.Body().SetAttributeRaw("model_id", exprTokens(`"anthropic.claude-3-haiku-20240307-v1:0"`))
+		},
+	},
+	"aws_bedrockagentcore_memory": {
+		Reasons: []string{
+			`event_expiry_duration must be 7-365 (validate: "value must be between 7 and 365"); the generic numeric placeholder is 0. name was also mis-wired to aws_iam_role.<cohort>.name by the generic pass's same-name parentRef search, the same shape aws_bedrockagentcore_code_interpreter's own override above explains - this type's own name pattern surfaced only at apply time (terraform validate does not evaluate cross-resource references), against the pinned floci image during this batch's verification`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu_%s_memory"`, strings.ReplaceAll(g.cohort, "-", "_"))))
+			body.SetAttributeRaw("event_expiry_duration", exprTokens(`30`))
+		},
+	},
+	"aws_bedrockagentcore_oauth2_credential_provider": {
+		Reasons: []string{
+			`credential_provider_vendor is a fixed enum (validate: "does not match any valid values", the pinned provider's real set differs from its own docs) - CustomOauth2 is the one variant whose oauth2_provider_config sub-block (custom_oauth2_provider_config) has no Required fields of its own. oauth2_provider_config itself is Required-in-shape but the generic pass never visits it`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("credential_provider_vendor", exprTokens(`"CustomOauth2"`))
+			cfg := body.AppendNewBlock("oauth2_provider_config", nil)
+			cfg.Body().AppendNewBlock("custom_oauth2_provider_config", nil)
+		},
+	},
+	"aws_bedrockagentcore_online_evaluation_config": {
+		Reasons: []string{
+			`data_source_config, evaluator and rule are all Required-in-shape blocks the generic pass never visits (validate: "Block ... must have a configuration value"). online_evaluation_config_name must start with a letter and contain only alphanumerics/underscores, up to 48 characters (validate: "must start with a letter and contain only alphanumeric characters and underscores"), which the generic placeholder's hyphens and length both violate`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("online_evaluation_config_name", exprTokens(fmt.Sprintf(`"tofu_%s_online_eval"`, strings.ReplaceAll(g.cohort, "-", "_"))))
+			ds := body.AppendNewBlock("data_source_config", nil)
+			cwLogs := ds.Body().AppendNewBlock("cloudwatch_logs", nil)
+			cwLogs.Body().SetAttributeRaw("log_group_names", exprTokens(fmt.Sprintf(`["/tofu-%s-cohort/agent-traces"]`, g.cohort)))
+			cwLogs.Body().SetAttributeRaw("service_names", exprTokens(`["bedrock-agentcore"]`))
+			ev := body.AppendNewBlock("evaluator", nil)
+			ev.Body().SetAttributeRaw("evaluator_id", exprTokens(`"Builtin.Helpfulness"`))
+			rule := body.AppendNewBlock("rule", nil)
+			sampling := rule.Body().AppendNewBlock("sampling_config", nil)
+			sampling.Body().SetAttributeRaw("sampling_percentage", exprTokens(`10`))
+		},
+	},
+	"aws_bedrockagentcore_policy_engine": {
+		Reasons: []string{
+			`name was mis-wired to aws_iam_role.<cohort>.name by the generic pass's same-name parentRef search, the same shape aws_bedrockagentcore_code_interpreter's own override above explains - this type's own name pattern (^[a-zA-Z][a-zA-Z0-9_]{0,47}$) surfaced only at apply time (terraform validate does not evaluate cross-resource references), against the pinned floci image during this batch's verification`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu_%s_policy_engine"`, strings.ReplaceAll(g.cohort, "-", "_"))))
+		},
+	},
+	"aws_bedrockagentcore_resource_policy": {
+		Reasons: []string{
+			`resource_arn is validated as a well-formed ARN (validate: "cannot be parsed as an ARN"); the generic identity-argument placeholder ("tofu-<cohort>-cohort-...") is not one. policy is validated as well-formed JSON (validate: "is not valid JSON string format"), the same shape as aws_dynamodb_resource_policy's own override above`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			resourceARN := fmt.Sprintf(`"arn:aws:bedrock-agentcore:us-east-1:000000000000:runtime/tofu-%s-cohort"`, g.cohort)
+			body.SetAttributeRaw("resource_arn", exprTokens(resourceARN))
+			body.SetAttributeRaw("policy", exprTokens(fmt.Sprintf(`jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = "*"
+      Action    = "bedrock-agentcore:InvokeAgentRuntime"
+      Resource  = %s
+    }]
+  })`, resourceARN)))
+		},
+	},
+	"aws_comprehend_document_classifier": {
+		Reasons: []string{
+			`language_code is a fixed enum (validate: "expected language_code to be one of [en es fr de it pt]"), not the generic placeholder string. input_data_config's data_format defaults to COMPREHEND_CSV, which then requires s3_uri (validate: "one of input_data_config.0.augmented_manifests,input_data_config.0.s3_uri must be specified"); the generic pass renders the block but leaves it empty because none of its own arguments are schema-Required`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("language_code", exprTokens(`"en"`))
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "input_data_config" {
+					blk.Body().SetAttributeRaw("s3_uri", exprTokens(fmt.Sprintf(
+						`"s3://tofu-%s-cohort-comprehend/train/"`, g.cohort)))
+				}
+			}
+		},
+	},
+	"aws_kendra_index": {
+		Reasons: []string{
+			`role_arn is the same bare-"role_arn" gap as aws_bedrockagent_knowledge_base above`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			ref, ok := g.iamRoleRefExpr()
+			if !ok {
+				ref = `"arn:aws:iam::000000000000:role/placeholder"`
+			}
+			body.SetAttributeRaw("role_arn", exprTokens(ref))
+		},
+	},
+	"aws_lexv2models_bot": {
+		Reasons: []string{
+			`role_arn is the same bare-"role_arn" gap as aws_bedrockagent_knowledge_base above. data_privacy is Required-in-shape but the generic pass never visits it (validate: "Block data_privacy must have a configuration value"). idle_session_ttl_in_seconds must be 60-86400 (validate: "cannot be parsed as an ARN" aside, the schema documents the range directly); the generic numeric placeholder is 0`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			ref, ok := g.iamRoleRefExpr()
+			if !ok {
+				ref = `"arn:aws:iam::000000000000:role/placeholder"`
+			}
+			body.SetAttributeRaw("role_arn", exprTokens(ref))
+			body.SetAttributeRaw("idle_session_ttl_in_seconds", exprTokens(`60`))
+			dp := body.AppendNewBlock("data_privacy", nil)
+			dp.Body().SetAttributeRaw("child_directed", exprTokens(`false`))
+		},
+	},
+	"aws_location_tracker_association": {
+		Reasons: []string{
+			`consumer_arn is validated as a well-formed ARN (validate: "invalid ARN: arn: invalid prefix"); wired to this cohort's own aws_location_geofence_collection, the same consumer shape the provider's own example config uses (aws_location_tracker_association.example.consumer_arn = aws_location_geofence_collection.example.collection_arn)`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			consumerExpr := fmt.Sprintf(`"arn:aws:geo:us-east-1:000000000000:geofence-collection/tofu-%s-cohort-placeholder"`, g.cohort)
+			if collection, ok := g.byType["aws_location_geofence_collection"]; ok {
+				consumerExpr = collection.String() + ".collection_arn"
+			}
+			body.SetAttributeRaw("consumer_arn", exprTokens(consumerExpr))
+		},
+	},
+	"aws_qbusiness_application": {
+		Reasons: []string{
+			`attachments_configuration is Required-in-shape but the generic pass never visits it (validate: "Block attachments_configuration must have a configuration value"); DISABLED is the minimal valid choice. identity_center_instance_arn is validated as a well-formed ARN (validate: "cannot be parsed as an ARN"); this cohort has no IAM Identity Center instance sibling to reference, so it stays a literal placeholder ARN, the same "no real sibling to reference" shape aws_rds_integration's own override above accepts for its target_arn`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("identity_center_instance_arn", exprTokens(`"arn:aws:sso:::instance/ssoins00000000001"`))
+			ac := body.AppendNewBlock("attachments_configuration", nil)
+			ac.Body().SetAttributeRaw("attachments_control_mode", exprTokens(`"DISABLED"`))
+		},
+	},
+	"aws_rekognition_stream_processor": {
+		Reasons: []string{
+			`role_arn is the same bare-"role_arn" gap as aws_bedrockagent_knowledge_base above. input, output and settings are all Required-in-shape blocks the generic pass never visits (validate: "Block ... must have a configuration value"); each also requires at least one of its own Optional-in-shape sub-blocks in practice (validate: "At least one attribute out of [...] must be specified") - kinesis_video_stream, s3_destination and connected_home are the minimal valid choice within each`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			ref, ok := g.iamRoleRefExpr()
+			if !ok {
+				ref = `"arn:aws:iam::000000000000:role/placeholder"`
+			}
+			body.SetAttributeRaw("role_arn", exprTokens(ref))
+			input := body.AppendNewBlock("input", nil)
+			kvs := input.Body().AppendNewBlock("kinesis_video_stream", nil)
+			kvs.Body().SetAttributeRaw("arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:kinesisvideo:us-east-1:000000000000:stream/tofu-%s-cohort-stream/1234567890000"`, g.cohort)))
+			output := body.AppendNewBlock("output", nil)
+			s3dest := output.Body().AppendNewBlock("s3_destination", nil)
+			s3dest.Body().SetAttributeRaw("bucket", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-rekognition"`, g.cohort)))
+			settings := body.AppendNewBlock("settings", nil)
+			connectedHome := settings.Body().AppendNewBlock("connected_home", nil)
+			connectedHome.Body().SetAttributeRaw("labels", exprTokens(`["PERSON"]`))
+		},
+	},
+}
+
+// medialiveMultiplexIDRef is the sibling aws_medialive_multiplex's own id
+// attribute as HCL source when this run renders one, or a literal
+// placeholder id-shaped string otherwise. multiplex_id is not a
+// single-component identity argument gen.go's parentRef links
+// automatically (aws_medialive_multiplex is server-assigned, so
+// identityArgName returns ok=false for it, the same gap
+// cognitoUserPoolIDRef below documents for its own type), so
+// aws_medialive_multiplex_program's own override resolves it here by hand.
+func medialiveMultiplexIDRef(g *generator) string {
+	addr, ok := g.byType["aws_medialive_multiplex"]
+	if !ok {
+		return `"12345678"`
+	}
+	return fmt.Sprintf("%s.id", addr)
 }
 
 // eksClusterNameRef is the sibling aws_eks_cluster's name attribute as HCL

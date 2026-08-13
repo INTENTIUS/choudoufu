@@ -271,6 +271,127 @@ has the full comparison, including the design in progress
 ([issue #67](https://github.com/INTENTIUS/choudoufu/issues/67)) to make the
 sweep's behavior per ownership quadrant a policy choice instead of fixed.
 
+## Modules
+
+A `tofu-address` marker binds to a configuration address, and it stays
+correct for exactly as long as that address stays stable. That single test
+is what separates the module shapes admitted below from the one that is
+not, and it is also why the third shape is refused for good rather than
+"not yet."
+
+**Static module trees.** A plain `module "app" {}` call, with neither
+`count` nor `for_each`, is traversed the same way the root module is. A
+resource inside it binds by its module-qualified address -
+`module.app.aws_x.y`, or `module.a.module.b.aws_x.y` at any nesting depth -
+exactly as soundly as a root resource binds by its own. Nothing extra is
+required in configuration; it is stamped, discovered, and planned the same
+way a root resource is.
+
+**`for_each` modules with statically-evaluable keys.** A module call
+expanded with `for_each` is admitted when every key can be evaluated from
+configuration alone - a literal collection, or one built from variables,
+locals, `path` and `terraform` values, the same static scope a resource's
+own `for_each` is held to. A user-chosen key does not shift when a sibling
+is added or removed, unlike a `count` index: `module.app["prod"]` stays
+`module.app["prod"]` no matter what happens to `module.app["staging"]`,
+which is the stability a marker needs to bind to it at all. Each key is
+also held to the marker-safe rune and length discipline a resource's own
+`for_each` key already is (`RuleForEachKey`, `RuleOverlongAddress`), since
+the key becomes part of every address inside the module.
+
+**`count` on a module block is refused, permanently.** Expansion by
+`count` renumbers every resource address inside the module positionally on
+every insertion or removal above the changed index - removing element zero
+turns `module.app[1]` into `module.app[0]`, silently retargeting every
+marker beneath the shifted instances at the wrong live resource. A
+`tofu-address` marker records an address, not a position, so this is not a
+gap a future traversal closes; it is the one shape address-as-identity
+cannot make sound. Rewrite the block as a keyed `for_each` over your own
+stable names, move its resources into the root module, or give the module
+an estate of its own.
+
+**A `provider` block declared inside a module is a separate, still-open
+question.** Per-module provider resolution (issue #70) is neither supported
+nor refused today: the module's resources are silently served by the root
+configuration's own provider config instead, and `lint.CheckModuleProviders`
+only warns about it by name, once per run, rather than failing the run.
+
+### The keyed-module marker idiom
+
+Auto-stamping cannot reach a resource declared inside a `for_each`'d
+module's own instances. The module's several instances share one HCL body
+for the resource's `tags` argument, and there is no single literal address
+that is correct for all of them - choudoufu leaves such a resource alone
+(the `MODULE_KEYED` skip reason, trusted as written when it already
+declares `tags`) rather than guess. The fix is the ordinary OpenTofu idiom
+for any value that has to vary per instance: thread the module's own
+`each.key` through as a variable, and build the address from it by hand.
+Three lines carry the whole pattern.
+
+```hcl
+# root module - the call passes its own each.key through
+module "wrapped" {
+  source   = "./wrapped"
+  for_each = toset(["a", "b"])
+  key      = each.key
+}
+```
+
+```hcl
+# wrapped module - receives it as a variable
+variable "key" {
+  type = string
+}
+```
+
+```hcl
+# wrapped module - builds its own address from the variable
+resource "aws_eip" "app" {
+  tags = {
+    tofu-estate  = local.estate_tag
+    tofu-address = "module.wrapped[\"${var.key}\"].aws_eip.app"
+  }
+}
+```
+
+`live/e2e/estate-module-keyed/` is the full two-instance fixture this
+pattern is drawn from, proven end to end against a live emulator: two EIPs
+come up with the exact keyed addresses above, plan clean, and removing key
+`"a"` from the `for_each` destroys only that instance, leaving `"b"`'s plan
+empty.
+
+### Addresses across a module boundary
+
+A `tofu-address` marker carries the full module-qualified address, in the
+same format OpenTofu's own address formatter produces -
+`module.a.module.b.aws_x.y` for a static nesting, `module.app["prod"].aws_x.y`
+for a keyed instance - escaped into an AWS tag value per the rule in
+`live/MARKERS.md` (`[` becomes `:`; `]` and `"` are dropped). `choudoufu
+live-mv` reads and writes these addresses the same way it does a root
+address, so crossing a module boundary is an ordinary rename: flattening a
+module into the root, moving a resource into a module, or renaming across
+two module instances are all just `choudoufu live-mv <old> <new>` once both
+addresses are legal ones. Only a step carrying a `count` key stays refused,
+since `count`-expanded modules are refused outright regardless of which
+address a rename names.
+
+`choudoufu live-import`, the bulk migration path off an existing state
+file, is narrower than the rest of this picture today: it ratifies
+root-module state entries only, and reports the count of any non-root
+module instances it saw but did not consider (issue
+[#59](https://github.com/INTENTIUS/choudoufu/issues/59)). A module-tree
+estate adopts by planning with a `live` block added, the ordinary
+Adoptable path described under "Migrating an Existing Estate" above,
+rather than through `live-import`.
+
+Provider blocks declared inside a child module are not yet handled: every
+child module's default provider is served from the root configuration
+today, and an explicitly-declared provider block inside a module (aliased
+or default) is neither supported nor refused with a named reason. Configure
+providers at the root and let modules receive them implicitly, the
+recommended and only proven pattern, until [issue
+#70](https://github.com/INTENTIUS/choudoufu/issues/70) resolves the design.
+
 ## Concurrency
 
 The cloud serializes API calls, not workflows. Two simultaneous applies
@@ -316,8 +437,8 @@ outcomes at all. They are named below.
 ## The Contract
 
 - **AWS only, <!-- survey-gen:begin contract-count -->
-511<!-- survey-gen:end contract-count --> resource types, root module only.** The v0 admission table
-  (`internal/live/lint/admission.go`) is the whole subset. It holds <!-- survey-gen:begin contract-types -->
+606<!-- survey-gen:end contract-count --> resource types, count-expanded modules refused.** The admission table
+  (`internal/live/lint/admission.go`) is the whole subset of resource types. It holds <!-- survey-gen:begin contract-types -->
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
   `aws_amplify_app`, `aws_amplify_branch`, `aws_api_gateway_account`,
@@ -341,12 +462,27 @@ outcomes at all. They are named below.
   `aws_apprunner_observability_configuration`, `aws_apprunner_service`,
   `aws_apprunner_vpc_connector`, `aws_apprunner_vpc_ingress_connection`,
   `aws_appsync_graphql_api`, `aws_athena_data_catalog`,
-  `aws_athena_workgroup`, `aws_backup_framework`,
+  `aws_athena_workgroup`, `aws_auditmanager_assessment`,
+  `aws_auditmanager_framework`, `aws_backup_framework`,
   `aws_backup_logically_air_gapped_vault`, `aws_backup_plan`,
   `aws_backup_report_plan`, `aws_backup_restore_testing_plan`,
   `aws_backup_vault`, `aws_batch_compute_environment`,
   `aws_batch_job_definition`, `aws_batch_job_queue`,
-  `aws_batch_scheduling_policy`, `aws_cloudfront_anycast_ip_list`,
+  `aws_batch_scheduling_policy`, `aws_bedrock_guardrail`,
+  `aws_bedrock_inference_profile`, `aws_bedrockagent_agent`,
+  `aws_bedrockagent_agent_alias`, `aws_bedrockagent_flow`,
+  `aws_bedrockagent_knowledge_base`, `aws_bedrockagent_prompt`,
+  `aws_bedrockagentcore_agent_runtime`,
+  `aws_bedrockagentcore_agent_runtime_endpoint`,
+  `aws_bedrockagentcore_api_key_credential_provider`,
+  `aws_bedrockagentcore_browser`, `aws_bedrockagentcore_browser_profile`,
+  `aws_bedrockagentcore_code_interpreter`, `aws_bedrockagentcore_evaluator`,
+  `aws_bedrockagentcore_gateway`, `aws_bedrockagentcore_harness`,
+  `aws_bedrockagentcore_memory`,
+  `aws_bedrockagentcore_oauth2_credential_provider`,
+  `aws_bedrockagentcore_online_evaluation_config`,
+  `aws_bedrockagentcore_policy_engine`,
+  `aws_bedrockagentcore_resource_policy`, `aws_cloudfront_anycast_ip_list`,
   `aws_cloudfront_connection_function`, `aws_cloudfront_connection_group`,
   `aws_cloudfront_distribution`, `aws_cloudfront_distribution_tenant`,
   `aws_cloudfront_function`, `aws_cloudfront_key_value_store`,
@@ -383,6 +519,11 @@ outcomes at all. They are named below.
   `aws_cognito_identity_provider`, `aws_cognito_resource_server`,
   `aws_cognito_user`, `aws_cognito_user_group`, `aws_cognito_user_in_group`,
   `aws_cognito_user_pool`, `aws_cognito_user_pool_domain`,
+  `aws_comprehend_document_classifier`, `aws_config_config_rule`,
+  `aws_config_configuration_aggregator`, `aws_config_conformance_pack`,
+  `aws_config_organization_conformance_pack`,
+  `aws_config_remediation_configuration`, `aws_controltower_baseline`,
+  `aws_controltower_control`, `aws_controltower_landing_zone`,
   `aws_customer_gateway`, `aws_datasync_agent`,
   `aws_datasync_location_azure_blob`, `aws_datasync_location_efs`,
   `aws_datasync_location_fsx_lustre_file_system`,
@@ -461,22 +602,30 @@ outcomes at all. They are named below.
   `aws_iot_billing_group`, `aws_iot_domain_configuration`, `aws_iot_policy`,
   `aws_iot_provisioning_template`, `aws_iot_role_alias`, `aws_iot_thing`,
   `aws_iot_thing_group`, `aws_iot_thing_type`, `aws_iot_topic_rule`,
-  `aws_iot_topic_rule_destination`, `aws_key_pair`, `aws_keyspaces_keyspace`,
-  `aws_keyspaces_table`, `aws_kinesis_firehose_delivery_stream`,
-  `aws_kinesis_stream`, `aws_kinesis_stream_consumer`, `aws_kms_alias`,
-  `aws_kms_external_key`, `aws_kms_key`, `aws_kms_replica_key`,
-  `aws_lambda_capacity_provider`, `aws_lambda_code_signing_config`,
-  `aws_lambda_event_source_mapping`, `aws_lambda_function`,
-  `aws_lambda_layer_version`, `aws_launch_template`, `aws_lb`,
-  `aws_lb_listener`, `aws_lb_target_group`, `aws_lb_target_group_attachment`,
-  `aws_lightsail_bucket`, `aws_lightsail_certificate`,
-  `aws_lightsail_container_service`, `aws_lightsail_database`,
-  `aws_lightsail_disk`, `aws_lightsail_distribution`,
-  `aws_lightsail_instance`, `aws_lightsail_lb`,
+  `aws_iot_topic_rule_destination`, `aws_ivs_channel`,
+  `aws_ivs_playback_key_pair`, `aws_ivs_recording_configuration`,
+  `aws_ivschat_logging_configuration`, `aws_ivschat_room`, `aws_kendra_index`,
+  `aws_key_pair`, `aws_keyspaces_keyspace`, `aws_keyspaces_table`,
+  `aws_kinesis_firehose_delivery_stream`, `aws_kinesis_stream`,
+  `aws_kinesis_stream_consumer`, `aws_kms_alias`, `aws_kms_external_key`,
+  `aws_kms_key`, `aws_kms_replica_key`, `aws_lambda_capacity_provider`,
+  `aws_lambda_code_signing_config`, `aws_lambda_event_source_mapping`,
+  `aws_lambda_function`, `aws_lambda_layer_version`, `aws_launch_template`,
+  `aws_lb`, `aws_lb_listener`, `aws_lb_target_group`,
+  `aws_lb_target_group_attachment`, `aws_lexv2models_bot`,
+  `aws_lexv2models_bot_locale`, `aws_lightsail_bucket`,
+  `aws_lightsail_certificate`, `aws_lightsail_container_service`,
+  `aws_lightsail_database`, `aws_lightsail_disk`,
+  `aws_lightsail_distribution`, `aws_lightsail_instance`, `aws_lightsail_lb`,
   `aws_lightsail_lb_certificate`, `aws_lightsail_static_ip`,
+  `aws_location_geofence_collection`, `aws_location_map`,
+  `aws_location_place_index`, `aws_location_route_calculator`,
+  `aws_location_tracker`, `aws_location_tracker_association`,
   `aws_macie2_classification_job`, `aws_macie2_custom_data_identifier`,
   `aws_macie2_findings_filter`, `aws_macie2_member`,
-  `aws_macie2_organization_admin_account`, `aws_memorydb_acl`,
+  `aws_macie2_organization_admin_account`, `aws_media_package_channel`,
+  `aws_media_packagev2_channel_group`, `aws_medialive_multiplex`,
+  `aws_medialive_multiplex_program`, `aws_memorydb_acl`,
   `aws_memorydb_cluster`, `aws_memorydb_multi_region_cluster`,
   `aws_memorydb_parameter_group`, `aws_memorydb_subnet_group`,
   `aws_memorydb_user`, `aws_mq_broker`, `aws_mq_configuration`,
@@ -508,19 +657,25 @@ outcomes at all. They are named below.
   `aws_opensearchserverless_collection`,
   `aws_opensearchserverless_collection_group`,
   `aws_opensearchserverless_lifecycle_policy`,
-  `aws_opensearchserverless_security_policy`, `aws_pipes_pipe`,
+  `aws_opensearchserverless_security_policy`, `aws_organizations_account`,
+  `aws_organizations_organizational_unit`, `aws_organizations_policy`,
+  `aws_organizations_resource_policy`, `aws_pipes_pipe`,
   `aws_placement_group`, `aws_prometheus_alert_manager_definition`,
   `aws_prometheus_query_logging_configuration`, `aws_prometheus_scraper`,
   `aws_prometheus_scraper_logging_configuration`, `aws_prometheus_workspace`,
-  `aws_qldb_ledger`, `aws_rds_cluster`, `aws_rds_cluster_instance`,
-  `aws_rds_cluster_parameter_group`, `aws_rds_cluster_role_association`,
-  `aws_rds_custom_db_engine_version`, `aws_rds_global_cluster`,
-  `aws_rds_integration`, `aws_rds_shard_group`, `aws_redshift_cluster`,
-  `aws_redshift_parameter_group`, `aws_redshift_snapshot_schedule`,
-  `aws_redshift_subnet_group`, `aws_redshiftserverless_namespace`,
-  `aws_redshiftserverless_workgroup`, `aws_route`, `aws_route53_health_check`,
-  `aws_route53_hosted_zone_dnssec`, `aws_route53_key_signing_key`,
-  `aws_route53_record`, `aws_route53_resolver_endpoint`,
+  `aws_qbusiness_application`, `aws_qldb_ledger`, `aws_rds_cluster`,
+  `aws_rds_cluster_instance`, `aws_rds_cluster_parameter_group`,
+  `aws_rds_cluster_role_association`, `aws_rds_custom_db_engine_version`,
+  `aws_rds_global_cluster`, `aws_rds_integration`, `aws_rds_shard_group`,
+  `aws_redshift_cluster`, `aws_redshift_parameter_group`,
+  `aws_redshift_snapshot_schedule`, `aws_redshift_subnet_group`,
+  `aws_redshiftserverless_namespace`, `aws_redshiftserverless_workgroup`,
+  `aws_rekognition_collection`, `aws_rekognition_project`,
+  `aws_rekognition_stream_processor`, `aws_resourceexplorer2_index`,
+  `aws_resourceexplorer2_view`, `aws_resourcegroups_group`, `aws_route`,
+  `aws_route53_health_check`, `aws_route53_hosted_zone_dnssec`,
+  `aws_route53_key_signing_key`, `aws_route53_record`,
+  `aws_route53_resolver_endpoint`,
   `aws_route53_resolver_firewall_domain_list`,
   `aws_route53_resolver_firewall_rule`,
   `aws_route53_resolver_firewall_rule_group`,
@@ -539,7 +694,20 @@ outcomes at all. They are named below.
   `aws_s3_bucket_lifecycle_configuration`, `aws_s3_bucket_policy`,
   `aws_s3_bucket_public_access_block`,
   `aws_s3_bucket_server_side_encryption_configuration`,
-  `aws_s3_bucket_versioning`, `aws_scheduler_schedule_group`,
+  `aws_s3_bucket_versioning`, `aws_sagemaker_algorithm`, `aws_sagemaker_app`,
+  `aws_sagemaker_app_image_config`, `aws_sagemaker_code_repository`,
+  `aws_sagemaker_data_quality_job_definition`, `aws_sagemaker_device_fleet`,
+  `aws_sagemaker_domain`, `aws_sagemaker_endpoint`,
+  `aws_sagemaker_endpoint_configuration`, `aws_sagemaker_feature_group`,
+  `aws_sagemaker_hub`, `aws_sagemaker_image`, `aws_sagemaker_mlflow_app`,
+  `aws_sagemaker_mlflow_tracking_server`, `aws_sagemaker_model`,
+  `aws_sagemaker_model_card`, `aws_sagemaker_model_package_group`,
+  `aws_sagemaker_model_package_group_policy`,
+  `aws_sagemaker_monitoring_schedule`, `aws_sagemaker_notebook_instance`,
+  `aws_sagemaker_notebook_instance_lifecycle_configuration`,
+  `aws_sagemaker_pipeline`, `aws_sagemaker_project`, `aws_sagemaker_space`,
+  `aws_sagemaker_studio_lifecycle_config`, `aws_sagemaker_user_profile`,
+  `aws_sagemaker_workteam`, `aws_scheduler_schedule_group`,
   `aws_secretsmanager_secret`, `aws_secretsmanager_secret_policy`,
   `aws_secretsmanager_secret_rotation`, `aws_security_group`,
   `aws_securityhub_account_v2`, `aws_securityhub_aggregator_v2`,
@@ -548,11 +716,16 @@ outcomes at all. They are named below.
   `aws_securityhub_connector_v2`, `aws_securityhub_member`,
   `aws_securityhub_organization_admin_account`,
   `aws_securityhub_standards_control`,
-  `aws_securityhub_standards_control_association`, `aws_sfn_activity`,
-  `aws_sfn_state_machine`, `aws_sns_topic`, `aws_sns_topic_policy`,
-  `aws_spot_fleet_request`, `aws_sqs_queue`, `aws_sqs_queue_policy`,
-  `aws_ssm_association`, `aws_ssm_maintenance_window`, `aws_ssm_parameter`,
-  `aws_ssm_patch_baseline`, `aws_ssm_patch_group`,
+  `aws_securityhub_standards_control_association`,
+  `aws_servicecatalog_portfolio`, `aws_servicecatalog_portfolio_share`,
+  `aws_servicecatalog_product`, `aws_servicecatalog_provisioned_product`,
+  `aws_servicecatalogappregistry_application`,
+  `aws_servicecatalogappregistry_attribute_group`,
+  `aws_servicecatalogappregistry_attribute_group_association`,
+  `aws_sfn_activity`, `aws_sfn_state_machine`, `aws_sns_topic`,
+  `aws_sns_topic_policy`, `aws_spot_fleet_request`, `aws_sqs_queue`,
+  `aws_sqs_queue_policy`, `aws_ssm_association`, `aws_ssm_maintenance_window`,
+  `aws_ssm_parameter`, `aws_ssm_patch_baseline`, `aws_ssm_patch_group`,
   `aws_ssm_resource_data_sync`, `aws_ssm_service_setting`,
   `aws_ssoadmin_account_assignment`, `aws_ssoadmin_application`,
   `aws_ssoadmin_application_assignment`,
@@ -584,12 +757,10 @@ outcomes at all. They are named below.
   `aws_wafv2_ip_set`, `aws_wafv2_regex_pattern_set`, `aws_wafv2_rule_group`,
   `aws_wafv2_web_acl`, `aws_wafv2_web_acl_rule`, `aws_xray_group`,
   `aws_xray_resource_policy`, and `aws_xray_sampling_rule`<!-- survey-gen:end contract-types -->. Nothing else, no
-  other AWS type, no other provider. A `module` block calling into a child module is refused
-  outright. The
-  subset lint rejects every module call with "Child modules are not
-  available under live resource markers", pointing at the `module` block itself,
-  before anything reads the live system. Only the root module is covered
-  today.
+  other AWS type, no other provider. Static module trees and
+  statically-keyed `for_each` modules are fully covered; a module block
+  expanded with `count` is refused outright, permanently, at any depth. See
+  Modules, below.
 - **Two named orphan cases.** Deleting a resource block whose type carries
   no tags at all (`aws_route`, `aws_route_table_association`,
   `aws_s3_bucket_policy`, `aws_s3_bucket_versioning`,

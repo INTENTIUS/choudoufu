@@ -64,6 +64,40 @@ import (
 // SweepTypes below) adds its own N-independent constant on top. What
 // generalizes is the shape (linear in N, per-type slope plus a small
 // constant), not the number 17.
+//
+// # Multi-provider scaling (issue #69)
+//
+// live/plan-budget.json's committed number is a single-provider
+// measurement and stays one: TestPlanCallBudgetAgainstFloci calls Discover
+// directly, once, exactly as it did before issue #69 - an estate whose
+// managed resources sit under one provider configuration is unaffected by
+// anything below, and this ratchet does not need regenerating on issue
+// #69's account.
+//
+// An estate whose managed resources span N distinct provider configurations
+// (internal/command/live_plan.go's statelessDiscover, looping the sweep
+// once per configuration and merging with [Merge]) pays this budget's
+// sweep-side cost up to N times over, not once: sweepTypes's per-type list
+// calls (the "GET ?bucket-region&max-buckets&x-id"-style estate-wide scan,
+// not the per-instance Read this file's own curve is about) run once per
+// provider configuration, because each account and region has to be
+// searched on its own - a sweep against the wrong account only narrows
+// what a run sees, it never mis-reports what exists, but it also never
+// substitutes for actually asking the other account. The parent-read leg
+// (parent_read.go) does not multiply the same way: Request.ScopeProvider
+// keeps each pass processing only its own declared parents, so that leg's
+// own O(N) cost (N here being the estate's instance count, not the
+// provider count) is paid once per instance total, not once per instance
+// per provider.
+//
+// Nothing here is committed as a second ratchet artifact - the sweep's own
+// per-type cost (independent of estate size) is what a multi-provider
+// estate multiplies, and this benchmark deliberately measures the
+// per-*instance* Read cost instead (SweepTypes pinned to keep the sweep's
+// own contribution at zero, see the comment on SweepTypes below), so it has
+// nothing to compare a multi-provider run against yet. A future benchmark
+// that wants to measure the sweep's own per-provider-configuration cost
+// would need to stop pinning SweepTypes down to nothing and count instead.
 
 // benchType is the resource type the scale estate is built from:
 // aws_s3_bucket, the simplest type tools/estate-gen's -count validation

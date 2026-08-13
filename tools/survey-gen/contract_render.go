@@ -33,7 +33,7 @@ const contractMDXRel = "website/docs/language/live-markers.mdx"
 // content instead of interrupting the bullet's paragraph.
 const (
 	// spanContractCount is the resource-type count in "AWS only, N resource
-	// types, root module only."
+	// types, count-expanded modules refused."
 	spanContractCount = "contract-count"
 
 	// spanContractTypes is the backtick-quoted, comma-separated enumeration
