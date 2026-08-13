@@ -283,46 +283,36 @@ func TestApproveOne_CorruptContinuationChainFails(t *testing.T) {
 // BUG: the front-gap case markers.GatherAddress mishandles
 // ---------------------------------------------------------------------------
 
-// TestApproveOne_FrontGapBugSilentlyOverwritesStaleContinuation documents a
-// concrete, damaging consequence of the bug pinned in
-// internal/live/markers/markers_test.go's
-// TestGatherAddress_frontGapIsCorrupt: GatherAddress returns corrupt=false
-// (indistinguishable from "no marker at all") when tofu-address itself is
-// missing but a continuation tag - tofu-address-2 here - is present.
+// TestApproveOne_FrontGapBugSilentlyOverwritesStaleContinuation documents the
+// downstream consequence of the n=2 gap pinned in
+// internal/live/markers/markers_test.go's TestGatherAddress_frontGapIsCorrupt:
+// tofu-address itself missing while a continuation tag - tofu-address-2 here
+// - is present.
 //
-// Walk approveOne's switch through this case with that bug in place. The
-// live object already carries this estate's tag (gotEstate == estate) but,
-// through the bug, gotRaw == "" and corrupt == false:
+// Walk approveOne's switch through this case. The live object already
+// carries this estate's tag (gotEstate == estate), and GatherAddress reports
+// gotRaw == "" and corrupt == true:
 //   - case gotEstate == estate && gotAddress == wantAddress && !corrupt:
 //     false - gotAddress is "", not wantAddress.
 //   - case gotEstate != "" && gotEstate != estate:
 //     false - gotEstate does equal estate.
 //   - case corrupt:
-//     false - the bug.
-//   - case gotAddress != "" && gotAddress != wantAddress:
-//     false - gotAddress is "".
+//     true - this is the one that fires.
 //
-// None of the four cases match, so approveOne falls through to the write
-// path as if this were a brand new adoption. desiredTags is seeded from a
-// copy of the *existing* tags map - which still carries the stray
-// tofu-address-2 from before - and then only overwrites the keys
-// SplitAddress's chunks actually name (tofu-address alone, for an address
-// that fits in one tag). The stray tofu-address-2 is never deleted. The
-// write lands with tofu-address correctly naming addr, but a leftover
-// tofu-address-2 sitting next to it - and the very next read of this
-// resource, through GatherAddress, concatenates them into an address that
-// names neither the old resource nor the new one.
-//
-// Expected correct behavior: this case should be caught by the `case
-// corrupt:` branch, exactly like TestApproveOne_CorruptContinuationChainFails
-// above - Outcome FAILED, nothing written, a human resolves the existing
-// marker before this resource can be adopted. That is what happens for
-// every other shape of gapped chain (see the corrupt test above and
-// discovery's TestContinuationGapIsMalformed); this is the one shape that
-// slips through.
+// That is the same refusal every other shape of gapped chain gets (see
+// TestApproveOne_CorruptContinuationChainFails above and discovery's
+// TestContinuationGapIsMalformed): Outcome FAILED, nothing written, a human
+// resolves the existing marker before this resource can be adopted. Before
+// GatherAddress accounted for this gap, none of approveOne's four cases
+// matched here, so it fell through to the write path as if this were a
+// brand new adoption - desiredTags seeded from the existing tags (which
+// still carried the stray tofu-address-2) and only overwrote the keys
+// SplitAddress's chunks actually name, leaving the stray tofu-address-2
+// behind. The write would have landed with tofu-address correctly naming
+// addr, but a leftover tofu-address-2 sitting next to it - and the very next
+// read of this resource, through GatherAddress, would have concatenated them
+// into an address that names neither the old resource nor the new one.
 func TestApproveOne_FrontGapBugSilentlyOverwritesStaleContinuation(t *testing.T) {
-	t.Skip("BUG: markers.GatherAddress does not detect this front-gap case as corrupt (see internal/live/markers/markers_test.go's TestGatherAddress_frontGapIsCorrupt), so approveOne treats an already-estate-tagged, corrupt marker as a fresh adoption and overwrites it, leaving a stale tofu-address-2 that turns the freshly written marker into a new corrupt one. See the comment above this test for the full trace.")
-
 	addr := mustAddr(t, "aws_vpc.main") // fits in one chunk: only TagAddress is (re)written.
 	e, p := vpcEligible(map[string]string{
 		discovery.TagEstate:          "acme",  // already claims this estate ...

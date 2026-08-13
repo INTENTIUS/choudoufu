@@ -212,22 +212,11 @@ func TestValidMarkerAddress_wideBudget(t *testing.T) {
 	}
 }
 
-// TestGatherAddress_frontGapIsCorrupt pins a case GatherAddress's own doc
-// comment describes but the implementation does not deliver: "[corrupt] is
-// true when the continuation chain has a gap: some tofu-address-n is
-// present while tofu-address-(n-1) (or tofu-address itself, for n=2) is
-// missing." tofu-address-2 present while tofu-address itself is missing is
-// exactly the n=2 case that sentence names.
-//
-// BUG: the implementation returns early - `primary, ok := tags[TagAddress];
-// if !ok { return "", false }` - before it ever looks at whether a
-// continuation tag is present, so this exact case comes back corrupt=false
-// ("no marker at all") instead of corrupt=true ("gapped chain"). The doc
-// comment's closing sentence ("It is never set merely because
-// tags[TagAddress] itself is absent") only carves out the case where
-// nothing else is present either; it does not cover tofu-address absent
-// *while a continuation tag is present*, which the opening sentence already
-// claims as a gap.
+// TestGatherAddress_frontGapIsCorrupt pins the n=2 case GatherAddress's own
+// doc comment names explicitly: "[corrupt] is true when the continuation
+// chain has a gap: some tofu-address-n is present while tofu-address-(n-1)
+// (or tofu-address itself, for n=2) is missing." tofu-address-2 present
+// while tofu-address itself is missing is exactly that case.
 //
 // This is not a paper cut: every caller (internal/live/discovery's three
 // scan paths, internal/live/liveimport/stamp.go's approveOne,
@@ -236,16 +225,10 @@ func TestValidMarkerAddress_wideBudget(t *testing.T) {
 // treat the resource as unclaimed or write fresh markers over it - see
 // TestApproveOne_FrontGapBugSilentlyOverwritesStaleContinuation in
 // internal/live/liveimport/stamp_test.go for a concrete case where that
-// produces a self-inconsistent marker (a fresh tofu-address alongside a
+// would produce a self-inconsistent marker (a fresh tofu-address alongside a
 // stale, unrelated tofu-address-2) instead of the refusal every other gap
 // shape gets.
-//
-// Expected correct behavior: GatherAddress(map[string]string{
-// ContinuationTag(2): "bbb"}) returns corrupt=true, the same as any other
-// gapped chain.
 func TestGatherAddress_frontGapIsCorrupt(t *testing.T) {
-	t.Skip("BUG: GatherAddress does not detect a front gap (tofu-address-2 present, tofu-address itself missing) as corrupt; see comment above")
-
 	tags := map[string]string{
 		ContinuationTag(2): "bbb",
 	}
