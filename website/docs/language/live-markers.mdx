@@ -316,7 +316,7 @@ outcomes at all. They are named below.
 ## The Contract
 
 - **AWS only, <!-- survey-gen:begin contract-count -->
-388<!-- survey-gen:end contract-count --> resource types, root module only.** The v0 admission table
+414<!-- survey-gen:end contract-count --> resource types, root module only.** The v0 admission table
   (`internal/live/lint/admission.go`) is the whole subset. It holds <!-- survey-gen:begin contract-types -->
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
@@ -379,6 +379,12 @@ outcomes at all. They are named below.
   `aws_cognito_identity_provider`, `aws_cognito_resource_server`,
   `aws_cognito_user`, `aws_cognito_user_group`, `aws_cognito_user_in_group`,
   `aws_cognito_user_pool`, `aws_cognito_user_pool_domain`,
+  `aws_connect_contact_flow`, `aws_connect_contact_flow_module`,
+  `aws_connect_hours_of_operation`, `aws_connect_instance`,
+  `aws_connect_phone_number`, `aws_connect_queue`,
+  `aws_connect_quick_connect`, `aws_connect_routing_profile`,
+  `aws_connect_security_profile`, `aws_connect_user`,
+  `aws_connect_user_hierarchy_group`, `aws_connect_user_hierarchy_structure`,
   `aws_customer_gateway`, `aws_db_event_subscription`, `aws_db_instance`,
   `aws_db_instance_role_association`, `aws_db_option_group`,
   `aws_db_parameter_group`, `aws_db_proxy`,
@@ -511,7 +517,17 @@ outcomes at all. They are named below.
   `aws_vpc_security_group_ingress_rule`, `aws_vpn_connection`,
   `aws_vpn_gateway`, `aws_wafv2_ip_set`, `aws_wafv2_regex_pattern_set`,
   `aws_wafv2_rule_group`, `aws_wafv2_web_acl`, `aws_wafv2_web_acl_rule`,
-  `aws_xray_group`, `aws_xray_resource_policy`, and `aws_xray_sampling_rule`<!-- survey-gen:end contract-types -->. Nothing else, no
+  `aws_workspaces_connection_alias`, `aws_workspaces_ip_group`,
+  `aws_workspaces_pool`, `aws_workspaces_workspace`,
+  `aws_workspacesweb_browser_settings`,
+  `aws_workspacesweb_data_protection_settings`,
+  `aws_workspacesweb_identity_provider`,
+  `aws_workspacesweb_ip_access_settings`,
+  `aws_workspacesweb_network_settings`, `aws_workspacesweb_portal`,
+  `aws_workspacesweb_session_logger`, `aws_workspacesweb_trust_store`,
+  `aws_workspacesweb_user_access_logging_settings`,
+  `aws_workspacesweb_user_settings`, `aws_xray_group`,
+  `aws_xray_resource_policy`, and `aws_xray_sampling_rule`<!-- survey-gen:end contract-types -->. Nothing else, no
   other AWS type, no other provider. A `module` block calling into a child module is refused
   outright. The
   subset lint rejects every module call with "Child modules are not
