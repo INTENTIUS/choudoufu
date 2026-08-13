@@ -159,29 +159,48 @@ rule").
 
 ### child-module
 
-**Construct.** A `module` block, at any depth.
+**Construct.** A `module` block, at any depth, expanded with `count` or
+`for_each`. A static module call (neither) is not this limitation: see
+below.
 
-**Why banned.** Live markers v0 are a root-module mode. Identity
-resolution, discovery, marker stamping and the projection all stop at the
-root, and module expansion (`count` or `for_each` on a module block)
-changes every resource address inside the module, which is exactly what a
-`tofu-address` marker records. Binding markers under an expansion that can
-renumber them is the ambiguity the marker exists to remove.
+**Why banned.** Module expansion by `count` renumbers every resource
+address inside the module positionally, on every insertion or removal
+above the changed index, and a `tofu-address` marker records an address,
+not a position. A renumbering that moves addresses out from under their
+markers is not a gap this mode intends to close, so `count`-expanded
+modules are refused permanently. `for_each` on a module block does not
+renumber the way `count` does - a key is stable under insertion and
+removal, the same reason `RuleForEachKey`-disciplined resource keys are
+admitted - which is what makes it worth admitting; it is refused only
+because nothing downstream of lint walks into a module's *instances* yet
+(issue #59, phase 3 / "59c").
 
-**Forwarding address.** Move the module's resources into the root module,
-or give the module an estate of its own, with its own directory, its own
-`live` block, and its own `estate` name. Two estates are two independent
-runs, which is the separation a child module was standing in for.
+**A static module call is admitted.** As of issue #59, phase 2 ("59b"), the
+five packages downstream of lint - `identity`, `discovery`, `stamp`,
+`projection`, `mv` - traverse `cfg.Children` recursively, and a resource
+inside a static module binds by its module-qualified address
+(`module.a.module.b.aws_x.y`) exactly as soundly as a root resource binds by
+its own. `RuleChildModule` reports nothing for a module call that sets
+neither `count` nor `for_each`.
+
+**Forwarding address.** For a `count`- or `for_each`-expanded module: move
+the module's resources into the root module, or give the module an estate
+of its own, with its own directory, its own `live` block, and its own
+`estate` name. Two estates are two independent runs, which is the
+separation an expanded child module is standing in for. For `count`
+specifically this is the only forwarding address - there is no future
+traversal to wait for; `for_each` gets the same advice until 59c ships.
 
 **Enforcement.** `RuleChildModule`, `internal/live/lint/child_module.go`
-(`checkChildModules`). Fixture at `live/e2e/limits/child-module/`, which is
-a tree rather than a single file and needs `choudoufu get` before the rule can
-be reached, since an uninstalled module block is refused while the
-configuration is still being loaded, earlier than any marker code runs.
-The five packages downstream of lint (`identity`, `discovery`, `stamp`,
-`projection`, `mv`) each still refuse a configuration with children, but as a
-one-line internal invariant. Lint runs first in both commands, so reaching one
-of them with a child module means the pipeline ran out of order.
+(`checkChildModules`, detail text chosen by `childModuleDetail`, which
+reports nothing for a static call). Fixture at
+`live/e2e/limits/child-module/`, which is a tree rather than a single file
+and needs `choudoufu get` before the rule can be reached, since an
+uninstalled module block is refused while the configuration is still being
+loaded, earlier than any marker code runs. The fixture carries all three
+shapes at once - a static call ("network", admitted), a `count` call, and a
+`for_each` call - so one load proves the static call passes clean while the
+other two still fail.
 
 ### backend-block
 
@@ -406,17 +425,21 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_apigatewayv2_routing_rule`, `aws_cloudfront_monitoring_subscription`,
 `aws_cloudfront_origin_access_control`,
 `aws_cloudfront_realtime_log_config`, `aws_cloudwatch_dashboard`,
-`aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
-`aws_dynamodb_global_table`, `aws_dynamodb_resource_policy`,
-`aws_ebs_snapshot_block_public_access`, `aws_ecr_registry_policy`,
-`aws_ecr_registry_scanning_configuration`,
-`aws_ecr_replication_configuration`, `aws_ecs_cluster_capacity_providers`,
-`aws_eip_association`, `aws_eks_access_policy_association`,
+`aws_codeartifact_domain_permissions_policy`,
+`aws_codeartifact_repository_permissions_policy`, `aws_codebuild_webhook`,
+`aws_codedeploy_deployment_config`, `aws_db_instance_role_association`,
+`aws_db_proxy_default_target_group`, `aws_dynamodb_global_table`,
+`aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
+`aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
+`aws_ecr_replication_configuration`, `aws_ecrpublic_repository_policy`,
+`aws_ecs_cluster_capacity_providers`, `aws_eip_association`,
+`aws_eks_access_policy_association`, `aws_emr_security_configuration`,
 `aws_fsx_s3_access_point_attachment`, `aws_glue_catalog_table`,
 `aws_glue_classifier`, `aws_glue_data_catalog_encryption_settings`,
 `aws_iam_group`, `aws_iam_role_policy`, `aws_iam_role_policy_attachment`,
 `aws_kms_alias`, `aws_lambda_layer_version`,
-`aws_lb_target_group_attachment`, `aws_network_interface_attachment`,
+`aws_lb_target_group_attachment`, `aws_lightsail_lb_certificate`,
+`aws_lightsail_static_ip`, `aws_network_interface_attachment`,
 `aws_network_interface_permission`,
 `aws_prometheus_alert_manager_definition`,
 `aws_prometheus_query_logging_configuration`,
@@ -466,9 +489,14 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_api_gateway_model` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_api_gateway_rest_api_policy` | `aws_api_gateway_rest_api` | no (report-only) |
 | `aws_api_gateway_usage_plan_key` | `aws_api_gateway_usage_plan` | no (report-only) |
-| `aws_cloudfront_monitoring_subscription` | `aws_cloudfront_distribution` | no (report-only) |
+| `aws_cloudfront_monitoring_subscription` | `aws_lightsail_distribution` | no (report-only) |
 | `aws_cloudfront_realtime_log_config` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_codeartifact_domain_permissions_policy` | `aws_codeartifact_domain` | no (report-only) |
+| `aws_codeartifact_repository_permissions_policy` | `aws_codeartifact_repository` | no (report-only) |
 | `aws_dynamodb_global_table` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_ecrpublic_repository_policy` | `aws_ecrpublic_repository` | no (report-only) |
+| `aws_eks_access_policy_association` | `aws_batch_scheduling_policy` | no (report-only) |
+| `aws_emr_security_configuration` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_fsx_s3_access_point_attachment` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_glue_catalog_table` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_glue_classifier` | `aws_api_gateway_domain_name` | no (report-only) |
@@ -477,6 +505,8 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_iam_role_policy_attachment` | `aws_iam_role` | no (report-only) |
 | `aws_kms_alias` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_lb_target_group_attachment` | `aws_lb_target_group` | no (report-only) |
+| `aws_lightsail_lb_certificate` | `aws_lightsail_lb` | no (report-only) |
+| `aws_lightsail_static_ip` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_prometheus_alert_manager_definition` | `aws_prometheus_workspace` | no (report-only) |
 | `aws_prometheus_query_logging_configuration` | `aws_prometheus_workspace` | no (report-only) |
 | `aws_prometheus_scraper_logging_configuration` | `aws_prometheus_scraper` | no (report-only) |
@@ -495,7 +525,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_sqs_queue_policy` | `aws_sqs_queue` | no (report-only) |
 | `aws_volume_attachment` | `aws_ebs_volume` | no (report-only) |
 
-**Total.** 39 types swept via a parent read.
+**Total.** 46 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
@@ -525,15 +555,15 @@ per-type reasoning as it stands.
 **The residue.** <!-- survey-gen:begin untaggable-residue -->
 `aws_api_gateway_account`, `aws_apigatewayv2_routing_rule`,
 `aws_cloudfront_origin_access_control`, `aws_cloudwatch_dashboard`,
+`aws_codebuild_webhook`, `aws_codedeploy_deployment_config`,
 `aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
 `aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
 `aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
 `aws_ecr_replication_configuration`, `aws_ecs_cluster_capacity_providers`,
-`aws_eip_association`, `aws_eks_access_policy_association`,
-`aws_glue_data_catalog_encryption_settings`, `aws_lambda_layer_version`,
-`aws_network_interface_attachment`, `aws_network_interface_permission`,
-`aws_rds_cluster_role_association`, `aws_route53_hosted_zone_dnssec` and
-`aws_route53_resolver_rule_association`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
+`aws_eip_association`, `aws_glue_data_catalog_encryption_settings`,
+`aws_lambda_layer_version`, `aws_network_interface_attachment`,
+`aws_network_interface_permission`, `aws_rds_cluster_role_association`,
+`aws_route53_hosted_zone_dnssec` and `aws_route53_resolver_rule_association`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
 parent-readable: the three ECR registry types are account-level singletons
 with no admitted parent resource to read at all, and the dashboard, the
 KMS alias and the Lambda layer version are each client-named on their own
