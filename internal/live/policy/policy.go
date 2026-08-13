@@ -23,6 +23,114 @@ type Scope struct {
 	Regions  []string
 }
 
+// Allows reports whether typeName (with its provider service namespace,
+// service - "" when the caller has none to offer, which never matches a
+// populated Services list) and region are within this scope's reach.
+//
+// Each of the three lists narrows independently, and an empty list imposes
+// no restriction of its own: a scope naming only regions still allows every
+// admitted, enumerable type, restricted to those regions. That is what makes
+// a region-only scope a legal (if broad) narrowing under
+// internal/live/lint's "at least one of services, type, or region" rule,
+// while a scope naming types or services narrows the type universe directly.
+// nil is never passed here for a delete verb in practice - lint refuses that
+// combination - but a nil Scope allows everything, matching "no scope block"
+// reads as "unscoped" wherever this is called defensively.
+func (s *Scope) Allows(typeName, service, region string) bool {
+	if s == nil {
+		return true
+	}
+	if len(s.Types) > 0 && !containsString(s.Types, typeName) {
+		return false
+	}
+	if len(s.Services) > 0 && (service == "" || !containsString(s.Services, service)) {
+		return false
+	}
+	if len(s.Regions) > 0 && (region == "" || !containsString(s.Regions, region)) {
+		return false
+	}
+	return true
+}
+
+func containsString(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
+// DefaultThreshold is the delete quadrant's first-run guard when a policy
+// block sets no threshold of its own: issue #67 asks for "a configurable
+// threshold (default modest)" and leaves choosing the number to the
+// behavioral half. Ten is modest in the sense the issue means - small enough
+// that a roster over it is worth a human's deliberate look before the next
+// run is allowed to raise it, and large enough that an estate with a
+// handful of stray resources does not trip the guard on its first legitimate
+// scoped cleanup.
+const DefaultThreshold = 10
+
+// EffectiveThreshold is the threshold the delete quadrant's first-run guard
+// actually enforces: the configured [Policy.Threshold] when the policy block
+// set one, [DefaultThreshold] otherwise.
+func (p *Policy) EffectiveThreshold() int {
+	if p != nil && p.ThresholdSet {
+		return p.Threshold
+	}
+	return DefaultThreshold
+}
+
+// TagMatches reports whether a live object's tags carry this policy's
+// TagKey=TagValue - the "tagged" half of every quadrant. tags is nil-safe:
+// an object the caller could read no tags from (untaggable, or a provider
+// that sent none) reports false, the same "nothing says this is tagged"
+// reading [Ownership] already gives an untaggable object's absence of a
+// marker.
+func (p *Policy) TagMatches(tags map[string]string) bool {
+	if p == nil || tags == nil {
+		return false
+	}
+	v, ok := tags[p.TagKey]
+	return ok && v == p.TagValue
+}
+
+// Verb returns the verb this policy assigns the quadrant named by declared
+// (the resource has a configuration address) and tagged (its live object
+// carries TagKey=TagValue). A nil Policy returns the quadrant's
+// [DefaultVerb], so a caller need not nil-check before asking.
+func (p *Policy) Verb(declared, tagged bool) Verb {
+	q := quadrantOf(declared, tagged)
+	if p == nil {
+		return DefaultVerb[q]
+	}
+	switch q {
+	case DeclaredTagged:
+		return p.DeclaredTagged
+	case DeclaredUntagged:
+		return p.DeclaredUntagged
+	case UndeclaredTagged:
+		return p.UndeclaredTagged
+	default:
+		return p.UndeclaredUntagged
+	}
+}
+
+// quadrantOf maps (declared, tagged) to the [Quadrant] the ownership matrix
+// names it, the same pairing [Quadrant]'s own doc comment table draws.
+func quadrantOf(declared, tagged bool) Quadrant {
+	switch {
+	case declared && tagged:
+		return DeclaredTagged
+	case declared && !tagged:
+		return DeclaredUntagged
+	case !declared && tagged:
+		return UndeclaredTagged
+	default:
+		return UndeclaredUntagged
+	}
+}
+
 // Policy is the fully resolved ownership policy: one verb per quadrant, the
 // tag every quadrant's "tagged" half is read against, and the delete
 // quadrant's safety rails. Every quadrant field is always set - never the
@@ -30,9 +138,11 @@ type Scope struct {
 // omitted (or the whole configuration, when it has no policy block at all)
 // from [DefaultVerb].
 //
-// See the package doc comment for what consumes this today: nothing. It is
-// constructed and threaded as far as the live commands' setup and stops
-// there until #59b and #60 land.
+// See the package doc comment for what consumes this: internal/live/
+// projection (the two declared quadrants), internal/live/discovery (the
+// undeclared quadrants: withholding an orphan from the sweep, and the
+// scoped delete reconciliation), and internal/live/stamp (the declared+
+// tagged untag verb's marker suppression).
 type Policy struct {
 	DeclaredTagged     Verb
 	DeclaredUntagged   Verb

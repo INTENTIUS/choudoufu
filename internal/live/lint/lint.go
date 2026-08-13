@@ -192,20 +192,13 @@ func checkManagedResources(mod *configs.Module, path addrs.Module, schemas map[s
 		// Type classification is managed-resources-only on purpose: a data
 		// source stores nothing and is re-read every operation, so it has no
 		// identity to recover and no admission question to answer.
-		if prefix, ok := logicalType(resource.Type); ok {
+		if lt, ok := ClassifyLogicalType(resource.Type); ok {
 			*issues = append(*issues, Issue{
 				Rule:      RuleLogicalResource,
 				Construct: addr,
 				Module:    path,
-				Detail: fmt.Sprintf(
-					"%q is a logical resource (%s*): it has no existence outside the record "+
-						"that OpenTofu keeps of it, so that record is the store live resource "+
-						"markers remove. Nothing can recover its value from the live system, because "+
-						"there is no live system holding it. Pass the value in as a variable or "+
-						"a local, or read it from a resource that really exists",
-					resource.Type, prefix,
-				),
-				Subject: resource.DeclRange,
+				Detail:    logicalResourceDetail(resource.Type, lt),
+				Subject:   resource.DeclRange,
 			})
 			// One verdict per resource: a logical type is already out, and
 			// telling the author it is also missing from the admission table

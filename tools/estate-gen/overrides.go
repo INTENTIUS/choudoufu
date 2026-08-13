@@ -7,6 +7,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
 )
@@ -540,6 +541,69 @@ var typeOverrides = map[string]typeOverride{
 			body.SetAttributeRaw("authorization", exprTokens(`"NONE"`))
 		},
 	},
+	// The three fold-children below (issue #68) all key on the same
+	// (rest_api_id, resource_id, http_method) triple aws_api_gateway_method
+	// above already does, since each duplicates the method's own composite
+	// identity verbatim (internal/live/identity/table.go's "Fold-children"
+	// section comment) - parentRef mis-wires rest_api_id the same way as
+	// aws_api_gateway_documentation_version above (its only same-named
+	// candidate is aws_api_gateway_rest_api_policy.app, whose own identity
+	// happens to self-name "rest_api_id" too), and has no candidate at all
+	// for resource_id, http_method or status_code, the same gap
+	// aws_api_gateway_method's own override closes.
+	"aws_api_gateway_integration": {
+		Reasons: []string{
+			`rest_api_id/resource_id/http_method mis-wired or left as the generic placeholder the same way aws_api_gateway_method's were, for the same reason - corrected to the same REST API root resource and GET method aws_api_gateway_method.app already targets, so this integration is the method's own; type is a fixed enum (validate: "expected type to be one of [...]"), set to MOCK, the shape floci's PutIntegration/GetIntegration round-trip cleanly (verified by hand)`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if restAPI, ok := g.byType["aws_api_gateway_rest_api"]; ok {
+				body.SetAttributeRaw("rest_api_id", exprTokens(fmt.Sprintf("%s.id", restAPI)))
+				body.SetAttributeRaw("resource_id", exprTokens(fmt.Sprintf("%s.root_resource_id", restAPI)))
+			}
+			body.SetAttributeRaw("http_method", exprTokens(`"GET"`))
+			body.SetAttributeRaw("type", exprTokens(`"MOCK"`))
+		},
+	},
+	"aws_api_gateway_integration_response": {
+		Reasons: []string{
+			`rest_api_id/resource_id/http_method mis-wired or left as the generic placeholder the same way aws_api_gateway_integration's were above, and for the same reason - status_code is left schema-Required-but-unvalidated by terraform validate, but the provider expects a real HTTP status string, set to the aws_api_gateway_method_response.app row below's own value so the two agree`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if restAPI, ok := g.byType["aws_api_gateway_rest_api"]; ok {
+				body.SetAttributeRaw("rest_api_id", exprTokens(fmt.Sprintf("%s.id", restAPI)))
+				body.SetAttributeRaw("resource_id", exprTokens(fmt.Sprintf("%s.root_resource_id", restAPI)))
+			}
+			body.SetAttributeRaw("http_method", exprTokens(`"GET"`))
+			body.SetAttributeRaw("status_code", exprTokens(`"200"`))
+		},
+	},
+	"aws_api_gateway_method_response": {
+		Reasons: []string{
+			`rest_api_id/resource_id/http_method/status_code, the same corrections as aws_api_gateway_integration_response above and for the same reason`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if restAPI, ok := g.byType["aws_api_gateway_rest_api"]; ok {
+				body.SetAttributeRaw("rest_api_id", exprTokens(fmt.Sprintf("%s.id", restAPI)))
+				body.SetAttributeRaw("resource_id", exprTokens(fmt.Sprintf("%s.root_resource_id", restAPI)))
+			}
+			body.SetAttributeRaw("http_method", exprTokens(`"GET"`))
+			body.SetAttributeRaw("status_code", exprTokens(`"200"`))
+		},
+	},
+	"aws_api_gateway_method_settings": {
+		Reasons: []string{
+			`rest_api_id mis-wired the same way as aws_api_gateway_documentation_version above; stage_name has no identity-table candidate to auto-wire from (aws_api_gateway_stage's own identity is the two-component rest_api_id/stage_name pair, not a single self-named argument, so identityArgName never fires on it, the same gap aws_api_gateway_method_settings's own fold parent has), wired to the stage this cohort renders instead of the generic placeholder; method_path left as the generic placeholder is not a real method path, set to the */* wildcard the provider docs use for "every method of every resource in the stage"`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if restAPI, ok := g.byType["aws_api_gateway_rest_api"]; ok {
+				body.SetAttributeRaw("rest_api_id", exprTokens(fmt.Sprintf("%s.id", restAPI)))
+			}
+			if stage, ok := g.byType["aws_api_gateway_stage"]; ok {
+				body.SetAttributeRaw("stage_name", exprTokens(fmt.Sprintf("%s.stage_name", stage)))
+			}
+			body.SetAttributeRaw("method_path", exprTokens(`"*/*"`))
+		},
+	},
 	"aws_api_gateway_model": {
 		Reasons: []string{
 			`rest_api_id mis-wired the same way as aws_api_gateway_documentation_version above; content_type and schema left as the generic placeholder would not be valid JSON, set to a minimal real value`,
@@ -627,6 +691,89 @@ var typeOverrides = map[string]typeOverride{
 					blk.Body().SetAttributeRaw("endpoint_type", exprTokens(`"REGIONAL"`))
 					blk.Body().SetAttributeRaw("security_policy", exprTokens(`"TLS_1_2"`))
 				}
+			}
+		},
+	},
+	// The three APS fold-children below (issue #68) all need their parent
+	// reference wired by hand, the same reason aws_api_gateway_base_path_mapping
+	// above does: aws_prometheus_workspace and aws_prometheus_scraper are
+	// both server-assigned, so identityArgName never fires on them and
+	// parentRef has no candidate to propose - even though each child's own
+	// identity happens to self-name the same argument
+	// (workspace_id/scraper_id) its parent's id lives under, valueExpr's
+	// own-identity tier (3) fires first and fills in a placeholder name
+	// instead of a reference, the same shape as aws_s3_bucket_policy or
+	// aws_sns_topic_policy would hit had their own parents been
+	// server-assigned instead of client-named/account-derived.
+	"aws_prometheus_alert_manager_definition": {
+		Reasons: []string{
+			`workspace_id left as a generic placeholder name instead of a reference (aws_prometheus_workspace is server-assigned, so parentRef never proposes it); wired to the workspace this cohort renders. definition is a required string the provider expects as YAML Alertmanager configuration; the generic placeholder is not valid YAML`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if ws, ok := g.byType["aws_prometheus_workspace"]; ok {
+				body.SetAttributeRaw("workspace_id", exprTokens(fmt.Sprintf("%s.id", ws)))
+			}
+			body.SetAttributeRaw("definition", exprTokens(`<<-EOT
+    route:
+      receiver: default
+    receivers:
+      - name: default
+  EOT
+  `))
+		},
+	},
+	"aws_prometheus_query_logging_configuration": {
+		Reasons: []string{
+			`workspace_id left as a generic placeholder name instead of a reference, the same reason and correction as aws_prometheus_alert_manager_definition above. destination is a required block the schema marks optional-in-shape but the provider requires present, and its own nested filters block is required in turn (validate: "Block destination[0].filters must have a configuration value")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if ws, ok := g.byType["aws_prometheus_workspace"]; ok {
+				body.SetAttributeRaw("workspace_id", exprTokens(fmt.Sprintf("%s.id", ws)))
+			}
+			dest := body.AppendNewBlock("destination", nil)
+			cwl := dest.Body().AppendNewBlock("cloudwatch_logs", nil)
+			cwl.Body().SetAttributeRaw("log_group_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:logs:us-east-1:000000000000:log-group:/aws/prometheus/tofu-%s-cohort:*"`, g.cohort)))
+			filters := dest.Body().AppendNewBlock("filters", nil)
+			filters.Body().SetAttributeRaw("qsp_threshold", exprTokens(`0`))
+		},
+	},
+	"aws_prometheus_scraper_logging_configuration": {
+		Reasons: []string{
+			`scraper_id left as a generic placeholder name instead of a reference (aws_prometheus_scraper is server-assigned, so parentRef never proposes it); wired to the scraper this cohort renders. logging_destination is a required block the schema marks optional-in-shape but the provider requires present`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if sc, ok := g.byType["aws_prometheus_scraper"]; ok {
+				body.SetAttributeRaw("scraper_id", exprTokens(fmt.Sprintf("%s.id", sc)))
+			}
+			dest := body.AppendNewBlock("logging_destination", nil)
+			cwl := dest.Body().AppendNewBlock("cloudwatch_logs", nil)
+			cwl.Body().SetAttributeRaw("log_group_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:logs:us-east-1:000000000000:log-group:/aws/prometheus/scraper/tofu-%s-cohort:*"`, g.cohort)))
+		},
+	},
+	"aws_prometheus_scraper": {
+		Reasons: []string{
+			`schema requires only scrape_configuration; the provider also requires the source and destination blocks (validate: "Missing required argument"), each with their own nested required arguments (an EKS-shaped source, an AMP workspace ARN destination) the generic pass has no schema signal for`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("scrape_configuration", exprTokens(`<<-EOT
+    global:
+      scrape_interval: 30s
+    scrape_configs:
+      - job_name: placeholder
+  EOT
+  `))
+			src := body.AppendNewBlock("source", nil)
+			eks := src.Body().AppendNewBlock("eks", nil)
+			eks.Body().SetAttributeRaw("cluster_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:eks:us-east-1:000000000000:cluster/tofu-%s-cohort"`, g.cohort)))
+			eks.Body().SetAttributeRaw("subnet_ids", exprTokens(`["subnet-0123456789abcdef0"]`))
+
+			dest := body.AppendNewBlock("destination", nil)
+			amp := dest.Body().AppendNewBlock("amp", nil)
+			if ws, ok := g.byType["aws_prometheus_workspace"]; ok {
+				amp.Body().SetAttributeRaw("workspace_arn", exprTokens(fmt.Sprintf("%s.arn", ws)))
 			}
 		},
 	},
@@ -2087,6 +2234,94 @@ var typeOverrides = map[string]typeOverride{
   })`))
 		},
 	},
+	// IoT core batch (issue #65).
+	"aws_iot_authorizer": {
+		Reasons: []string{
+			`"authorizer_function_arn" is a required string the schema does not constrain, but the provider validates it is a well-formed ARN (validate: "is an invalid ARN"); this argument names a Lambda function, not a role, so isRoleArg's cross-reference does not apply (this cohort requests no aws_lambda_function) - a literal, well-formed placeholder ARN is enough to satisfy the format check alone. "signing_disabled" is Optional and defaults to false (signing enabled), and the provider then requires "token_key_name" and "token_signing_public_keys" (apply: "\"token_key_name\" is required when signing is enabled", not caught by "terraform validate" - a real API-facing requirement, not a floci gap) - overridden to true so this fixture needs neither.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("authorizer_function_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:lambda:us-east-1:000000000000:function:tofu-%s-authorizer"`, g.cohort)))
+			body.SetAttributeRaw("signing_disabled", exprTokens(`true`))
+		},
+	},
+	"aws_iot_policy": {
+		Reasons: []string{
+			`"policy" is a required string the schema does not constrain, but the provider validates it is well-formed JSON (validate: "\"policy\" contains an invalid JSON"); the generic placeholder string is not`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("policy", exprTokens(`jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = ["iot:Publish"]
+      Resource  = "*"
+    }]
+  })`))
+		},
+	},
+	"aws_iot_provisioning_template": {
+		Reasons: []string{
+			`"name" is this type's own identity argument (internal/live/identity/table.go), but the generic pass's tofu-<cohort>-<type> placeholder ("tofu-iot-cohort-provisioning-template", 37 characters) exceeds the provider's documented 36-character limit (validate: "expected length of name to be in the range (1 - 36)"); "template_body" is a required string the schema does not constrain, but the provider validates it is well-formed JSON (validate: "\"template_body\" contains an invalid JSON") - the generic placeholder string is neither short enough nor JSON.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-provtmpl"`, g.cohort)))
+			body.SetAttributeRaw("template_body", exprTokens(`jsonencode({
+    Parameters = {
+      "AWS::IoT::Certificate::Id" = { Type = "String" }
+    }
+    Resources = {
+      certificate = {
+        Type = "AWS::IoT::Certificate"
+        Properties = {
+          CertificateId = { Ref = "AWS::IoT::Certificate::Id" }
+          Status        = "ACTIVE"
+        }
+      }
+      thing = {
+        Type = "AWS::IoT::Thing"
+        Properties = {
+          ThingName = { Ref = "AWS::IoT::Certificate::Id" }
+        }
+      }
+    }
+  })`))
+		},
+	},
+	"aws_iot_role_alias": {
+		Reasons: []string{
+			`"role_arn" is a required string the schema does not constrain and (unlike aws_codepipeline's own "role_arn" above) the provider ships no ARN-format validator on this particular attribute, so the generic placeholder passes "terraform validate" unchanged - but it is still the same bare isRoleArg gap named on aws_codepipeline and aws_codebuild_project above ("role_arn" alone does not end "_role_arn"), and a non-ARN placeholder would fail at apply against a real IoT role_alias create, so this override wires the real cross-resource reference anyway rather than leaving a validate-clean but apply-broken row.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if roleRef, ok := g.iamRoleRefExpr(); ok {
+				body.SetAttributeRaw("role_arn", exprTokens(roleRef))
+			}
+		},
+	},
+	"aws_iot_topic_rule": {
+		Reasons: []string{
+			`"name" is this type's own identity argument (internal/live/identity/table.go), but the generic pass's tofu-<cohort>-<type> placeholder uses hyphens, and the provider validates topic rule names against ^[0-9A-Za-z_]+$ (validate: "Name must match the pattern ^[0-9A-Za-z_]+$") - hyphens are not in that set, unlike every other client-named IoT type in this cohort.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu_%s_topic_rule"`, strings.ReplaceAll(g.cohort, "-", "_"))))
+		},
+	},
+	"aws_iot_topic_rule_destination": {
+		Reasons: []string{
+			`"vpc_configuration.role_arn" is a required string nested inside the vpc_configuration block; the schema does not constrain it, but the provider validates it is a well-formed ARN (validate: "is an invalid ARN") - isRoleArg's generic cross-reference only scans each type's top-level required arguments (planCohort's requiredArgNames pass), not nested block arguments, so this nested role_arn is never auto-wired the way aws_iot_provisioning_template's top-level provisioning_role_arn is.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			roleRef, ok := g.iamRoleRefExpr()
+			if !ok {
+				return
+			}
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "vpc_configuration" {
+					blk.Body().SetAttributeRaw("role_arn", exprTokens(roleRef))
+				}
+			}
+		},
+	},
 	// Identity batch (issue #65). Every argument below is Required in the
 	// wire schema (so the generic required-only pass already sets it), but
 	// the provider's own plan-time validation rejects the generic
@@ -2976,6 +3211,575 @@ DATA
 			body.SetAttributeRaw("paste_allowed", exprTokens(`"Enabled"`))
 			body.SetAttributeRaw("print_allowed", exprTokens(`"Enabled"`))
 			body.SetAttributeRaw("upload_allowed", exprTokens(`"Enabled"`))
+		},
+	},
+	"aws_appintegrations_data_integration": {
+		Reasons: []string{
+			`source_uri is a required string the schema does not constrain, but the provider validates it against a fixed pattern (validate: "invalid value for source_uri (should be a valid source uri)"), documented as a connector-profile scheme like "Salesforce://AppFlow/example"; the generic placeholder string does not match it`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("source_uri", exprTokens(fmt.Sprintf(`"Salesforce://AppFlow/tofu-%s-cohort"`, g.cohort)))
+		},
+	},
+	"aws_appintegrations_event_integration": {
+		Reasons: []string{
+			`event_filter.source is a required string the schema does not constrain, but the provider validates it against a fixed prefix regex (validate: "should be not be more than 255 alphanumeric, forward slashes, dots, underscores, or hyphen characters" - the message text does not match the actual pattern, which the provider's own source requires to start "aws.partner/"); the generic placeholder string does not start with it`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "event_filter" {
+					blk.Body().SetAttributeRaw("source", exprTokens(fmt.Sprintf(
+						`"aws.partner/tofu-%s-cohort"`, g.cohort)))
+				}
+			}
+		},
+	},
+	"aws_datasync_agent": {
+		Reasons: []string{
+			`activation_key and ip_address are both Optional in the schema, but the provider requires one of them at apply time ("one of activation_key or ip_address is required") - an apply-time-only gap ` + "`terraform validate`" + ` does not catch, found by hand-verifying this cohort against the pinned floci image. ip_address makes Terraform itself perform an HTTP GET against that address to retrieve the real activation key before the DataSync API call happens at all, which hangs indefinitely against any address that is not an actual reachable agent appliance; activation_key needs no such round-trip, so it is the one this override sets`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("activation_key", exprTokens(`"placeholder-activation-key"`))
+		},
+	},
+	"aws_datasync_location_azure_blob": {
+		Reasons: []string{
+			`authentication_type is a required string the schema does not constrain to an enum, but the provider validates it against a fixed set (validate: "expected authentication_type to be one of [\"SAS\" \"NONE\"]"); agent_arns is a required set of strings the provider validates are well-formed ARNs (validate: "is an invalid ARN")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("authentication_type", exprTokens(`"SAS"`))
+			body.SetAttributeRaw("agent_arns", exprTokens(fmt.Sprintf(
+				`["arn:aws:datasync:us-east-1:000000000000:agent/agent-tofu%scohort"`+"]", g.cohort)))
+		},
+	},
+	"aws_datasync_location_efs": {
+		Reasons: []string{
+			`efs_file_system_arn and ec2_config's security_group_arns/subnet_arn are all required strings the provider validates are well-formed ARNs (validate: "is an invalid ARN"); the generic placeholder string is not one`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("efs_file_system_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:elasticfilesystem:us-east-1:000000000000:file-system/fs-tofu%scohort"`, g.cohort)))
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "ec2_config" {
+					blk.Body().SetAttributeRaw("security_group_arns", exprTokens(fmt.Sprintf(
+						`["arn:aws:ec2:us-east-1:000000000000:security-group/sg-tofu%scohort"`+"]", g.cohort)))
+					blk.Body().SetAttributeRaw("subnet_arn", exprTokens(fmt.Sprintf(
+						`"arn:aws:ec2:us-east-1:000000000000:subnet/subnet-tofu%scohort"`, g.cohort)))
+				}
+			}
+		},
+	},
+	"aws_datasync_location_fsx_lustre_file_system": {
+		Reasons: []string{
+			`fsx_filesystem_arn and security_group_arns are both required strings the provider validates are well-formed ARNs (validate: "is an invalid ARN")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("fsx_filesystem_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:fsx:us-east-1:000000000000:file-system/fs-tofu%scohort"`, g.cohort)))
+			body.SetAttributeRaw("security_group_arns", exprTokens(fmt.Sprintf(
+				`["arn:aws:ec2:us-east-1:000000000000:security-group/sg-tofu%scohort"`+"]", g.cohort)))
+		},
+	},
+	"aws_datasync_location_fsx_ontap_file_system": {
+		Reasons: []string{
+			`security_group_arns and storage_virtual_machine_arn are both required strings the provider validates are well-formed ARNs (validate: "is an invalid ARN"); protocol's nfs and smb sub-blocks are both Optional in the schema, but the provider requires exactly one set (validate: "one of protocol.0.nfs,protocol.0.smb must be specified"), and the generic pass renders neither, unlike its sibling aws_datasync_location_fsx_openzfs_file_system, whose protocol block has only one sub-block to choose`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("security_group_arns", exprTokens(fmt.Sprintf(
+				`["arn:aws:ec2:us-east-1:000000000000:security-group/sg-tofu%scohort"`+"]", g.cohort)))
+			body.SetAttributeRaw("storage_virtual_machine_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:fsx:us-east-1:000000000000:storage-virtual-machine/svm-tofu%scohort"`, g.cohort)))
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "protocol" {
+					nfs := blk.Body().AppendNewBlock("nfs", nil)
+					nfs.Body().AppendNewBlock("mount_options", nil)
+				}
+			}
+		},
+	},
+	"aws_datasync_location_fsx_openzfs_file_system": {
+		Reasons: []string{
+			`fsx_filesystem_arn and security_group_arns are both required strings the provider validates are well-formed ARNs (validate: "is an invalid ARN")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("fsx_filesystem_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:fsx:us-east-1:000000000000:file-system/fs-tofu%scohort"`, g.cohort)))
+			body.SetAttributeRaw("security_group_arns", exprTokens(fmt.Sprintf(
+				`["arn:aws:ec2:us-east-1:000000000000:security-group/sg-tofu%scohort"`+"]", g.cohort)))
+		},
+	},
+	"aws_datasync_location_fsx_windows_file_system": {
+		Reasons: []string{
+			`fsx_filesystem_arn and security_group_arns are both required strings the provider validates are well-formed ARNs (validate: "is an invalid ARN")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("fsx_filesystem_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:fsx:us-east-1:000000000000:file-system/fs-tofu%scohort"`, g.cohort)))
+			body.SetAttributeRaw("security_group_arns", exprTokens(fmt.Sprintf(
+				`["arn:aws:ec2:us-east-1:000000000000:security-group/sg-tofu%scohort"`+"]", g.cohort)))
+		},
+	},
+	"aws_datasync_location_hdfs": {
+		Reasons: []string{
+			`agent_arns is a required set of strings the provider validates are well-formed ARNs (validate: "is an invalid ARN"); name_node.port is a required number the schema does not range-constrain, but the provider validates it is a valid port (validate: "expected \"name_node.0.port\" to be a valid port number, got: 0"), and the generic pass's numeric zero placeholder is not one; authentication_type is Optional in the schema, but the provider's own AWS SDK request validation requires it client-side before any HTTP call is made ("missing required field, CreateLocationHdfsInput.AuthenticationType") - ` + "`terraform validate`" + ` does not catch this one either, only an apply against the pinned floci image did; SIMPLE also requires simple_user, which the schema likewise leaves Optional`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("agent_arns", exprTokens(fmt.Sprintf(
+				`["arn:aws:datasync:us-east-1:000000000000:agent/agent-tofu%scohort"`+"]", g.cohort)))
+			body.SetAttributeRaw("authentication_type", exprTokens(`"SIMPLE"`))
+			body.SetAttributeRaw("simple_user", exprTokens(`"placeholder"`))
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "name_node" {
+					blk.Body().SetAttributeRaw("port", exprTokens(`8020`))
+				}
+			}
+		},
+	},
+	"aws_datasync_location_nfs": {
+		Reasons: []string{
+			`on_prem_config.agent_arns is a required set of strings the provider validates are well-formed ARNs (validate: "is an invalid ARN")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "on_prem_config" {
+					blk.Body().SetAttributeRaw("agent_arns", exprTokens(fmt.Sprintf(
+						`["arn:aws:datasync:us-east-1:000000000000:agent/agent-tofu%scohort"`+"]", g.cohort)))
+				}
+			}
+		},
+	},
+	"aws_datasync_location_s3": {
+		Reasons: []string{
+			`s3_bucket_arn is a required string the provider validates is a well-formed ARN (validate: "is an invalid ARN")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("s3_bucket_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:s3:::tofu-%s-cohort-datasync-s3"`, g.cohort)))
+		},
+	},
+	"aws_datasync_location_smb": {
+		Reasons: []string{
+			`agent_arns is a required set of strings the provider validates are well-formed ARNs (validate: "is an invalid ARN")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("agent_arns", exprTokens(fmt.Sprintf(
+				`["arn:aws:datasync:us-east-1:000000000000:agent/agent-tofu%scohort"`+"]", g.cohort)))
+		},
+	},
+	"aws_datasync_task": {
+		Reasons: []string{
+			`destination_location_arn and source_location_arn are both required strings the provider validates are well-formed ARNs (validate: "is an invalid ARN") - overridden to this cohort's own aws_datasync_location_nfs.app.arn and aws_datasync_location_s3.app.arn, the cross-resource reference issue #56 asks for and the provider's own documented example uses verbatim`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if src, ok := g.byType["aws_datasync_location_nfs"]; ok {
+				body.SetAttributeRaw("source_location_arn", exprTokens(fmt.Sprintf("%s.arn", src)))
+			}
+			if dst, ok := g.byType["aws_datasync_location_s3"]; ok {
+				body.SetAttributeRaw("destination_location_arn", exprTokens(fmt.Sprintf("%s.arn", dst)))
+			}
+		},
+	},
+	"aws_dms_certificate": {
+		Reasons: []string{
+			`certificate_pem and certificate_wallet are both Optional in the schema, but the provider requires exactly one set (validate: "one of certificate_pem,certificate_wallet must be specified"), and the generic pass sets neither`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("certificate_pem", exprTokens(`"placeholder-pem"`))
+		},
+	},
+	"aws_dms_endpoint": {
+		Reasons: []string{
+			`endpoint_type and engine_name are both required strings the schema does not constrain to an enum, but the provider validates each against a fixed set (validate: "expected ... to be one of [...]"); "s3" is not among engine_name's valid values - that shape is what the separate aws_dms_s3_endpoint type below covers`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("endpoint_type", exprTokens(`"source"`))
+			body.SetAttributeRaw("engine_name", exprTokens(`"mysql"`))
+		},
+	},
+	"aws_dms_event_subscription": {
+		Reasons: []string{
+			`sns_topic_arn is a required string the provider validates is a well-formed ARN (validate: "is an invalid ARN"), and no aws_sns_topic is part of this cohort to reference, the same gap aws_db_event_subscription's own override fills; source_type is a required string the schema does not constrain to an enum, but the provider validates it against a fixed set (validate: "expected source_type to be one of [...]")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("sns_topic_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:sns:us-east-1:000000000000:tofu-%s-cohort-events"`, g.cohort)))
+			body.SetAttributeRaw("source_type", exprTokens(`"replication-task"`))
+		},
+	},
+	"aws_dms_replication_config": {
+		Reasons: []string{
+			`replication_type is a required string the schema does not constrain to an enum, but the provider validates it against a fixed set (validate: "expected replication_type to be one of [...]"); source_endpoint_arn and target_endpoint_arn are both required strings the provider validates are well-formed ARNs (validate: "is an invalid ARN") - overridden to this cohort's own aws_dms_endpoint.app.endpoint_arn and aws_dms_s3_endpoint.app.endpoint_arn, the cross-resource reference issue #56 asks for and the provider's own documented example uses the same way; table_mappings is a required string the provider validates is well-formed JSON (validate: "contains an invalid JSON"); compute_config.replication_subnet_group_id is Optional in the schema, but the generic pass already renders a placeholder for it - overridden to this cohort's own aws_dms_replication_subnet_group.app.replication_subnet_group_id instead`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("replication_type", exprTokens(`"full-load"`))
+			if ep, ok := g.byType["aws_dms_endpoint"]; ok {
+				body.SetAttributeRaw("source_endpoint_arn", exprTokens(fmt.Sprintf("%s.endpoint_arn", ep)))
+			}
+			if ep, ok := g.byType["aws_dms_s3_endpoint"]; ok {
+				body.SetAttributeRaw("target_endpoint_arn", exprTokens(fmt.Sprintf("%s.endpoint_arn", ep)))
+			}
+			body.SetAttributeRaw("table_mappings", exprTokens(`jsonencode({
+    rules = [{
+      rule-type   = "selection"
+      rule-id     = "1"
+      rule-name   = "1"
+      object-locator = {
+        schema-name = "%"
+        table-name  = "%"
+      }
+      rule-action = "include"
+    }]
+  })`))
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "compute_config" {
+					if sng, ok := g.byType["aws_dms_replication_subnet_group"]; ok {
+						blk.Body().SetAttributeRaw("replication_subnet_group_id", exprTokens(
+							fmt.Sprintf("%s.replication_subnet_group_id", sng)))
+					}
+				}
+			}
+		},
+	},
+	"aws_dms_replication_subnet_group": {
+		Reasons: []string{
+			`subnet_ids is a required list with a provider-enforced 2-item minimum (validate: "Attribute subnet_ids requires 2 item minimum, but config has only 1 declared"), the same MinItems gap aws_route53_resolver_firewall_rule's ip_address override fixes in the observability batch, and the schema itself does not say so`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("subnet_ids", exprTokens(
+				`["subnet-0123456789abcdef0", "subnet-0123456789abcdef1"]`))
+		},
+	},
+	"aws_dms_replication_task": {
+		Reasons: []string{
+			`migration_type is a required string the schema does not constrain to an enum, but the provider validates it against a fixed set (validate: "expected migration_type to be one of [...]"); replication_instance_arn, source_endpoint_arn and target_endpoint_arn are all required strings the provider validates are well-formed ARNs (validate: "is an invalid ARN") - overridden to this cohort's own aws_dms_replication_instance.app.replication_instance_arn, aws_dms_endpoint.app.endpoint_arn and aws_dms_s3_endpoint.app.endpoint_arn, the cross-resource reference issue #56 asks for; table_mappings is a required string the provider validates is well-formed JSON (validate: "contains an invalid JSON")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("migration_type", exprTokens(`"full-load"`))
+			if ri, ok := g.byType["aws_dms_replication_instance"]; ok {
+				body.SetAttributeRaw("replication_instance_arn", exprTokens(
+					fmt.Sprintf("%s.replication_instance_arn", ri)))
+			}
+			if ep, ok := g.byType["aws_dms_endpoint"]; ok {
+				body.SetAttributeRaw("source_endpoint_arn", exprTokens(fmt.Sprintf("%s.endpoint_arn", ep)))
+			}
+			if ep, ok := g.byType["aws_dms_s3_endpoint"]; ok {
+				body.SetAttributeRaw("target_endpoint_arn", exprTokens(fmt.Sprintf("%s.endpoint_arn", ep)))
+			}
+			body.SetAttributeRaw("table_mappings", exprTokens(`jsonencode({
+    rules = [{
+      rule-type   = "selection"
+      rule-id     = "1"
+      rule-name   = "1"
+      object-locator = {
+        schema-name = "%"
+        table-name  = "%"
+      }
+      rule-action = "include"
+    }]
+  })`))
+		},
+	},
+	"aws_dms_s3_endpoint": {
+		Reasons: []string{
+			`endpoint_type is a required string the schema does not constrain to an enum, but the provider validates it against a fixed set (validate: "expected endpoint_type to be one of [...]") - set to "target", pairing with aws_dms_endpoint.app's own "source" so aws_dms_replication_config and aws_dms_replication_task above have one endpoint of each type to reference`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("endpoint_type", exprTokens(`"target"`))
+		},
+	},
+	"aws_transfer_user": {
+		Reasons: []string{
+			`server_id is a required string the provider validates is a well-formed Transfer server id, lowercase alphanumeric only (validate: "isn't a valid transfer server id") - the generic placeholder string is not one; overridden to this cohort's own aws_transfer_server.app.id, the cross-resource reference issue #56 asks for and exactly the composite this type's own internal/live/identity/table.go entry (server_id/user_name) is ratified on`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if srv, ok := g.byType["aws_transfer_server"]; ok {
+				body.SetAttributeRaw("server_id", exprTokens(fmt.Sprintf("%s.id", srv)))
+			}
+		},
+	},
+	"aws_transfer_workflow": {
+		Reasons: []string{
+			`steps.type is a required string the schema does not constrain to an enum, but the provider validates it against a fixed set (validate: "expected type to be one of [...]"); DELETE needs no further delete_step_details block, the smaller of the five shapes`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "steps" {
+					blk.Body().SetAttributeRaw("type", exprTokens(`"DELETE"`))
+				}
+			}
+		},
+	},
+	// Databases batch (issue #65). Several entries below fix the same
+	// parentRef mis-wiring shape aws_ecs_daemon and aws_eks_access_entry
+	// document above: a type whose own "name" argument is not its
+	// identity.LookupType-visible identity (either because it is
+	// server-assigned, per identityArgName's rule at gen.go:114-124, or
+	// because its identity is a multi-component composite, e.g. the three
+	// OpenSearchServerless policy types' name+type pair) has no competing
+	// claim on "name", so parentRef's same-name search silently wires it to
+	// the alphabetically-first sibling that does own "name" as a
+	// single-component identity - aws_docdb_event_subscription in this
+	// cohort. Every one of those types is corrected back to its own literal
+	// name below; none of them has any real relationship to a DocDB event
+	// subscription. The rest of the entries below fix real
+	// `terraform validate` failures: a placeholder string that is not a
+	// well-formed ARN, exceeds a length limit, or is not a member of a
+	// closed enum the schema itself does not carry; one
+	// (aws_redshift_cluster) fixes a provider-side requirement that
+	// validate does not catch at all, only a real apply against floci.
+	"aws_redshift_cluster": {
+		Reasons: []string{
+			`neither "manage_master_password" nor "master_password" is Required in the wire schema (the provider accepts either), so the generic required-only pass sets neither, and validate does not catch the gap - but the provider's own plan-time logic refuses the combination outright (apply: "one of \"manage_master_password\" or \"master_password\" is required"), found only by exercising a real apply against floci`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("master_password", exprTokens(`"TofuDatabasesCohortPassw0rd"`))
+		},
+	},
+	"aws_docdb_event_subscription": {
+		Reasons: []string{
+			`"sns_topic_arn" is a required string the schema does not constrain, but the provider validates it is a well-formed ARN (validate: "\"sns_topic_arn\" (placeholder) is an invalid ARN: arn: invalid prefix"); no aws_sns_topic is part of this cohort to reference`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("sns_topic_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:sns:us-east-1:000000000000:tofu-%s-cohort-events"`, g.cohort)))
+		},
+	},
+	"aws_docdbelastic_cluster": {
+		Reasons: []string{
+			`"name" was mis-wired to aws_docdb_event_subscription.app.name (this type is server-assigned per internal/live/identity/table.go, so identityArgName never claims "name" as its own, and parentRef's same-name search picks the alphabetically-first sibling that does); corrected to a literal name. "auth_type" is a required argument the provider validates against a closed enum (PLAIN_TEXT, SECRET_ARN per the provider's own Argument Reference), and the generic placeholder string is neither. "shard_capacity" and "shard_count" are both required integers the generic pass leaves at their zero value, which the provider's own documented Argument Reference says is below the minimum in practice (not caught by validate, found by reading the provider's example usage) - set to the documented example's own values`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-docdbelastic-cluster"`, g.cohort)))
+			body.SetAttributeRaw("auth_type", exprTokens(`"PLAIN_TEXT"`))
+			body.SetAttributeRaw("shard_capacity", exprTokens(`2`))
+			body.SetAttributeRaw("shard_count", exprTokens(`1`))
+		},
+	},
+	"aws_elasticsearch_domain": {
+		Reasons: []string{
+			`"domain_name" is a required string the schema does not constrain, but the provider validates it against a closed shape (validate: "must start with a lowercase alphabet and be at least 3 and no more than 28 characters long. Valid characters are a-z (lowercase letters), 0-9, and - (hyphen)"); the generic tofu-<cohort>-cohort-<type> placeholder is 44 characters and carries no uppercase, but is otherwise disqualified purely on length`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("domain_name", exprTokens(`"tofu-db-es-domain"`))
+		},
+	},
+	"aws_keyspaces_keyspace": {
+		Reasons: []string{
+			`"name" is a required string the schema does not constrain, but the provider validates it against a closed shape (validate: "The name can have up to 48 characters. It must begin with an alpha-numeric character and can only contain alpha-numeric characters and underscores."); the generic placeholder is hyphenated`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu_%s_cohort_keyspaces_keyspace"`, g.cohort)))
+		},
+	},
+	"aws_keyspaces_table": {
+		Reasons: []string{
+			`"keyspace_name" and "table_name" are both required strings the schema does not constrain, but the provider validates both against the same closed shape as aws_keyspaces_keyspace's own "name" above (validate: "The keyspace/table name can have up to 48 characters..."), and the generic pass's placeholders are both hyphenated; keyspace_name is also wired to the sibling aws_keyspaces_keyspace this cohort renders rather than left as an unrelated literal, since a table genuinely belongs to a keyspace. schema_definition.column.type is required and the provider validates it against its own lower-case CQL type-name shape (validate: "The type must consist of lower case alphanumerics and an optional list of upto two lower case alphanumerics enclosed in angle brackets '<>'."); the generic placeholder is neither lower-case nor a real type, set to "text"`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			keyspaceNameExpr := fmt.Sprintf(`"tofu_%s_cohort_keyspaces_keyspace"`, g.cohort)
+			if keyspace, ok := g.byType["aws_keyspaces_keyspace"]; ok {
+				keyspaceNameExpr = fmt.Sprintf("%s.name", keyspace)
+			}
+			body.SetAttributeRaw("keyspace_name", exprTokens(keyspaceNameExpr))
+			body.SetAttributeRaw("table_name", exprTokens(fmt.Sprintf(`"tofu_%s_cohort_keyspaces_table"`, g.cohort)))
+			for _, blk := range body.Blocks() {
+				if blk.Type() != "schema_definition" {
+					continue
+				}
+				for _, inner := range blk.Body().Blocks() {
+					switch inner.Type() {
+					case "column":
+						inner.Body().SetAttributeRaw("name", exprTokens(`"id"`))
+						inner.Body().SetAttributeRaw("type", exprTokens(`"text"`))
+					case "partition_key":
+						inner.Body().SetAttributeRaw("name", exprTokens(`"id"`))
+					}
+				}
+			}
+		},
+	},
+	"aws_memorydb_user": {
+		Reasons: []string{
+			`authentication_mode.type is a required argument the provider validates against a closed enum (validate: "expected type to be one of [\"password\" \"iam\"], got placeholder"); set to "password", which the provider's own documented example pairs with a "passwords" list the generic pass never sets (Optional in the schema, but the API rejects a password-mode user with none) - added here for the same apply-time reason aws_backup_restore_testing_plan's recovery_point_selection above is`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "authentication_mode" {
+					blk.Body().SetAttributeRaw("type", exprTokens(`"password"`))
+					blk.Body().SetAttributeRaw("passwords", exprTokens(`["TofuDatabasesCohortPassw0rd2026"]`))
+				}
+			}
+		},
+	},
+	"aws_opensearch_domain": {
+		Reasons: []string{
+			`Same "domain_name" shape constraint as aws_elasticsearch_domain above (validate: "must start with a lowercase alphabet and be at least 3 and no more than 28 characters long..."); the generic placeholder is 40 characters`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("domain_name", exprTokens(`"tofu-db-os-domain"`))
+		},
+	},
+	"aws_opensearchserverless_access_policy": {
+		Reasons: []string{
+			`"name" was mis-wired to aws_docdb_event_subscription.app.name (this type's identity is the composite name+type pair, more than one Component, so identityArgName never claims "name" as its own single-component identity - the same shape gen.go:116's "len(entry.Components) != 1" comment describes); corrected to a literal name. "type" is required and the provider validates it against a one-member closed enum (must be "data", per the provider's own Argument Reference); the generic placeholder is not. "policy" is a required string the provider validates as well-formed JSON matching its own access-policy shape (Rules/Principal), confirmed against the provider's documented example`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(`"tofu-db-access-policy"`))
+			body.SetAttributeRaw("type", exprTokens(`"data"`))
+			resourceExpr := `"collection/tofu-db-collection"`
+			if collection, ok := g.byType["aws_opensearchserverless_collection"]; ok {
+				resourceExpr = fmt.Sprintf(`"collection/${%s.name}"`, collection)
+			}
+			body.SetAttributeRaw("policy", exprTokens(fmt.Sprintf(`jsonencode([
+    {
+      Rules = [
+        {
+          ResourceType = "collection"
+          Resource     = [%s]
+          Permission   = ["aoss:*"]
+        }
+      ]
+      Principal = ["arn:aws:iam::000000000000:root"]
+    }
+  ])`, resourceExpr)))
+		},
+	},
+	"aws_opensearchserverless_collection": {
+		Reasons: []string{
+			`"name" mis-wired the same way as aws_opensearchserverless_access_policy above; corrected to a literal name. AWS itself refuses to create a collection with no matching encryption security policy (not caught by validate; found by reading the provider's own documented example, which sequences an aws_opensearchserverless_security_policy before its collection with an explicit depends_on) - wired to this cohort's own aws_opensearchserverless_security_policy the same way`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(`"tofu-db-collection"`))
+			if secPolicy, ok := g.byType["aws_opensearchserverless_security_policy"]; ok {
+				body.SetAttributeRaw("depends_on", exprTokens(fmt.Sprintf(`[%s]`, secPolicy)))
+			}
+		},
+	},
+	"aws_opensearchserverless_collection_group": {
+		Reasons: []string{
+			`"name" mis-wired the same way as aws_opensearchserverless_access_policy above; corrected to a literal name. "standby_replicas" is required and the provider validates it against a closed enum (ENABLED, DISABLED per the provider's own Argument Reference); the generic placeholder is neither`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(`"tofu-db-collection-group"`))
+			body.SetAttributeRaw("standby_replicas", exprTokens(`"ENABLED"`))
+		},
+	},
+	"aws_opensearchserverless_lifecycle_policy": {
+		Reasons: []string{
+			`"name" mis-wired the same way as aws_opensearchserverless_access_policy above; corrected to a literal name. "type" is required and the provider validates it against a one-member closed enum (must be "retention", per the provider's own Argument Reference); the generic placeholder is not. "policy" is a required string the provider validates as well-formed JSON matching its own lifecycle-policy shape (Rules with ResourceType/Resource/MinIndexRetention), confirmed against the provider's documented example`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(`"tofu-db-lifecycle-policy"`))
+			body.SetAttributeRaw("type", exprTokens(`"retention"`))
+			body.SetAttributeRaw("policy", exprTokens(`jsonencode({
+    Rules = [
+      {
+        ResourceType      = "index"
+        Resource          = ["index/tofu-db-collection/*"]
+        MinIndexRetention = "30d"
+      }
+    ]
+  })`))
+		},
+	},
+	"aws_opensearchserverless_security_policy": {
+		Reasons: []string{
+			`"name" mis-wired the same way as aws_opensearchserverless_access_policy above; corrected to a literal name. "type" is required and the provider validates it against a closed enum (encryption, network per the provider's own Argument Reference); the generic placeholder is neither. "policy" is a required string the provider validates as well-formed JSON matching its own encryption-policy shape (Rules/AWSOwnedKey), confirmed against the provider's documented example - the policy's Resource pattern targets this cohort's own aws_opensearchserverless_collection by name, since it is the encryption policy that type's own override depends_on`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(`"tofu-db-security-policy"`))
+			body.SetAttributeRaw("type", exprTokens(`"encryption"`))
+			body.SetAttributeRaw("policy", exprTokens(`jsonencode({
+    Rules = [
+      {
+        ResourceType = "collection"
+        Resource     = ["collection/tofu-db-collection"]
+      }
+    ]
+    AWSOwnedKey = true
+  })`))
+		},
+	},
+	"aws_qldb_ledger": {
+		Reasons: []string{
+			`"name" is a required string the schema does not constrain, but the provider validates its length (validate: "expected length of name to be in the range (1 - 32), got tofu-databases-cohort-qldb-ledger"), 34 characters against a 32-character limit. "permissions_mode" is required and the provider validates it against a closed enum (ALLOW_ALL, STANDARD per the provider's own Argument Reference); the generic placeholder is neither, and STANDARD is the value the provider's own docs recommend over the legacy ALLOW_ALL`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(`"tofu-db-qldb-ledger"`))
+			body.SetAttributeRaw("permissions_mode", exprTokens(`"STANDARD"`))
+		},
+	},
+	"aws_redshift_snapshot_schedule": {
+		Reasons: []string{
+			`"definitions" is a list of schedule expressions the schema types as unconstrained strings; the generic placeholder is neither a documented cron nor rate expression (not caught by validate, found by reading the provider's own documented example) - set to that same example's "rate(12 hours)"`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("definitions", exprTokens(`["rate(12 hours)"]`))
+		},
+	},
+	"aws_timestreaminfluxdb_db_cluster": {
+		Reasons: []string{
+			`"name" mis-wired the same way as aws_docdbelastic_cluster above (this type is also server-assigned); corrected to a literal name. "db_instance_type" is required and the plugin-framework schema validates it against a closed enum (validate: "Invalid String Enum Value" - db.influx.medium, db.influx.large, ...); the generic placeholder is not a member. "vpc_security_group_ids" and "vpc_subnet_ids" are both required lists of strings the framework schema validates by regular expression (^sg-[a-z0-9]+$ and ^subnet-[a-z0-9]+$ respectively); the generic placeholder string matches neither. "allocated_storage", "bucket", "organization", "password" and "username" are all Optional in the wire schema, so the generic required-only pass never sets them, but the provider's own plan-time business logic requires all five for a V2 cluster (not caught by validate; found by exercising a real apply against floci: "Missing Required Configuration for InfluxDB V2": "allocated_storage/bucket/organization/password/username is required for InfluxDB V2 clusters") - added by hand the same way aws_timestreaminfluxdb_db_instance's own allocated_storage already is. "password" also has its own regular-expression shape (validate: "Attribute password value must match regular expression '^[a-zA-Z0-9]+$'"), found the same apply-time way; the generic cohort-derived literal that would otherwise land here is hyphenated, so this one is alphanumeric-only instead`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(`"tofu-db-influxdb-cluster"`))
+			body.SetAttributeRaw("db_instance_type", exprTokens(`"db.influx.medium"`))
+			body.SetAttributeRaw("vpc_security_group_ids", exprTokens(`["sg-0123456789abcdef0"]`))
+			body.SetAttributeRaw("vpc_subnet_ids", exprTokens(`["subnet-0123456789abcdef0", "subnet-0123456789abcdef1"]`))
+			body.SetAttributeRaw("allocated_storage", exprTokens(`20`))
+			body.SetAttributeRaw("bucket", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-influxdb"`, g.cohort)))
+			body.SetAttributeRaw("organization", exprTokens(fmt.Sprintf(`"tofu-%s-cohort"`, g.cohort)))
+			body.SetAttributeRaw("password", exprTokens(`"TofuDatabasesCohortPassw0rd2026"`))
+			body.SetAttributeRaw("username", exprTokens(`"admin"`))
+		},
+	},
+	"aws_timestreaminfluxdb_db_instance": {
+		Reasons: []string{
+			`Same "name" mis-wiring, "db_instance_type" enum, and "vpc_security_group_ids"/"vpc_subnet_ids" regular-expression shapes as aws_timestreaminfluxdb_db_cluster above. "allocated_storage" is a required integer the framework schema validates as 20-16384 (validate: "Attribute allocated_storage value must be between 20 and 16384, got: 0"); the generic pass's zero value is below the minimum`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(`"tofu-db-influxdb-instance"`))
+			body.SetAttributeRaw("db_instance_type", exprTokens(`"db.influx.medium"`))
+			body.SetAttributeRaw("vpc_security_group_ids", exprTokens(`["sg-0123456789abcdef0"]`))
+			body.SetAttributeRaw("vpc_subnet_ids", exprTokens(`["subnet-0123456789abcdef0", "subnet-0123456789abcdef1"]`))
+			body.SetAttributeRaw("allocated_storage", exprTokens(`20`))
+		},
+	},
+	"aws_timestreamquery_scheduled_query": {
+		Reasons: []string{
+			`"name" mis-wired the same way as aws_docdbelastic_cluster above (this type is also server-assigned). schedule_configuration, error_report_configuration, notification_configuration and target_configuration are all required blocks the wire schema marks optional-in-shape while the plugin framework requires each present in practice (validate: "Block ... must have a configuration value as the provider has marked it as required"); the generic required-only pass never visits any of the four since none is Required at the top level, so all four - and every one of their own required nested fields - are added by hand here, following the provider's own documented example verbatim`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(`"tofu-db-scheduled-query"`))
+
+			sched := body.AppendNewBlock("schedule_configuration", nil)
+			sched.Body().SetAttributeRaw("schedule_expression", exprTokens(`"rate(1 hour)"`))
+
+			errRpt := body.AppendNewBlock("error_report_configuration", nil)
+			s3cfg := errRpt.Body().AppendNewBlock("s3_configuration", nil)
+			s3cfg.Body().SetAttributeRaw("bucket_name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-scheduled-query-errors"`, g.cohort)))
+
+			notif := body.AppendNewBlock("notification_configuration", nil)
+			sns := notif.Body().AppendNewBlock("sns_configuration", nil)
+			sns.Body().SetAttributeRaw("topic_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:sns:us-east-1:000000000000:tofu-%s-cohort-scheduled-query"`, g.cohort)))
+
+			target := body.AppendNewBlock("target_configuration", nil)
+			tsCfg := target.Body().AppendNewBlock("timestream_configuration", nil)
+			if db, ok := g.byType["aws_timestreamwrite_database"]; ok {
+				tsCfg.Body().SetAttributeRaw("database_name", exprTokens(fmt.Sprintf("%s.database_name", db)))
+			} else {
+				tsCfg.Body().SetAttributeRaw("database_name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-timestreamwrite-database"`, g.cohort)))
+			}
+			if tbl, ok := g.byType["aws_timestreamwrite_table"]; ok {
+				tsCfg.Body().SetAttributeRaw("table_name", exprTokens(fmt.Sprintf("%s.table_name", tbl)))
+			} else {
+				tsCfg.Body().SetAttributeRaw("table_name", exprTokens(`"tofu-db-timestreamwrite-table"`))
+			}
+			tsCfg.Body().SetAttributeRaw("time_column", exprTokens(`"time"`))
+			dim := tsCfg.Body().AppendNewBlock("dimension_mapping", nil)
+			dim.Body().SetAttributeRaw("name", exprTokens(`"region"`))
+			dim.Body().SetAttributeRaw("dimension_value_type", exprTokens(`"VARCHAR"`))
 		},
 	},
 }
