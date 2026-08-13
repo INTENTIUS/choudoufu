@@ -99,6 +99,57 @@ type Result struct {
 	// looked", and it is never omitted from output on the grounds of being
 	// empty-looking.
 	Unswept []Unswept
+
+	// ParentReads lists the untaggable children a marked, admitted parent's
+	// own identity led the sweep to (issue #60), carried straight through
+	// from the discovery pass: each already knows whether it also became a
+	// removal ([Removals] and the plan's own resource diff both show that
+	// half; this list is what says a parent read is why).
+	ParentReads []ParentReadFinding
+}
+
+// ParentReadFinding is one live child a parent read found, without a marker
+// or a declared resource block of its own. Mirrors
+// [discovery.ParentReadFinding]; see that type for how a child qualifies.
+type ParentReadFinding struct {
+	// TypeName is the child's resource type.
+	TypeName string
+
+	// Parent is the admitted type whose identity led this pass to it.
+	Parent string
+
+	// ParentAddr is the parent's own resolved address in this estate.
+	ParentAddr addrs.AbsResourceInstance
+
+	// ParentValue is the parent identity value the read was scoped to, and
+	// also the child's own whole identity for this shape.
+	ParentValue string
+
+	// LiveID is the child's live identity as the read found it.
+	LiveID string
+
+	// DisplayName is the provider's label for it. Display only.
+	DisplayName string
+
+	// Removal is true when this finding also entered the prior state as a
+	// destroy; the plan's own resource diff carries the destroy itself, and
+	// this is what says a parent read is the reason it could be proposed.
+	Removal bool
+
+	// Withheld is why Removal is false, empty when Removal is true.
+	Withheld string
+}
+
+// String renders a parent-read finding on one line.
+func (f ParentReadFinding) String() string {
+	s := f.TypeName + " " + f.LiveID + " via " + f.Parent + " " + f.ParentAddr.String()
+	if f.Removal {
+		return s + " REMOVAL"
+	}
+	if f.Withheld != "" {
+		return s + " WITHHELD (" + f.Withheld + ")"
+	}
+	return s
 }
 
 // Resource is one classified live resource.

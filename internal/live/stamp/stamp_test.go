@@ -742,7 +742,7 @@ func TestUntaggableTypesMatchLimitationsDoc(t *testing.T) {
 		t.Fatalf("reading %s: %v", doc, err)
 	}
 
-	const heading = "**Untaggable types cannot be removed by the sweep.**"
+	const heading = "**Untaggable types carry no ownership marker of their own.**"
 	_, entry, found := strings.Cut(string(content), heading)
 	if !found {
 		t.Fatalf("live/LIMITATIONS.md has no %q entry", heading)

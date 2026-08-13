@@ -952,6 +952,18 @@ func statelessForeignReport(res *foreign.Result) views.StatelessForeign {
 			Detail:   u.Detail,
 		})
 	}
+	for _, f := range res.ParentReads {
+		rep.ParentReads = append(rep.ParentReads, views.StatelessParentRead{
+			TypeName:    f.TypeName,
+			Parent:      f.Parent,
+			ParentAddr:  f.ParentAddr.String(),
+			ParentValue: f.ParentValue,
+			LiveID:      f.LiveID,
+			DisplayName: f.DisplayName,
+			Removal:     f.Removal,
+			Withheld:    f.Withheld,
+		})
+	}
 	return rep
 }
 

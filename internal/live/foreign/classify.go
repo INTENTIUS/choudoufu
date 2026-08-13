@@ -532,6 +532,19 @@ func (c *classifier) removals() {
 		})
 	}
 	c.res.SweepCovered = append(c.res.SweepCovered, c.req.Discovery.SweepCovered...)
+
+	for _, f := range c.req.Discovery.ParentReads {
+		c.res.ParentReads = append(c.res.ParentReads, ParentReadFinding{
+			TypeName:    f.TypeName,
+			Parent:      f.Parent,
+			ParentAddr:  f.ParentAddr,
+			ParentValue: f.ParentValue,
+			LiveID:      f.ImportID,
+			DisplayName: f.DisplayName,
+			Removal:     f.Removal,
+			Withheld:    f.Withheld,
+		})
+	}
 }
 
 func removalWhy(typeName, marker string, blockGone bool) string {

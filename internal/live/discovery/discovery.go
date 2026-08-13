@@ -205,6 +205,14 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	diags = diags.Append(bind(req, decl, res))
 	diags = diags.Append(classifyOrphans(req, res))
 
+	// The parent-read leg (issue #60) runs after bind and classifyOrphans:
+	// it reads res.Resolutions to find both which parent instances this
+	// pass resolved and which children are already declared, and both are
+	// only settled once binding and orphan classification have run.
+	if req.Sweep {
+		diags = diags.Append(parentReadSweep(ctx, req, schemas, res))
+	}
+
 	res.sortEverything()
 	return res, diags
 }
