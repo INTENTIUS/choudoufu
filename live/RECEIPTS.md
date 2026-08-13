@@ -7,11 +7,11 @@ a notification that was sent. It does this without rebuilding any part of
 the store that live markers exist to remove. It is normative for anything
 calling itself a receipt in this mode. The demonstration is
 `live/e2e/estate/receipts.tf`, two resources side by side.
-`aws_ssm_parameter.demo_existence` is the EXISTENCE flavor and this spec's
-default recommendation, and `aws_ssm_parameter.demo_effect` is the HASH
+`aws_ssm_parameter.demo_existence` is the existence flavor and this spec's
+default recommendation, and `aws_ssm_parameter.demo_effect` is the hash
 flavor. See "Two flavors, prefer the simpler" below for what distinguishes
-them, and `live/e2e/run.sh`'s `receipt-cycle`/`receipt-cycle-existence`
-steps for both exercised live.
+them, and the `receipt-cycle`/`receipt-cycle-existence` steps in
+`live/e2e/run.sh` for both running live.
 
 ## Boundary: receipts never migrate onto the record store
 
@@ -80,33 +80,30 @@ what the config says the effect's inputs are now against what they were
 the last time the effect ran, and treat a mismatch as the signal that the
 effect needs to run again.
 
-Every design decision below follows from one constraint. The receipt
-itself must stay inside the same subset every other resource in the estate
-lives in. It is not a special case, and it is not new machinery.
+Every design decision below follows from one constraint: the receipt must
+stay inside the same subset every other resource in the estate lives in,
+with no special cases and no new machinery.
 
 ## Guard 1. A receipt is a plain declared resource
 
 A receipt is `resource "aws_ssm_parameter" "whatever" { ... }`. Nothing
 about reading, writing, or reasoning about it is different from any other
 client-named resource in the estate. There is no `choudoufu receipt`
-subcommand, no `list`, no `repair`, no `verify`, and none will be added at
-any phase, even as a convenience wrapper around the same plan/apply cycle
-every other resource already goes through.
+subcommand, no `list`, no `repair`, no `verify`, and none will be added,
+even as a convenience wrapper around the same plan/apply cycle every
+other resource already goes through.
 
-This is not a style preference. The moment a receipt gets its own tooling,
-state operations have been rebuilt under a new name. A `choudoufu receipt
-list` command is a `choudoufu state list` command that only shows one
-resource type. A `choudoufu receipt repair` command is `choudoufu state rm`
-plus `choudoufu import` wearing a disguise. The entire point of removing
-the state file is that there is no special class of record requiring
-special commands to inspect or fix. Every record is a resource, and every
-resource is inspected and fixed the same way. Change the config, run a
-plan, look at the diff. A receipt that needed its own verb would be
-admitting that plan/apply is not enough for it, which would mean it is not
-actually a plain resource. It would be state with extra steps. So it stays
-a plain resource, permanently, by construction. Any future need that seems
-to call for receipt-specific tooling is a sign the need belongs somewhere
-else (the harness, a CI script, an Op), never a reason to add a verb here.
+Receipt-specific tooling would rebuild state operations under a new name:
+a `choudoufu receipt list` command is a `choudoufu state list` command that
+only shows one resource type, and a `choudoufu receipt repair` command is
+`choudoufu state rm` plus `choudoufu import`. The point of removing the
+state file is that no class of record requires special commands to inspect
+or fix. Every record is a resource, and every resource is inspected and
+fixed the same way: change the config, run a plan, look at the diff. A
+receipt that needed a verb of its own would not actually be a plain
+resource. Any future need that seems to call for receipt-specific tooling
+belongs somewhere else (the harness, a CI script, an Op), and is never a
+reason to add a verb here.
 
 ## Guard 2. Hash-only values, and never SecureString
 
@@ -115,13 +112,13 @@ A receipt's value is a hash of the effect's declared inputs, in the demo
 themselves, and never anything derived from the effect's *output*. There
 are two reasons, one mechanical and one about the resource's type.
 
-Why a hash and not the raw inputs. The receipt's whole job is equality
+Why a hash and not the raw inputs. The receipt's job is equality
 comparison, whether this plan's inputs match the last recorded run's
 inputs, and a hash answers that with a fixed-size, content-opaque value
 regardless of how large or structured the real inputs are. It also keeps
-the receipt from becoming a second copy of configuration data that now has
-to be kept in sync with the first, which is exactly the kind of derivative
-record this mode exists to avoid growing.
+the receipt from becoming a second copy of configuration data that has to
+be kept in sync with the first, which is the kind of derivative record
+this mode exists to avoid.
 
 Why the type is always `String` and never `SecureString`. A hash is not a
 secret. It reveals nothing about the inputs that produced it beyond the
@@ -129,8 +126,8 @@ fact that some inputs produced this fixed-size value, and it cannot be
 inverted back to them. Marking it `SecureString` would buy no
 confidentiality and would cost real complexity. `SecureString` parameters
 are encrypted through KMS, which drags key custody, key policy, and
-decrypt permissions into a mechanism whose entire purpose was to be a
-plain, cheap, readable comparison point.
+decrypt permissions into a mechanism meant to be a plain, readable
+comparison point.
 
 Lint enforces this guard. `RuleReceiptValue` in `internal/live/lint`
 rejects a statically recognizable receipt declared with a literal
@@ -157,22 +154,19 @@ runbook, an agent-driven harness, anything that can (a) see the plan's
 proposed receipt change, (b) run the real effect, and (c) let `apply`
 write the new receipt value only if the effect succeeded.
 
-This split is what makes the receipt's plan diff meaningful rather than
-decorative. Because OpenTofu itself never runs the effect, a proposed
-change to `aws_ssm_parameter.demo_effect`'s value in a plan is not noise.
-It is the entire reviewable signal that this apply is going to trigger
-something with real-world consequences outside the resources OpenTofu
-manages directly. An operator reading a plan and seeing the receipt change
-is seeing exactly and only that. The effect's declared inputs changed
-since the value currently on record, so the layer above is about to run
-it. Anything that tried to make OpenTofu run the effect itself would
-collapse that signal. The diff would still show a value change, but it
-would no longer be a preview of what is about to happen outside the plan.
-It would be the thing happening, mid-plan, which is a provisioner by
-another name (and provisioners are already banned, see
+This split is what makes the receipt's plan diff meaningful. Because
+OpenTofu itself never runs the effect, a proposed change to
+`aws_ssm_parameter.demo_effect`'s value in a plan is the reviewable signal
+that this apply will trigger something with real-world consequences
+outside the resources OpenTofu manages directly. An operator who sees the
+receipt change in a plan knows the effect's declared inputs changed since
+the last recorded run, so the layer above is about to run it. If OpenTofu
+ran the effect itself, the diff would stop being a preview of what is
+about to happen outside the plan and become the thing happening mid-plan,
+which is a provisioner (and provisioners are already banned, see
 live/LIMITATIONS.md).
 
-The plan/apply/failure semantics, precisely.
+The plan/apply/failure semantics:
 
 1. **Plan** shows the receipt's value changing from the old hash to the
    new one whenever the effect's declared inputs have changed. This is the
@@ -188,8 +182,8 @@ The plan/apply/failure semantics, precisely.
    crashes, or the network drops, before the receipt gets written, the
    next plan sees no change in the receipt (the old hash is still on
    record) and proposes the same "effect will fire" diff again, so the
-   effect reruns. This is a deliberate acceptance of at-least-once
-   semantics rather than exactly-once. The receipt cannot make an effect
+   effect reruns. This accepts at-least-once semantics over
+   exactly-once. The receipt cannot make an effect
    idempotent by itself (only the effect's own implementation can do
    that), but it guarantees that under-running never happens silently.
    Every unconfirmed effect stays visible as a pending diff until a
@@ -200,28 +194,26 @@ The plan/apply/failure semantics, precisely.
 Nothing may reference a receipt's attributes. No resource argument, no
 `depends_on` entry, no output. Nothing anywhere in the configuration reads
 `aws_ssm_parameter.demo_effect.value`, `.arn`, `.id`, or any other
-attribute of a receipt, ever. A receipt is a leaf in the dependency graph.
+attribute of a receipt. A receipt is a leaf in the dependency graph.
 Things can point into it (its own value expression reads other resources'
 attributes, same as the demo's `local.demo_effect_inputs` does), but
 nothing points out of it.
 
-The reasoning is the same authority-creep argument that governs every
-other banned construct in this fork. The moment some other resource's plan
-depends on a receipt's value, that receipt has stopped being a record of
-what already happened and has started being an input other things need to
-be correct, which is precisely the definition of authoritative state. "A
-stored claim about what exists that the tool believes over the world
-itself... if the record being wrong makes the tool do wrong things to the
-world, it is authoritative." A receipt that nothing depends on can be
-wrong, stale, or simply gone, and the only consequence is one idempotent
-re-run of the effect it stands for. Costly in time, possibly, but never in
-correctness. A receipt that something else depends on turns that same loss
-into a wrong plan for whatever depended on it. Leaf status is what keeps
-losing the receipt a cheap, recoverable event instead of the first crack
-through which a record grows back into state. This is also why the demo's
-local, `demo_effect_inputs`, only ever reads *other* resources' attributes
-into the receipt, never the other way around. The data flow is
-one-directional by construction, not merely by convention.
+The reasoning is the same authority argument behind every other banned
+construct in this fork. Once another resource's plan depends on a
+receipt's value, the receipt is no longer a record of what already
+happened; it is an input other things need to be correct, which is the
+definition of authoritative state. "A stored claim about what exists that
+the tool believes over the world itself... if the record being wrong makes
+the tool do wrong things to the world, it is authoritative." A receipt
+that nothing depends on can be wrong, stale, or gone, and the only
+consequence is one idempotent re-run of its effect, a cost in time but not
+in correctness. A receipt that something else depends on turns that same
+loss into a wrong plan for whatever depended on it. Leaf status keeps
+losing a receipt recoverable instead of letting the record grow back into
+state. This is also why the demo's local, `demo_effect_inputs`, only reads
+*other* resources' attributes into the receipt, never the other way
+around. The data flow is one-directional by design.
 
 Leaf-ness is lint-enforceable, because it is a static graph property. The
 question is whether any traversal in the configuration reaches into a
@@ -231,14 +223,14 @@ enforcement" below for what is implemented and its boundary.
 ## Naming convention
 
 A receipt's `name` argument (or equivalent client-assigned identity
-argument, for whichever resource type carries it) follows this shape.
+argument, for whichever resource type carries it) follows this format.
 
 ```
 /tofu-receipts/<estate>/<effect>
 ```
 
-- `<estate>` is the owning estate's name, exactly as `tofu-estate` markers
-  spell it (see `live/MARKERS.md`).
+- `<estate>` is the owning estate's name, matching the `tofu-estate`
+  marker value (see `live/MARKERS.md`).
 - `<effect>` is a short, stable name for the effect the receipt stands
   for. It is `demo-effect` in the demonstration, and something like
   `db-migration` or `cdn-purge` in a real estate.
@@ -250,8 +242,8 @@ needing any other marker or annotation.
 
 ## Prior art
 
-The pattern is not new. It is a narrow, config-native restatement of ideas
-already load-bearing elsewhere.
+The pattern is a narrow, config-native restatement of ideas proven
+elsewhere.
 
 - Schema-migration tables (Rails' `schema_migrations`, Flyway's
   `flyway_schema_history`, and similar) record which migrations have run,
@@ -263,9 +255,9 @@ already load-bearing elsewhere.
   annotation is a record, carried on the object itself, of what was last
   declared for it, read back on the next apply to compute a three-way
   diff. A receipt narrows this further, carrying only a fingerprint of the
-  prior configuration rather than the whole thing, but the shape (a record
-  of what was declared last time, attached to the system rather than to a
-  separate store) is the same move.
+  prior configuration instead of the whole thing, but the idea (a record
+  of what was declared last time, attached to the system instead of a
+  separate store) is the same.
 
 ## Lint enforcement
 
@@ -281,11 +273,10 @@ sections). All three rules recognize a receipt the same way, through the
 literal `/tofu-receipts/` name, and all three read one expression at a
 time within the boundary stated next. A parameter whose name is built from
 a variable or an interpolation is recognized by none of them. The rules
-never guess at receipt-ness, only confirm it when it is evident on the
-page.
+only recognize a receipt when it is evident on the page.
 
-The boundary, stated precisely so it is not mistaken for full data-flow
-analysis. The rule catches *direct* traversals only, meaning an expression
+The exact boundary, so it is not mistaken for full data-flow
+analysis: the rule catches *direct* traversals only, meaning an expression
 that names the receipt resource's address right there, such as
 `aws_ssm_parameter.demo_effect.value` used as (part of) another resource's
 argument, a `depends_on` entry naming the receipt, or an output's
@@ -305,10 +296,10 @@ A receipt answers one of two questions, and the simpler question needs no
 hash at all.
 
 **Existence receipt (the default).** For run-once effects, migrations and
-one-time kicks, the parameter's existence is the entire bit. The value is
-a constant (e.g. "done"). The plan signal is the cleanest possible, since
-"will be created" means "will fire". Zero secret risk, zero value
-semantics. Reach for this first.
+one-time kicks, the parameter's existence carries the entire answer. The
+value is a constant (e.g. "done"). The plan signal is as clean as it gets:
+"will be created" means "will fire". There is no secret risk and no value
+semantics. Use this flavor first.
 
 **Hash receipt (run-on-change only).** When the requirement is to re-run
 whenever these inputs change, the value is sha256 over the declared
@@ -316,19 +307,18 @@ inputs, as specified above. Use it only when that requirement is real.
 
 Both ship as fixtures, side by side, in `live/e2e/estate/receipts.tf`.
 `aws_ssm_parameter.demo_existence` is the existence flavor and
-`aws_ssm_parameter.demo_effect` the hash flavor. The recommendation above
-is not only prose. The existence flavor is the one this spec tells you to
-reach for first, and it is also the one with nothing to scrub and nothing
-to go stale. Its value carries no information by design, so there is no
-hash to keep correct and no secret-shaped mistake to make in computing
-one. `live/e2e/run.sh`'s `receipt-cycle-existence` step exercises the
-flavor live. The receipt starts owned and clean. It is broken THE
-EXISTENCE WAY, with an out-of-band `aws ssm delete-parameter` rather than
-a value overwrite, because there is no changed value to write. The next
-plan re-arms exactly one create on it ("will be created" meaning "will
-fire"). Recreating it (the layer above playing the effect) and re-adopting
-its markers converges the next plan back to clean. This is symmetric with
-`receipt-cycle`, which exercises the same shape for the hash flavor via an
+`aws_ssm_parameter.demo_effect` the hash flavor. Beyond being the default
+recommendation, the existence flavor has nothing to scrub and nothing to
+go stale: its value carries no information, so there is no hash to keep
+correct and no secret to mishandle in computing one. The
+`receipt-cycle-existence` step in `live/e2e/run.sh` runs the flavor live.
+The receipt starts owned and clean. The step breaks it with an
+out-of-band `aws ssm delete-parameter` instead of a value overwrite,
+because there is no changed value to write. The next plan proposes
+exactly one create on it ("will be created" meaning "will fire").
+Recreating it (the layer above playing the effect) and re-adopting its
+markers converges the next plan back to clean. This is symmetric with
+`receipt-cycle`, which runs the same cycle for the hash flavor via an
 out-of-band value overwrite instead of a delete.
 
 ## Secrets discipline
@@ -356,38 +346,36 @@ Standard-tier SSM parameters cost nothing at estate scale. No storage
 charge, no throughput charge, path-prefix IAM scoping, and native
 versioning that retains old hashes as a free per-effect audit trail.
 DynamoDB adds a table and per-request billing. S3 needs a bucket to exist
-first. A tag on an anchor resource is genuinely free and fine when an
-effect has a natural anchor, but external effects, the unobservable case
-receipts exist for, have none.
+first. A tag on an anchor resource is free and fine when an effect has a
+natural anchor, but external effects, the unobservable case receipts
+exist for, have none.
 
-The honest comparison someone will make is that this is a Dynamo lock
-table without the locking. Nearly exact, and the difference is the design.
-The lock table is tool infrastructure, owned by no estate, load-bearing
-for every operation, coordinating writers through conditional writes.
-Receipts are declared resources inside the estate, planned and destroyed
-by the normal lifecycle, gating one effect each, with no coordination
-protocol and no reader beyond declared-vs-live diffing. The lock existed
-to protect an authoritative record. With no record to protect, what
-remains is a memo. Their KV store guards the workflow. This one remembers
-the effects.
+The obvious comparison is a Dynamo lock table without the locking. The
+difference is in the design. The lock table is tool infrastructure, owned
+by no estate, required by every operation, coordinating writers through
+conditional writes. Receipts are declared resources inside the estate,
+planned and destroyed by the normal lifecycle, gating one effect each,
+with no coordination protocol and no reader beyond declared-vs-live
+diffing. The lock existed to protect an authoritative record; with no
+such record to protect, a receipt is only a memo.
 
 ## Cross-cloud boundary
 
-The receipt PATTERN is provider-agnostic by construction. Guard 3 means
-the executor has no concept of a receipt anywhere in its code, so any
-provider's plain key-value resource qualifies structurally. Client-named
-(admission path 1), holds a string, stays a leaf. Nothing AWS-shaped
+The receipt pattern itself is provider-agnostic. Guard 3 means the
+executor has no concept of a receipt anywhere in its code, so any
+provider's plain key-value resource qualifies structurally: client-named
+(admission path 1), holds a string, stays a leaf. Nothing AWS-specific
 exists in the machinery.
 
-The DEMO and the ENFORCEMENT are AWS-only today. The estate's receipt is
+The demo and the enforcement are AWS-only today. The estate's receipt is
 an `aws_ssm_parameter`, and the leaf rule's recognition is hardcoded to
 that type with a literal `/tofu-receipts/` name. On another cloud you can
-follow this spec and the leaf rule will not protect you, silently. Do not
-mistake AWS-only enforcement for cross-cloud enforcement.
+follow this spec, but the leaf rule will not protect you, and its absence
+is silent.
 
-Generalizing is a table, not a redesign. One recognition row per provider
-(resource type, name attribute, path convention) in the lint rule, plus a
-recommended-type entry here. Whatever type another cloud's row names, it
-should be a plain key-value store rather than a secret store: hashes are
-not secrets, and parking receipts in a secret store inverts guard 2's
-reasoning.
+Generalizing needs a table, not a redesign: one recognition row per
+provider (resource type, name attribute, path convention) in the lint
+rule, plus a recommended-type entry here. Whatever type another cloud's
+row names, it should be a plain key-value store rather than a secret
+store: hashes are not secrets, and parking receipts in a secret store
+inverts guard 2's reasoning.
