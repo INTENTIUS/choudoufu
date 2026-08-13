@@ -1652,6 +1652,469 @@ var typeOverrides = map[string]typeOverride{
 			}
 		},
 	},
+	// Identity batch (issue #65). Every argument below is Required in the
+	// wire schema (so the generic required-only pass already sets it), but
+	// the provider's own plan-time validation rejects the generic
+	// placeholder value on a format or enum ground the schema itself does
+	// not carry - the same shape as the batches above.
+	"aws_cognito_resource_server": {
+		Reasons: []string{
+			`"user_pool_id" is a required string the schema does not constrain, but the provider validates it against the documented region_id shape (validate: "must be the region name followed by an underscore and then alphanumeric pattern"); the generic placeholder string is not one - resolved by hand to the sibling aws_cognito_user_pool's own real id rather than a synthesized literal, so this type actually exercises against a live pool during a floci apply instead of failing "User pool not found". "name" is a required string the schema does not constrain (distinct from the identity-bearing "identifier" argument this cohort's identity table already reads), but the generic pass pointed it at aws_iam_server_certificate's own placeholder name purely because both types happen to take a "name" argument - an accidental cross-type reference this override breaks with an independent literal`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("user_pool_id", exprTokens(cognitoUserPoolIDRef(g)))
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-resource-server"`, g.cohort)))
+		},
+	},
+	"aws_cognito_user": {
+		Reasons: []string{
+			`"user_pool_id" is a required string the schema does not constrain, but the provider validates it against the documented region_id shape; the generic placeholder string is not one - resolved to the sibling aws_cognito_user_pool's own real id, same fix as aws_cognito_resource_server above`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("user_pool_id", exprTokens(cognitoUserPoolIDRef(g)))
+		},
+	},
+	"aws_cognito_user_group": {
+		Reasons: []string{
+			`"user_pool_id" is a required string the schema does not constrain, but the provider validates it against the documented region_id shape (validate: "must be the region name followed by an underscore and then alphanumeric pattern"); the generic placeholder string is not one - resolved to the sibling aws_cognito_user_pool's own real id, same fix as aws_cognito_resource_server above. "name" (the group's own name, distinct from user_pool_id) is a required string the generic pass pointed at aws_iam_server_certificate's own placeholder name for the same accidental cross-type reason as aws_cognito_resource_server's "name" above - broken the same way`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("user_pool_id", exprTokens(cognitoUserPoolIDRef(g)))
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-user-group"`, g.cohort)))
+		},
+	},
+	"aws_cognito_user_in_group": {
+		Reasons: []string{
+			`"user_pool_id" is a required string the schema does not constrain, but the provider validates it against the documented region_id shape; the generic placeholder string is not one - resolved to the sibling aws_cognito_user_pool's own real id, same fix as aws_cognito_user_group above. "group_name" and "username" are both required strings the generic pass rendered as independent literals unrelated to the sibling aws_cognito_user_group and aws_cognito_user resources this same run also creates (neither is a single-component identity argument gen.go's parentRef links automatically: aws_cognito_user_group's own name is real but not the type identityArgName treats as its identity-bearing argument in isolation, and aws_cognito_user's identity is the two-component user_pool_id+username composite, not a single one) - resolved by hand to both siblings' own real attributes so this attaches a real user to a real group during a floci apply rather than naming two groups/users that were never created`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("user_pool_id", exprTokens(cognitoUserPoolIDRef(g)))
+			body.SetAttributeRaw("group_name", exprTokens(cognitoUserGroupNameRef(g)))
+			body.SetAttributeRaw("username", exprTokens(cognitoUsernameRef(g)))
+		},
+	},
+	"aws_cognito_user_pool": {
+		Reasons: []string{
+			`"name" is a required string the schema does not constrain, but the generic pass pointed it at the unrelated aws_iam_server_certificate's own placeholder name purely because both types happen to take a "name" argument - the same accidental cross-type reference aws_cognito_resource_server's own "name" override above breaks, given its own independent literal here instead so a floci apply exercises this type on its own rather than skipping it whenever the certificate resource fails`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-user-pool"`, g.cohort)))
+		},
+	},
+	"aws_cognito_identity_provider": {
+		Reasons: []string{
+			`"provider_name" is a required string the schema does not constrain, but the provider validates it is at most 32 UTF-8 characters (validate: "cannot be longer than 32 UTF-8 characters"); the generic placeholder-suffixed name is longer. "provider_type" is a required string the schema does not constrain to an enum, but the provider validates it against a fixed set (validate: "expected provider_type to be one of [SAML Facebook Google LoginWithAmazon SignInWithApple OIDC]"). "user_pool_id" needs the same real-pool-reference fix as aws_cognito_resource_server above (its own generic placeholder does not match the documented region_id shape at all)`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("user_pool_id", exprTokens(cognitoUserPoolIDRef(g)))
+			body.SetAttributeRaw("provider_name", exprTokens(fmt.Sprintf(`"tofu-%s-idp"`, g.cohort)))
+			body.SetAttributeRaw("provider_type", exprTokens(`"OIDC"`))
+			body.SetAttributeRaw("provider_details", exprTokens(`{
+    client_id                  = "placeholder"
+    authorize_scopes           = "openid"
+    attributes_request_method  = "GET"
+    oidc_issuer                = "https://accounts.example.com"
+  }`))
+		},
+	},
+	"aws_iam_group_policy": {
+		Reasons: []string{
+			`schema requires "policy" as a plain string, but the provider validates it is well-formed JSON (validate: "\"policy\" contains an invalid JSON policy"); the generic string placeholder is not JSON - the group-policy sibling of aws_s3_bucket_policy's own override above`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("policy", exprTokens(`jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "s3:ListAllMyBuckets"
+      Resource = "*"
+    }]
+  })`))
+		},
+	},
+	"aws_iam_user_policy": {
+		Reasons: []string{
+			`schema requires "policy" as a plain string, but the provider validates it is well-formed JSON; the generic string placeholder is not JSON - the user-policy sibling of aws_iam_group_policy's own override above`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("policy", exprTokens(`jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "s3:ListAllMyBuckets"
+      Resource = "*"
+    }]
+  })`))
+		},
+	},
+	"aws_iam_policy": {
+		Reasons: []string{
+			`schema requires "policy" as a plain string, but the provider validates it is well-formed JSON; the generic string placeholder is not JSON - same fix as aws_iam_group_policy above`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("policy", exprTokens(`jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "s3:ListAllMyBuckets"
+      Resource = "*"
+    }]
+  })`))
+		},
+	},
+	"aws_iam_group_policy_attachment": {
+		Reasons: []string{
+			`"policy_arn" is a required string the schema does not constrain, but the provider validates it is a well-formed ARN (validate: "is an invalid ARN"); the generic placeholder string is not one - resolved by hand to the sibling aws_iam_policy's own real arn attribute (aws_iam_policy is server-assigned, so identityArgName gives gen.go's parentRef nothing to link automatically) rather than a synthesized literal ARN no CreateOpenIDConnectProvider-style call ever minted, so an attach actually has a real policy on the other end during a floci apply`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("policy_arn", exprTokens(iamPolicyArnRef(g)))
+		},
+	},
+	"aws_iam_user_policy_attachment": {
+		Reasons: []string{
+			`"policy_arn" is a required string the schema does not constrain, but the provider validates it is a well-formed ARN; the generic placeholder string is not one - resolved to the sibling aws_iam_policy's own real arn attribute, same fix as aws_iam_group_policy_attachment above`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("policy_arn", exprTokens(iamPolicyArnRef(g)))
+		},
+	},
+	"aws_iam_openid_connect_provider": {
+		Reasons: []string{
+			`"url" is a required string the schema does not constrain, but the provider validates it parses as a URL with a host (validate: "expected \"url\" to have a host"); the generic placeholder string has none`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("url", exprTokens(`"https://accounts.example.com"`))
+		},
+	},
+	"aws_ssoadmin_instance_access_control_attributes": {
+		Reasons: []string{
+			`"instance_arn" is a required string the schema does not constrain, but the provider validates it is a well-formed ARN (validate: "is an invalid ARN"); the generic placeholder-suffixed name is not one. This is the type identityArgName treats as the single-component owner of "instance_arn" (see internal/live/identity/table.go's own entry), so every other type in this cohort that also takes an instance_arn argument (aws_ssoadmin_application, aws_ssoadmin_permission_set, aws_ssoadmin_account_assignment) already references this resource's own attribute through gen.go's parentRef rather than rendering a second, independent placeholder - fixing the ARN shape here is what fixes all four.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("instance_arn", exprTokens(`"arn:aws:sso:::instance/ssoins00000000001"`))
+		},
+	},
+	"aws_cognito_identity_pool_roles_attachment": {
+		Reasons: []string{
+			`"identity_pool_id" is a required string the schema does not constrain, but the provider validates its length (1-55) and shape (a real identity pool id, "REGION:UUID") at apply time - not caught by "terraform validate" itself, only surfaced at apply (validate: "expected length of identity_pool_id to be in the range (1 - 55)"); the generic placeholder-suffixed name is both too long and the wrong shape. This is the type identityArgName treats as the single-component owner of "identity_pool_id" (its Components read the same-named argument), so aws_cognito_identity_pool_provider_principal_tag's own identity_pool_id already references this resource's attribute through gen.go's parentRef rather than rendering an independent placeholder - fixing the shape here is what fixes both. "roles" is a required map the schema leaves unconstrained (MinItems 0), but the provider requires at least the "authenticated" or "unauthenticated" key set (apply-time validate: "Either \"authenticated\" or \"unauthenticated\" must be defined") - not caught by "terraform validate" either, only surfaced at apply, the same "schema says Optional/unconstrained, provider requires it in practice" shape aws_s3_bucket_lifecycle_configuration's own override above already has.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("identity_pool_id", exprTokens(`"us-east-1:00000000-0000-0000-0000-000000000000"`))
+			body.SetAttributeRaw("roles", exprTokens(fmt.Sprintf(
+				`{ authenticated = "arn:aws:iam::000000000000:role/tofu-%s-cohort-authenticated" }`, g.cohort)))
+		},
+	},
+	"aws_ssoadmin_permission_set": {
+		Reasons: []string{
+			`"name" is Required and the schema pins its own length range, but the value the generic pass supplied (a reference to the sibling aws_iam_server_certificate's own long placeholder name, matched purely because both types happen to take a "name" argument) exceeds the provider's own 1-32 character limit (validate: "expected length of name to be in the range (1 - 32)") - the same accidental cross-type name collision aws_cognito_user_pool's own "name" argument also inherits from the same certificate resource, but that type's schema tolerates the longer string; this one does not.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-permset"`, g.cohort)))
+		},
+	},
+	"aws_ssoadmin_application_assignment": {
+		Reasons: []string{
+			`"application_arn" is a required string the schema does not constrain, but the provider validates it is a well-formed ARN; the generic placeholder string is not one, and this type has no single-component identity entry for gen.go's parentRef to link automatically, unlike instance_arn above - resolved by hand to the sibling aws_ssoadmin_application's own arn attribute when this run renders one. "principal_type" is a required string the schema does not constrain to an enum, but the provider validates it against a fixed set (validate: "expected principal_type to be one of [USER GROUP]"). "principal_id" is a required string the schema does not constrain, but the provider validates it looks like an Identity Store principal id, a GUID optionally prefixed by a 10-hex-digit domain segment; the generic placeholder string matches neither shape`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("application_arn", exprTokens(ssoadminApplicationArnRef(g)))
+			body.SetAttributeRaw("principal_type", exprTokens(`"USER"`))
+			body.SetAttributeRaw("principal_id", exprTokens(`"12345678-1234-1234-1234-123456789012"`))
+		},
+	},
+	"aws_ssoadmin_account_assignment": {
+		Reasons: []string{
+			`"permission_set_arn" is a required string the schema does not constrain, but the provider validates it is a well-formed ARN; the generic placeholder string is not one, and (like application_arn above) this type has no single-component identity entry for parentRef to link automatically - resolved by hand to the sibling aws_ssoadmin_permission_set's own arn attribute. "principal_type" and "target_type" are both required strings the schema does not constrain to an enum, but the provider validates each against its own fixed set (validate: "expected principal_type to be one of [USER GROUP]", "expected target_type to be one of [AWS_ACCOUNT]"). "principal_id" needs the same Identity Store principal-id shape as aws_ssoadmin_application_assignment's own override above. "target_id" is a required string the schema does not constrain, but the provider validates it looks like a 12-digit AWS account id (validate: "doesn't look like AWS Account ID")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("permission_set_arn", exprTokens(ssoadminPermissionSetArnRef(g)))
+			body.SetAttributeRaw("principal_type", exprTokens(`"GROUP"`))
+			body.SetAttributeRaw("target_type", exprTokens(`"AWS_ACCOUNT"`))
+			body.SetAttributeRaw("principal_id", exprTokens(`"12345678-1234-1234-1234-123456789012"`))
+			body.SetAttributeRaw("target_id", exprTokens(`"000000000000"`))
+		},
+	},
+	"aws_ssoadmin_application": {
+		Reasons: []string{
+			`"application_provider_arn" is a required string the schema does not constrain, but the provider validates it is a well-formed ARN (validate: "Invalid ARN Value"); the generic placeholder string is not one - set to AWS's own built-in custom SAML application provider, a real, documented value (not account-specific) rather than a synthesized placeholder ARN. "name" is a required string the generic pass pointed at the unrelated aws_iam_server_certificate's own placeholder name purely because both types happen to take a "name" argument - the same accidental cross-type reference aws_cognito_user_pool's own "name" override above breaks, given its own independent literal here`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("application_provider_arn", exprTokens(`"arn:aws:sso::aws:applicationProvider/custom-saml"`))
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-app"`, g.cohort)))
+		},
+	},
+	// Observability and eventing remainder batch (issue #65). Every
+	// argument below is Optional in the wire schema (so the generic
+	// required-only pass leaves it unset, or leaves a bare "placeholder"
+	// that fails an enum/ARN-format/length check the schema itself does not
+	// carry), or is a nested block the schema marks optional while the
+	// provider requires its contents in practice - the same two failure
+	// shapes issue #56 already named for the earlier cohorts above.
+	"aws_cloudwatch_alarm_mute_rule": {
+		Reasons: []string{
+			`rule is a required argument typed as a nested block with MinItems 0 in the wire schema, so the generic required-only pass never renders one at all - not caught by "terraform validate" (which only checks the arguments a block actually has), only surfaced applying against floci (apply: "missing required field, PutAlarmMuteRuleInput.Rule"). Its own nested schedule block is likewise required in practice.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			rule := body.AppendNewBlock("rule", nil)
+			schedule := rule.Body().AppendNewBlock("schedule", nil)
+			schedule.Body().SetAttributeRaw("duration", exprTokens(`"PT4H"`))
+			schedule.Body().SetAttributeRaw("expression", exprTokens(`"cron(0 2 * * ? *)"`))
+		},
+	},
+	"aws_cloudwatch_contributor_insight_rule": {
+		Reasons: []string{
+			`rule_definition is a required string the schema does not constrain, but the provider validates it is well-formed JSON (validate: "A string value was provided that is not valid JSON string format"); the generic placeholder string is not`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("rule_definition", exprTokens(fmt.Sprintf(`jsonencode({
+    Schema = {
+      Name    = "CloudWatchLogRule"
+      Version = 1
+    }
+    LogGroupNames = ["tofu-%s-cohort-insight-source"]
+    LogFormat     = "JSON"
+    Contribution = {
+      Keys = ["$.ip"]
+    }
+    AggregateOn = "Count"
+  })`, g.cohort)))
+		},
+	},
+	"aws_cloudwatch_event_api_destination": {
+		Reasons: []string{
+			`connection_arn is a required string the schema does not constrain, but the provider validates it is a well-formed ARN (validate: "is an invalid ARN"); http_method is a required string the schema does not constrain to an enum, but the provider validates it against a fixed set (validate: "expected http_method to be one of [...]"). connection_arn references this same cohort's aws_cloudwatch_event_connection.app.arn - an unknown value at validate time, which the ARN-format check never runs against - rather than a literal placeholder.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if conn, ok := g.byType["aws_cloudwatch_event_connection"]; ok {
+				body.SetAttributeRaw("connection_arn", exprTokens(fmt.Sprintf("%s.arn", conn)))
+			} else {
+				body.SetAttributeRaw("connection_arn", exprTokens(fmt.Sprintf(
+					`"arn:aws:events:us-east-1:000000000000:connection/tofu-%s-cohort/00000000-0000-0000-0000-000000000000"`, g.cohort)))
+			}
+			body.SetAttributeRaw("http_method", exprTokens(`"POST"`))
+		},
+	},
+	"aws_cloudwatch_event_archive": {
+		Reasons: []string{
+			`name is length-limited to 48 characters (validate: "expected length of name to be in the range (1 - 48)"), and this cohort's own name ("observability") makes the generic tofu-<cohort>-cohort-<type> placeholder 51 characters - shortened here to a value that still names the cohort and the type. event_source_arn is a required string the schema does not constrain, but the provider validates it is a well-formed ARN (validate: "is an invalid ARN"); it references this same cohort's aws_cloudwatch_event_bus.app.arn - an unknown value at validate time, which the ARN-format check never runs against - rather than a literal placeholder.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(`"tofu-obs-event-archive"`))
+			if bus, ok := g.byType["aws_cloudwatch_event_bus"]; ok {
+				body.SetAttributeRaw("event_source_arn", exprTokens(fmt.Sprintf("%s.arn", bus)))
+			} else {
+				body.SetAttributeRaw("event_source_arn", exprTokens(fmt.Sprintf(
+					`"arn:aws:events:us-east-1:000000000000:event-bus/tofu-%s-cohort-bus"`, g.cohort)))
+			}
+		},
+	},
+	"aws_cloudwatch_event_connection": {
+		Reasons: []string{
+			`authorization_type is a required string the schema does not constrain to an enum, but the provider validates it against a fixed set (validate: "expected authorization_type to be one of [...]"); auth_parameters is a required block, but the provider requires exactly one of its api_key/basic/oauth children set in practice (validate: "Invalid combination of arguments" x3 on an empty auth_parameters), and the chosen child's own key/value pair is itself required.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("authorization_type", exprTokens(`"API_KEY"`))
+			for _, blk := range body.Blocks() {
+				if blk.Type() == "auth_parameters" {
+					apiKey := blk.Body().AppendNewBlock("api_key", nil)
+					apiKey.Body().SetAttributeRaw("key", exprTokens(`"x-api-key"`))
+					apiKey.Body().SetAttributeRaw("value", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-api-key-value"`, g.cohort)))
+				}
+			}
+		},
+	},
+	"aws_cloudwatch_event_endpoint": {
+		Reasons: []string{
+			`event_bus is a required block appearing exactly twice in the schema (a global endpoint always names a primary and a secondary event bus), and each child's event_bus_arn is a required string the schema does not constrain, but the provider validates it is a well-formed ARN (validate: "is an invalid ARN" x2); the generic pass's placeholder string is neither. The first bus references this same cohort's aws_cloudwatch_event_bus.app.arn; the second is a literal placeholder in a different region, since a global endpoint's two buses are documented as living in different regions. routing_config.failover_config's primary.health_check and secondary.route are both required in practice - not caught by "terraform validate" (which only checks the arguments a block actually has, and the generic pass rendered both primary and secondary as empty blocks), only surfaced applying against floci (apply: "missing required field, CreateEndpointInput.RoutingConfig.FailoverConfig.Primary" and "...Secondary").`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			primary := fmt.Sprintf(`"arn:aws:events:us-west-2:000000000000:event-bus/tofu-%s-cohort-secondary"`, g.cohort)
+			firstExpr := primary
+			if bus, ok := g.byType["aws_cloudwatch_event_bus"]; ok {
+				firstExpr = fmt.Sprintf("%s.arn", bus)
+			}
+			i := 0
+			for _, blk := range body.Blocks() {
+				if blk.Type() != "event_bus" {
+					continue
+				}
+				if i == 0 {
+					blk.Body().SetAttributeRaw("event_bus_arn", exprTokens(firstExpr))
+				} else {
+					blk.Body().SetAttributeRaw("event_bus_arn", exprTokens(primary))
+				}
+				i++
+			}
+			for _, blk := range body.Blocks() {
+				if blk.Type() != "routing_config" {
+					continue
+				}
+				for _, fc := range blk.Body().Blocks() {
+					if fc.Type() != "failover_config" {
+						continue
+					}
+					for _, leg := range fc.Body().Blocks() {
+						switch leg.Type() {
+						case "primary":
+							leg.Body().SetAttributeRaw("health_check", exprTokens(
+								`"arn:aws:route53:::healthcheck/00000000-0000-0000-0000-000000000000"`))
+						case "secondary":
+							leg.Body().SetAttributeRaw("route", exprTokens(`"us-west-2"`))
+						}
+					}
+				}
+			}
+		},
+	},
+	"aws_cloudwatch_event_permission": {
+		Reasons: []string{
+			`principal is a required string the schema does not constrain, but the provider validates it is "*" or a 12-digit AWS account ID (validate: "\"principal\" must be * or a 12 digit AWS account ID"); the generic placeholder string is neither`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("principal", exprTokens(`"*"`))
+		},
+	},
+	"aws_cloudwatch_log_account_policy": {
+		Reasons: []string{
+			`policy_document is a required string the schema does not constrain, but the provider validates it is well-formed JSON (validate: "contains an invalid JSON"); policy_type is a required string the schema does not constrain to an enum, but the provider validates it against a fixed set (validate: "expected policy_type to be one of [...]"); the generic placeholder string satisfies neither`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("policy_document", exprTokens(fmt.Sprintf(`jsonencode({
+    DestinationArn = "arn:aws:lambda:us-east-1:000000000000:function:tofu-%s-cohort-log-account-policy-target"
+    FilterPattern  = ""
+    Distribution   = "Random"
+  })`, g.cohort)))
+			body.SetAttributeRaw("policy_type", exprTokens(`"SUBSCRIPTION_FILTER_POLICY"`))
+		},
+	},
+	"aws_cloudwatch_log_delivery": {
+		Reasons: []string{
+			`delivery_destination_arn is a required string the schema does not constrain, but the provider validates it is a well-formed ARN (validate: "The provided value cannot be parsed as an ARN"); it references this same cohort's aws_cloudwatch_log_delivery_destination.app.arn - an unknown value at validate time, which the ARN-format check never runs against - rather than a literal placeholder. delivery_source_name is likewise pointed at this same cohort's aws_cloudwatch_log_delivery_source.app.name instead of the generic pass's disconnected literal string, so the delivery names a source that actually exists in this estate.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if dest, ok := g.byType["aws_cloudwatch_log_delivery_destination"]; ok {
+				body.SetAttributeRaw("delivery_destination_arn", exprTokens(fmt.Sprintf("%s.arn", dest)))
+			} else {
+				body.SetAttributeRaw("delivery_destination_arn", exprTokens(fmt.Sprintf(
+					`"arn:aws:logs:us-east-1:000000000000:delivery-destination:tofu-%s-cohort-log-delivery-destination"`, g.cohort)))
+			}
+			if src, ok := g.byType["aws_cloudwatch_log_delivery_source"]; ok {
+				body.SetAttributeRaw("delivery_source_name", exprTokens(fmt.Sprintf("%s.name", src)))
+			}
+		},
+	},
+	"aws_cloudwatch_log_delivery_destination": {
+		Reasons: []string{
+			`name is length-limited to 60 characters (validate: "Attribute name string length must be between 1 and 60"), and this cohort's own name ("observability") makes the generic tofu-<cohort>-cohort-<type> placeholder 61 characters - shortened here by one character's worth of margin. delivery_destination_configuration is Optional in the schema, but the provider requires it in practice unless delivery_destination_type is XRAY (validate: "delivery_destination_configuration is required when delivery_destination_type is not XRAY") - set to XRAY here rather than inventing a destination_resource_arn this cohort has no real destination for.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(`"tofu-obs-log-delivery-destination"`))
+			body.SetAttributeRaw("delivery_destination_type", exprTokens(`"XRAY"`))
+		},
+	},
+	"aws_cloudwatch_log_delivery_source": {
+		Reasons: []string{
+			`resource_arn is a required string the schema does not constrain, but the provider validates it is a well-formed ARN (validate: "The provided value cannot be parsed as an ARN"); the generic placeholder string is not. log_type is paired with resource_arn here as the provider's own documented CloudFront example (ACCESS_LOGS / a CloudFront distribution ARN) rather than left at the generic placeholder, since the two arguments name the same source in practice even though only the ARN shape is checked locally.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("log_type", exprTokens(`"ACCESS_LOGS"`))
+			body.SetAttributeRaw("resource_arn", exprTokens(`"arn:aws:cloudfront::000000000000:distribution/EDFDVBD6EXAMPLE"`))
+		},
+	},
+	"aws_cloudwatch_log_destination": {
+		Reasons: []string{
+			`role_arn and target_arn are both required strings the schema does not constrain, but the provider validates each is a well-formed ARN (validate: "is an invalid ARN" x2); the generic placeholder string is neither`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("role_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:iam::000000000000:role/tofu-%s-cohort-log-destination"`, g.cohort)))
+			body.SetAttributeRaw("target_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:kinesis:us-east-1:000000000000:stream/tofu-%s-cohort-log-destination-target"`, g.cohort)))
+		},
+	},
+	"aws_cloudwatch_log_resource_policy": {
+		Reasons: []string{
+			`policy_document is a required string the schema does not constrain, but the provider validates it is well-formed JSON (validate: "contains an invalid JSON"); the generic placeholder string is not`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("policy_document", exprTokens(`jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "logs.amazonaws.com" }
+      Action    = "logs:PutLogEvents"
+      Resource  = "*"
+    }]
+  })`))
+		},
+	},
+	"aws_cloudwatch_log_subscription_filter": {
+		Reasons: []string{
+			`destination_arn is a required string the schema does not constrain, but the provider validates it is a well-formed ARN (validate: "is an invalid ARN"); the generic placeholder string is not`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("destination_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:lambda:us-east-1:000000000000:function:tofu-%s-cohort-log-subscription-target"`, g.cohort)))
+		},
+	},
+	"aws_cloudwatch_log_transformer": {
+		Reasons: []string{
+			`transformer_config is a required argument typed as a list of nested blocks with MinItems 0 in the wire schema, so the generic required-only pass never renders one at all (validate: "Block transformer_config must have a configuration value as the provider has marked it as required"), and the provider requires its first processor to be a parser - parse_json is the simplest one. log_group_arn is a required string the schema does not constrain, but the provider validates it is a well-formed ARN (validate: "The provided value cannot be parsed as an ARN"); this cohort admits no aws_cloudwatch_log_group of its own (that type ratifies elsewhere, in the client-named section above), so the ARN is a literal placeholder rather than a cross-reference.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("log_group_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:logs:us-east-1:000000000000:log-group:/tofu-%s-cohort-log-transformer-source"`, g.cohort)))
+			tc := body.AppendNewBlock("transformer_config", nil)
+			tc.Body().AppendNewBlock("parse_json", nil)
+		},
+	},
+	"aws_grafana_workspace": {
+		Reasons: []string{
+			`account_access_type, authentication_providers and permission_type are each required strings (or a set of them) the schema does not constrain to an enum, but the provider validates each against a fixed set (validate: "expected ... to be one of [...]" x3); the generic placeholder string matches none of them`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("account_access_type", exprTokens(`"CURRENT_ACCOUNT"`))
+			body.SetAttributeRaw("authentication_providers", exprTokens(`["AWS_SSO"]`))
+			body.SetAttributeRaw("permission_type", exprTokens(`"SERVICE_MANAGED"`))
+		},
+	},
+	"aws_rum_app_monitor": {
+		Reasons: []string{
+			`domain and domain_list are both Optional in the schema, so the generic pass sets neither, but the provider requires exactly one of them (validate: "one of domain,domain_list must be specified" x2)`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("domain", exprTokens(fmt.Sprintf(`"tofu-%s-cohort.example.com"`, g.cohort)))
+		},
+	},
+	"aws_xray_resource_policy": {
+		Reasons: []string{
+			`policy_document is a required string the schema does not constrain, but the provider validates it is well-formed JSON (validate: "A string value was provided that is not valid JSON string format"); the generic placeholder string is not`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("policy_document", exprTokens(`jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "xray.amazonaws.com" }
+      Action    = "xray:GetSamplingStatisticSummaries"
+      Resource  = "*"
+    }]
+  })`))
+		},
+	},
+	"aws_xray_sampling_rule": {
+		Reasons: []string{
+			`rule_name is length-limited to 32 characters (validate: "expected length of rule_name to be in the range (1 - 32)"), and this cohort's own name ("observability") makes the generic tofu-<cohort>-cohort-<type> placeholder 46 characters - shortened here to a value that still names the cohort and the type. http_method is length-limited to 10 characters and the generic "placeholder" string is 11; priority must be in (1 - 9999) and version must be at least 1, but both are numeric arguments the generic required-only pass zero-values rather than infers a real member for; resource_arn has no local format check but "*" (match any resource) is the provider's own documented value for a rule with no specific resource.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("rule_name", exprTokens(`"tofu-obs-xray-rule"`))
+			body.SetAttributeRaw("service_name", exprTokens(`"tofu-obs-xray-rule"`))
+			body.SetAttributeRaw("http_method", exprTokens(`"GET"`))
+			body.SetAttributeRaw("resource_arn", exprTokens(`"*"`))
+			body.SetAttributeRaw("priority", exprTokens(`1000`))
+			body.SetAttributeRaw("version", exprTokens(`1`))
+		},
+	},
 }
 
 // eksClusterNameRef is the sibling aws_eks_cluster's name attribute as HCL
@@ -1664,4 +2127,87 @@ func eksClusterNameRef(g *generator) string {
 		return `"placeholder"`
 	}
 	return fmt.Sprintf("%s.name", addr)
+}
+
+// cognitoUserPoolIDRef is the sibling aws_cognito_user_pool's id attribute
+// as HCL source when this run renders one, or a literal placeholder
+// user-pool-id-shaped string otherwise. user_pool_id is not a
+// single-component identity argument gen.go's parentRef links
+// automatically (aws_cognito_user_pool is server-assigned, so
+// identityArgName returns ok=false for it), so every Cognito child type
+// that takes a user_pool_id argument resolves it here by hand instead of
+// rendering its own independent, disconnected placeholder - the same
+// conditional-sibling shape as ssoadminApplicationArnRef below, but for a
+// real pool a floci apply can actually find rather than a synthesized id
+// no CreateUserPool call ever minted.
+func cognitoUserPoolIDRef(g *generator) string {
+	addr, ok := g.byType["aws_cognito_user_pool"]
+	if !ok {
+		return `"us-east-1_tofuidpool"`
+	}
+	return fmt.Sprintf("%s.id", addr)
+}
+
+// cognitoUserGroupNameRef is the sibling aws_cognito_user_group's name
+// attribute as HCL source when this run renders one, or a literal
+// placeholder otherwise - for aws_cognito_user_in_group's own group_name,
+// the same conditional-sibling shape as cognitoUserPoolIDRef above.
+func cognitoUserGroupNameRef(g *generator) string {
+	addr, ok := g.byType["aws_cognito_user_group"]
+	if !ok {
+		return `"placeholder"`
+	}
+	return fmt.Sprintf("%s.name", addr)
+}
+
+// cognitoUsernameRef is the sibling aws_cognito_user's username attribute
+// as HCL source when this run renders one, or a literal placeholder
+// otherwise - for aws_cognito_user_in_group's own username, same shape as
+// cognitoUserGroupNameRef above.
+func cognitoUsernameRef(g *generator) string {
+	addr, ok := g.byType["aws_cognito_user"]
+	if !ok {
+		return `"placeholder"`
+	}
+	return fmt.Sprintf("%s.username", addr)
+}
+
+// iamPolicyArnRef is the sibling aws_iam_policy's own arn attribute as HCL
+// source when this run renders one, or a literal placeholder ARN
+// otherwise - for the two IAM policy-attachment types' own policy_arn,
+// same conditional-sibling shape as ssoadminApplicationArnRef below
+// (aws_iam_policy is server-assigned, so identityArgName gives parentRef
+// nothing to link automatically).
+func iamPolicyArnRef(g *generator) string {
+	addr, ok := g.byType["aws_iam_policy"]
+	if !ok {
+		return `"arn:aws:iam::000000000000:policy/tofu-identity-cohort-policy"`
+	}
+	return fmt.Sprintf("%s.arn", addr)
+}
+
+// ssoadminApplicationArnRef is the sibling aws_ssoadmin_application's arn
+// attribute as HCL source when this run renders one, or a literal
+// placeholder ARN otherwise - the same conditional-sibling shape as
+// eksClusterNameRef above, needed because application_arn is not a
+// single-component identity argument gen.go's parentRef links
+// automatically (see aws_ssoadmin_application_assignment's own override).
+func ssoadminApplicationArnRef(g *generator) string {
+	addr, ok := g.byType["aws_ssoadmin_application"]
+	if !ok {
+		return `"arn:aws:sso::000000000000:application/id-tofucohort"`
+	}
+	return fmt.Sprintf("%s.arn", addr)
+}
+
+// ssoadminPermissionSetArnRef is the sibling aws_ssoadmin_permission_set's
+// arn attribute as HCL source when this run renders one, or a literal
+// placeholder ARN otherwise - same shape as ssoadminApplicationArnRef
+// above, for aws_ssoadmin_account_assignment's own permission_set_arn.
+func ssoadminPermissionSetArnRef(g *generator) string {
+	addr, ok := g.byType["aws_ssoadmin_permission_set"]
+	if !ok {
+		return `"arn:aws:sso:::permissionSet/ssoins-tofucohortid00/ps-tofucohortid00"`
+	}
+	return fmt.Sprintf("%s.arn", addr)
 }

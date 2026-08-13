@@ -640,6 +640,92 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_iot_thing_type":             {},
 	"aws_iot_topic_rule":             {},
 	"aws_iot_topic_rule_destination": {},
+
+	// ---- Registry-ratified (#40, #44, #65): fifth batch, identity
+	// ---- (Cognito, IAM leftovers, SSO Admin; issue #65's ratification
+	// ---- campaign). Same tools/row-gen pipeline and verification standard
+	// ---- as the batches above, cross-checked against the AWS provider's
+	// ---- documented import behaviour (its own Argument/Attribute/Import
+	// ---- sections, fetched from the pinned v6.59.0 tag) rather than
+	// ---- accepted on row-gen's classification alone — several rows below
+	// ---- correct a row-gen "needs hand separator" or "evidence-only"
+	// ---- verdict, the same way the route53-cloudfront and RDS batches
+	// ---- did. Two row-gen proposals this batch does not re-litigate,
+	// ---- aws_iam_saml_provider and aws_iam_virtual_mfa_device, were
+	// ---- already rejected by the IAM/ECR batch above on ARN-embedding
+	// ---- grounds; aws_iam_access_key is excluded the same way that
+	// ---- batch excluded it, per SURVEY.md's standing credential rule. See
+	// ---- internal/live/identity/table.go for the per-type evidence and
+	// ---- for every row this batch rejected or deferred. Cohort estate:
+	// ---- live/e2e/estates/identity.
+	"aws_cognito_identity_pool":                        {},
+	"aws_cognito_identity_pool_provider_principal_tag": {},
+	"aws_cognito_identity_pool_roles_attachment":       {},
+	"aws_cognito_identity_provider":                    {},
+	"aws_cognito_resource_server":                      {},
+	"aws_cognito_user":                                 {},
+	"aws_cognito_user_group":                           {},
+	"aws_cognito_user_in_group":                        {},
+	"aws_cognito_user_pool":                            {},
+	"aws_cognito_user_pool_domain":                     {},
+	"aws_iam_group_policy":                             {},
+	"aws_iam_group_policy_attachment":                  {},
+	"aws_iam_openid_connect_provider":                  {},
+	"aws_iam_policy":                                   {},
+	"aws_iam_server_certificate":                       {},
+	"aws_iam_user_policy":                              {},
+	"aws_iam_user_policy_attachment":                   {},
+	"aws_ssoadmin_account_assignment":                  {},
+	"aws_ssoadmin_application":                         {},
+	"aws_ssoadmin_application_assignment":              {},
+	"aws_ssoadmin_instance_access_control_attributes":  {},
+	"aws_ssoadmin_permission_set":                      {},
+	// ---- Registry-ratified (#40, #44, #65): fifth batch, observability and
+	// ---- eventing remainder (CloudWatch, Logs, EventBridge/Events, Step
+	// ---- Functions, X-Ray, Grafana, RUM, Synthetics; issue #65's
+	// ---- ratification campaign). Same tools/row-gen pipeline as the earlier
+	// ---- batches, cross-checked against live/import-grammar.json (the
+	// ---- provider's own documented Import sections, fetched at the pinned
+	// ---- v6.59.0 tag) and, for several corrections, against the provider's
+	// ---- Argument Reference directly — see internal/live/identity/table.go
+	// ---- for the per-type evidence and for the rows this batch rejected or
+	// ---- left out of scope. Amazon Managed Prometheus (AWS::APS::*) is
+	// ---- deliberately untouched here: it is issue #68's concurrent batch,
+	// ---- and admitting any of its nine types from this batch too would be a
+	// ---- straight collision on both this table and DefaultTable. Amazon
+	// ---- Application Signals has no CloudFormation resource type in
+	// ---- live/mapping.json's roster at all, so there is no row-gen evidence
+	// ---- for it to ratify or reject. Cohort estate:
+	// ---- live/e2e/estates/observability.
+	"aws_cloudwatch_alarm_mute_rule":          {},
+	"aws_cloudwatch_contributor_insight_rule": {},
+	"aws_cloudwatch_otel_enrichment":          {},
+	"aws_cloudwatch_log_account_policy":       {},
+	"aws_cloudwatch_log_anomaly_detector":     {},
+	"aws_cloudwatch_log_delivery":             {},
+	"aws_cloudwatch_log_delivery_destination": {},
+	"aws_cloudwatch_log_delivery_source":      {},
+	"aws_cloudwatch_log_destination":          {},
+	"aws_cloudwatch_log_metric_filter":        {},
+	"aws_cloudwatch_log_resource_policy":      {},
+	"aws_cloudwatch_log_stream":               {},
+	"aws_cloudwatch_log_subscription_filter":  {},
+	"aws_cloudwatch_log_transformer":          {},
+	"aws_cloudwatch_query_definition":         {},
+	"aws_cloudwatch_event_api_destination":    {},
+	"aws_cloudwatch_event_archive":            {},
+	"aws_cloudwatch_event_bus":                {},
+	"aws_cloudwatch_event_connection":         {},
+	"aws_cloudwatch_event_endpoint":           {},
+	"aws_cloudwatch_event_permission":         {},
+	"aws_sfn_activity":                        {},
+	"aws_xray_group":                          {},
+	"aws_xray_resource_policy":                {},
+	"aws_xray_sampling_rule":                  {},
+	"aws_grafana_workspace":                   {},
+	"aws_rum_app_monitor":                     {},
+	"aws_synthetics_canary":                   {},
+	"aws_synthetics_group":                    {},
 }
 
 // admitted reports whether the given provider-local resource type may appear
