@@ -475,6 +475,9 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_networkmanager_link_association`,
 `aws_networkmanager_prefix_list_association`,
 `aws_networkmanager_transit_gateway_registration`,
+`aws_opensearchserverless_access_policy`,
+`aws_opensearchserverless_lifecycle_policy`,
+`aws_opensearchserverless_security_policy`,
 `aws_rds_cluster_role_association`, `aws_route`,
 `aws_route53_hosted_zone_dnssec`, `aws_route53_key_signing_key`,
 `aws_route53_record`, `aws_route53_resolver_firewall_rule`,
@@ -542,7 +545,6 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_cloudwatch_log_stream` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_cloudwatch_log_subscription_filter` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_cloudwatch_log_transformer` | `aws_cloudwatch_log_group` | no (report-only) |
-| `aws_codeartifact_domain_permissions_policy` | `aws_codeartifact_domain` | no (report-only) |
 | `aws_cognito_identity_pool_provider_principal_tag` | `aws_cognito_identity_pool` | no (report-only) |
 | `aws_cognito_identity_pool_roles_attachment` | `aws_cognito_identity_pool` | no (report-only) |
 | `aws_cognito_identity_provider` | `aws_cognito_user_pool` | no (report-only) |
@@ -584,6 +586,9 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_networkmanager_link_association` | `aws_networkmanager_link` | no (report-only) |
 | `aws_networkmanager_prefix_list_association` | `aws_ec2_managed_prefix_list` | no (report-only) |
 | `aws_networkmanager_transit_gateway_registration` | `aws_ec2_transit_gateway` | no (report-only) |
+| `aws_opensearchserverless_access_policy` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_opensearchserverless_lifecycle_policy` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_opensearchserverless_security_policy` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_route` | `aws_route_table` | no (report-only) |
 | `aws_route53_key_signing_key` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_route53_record` | `aws_api_gateway_domain_name` | no (report-only) |
@@ -646,6 +651,7 @@ per-type reasoning as it stands.
 `aws_cloudwatch_dashboard`, `aws_cloudwatch_event_permission`,
 `aws_cloudwatch_log_account_policy`, `aws_cloudwatch_log_resource_policy`,
 `aws_cloudwatch_otel_enrichment`, `aws_cloudwatch_query_definition`,
+`aws_codeartifact_domain_permissions_policy`,
 `aws_codeartifact_repository_permissions_policy`, `aws_codebuild_webhook`,
 `aws_codedeploy_deployment_config`, `aws_cognito_user_pool_domain`,
 `aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
