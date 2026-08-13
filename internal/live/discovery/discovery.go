@@ -616,11 +616,11 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 		}
 
 		escaped := EscapeAddress(r.Addr.String())
-		if len([]rune(escaped)) > MaxTagValue {
+		if len([]rune(escaped)) > MaxAddressLen {
 			diags = diags.Append(&hcl.Diagnostic{
 				Severity: hcl.DiagError,
 				Summary:  "Address too long to carry an ownership marker",
-				Detail:   fmt.Sprintf("The address %s escapes to %d characters, over the %d-character AWS tag value limit, so no live resource can carry it as a tofu-address marker. See live/MARKERS.md; this is a lint-time error, not something discovery can work around.", r.Addr, len([]rune(escaped)), MaxTagValue),
+				Detail:   fmt.Sprintf("The address %s escapes to %d characters, over the %d-character ceiling tofu-address and its continuation tags allow (live/MARKERS.md, MaxContinuations x MaxTagValue), so no live resource can carry it as a marker. See live/MARKERS.md; this is a lint-time error, not something discovery can work around.", r.Addr, len([]rune(escaped)), MaxAddressLen),
 				Subject:  block.DeclRange.Ptr(),
 			})
 			continue
@@ -1033,7 +1033,18 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			continue
 		}
 
-		raw := tags[TagAddress]
+		raw, corrupt := markers.GatherAddress(tags)
+		if corrupt {
+			diags = diags.Append(problemDiag(res, Problem{
+				Kind:     ProblemMalformedMarker,
+				TypeName: typeName,
+				LiveIDs:  liveIDs(importID),
+				Detail: fmt.Sprintf(
+					"A live %s claims estate %q but its tofu-address continuation tags have a gap in them - one of tofu-address-2, tofu-address-3, ... is missing while a later one is present. Per live/MARKERS.md such a resource is malformed - neither owned nor foreign - and a human has to say which address it belongs to; discovery will not guess.",
+					typeName, req.Estate),
+			}))
+			continue
+		}
 		escaped := EscapeAddress(raw)
 		if !ValidMarkerAddress(escaped) {
 			what := "carries no tofu-address tag"

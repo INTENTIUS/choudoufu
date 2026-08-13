@@ -791,15 +791,27 @@ func adoptionHint(req Request, u *discovery.UnclaimedResource, addr addrs.AbsRes
 // Anything else reports ok=false rather than guess at a rendering.
 func tagPairs(tv residue.TagVerb, req Request, addr addrs.AbsResourceInstance) (string, bool) {
 	escapedAddr := discovery.EscapeAddress(addr.String())
+	// Almost always one chunk. An address long enough to need continuation
+	// tags (live/MARKERS.md, "tofu-address continuation tags") gets one
+	// Key=tofu-address-N pair per chunk here too, so the hinted CLI command
+	// adopts the resource completely rather than writing a truncated
+	// tofu-address a later run would refuse to read back.
+	chunks := discovery.SplitAddress(escapedAddr)
 	switch tv.TagsShape {
 	case "list":
 		pairs := []string{
 			shellQuote(fmt.Sprintf("%s=%s,%s=%s", tv.TagKeyField, discovery.TagEstate, tv.TagValueField, req.Estate)),
-			shellQuote(fmt.Sprintf("%s=%s,%s=%s", tv.TagKeyField, discovery.TagAddress, tv.TagValueField, escapedAddr)),
+		}
+		for i, chunk := range chunks {
+			pairs = append(pairs, shellQuote(fmt.Sprintf("%s=%s,%s=%s", tv.TagKeyField, discovery.AddressTagKey(i), tv.TagValueField, chunk)))
 		}
 		return strings.Join(pairs, " "), true
 	case "map":
-		return shellQuote(fmt.Sprintf("%s=%s,%s=%s", discovery.TagEstate, req.Estate, discovery.TagAddress, escapedAddr)), true
+		parts := []string{fmt.Sprintf("%s=%s", discovery.TagEstate, req.Estate)}
+		for i, chunk := range chunks {
+			parts = append(parts, fmt.Sprintf("%s=%s", discovery.AddressTagKey(i), chunk))
+		}
+		return shellQuote(strings.Join(parts, ",")), true
 	default:
 		return "", false
 	}

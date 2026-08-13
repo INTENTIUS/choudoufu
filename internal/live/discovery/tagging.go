@@ -494,7 +494,17 @@ func fileTaggingCandidate(req Request, decl *declared, typeName string, c tagged
 		return diags
 	}
 
-	raw := c.tags[TagAddress]
+	raw, corrupt := GatherAddress(c.tags)
+	if corrupt {
+		return diags.Append(problemDiag(res, Problem{
+			Kind:     ProblemMalformedMarker,
+			TypeName: typeName,
+			LiveIDs:  liveIDs(c.importID),
+			Detail: fmt.Sprintf(
+				"A live %s (via the tag sweep) claims estate %q but its tofu-address continuation tags have a gap in them - one of tofu-address-2, tofu-address-3, ... is missing while a later one is present. Per live/MARKERS.md such a resource is malformed - neither owned nor foreign - and a human has to say which address it belongs to; discovery will not guess.",
+				typeName, req.Estate),
+		}))
+	}
 	escaped := EscapeAddress(raw)
 	if !ValidMarkerAddress(escaped) {
 		what := "carries no tofu-address tag"
