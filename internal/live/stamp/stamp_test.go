@@ -622,6 +622,41 @@ var (
 		"aws_codepipeline_custom_action_type",
 		"aws_codepipeline_webhook",
 		"aws_ecrpublic_repository",
+		// Registry-ratified databases batch (#40, #44, issue #65): every
+		// ratified type in this batch except the three OpenSearchServerless
+		// policy types below (untaggableAdmittedTypes) carries a top-level
+		// tags argument in the pinned provider's own wire schema, confirmed
+		// against the generated live/e2e/estates/databases fixture. See
+		// live/e2e/estates/databases/README.md.
+		"aws_redshift_cluster",
+		"aws_redshift_parameter_group",
+		"aws_redshift_subnet_group",
+		"aws_redshift_snapshot_schedule",
+		"aws_redshiftserverless_namespace",
+		"aws_redshiftserverless_workgroup",
+		"aws_opensearch_domain",
+		"aws_elasticsearch_domain",
+		"aws_opensearchserverless_collection",
+		"aws_opensearchserverless_collection_group",
+		"aws_neptune_cluster_parameter_group",
+		"aws_neptune_parameter_group",
+		"aws_neptune_subnet_group",
+		"aws_docdb_event_subscription",
+		"aws_docdbelastic_cluster",
+		"aws_timestreamwrite_database",
+		"aws_timestreamwrite_table",
+		"aws_timestreaminfluxdb_db_cluster",
+		"aws_timestreaminfluxdb_db_instance",
+		"aws_timestreamquery_scheduled_query",
+		"aws_qldb_ledger",
+		"aws_memorydb_acl",
+		"aws_memorydb_cluster",
+		"aws_memorydb_multi_region_cluster",
+		"aws_memorydb_parameter_group",
+		"aws_memorydb_user",
+		"aws_memorydb_subnet_group",
+		"aws_keyspaces_keyspace",
+		"aws_keyspaces_table",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -758,6 +793,16 @@ var (
 		"aws_codebuild_webhook",
 		"aws_codedeploy_deployment_config",
 		"aws_ecrpublic_repository_policy",
+		// Registry-ratified databases batch (#40, #44, issue #65): the
+		// three OpenSearchServerless policy types (access, lifecycle,
+		// security) carry only a name/type/policy document, the same
+		// untaggable shape as aws_sns_topic_policy and
+		// aws_sqs_queue_policy above, confirmed against the generated
+		// live/e2e/estates/databases fixture. See
+		// live/e2e/estates/databases/README.md, "Untaggable types".
+		"aws_opensearchserverless_access_policy",
+		"aws_opensearchserverless_lifecycle_policy",
+		"aws_opensearchserverless_security_policy",
 	}
 )
 
@@ -1430,6 +1475,47 @@ func testSchemas() Schemas {
 		"aws_lightsail_lb":                                 tagged("id", "arn", "name"),
 		"aws_lightsail_lb_certificate":                     untagged("id", "arn", "lb_name", "name"),
 		"aws_lightsail_static_ip":                          untagged("id", "arn", "name"),
+
+		// Registry-ratified databases batch (#40, #44, issue #65).
+		// Taggable/untaggable per the real provider's documented Argument
+		// Reference for each type, confirmed against the generated
+		// live/e2e/estates/databases fixture: the three OpenSearchServerless
+		// policy types (access, lifecycle, security) carry only a
+		// name/type/policy document, the same untaggable shape as
+		// aws_sns_topic_policy above; every other type in this batch is
+		// taggable.
+		"aws_redshift_cluster":                      tagged("id", "arn", "cluster_identifier"),
+		"aws_redshift_parameter_group":              tagged("id", "arn", "name"),
+		"aws_redshift_subnet_group":                 tagged("id", "arn", "name"),
+		"aws_redshift_snapshot_schedule":            tagged("id", "arn", "identifier"),
+		"aws_redshiftserverless_namespace":          tagged("id", "arn", "namespace_name"),
+		"aws_redshiftserverless_workgroup":          tagged("id", "arn", "workgroup_name"),
+		"aws_opensearch_domain":                     tagged("id", "arn", "domain_name"),
+		"aws_elasticsearch_domain":                  tagged("id", "arn", "domain_name"),
+		"aws_opensearchserverless_collection":       tagged("id", "arn", "name"),
+		"aws_opensearchserverless_collection_group": tagged("id", "arn", "name"),
+		"aws_opensearchserverless_access_policy":    untagged("id", "name", "type", "policy"),
+		"aws_opensearchserverless_lifecycle_policy": untagged("id", "name", "type", "policy"),
+		"aws_opensearchserverless_security_policy":  untagged("id", "name", "type", "policy"),
+		"aws_neptune_cluster_parameter_group":       tagged("id", "arn", "name"),
+		"aws_neptune_parameter_group":               tagged("id", "arn", "name"),
+		"aws_neptune_subnet_group":                  tagged("id", "arn", "name"),
+		"aws_docdb_event_subscription":              tagged("id", "arn", "name"),
+		"aws_docdbelastic_cluster":                  tagged("id", "arn", "name"),
+		"aws_timestreamwrite_database":              tagged("id", "arn", "database_name"),
+		"aws_timestreamwrite_table":                 tagged("id", "arn", "database_name", "table_name"),
+		"aws_timestreaminfluxdb_db_cluster":         tagged("id", "arn", "name"),
+		"aws_timestreaminfluxdb_db_instance":        tagged("id", "arn", "name"),
+		"aws_timestreamquery_scheduled_query":       tagged("id", "arn", "name"),
+		"aws_qldb_ledger":                           tagged("id", "arn", "name"),
+		"aws_memorydb_acl":                          tagged("id", "arn", "name"),
+		"aws_memorydb_cluster":                      tagged("id", "arn", "name"),
+		"aws_memorydb_multi_region_cluster":         tagged("id", "arn", "multi_region_cluster_name"),
+		"aws_memorydb_parameter_group":              tagged("id", "arn", "name"),
+		"aws_memorydb_user":                         tagged("id", "arn", "user_name"),
+		"aws_memorydb_subnet_group":                 tagged("id", "arn", "name"),
+		"aws_keyspaces_keyspace":                    tagged("id", "arn", "name"),
+		"aws_keyspaces_table":                       tagged("id", "arn", "keyspace_name", "table_name"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.

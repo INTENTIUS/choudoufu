@@ -438,10 +438,13 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_kms_alias`, `aws_lambda_layer_version`,
 `aws_lb_target_group_attachment`, `aws_lightsail_lb_certificate`,
 `aws_lightsail_static_ip`, `aws_network_interface_attachment`,
-`aws_network_interface_permission`, `aws_rds_cluster_role_association`,
-`aws_route`, `aws_route53_hosted_zone_dnssec`,
-`aws_route53_key_signing_key`, `aws_route53_record`,
-`aws_route53_resolver_firewall_rule`,
+`aws_network_interface_permission`,
+`aws_opensearchserverless_access_policy`,
+`aws_opensearchserverless_lifecycle_policy`,
+`aws_opensearchserverless_security_policy`,
+`aws_rds_cluster_role_association`, `aws_route`,
+`aws_route53_hosted_zone_dnssec`, `aws_route53_key_signing_key`,
+`aws_route53_record`, `aws_route53_resolver_firewall_rule`,
 `aws_route53_resolver_rule_association`, `aws_route53_zone_association`,
 `aws_route_table_association`, `aws_s3_bucket_lifecycle_configuration`,
 `aws_s3_bucket_policy`, `aws_s3_bucket_public_access_block`,
@@ -498,6 +501,9 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_lb_target_group_attachment` | `aws_lb_target_group` | no (report-only) |
 | `aws_lightsail_lb_certificate` | `aws_lightsail_lb` | no (report-only) |
 | `aws_lightsail_static_ip` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_opensearchserverless_access_policy` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_opensearchserverless_lifecycle_policy` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_opensearchserverless_security_policy` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_route` | `aws_route_table` | no (report-only) |
 | `aws_route53_key_signing_key` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_route53_record` | `aws_api_gateway_domain_name` | no (report-only) |
@@ -513,7 +519,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_sqs_queue_policy` | `aws_sqs_queue` | no (report-only) |
 | `aws_volume_attachment` | `aws_ebs_volume` | no (report-only) |
 
-**Total.** 39 types swept via a parent read.
+**Total.** 42 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
