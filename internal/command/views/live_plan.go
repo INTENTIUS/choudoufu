@@ -247,6 +247,87 @@ type StatelessUnowned struct {
 	MarkerAddress string
 }
 
+// StatelessPolicyDeclared is one declared instance whose admission or tag
+// handling GitHub issue #67's policy governed with a non-default verb -
+// projection.PolicyOutcome, in a form this package can render without
+// importing the projection builder.
+type StatelessPolicyDeclared struct {
+	Addr     string
+	TypeName string
+
+	// Tagged says which declared quadrant: declared_tagged when true,
+	// declared_untagged when false.
+	Tagged bool
+
+	Verb string
+}
+
+// StatelessPolicyWithheld is one owned-but-undeclared resource
+// (undeclared_tagged) a non-default policy verb kept out of the removal
+// sweep - discovery.OwnedResource with a PolicyVerb set, mirrored into
+// StatelessRemoval's shape plus the verb and the withheld sentence.
+type StatelessPolicyWithheld struct {
+	TypeName    string
+	LiveID      string
+	DisplayName string
+	Marker      string
+	Verb        string
+	Withheld    string
+}
+
+// StatelessUntagged is one resource block a declared_tagged = "untag" verb
+// released a tag key from - stamp.Untagged, in this package's own shape.
+type StatelessUntagged struct {
+	Addr         string
+	Key          string
+	EstateMarker bool
+}
+
+// StatelessReconcileCandidate is one live resource GitHub issue #67's
+// undeclared_untagged = "delete" scoped account reconciliation would
+// destroy - discovery.ReconcileCandidate, rendered with identity evidence
+// per the issue's "no aggregate count without the roster" rule.
+type StatelessReconcileCandidate struct {
+	TypeName    string
+	LiveID      string
+	DisplayName string
+}
+
+// StatelessReconcileGap is one scope-selected type the reconciliation pass
+// could not enumerate.
+type StatelessReconcileGap struct {
+	TypeName string
+	Reason   string
+	Detail   string
+}
+
+// StatelessReconcile is the outcome of one scoped account-reconciliation
+// pass, when the resolved policy asked for one.
+type StatelessReconcile struct {
+	Ran               bool
+	Roster            []StatelessReconcileCandidate
+	Gaps              []StatelessReconcileGap
+	Threshold         int
+	ThresholdExceeded bool
+}
+
+// StatelessPolicyReport is everything GitHub issue #67's policy block did
+// this run beyond today's fixed behavior. Every field is empty on a run
+// with no policy block, or one that only ever names default verbs - which
+// is what makes "omitted policy = byte-identical current behavior" visible
+// in the rendered output and not only in the underlying data.
+type StatelessPolicyReport struct {
+	Declared  []StatelessPolicyDeclared
+	Withheld  []StatelessPolicyWithheld
+	Untagged  []StatelessUntagged
+	Reconcile StatelessReconcile
+}
+
+// Empty reports whether there is nothing to render.
+func (r StatelessPolicyReport) Empty() bool {
+	return len(r.Declared) == 0 && len(r.Withheld) == 0 && len(r.Untagged) == 0 && !r.Reconcile.Ran
+}
+
 // StatelessPlan renders the parts of live-plan's output that have no
 // equivalent in a stock plan. The plan itself is rendered by the ordinary
 // [Plan] view, so that live-plan and plan produce identical output for
@@ -264,6 +345,14 @@ type StatelessPlan interface {
 	// Foreign reports the live resources the estate does not own: what was
 	// found, what could be adopted, and which types the sweep covered.
 	Foreign(rep StatelessForeign)
+
+	// Policy reports what GitHub issue #67's policy block did this run:
+	// which declared instances a non-default verb governed, which
+	// undeclared_tagged resources a non-default verb withheld from the
+	// sweep, which resources released a tag key, and the scoped
+	// account-reconciliation roster when undeclared_untagged = "delete"
+	// ran. A no-op when rep.Empty().
+	Policy(rep StatelessPolicyReport)
 }
 
 // NewStatelessPlan returns the human-readable implementation. There is no
@@ -593,6 +682,105 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 		if len(notScanned) > 0 {
 			colored("  [bold]%s[reset] [NOT_SCANNED]\n", strings.Join(notScanned, ", "))
 			wrapped("Nothing of these types needed marker discovery, so none of them was listed on this configuration's behalf. The removal sweep above may have listed them, but a sweep asks the provider for this estate's own resources and no others, so no unclaimed resource of these types ever crossed the wire. Their identities come out of configuration, which says nothing about what else exists in the account.", 6)
+		}
+	}
+
+	v.view.outputHorizRule()
+}
+
+const statelessPolicyDeclaredIntro = `GitHub issue #67's policy block assigned a non-default verb to these declared instances. Each line names the quadrant the instance fell in (declared_tagged: already carries this estate's marker; declared_untagged: does not) and the verb that governed it.`
+
+const statelessPolicyWithheldIntro = `These live resources carry this estate's ownership marker for an address the configuration no longer declares, and a policy verb kept them out of the removal sweep: they are not in the prior state this plan ran against, and nothing below proposes destroying them.`
+
+const statelessUntaggedIntro = `declared_tagged = "untag" released the named tag key from these resources' desired configuration. Each is otherwise stamped and managed exactly as it would be under converge; only the named key is affected. A resource marked "leaves management" released its own tofu-estate marker: this run's marker discovery can no longer find it by that marker, so a later plan will treat it as declared_untagged rather than converging it.`
+
+const statelessReconcileIntro = `undeclared_untagged = "delete" is scoped account reconciliation: every live resource of an admitted, enumerable type in this policy's scope that carries no estate marker and no preservation tag is planned for destruction, individually, with its identity evidence. This list is never a claim that the account is clean - see the gaps below for what this pass could not look at.`
+
+// Policy renders GitHub issue #67's policy report as its own section,
+// between Foreign and the plan. A no-op when rep.Empty(), so a run with no
+// policy block - or one that only ever names default verbs - prints nothing
+// new at all.
+func (v *StatelessPlanHuman) Policy(rep StatelessPolicyReport) {
+	if rep.Empty() {
+		return
+	}
+
+	cols := v.view.outputColumns()
+	out := func(s string) { v.view.streams.Print(s) }
+	colored := func(f string, args ...any) {
+		v.view.streams.Print(v.view.colorize.Color(fmt.Sprintf(f, args...)))
+	}
+	wrapped := func(s string, indent int) {
+		for _, line := range strings.Split(strings.TrimRight(format.WordWrap(s, cols-indent), "\n"), "\n") {
+			out(strings.Repeat(" ", indent) + line + "\n")
+		}
+	}
+
+	if len(rep.Declared) > 0 {
+		colored("\n[reset][bold]Policy: %d declared %s governed by a non-default verb[reset]\n\n",
+			len(rep.Declared), noun(len(rep.Declared), "instance", "instances"))
+		wrapped(statelessPolicyDeclaredIntro, 0)
+		out("\n")
+		for _, d := range rep.Declared {
+			quadrant := "declared_untagged"
+			if d.Tagged {
+				quadrant = "declared_tagged"
+			}
+			colored("  [bold]%s[reset] <- %s [%s=%s]\n", d.Addr, d.TypeName, quadrant, d.Verb)
+		}
+	}
+
+	if len(rep.Withheld) > 0 {
+		colored("\n[reset][bold]Policy kept: %d owned %s withheld from the sweep[reset]\n\n",
+			len(rep.Withheld), noun(len(rep.Withheld), "resource", "resources"))
+		wrapped(statelessPolicyWithheldIntro, 0)
+		out("\n")
+		for _, w := range rep.Withheld {
+			colored("  [bold]%s %s[reset]%s [undeclared_tagged=%s]\n",
+				w.TypeName, liveIDOrNone(w.LiveID), displaySuffix(w.DisplayName, w.LiveID), w.Verb)
+			if w.Withheld != "" {
+				wrapped(w.Withheld, 6)
+			}
+		}
+	}
+
+	if len(rep.Untagged) > 0 {
+		colored("\n[reset][bold]Policy untag: %d resource %s releasing a tag[reset]\n\n",
+			len(rep.Untagged), noun(len(rep.Untagged), "block", "blocks"))
+		wrapped(statelessUntaggedIntro, 0)
+		out("\n")
+		for _, u := range rep.Untagged {
+			status := ""
+			if u.EstateMarker {
+				status = " [LEAVES MANAGEMENT]"
+			}
+			colored("  [bold]%s[reset] releases %q%s\n", u.Addr, u.Key, status)
+		}
+	}
+
+	if rep.Reconcile.Ran {
+		n := len(rep.Reconcile.Roster)
+		if rep.Reconcile.ThresholdExceeded {
+			colored("\n[reset][bold]Policy delete REFUSED: %d candidate %s exceeds the threshold of %d[reset]\n\n",
+				n, noun(n, "resource", "resources"), rep.Reconcile.Threshold)
+			wrapped("Review the roster below, and raise policy.threshold deliberately once it has been reviewed. Nothing was deleted.", 0)
+		} else {
+			colored("\n[reset][bold]Policy delete: %d live %s will be destroyed (scoped account reconciliation)[reset]\n\n",
+				n, noun(n, "resource", "resources"))
+			wrapped(statelessReconcileIntro, 0)
+		}
+		out("\n")
+		for _, c := range rep.Reconcile.Roster {
+			colored("  [bold]%s %s[reset]%s\n", c.TypeName, liveIDOrNone(c.LiveID), displaySuffix(c.DisplayName, c.LiveID))
+		}
+		if len(rep.Reconcile.Gaps) > 0 {
+			out("\n")
+			wrapped(fmt.Sprintf("Not reconciled: %d resource %s this pass could not enumerate. \"delete\" never implies the account is clean.",
+				len(rep.Reconcile.Gaps), noun(len(rep.Reconcile.Gaps), "type", "types")), 0)
+			for _, g := range rep.Reconcile.Gaps {
+				colored("  [bold]%s[reset] [%s]\n", g.TypeName, g.Reason)
+				wrapped(g.Detail, 6)
+			}
 		}
 	}
 

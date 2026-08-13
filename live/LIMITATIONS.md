@@ -64,6 +64,40 @@ using it is gone.
 and once for the connection block). Fixture at
 `live/e2e/limits/remote-exec/`.
 
+#### Logical resources: a three-way classification (GitHub issue #73)
+
+Every logical resource type in this family is refused today, and every one
+of them stays refused by this change - nothing below alters what a
+stateless run accepts. What changes is why a refusal reads the way it
+does. `internal/live/lint`'s per-type table (`logical_type.go`,
+`ClassifyLogicalType`) replaces the old family-prefix-only answer with a
+policy-grade classification, one of three:
+
+- **RECORD_ADMITTED** - `null_resource`, `terraform_data`, `time_static`,
+  `time_offset`, `time_rotating`, `time_sleep`, `random_id`, `random_pet`,
+  `random_shuffle`, `random_integer`. None of these generates or holds
+  secret material in any output, verified against each provider's own
+  documentation (see `logical_type.go`'s `logicalTypes` table for the
+  per-type citation). That makes each a candidate for #73's record-backed
+  identity: a persisted micro-state record standing in for the cloud
+  observation this fork otherwise requires. That support does not exist
+  yet, and a refusal for one of these types says so by name and cites #73.
+- **SECRET_REFUSED** - `random_password`, `random_bytes`, and the `tls_`
+  family (`tls_private_key`, `tls_self_signed_cert`,
+  `tls_locally_signed_cert`, `tls_cert_request`, and any future `tls_`
+  addition by default). Each generates, or requires as an argument, secret
+  material a live-markers run has nowhere safe to keep: no state file
+  today, and - per #73's own charter - no persisted micro-state record
+  either, since the no-secrets rule that already governs snapshots and
+  receipts forbids a record from carrying it too. Refused permanently, not
+  only until #73 lands.
+- **OTHER_REFUSED** - `local_*` and any other logical-family member this
+  table has no more specific opinion about. Refused for the original
+  reason, in the original wording: nobody has done the per-type
+  verification work for this group that the other two classes required, so
+  the honest default is "still refused, nothing more to say yet" rather
+  than a guess in either direction.
+
 ### null-resource
 
 **Construct.** `null_resource` with a `triggers` map.
@@ -76,11 +110,35 @@ attached to it. That record is the store. Logical-resource family, per
 **Forwarding address.** The receipts pattern. A declared, leaf resource
 whose value is a hash of inputs, read back to decide whether an effect needs
 to re-run, without any of `null_resource`'s implicit re-trigger machinery.
-Documented in `live/RECEIPTS.md`.
+Documented in `live/RECEIPTS.md`. Classified `RECORD_ADMITTED` (see above):
+GitHub issue #73's record-backed identity is a second forwarding address,
+once it exists.
 
-**Enforcement.** `RuleLogicalResource` (prefix `null_`),
-`internal/live/lint/admission.go` (`logicalType`). Fixture at
+**Enforcement.** `RuleLogicalResource`, classified `RECORD_ADMITTED`
+(`internal/live/lint/logical_type.go`, `ClassifyLogicalType`). Fixture at
 `live/e2e/limits/null-resource/`.
+
+### terraform-data
+
+**Construct.** `terraform_data`.
+
+**Why banned.** The same logical-resource story as `null_resource`: its
+`id` and `output` are minted once and remembered, not observed from
+anything live. Logical-resource family. It shares no type-name prefix with
+`null_resource` or any other logical type, so before this table it was
+missing from the admission code's prefix list entirely (GitHub issue #73's
+audit finding) and fell through to the generic "not in the v0 admission
+table" refusal (`unadmitted-type`) instead of this one. It is admitted to
+`internal/live/lint/logical_type.go`'s per-type table by exact type name
+rather than by a shared prefix, which is what closes that gap.
+
+**Forwarding address.** Same as `null_resource`: the receipts pattern
+today; GitHub issue #73's record-backed identity, once it lands. Classified
+`RECORD_ADMITTED` (see above).
+
+**Enforcement.** `RuleLogicalResource`, classified `RECORD_ADMITTED`
+(`internal/live/lint/logical_type.go`, `ClassifyLogicalType`). Fixture at
+`live/e2e/limits/terraform-data/`.
 
 ### local-file
 
@@ -94,8 +152,9 @@ Logical-resource family.
 a Makefile, a chant task) that produces the file on disk before OpenTofu
 runs, not as a resource OpenTofu tracks.
 
-**Enforcement.** `RuleLogicalResource` (prefix `local_`). Fixture at
-`live/e2e/limits/local-file/`.
+**Enforcement.** `RuleLogicalResource`, classified `OTHER_REFUSED` (see
+above; `internal/live/lint/logical_type.go`, `ClassifyLogicalType`).
+Fixture at `live/e2e/limits/local-file/`.
 
 ### random-password
 
@@ -108,9 +167,12 @@ A random value has no live twin. Logical-resource family.
 **Forwarding address.** A secret-store Op. Generate and store the secret
 in a secret manager (outside OpenTofu's model entirely), and have
 configuration reference it by ARN/path, never by value. The same forwarding
-applies to `tls_*`, banned for the same reason.
+applies to `tls_*`, banned for the same reason. Classified `SECRET_REFUSED`
+(see above): refused permanently, with no #73 forwarding address, unlike
+this family's `RECORD_ADMITTED` neighbors.
 
-**Enforcement.** `RuleLogicalResource` (prefix `random_`). Fixture at
+**Enforcement.** `RuleLogicalResource`, classified `SECRET_REFUSED`
+(`internal/live/lint/logical_type.go`, `ClassifyLogicalType`). Fixture at
 `live/e2e/limits/random-password/`.
 
 ### time-sleep
@@ -123,9 +185,12 @@ Logical-resource family.
 
 **Forwarding address.** Scheduling in the lifecycle layer. Sequence the
 delay in Ops/CI (a wait step, a dependency on an external readiness check),
-not as a resource in the graph.
+not as a resource in the graph. Classified `RECORD_ADMITTED` (see above):
+GitHub issue #73's record-backed identity is a second forwarding address,
+once it exists.
 
-**Enforcement.** `RuleLogicalResource` (prefix `time_`). Fixture at
+**Enforcement.** `RuleLogicalResource`, classified `RECORD_ADMITTED`
+(`internal/live/lint/logical_type.go`, `ClassifyLogicalType`). Fixture at
 `live/e2e/limits/time-sleep/`.
 
 ### remote-state
@@ -453,24 +518,35 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_ecr_replication_configuration`, `aws_ecrpublic_repository_policy`,
 `aws_ecs_cluster_capacity_providers`, `aws_eip_association`,
 `aws_eks_access_policy_association`, `aws_emr_security_configuration`,
-`aws_fsx_s3_access_point_attachment`, `aws_glue_catalog_table`,
-`aws_glue_classifier`, `aws_glue_data_catalog_encryption_settings`,
-`aws_guardduty_member`, `aws_guardduty_organization_admin_account`,
+`aws_fsx_s3_access_point_attachment`,
+`aws_globalaccelerator_endpoint_group`, `aws_globalaccelerator_listener`,
+`aws_glue_catalog_table`, `aws_glue_classifier`,
+`aws_glue_data_catalog_encryption_settings`, `aws_guardduty_member`,
+`aws_guardduty_organization_admin_account`,
 `aws_guardduty_organization_configuration`, `aws_iam_group`,
 `aws_iam_group_policy`, `aws_iam_group_policy_attachment`,
 `aws_iam_role_policy`, `aws_iam_role_policy_attachment`,
 `aws_iam_user_policy`, `aws_iam_user_policy_attachment`,
 `aws_inspector2_delegated_admin_account`,
-`aws_inspector2_member_association`, `aws_kms_alias`,
+`aws_inspector2_member_association`, `aws_iot_thing`,
+`aws_iot_topic_rule_destination`, `aws_kms_alias`,
 `aws_lambda_layer_version`, `aws_lb_target_group_attachment`,
 `aws_lightsail_lb_certificate`, `aws_lightsail_static_ip`,
 `aws_macie2_organization_admin_account`, `aws_medialive_multiplex_program`,
 `aws_msk_configuration`, `aws_nat_gateway_eip_association`,
 `aws_network_acl_rule`, `aws_network_interface_attachment`,
-`aws_network_interface_permission`, `aws_rds_cluster_role_association`,
-`aws_route`, `aws_route53_hosted_zone_dnssec`,
-`aws_route53_key_signing_key`, `aws_route53_record`,
-`aws_route53_resolver_firewall_rule`,
+`aws_network_interface_permission`,
+`aws_networkfirewall_logging_configuration`,
+`aws_networkmanager_customer_gateway_association`,
+`aws_networkmanager_link_association`,
+`aws_networkmanager_prefix_list_association`,
+`aws_networkmanager_transit_gateway_registration`,
+`aws_opensearchserverless_access_policy`,
+`aws_opensearchserverless_lifecycle_policy`,
+`aws_opensearchserverless_security_policy`,
+`aws_rds_cluster_role_association`, `aws_route`,
+`aws_route53_hosted_zone_dnssec`, `aws_route53_key_signing_key`,
+`aws_route53_record`, `aws_route53_resolver_firewall_rule`,
 `aws_route53_resolver_rule_association`, `aws_route53_zone_association`,
 `aws_route_table_association`, `aws_s3_bucket_lifecycle_configuration`,
 `aws_s3_bucket_policy`, `aws_s3_bucket_public_access_block`,
@@ -489,6 +565,7 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 `aws_vpc_endpoint_private_dns`, `aws_vpc_endpoint_route_table_association`,
 `aws_vpc_endpoint_security_group_association`,
 `aws_vpc_endpoint_subnet_association`, `aws_vpc_ipam_pool_cidr`,
+`aws_vpclattice_auth_policy`, `aws_vpclattice_resource_policy`,
 `aws_wafv2_web_acl_rule` and `aws_xray_resource_policy`<!-- survey-gen:end untaggable-admitted --> carry no tags, so a marker-based sweep
 has nothing to search on for any of them. Their identity is built from
 their own configuration, which is a problem the moment a resource block is
@@ -534,7 +611,6 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_cloudwatch_log_stream` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_cloudwatch_log_subscription_filter` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_cloudwatch_log_transformer` | `aws_cloudwatch_log_group` | no (report-only) |
-| `aws_codeartifact_domain_permissions_policy` | `aws_codeartifact_domain` | no (report-only) |
 | `aws_cognito_identity_pool_provider_principal_tag` | `aws_cognito_identity_pool` | no (report-only) |
 | `aws_cognito_identity_pool_roles_attachment` | `aws_cognito_identity_pool` | no (report-only) |
 | `aws_cognito_identity_provider` | `aws_cognito_user_pool` | no (report-only) |
@@ -564,6 +640,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_iam_role_policy_attachment` | `aws_iam_role` | no (report-only) |
 | `aws_iam_user_policy` | `aws_iam_user` | no (report-only) |
 | `aws_iam_user_policy_attachment` | `aws_iam_user` | no (report-only) |
+| `aws_iot_thing` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_kms_alias` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_lb_target_group_attachment` | `aws_lb_target_group` | no (report-only) |
 | `aws_lightsail_lb_certificate` | `aws_lightsail_lb` | no (report-only) |
@@ -571,6 +648,14 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_medialive_multiplex_program` | `aws_medialive_multiplex` | no (report-only) |
 | `aws_nat_gateway_eip_association` | `aws_nat_gateway` | no (report-only) |
 | `aws_network_acl_rule` | `aws_network_acl` | no (report-only) |
+| `aws_networkfirewall_logging_configuration` | `aws_networkfirewall_firewall` | no (report-only) |
+| `aws_networkmanager_customer_gateway_association` | `aws_customer_gateway` | no (report-only) |
+| `aws_networkmanager_link_association` | `aws_networkmanager_link` | no (report-only) |
+| `aws_networkmanager_prefix_list_association` | `aws_ec2_managed_prefix_list` | no (report-only) |
+| `aws_networkmanager_transit_gateway_registration` | `aws_ec2_transit_gateway` | no (report-only) |
+| `aws_opensearchserverless_access_policy` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_opensearchserverless_lifecycle_policy` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_opensearchserverless_security_policy` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_route` | `aws_route_table` | no (report-only) |
 | `aws_route53_key_signing_key` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_route53_record` | `aws_api_gateway_domain_name` | no (report-only) |
@@ -600,7 +685,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_vpc_ipam_pool_cidr` | `aws_vpc_ipam_pool` | no (report-only) |
 | `aws_wafv2_web_acl_rule` | `aws_wafv2_web_acl` | no (report-only) |
 
-**Total.** 84 types swept via a parent read.
+**Total.** 92 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
@@ -633,6 +718,7 @@ per-type reasoning as it stands.
 `aws_cloudwatch_dashboard`, `aws_cloudwatch_event_permission`,
 `aws_cloudwatch_log_account_policy`, `aws_cloudwatch_log_resource_policy`,
 `aws_cloudwatch_otel_enrichment`, `aws_cloudwatch_query_definition`,
+`aws_codeartifact_domain_permissions_policy`,
 `aws_codeartifact_repository_permissions_policy`, `aws_codebuild_webhook`,
 `aws_codedeploy_deployment_config`, `aws_cognito_user_pool_domain`,
 `aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
@@ -640,19 +726,22 @@ per-type reasoning as it stands.
 `aws_ec2_transit_gateway_route`, `aws_ecr_registry_policy`,
 `aws_ecr_registry_scanning_configuration`,
 `aws_ecr_replication_configuration`, `aws_ecs_cluster_capacity_providers`,
-`aws_eip_association`, `aws_glue_data_catalog_encryption_settings`,
+`aws_eip_association`, `aws_globalaccelerator_endpoint_group`,
+`aws_globalaccelerator_listener`,
+`aws_glue_data_catalog_encryption_settings`,
 `aws_guardduty_organization_admin_account`,
 `aws_inspector2_delegated_admin_account`,
-`aws_inspector2_member_association`, `aws_lambda_layer_version`,
-`aws_macie2_organization_admin_account`, `aws_msk_configuration`,
-`aws_network_interface_attachment`, `aws_network_interface_permission`,
-`aws_rds_cluster_role_association`, `aws_route53_hosted_zone_dnssec`,
-`aws_route53_resolver_rule_association`,
+`aws_inspector2_member_association`, `aws_iot_topic_rule_destination`,
+`aws_lambda_layer_version`, `aws_macie2_organization_admin_account`,
+`aws_msk_configuration`, `aws_network_interface_attachment`,
+`aws_network_interface_permission`, `aws_rds_cluster_role_association`,
+`aws_route53_hosted_zone_dnssec`, `aws_route53_resolver_rule_association`,
 `aws_securityhub_configuration_policy_association`,
 `aws_securityhub_member`, `aws_securityhub_organization_admin_account`,
 `aws_securityhub_standards_control`,
 `aws_securityhub_standards_control_association`, `aws_ssm_service_setting`,
-`aws_vpc_dhcp_options_association` and `aws_xray_resource_policy`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
+`aws_vpc_dhcp_options_association`, `aws_vpclattice_auth_policy`,
+`aws_vpclattice_resource_policy` and `aws_xray_resource_policy`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
 parent-readable: the three ECR registry types are account-level singletons
 with no admitted parent resource to read at all, and the dashboard, the
 KMS alias and the Lambda layer version are each client-named on their own
