@@ -121,9 +121,16 @@ func ValidMarkerAddress(escaped string) bool {
 //     reaching here, because the comparison discovery makes is between two
 //     escaped values and those two are the same string.
 //
-// Only root-module addresses are produced: stateless mode v0 has no child
-// modules, and a value with more than the two leading segments a resource
-// address needs is refused rather than read as a module path.
+// A root-module address is the two trailing segments: type, then
+// name(+key). Anything before them has to be a run of "module", "<name>"
+// pairs with no key of their own - the module.a.module.b prefix a static
+// module call contributes to the address - or the value is refused rather
+// than guessed at. A keyed module step ("module.a:x") is well-formed
+// (escapedAddress does not distinguish module segments from the resource
+// segment) but is not decoded: nothing this fork admits today writes one -
+// phase 1 covers static module calls only, and a keyed module instance is
+// phase 2's concern (issue #59, 59c) - so a value carrying one is refused
+// the same way an unrecognized shape is, rather than silently accepted.
 func UnescapeAddress(escaped string) (addrs.AbsResourceInstance, bool) {
 	var zero addrs.AbsResourceInstance
 	if !ValidMarkerAddress(escaped) {
@@ -131,14 +138,29 @@ func UnescapeAddress(escaped string) (addrs.AbsResourceInstance, bool) {
 	}
 
 	parts := strings.Split(escaped, ".")
-	if len(parts) != 2 {
-		// A module path, or something else stateless mode does not produce.
-		return zero, false
-	}
-	typeName := parts[0]
-	name, key, hasKey := strings.Cut(parts[1], ":")
+	total := len(parts)
+	typeName := parts[total-2]
+	name, key, hasKey := strings.Cut(parts[total-1], ":")
 	if typeName == "" || name == "" {
 		return zero, false
+	}
+
+	prefix := parts[:total-2]
+	if len(prefix)%2 != 0 {
+		// An odd number of leading segments cannot be "module", "<name>"
+		// pairs.
+		return zero, false
+	}
+	var modInst addrs.ModuleInstance
+	for i := 0; i < len(prefix); i += 2 {
+		if prefix[i] != "module" {
+			return zero, false
+		}
+		modName := prefix[i+1]
+		if modName == "" || strings.Contains(modName, ":") {
+			return zero, false
+		}
+		modInst = append(modInst, addrs.ModuleInstanceStep{Name: modName, InstanceKey: addrs.NoKey})
 	}
 
 	res := addrs.Resource{
@@ -158,7 +180,7 @@ func UnescapeAddress(escaped string) (addrs.AbsResourceInstance, bool) {
 		}
 	}
 	return addrs.AbsResourceInstance{
-		Module:   addrs.RootModuleInstance,
+		Module:   modInst,
 		Resource: res.Instance(instKey),
 	}, true
 }

@@ -107,6 +107,19 @@ func LimitsDir(t *testing.T) string {
 	return fixtureDir(t, filepath.Join("live", "e2e", "limits"))
 }
 
+// EstateModuleDir returns the path of the static-module estate fixture
+// (issue #59, 59b): one resource, wrapped in a static module call, standing
+// next to live/e2e/estate/ (root-only) and live/e2e/estate-block/ (a "live"
+// block, no module) for the same reason both of those stand apart from
+// live/e2e/estates/ - it is applied against floci by a named test
+// (internal/live/lifecycle/module_traversal_live_test.go), not swept
+// generically by CohortDirs/FixtureDirs, which load fixtures with a walker
+// that fails on any module call.
+func EstateModuleDir(t *testing.T) string {
+	t.Helper()
+	return fixtureDir(t, filepath.Join("live", "e2e", "estate-module"))
+}
+
 // ImportFixtureDir returns the path of the live-import fixture (issue #61):
 // a small, deliberately marker-free configuration standing in for an estate
 // that has run under ordinary state-backed OpenTofu/Terraform and never used
@@ -188,25 +201,42 @@ func CopyEstate(t *testing.T) string {
 // same plugin-cache-trust reason CopyEstate's doc explains) and returns the
 // copy's directory, so terraform's own artifacts and any edit a test makes
 // never touch the checkout.
+//
+// The copy is recursive, preserving src's subdirectory structure: a fixture
+// with a static module call (issue #59, 59b - live/e2e/estate-module/'s
+// "wrapped" subdirectory, the module call's source) needs its child
+// directory copied too, or the copy fails to load with "module not
+// installed" while every flat, root-only fixture this function has always
+// served is unaffected, since it has no subdirectories to recurse into.
 func CopyFixtureDir(t *testing.T, src string) string {
 	t.Helper()
 
 	dst := t.TempDir()
-	entries, err := os.ReadDir(src)
-	if err != nil {
-		t.Fatalf("reading the fixture directory %s: %v", src, err)
-	}
-	for _, e := range entries {
-		if e.IsDir() || (!strings.HasSuffix(e.Name(), ".tf") && e.Name() != ".terraform.lock.hcl") {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Join(src, e.Name())) //nolint:gosec // a fixed path in the checkout
+	err := filepath.WalkDir(src, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			t.Fatalf("reading %s: %v", e.Name(), err)
+			return err
 		}
-		if err := os.WriteFile(filepath.Join(dst, e.Name()), data, 0o600); err != nil {
-			t.Fatalf("writing %s: %v", e.Name(), err)
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
 		}
+		if d.IsDir() {
+			if rel == "." {
+				return nil
+			}
+			return os.MkdirAll(filepath.Join(dst, rel), 0o755)
+		}
+		if !strings.HasSuffix(d.Name(), ".tf") && d.Name() != ".terraform.lock.hcl" {
+			return nil
+		}
+		data, err := os.ReadFile(path) //nolint:gosec // a fixed path in the checkout
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(filepath.Join(dst, rel), data, 0o600)
+	})
+	if err != nil {
+		t.Fatalf("copying the fixture directory %s: %v", src, err)
 	}
 	return dst
 }

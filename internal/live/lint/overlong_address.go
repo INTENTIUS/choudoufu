@@ -43,13 +43,18 @@ import (
 //     expression is statically evaluable, since the escaped address grows
 //     monotonically with the index and the highest index is the longest.
 //
-// Only root-module addresses are ever stamped: child modules are refused
-// wholesale by RuleChildModule, so a module path never reaches a marker,
-// and the address measured here is the whole value the marker would hold.
-
-// checkOverlongAddresses reports every resource instance whose escaped
-// tofu-address would exceed the AWS tag-value cap.
+// checkOverlongAddresses runs once per module in the tree (checkConfig calls
+// it at every node), and path is that module's own static path. A static
+// module block's resources measure module-qualified: an instance three
+// levels deep is prefixed with "module.a.module.b.module.c." before the
+// budget is checked, because that prefix is what the marker's tofu-address
+// value actually carries once it is stamped - see identity.ModuleInstance
+// for why an unkeyed instance shim is the right (and lossless) reading of a
+// static path. count- and for_each-expanded module blocks never reach here
+// at all: RuleChildModule refuses both outright, before any module they call
+// is walked for its own resources.
 func checkOverlongAddresses(ctx context.Context, mod *configs.Module, path addrs.Module, issues *[]Issue) {
+	modInst := path.UnkeyedInstanceShim()
 	for _, resource := range mod.ManagedResources {
 		switch {
 		case resource.ForEach != nil:
@@ -58,7 +63,7 @@ func checkOverlongAddresses(ctx context.Context, mod *configs.Module, path addrs
 				continue
 			}
 			for _, key := range keys {
-				addr := resource.Addr().Instance(addrs.StringKey(key))
+				addr := resource.Addr().Instance(addrs.StringKey(key)).Absolute(modInst)
 				reportOverlongAddress(addr.String(), resource.ForEach.Range(), path, issues)
 			}
 		case resource.Count != nil:
@@ -66,10 +71,11 @@ func checkOverlongAddresses(ctx context.Context, mod *configs.Module, path addrs
 			if !ok || n < 1 {
 				continue
 			}
-			addr := resource.Addr().Instance(addrs.IntKey(n - 1))
+			addr := resource.Addr().Instance(addrs.IntKey(n - 1)).Absolute(modInst)
 			reportOverlongAddress(addr.String(), resource.Count.Range(), path, issues)
 		default:
-			reportOverlongAddress(resource.Addr().String(), resource.DeclRange, path, issues)
+			addr := resource.Addr().Instance(addrs.NoKey).Absolute(modInst)
+			reportOverlongAddress(addr.String(), resource.DeclRange, path, issues)
 		}
 	}
 }

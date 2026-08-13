@@ -28,6 +28,13 @@ type countBlock struct {
 	// addresses of surplus members - the ones past the declared count.
 	resource addrs.Resource
 
+	// module is the static module instance the block is declared in: the
+	// root module instance for a root resource, or the module-qualified
+	// path for one inside a static module. It is what turns [resource] -
+	// which carries no module of its own - into an address that matches
+	// what identity resolution and the marker actually carry.
+	module addrs.ModuleInstance
+
 	// typeName is the resource type, cached from resource.
 	typeName string
 
@@ -47,7 +54,7 @@ type countBlock struct {
 // instanceAddr is the absolute address of one index of this block, including
 // indices past the declared count.
 func (cb *countBlock) instanceAddr(i int) addrs.AbsResourceInstance {
-	return cb.resource.Instance(addrs.IntKey(i)).Absolute(addrs.RootModuleInstance)
+	return cb.resource.Instance(addrs.IntKey(i)).Absolute(cb.module)
 }
 
 // claimants is every live resource in this block's set, in a deterministic

@@ -149,13 +149,6 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			"No configuration to discover against",
 			"Discovery needs the configuration the identity resolutions were computed from, so that a marker can be matched against an address that is actually declared, and none was given.",
 		))
-	case len(req.Config.Children) > 0:
-		// Defense in depth: lint's RuleChildModule is what an operator sees.
-		return res, diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Configuration with child modules reached discovery",
-			"Live resource markers v0 cover the root module only. Lint rejects module calls before this point, so this is a bug in the live-markers pipeline.",
-		))
 	case req.Provider == nil:
 		return res, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
@@ -404,13 +397,18 @@ func declaredInstances(req Request) (*declared, tfdiags.Diagnostics) {
 		// The resource block is bound rather than discarded because the two
 		// diagnostics below are about what the configuration says, and its
 		// DeclRange is the only thing that can point at the block that says
-		// it.
-		block, ok := req.Config.Module.ManagedResources[blockAddr]
-		if !ok {
+		// it. The lookup is module-qualified: r.Addr.Module says which node
+		// of the static tree declares blockAddr, and a block with the same
+		// local name in a different module must not match.
+		var block *configs.Resource
+		if modCfg, ok := identity.ConfigForModule(req.Config, r.Addr.Module); ok && modCfg.Module != nil {
+			block = modCfg.Module.ManagedResources[blockAddr]
+		}
+		if block == nil {
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
 				"Resolved resource missing from the configuration",
-				fmt.Sprintf("Discovery was asked to find %s, but the configuration it was given declares no resource block %q. The resolutions and the configuration come from different runs; this is a bug in whatever assembled them.", r.Addr, blockAddr),
+				fmt.Sprintf("Discovery was asked to find %s, but the configuration it was given declares no resource block %q in %s. The resolutions and the configuration come from different runs; this is a bug in whatever assembled them.", r.Addr, blockAddr, moduleDisplay(r.Addr.Module)),
 			))
 			continue
 		}
@@ -447,7 +445,7 @@ func declaredInstances(req Request) (*declared, tfdiags.Diagnostics) {
 		d.types[typeName][escaped] = &declaredEntry{res: r, escaped: escaped}
 		d.order[typeName] = append(d.order[typeName], escaped)
 
-		escapedBlock := EscapeAddress(blockAddr)
+		escapedBlock := EscapeAddress(r.Addr.ContainingResource().String())
 		blk := d.blocks[typeName][escapedBlock]
 		if blk == nil {
 			blk = &declaredBlock{addr: escapedBlock}
@@ -473,29 +471,19 @@ func declaredInstances(req Request) (*declared, tfdiags.Diagnostics) {
 // types that something else already put in scope are indexed, since a type
 // with no declared instances of any kind is never listed and a count block of
 // it would have nothing to match against.
+//
+// The whole static module tree is walked, not only the root: a resource
+// inside a static module may carry count exactly as a root resource can (it
+// is the module BLOCK'S count, not a resource's, that RuleChildModule
+// refuses permanently). Every block is keyed by its module-qualified
+// address, so two count blocks with the same local name in different
+// modules never collide.
 func (d *declared) indexCountBlocks(req Request) {
-	for name, rc := range req.Config.Module.ManagedResources {
-		if rc.Count == nil {
-			continue
-		}
-		typeName := rc.Type
-		if d.types[typeName] == nil {
-			continue
-		}
-		escaped := EscapeAddress(name)
-		if d.counts[typeName] == nil {
-			d.counts[typeName] = make(map[string]*countBlock)
-		}
-		d.counts[typeName][escaped] = &countBlock{
-			addr:     escaped,
-			resource: rc.Addr(),
-			typeName: typeName,
-		}
-	}
+	d.walkCountBlocks(req.Config)
 
 	for typeName, entries := range d.types {
 		for _, entry := range entries {
-			blockAddr := EscapeAddress(entry.res.Addr.Resource.Resource.String())
+			blockAddr := EscapeAddress(entry.res.Addr.ContainingResource().String())
 			cb, ok := d.counts[typeName][blockAddr]
 			if !ok {
 				continue
@@ -514,6 +502,38 @@ func (d *declared) indexCountBlocks(req Request) {
 				return instanceIndex(cb.entries[i].res.Addr) < instanceIndex(cb.entries[j].res.Addr)
 			})
 		}
+	}
+}
+
+// walkCountBlocks is [declared.indexCountBlocks]'s recursive step: one
+// module's count blocks, then its children in name order.
+func (d *declared) walkCountBlocks(cfg *configs.Config) {
+	if cfg == nil || cfg.Module == nil {
+		return
+	}
+	modInst := identity.ModuleInstance(cfg)
+	for _, rc := range cfg.Module.ManagedResources {
+		if rc.Count == nil {
+			continue
+		}
+		typeName := rc.Type
+		if d.types[typeName] == nil {
+			continue
+		}
+		blockAddr := addrs.AbsResource{Module: modInst, Resource: rc.Addr()}.String()
+		escaped := EscapeAddress(blockAddr)
+		if d.counts[typeName] == nil {
+			d.counts[typeName] = make(map[string]*countBlock)
+		}
+		d.counts[typeName][escaped] = &countBlock{
+			addr:     escaped,
+			resource: rc.Addr(),
+			module:   modInst,
+			typeName: typeName,
+		}
+	}
+	for _, name := range identity.SortedChildNames(cfg.Children) {
+		d.walkCountBlocks(cfg.Children[name])
 	}
 }
 
@@ -788,7 +808,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				LiveIDs:  liveIDs(importID),
 				Detail: fmt.Sprintf(
 					"A live %s claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. A marker names the resource it is written on (see live/MARKERS.md). Retag the resource with its own address, or remove the marker to disown it.",
-					typeName, req.Estate, raw, markerTypeLabel(markerType), typeName),
+					typeName, req.Estate, raw, markerType, typeName),
 			}))
 			continue
 		}
@@ -868,27 +888,24 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 	return diags
 }
 
-// markerTypeOf is the resource type a marker value names: the first segment
-// of an escaped address, which by the spec's grammar is the resource type of
-// the resource carrying it.
+// markerTypeOf is the resource type a marker value names.
 //
-// A module-path marker ("module.subnets:a.aws_subnet.this") returns "module",
-// which matches no resource type and is therefore reported the same way a
-// cross-type marker is - correct for v0, which has no child modules and can
-// neither bind nor plan such an address.
+// [UnescapeAddress] is the real answer whenever it has one: it validates the
+// whole shape, not just where the type segment sits, so
+// "aws.default.aws_vpc.main" - a would-be module prefix whose first segment
+// is not literally "module" - is rejected rather than read as a two-segment
+// address with an aws_vpc type by coincidence of position. When it cannot
+// decode the value at all (an out-of-set instance key, most commonly), the
+// first segment is still the best available guess, and everything this is
+// used for treats "does not equal the live object's real type" as the
+// signal, so a guess that undershoots costs nothing: a value this fallback
+// cannot parse was never going to bind to anything anyway.
 func markerTypeOf(escaped string) string {
+	if addr, ok := UnescapeAddress(escaped); ok {
+		return addr.Resource.Resource.Type
+	}
 	head, _, _ := strings.Cut(escaped, ".")
 	return head
-}
-
-// markerTypeLabel renders what a marker's leading segment names, for a
-// message that has to read sensibly whether that segment is another resource
-// type or the "module" keyword.
-func markerTypeLabel(markerType string) string {
-	if markerType == "module" {
-		return "resource inside a child module, which live resource markers v0 do not manage,"
-	}
-	return markerType
 }
 
 // markerCapable reports whether a resource type can carry the ownership
@@ -1013,12 +1030,14 @@ func classifyOrphans(req Request, res *Result) tfdiags.Diagnostics {
 		}
 	}
 
-	declaredBlocks := req.Config.Module.ManagedResources
 	for _, o := range res.Orphans {
 		if !o.Removal {
 			continue
 		}
-		_, declared := declaredBlocks[o.Addr.Resource.Resource.String()]
+		declared := false
+		if modCfg, ok := identity.ConfigForModule(req.Config, o.Addr.Module); ok && modCfg.Module != nil {
+			_, declared = modCfg.Module.ManagedResources[o.Addr.Resource.Resource.String()]
+		}
 		res.Resolutions = append(res.Resolutions, identity.Resolution{
 			Addr:  o.Addr,
 			Class: identity.ClassConcrete,
@@ -1124,6 +1143,15 @@ func tagFilter(key, value string) cty.Value {
 		"name":   cty.StringVal("tag:" + key),
 		"values": cty.ListVal([]cty.Value{cty.StringVal(value)}),
 	})})
+}
+
+// moduleDisplay names a module instance for a diagnostic: "the root module",
+// or "module.a.module.b" for a nested one.
+func moduleDisplay(modInst addrs.ModuleInstance) string {
+	if len(modInst) == 0 {
+		return "the root module"
+	}
+	return modInst.String()
 }
 
 func hasAttr(b *configschema.Block, name string) bool {

@@ -1,14 +1,12 @@
 # Limits fixture: RuleChildModule.
 #
-# Stateless mode v0 covers the root module only. Every module block below is
-# refused, but not for the same reason - #59 narrows this rule module call by
-# module call rather than all at once, and this fixture carries the three
-# shapes a module call can take so all three reasons are exercised in one
-# load:
+# This fixture carries the three shapes a module call can take, and only two
+# of them are still refused:
 #
-#   - "network" is a static call (no count, no for_each). Refused today
-#     because nothing downstream of lint walks into a child module yet
-#     (issue #59, phase 2, in progress).
+#   - "network" is a static call (no count, no for_each). Admitted (issue
+#     #59, phase 2 / 59b): the five walkers traverse it, so its resources
+#     bind by module-qualified address exactly as a root resource does.
+#     RuleChildModule reports nothing for it.
 #   - "counted" sets count. Refused permanently: count expansion renumbers
 #     every resource address inside the module, which is exactly what a
 #     tofu-address marker records.
@@ -18,8 +16,8 @@
 #
 # See live/LIMITATIONS.md, "child-module".
 #
-# The root module itself is inside the subset: the only issues this fixture
-# raises are the three module calls below.
+# The root module itself is inside the subset, and so is "network" now; the
+# only issues this fixture raises are the "counted" and "keyed" module calls.
 #
 # Unlike every other fixture in this wing, this one needs "choudoufu get"
 # before lint can be reached at all: a module block is refused with "Module
