@@ -623,9 +623,10 @@ inject into a shared configuration body. (`internal/live/stamp/stamp.go`,
 `aws_iot_topic_rule_destination`, `aws_kms_alias`,
 `aws_lambda_layer_version`, `aws_lb_target_group_attachment`,
 `aws_lightsail_lb_certificate`, `aws_lightsail_static_ip`,
-`aws_macie2_organization_admin_account`, `aws_msk_configuration`,
-`aws_nat_gateway_eip_association`, `aws_network_acl_rule`,
-`aws_network_interface_attachment`, `aws_network_interface_permission`,
+`aws_macie2_organization_admin_account`, `aws_medialive_multiplex_program`,
+`aws_msk_configuration`, `aws_nat_gateway_eip_association`,
+`aws_network_acl_rule`, `aws_network_interface_attachment`,
+`aws_network_interface_permission`,
 `aws_networkfirewall_logging_configuration`,
 `aws_networkmanager_customer_gateway_association`,
 `aws_networkmanager_link_association`,
@@ -742,6 +743,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_lb_target_group_attachment` | `aws_lb_target_group` | no (report-only) |
 | `aws_lightsail_lb_certificate` | `aws_lightsail_lb` | no (report-only) |
 | `aws_lightsail_static_ip` | `aws_api_gateway_domain_name` | no (report-only) |
+| `aws_medialive_multiplex_program` | `aws_medialive_multiplex` | no (report-only) |
 | `aws_nat_gateway_eip_association` | `aws_nat_gateway` | no (report-only) |
 | `aws_network_acl_rule` | `aws_network_acl` | no (report-only) |
 | `aws_networkfirewall_logging_configuration` | `aws_networkfirewall_firewall` | no (report-only) |
@@ -784,7 +786,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_vpc_ipam_pool_cidr` | `aws_vpc_ipam_pool` | no (report-only) |
 | `aws_wafv2_web_acl_rule` | `aws_wafv2_web_acl` | no (report-only) |
 
-**Total.** 98 types swept via a parent read.
+**Total.** 99 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
@@ -916,8 +918,9 @@ registry-side footprint is computed against `live/registry.json`.
 | App Mesh | `aws_appmesh_` | 7 | a service AWS has closed to new customers and is winding down |
 | AppStream 2.0 | `aws_appstream_` | 13 | a service this fork holds out of scope by policy |
 | DAX | `aws_dax_` | 3 | a service (DynamoDB Accelerator) this fork holds out of scope by policy |
+| MediaStore | `aws_media_store_` | 1 | a service AWS discontinued effective November 13, 2025 (already past), which the pinned provider's own docs also flag as deprecated |
 
-**Total.** 76 CloudFormation Registry types across 7 services.
+**Total.** 77 CloudFormation Registry types across 8 services.
 
 7 Terraform types carry `live/mapping.json`'s own `via: "deprecated-service"` (issue #53): a TF prefix under one of the services above whose entire CFN Registry footprint ships no working handler at all, so a family sweep can never recover a real mapping for it either.
 <!-- survey-gen:end residue-deprecated -->
@@ -1460,8 +1463,6 @@ excluding types already counted under "Deprecated or EOL services" above.
 | `aws_lakeformation_resource` | `AWS::LakeFormation::Resource` |
 | `aws_lb_listener_certificate` | `AWS::ElasticLoadBalancingV2::ListenerCertificate` |
 | `aws_media_convert_queue` | `AWS::MediaConvert::Queue` |
-| `aws_media_store_container` | `AWS::MediaStore::Container` |
-| `aws_media_store_container_policy` | `AWS::MediaStore::Container` |
 | `aws_medialive_channel` | `AWS::MediaLive::Channel` |
 | `aws_medialive_input` | `AWS::MediaLive::Input` |
 | `aws_medialive_input_security_group` | `AWS::MediaLive::InputSecurityGroup` |
@@ -1480,7 +1481,7 @@ excluding types already counted under "Deprecated or EOL services" above.
 | `aws_ses_receipt_rule` | `AWS::SES::ReceiptRule` |
 | `aws_ses_receipt_rule_set` | `AWS::SES::ReceiptRuleSet` |
 
-**Total.** 76 types, covered only where the provider's own identity schema reaches (the union `live/survey-full.json` measures). A successor CFN type sometimes exists with working handlers - `AWS::Elasticsearch::Domain` above has no handlers, but its successor `AWS::OpenSearchService::Domain` does; `live/mapping.json` does not yet link `aws_opensearch_domain` to it.
+**Total.** 74 types, covered only where the provider's own identity schema reaches (the union `live/survey-full.json` measures). A successor CFN type sometimes exists with working handlers - `AWS::Elasticsearch::Domain` above has no handlers, but its successor `AWS::OpenSearchService::Domain` does; `live/mapping.json` does not yet link `aws_opensearch_domain` to it.
 <!-- survey-gen:end residue-laggard -->
 
 #### Emulator-blocked

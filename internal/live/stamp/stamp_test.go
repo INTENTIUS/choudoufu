@@ -784,6 +784,18 @@ var (
 		"aws_appsync_graphql_api",
 		"aws_pipes_pipe",
 		"aws_scheduler_schedule_group",
+		// Registry-ratified media services batch (#40, #44, issue #65).
+		// aws_medialive_multiplex_program is this batch's one untaggable
+		// type, below. See live/e2e/estates/media/README.md, "Untaggable
+		// types".
+		"aws_medialive_multiplex",
+		"aws_media_package_channel",
+		"aws_media_packagev2_channel_group",
+		"aws_ivs_channel",
+		"aws_ivs_playback_key_pair",
+		"aws_ivs_recording_configuration",
+		"aws_ivschat_logging_configuration",
+		"aws_ivschat_room",
 		// Registry-ratified data-movement batch (#40, #44, issue #65): all
 		// twenty-seven types this batch ratified carry a top-level tags
 		// argument in the pinned provider's own wire schema, confirmed
@@ -1117,6 +1129,12 @@ var (
 		// "Untaggable types".
 		"aws_msk_configuration",
 		"aws_appflow_connector_profile",
+		// Registry-ratified media services batch (#40, #44, issue #65):
+		// aws_medialive_multiplex_program's Argument Reference names no
+		// tags block at all, and live/registry.json's own
+		// AWS::MediaLive::Multiplexprogram tagging.taggable is false. See
+		// live/e2e/estates/media/README.md, "Untaggable types".
+		"aws_medialive_multiplex_program",
 		// Registry-ratified databases batch (#40, #44, issue #65): the
 		// three OpenSearchServerless policy types (access, lifecycle,
 		// security) carry only a name/type/policy document, the same
@@ -1942,6 +1960,20 @@ func testSchemas() Schemas {
 		"aws_appsync_graphql_api":             tagged("id", "arn", "name"),
 		"aws_pipes_pipe":                      tagged("id", "arn", "name"),
 		"aws_scheduler_schedule_group":        tagged("id", "arn", "name"),
+
+		// Registry-ratified media services batch (#40, #44, issue #65).
+		// Taggable/untaggable per the real provider's documented Argument
+		// Reference for each type: aws_medialive_multiplex_program's is
+		// this batch's one untaggable row.
+		"aws_medialive_multiplex":           tagged("id", "arn", "name"),
+		"aws_medialive_multiplex_program":   untagged("id", "program_name", "multiplex_id"),
+		"aws_media_package_channel":         tagged("id", "arn", "channel_id"),
+		"aws_media_packagev2_channel_group": tagged("arn", "name"),
+		"aws_ivs_channel":                   tagged("id", "arn"),
+		"aws_ivs_playback_key_pair":         tagged("id", "arn", "public_key"),
+		"aws_ivs_recording_configuration":   tagged("id", "arn"),
+		"aws_ivschat_logging_configuration": tagged("id", "arn"),
+		"aws_ivschat_room":                  tagged("id", "arn", "name"),
 
 		// Registry-ratified security and secrets batch (#40, #44, issue #65).
 		"aws_secretsmanager_secret":                        tagged("id", "arn", "name"),
