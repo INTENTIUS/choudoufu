@@ -125,7 +125,7 @@ func TestVerificationCarriesDerivable(t *testing.T) {
 		},
 		// Deliberately a type the hand table does not cover, so the InTable
 		// split has something on both sides. aws_sqs_queue used to stand
-		// here; it is not in the table, but aws_sns_topic beside it is.
+		// here; it is in the table now (the messaging batch, #40, #44).
 		"aws_cloudwatch_log_metric_filter": {
 			args:     map[string]string{"name": "req", "log_group_name": "req"},
 			identity: map[string]string{"name": "req", "log_group_name": "req", "account_id": "opt"},

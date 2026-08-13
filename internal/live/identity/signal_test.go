@@ -173,10 +173,10 @@ func TestNamingOfNoArguments(t *testing.T) {
 func TestScanConfigCoversUnadmittedTypes(t *testing.T) {
 	signal := scanFixture(t, "naming-signal-named")
 
-	if _, inTable := LookupType("aws_sqs_queue"); inTable {
-		t.Fatal("this test needs a type the table does not cover; aws_sqs_queue is now in it")
+	if _, inTable := LookupType("aws_fake_queue"); inTable {
+		t.Fatal("this test needs a type the table does not cover; aws_fake_queue is a synthetic stand-in for that and should never be added to the hand table")
 	}
-	insts := signal.Instances("aws_sqs_queue")
+	insts := signal.Instances("aws_fake_queue")
 	if len(insts) != 1 {
 		t.Fatalf("the queue is not in the signal: %v", signal.Types())
 	}

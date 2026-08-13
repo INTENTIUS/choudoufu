@@ -27,7 +27,7 @@ func TestReportWithoutAConfiguration(t *testing.T) {
 	want := map[string]Admission{
 		"aws_ssm_parameter": AdmitSchema,
 		"aws_s3_bucket":     AdmitNeedsConfigSignal,
-		"aws_sqs_queue":     AdmitNeedsConfigSignal,
+		"aws_fake_queue":    AdmitNeedsConfigSignal,
 		"aws_vpc":           AdmitNeedsConfigSignal,
 	}
 	if got := admissions(r); !reflect.DeepEqual(got, want) {
@@ -70,7 +70,7 @@ func TestReportWithAConfiguration(t *testing.T) {
 	want := map[string]Admission{
 		"aws_ssm_parameter": AdmitSchema,
 		"aws_s3_bucket":     AdmitConfigSignal,
-		"aws_sqs_queue":     AdmitConfigSignal,
+		"aws_fake_queue":    AdmitConfigSignal,
 		// No block names a VPC, and the configuration saying so is an
 		// answer rather than a silence.
 		"aws_vpc": AdmitConfigDeclined,
@@ -84,7 +84,7 @@ func TestReportWithAConfiguration(t *testing.T) {
 		ConfigSignal:      2,
 		NeedsConfigSignal: 0,
 		ConfigDeclined:    1,
-		// aws_sqs_queue alone: the other two admitted types are already in
+		// aws_fake_queue alone: the other two admitted types are already in
 		// the hand table.
 		NewToTable: 1,
 	}
@@ -105,7 +105,7 @@ func TestReportWithADecliningConfiguration(t *testing.T) {
 	}
 	// The queue is not in this configuration at all, so nothing here
 	// answers for it.
-	if got := admissions(r)["aws_sqs_queue"]; got != AdmitNeedsConfigSignal {
+	if got := admissions(r)["aws_fake_queue"]; got != AdmitNeedsConfigSignal {
 		t.Errorf("a type the configuration does not declare is reported as %q, want %q", got, AdmitNeedsConfigSignal)
 	}
 }

@@ -442,6 +442,10 @@ var (
 		"aws_iam_instance_profile",
 		"aws_iam_service_linked_role",
 		"aws_iam_user",
+		// Registry-ratified messaging batch (#40, #44).
+		"aws_cloudwatch_composite_alarm",
+		"aws_cloudwatch_metric_stream",
+		"aws_sqs_queue",
 	}
 	untaggableAdmittedTypes = []string{
 		"aws_route",
@@ -481,6 +485,16 @@ var (
 		"aws_ecr_registry_policy",
 		"aws_ecr_registry_scanning_configuration",
 		"aws_ecr_replication_configuration",
+		// Registry-ratified messaging batch (#40, #44). All three are
+		// outside live/survey.json's curated 68 (aws_sqs_queue_policy and
+		// aws_sns_topic_policy are not in it at all; aws_cloudwatch_dashboard
+		// is not either, unlike aws_cloudwatch_metric_alarm above). See
+		// live/e2e/estates/messaging/README.md, "Untaggable types", for why
+		// aws_sns_topic_subscription — untaggable and *inside* the curated
+		// 68 — is deferred rather than landing in either list here.
+		"aws_cloudwatch_dashboard",
+		"aws_sns_topic_policy",
+		"aws_sqs_queue_policy",
 	}
 )
 
@@ -899,6 +913,16 @@ func testSchemas() Schemas {
 		"aws_iam_instance_profile":                tagged("id", "arn", "name", "role"),
 		"aws_iam_service_linked_role":             tagged("id", "arn", "name", "aws_service_name"),
 		"aws_iam_user":                            tagged("id", "arn", "name"),
+		// Registry-ratified messaging batch (#40, #44). Taggable/untaggable
+		// per the real provider's documented Argument Reference for each
+		// type: aws_cloudwatch_dashboard, aws_sns_topic_policy and
+		// aws_sqs_queue_policy carry no tags argument at all.
+		"aws_cloudwatch_composite_alarm": tagged("id", "arn", "alarm_name", "alarm_rule"),
+		"aws_cloudwatch_dashboard":       untagged("dashboard_arn", "dashboard_name", "dashboard_body"),
+		"aws_cloudwatch_metric_stream":   tagged("id", "arn", "name"),
+		"aws_sns_topic_policy":           untagged("id", "arn", "policy"),
+		"aws_sqs_queue":                  tagged("id", "arn", "url", "name"),
+		"aws_sqs_queue_policy":           untagged("id", "queue_url", "policy"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.

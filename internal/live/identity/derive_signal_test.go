@@ -16,15 +16,18 @@ import (
 // cohortSchemas is the pair the whole config-signal rule exists for, in the
 // shapes the real AWS provider serves: aws_s3_bucket's bucket and aws_vpc's
 // id are both Optional+Computed arguments that the identity schema requires
-// for import, and they mean opposite things. aws_sqs_queue is the same shape
-// again, outside the hand table.
+// for import, and they mean opposite things. aws_fake_queue is a synthetic
+// stand-in for the same shape, outside the hand table on purpose - it used
+// to be aws_sqs_queue itself, until the messaging batch (#40, #44) put the
+// real type in the table and left this fixture needing a type that stays
+// out of it.
 func cohortSchemas() map[string]providers.Schema {
 	return fakeProviderSchemas(map[string]fakeType{
 		"aws_s3_bucket": {
 			args:     map[string]string{"bucket": "optcomp", "bucket_prefix": "opt", "id": "optcomp"},
 			identity: map[string]string{"bucket": "req", "account_id": "opt", "region": "opt"},
 		},
-		"aws_sqs_queue": {
+		"aws_fake_queue": {
 			args:     map[string]string{"name": "optcomp", "name_prefix": "opt", "id": "optcomp"},
 			identity: map[string]string{"name": "req", "account_id": "opt", "region": "opt"},
 		},
@@ -88,11 +91,11 @@ func TestDerivableWithConfigSignal(t *testing.T) {
 		}
 	}
 
-	queue, ok := got["aws_sqs_queue"]
+	queue, ok := got["aws_fake_queue"]
 	if !ok {
 		t.Error("the queue names itself and was not admitted")
 	} else if queue.InTable {
-		t.Error("aws_sqs_queue is not in the hand table")
+		t.Error("aws_fake_queue is not in the hand table")
 	}
 
 	if d, ok := got["aws_vpc"]; ok {
@@ -171,8 +174,8 @@ func TestDerivableNewWith(t *testing.T) {
 	}
 	// aws_s3_bucket and aws_ssm_parameter are already in the table; the
 	// queue is not.
-	if !reflect.DeepEqual(got, []string{"aws_sqs_queue"}) {
-		t.Errorf("the new-candidate set is %v, want [aws_sqs_queue]", got)
+	if !reflect.DeepEqual(got, []string{"aws_fake_queue"}) {
+		t.Errorf("the new-candidate set is %v, want [aws_fake_queue]", got)
 	}
 }
 
@@ -248,7 +251,7 @@ func TestVerifyTableInCarriesConfigAdmissions(t *testing.T) {
 	if !reflect.DeepEqual(byEvidence[AdmitSchema], []string{"aws_ssm_parameter"}) {
 		t.Errorf("schema-settled admissions are %v", byEvidence[AdmitSchema])
 	}
-	if !reflect.DeepEqual(byEvidence[AdmitConfigSignal], []string{"aws_s3_bucket", "aws_sqs_queue"}) {
+	if !reflect.DeepEqual(byEvidence[AdmitConfigSignal], []string{"aws_fake_queue", "aws_s3_bucket"}) {
 		t.Errorf("config-settled admissions are %v", byEvidence[AdmitConfigSignal])
 	}
 

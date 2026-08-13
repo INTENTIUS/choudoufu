@@ -149,9 +149,8 @@ var admittedTypesV0 = map[string]struct{}{
 	// knows those computes the identity; one that does not finds the topic
 	// by its tags like any marker type. Either way the name in the block is
 	// what the estate is written around. See internal/live/identity's
-	// CloudContext. aws_sqs_queue is the same shape and is not here: floci
-	// reports a queue URL the AWS provider's own importer will not parse
-	// (choudoufu#26).
+	// CloudContext. aws_sqs_queue is the same shape; see the messaging
+	// batch below, which ratifies it despite a floci gap (choudoufu#26).
 	"aws_sns_topic": {},
 
 	// List plus content match, as a fungible set bound by tofu-slot marker.
@@ -192,6 +191,30 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_iam_instance_profile":                {},
 	"aws_iam_service_linked_role":             {},
 	"aws_iam_user":                            {},
+	// ---- Registry-ratified (#40, #44): second batch, messaging (SQS, SNS
+	// ---- beyond the already-admitted aws_sns_topic, CloudWatch, and
+	// ---- EventBridge/Events). Same tools/row-gen pipeline as the Lambda
+	// ---- batch above (9 row-gen proposals in scope; 2 rejected and 1
+	// ---- deferred on independent verification — see
+	// ---- internal/live/identity/table.go for the per-type evidence and
+	// ---- live/e2e/estates/messaging/README.md for why
+	// ---- aws_sns_topic_subscription is deferred rather than landing here
+	// ---- despite classifying cleanly). Cohort estate:
+	// ---- live/e2e/estates/messaging.
+	"aws_cloudwatch_composite_alarm": {},
+	"aws_cloudwatch_dashboard":       {},
+	"aws_cloudwatch_metric_stream":   {},
+	"aws_sns_topic_policy":           {},
+	// aws_sqs_queue ratifies on paper: its identity is the same
+	// account-derived shape as aws_sns_topic above, so the "aws_sqs_queue
+	// is the same shape and is not here" sentence a few lines up is now
+	// stale prose, not current fact — it is kept out no longer. What kept
+	// it out was never the identity, only a floci gap (choudoufu#26: floci
+	// reports a queue's URL as its own endpoint, and the AWS provider's
+	// importer parses only the amazonaws.com form). See
+	// live/e2e/estates/messaging/README.md for the emulator caveat.
+	"aws_sqs_queue":        {},
+	"aws_sqs_queue_policy": {},
 }
 
 // admitted reports whether the given provider-local resource type may appear

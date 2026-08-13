@@ -1,5 +1,5 @@
 # A configuration that names everything it can: the input to the admission
-# upgrade (derive_signal.go). Every aws_s3_bucket and aws_sqs_queue instance
+# upgrade (derive_signal.go). Every aws_s3_bucket and aws_fake_queue instance
 # sets the argument the provider requires for import, and the aws_vpc sets
 # nothing that names it, which is the whole of what the schemas could not
 # decide for themselves.
@@ -15,7 +15,7 @@ resource "aws_s3_bucket" "two" {
 
 # Outside the hand table: the shape a wiring batch would otherwise pick up
 # by hand.
-resource "aws_sqs_queue" "jobs" {
+resource "aws_fake_queue" "jobs" {
   name = "tofu-signal-jobs"
 }
 

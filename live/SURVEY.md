@@ -152,17 +152,17 @@ token per row.
 
 | Status | Meaning | Rows |
 |---|---|---|
-| `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | 49 |
+| `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | 55 |
 | `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 8 |
 | `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components | 0 |
 | `ops` | excluded by the rule, forwarded to the lifecycle layer | 3 |
-| `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 16 |
+| `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 15 |
 | `unknown` | path not determined | 0 |
 
 `wired`'s count is the admission table's global size, not a tally of this
-table's own rows: 41 of the 49 are rows below, classified and wired the way
+table's own rows: 42 of the 55 are rows below, classified and wired the way
 every batch before #40 was or later reclassified from blocked-emulator by
-a registry-ratified batch, and 12 come from the two registry-ratified
+a registry-ratified batch, and 18 come from the three registry-ratified
 batches (#40, #44) so far. The first (Lambda) contributed
 `aws_lambda_capacity_provider`, `aws_lambda_code_signing_config`,
 `aws_lambda_event_source_mapping` and `aws_lambda_layer_version`, plus
@@ -171,13 +171,23 @@ that batch. The second (IAM and ECR, issue #26) contributed
 `aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
 `aws_ecr_replication_configuration` and `aws_iam_service_linked_role`,
 plus `aws_ecr_repository`, `aws_iam_instance_profile` and `aws_iam_user`,
-all three already rows below and reclassified `wired` in this batch. Eight
-of the twelve registry-ratified types have no row in this table at all:
-they are outside the curated 68 this survey measures, reached by
-`live/registry.json` and `tools/row-gen` (#44) rather than by this file's
-own provider-schema path. Extending this roster and `live/survey.json` to
-the full registry-backed universe is #40's and #54's own follow-on work,
-not either batch's.
+all three already rows below and reclassified `wired` in that batch. The
+third (messaging: SQS, SNS beyond `aws_sns_topic`, CloudWatch) contributed
+`aws_cloudwatch_composite_alarm`, `aws_cloudwatch_dashboard`,
+`aws_cloudwatch_metric_stream`, `aws_sns_topic_policy` and
+`aws_sqs_queue_policy`, plus `aws_sqs_queue`, already a row below
+(`blocked-emulator`) and reclassified `wired` in that batch despite the
+emulator gap that row's own note still names — see
+`live/e2e/estates/messaging/README.md`. Thirteen of the eighteen
+registry-ratified types have no row in this table at all: they are outside
+the curated 68 this survey measures, reached by `live/registry.json` and
+`tools/row-gen` (#44) rather than by this file's own provider-schema path.
+The messaging batch also proposed `aws_sns_topic_subscription`, whose row
+below stays `ready`: it classifies cleanly but is deferred for a
+`live/LIMITATIONS.md` reason that has nothing to do with its identity —
+see the same README. Extending this roster and `live/survey.json` to the
+full registry-backed universe is #40's and #54's own follow-on work, not
+any batch's.
 
 The `blocked-emulator` rows were found by the #19 and #20 wiring lanes, by
 probing each candidate end to end through the provider against the harness's
@@ -247,7 +257,7 @@ identity argument were derived like every other row's.
 | aws_route53_record | client-named | wired | zone_id + name + type, plus set_identifier for weighted and latency sets; the fork wires it as a composite through the aws_route53_zone marker, since the Z-ID is the zone's server-assigned identity (see the wrinkles below) | survey note; schema |
 | aws_kms_key | marker | wired | server-assigned key ID (a UUID); the alias is a separate resource | survey note; schema |
 | aws_iam_policy | client-named | blocked-emulator | name + path, but the required import attribute is the policy ARN; the account-derived mechanism builds it, and floci's iam:GetPolicy omits Tags so the row cannot be proven live (choudoufu#26) | survey note; schema |
-| aws_sqs_queue | client-named | blocked-emulator | name, and the required import attribute is the queue URL; the account-derived template builds it, but floci reports a queue's URL as its own endpoint and the provider's importer parses only the amazonaws.com form, so the marker path cannot complete (choudoufu#26) | survey note; schema |
+| aws_sqs_queue | client-named | wired | name, and the required import attribute is the queue URL; the account-derived template builds it and registry-ratified (#40, #44) despite the gap this row was blocked on — floci still reports a queue's URL as its own endpoint rather than the amazonaws.com form the provider's importer parses, so the marker path a context-less run takes still cannot complete (choudoufu#26), but a plain apply against floci creates and destroys the type cleanly regardless — see live/e2e/estates/messaging/README.md | survey note, registry; schema |
 | aws_sns_topic | account-derived | wired | name, wrapped in the run's region and account as arn:aws:sns:REGION:ACCOUNT:NAME | survey note; schema |
 | aws_instance | marker | blocked-emulator | server-assigned instance ID (i-...); floci jumps a new instance straight to `terminated` and the provider's create waits for `running` (lex00/floci#32, closed 2026-08-12; blocked until a pullable harness image carries the fix — reprobed the same evening, the published image still terminates; choudoufu#26) | survey note; schema |
 | aws_cloudfront_distribution | marker | blocked-emulator | server-assigned distribution ID; floci serves no usable CloudFront distribution lifecycle (choudoufu#26); lifecycle fix merged upstream 2026-08-12 (lex00/floci#29), awaiting a republished image — and floci's resourcegroupstagging covers no CloudFront, so the wiring lane must verify the provider's list resource reaches ListDistributions + ListTagsForResource rather than GetResources before flipping this row | survey note; schema |
