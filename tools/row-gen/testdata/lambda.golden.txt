@@ -42,10 +42,10 @@ registry fields read: primary_identifier=["CapacityProviderName"] read_only_prop
 enumeration: list-free
 argument: name (source: provider identity schema (live/survey-full.json))
 
---- paste into internal/live/lint/admission.go (admittedTypesV0) ---
+--- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
 "aws_lambda_capacity_provider": {},
 
---- paste into internal/live/identity/table.go (DefaultTable) ---
+--- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
 TypeIdentity{
 	Type:          "aws_lambda_capacity_provider",
 	Components:    []Component{attr("name")},
@@ -58,10 +58,10 @@ rule: primaryIdentifier ⊆ readOnlyProperties
 registry fields read: primary_identifier=["CodeSigningConfigArn"] read_only_properties=["CodeSigningConfigId", "CodeSigningConfigArn"] create_only_properties=[]
 enumeration: list-free
 
---- paste into internal/live/lint/admission.go (admittedTypesV0) ---
+--- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
 "aws_lambda_code_signing_config": {},
 
---- paste into internal/live/identity/table.go (DefaultTable) ---
+--- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
 serverAssigned("aws_lambda_code_signing_config",
 	"the Lambda service assigns this identity at create time; no argument reconstructs it.", // TEMPLATED: rewrite or accept this reason during ratification
 	"CODESIGNINGCONFIGARN", // TEMPLATED: registry primaryIdentifier name(s), not the provider's documented import syntax; verify
@@ -76,10 +76,10 @@ rule: primaryIdentifier ⊆ readOnlyProperties
 registry fields read: primary_identifier=["Id"] read_only_properties=["Id", "EventSourceMappingArn"] create_only_properties=["EventSourceArn", "StartingPosition", "StartingPositionTimestamp", "SelfManagedEventSource"]
 enumeration: list-free
 
---- paste into internal/live/lint/admission.go (admittedTypesV0) ---
+--- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
 "aws_lambda_event_source_mapping": {},
 
---- paste into internal/live/identity/table.go (DefaultTable) ---
+--- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
 serverAssigned("aws_lambda_event_source_mapping",
 	"the Lambda service assigns this identity at create time; no argument reconstructs it.", // TEMPLATED: rewrite or accept this reason during ratification
 	"ID", // TEMPLATED: registry primaryIdentifier name(s), not the provider's documented import syntax; verify
@@ -95,10 +95,10 @@ registry fields read: primary_identifier=["FunctionName"] read_only_properties=[
 enumeration: list-free
 argument: function_name (source: provider identity schema (live/survey-full.json))
 
---- paste into internal/live/lint/admission.go (admittedTypesV0) ---
+--- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
 "aws_lambda_function": {},
 
---- paste into internal/live/identity/table.go (DefaultTable) ---
+--- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
 TypeIdentity{
 	Type:          "aws_lambda_function",
 	Components:    []Component{attr("function_name")},
@@ -112,10 +112,10 @@ registry fields read: primary_identifier=["FunctionName", "Qualifier"] read_only
 enumeration: parent-input ["FunctionName"]
 note: import docs example "arn:aws:lambda:us-east-1:123456789012:function:example" is a single value, not the registry's 2-part composite primaryIdentifier ["FunctionName", "Qualifier"]
 
---- paste into internal/live/lint/admission.go (admittedTypesV0) ---
+--- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
 "aws_lambda_function_event_invoke_config": {},
 
---- paste into internal/live/identity/table.go (DefaultTable) ---
+--- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
 serverAssigned("aws_lambda_function_event_invoke_config",
 	"the Lambda service assigns this identity at create time; no argument reconstructs it.", // TEMPLATED: rewrite or accept this reason during ratification
 	"ARN", // import-grammar precedence: registry primaryIdentifier disagreed with the documented import example; this is the documented shape - still verify
@@ -130,10 +130,10 @@ argument: function_name (source: import grammar (live/import-grammar.json))
 note: import docs show argument-composed ID: example
 note: import docs pin a single-argument composed ID (example), superseding the registry-only classification
 
---- paste into internal/live/lint/admission.go (admittedTypesV0) ---
+--- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
 "aws_lambda_function_url": {},
 
---- paste into internal/live/identity/table.go (DefaultTable) ---
+--- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
 TypeIdentity{
 	Type:          "aws_lambda_function_url",
 	Components:    []Component{attr("function_name")},
@@ -146,10 +146,10 @@ rule: primaryIdentifier ⊆ readOnlyProperties
 registry fields read: primary_identifier=["LayerVersionArn"] read_only_properties=["LayerVersionArn"] create_only_properties=["CompatibleRuntimes", "LicenseInfo", "CompatibleArchitectures", "LayerName", "Description", "Content"]
 enumeration: parent-input ["LayerName"]
 
---- paste into internal/live/lint/admission.go (admittedTypesV0) ---
+--- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
 "aws_lambda_layer_version": {},
 
---- paste into internal/live/identity/table.go (DefaultTable) ---
+--- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
 serverAssigned("aws_lambda_layer_version",
 	"the Lambda service assigns this identity at create time; no argument reconstructs it.", // TEMPLATED: rewrite or accept this reason during ratification
 	"LAYERVERSIONARN", // TEMPLATED: registry primaryIdentifier name(s), not the provider's documented import syntax; verify

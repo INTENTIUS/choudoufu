@@ -129,19 +129,19 @@ func renderProposal(p proposal) string {
 
 	switch p.Bucket {
 	case bucketServerAssigned:
-		b.WriteString("\n--- paste into internal/live/lint/admission.go (admittedTypesV0) ---\n")
+		b.WriteString("\n--- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---\n")
 		b.WriteString(renderAdmissionLine(p.TFType))
-		b.WriteString("\n--- paste into internal/live/identity/table.go (DefaultTable) ---\n")
+		b.WriteString("\n--- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---\n")
 		b.WriteString(renderServerAssignedEntry(p))
 	case bucketClientNamed:
-		b.WriteString("\n--- paste into internal/live/lint/admission.go (admittedTypesV0) ---\n")
+		b.WriteString("\n--- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---\n")
 		b.WriteString(renderAdmissionLine(p.TFType))
-		b.WriteString("\n--- paste into internal/live/identity/table.go (DefaultTable) ---\n")
+		b.WriteString("\n--- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---\n")
 		b.WriteString(renderClientNamedEntry(p))
 	case bucketComposite:
-		b.WriteString("\n--- paste into internal/live/lint/admission.go (admittedTypesV0) ---\n")
+		b.WriteString("\n--- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---\n")
 		b.WriteString(renderAdmissionLine(p.TFType))
-		b.WriteString("\n--- paste into internal/live/identity/table.go (DefaultTable) ---\n")
+		b.WriteString("\n--- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---\n")
 		b.WriteString(renderCompositeEntry(p))
 	case bucketNeedsHandSeparator:
 		b.WriteString("no pastable row: the composite separator is not registry evidence; a human chooses it.\n")
