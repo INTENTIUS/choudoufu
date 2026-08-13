@@ -499,7 +499,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_glue_classifier` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_iam_group` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_iam_group_policy` | `aws_api_gateway_domain_name` | no (report-only) |
-| `aws_iam_group_policy_attachment` | `aws_eks_node_group` | no (report-only) |
+| `aws_iam_group_policy_attachment` | `aws_iam_policy` | no (report-only) |
 | `aws_iam_role_policy` | `aws_iam_role` | no (report-only) |
 | `aws_iam_role_policy_attachment` | `aws_iam_role` | no (report-only) |
 | `aws_iam_user_policy` | `aws_iam_user` | no (report-only) |
