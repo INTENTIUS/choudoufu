@@ -1,0 +1,69 @@
+name: admission-pipeline
+
+# Issue #55: one weekly (or on-demand) run that DETECTs provider/registry
+# drift, REGENERATEs every derived admission artifact when there's drift,
+# VERIFIes it builds and tests green, and opens a PR with the generated
+# report as its body. A no-drift run exits during DETECT and does nothing
+# else - see tools/admission-pipeline's own package doc for the stage
+# breakdown.
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Monday 06:00 UTC
+  workflow_dispatch: {}
+
+# One admission-pipeline run at a time: a second run starting mid-REGENERATE
+# would race the first over the same live/*.json artifacts and the same
+# pipeline/provider-<version> branch name. cancel-in-progress stays false so
+# an in-flight run is left to finish (and either open its PR or exit clean)
+# rather than being cut off mid-commit; a later run just queues behind it.
+concurrency:
+  group: admission-pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  admission-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # tools/survey-gen boots the pinned provider via `terraform init`
+      # (go-plugin) to read its schema; ubuntu-latest's default toolset
+      # doesn't reliably include a matching Terraform, so pin one
+      # explicitly rather than depend on the runner image's contents.
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      # git commit needs an identity; gh and `git push` both pick up
+      # GH_TOKEN from the environment (set on the run step below), so no
+      # separate credential setup is needed for those.
+      - name: Configure git identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run the admission pipeline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: go run ./tools/admission-pipeline -pr
+
+      # TODO(#55): the gated floci tier (per-type e2e outcomes feeding the
+      # emulator-blocked roster) is a follow-up. It needs Docker, which this
+      # runner has, but wiring it into VERIFY is deliberately out of scope
+      # for this change - see issue #55's "Verify" stage description.
+
+      - name: Upload the generated report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admission-pipeline-report
+          path: tmp/admission-pipeline/
+          if-no-files-found: ignore
