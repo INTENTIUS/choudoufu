@@ -52,6 +52,63 @@ const (
 	terraformBin = "terraform"
 )
 
+// estateMaterializedWant pins, per estate, the exact addresses a full
+// discovery + binding + projection round trip against it is expected to
+// materialize (#48, phase 3 of #38's decision). It is a property of the
+// estate under test rather than one anonymous global list, so that a
+// estates/<cohort> verification estate that later gains its own live run
+// (this test is gated on Docker + a real terraform binary and stands up
+// only the demo estate today) adds its own entry here instead of the
+// existing one being generalized or overwritten. estateName is the demo
+// estate's key.
+var estateMaterializedWant = map[string][]string{
+	estateName: {
+		`aws_acm_certificate.app`,
+		`aws_cloudwatch_log_group.app`,
+		`aws_cloudwatch_log_group.optional[0]`,
+		`aws_cloudwatch_metric_alarm.cpu`,
+		`aws_dynamodb_table.events`,
+		`aws_ebs_volume.data`,
+		`aws_ecs_cluster.app`,
+		`aws_eip.pool[0]`,
+		`aws_eip.pool[1]`,
+		`aws_eip.pool[2]`,
+		`aws_iam_role.app`,
+		`aws_iam_role_policy.app`,
+		`aws_iam_role_policy_attachment.app`,
+		`aws_internet_gateway.main`,
+		`aws_kms_alias.main`,
+		`aws_kms_key.main`,
+		`aws_launch_template.app`,
+		`aws_lb.main`,
+		`aws_lb_listener.app`,
+		`aws_lb_target_group.app`,
+		`aws_lb_target_group_attachment.app`,
+		`aws_route.internet_gateway`,
+		`aws_route53_record.app`,
+		`aws_route53_zone.main`,
+		`aws_route_table.main`,
+		`aws_route_table_association.this["a"]`,
+		`aws_route_table_association.this["b"]`,
+		`aws_s3_bucket.data`,
+		`aws_s3_bucket_lifecycle_configuration.data`,
+		`aws_s3_bucket_policy.data`,
+		`aws_s3_bucket_public_access_block.data`,
+		`aws_s3_bucket_server_side_encryption_configuration.data`,
+		`aws_s3_bucket_versioning.data`,
+		`aws_security_group.main`,
+		`aws_sfn_state_machine.pipeline`,
+		`aws_sns_topic.alerts`,
+		`aws_ssm_parameter.demo_effect`,
+		`aws_ssm_parameter.demo_existence`,
+		`aws_subnet.this["a"]`,
+		`aws_subnet.this["b"]`,
+		`aws_vpc.main`,
+		`aws_vpc_security_group_egress_rule.all`,
+		`aws_vpc_security_group_ingress_rule.https`,
+	},
+}
+
 func TestDiscoverAgainstFloci(t *testing.T) {
 	flocitest.Gate(t, "discovery")
 	flocitest.RequireBinary(t, "docker")
@@ -258,50 +315,9 @@ func TestDiscoverAgainstFloci(t *testing.T) {
 	// P1.3 materialized six instances: the client-named ones. With markers
 	// bound, the marker path and every parent-derived chain that bottomed
 	// out in it complete as well.
-	want := []string{
-		`aws_acm_certificate.app`,
-		`aws_cloudwatch_log_group.app`,
-		`aws_cloudwatch_log_group.optional[0]`,
-		`aws_cloudwatch_metric_alarm.cpu`,
-		`aws_dynamodb_table.events`,
-		`aws_ebs_volume.data`,
-		`aws_ecs_cluster.app`,
-		`aws_eip.pool[0]`,
-		`aws_eip.pool[1]`,
-		`aws_eip.pool[2]`,
-		`aws_iam_role.app`,
-		`aws_iam_role_policy.app`,
-		`aws_iam_role_policy_attachment.app`,
-		`aws_internet_gateway.main`,
-		`aws_kms_alias.main`,
-		`aws_kms_key.main`,
-		`aws_launch_template.app`,
-		`aws_lb.main`,
-		`aws_lb_listener.app`,
-		`aws_lb_target_group.app`,
-		`aws_lb_target_group_attachment.app`,
-		`aws_route.internet_gateway`,
-		`aws_route53_record.app`,
-		`aws_route53_zone.main`,
-		`aws_route_table.main`,
-		`aws_route_table_association.this["a"]`,
-		`aws_route_table_association.this["b"]`,
-		`aws_s3_bucket.data`,
-		`aws_s3_bucket_lifecycle_configuration.data`,
-		`aws_s3_bucket_policy.data`,
-		`aws_s3_bucket_public_access_block.data`,
-		`aws_s3_bucket_server_side_encryption_configuration.data`,
-		`aws_s3_bucket_versioning.data`,
-		`aws_security_group.main`,
-		`aws_sfn_state_machine.pipeline`,
-		`aws_sns_topic.alerts`,
-		`aws_ssm_parameter.demo_effect`,
-		`aws_ssm_parameter.demo_existence`,
-		`aws_subnet.this["a"]`,
-		`aws_subnet.this["b"]`,
-		`aws_vpc.main`,
-		`aws_vpc_security_group_egress_rule.all`,
-		`aws_vpc_security_group_ingress_rule.https`,
+	want, ok := estateMaterializedWant[estateName]
+	if !ok {
+		t.Fatalf("no materialized want-list registered for estate %q in estateMaterializedWant", estateName)
 	}
 	var got []string
 	for _, addr := range proj.Materialized {

@@ -495,29 +495,34 @@ func TestChildModulesRejected(t *testing.T) {
 	}
 }
 
-// TestTableCoversFixtureTypes keeps the v0 table and the fixture in step:
-// the table exists to cover exactly the estate's types, and a type added to
-// one without the other is the kind of drift that shows up later as a
-// mystery NEEDS_DISCOVERY.
+// TestTableCoversFixtureTypes keeps the v0 table and the fixtures in step:
+// the table exists to cover exactly the union of the demo estate and every
+// per-cohort verification estate under live/e2e/estates (#48, phase 3 of
+// #38's decision), and a type added to one side without the other is the
+// kind of drift that shows up later as a mystery NEEDS_DISCOVERY. The
+// universe is read straight off the fixtures rather than pinned as a
+// hardcoded count, so a new estates/<cohort> directory extends it with no
+// test-file edits.
 func TestTableCoversFixtureTypes(t *testing.T) {
-	cfg := loadConfig(t, estateDir(t), nil)
-
 	used := make(map[string]bool)
-	for _, rc := range cfg.Module.ManagedResources {
-		used[rc.Type] = true
+	for _, dir := range flocitest.FixtureDirs(t) {
+		cfg := loadConfig(t, dir, nil)
+		for _, rc := range cfg.Module.ManagedResources {
+			used[rc.Type] = true
+		}
 	}
 	for typeName := range used {
 		if _, ok := LookupType(typeName); !ok {
-			t.Errorf("fixture uses %s, which the v0 identity table does not cover", typeName)
+			t.Errorf("a fixture uses %s, which the v0 identity table does not cover", typeName)
 		}
 	}
 	for _, typeName := range AdmittedTypes() {
 		if !used[typeName] {
-			t.Errorf("the v0 identity table covers %s, which the fixture does not use", typeName)
+			t.Errorf("the v0 identity table covers %s, which no fixture uses", typeName)
 		}
 	}
-	if got, want := len(AdmittedTypes()), 37; got != want {
-		t.Errorf("table covers %d types, want the fixture's %d", got, want)
+	if got, want := len(AdmittedTypes()), len(used); got != want {
+		t.Errorf("table covers %d types, want the fixtures' %d", got, want)
 	}
 }
 

@@ -739,7 +739,16 @@ VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=stateles
   --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo None)"
 [ -n "$VPC_ID" ] && [ "$VPC_ID" != "None" ] \
   || fail "standup" "no VPC tagged tofu-estate=stateless-e2e found via the AWS CLI after apply"
-echo "  applied; VPC $VPC_ID carries tofu-estate=stateless-e2e"
+# DECLARED_INSTANCES is read off the fixture itself, not hardcoded (#48): the
+# plain-state apply above is the one point in this run where a state file
+# lists every instance the estate fixture declares, count/for_each expansion
+# included, before step 3 deletes it. Every later step's "N of $DECLARED_INSTANCES
+# materialized" arithmetic uses this instead of a literal that has to be
+# hand-updated whenever the estate fixture grows.
+DECLARED_INSTANCES="$(cd "$MAIN" && "$TOFU" state list | wc -l | tr -d ' ')"
+[ "$DECLARED_INSTANCES" -gt 0 ] 2>/dev/null \
+  || fail "standup" "could not read the estate's declared instance count off its own state ($MAIN)"
+echo "  applied; VPC $VPC_ID carries tofu-estate=stateless-e2e; $DECLARED_INSTANCES declared instances"
 record_step "standup" pass
 
 # ── 3. adopt — delete the state; nothing else changes ───────────────────────
@@ -1015,10 +1024,11 @@ else
   STEP5_T1=$(date +%s)
   [ "$RC" -eq 0 ] || fail "empty-plan-full" "live-plan exited $RC: $OUT"
 
-  # 42 of the fixture's 43 declared instances materialize: the client-named
+  # All but one of DECLARED_INSTANCES (read off the fixture's own state at
+  # standup, #48 — not a hardcoded literal) materialize: the client-named
   # ones as always, and every server-ID/parent-derived one via P2.3's
   # discovery + P2.4's binding, which close the whole config regardless of
-  # scope. The forty-third is the standing residue's unowned role, and it
+  # scope. The one exception is the standing residue's unowned role, and it
   # is absent for a stated reason rather than silently — which is what the
   # omissions section is for. assert_full_estate_clean checks that the only
   # omission is that one, that its create is the only create, that the only
@@ -1028,13 +1038,13 @@ else
   # The foreign section (floci's unmarked default-VPC resources) is expected
   # to appear here; its presence is not itself a failure, and its line shapes
   # never collide with the plan-diff patterns the helper checks.
-  MATERIALIZED=$((43 - $(count_lines "$(unowned_omissions "$OUT")")))
+  MATERIALIZED=$((DECLARED_INSTANCES - $(count_lines "$(unowned_omissions "$OUT")")))
   assert_full_estate_clean "$OUT" "empty-plan-full"
 
   [ ! -f "$MAIN/terraform.tfstate" ] \
     || fail "empty-plan-full" "terraform.tfstate exists after live-plan — it must never be read or written"
 
-  echo "  empty plan over the full estate ($MATERIALIZED/43 materialized; the rest omitted as unowned, with an adoption hint); $((STEP5_T1 - STEP5_T0))s"
+  echo "  empty plan over the full estate ($MATERIALIZED/$DECLARED_INSTANCES materialized; the rest omitted as unowned, with an adoption hint); $((STEP5_T1 - STEP5_T0))s"
   record_step "empty-plan-full" pass
 fi
 
