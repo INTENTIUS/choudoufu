@@ -238,6 +238,164 @@ func TestModule_liveAbsent(t *testing.T) {
 	}
 }
 
+// TestModule_livePolicy pins the raw decode of the maintainer's exact
+// example from GitHub issue #67's Design section: all four quadrant verbs
+// set, nothing else (no tag_key/tag_value, no scope, no threshold).
+func TestModule_livePolicy(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/live-policy")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	if mod.Live == nil {
+		t.Fatal("no live block was decoded")
+	}
+	p := mod.Live.Policy
+	if p == nil {
+		t.Fatal("no policy block was decoded")
+	}
+
+	for _, tc := range []struct {
+		name string
+		got  string
+		set  bool
+		want string
+	}{
+		{"declared_tagged", p.DeclaredTagged, p.DeclaredTaggedSet, "untag"},
+		{"declared_untagged", p.DeclaredUntagged, p.DeclaredUntaggedSet, "converge"},
+		{"undeclared_tagged", p.UndeclaredTagged, p.UndeclaredTaggedSet, "keep"},
+		{"undeclared_untagged", p.UndeclaredUntagged, p.UndeclaredUntaggedSet, "delete"},
+	} {
+		if !tc.set {
+			t.Errorf("%s: Set is false, want true", tc.name)
+		}
+		if tc.got != tc.want {
+			t.Errorf("%s is %q, want %q", tc.name, tc.got, tc.want)
+		}
+	}
+
+	if p.TagKeySet {
+		t.Error("TagKeySet is true for a policy block that set no tag_key")
+	}
+	if p.TagValueSet {
+		t.Error("TagValueSet is true for a policy block that set no tag_value")
+	}
+	if p.Scope != nil {
+		t.Errorf("Scope is %#v for a policy block that set no scope block, want nil", p.Scope)
+	}
+	if p.ThresholdSet {
+		t.Error("ThresholdSet is true for a policy block that set no threshold")
+	}
+}
+
+// TestModule_livePolicyFull exercises every optional argument the policy
+// block accepts: tag_key/tag_value distinct from the estate marker, a
+// scope block, and a threshold.
+func TestModule_livePolicyFull(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/live-policy-full")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	p := mod.Live.Policy
+	if p == nil {
+		t.Fatal("no policy block was decoded")
+	}
+
+	if got, want := p.TagKey, "preserve"; got != want || !p.TagKeySet {
+		t.Errorf("TagKey is %q (set=%v), want %q (set=true)", got, p.TagKeySet, want)
+	}
+	if got, want := p.TagValue, "yes"; got != want || !p.TagValueSet {
+		t.Errorf("TagValue is %q (set=%v), want %q (set=true)", got, p.TagValueSet, want)
+	}
+	if got, want := p.Threshold, 25; got != want || !p.ThresholdSet {
+		t.Errorf("Threshold is %d (set=%v), want %d (set=true)", got, p.ThresholdSet, want)
+	}
+	if p.Scope == nil {
+		t.Fatal("Scope is nil for a policy block that set a scope block")
+	}
+	if got, want := p.Scope.Services, []string{"ec2", "s3"}; !slicesEqual(got, want) {
+		t.Errorf("Scope.Services is %v, want %v", got, want)
+	}
+	if got, want := p.Scope.Types, []string{"aws_instance"}; !slicesEqual(got, want) {
+		t.Errorf("Scope.Types is %v, want %v", got, want)
+	}
+	if got, want := p.Scope.Regions, []string{"us-east-1", "us-west-2"}; !slicesEqual(got, want) {
+		t.Errorf("Scope.Regions is %v, want %v", got, want)
+	}
+}
+
+func slicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// TestModule_livePolicyPartial: a policy block that sets one quadrant and
+// nothing else decodes with the other three quadrants unset (Set false),
+// not defaulted here - defaulting to today's fixed behavior is
+// internal/live/policy.Build's job, not the decoder's.
+func TestModule_livePolicyPartial(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/live-policy-partial")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	p := mod.Live.Policy
+	if p == nil {
+		t.Fatal("no policy block was decoded")
+	}
+	if !p.DeclaredTaggedSet || p.DeclaredTagged != "keep" {
+		t.Errorf("DeclaredTagged is %q (set=%v), want \"keep\" (set=true)", p.DeclaredTagged, p.DeclaredTaggedSet)
+	}
+	if p.DeclaredUntaggedSet || p.UndeclaredTaggedSet || p.UndeclaredUntaggedSet {
+		t.Error("an omitted quadrant decoded as Set true")
+	}
+}
+
+// TestModule_liveNoPolicy: a live block with no policy block at all decodes
+// with a nil Policy - the same "absent means absent" rule Snapshots and
+// SnapshotPath already follow.
+func TestModule_liveNoPolicy(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/live")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	if mod.Live.Policy != nil {
+		t.Errorf("Policy is %#v for a live block with no policy block, want nil", mod.Live.Policy)
+	}
+}
+
+// TestModule_livePolicyRefused: everything that can be wrong with a policy
+// block's arguments is lexical, the same rule estate and snapshot_path
+// follow, so the decoder catches all of it.
+func TestModule_livePolicyRefused(t *testing.T) {
+	for _, tc := range []struct {
+		file string
+		want string
+	}{
+		{"testdata/invalid-files/live-policy-non-literal-verb.tf", "Variables not allowed"},
+		{"testdata/invalid-files/live-policy-bad-threshold.tf", "non-negative whole number"},
+		{"testdata/invalid-files/live-policy-duplicate.tf", "Duplicate policy block"},
+		{"testdata/invalid-files/live-policy-duplicate-scope.tf", "Duplicate scope block"},
+		{"testdata/invalid-files/live-policy-non-list-scope.tf", "literal list of strings"},
+	} {
+		t.Run(tc.file, func(t *testing.T) {
+			parser := NewParser(nil)
+			_, diags := parser.LoadConfigFile(tc.file)
+			if !diags.HasErrors() {
+				t.Fatal("the configuration loaded with no errors")
+			}
+			if !strings.Contains(diags.Error(), tc.want) {
+				t.Errorf("wrong diagnostic:\n%s", diags.Error())
+			}
+		})
+	}
+}
+
 func TestModule_liveConflicts(t *testing.T) {
 	for _, tc := range []struct {
 		dir  string
