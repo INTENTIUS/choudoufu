@@ -156,6 +156,23 @@ var admittedTypesV0 = map[string]struct{}{
 
 	// List plus content match, as a fungible set bound by tofu-slot marker.
 	"aws_eip": {},
+
+	// ---- Registry-ratified (#40, #44): identity evidence comes from the
+	// ---- CloudFormation Registry (live/registry.json) via
+	// ---- tools/row-gen, joined against live/mapping.json, rather than
+	// ---- from the provider's own identity schema. Each row below was
+	// ---- proposed by row-gen and independently checked against the AWS
+	// ---- provider's documented import behaviour before landing here — see
+	// ---- internal/live/identity/table.go for the per-type evidence and
+	// ---- for the two row-gen proposals this batch rejected. Cohort
+	// ---- estate: live/e2e/estates/lambda (#48's per-cohort mechanism).
+	// First Lambda batch (8 row-gen proposals; 1 needs-hand-separator
+	// skipped per #44's non-goals, 2 rejected — see table.go).
+	"aws_lambda_capacity_provider":    {},
+	"aws_lambda_code_signing_config":  {},
+	"aws_lambda_event_source_mapping": {},
+	"aws_lambda_function":             {},
+	"aws_lambda_layer_version":        {},
 }
 
 // admitted reports whether the given provider-local resource type may appear
