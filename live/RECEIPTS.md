@@ -13,6 +13,57 @@ flavor. See "Two flavors, prefer the simpler" below for what distinguishes
 them, and `live/e2e/run.sh`'s `receipt-cycle`/`receipt-cycle-existence`
 steps for both exercised live.
 
+## Boundary: receipts never migrate onto the record store
+
+GitHub issue #73 gives `null_resource`, `terraform_data`, `time_*`, and
+non-sensitive `random_*` a persisted micro-state record once a `live`
+block's `record_store` is configured (`internal/live/staterecord`). A
+receipt is not a candidate for that move, and this is the line: receipts
+stay ordinary declared estate resources, forever, under the no-state-ops
+rules above, never carried by a `record_store`.
+
+Two reasons, both about what stays visible.
+
+First, a receipt's plan diff is the entire reviewable signal that guard 3
+depends on. `aws_ssm_parameter.demo_effect`'s value changing in a plan is
+what tells an operator, a reviewer, or a CI gate that this apply is about to
+trigger something with real-world consequences outside the resources
+OpenTofu manages directly. That diff exists because a receipt is a plain
+declared resource going through the ordinary plan/apply cycle described in
+Guard 1 above. A record-backed resource's prior state comes from
+`internal/live/staterecord.Store.Get` instead of a cloud read, but its
+*plan diff* is exactly as visible either way - what moves is where the
+resource's *value* is read from, not whether a plan shows a change to it.
+The reason receipts stay off the record store is not that a record-backed
+diff is invisible; it is that a receipt is deliberately AWS-shaped
+(`aws_ssm_parameter`, `/tofu-receipts/<estate>/<effect>`) so its value stays
+readable with a plain `aws ssm get-parameter` by anyone with read-only IAM
+access and no `choudoufu` binary at all - a person, a script, an incident
+responder at 3am. A `staterecord` payload (internal/live/projection's
+`recordPayload`, a self-describing ctyjson envelope) is tool-internal by
+design: readable by this fork's own code, not meant as an operator-facing
+artifact the way an SSM parameter's plain string value is. Moving a
+receipt's value onto that payload format would trade a `aws ssm
+get-parameter` away for "read `choudoufu`'s internal JSON envelope",
+which is strictly worse visibility for the exact artifact whose whole job
+is being visible.
+
+Second, and more concretely: **using `terraform_data`'s `triggers_replace`
+as a pseudo-receipt is exactly the anti-pattern this boundary forbids.** It
+is tempting - `terraform_data` is record-backed now, so a
+`triggers_replace` fingerprint sitting on it looks like it might do a
+receipt's job - but it hides the fingerprint inside the tool's own record
+store rather than in an ordinary declared resource, which loses the same
+plain-AWS-CLI visibility the paragraph above describes, and it collapses
+Guard 4's leaf rule and Guard 3's plan/apply/failure semantics into
+`terraform_data`'s much narrower "did an input change" question, with no
+existence flavor, no hash flavor, and no `/tofu-receipts/<estate>/<effect>`
+naming convention for the lint rules to recognize it by. `terraform_data`
+is for graph-internal plumbing - ordering an apply's create/update/delete
+sequence, feeding `replace_triggered_by`, standing in for a resource that
+does nothing itself - never for recording an external effect. Receipts are
+for external effects; `terraform_data` is for the graph. Keep them apart.
+
 ## The problem a receipt answers
 
 Some effects leave nothing in the live system that names them. A database

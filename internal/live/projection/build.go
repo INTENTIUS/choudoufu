@@ -19,6 +19,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/lang"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
@@ -93,6 +94,20 @@ type Options struct {
 	// one resource it was handed the identity of - passes. Every path that
 	// builds a prior state for a plan sets it. See [Ownership].
 	Ownership *Ownership
+
+	// RecordStore is where GitHub issue #73's record-backed resource
+	// instances (identity.ClassRecordBacked) read their prior state from.
+	// Nil means no store: since internal/live/lint refuses every
+	// RECORD_ADMITTED type before resolution runs unless a live block
+	// configures one, resolutions of that class ordinarily only arrive
+	// here when this is also set - see builder.materializeRecord for the
+	// defensive path when they do not.
+	RecordStore staterecord.Store
+
+	// RecordKeyPrefix is the key namespace RecordStore's keys are built
+	// under - ordinarily [RecordKeyPrefix](estate), or a record_store
+	// block's key_prefix override. Unused when RecordStore is nil.
+	RecordKeyPrefix string
 }
 
 // BuildWith is [BuildFrom] with options. See [Options].
@@ -165,12 +180,16 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 	})
 
 	sortUnowned(b.unownedList)
+	sort.Slice(b.recordVersions, func(i, j int) bool {
+		return b.recordVersions[i].Addr.String() < b.recordVersions[j].Addr.String()
+	})
 
 	res := &Result{
-		State:        b.state,
-		Materialized: b.materialized,
-		Omitted:      b.omissionList,
-		Unowned:      b.unownedList,
+		State:          b.state,
+		Materialized:   b.materialized,
+		Omitted:        b.omissionList,
+		Unowned:        b.unownedList,
+		RecordVersions: b.recordVersions,
 	}
 	return res, diags.Append(b.diags)
 }
@@ -192,6 +211,14 @@ type builder struct {
 	materialized []addrs.AbsResourceInstance
 	unownedList  []Unowned
 
+	// recordVersions is the version read at plan time for every
+	// record-backed instance whose record actually existed - GitHub issue
+	// #73's write-back needs it to open PutIfVersion/Delete with the right
+	// expected version. An instance with no prior record (about to be
+	// created) has no entry here, which write-back reads as expectedVersion
+	// "" - a create assertion, exactly [staterecord.Store]'s own convention.
+	recordVersions []RecordVersion
+
 	// causes holds a short subordinate clause per omitted instance, for
 	// use inside another instance's explanation. Omission.Detail is a
 	// standalone sentence and reads badly nested inside one.
@@ -205,11 +232,18 @@ type builder struct {
 }
 
 func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
-	concrete, derived, needsDiscovery, cyclic := orderWork(resolutions)
+	concrete, derived, needsDiscovery, cyclic, recordBacked := orderWork(resolutions)
 
 	for _, r := range needsDiscovery {
 		b.omit(r.Addr, ReasonNeedsDiscovery, needsDiscoveryDetail(r), needsDiscoveryCause(r))
 	}
+
+	declaredRecordBacked := make(map[string]bool, len(recordBacked))
+	for _, r := range recordBacked {
+		declaredRecordBacked[r.Addr.String()] = true
+		b.materializeRecord(ctx, r.Addr, false)
+	}
+	b.discoverOrphanedRecords(ctx, declaredRecordBacked)
 
 	for _, r := range cyclic {
 		detail := fmt.Sprintf(
@@ -393,7 +427,12 @@ func identityFromValues(w wanted, schema providers.Schema) (cty.Value, bool) {
 // parent is satisfied by the time the derived phase starts, and an edge to
 // a needs-discovery parent is never satisfiable and is handled as a missing
 // parent at render time rather than as an ordering constraint.
-func orderWork(resolutions []identity.Resolution) (concrete, derived, needsDiscovery, cyclic []identity.Resolution) {
+//
+// recordBacked holds GitHub issue #73's record-backed instances
+// (identity.ClassRecordBacked), materialized from the record store rather
+// than from any of the other four lists' identity machinery - see
+// builder.materializeRecord.
+func orderWork(resolutions []identity.Resolution) (concrete, derived, needsDiscovery, cyclic, recordBacked []identity.Resolution) {
 	sorted := make([]identity.Resolution, len(resolutions))
 	copy(sorted, resolutions)
 	sort.Slice(sorted, func(i, j int) bool {
@@ -407,6 +446,8 @@ func orderWork(resolutions []identity.Resolution) (concrete, derived, needsDisco
 			concrete = append(concrete, r)
 		case identity.ClassParentDerived:
 			pending = append(pending, r)
+		case identity.ClassRecordBacked:
+			recordBacked = append(recordBacked, r)
 		default:
 			needsDiscovery = append(needsDiscovery, r)
 		}
@@ -450,7 +491,7 @@ func orderWork(resolutions []identity.Resolution) (concrete, derived, needsDisco
 		pending = stuck
 	}
 
-	return concrete, derived, needsDiscovery, cyclic
+	return concrete, derived, needsDiscovery, cyclic, recordBacked
 }
 
 // renderFormula turns a parent-derived resolution into a concrete import ID -
@@ -640,6 +681,200 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 	b.live[addr.String()] = obj.Value
 	b.materialized = append(b.materialized, addr)
 	log.Printf("[TRACE] projection: materialized %s from import identity %q", addr, importID)
+}
+
+// materializeRecord is [builder.materialize]'s counterpart for GitHub issue
+// #73's record-backed instances (identity.ClassRecordBacked): it bypasses
+// importAndRead entirely and hydrates prior state from
+// [Options.RecordStore] instead of a provider's ImportResourceState/
+// ReadResource conversation. There is no ownership check - a record-backed
+// instance has no cloud object and therefore no ownership tag to carry, the
+// same reason [identity.ClassRecordBacked]'s doc comment gives for why no
+// marker sweep ever applies to it either - and no import identity of any
+// kind: the record itself is the whole of what makes the instance exist.
+//
+// undeclared marks an instance builder.discoverOrphanedRecords found in the
+// store with no matching resource block - a record-backed resource whose
+// configuration was removed. It is the record-backed analog of
+// [wanted.undeclared]: since a record-backed instance carries no marker
+// either, the record store's own key listing is the only way such a
+// resource is ever found again, which is exactly what
+// discoverOrphanedRecords is for. An undeclared instance's provider is
+// implied from its bare type name ([addrs.ImpliedProviderForUnqualifiedType])
+// rather than read from a resource block that no longer exists, and it gets
+// no computed dependency set, for the same reason [builder.materialize]
+// gives undeclared marker-found instances: destroy ordering for a resource
+// whose configuration is gone is exactly what a state file remembers and a
+// projection cannot.
+//
+// A provider connection is still needed, for the same two reasons ordinary
+// materialize needs one: [providers.Schema] is what lets the stored,
+// self-describing value be converted onto today's schema before it is
+// trusted (a record written under an older provider version might not
+// conform), and configs.Resource plus that schema is what
+// builder.dependencies needs to compute destroy ordering.
+func (b *builder) materializeRecord(ctx context.Context, addr addrs.AbsResourceInstance, undeclared bool) {
+	typeName := addr.Resource.Resource.Type
+
+	modPath := addr.Module.Module()
+	var rc *configs.Resource
+	if modCfg, ok := identity.ConfigForModule(b.cfg, addr.Module); ok && modCfg.Module != nil {
+		rc = modCfg.Module.ManagedResources[addr.Resource.Resource.String()]
+	}
+	if rc == nil && !undeclared {
+		detail := fmt.Sprintf(
+			"Identity resolution produced %s as record-backed, but that resource block is not in the configuration the projection was given. The configuration and the resolutions do not match.",
+			addr,
+		)
+		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Resolved instance missing from the configuration", detail))
+		b.omitFailed(addr, detail)
+		return
+	}
+
+	if b.opts.RecordStore == nil {
+		// Reachable only if a caller resolves a RECORD_ADMITTED type without
+		// also configuring a store - internal/live/lint's admission gate is
+		// supposed to make that impossible, so this is an internal
+		// inconsistency rather than a configuration mistake an operator
+		// could have made.
+		detail := fmt.Sprintf(
+			"%s resolved to a record-backed identity, but no record store was configured for this projection. This is an internal inconsistency: a RECORD_ADMITTED type should never reach here without a live block's record_store.",
+			addr,
+		)
+		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Record-backed instance with no record store", detail))
+		b.omitFailed(addr, detail)
+		return
+	}
+
+	var providerAddr addrs.AbsProviderConfig
+	if rc != nil {
+		providerAddr = providerConfigAddr(rc, modPath)
+	} else {
+		providerAddr = addrs.AbsProviderConfig{
+			Module:   addrs.RootModule,
+			Provider: addrs.ImpliedProviderForUnqualifiedType(impliedProviderName(typeName)),
+		}
+	}
+	entry, err := b.providers.get(ctx, providerAddr)
+	if err != nil {
+		detail := err.Error()
+		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Provider unavailable", fmt.Sprintf(
+			"Building the projection entry for %s needs provider %s, which could not be used: %s.", addr, providerAddr, detail,
+		)))
+		b.omitFailed(addr, detail)
+		return
+	}
+	schema, schemaDiags := entry.resourceSchema(providerAddr, typeName)
+	if schemaDiags.HasErrors() {
+		b.diags = b.diags.Append(schemaDiags)
+		b.omitFailed(addr, schemaDiags[0].Description().Detail)
+		return
+	}
+
+	key := RecordKey(b.opts.RecordKeyPrefix, addr)
+	payload, version, exists, err := b.opts.RecordStore.Get(ctx, key)
+	if err != nil {
+		detail := fmt.Sprintf("Reading the persisted record for %s failed: %s.", addr, err)
+		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot read a persisted record", detail))
+		b.omitFailed(addr, detail)
+		return
+	}
+	if !exists {
+		b.omit(addr, ReasonAbsent,
+			fmt.Sprintf(
+				"No persisted record exists yet for %s, so this resource has not been created yet. The plan will propose creating it.",
+				addr,
+			),
+			"no persisted record exists yet for it.",
+		)
+		return
+	}
+
+	val, private, err := decodeRecordPayload(payload)
+	if err != nil {
+		detail := fmt.Sprintf("The persisted record for %s could not be read: %s.", addr, err)
+		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot decode a persisted record", detail))
+		b.omitFailed(addr, detail)
+		return
+	}
+	converted, err := convert.Convert(val, schema.Block.ImpliedType())
+	if err != nil {
+		detail := fmt.Sprintf(
+			"The persisted record for %s does not fit %s's current schema: %s. This usually means the record was written under a different provider version. Delete the stale record from the store to let the plan re-create it, or pin the provider version that wrote it.",
+			addr, typeName, err,
+		)
+		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Persisted record does not match the current schema", detail))
+		b.omitFailed(addr, detail)
+		return
+	}
+
+	obj := &states.ResourceInstanceObject{
+		Status:  states.ObjectReady,
+		Value:   converted,
+		Private: private,
+	}
+	if rc != nil {
+		obj.Dependencies = b.dependencies(rc, modPath, schema)
+	}
+
+	src, err := obj.Encode(schema.Block.ImpliedType(), uint64(schema.Version), uint64(schema.IdentitySchemaVersion))
+	if err != nil {
+		detail := fmt.Sprintf("The persisted record for %s could not be encoded into the projection: %s.", addr, err)
+		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot encode a projected object", detail))
+		b.omitFailed(addr, detail)
+		return
+	}
+
+	b.state.EnsureModule(addr.Module).SetResourceInstanceCurrent(addr.Resource, src, providerAddr, addrs.NoKey)
+	b.live[addr.String()] = converted
+	b.materialized = append(b.materialized, addr)
+	b.recordVersions = append(b.recordVersions, RecordVersion{Addr: addr, Version: version})
+	log.Printf("[TRACE] projection: materialized %s from a persisted record", addr)
+}
+
+// discoverOrphanedRecords is record-backed resources' answer to the
+// question ordinary marker discovery answers for cloud resources: "what
+// does this estate own that its current configuration no longer declares?"
+// A record-backed instance carries no marker and has no cloud object a
+// sweep could find, so [Options.RecordStore]'s own key listing is the only
+// remaining source of truth - every key under [Options.RecordKeyPrefix] IS
+// the estate's set of record-backed resources, the same way an estate's
+// tagged live objects are its set of cloud-backed ones.
+//
+// known is the set of addresses already materialized from a resolved
+// resource block (builder.run's declaredRecordBacked); every other decoded
+// key is undeclared, and is materialized the same way an undeclared
+// marker-found resource is: written into the projection so the ordinary
+// no-configuration-for-this-prior-state-entry rule makes the plan propose
+// destroying it, and its record deleted by WriteBack once the destroy
+// succeeds and the address drops out of the final state.
+//
+// A key this package cannot make sense of - [RecordKey]'s reverse,
+// [RecordAddr], returning false - is skipped rather than treated as an
+// error: a record store's namespace is not a promise that every key in it
+// is one of this package's, and a stray or foreign key here is not this
+// run's business to fail over.
+func (b *builder) discoverOrphanedRecords(ctx context.Context, known map[string]bool) {
+	if b.opts.RecordStore == nil {
+		return
+	}
+	keys, err := b.opts.RecordStore.List(ctx, b.opts.RecordKeyPrefix)
+	if err != nil {
+		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot list the record store",
+			fmt.Sprintf("Listing the record store to find record-backed resources whose configuration block was removed failed: %s.", err),
+		))
+		return
+	}
+	for _, key := range keys {
+		addr, ok := RecordAddr(b.opts.RecordKeyPrefix, key)
+		if !ok {
+			continue
+		}
+		if known[addr.String()] {
+			continue
+		}
+		b.materializeRecord(ctx, addr, true)
+	}
 }
 
 type materializeStatus int

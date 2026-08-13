@@ -360,3 +360,11 @@ func (res *Result) OfClass(c Class) []Resolution {
 func (res *Result) NeedsDiscovery() []Resolution {
 	return res.OfClass(ClassNeedsDiscovery)
 }
+
+// RecordBacked is GitHub issue #73's list: the instances of a RECORD_ADMITTED
+// logical type whose identity is a persisted micro-state record rather than
+// a cloud observation. internal/live/projection's hydration work bucket
+// reads this instead of the concrete/parent-derived/needs-discovery lists.
+func (res *Result) RecordBacked() []Resolution {
+	return res.OfClass(ClassRecordBacked)
+}

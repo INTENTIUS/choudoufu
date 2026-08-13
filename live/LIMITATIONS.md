@@ -66,11 +66,8 @@ and once for the connection block). Fixture at
 
 #### Logical resources: a three-way classification (GitHub issue #73)
 
-Every logical resource type in this family is refused today, and every one
-of them stays refused by this change - nothing below alters what a
-stateless run accepts. What changes is why a refusal reads the way it
-does. `internal/live/lint`'s per-type table (`logical_type.go`,
-`ClassifyLogicalType`) replaces the old family-prefix-only answer with a
+`internal/live/lint`'s per-type table (`logical_type.go`,
+`ClassifyLogicalType`) replaces the old family-prefix-only refusal with a
 policy-grade classification, one of three:
 
 - **RECORD_ADMITTED** - `null_resource`, `terraform_data`, `time_static`,
@@ -78,19 +75,25 @@ policy-grade classification, one of three:
   `random_shuffle`, `random_integer`. None of these generates or holds
   secret material in any output, verified against each provider's own
   documentation (see `logical_type.go`'s `logicalTypes` table for the
-  per-type citation). That makes each a candidate for #73's record-backed
-  identity: a persisted micro-state record standing in for the cloud
-  observation this fork otherwise requires. That support does not exist
-  yet, and a refusal for one of these types says so by name and cites #73.
+  per-type citation). **Conditionally admitted as of #73's projection
+  work:** refused exactly as before when the `live` block configures no
+  `record_store`, and admitted the moment one is - the record store's key
+  namespace is the "no persisted micro-state" limit closing, not a
+  reinterpretation of what these types are. A `record_store` block backs
+  the type's whole identity with a persisted record instead of a cloud
+  observation (`internal/live/staterecord`, local/SSM/S3 backends); see
+  `website/docs/language/live-markers.mdx` for the config surface. Without
+  a store, the refusal Detail names this class and cites #73 exactly as it
+  always has.
 - **SECRET_REFUSED** - `random_password`, `random_bytes`, and the `tls_`
   family (`tls_private_key`, `tls_self_signed_cert`,
   `tls_locally_signed_cert`, `tls_cert_request`, and any future `tls_`
   addition by default). Each generates, or requires as an argument, secret
-  material a live-markers run has nowhere safe to keep: no state file
-  today, and - per #73's own charter - no persisted micro-state record
-  either, since the no-secrets rule that already governs snapshots and
-  receipts forbids a record from carrying it too. Refused permanently, not
-  only until #73 lands.
+  material a live-markers run has nowhere safe to keep: no state file, and
+  no persisted micro-state record either, since the no-secrets rule that
+  already governs snapshots and receipts forbids a record from carrying it
+  too. Refused permanently, with or without a `record_store` configured -
+  the store never weakens this class.
 - **OTHER_REFUSED** - `local_*` and any other logical-family member this
   table has no more specific opinion about. Refused for the original
   reason, in the original wording: nobody has done the per-type
@@ -102,43 +105,59 @@ policy-grade classification, one of three:
 
 **Construct.** `null_resource` with a `triggers` map.
 
-**Why banned.** A `null_resource` has no existence outside the record kept
-of it, and `triggers` is state used to decide when to re-run something
-attached to it. That record is the store. Logical-resource family, per
-"Banned, and why".
+**Why banned (without a record store).** A `null_resource` has no existence
+outside the record kept of it, and `triggers` is state used to decide when
+to re-run something attached to it. That record is the store.
+Logical-resource family, per "Banned, and why".
 
-**Forwarding address.** The receipts pattern. A declared, leaf resource
-whose value is a hash of inputs, read back to decide whether an effect needs
-to re-run, without any of `null_resource`'s implicit re-trigger machinery.
-Documented in `live/RECEIPTS.md`. Classified `RECORD_ADMITTED` (see above):
-GitHub issue #73's record-backed identity is a second forwarding address,
-once it exists.
+**Admitted with a record store.** Classified `RECORD_ADMITTED` (see above):
+once the `live` block configures a `record_store`, `null_resource` runs
+through the stock provider lifecycle against prior state hydrated from and
+persisted to the store (`internal/live/projection`'s hydration and
+write-back). No new syntax at the resource block itself - the same
+`null_resource` block that used to be refused now plans and applies.
+
+**Forwarding address (no record store).** The receipts pattern. A
+declared, leaf resource whose value is a hash of inputs, read back to
+decide whether an effect needs to re-run, without any of `null_resource`'s
+implicit re-trigger machinery. Documented in `live/RECEIPTS.md`.
 
 **Enforcement.** `RuleLogicalResource`, classified `RECORD_ADMITTED`
-(`internal/live/lint/logical_type.go`, `ClassifyLogicalType`). Fixture at
-`live/e2e/limits/null-resource/`.
+(`internal/live/lint/logical_type.go`, `ClassifyLogicalType`), gated on
+`record_store` being absent. Fixture at `live/e2e/limits/null-resource/`
+(no store, still refused); the admitted path is exercised by
+`live/e2e/record-store/`.
 
 ### terraform-data
 
 **Construct.** `terraform_data`.
 
-**Why banned.** The same logical-resource story as `null_resource`: its
-`id` and `output` are minted once and remembered, not observed from
-anything live. Logical-resource family. It shares no type-name prefix with
-`null_resource` or any other logical type, so before this table it was
-missing from the admission code's prefix list entirely (GitHub issue #73's
-audit finding) and fell through to the generic "not in the v0 admission
-table" refusal (`unadmitted-type`) instead of this one. It is admitted to
-`internal/live/lint/logical_type.go`'s per-type table by exact type name
-rather than by a shared prefix, which is what closes that gap.
+**Why banned (without a record store).** The same logical-resource story as
+`null_resource`: its `id` and `output` are minted once and remembered, not
+observed from anything live. Logical-resource family. It shares no
+type-name prefix with `null_resource` or any other logical type, so before
+this table it was missing from the admission code's prefix list entirely
+(GitHub issue #73's audit finding) and fell through to the generic "not in
+the v0 admission table" refusal (`unadmitted-type`) instead of this one. It
+is admitted to `internal/live/lint/logical_type.go`'s per-type table by
+exact type name rather than by a shared prefix, which is what closes that
+gap.
 
-**Forwarding address.** Same as `null_resource`: the receipts pattern
-today; GitHub issue #73's record-backed identity, once it lands. Classified
-`RECORD_ADMITTED` (see above).
+**Admitted with a record store.** Same as `null_resource`: classified
+`RECORD_ADMITTED`, and once a `record_store` is configured it runs through
+the stock provider lifecycle with prior state hydrated from and persisted
+to the store. `triggers_replace` is graph-internal plumbing either way -
+see `live/RECEIPTS.md`'s boundary section for why it stays out of the
+receipts pattern even once `terraform_data` itself is admitted.
+
+**Forwarding address (no record store).** Same as `null_resource`: the
+receipts pattern.
 
 **Enforcement.** `RuleLogicalResource`, classified `RECORD_ADMITTED`
-(`internal/live/lint/logical_type.go`, `ClassifyLogicalType`). Fixture at
-`live/e2e/limits/terraform-data/`.
+(`internal/live/lint/logical_type.go`, `ClassifyLogicalType`), gated on
+`record_store` being absent. Fixture at `live/e2e/limits/terraform-data/`
+(no store, still refused); the admitted path is exercised by
+`live/e2e/record-store/`.
 
 ### local-file
 
@@ -168,8 +187,9 @@ A random value has no live twin. Logical-resource family.
 in a secret manager (outside OpenTofu's model entirely), and have
 configuration reference it by ARN/path, never by value. The same forwarding
 applies to `tls_*`, banned for the same reason. Classified `SECRET_REFUSED`
-(see above): refused permanently, with no #73 forwarding address, unlike
-this family's `RECORD_ADMITTED` neighbors.
+(see above): refused permanently, with no record-store forwarding address,
+unlike this family's `RECORD_ADMITTED` neighbors - configuring a
+`record_store` does nothing for this type, by design.
 
 **Enforcement.** `RuleLogicalResource`, classified `SECRET_REFUSED`
 (`internal/live/lint/logical_type.go`, `ClassifyLogicalType`). Fixture at
@@ -179,19 +199,25 @@ this family's `RECORD_ADMITTED` neighbors.
 
 **Construct.** `time_sleep`.
 
-**Why banned.** A `time_*` resource's entire value is "did this already
-happen, and when", a question only a stored record answers.
-Logical-resource family.
+**Why banned (without a record store).** A `time_*` resource's entire value
+is "did this already happen, and when", a question only a stored record
+answers. Logical-resource family.
 
-**Forwarding address.** Scheduling in the lifecycle layer. Sequence the
-delay in Ops/CI (a wait step, a dependency on an external readiness check),
-not as a resource in the graph. Classified `RECORD_ADMITTED` (see above):
-GitHub issue #73's record-backed identity is a second forwarding address,
-once it exists.
+**Admitted with a record store.** Classified `RECORD_ADMITTED` (see above):
+`time_sleep` and the rest of the `time_*` family (`time_static`,
+`time_offset`, `time_rotating`) run through the stock provider lifecycle
+once a `record_store` is configured, the timestamp persisted to and read
+back from the store rather than a state file.
+
+**Forwarding address (no record store).** Scheduling in the lifecycle
+layer. Sequence the delay in Ops/CI (a wait step, a dependency on an
+external readiness check), not as a resource in the graph.
 
 **Enforcement.** `RuleLogicalResource`, classified `RECORD_ADMITTED`
-(`internal/live/lint/logical_type.go`, `ClassifyLogicalType`). Fixture at
-`live/e2e/limits/time-sleep/`.
+(`internal/live/lint/logical_type.go`, `ClassifyLogicalType`), gated on
+`record_store` being absent. Fixture at `live/e2e/limits/time-sleep/` (no
+store, still refused); the admitted path is exercised by
+`live/e2e/record-store/`.
 
 ### remote-state
 

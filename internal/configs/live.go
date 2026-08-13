@@ -147,6 +147,65 @@ type Live struct {
 	// grammar is checked by internal/live/discovery.ValidEstateName rather
 	// than here).
 	Policy *LivePolicy
+
+	// RecordStore is the optional nested "record_store" block: where GitHub
+	// issue #73's record-backed logical types (null_resource, terraform_data,
+	// time_*, non-sensitive random_*) persist their micro-state. Nil when the
+	// live block sets no record_store block at all, which must mean those
+	// types stay refused exactly as they were before #73 - internal/live/lint
+	// only lifts the RECORD_ADMITTED refusal when this is non-nil. See
+	// [LiveRecordStore].
+	RecordStore *LiveRecordStore
+}
+
+// LiveRecordStore is the "record_store" block nested inside a live block. Its
+// label picks the backend ("local", "ssm", or "s3"), the same
+// labeled-block-names-the-implementation shape a stock "backend" block uses,
+// per issue #73's "phrased in familiar backend-like terms" ruling. See
+// [Live.RecordStore].
+type LiveRecordStore struct {
+	// Type is the block's label: "local", "ssm", or "s3". Validated against
+	// exactly those three spellings in decodeRecordStoreBlock; nothing else
+	// reaches this field.
+	Type      string
+	TypeRange hcl.Range
+
+	// Path is the "local" backend's directory, relative to the module
+	// directory. Optional; empty means the caller's own default (a
+	// ".tofu-records" directory beside the module, mirroring plain local
+	// state's default filename). Literal-string and path-safety rules match
+	// [Live.SnapshotPath]'s: see validateRecordStorePath.
+	Path      string
+	PathSet   bool
+	PathRange hcl.Range
+
+	// Bucket is the "s3" backend's bucket name. Required for that backend;
+	// unused by the other two.
+	Bucket      string
+	BucketSet   bool
+	BucketRange hcl.Range
+
+	// KeyPrefix overrides the "ssm" and "s3" backends' default key
+	// namespace, which the caller derives from the estate name. Optional.
+	// When set, it must stay disjoint from the receipts namespace
+	// (live/RECEIPTS.md's "/tofu-receipts/<estate>/<effect>"): a key_prefix
+	// whose first "/"-delimited segment is literally "tofu-receipts" is a
+	// decode error, so a record can never be written where a receipt's own
+	// namespace lives. See validateRecordStoreKeyPrefix.
+	KeyPrefix      string
+	KeyPrefixSet   bool
+	KeyPrefixRange hcl.Range
+
+	// Region overrides the "ssm" and "s3" backends' AWS region. Optional;
+	// empty defers to the ordinary AWS SDK default-config chain (environment,
+	// shared config, IMDS), the same as every other AWS client this fork
+	// builds when a caller names no region.
+	Region      string
+	RegionSet   bool
+	RegionRange hcl.Range
+
+	// DeclRange is the "record_store" block's own header.
+	DeclRange hcl.Range
 }
 
 // LivePolicy is the "policy" block nested inside a live block. See [Live.Policy].
@@ -262,6 +321,16 @@ var liveBlockSchema = &hcl.BodySchema{
 	},
 	Blocks: []hcl.BlockHeaderSchema{
 		{Type: "policy"},
+		{Type: "record_store", LabelNames: []string{"type"}},
+	},
+}
+
+var recordStoreBlockSchema = &hcl.BodySchema{
+	Attributes: []hcl.AttributeSchema{
+		{Name: "path"},
+		{Name: "bucket"},
+		{Name: "key_prefix"},
+		{Name: "region"},
 	},
 }
 
@@ -357,13 +426,23 @@ func decodeLiveBlock(block *hcl.Block) (*Live, hcl.Diagnostics) {
 		}
 	}
 
-	switch len(content.Blocks) {
+	var policyBlocks, recordStoreBlocks []*hcl.Block
+	for _, block := range content.Blocks {
+		switch block.Type {
+		case "policy":
+			policyBlocks = append(policyBlocks, block)
+		case "record_store":
+			recordStoreBlocks = append(recordStoreBlocks, block)
+		}
+	}
+
+	switch len(policyBlocks) {
 	case 0:
 		// No policy block: Policy stays nil, which internal/live/policy.Build
 		// reads as "every quadrant defaults to today's fixed behavior" -
 		// issue #67's "existing estates change nothing".
 	case 1:
-		policy, policyDiags := decodePolicyBlock(content.Blocks[0])
+		policy, policyDiags := decodePolicyBlock(policyBlocks[0])
 		diags = append(diags, policyDiags...)
 		s.Policy = policy
 	default:
@@ -371,14 +450,168 @@ func decodeLiveBlock(block *hcl.Block) (*Live, hcl.Diagnostics) {
 			Severity: hcl.DiagError,
 			Summary:  "Duplicate policy block",
 			Detail:   "A live block may have at most one policy block.",
-			Subject:  content.Blocks[1].DefRange.Ptr(),
+			Subject:  policyBlocks[1].DefRange.Ptr(),
 		})
-		policy, policyDiags := decodePolicyBlock(content.Blocks[0])
+		policy, policyDiags := decodePolicyBlock(policyBlocks[0])
 		diags = append(diags, policyDiags...)
 		s.Policy = policy
 	}
 
+	switch len(recordStoreBlocks) {
+	case 0:
+		// No record_store block: RecordStore stays nil, which
+		// internal/live/lint reads as "GitHub issue #73's RECORD_ADMITTED
+		// logical types stay refused" - the existing behavior every
+		// configuration written before this block existed keeps getting.
+	case 1:
+		rs, rsDiags := decodeRecordStoreBlock(recordStoreBlocks[0])
+		diags = append(diags, rsDiags...)
+		s.RecordStore = rs
+	default:
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Duplicate record_store block",
+			Detail:   "A live block may have at most one record_store block.",
+			Subject:  recordStoreBlocks[1].DefRange.Ptr(),
+		})
+		rs, rsDiags := decodeRecordStoreBlock(recordStoreBlocks[0])
+		diags = append(diags, rsDiags...)
+		s.RecordStore = rs
+	}
+
 	return s, diags
+}
+
+// decodeRecordStoreBlock decodes a live block's nested "record_store" block:
+// which backend (the block's label) and that backend's own arguments. See
+// [LiveRecordStore].
+func decodeRecordStoreBlock(block *hcl.Block) (*LiveRecordStore, hcl.Diagnostics) {
+	rs := &LiveRecordStore{DeclRange: block.DefRange}
+
+	label := block.Labels[0]
+	switch label {
+	case "local", "ssm", "s3":
+		rs.Type = label
+		rs.TypeRange = block.LabelRanges[0]
+	default:
+		return rs, hcl.Diagnostics{&hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Invalid record_store backend",
+			Detail:   fmt.Sprintf("record_store %q names a backend this fork does not know. Valid backends are \"local\" (the solo/dev default), \"ssm\" (the zero-infrastructure team default), and \"s3\" (true conditional-write CAS).", label),
+			Subject:  block.LabelRanges[0].Ptr(),
+		}}
+	}
+
+	content, diags := block.Body.Content(recordStoreBlockSchema)
+
+	if attr, exists := content.Attributes["path"]; exists {
+		rs.PathRange = attr.Range
+		val, valDiags := decodeLiteralString(attr, "path")
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			if val == "" {
+				diags = append(diags, &hcl.Diagnostic{
+					Severity: hcl.DiagError,
+					Summary:  "Empty record_store path",
+					Detail:   "The \"path\" argument was set to an empty string. Give it a path, or omit the argument entirely to use the default local record directory.",
+					Subject:  attr.Expr.Range().Ptr(),
+				})
+			} else if detail := validateRecordStorePath(val); detail != "" {
+				diags = append(diags, &hcl.Diagnostic{
+					Severity: hcl.DiagError,
+					Summary:  "Invalid record_store path",
+					Detail:   detail,
+					Subject:  attr.Expr.Range().Ptr(),
+				})
+			} else {
+				rs.Path = val
+				rs.PathSet = true
+			}
+		}
+	}
+
+	if attr, exists := content.Attributes["bucket"]; exists {
+		rs.BucketRange = attr.Range
+		val, valDiags := decodeLiteralString(attr, "bucket")
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			if val == "" {
+				diags = append(diags, &hcl.Diagnostic{
+					Severity: hcl.DiagError,
+					Summary:  "Empty record_store bucket",
+					Detail:   "The \"bucket\" argument was set to an empty string. The s3 record store backend needs a real bucket name.",
+					Subject:  attr.Expr.Range().Ptr(),
+				})
+			} else {
+				rs.Bucket = val
+				rs.BucketSet = true
+			}
+		}
+	}
+	if rs.Type == "s3" && !rs.BucketSet {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Missing record_store bucket",
+			Detail:   "record_store \"s3\" requires a \"bucket\" argument naming the S3 bucket to store records in, the same way a stock \"s3\" backend block does.",
+			Subject:  block.DefRange.Ptr(),
+		})
+	}
+
+	if attr, exists := content.Attributes["key_prefix"]; exists {
+		rs.KeyPrefixRange = attr.Range
+		val, valDiags := decodeLiteralString(attr, "key_prefix")
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			if detail := validateRecordStoreKeyPrefix(val); detail != "" {
+				diags = append(diags, &hcl.Diagnostic{
+					Severity: hcl.DiagError,
+					Summary:  "Invalid record_store key_prefix",
+					Detail:   detail,
+					Subject:  attr.Expr.Range().Ptr(),
+				})
+			} else {
+				rs.KeyPrefix = val
+				rs.KeyPrefixSet = true
+			}
+		}
+	}
+	if rs.Type == "local" && rs.KeyPrefixSet {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Invalid argument for the local record store",
+			Detail:   "The \"key_prefix\" argument selects a namespace within a remote store and has no meaning for record_store \"local\", which already scopes every key to its own directory. Use \"path\" instead, or remove \"key_prefix\".",
+			Subject:  rs.KeyPrefixRange.Ptr(),
+		})
+	}
+
+	if attr, exists := content.Attributes["region"]; exists {
+		rs.RegionRange = attr.Range
+		val, valDiags := decodeLiteralString(attr, "region")
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			if val == "" {
+				diags = append(diags, &hcl.Diagnostic{
+					Severity: hcl.DiagError,
+					Summary:  "Empty record_store region",
+					Detail:   "The \"region\" argument was set to an empty string. Give it a region, or omit the argument entirely to use the AWS SDK's own default-config chain.",
+					Subject:  attr.Expr.Range().Ptr(),
+				})
+			} else {
+				rs.Region = val
+				rs.RegionSet = true
+			}
+		}
+	}
+	if rs.Type == "local" && rs.RegionSet {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Invalid argument for the local record store",
+			Detail:   "The \"region\" argument selects an AWS region and has no meaning for record_store \"local\", which never talks to AWS. Remove it.",
+			Subject:  rs.RegionRange.Ptr(),
+		})
+	}
+
+	return rs, diags
 }
 
 // decodePolicyBlock decodes a live block's nested "policy" block: the four
@@ -615,5 +848,49 @@ func validateSnapshotPath(raw string) string {
 		return "The \"snapshot_path\" argument must not write inside the .terraform directory. That directory is OpenTofu's own working data, including the record of which backend a directory was initialized against, and a cache does not get to overwrite it."
 	}
 
+	return ""
+}
+
+// validateRecordStorePath returns the reason a record_store "local" path may
+// not be used, or "" when it is fine. The rules are [validateSnapshotPath]'s,
+// applied to a directory the tool writes into repeatedly instead of a cache
+// file it overwrites: relative, inside the module directory, no
+// "../" escape, and no writing into a real state file's name or into
+// .terraform. Unlike the snapshot, this path is never optional machinery a
+// missing write can shrug off - it is where a record-backed resource's
+// identity actually lives - so the same lexical wall applies before anything
+// is ever written.
+func validateRecordStorePath(raw string) string {
+	if detail := validateSnapshotPath(raw); detail != "" {
+		// Reuse validateSnapshotPath's rules verbatim and only reword the
+		// argument name in the message, so the two paths can never drift
+		// apart on what "escapes the module directory" means.
+		return strings.ReplaceAll(strings.ReplaceAll(detail, "snapshot_path", "path"), "The snapshot is observational and is not worth that reach.", "The record store is not worth that reach.")
+	}
+	return ""
+}
+
+// validateRecordStoreKeyPrefix returns the reason a record_store "ssm" or
+// "s3" key_prefix may not be used, or "" when it is fine.
+//
+// The one rule that matters: the receipts pattern (live/RECEIPTS.md) owns
+// the "/tofu-receipts/<estate>/<effect>" namespace, and a record-backed
+// resource's key must never be able to land inside it. Namespace safety is
+// disjoint-by-construction for the default (the caller's own key prefix is
+// always rooted at a different literal, "tofu-records/<estate>" - see
+// internal/live/projection.RecordKeyPrefix), but an operator-supplied
+// override is checked here at the segment level, the same "/"-delimited
+// hierarchy SSM parameter names and S3 key prefixes both already use: a
+// key_prefix whose first segment is exactly "tofu-receipts" is refused,
+// whether or not it carries a leading or trailing slash.
+func validateRecordStoreKeyPrefix(raw string) string {
+	norm := strings.Trim(raw, "/")
+	if norm == "" {
+		return "The \"key_prefix\" argument was set to an empty (or all-slashes) string. Give it a real prefix, or omit the argument entirely to use the default derived from the estate name."
+	}
+	first, _, _ := strings.Cut(norm, "/")
+	if first == "tofu-receipts" {
+		return "The \"key_prefix\" argument must not begin with the \"tofu-receipts\" segment: that namespace belongs to the receipts pattern (live/RECEIPTS.md), and a record store's keys must stay disjoint from it so a record can never be mistaken for, or collide with, a receipt."
+	}
 	return ""
 }

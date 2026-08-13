@@ -320,6 +320,24 @@ func (b *Local) opApply(
 		return
 	}
 
+	// GitHub issue #73's write-back: record-backed resource instances have
+	// no cloud object of their own, so their apply-time result has to be
+	// persisted here explicitly rather than through the ordinary provider
+	// lifecycle. Run unconditionally on b.Stateless (never for an ordinary,
+	// non-live-block run, where it is nil) and after the state write above
+	// has already succeeded, whether or not the apply itself finished
+	// clean: a resource that did apply successfully before some later
+	// resource failed still deserves its record, so the next plan does not
+	// propose creating it again.
+	if b.Stateless != nil {
+		wbDiags := b.Stateless.WriteBack(ctx, applyState, schemas)
+		diags = diags.Append(wbDiags)
+		if wbDiags.HasErrors() {
+			op.ReportResult(runningOp, diags)
+			return
+		}
+	}
+
 	if applyDiags.HasErrors() {
 		op.ReportResult(runningOp, diags)
 		return

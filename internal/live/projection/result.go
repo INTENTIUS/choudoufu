@@ -42,6 +42,21 @@ type Result struct {
 	// that wants to say "here is what is in the way" rather than "here is
 	// what is missing".
 	Unowned []Unowned
+
+	// RecordVersions lists the store version read at plan time for every
+	// GitHub issue #73 record-backed instance whose record actually
+	// existed, in address order. Write-back (WriteBack) uses this as the
+	// expected version for each PutIfVersion/Delete call: an instance with
+	// no entry here had no prior record, so write-back opens with
+	// expectedVersion "" - the store's own create/absence convention.
+	RecordVersions []RecordVersion
+}
+
+// RecordVersion pairs one record-backed resource instance with the version
+// its record carried when this projection read it.
+type RecordVersion struct {
+	Addr    addrs.AbsResourceInstance
+	Version string
 }
 
 // Omission is one instance that the projection does not contain.

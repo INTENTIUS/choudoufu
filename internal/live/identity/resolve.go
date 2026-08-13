@@ -400,6 +400,20 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		}, true
 	}
 
+	if entry.RecordBacked {
+		// No cloud identity to build, ever - the whole point of this class.
+		// See [ClassRecordBacked] and [TypeIdentity.RecordBacked]. A
+		// resolution this shallow is safe here only because a
+		// RECORD_ADMITTED type never reaches resolution at all unless a
+		// live block's record_store is configured (internal/live/lint's
+		// checkManagedResources), which is the caller's gate, not this
+		// package's.
+		return Resolution{
+			Addr:  addr,
+			Class: ClassRecordBacked,
+		}, true
+	}
+
 	// Cloud properties are checked before anything is read from the resource
 	// body, so that a type this run cannot name gets the one honest answer -
 	// "the account is not known here" - rather than an error about some

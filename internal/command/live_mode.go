@@ -24,6 +24,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plugins"
 	"github.com/intentius/choudoufu/internal/states"
@@ -291,6 +292,15 @@ type statelessRunner struct {
 	lib  plugins.Library
 	mgr  *projection.Manager
 	view views.StatelessPlan
+
+	// recordStore, recordKeyPrefix and recordVersions are GitHub issue #73's
+	// write-back state, all set by PriorState once the estate name and the
+	// live block's record_store (if any) are settled. recordStore is nil
+	// for a run with no record_store block, which is what makes WriteBack
+	// (and, upstream of it, RECORD_ADMITTED admission at lint) a no-op.
+	recordStore     staterecord.Store
+	recordKeyPrefix string
+	recordVersions  []projection.RecordVersion
 }
 
 var _ backendLocal.StatelessRun = (*statelessRunner)(nil)
@@ -362,6 +372,31 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		r.policy = statelessPolicy(config.Module.Live, estate)
 	}
 
+	// GitHub issue #73's record store, built now that lint has already
+	// passed - which means every RECORD_ADMITTED resource in this
+	// configuration either has one configured or was refused before this
+	// point was ever reached - and the estate name is settled, which the
+	// "ssm"/"s3" backends' default key namespace needs. A nil RecordStore
+	// (a run with no record_store block) makes the hydration and
+	// write-back paths below no-ops, exactly like a run with no live block
+	// at all skips this whole file.
+	var recordStoreCfg *configs.LiveRecordStore
+	if config.Module != nil && config.Module.Live != nil {
+		recordStoreCfg = config.Module.Live.RecordStore
+	}
+	if recordStoreCfg != nil {
+		store, storeErr := projection.NewRecordStore(ctx, recordStoreCfg, estate, ".")
+		if storeErr != nil {
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot open the record store", fmt.Sprintf(
+				"The live block's record_store %q could not be opened: %s.", recordStoreCfg.Type, storeErr,
+			)))
+			diags = diags.Append(provs.close(ctx))
+			return nil, diags
+		}
+		r.recordStore = store
+		r.recordKeyPrefix = projection.RecordStoreKeyPrefix(recordStoreCfg, estate)
+	}
+
 	// Resolution runs ahead of the providers being configured and is handed
 	// their schemas, so that a type with no hand-written table row resolves
 	// when the provider's own identity schema describes it completely enough.
@@ -404,10 +439,18 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	projResult, projDiags := projection.BuildWith(ctx, config, merged, provs, projection.Options{
 		UndeclaredProvider: discoProvider,
 		Ownership:          statelessOwnership(estate, disco),
+		RecordStore:        r.recordStore,
+		RecordKeyPrefix:    r.recordKeyPrefix,
 	})
 	// The provider processes started to read the live system have done their
 	// job by this point; the plan below starts its own from the same library.
 	diags = diags.Append(provs.close(ctx))
+	// Kept regardless of what happens next in this function: WriteBack
+	// (called later, after a successful apply) needs this run's plan-time
+	// versions even if a later step in PriorState fails and the run aborts
+	// applying nothing - in which case WriteBack is simply never called,
+	// and this is harmless to have set.
+	r.recordVersions = projResult.RecordVersions
 	diags = diags.Append(projDiags)
 	if projDiags.HasErrors() {
 		return nil, diags
@@ -455,6 +498,22 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	}
 
 	return projResult.State, diags
+}
+
+// WriteBack implements [backendLocal.StatelessRun]: GitHub issue #73's
+// write-back, delegated straight to [projection.WriteBack] with the store,
+// namespace and plan-time versions PriorState settled. A run with no
+// record_store block (r.recordStore nil) is a no-op, the same "nothing
+// configured, nothing happens" contract every optional live-block feature
+// in this file follows.
+func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas) tfdiags.Diagnostics {
+	return projection.WriteBack(ctx, projection.WriteBackRequest{
+		Store:         r.recordStore,
+		KeyPrefix:     r.recordKeyPrefix,
+		PriorVersions: r.recordVersions,
+		FinalState:    finalState,
+		Schemas:       schemas,
+	})
 }
 
 // estateName settles which estate this run is about, from the stateless

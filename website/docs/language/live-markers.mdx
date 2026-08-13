@@ -563,7 +563,10 @@ outcomes at all. They are named below.
   `aws_wafv2_ip_set`, `aws_wafv2_regex_pattern_set`, `aws_wafv2_rule_group`,
   `aws_wafv2_web_acl`, `aws_wafv2_web_acl_rule`, `aws_xray_group`,
   `aws_xray_resource_policy`, and `aws_xray_sampling_rule`<!-- survey-gen:end contract-types -->. Nothing else, no
-  other AWS type, no other provider. A `module` block calling into a child module is refused
+  other AWS type, no other provider - with one conditional exception: see
+  "`record_store` (optional)" below for the ten non-AWS logical types
+  (`null_resource`, `terraform_data`, the `time_*` family, and four
+  non-sensitive `random_*` types) a `record_store` block admits. A `module` block calling into a child module is refused
   outright. The
   subset lint rejects every module call with "Child modules are not
   available under live resource markers", pointing at the `module` block itself,
@@ -674,6 +677,49 @@ outcomes at all. They are named below.
   decodes into `map[string]any` without naming either. That residue is a
   convention, not something enforced, and this line states that honestly
   rather than papering over it.
+- **`record_store` (optional).** Ten resource types have no cloud twin at
+  all - `null_resource`, `terraform_data`, `time_static`, `time_offset`,
+  `time_rotating`, `time_sleep`, `random_id`, `random_pet`,
+  `random_shuffle`, `random_integer` - and are refused (`live/LIMITATIONS.md`,
+  "RECORD_ADMITTED") the same as every other logical resource until this
+  block says otherwise. A `record_store` block nested in `live` admits
+  them, by running each one through the completely stock provider
+  lifecycle against prior state hydrated from, and persisted back to, a
+  small versioned record instead of a live read
+  (`internal/live/staterecord`; GitHub issue #73). Nothing else about the
+  resource block changes - the same `null_resource` that was refused
+  before now plans and applies with no new syntax at the resource itself.
+  The block is labeled by backend, the same shape a stock `backend` block
+  uses:
+  ```hcl
+  terraform {
+    live {
+      estate = "my-estate"
+
+      record_store "local" {
+        # path defaults to ".tofu-records" beside the module
+      }
+    }
+  }
+  ```
+  Three backends, matching the store package's own doc comment on the
+  operational tradeoff each one is: `"local"` (a directory of files,
+  solo/dev/CI use, single-operator CAS only - see the caveats in
+  `internal/live/staterecord/local.go`), `"ssm"` (AWS Systems Manager
+  Parameter Store, the zero-infrastructure team default, real CAS on
+  create and a documented weaker race story on update), and `"s3"` (S3
+  conditional writes, true end-to-end compare-and-swap, `bucket` required).
+  All three carry the same loud-CAS-failure semantics: a version conflict
+  at write-back - another writer changed the record between this run's
+  plan and apply - is a fatal error naming both versions, never a silent
+  overwrite. The SSM and S3 backends' key namespace defaults to
+  `tofu-records/<estate>`, disjoint by construction from
+  `live/RECEIPTS.md`'s `tofu-receipts/<estate>/<effect>` namespace; an
+  explicit `key_prefix` override is refused at decode time if it would
+  collide with the receipts namespace. **Not zero-configuration**: a
+  `record_store` block is required before any of the ten types is
+  admitted, and its absence leaves the existing refusal exactly as it
+  read before this feature existed.
 
 ## Reference
 
@@ -695,6 +741,28 @@ A `live` block and a [`backend`](settings/backends/configuration.mdx)/
 `cloud` block in the same `terraform` block are mutually exclusive. The
 decoder refuses the combination before any command reaches for a state
 manager.
+
+#### The `record_store` block
+
+Nested inside `live`, at most one. Labeled by backend - see "The
+Contract" above for what each backend admits and its own tradeoffs.
+
+```hcl
+record_store "local" {
+  path = ".tofu-records" # optional
+}
+```
+
+| Argument | Backends | Required | Description |
+|---|---|---|---|
+| `path` | `local` | No | Directory the local backend reads and writes, relative to the module directory unless absolute. Defaults to `.tofu-records`. Refused if it would escape the module directory, name a state file, or write inside `.terraform` - the same rules `snapshot_path` follows (`internal/configs/live.go`'s `validateRecordStorePath`). |
+| `bucket` | `s3` | Yes | The S3 bucket records are stored in. |
+| `key_prefix` | `ssm`, `s3` | No | Overrides the default `tofu-records/<estate>` key namespace. Refused at decode time if its first `/`-delimited segment is `tofu-receipts` - the receipts namespace (`live/RECEIPTS.md`) a record must never collide with. |
+| `region` | `ssm`, `s3` | No | AWS region. Defaults to the AWS SDK's own default-config chain (environment, shared config, IMDS). |
+
+`path` on `ssm`/`s3`, or `key_prefix`/`region` on `local`, are decode-time
+errors: each backend only accepts the arguments that mean something for
+it.
 
 ### `choudoufu live-mv`
 
