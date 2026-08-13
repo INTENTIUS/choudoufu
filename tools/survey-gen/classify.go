@@ -182,6 +182,20 @@ func buildSurvey(schema providers.GetProviderSchemaResponse, roster []string) Su
 	return s
 }
 
+// allResourceTypeNames is every resource type the provider's schemas carry,
+// unsorted (buildSurvey sorts its roster argument itself). This is the -all
+// flag's roster: issue #41's whole point is that buildSurvey already
+// classifies provider-wide once given every type name instead of
+// SURVEY.md's curated set, so this is the only new roster the -all mode
+// needs.
+func allResourceTypeNames(schema providers.GetProviderSchemaResponse) []string {
+	out := make([]string, 0, len(schema.ResourceTypes))
+	for name := range schema.ResourceTypes {
+		out = append(out, name)
+	}
+	return out
+}
+
 // classify derives one type's row: the raw signals, the identity
 // composition, and the admission path per SURVEY.md's Method section,
 // strongest path first (client-named, marker, parent-derived, list plus

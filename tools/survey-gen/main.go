@@ -27,6 +27,14 @@
 // It needs network for the provider download (or a warm
 // TF_PLUGIN_CACHE_DIR) and a terraform binary on PATH (-init-bin overrides).
 //
+// A -all flag classifies the provider's entire resource-type roster instead
+// of SURVEY.md's curated 68, and writes the result to a second artifact,
+// live/survey-full.json (issue #41). It always still writes survey.json
+// from the curated roster, unchanged, so survey.json and SURVEY.md's
+// rendered spans never depend on whether -all was passed:
+//
+//	go run ./tools/survey-gen -all
+//
 // A second mode rewrites live/SURVEY.md's derived spans (the raw-signal
 // counts sentence and the Summary path-count table, each between
 // survey-gen marker comments) from the committed artifact, with no
@@ -40,9 +48,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // Path literals and pins, centralized on purpose: the rename phase that
@@ -53,6 +64,11 @@ const (
 	// surveyJSONRel is where the generated artifact is committed, relative
 	// to the repository root.
 	surveyJSONRel = "live/survey.json"
+
+	// surveyFullJSONRel is the -all artifact: the same per-type fields as
+	// surveyJSONRel, over the provider's entire resource-type roster
+	// instead of SURVEY.md's curated 68 (issue #41).
+	surveyFullJSONRel = "live/survey-full.json"
 
 	// surveyMDRel is the hand-written survey whose per-type table names the
 	// roster this tool derives signals and paths for.
@@ -86,19 +102,24 @@ func main() {
 		"binary that downloads the pinned provider (terraform, tofu or choudoufu)")
 	render := flag.Bool("render", false,
 		"rewrite live/SURVEY.md's derived spans from the committed live/survey.json instead of regenerating the artifact (needs no provider)")
+	all := flag.Bool("all", false,
+		"also classify the provider's entire resource-type roster and write live/survey-full.json (issue #41); live/survey.json is still written unchanged")
 	flag.Parse()
 
-	mode := run
 	if *render {
-		mode = func(string) error { return runRender() }
+		if err := runRender(); err != nil {
+			fmt.Fprintf(os.Stderr, "survey-gen: %v\n", err)
+			os.Exit(1)
+		}
+		return
 	}
-	if err := mode(*initBin); err != nil {
+	if err := run(*initBin, *all); err != nil {
 		fmt.Fprintf(os.Stderr, "survey-gen: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(initBin string) error {
+func run(initBin string, all bool) error {
 	root, err := repoRoot()
 	if err != nil {
 		return err
@@ -121,6 +142,20 @@ func run(initBin string) error {
 		return err
 	}
 
+	return writeSurveys(root, schemas, roster, all, os.Stderr)
+}
+
+// writeSurveys writes live/survey.json from the curated roster and, when
+// all is true, also live/survey-full.json from the provider's entire
+// resource-type roster (issue #41). survey.json's bytes never depend on
+// all - the curated write happens first and the same way either way - which
+// is what keeps `survey-gen` without -all byte-identical to today's output.
+//
+// Split out of run so the roster-selection logic (the actual delta issue
+// #41 describes: buildSurvey already classifies provider-wide once given
+// every type name) is testable against fake schemas, with no provider and
+// no network.
+func writeSurveys(root string, schemas providers.GetProviderSchemaResponse, roster []HandRow, all bool, log io.Writer) error {
 	survey := buildSurvey(schemas, rosterTypes(roster))
 	data, err := survey.marshal()
 	if err != nil {
@@ -131,7 +166,25 @@ func run(initBin string) error {
 	if err := os.WriteFile(out, data, 0o644); err != nil { //nolint:gosec // a committed artifact, not a secret
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "survey-gen: wrote %s (%d types: %d taggable, %d with list resources, %d with identity schemas)\n",
+	fmt.Fprintf(log, "survey-gen: wrote %s (%d types: %d taggable, %d with list resources, %d with identity schemas)\n",
 		surveyJSONRel, len(survey.Types), survey.Counts.Taggable, survey.Counts.ListResource, survey.Counts.IdentitySchema)
+
+	if !all {
+		return nil
+	}
+
+	full := buildSurvey(schemas, allResourceTypeNames(schemas))
+	full.GeneratedBy = "tools/survey-gen (go run ./tools/survey-gen -all)"
+	fullData, err := full.marshal()
+	if err != nil {
+		return err
+	}
+
+	fullOut := filepath.Join(root, surveyFullJSONRel)
+	if err := os.WriteFile(fullOut, fullData, 0o644); err != nil { //nolint:gosec // a committed artifact, not a secret
+		return err
+	}
+	fmt.Fprintf(log, "survey-gen: wrote %s (%d types: %d taggable, %d with list resources, %d with identity schemas)\n",
+		surveyFullJSONRel, len(full.Types), full.Counts.Taggable, full.Counts.ListResource, full.Counts.IdentitySchema)
 	return nil
 }
