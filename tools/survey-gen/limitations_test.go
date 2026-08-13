@@ -159,28 +159,27 @@ func lineContaining(t *testing.T, path, want string) (string, bool) {
 	return "", false
 }
 
-// TestReadmeUpstreamVersion holds the README's "built on OpenTofu X"
-// claim to version/VERSION. The site landing reads that file at build
-// time (site/main.go's upstreamVersion) and the release workflow derives
-// the same number for its notes, so the README is the only copy a human
-// has to keep true.
+// TestReadmeUpstreamVersion holds the README's upstream-version story to
+// the shape the "stop hardcoding the upstream OpenTofu version" change
+// chose: the README names no literal version (pkg.go.dev renders the
+// README frozen at each tag, so a literal drifts) and instead points at
+// version/VERSION, which resolves within the same tagged tree. The test
+// pins both halves: the pointer is present, and no stale bold literal
+// has crept back in.
 func TestReadmeUpstreamVersion(t *testing.T) {
 	root, err := repoRoot()
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw, err := os.ReadFile(filepath.Join(root, "version", "VERSION")) //nolint:gosec // a fixed path in the checkout
-	if err != nil {
-		t.Fatalf("reading version/VERSION: %v", err)
-	}
-	upstream := strings.TrimSuffix(strings.TrimSpace(string(raw)), "-dev")
-
 	readme, err := os.ReadFile(filepath.Join(root, "README.md")) //nolint:gosec // a fixed path in the checkout
 	if err != nil {
 		t.Fatalf("reading README.md: %v", err)
 	}
-	if want := fmt.Sprintf("**OpenTofu %s**", upstream); !strings.Contains(string(readme), want) {
-		t.Errorf("README.md does not say %q; version/VERSION reads %s", want, upstream)
+	if !strings.Contains(string(readme), "version/VERSION") {
+		t.Errorf("README.md no longer points at version/VERSION for the upstream OpenTofu version")
+	}
+	if hardcoded := regexp.MustCompile(`\*\*OpenTofu \d`); hardcoded.Match(readme) {
+		t.Errorf("README.md hardcodes an upstream OpenTofu version again; point at version/VERSION instead")
 	}
 }
 
