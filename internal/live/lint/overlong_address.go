@@ -23,12 +23,18 @@ import (
 //
 // A resource's canonical config address becomes the tofu-address marker on
 // the live resource, escaped per live/MARKERS.md ("[" becomes ":", "]"
-// and `"` are dropped; markers.EscapeAddress is that rule in code), and AWS
-// caps a tag value at 256 Unicode characters (markers.MaxTagValue).
-// MARKERS.md is explicit about which side gives: "An address that does not
-// fit is a lint-time error, not a truncation. Silently truncating an
-// ownership key is worse than refusing to admit the resource." This rule is
-// that lint-time error.
+// and `"` are dropped; markers.EscapeAddress is that rule in code). AWS
+// caps a single tag value at 256 Unicode characters (markers.MaxTagValue),
+// but an address that does not fit in one tag is not refused outright any
+// more: it is split across up to markers.MaxContinuations tags -
+// tofu-address, tofu-address-2, ... - concatenated back into one value on
+// read (markers.GatherAddress). See live/MARKERS.md, "tofu-address
+// continuation tags". The budget this rule enforces is therefore
+// markers.MaxAddressLen (MaxContinuations x MaxTagValue), not MaxTagValue
+// alone. MARKERS.md is explicit about which side gives past that wider
+// ceiling: "An address that does not fit is a lint-time error, not a
+// truncation. Silently truncating an ownership key is worse than refusing
+// to admit the resource." This rule is that lint-time error.
 //
 // What is measured is the escaped instance address, one per instance the
 // rule can see:
@@ -91,17 +97,16 @@ func checkOverlongAddresses(ctx context.Context, mod *configs.Module, modInst ad
 
 // reportOverlongAddress escapes one instance address exactly the way the
 // stamped marker would be escaped and appends an issue if the result does
-// not fit in a tag value.
+// not fit in the continuation-tag budget.
 //
 // inst and modInst are handed separately, rather than as the one already-
-// joined address string the rest of this file used to pass around, because
-// the refusal below breaks the budget down into the module path's share and
-// the resource's own share - see budgetBreakdown - and that split needs the
-// join point, not just the joined result.
+// joined address string the rest of this file used to pass around, so the
+// join point (inst.Absolute(modInst)) stays local to this function instead
+// of being recomputed by every caller.
 func reportOverlongAddress(inst addrs.ResourceInstance, modInst addrs.ModuleInstance, subject hcl.Range, path addrs.Module, issues *[]Issue) {
 	addr := inst.Absolute(modInst).String()
 	length := utf8.RuneCountInString(markers.EscapeAddress(addr))
-	if length <= markers.MaxTagValue {
+	if length <= markers.MaxAddressLen {
 		return
 	}
 	*issues = append(*issues, Issue{
@@ -109,62 +114,18 @@ func reportOverlongAddress(inst addrs.ResourceInstance, modInst addrs.ModuleInst
 		Construct: addr,
 		Module:    path,
 		Detail: fmt.Sprintf(
-			"the escaped tofu-address for this instance is %d characters, %d over the "+
-				"256-character budget (the AWS hard cap on a tag value, live/MARKERS.md). "+
-				"%s The address becomes the tofu-address marker on the live resource, and "+
-				"that marker - together with the separate tofu-estate tag, which has its own "+
-				"independent 128-character budget and is not part of this one - is the only "+
-				"record of ownership a stateless run has. An address that does not fit is "+
-				"refused here rather than truncated: silently truncating an ownership key is "+
-				"worse than refusing to admit the resource. To fit: shorten the module names "+
-				"in the path, flatten a level of module nesting, shorten the resource label, "+
-				"pick a shorter for_each key, or move the resource somewhere its address is "+
-				"shorter and carry its marker over with \"choudoufu live-mv\" rather than "+
-				"re-adopting it from scratch. See live/LIMITATIONS.md, \"overlong-address\", "+
-				"for the full budget math and a worst-case example.",
-			length, length-markers.MaxTagValue, budgetBreakdown(inst, modInst),
+			"the escaped tofu-address for this instance is %d characters, and this fork carries "+
+				"an address across at most %d tag values of %d characters each (live/MARKERS.md, "+
+				"\"tofu-address continuation tags\"), a ceiling of %d characters in total. The "+
+				"address becomes the tofu-address marker (and its continuation tags) on the live "+
+				"resource, and that marker is the only record of ownership a stateless run has, so "+
+				"an address that does not fit is refused here rather than truncated: silently "+
+				"truncating an ownership key is worse than refusing to admit the resource. Shorten "+
+				"the resource label, the instance key, or the module nesting",
+			length, markers.MaxContinuations, markers.MaxTagValue, markers.MaxAddressLen,
 		),
 		Subject: subject,
 	})
-}
-
-// budgetBreakdown is the one sentence that turns "256 characters" into
-// something a reader can act on: how much of this instance's escaped address
-// the module path spends, versus how much is left for the resource type,
-// its label and its instance key combined. Module nesting is the part that
-// grows without the author writing a longer resource label - each level
-// costs a literal "module." (7 characters) plus the module's own name and,
-// for a keyed module call, an escaped instance key - so it is the module
-// path's share that most often explains why an address that looked
-// reasonable in a flat root module stopped fitting once it moved three
-// levels deep.
-func budgetBreakdown(inst addrs.ResourceInstance, modInst addrs.ModuleInstance) string {
-	total := utf8.RuneCountInString(markers.EscapeAddress(inst.Absolute(modInst).String()))
-	resourceOnly := utf8.RuneCountInString(markers.EscapeAddress(inst.String()))
-	modulePath := total - resourceOnly
-	if modulePath <= 0 {
-		return fmt.Sprintf(
-			"This instance declares no module path, so the resource type, label and instance "+
-				"key alone account for all %d characters.",
-			resourceOnly,
-		)
-	}
-	remaining := markers.MaxTagValue - modulePath
-	if remaining <= 0 {
-		return fmt.Sprintf(
-			"Of that, the module path (\"%s\", including the separator before the resource "+
-				"address) alone spends %d characters - already past the 256-character budget "+
-				"before the resource type, label or instance key are counted at all.",
-			modInst.String(), modulePath,
-		)
-	}
-	return fmt.Sprintf(
-		"Of that, the module path (\"%s\", including the separator before the resource "+
-			"address) spends %d characters, leaving %d for the resource type, label and "+
-			"instance key combined - the budget that shrinks every time this instance moves "+
-			"one level deeper into the module tree.",
-		modInst.String(), modulePath, remaining,
-	)
 }
 
 // staticCount computes the value of a count expression, or reports that it

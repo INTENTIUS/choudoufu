@@ -50,12 +50,26 @@ func (m *mover) rewrite(ctx context.Context, prior *states.ResourceInstanceObjec
 		))
 	}
 
-	desiredTags := make(map[string]string, len(tags)+2)
+	chunks := discovery.SplitAddress(m.res.NewMarker)
+	desiredTags := make(map[string]string, len(tags)+1+len(chunks))
 	for k, v := range tags {
 		desiredTags[k] = v
 	}
 	desiredTags[discovery.TagEstate] = m.req.Estate
-	desiredTags[discovery.TagAddress] = m.res.NewMarker
+	for i, chunk := range chunks {
+		desiredTags[discovery.AddressTagKey(i)] = chunk
+	}
+	// A rename onto a shorter address needs fewer continuation tags than the
+	// old one did. Unlike stamp (which only ever adds a marker it did not
+	// already find), a rename has an explicit before and after, so it is
+	// also the one place that cleans up: a continuation tag this new address
+	// does not reach is deleted rather than left behind stale, where
+	// discovery.GatherAddress would otherwise concatenate it onto the new,
+	// shorter tofu-address and read back something this resource never
+	// declared.
+	for i := len(chunks); i < discovery.MaxContinuations; i++ {
+		delete(desiredTags, discovery.AddressTagKey(i))
+	}
 
 	desired, err := withTags(m.schema.Block, priorVal, desiredTags)
 	if err != nil {
@@ -207,7 +221,8 @@ func (m *mover) verify(newState cty.Value) tfdiags.Diagnostics {
 	}
 
 	tags, taggable := tagsFromObject(m.schema, newState)
-	if got := discovery.EscapeAddress(tags[discovery.TagAddress]); taggable && got == m.res.NewMarker {
+	raw, corrupt := discovery.GatherAddress(tags)
+	if got := discovery.EscapeAddress(raw); taggable && !corrupt && got == m.res.NewMarker {
 		m.res.Verified = true
 		return diags
 	}
@@ -217,7 +232,7 @@ func (m *mover) verify(newState cty.Value) tfdiags.Diagnostics {
 		"Unreadable marker after the rewrite",
 		fmt.Sprintf(
 			"The tag write on the %s at %s reported no error, but the object the provider returned afterwards carries %s = %q rather than %q. Some providers do not serve tags back on a read; check the resource's tags with the cloud's own API before rerunning.",
-			m.res.TypeName, m.res.LiveID, discovery.TagAddress, tags[discovery.TagAddress], m.res.NewMarker),
+			m.res.TypeName, m.res.LiveID, discovery.TagAddress, raw, m.res.NewMarker),
 	))
 }
 

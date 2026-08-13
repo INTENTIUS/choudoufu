@@ -1370,6 +1370,17 @@ func TestTaggableSetCoversAdmissionTable(t *testing.T) {
 		pinned[resourceType] = true
 	}
 	for _, resourceType := range identity.AdmittedTypes() {
+		// GitHub issue #73's RECORD_ADMITTED logical types (null_resource,
+		// terraform_data, the time_* and random_* rows
+		// internal/live/identity/table_recordbacked.go admits) carry no AWS
+		// tags argument to have or lack at all - they are not AWS resources,
+		// and their identity is the persisted micro-state record itself, not
+		// a marker. "Taggable" is not a question this pin needs to answer
+		// for them, the same reason tools/survey-gen's own untaggable
+		// derivation skips them (see untaggable_render.go).
+		if entry, ok := identity.LookupType(resourceType); ok && entry.RecordBacked {
+			continue
+		}
 		if !pinned[resourceType] {
 			t.Errorf("%s is in the v0 admission table but its taggability is not pinned here", resourceType)
 		}
@@ -2642,6 +2653,11 @@ func tagFunctions() map[string]function.Function {
 		// language's own implementation, so evaluating a stamped tag here is
 		// evaluating what the plan will.
 		"merge": stdlib.MergeFunc,
+		// substr is issue #71's addition: a per-instance address long enough
+		// to need continuation tags is split with n independent substr()
+		// calls (stamp.templateChunkMarkers). Same reasoning as the two
+		// above.
+		"substr": stdlib.SubstrFunc,
 	}
 }
 

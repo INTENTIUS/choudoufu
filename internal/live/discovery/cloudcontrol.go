@@ -155,7 +155,18 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 			continue
 		}
 
-		raw := tags[TagAddress]
+		raw, corrupt := GatherAddress(tags)
+		if corrupt {
+			diags = diags.Append(problemDiag(res, Problem{
+				Kind:     ProblemMalformedMarker,
+				TypeName: typeName,
+				LiveIDs:  liveIDs(importID),
+				Detail: fmt.Sprintf(
+					"A live %s (via Cloud Control) claims estate %q but its tofu-address continuation tags have a gap in them - one of tofu-address-2, tofu-address-3, ... is missing while a later one is present. Per live/MARKERS.md such a resource is malformed - neither owned nor foreign - and a human has to say which address it belongs to; discovery will not guess.",
+					typeName, req.Estate),
+			}))
+			continue
+		}
 		escaped := EscapeAddress(raw)
 		if !ValidMarkerAddress(escaped) {
 			what := "carries no tofu-address tag"

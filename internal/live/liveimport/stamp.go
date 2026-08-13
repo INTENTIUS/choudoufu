@@ -111,11 +111,12 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 	out := StampOutcome{Addr: addr, TypeName: e.typeName}
 
 	wantAddress := discovery.EscapeAddress(addr.String())
-	if len([]rune(wantAddress)) > discovery.MaxTagValue || !discovery.ValidMarkerAddress(wantAddress) {
+	if len([]rune(wantAddress)) > discovery.MaxAddressLen || !discovery.ValidMarkerAddress(wantAddress) {
 		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("The address %s does not escape to a well-formed tofu-address marker, so it can never be carried as a tag value. Nothing was written.", addr)
+		out.Detail = fmt.Sprintf("The address %s does not escape to a well-formed tofu-address marker, so it can never be carried as a tag value (or set of continuation tag values). Nothing was written.", addr)
 		return out
 	}
+	chunks := discovery.SplitAddress(wantAddress)
 
 	tags, ok := tagsFromObject(e.schema, e.liveVal)
 	if !ok {
@@ -125,10 +126,11 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 	}
 
 	gotEstate := tags[discovery.TagEstate]
-	gotAddress := discovery.EscapeAddress(tags[discovery.TagAddress])
+	gotRaw, corrupt := discovery.GatherAddress(tags)
+	gotAddress := discovery.EscapeAddress(gotRaw)
 
 	switch {
-	case gotEstate == estate && gotAddress == wantAddress:
+	case gotEstate == estate && gotAddress == wantAddress && !corrupt:
 		out.Outcome = OutcomeAlreadyStamped
 		out.Detail = "Already carries this estate's markers; nothing written."
 		return out
@@ -136,18 +138,24 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 		out.Outcome = OutcomeFailed
 		out.Detail = fmt.Sprintf("Carries tofu-estate = %q, owned by another estate. A migration never adopts another estate's resource; nothing was written.", gotEstate)
 		return out
+	case corrupt:
+		out.Outcome = OutcomeFailed
+		out.Detail = "Already carries a tofu-address marker whose continuation tags (tofu-address-2, tofu-address-3, ...) have a gap in them, so this run cannot tell what address it names. See live/MARKERS.md, \"tofu-address continuation tags\"; a human has to resolve this before it can be adopted."
+		return out
 	case gotAddress != "" && gotAddress != wantAddress:
 		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("Already carries tofu-address = %q. Rewriting it here would be a rename, which is choudoufu live-mv's job, not a side effect of an import; nothing was written.", tags[discovery.TagAddress])
+		out.Detail = fmt.Sprintf("Already carries tofu-address = %q. Rewriting it here would be a rename, which is choudoufu live-mv's job, not a side effect of an import; nothing was written.", gotRaw)
 		return out
 	}
 
-	desiredTags := make(map[string]string, len(tags)+2)
+	desiredTags := make(map[string]string, len(tags)+1+len(chunks))
 	for k, v := range tags {
 		desiredTags[k] = v
 	}
 	desiredTags[discovery.TagEstate] = estate
-	desiredTags[discovery.TagAddress] = wantAddress
+	for i, chunk := range chunks {
+		desiredTags[discovery.AddressTagKey(i)] = chunk
+	}
 
 	desired, err := withTags(e.schema.Block, e.liveVal, desiredTags)
 	if err != nil {
@@ -212,7 +220,9 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 
 	out.Outcome = OutcomeStamped
 	out.Detail = "Wrote tofu-estate and tofu-address."
-	if newTags, ok := tagsFromObject(e.schema, applyResp.NewState); !ok || discovery.EscapeAddress(newTags[discovery.TagAddress]) != wantAddress || newTags[discovery.TagEstate] != estate {
+	newTags, newOK := tagsFromObject(e.schema, applyResp.NewState)
+	newRaw, newCorrupt := discovery.GatherAddress(newTags)
+	if !newOK || newCorrupt || discovery.EscapeAddress(newRaw) != wantAddress || newTags[discovery.TagEstate] != estate {
 		// A mismatch here is a warning, not a failure: the write itself
 		// reported no error, and some providers do not serve tags back on
 		// the read that follows an apply (mv's e2e notes call this #5).
