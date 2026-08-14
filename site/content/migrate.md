@@ -126,8 +126,8 @@ Read the entry, run the tag write it names, plan again.
 
 If you would rather not do this one resource at a time, the ownership policy
 matrix can do it for you: `policy { declared_untagged = "adopt" }` in the `live`
-block adopts that whole quadrant. Read what the other three quadrants do before
-setting it.
+block adopts every resource in that situation at once. Read what the other
+three settings do before you set it.
 
 ## What has no adoption path
 
@@ -161,11 +161,10 @@ alone. `moved` blocks are refused by lint.
 
 Forgetting without destroying is the one place the parallel is not exact by
 default. Deleting a resource block leaves its marker on the live object, and
-the `undeclared_tagged` quadrant defaults to `delete`, so the next plan sweeps
-it. That matches what upstream does without a `removed` block.
+`undeclared_tagged` defaults to `delete`, so the next plan destroys it. That matches what upstream does without a `removed` block.
 
-The equivalent of `removed` with `destroy = false` is to set that quadrant
-instead of accepting the default:
+The equivalent of `removed` with `destroy = false` is to set that instead of
+accepting the default:
 
 ```hcl
 live {

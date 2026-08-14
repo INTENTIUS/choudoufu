@@ -27,8 +27,8 @@ Deleting a resource block leaves its marker on the live object, and the sweep
 destroys a marked, undeclared, taggable resource on the next plan. That matches
 what upstream does without a `removed` block.
 
-To stop managing something without destroying it, set the quadrant rather than
-accepting the default:
+To stop managing something without destroying it, change what happens to a
+resource you have stopped declaring:
 
 ```hcl
 live {
@@ -65,28 +65,55 @@ simply cannot list or tag are reported by count, since that is true of every
 run; pass `-verbose` to itemise them. A list call that actually failed during
 this run is itemised every time.
 
-## The ownership policy matrix
+## Choosing what happens to each kind of resource
 
-Four quadrants, from whether a resource is declared in your configuration and
-whether it carries this estate's marker. Each takes a verb, and omitting the
-whole block gives you the defaults below.
+Every resource choudoufu sees falls into one of four situations, decided by two
+questions: does your configuration declare it, and does it carry this estate's
+marker? The `policy` block sets what happens in each.
 
-| Quadrant | Default | What it means |
-|---|---|---|
-| `declared_tagged` | `converge` | ordinary management |
-| `declared_untagged` | `refuse` | declined until adopted |
-| `undeclared_tagged` | `delete` | today's sweep |
-| `undeclared_untagged` | `keep` | ignore, treat as foreign |
+With no `policy` block you get the defaults below, which are exactly today's
+behaviour.
 
-The other verbs are `adopt` (claim a declared-but-unmarked resource by writing
-the marker), `untag` (drop the marker, leave the resource), and `report`
-(surface it in plan output without acting). Not every verb is valid in every
-quadrant.
+| The situation you are in | Setting | Default | What the default does |
+|---|---|---|---|
+| You declare it, and it carries your marker. The ordinary case. | `declared_tagged` | `converge` | Plans and applies it against your configuration, like any resource. |
+| You declare it, but no live resource carries your marker for it. | `declared_untagged` | `refuse` | Declines to touch it until you adopt it. |
+| **You removed it from your configuration, and it still carries your marker.** | `undeclared_tagged` | **`delete`** | **Destroys it on the next plan.** |
+| It carries no marker, and you never declared it. Somebody else's. | `undeclared_untagged` | `keep` | Leaves it alone. |
 
-Setting `undeclared_untagged = "delete"` turns on account reconciliation, which
-deletes resources your configuration has never mentioned. It requires a `scope`
-block. Re-read the two orphan cases above before enabling it: the sweep cannot
-see everything in the account, so a clean reconciliation does not mean the
+:::warning
+The third row is the one to know before you delete a resource block. Removing
+the block does not mean "stop managing this", it means "destroy this" — which
+is also what upstream does without a `removed` block. Set `undeclared_tagged`
+to `untag` or `keep` first if the resource should survive.
+:::
+
+### What each setting accepts
+
+| Setting | Can be set to |
+|---|---|
+| `declared_tagged` | `converge`, `untag`, `keep`, `report` |
+| `declared_untagged` | `converge`, `adopt`, `refuse`, `keep`, `report` |
+| `undeclared_tagged` | `delete`, `untag`, `keep`, `report` |
+| `undeclared_untagged` | `keep`, `delete`, `report` |
+
+`converge` manages it normally. `adopt` claims it by writing your marker.
+`refuse` declines until it is adopted. `untag` drops your marker and leaves the
+resource running. `keep` touches nothing. `report` shows it in plan output and
+does nothing else.
+
+Combinations with no coherent meaning are refused at lint rather than left to
+surprise you. You cannot `adopt` something carrying neither a declaration nor a
+marker, and you cannot `delete` something your configuration still declares.
+
+### Reconciling a whole account
+
+`undeclared_untagged = "delete"` is the setting that destroys resources your
+configuration has never mentioned. It requires a `scope` block, and it is the
+only setting that does.
+
+Re-read the two orphan cases above before enabling it. The sweep cannot see
+every resource in the account, so a clean reconciliation does not mean the
 account is clean.
 
 ## Effects the cloud cannot tell you about
