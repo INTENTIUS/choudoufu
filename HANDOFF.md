@@ -211,7 +211,7 @@ around it.
 ## Phase order
 
 Every open issue carries a phase label, so the tracker and this list cannot
-drift apart. `gh issue list -R INTENTIUS/choudoufu --label phase-4-silent-hazards`
+drift apart. `gh issue list -R INTENTIUS/choudoufu --label phase-5-coverage`
 is the front of the queue. Work outside the ladder is labelled `standing`.
 
 **1. `phase-1-messages` — stop misreporting what ships (#101). Done.**
@@ -241,14 +241,24 @@ the pass-through class turning out to be 53 rather than 3, and both were
 found by adversarial audits rather than by the work itself. A count of what
 a codebase refuses is not something to estimate.
 
-**4. `phase-4-silent-hazards` — correctness bugs with no diagnostic**
-(#103, #104, #115, #116).
+**4. `phase-4-silent-hazards` — correctness bugs with no diagnostic
+(#103, #104, #115, #116). Done.**
 
-These do not appear in the scoreboard and never will, because a silent failure
-produces no refusal to count. That is the argument for doing them on principle
-rather than by rank, and it is why they sit above the measured refusals despite
-having no measurement behind them. #103 and #104 are silent wrong behaviour;
-#115 and #116 are wrong behaviour that only warns.
+All four closed. They never appeared in the scoreboard and never would have,
+because a silent failure produces no refusal to count - which is why they
+were done on principle rather than by rank.
+
+Two of them turned out to be measurable after the fact, which is the useful
+surprise. `module-providers` (#104) fires on **6 of the 105 corpus
+configurations**, 11 sites: real cross-region `providers` mappings in the
+rds, s3-bucket and lambda examples that live mode was silently planning
+against the wrong region. The refusal made a hazard visible that no
+instrument could see while it was silent.
+
+#123 is the one thing left open from this phase, and it is a question rather
+than a task: whether a root resource naming an undeclared provider alias
+reaches the same empty-body fallback, or whether upstream validation already
+refuses it. Establish that by running it before building anything.
 
 **5. `phase-5-coverage` — the top measured refusals themselves**
 (#105, #106, #107, verified by #108).
