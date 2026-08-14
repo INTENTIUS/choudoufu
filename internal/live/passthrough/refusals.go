@@ -228,4 +228,3 @@ func LookupRefusal(summary string) (Refusal, bool) {
 	}
 	return Refusal{}, false
 }
-
