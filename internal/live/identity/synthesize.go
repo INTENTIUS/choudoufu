@@ -7,6 +7,7 @@ package identity
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/providers"
@@ -77,9 +78,7 @@ func SynthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema
 		return TypeIdentity{}, false
 	}
 	d := admitted[0]
-	if len(d.IdentityAttrs) != 1 {
-		// A composite identity needs a separator this package will not
-		// invent. See the doc comment.
+	if len(d.IdentityAttrs) == 0 {
 		return TypeIdentity{}, false
 	}
 	if !onlyContext(d.Context) {
@@ -95,26 +94,64 @@ func SynthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema
 		return TypeIdentity{}, false
 	}
 
-	name := d.IdentityAttrs[0]
-	if arg, ok := schema.Block.Attributes[name]; !ok || arg == nil {
-		// DerivableWith already required this, both in its strict path and
-		// in its cohort path; checked again because a synthesized entry that
-		// reads an argument the type does not have would fail at resolution
-		// with a message about the configuration rather than about the
-		// schema.
-		return TypeIdentity{}, false
+	names := append([]string(nil), d.IdentityAttrs...)
+	sort.Strings(names)
+	components := make([]Component, 0, len(names))
+	for _, name := range names {
+		if arg, ok := schema.Block.Attributes[name]; !ok || arg == nil {
+			// DerivableWith already required this, both in its strict path
+			// and in its cohort path; checked again because a synthesized
+			// entry that reads an argument the type does not have would fail
+			// at resolution with a message about the configuration rather
+			// than about the schema.
+			return TypeIdentity{}, false
+		}
+		components = append(components, Component{
+			Attrs:        []string{name},
+			IdentityAttr: name,
+		})
+	}
+
+	// One attribute is the whole identity, so the import ID is that
+	// attribute's value and the ordinary string path works.
+	//
+	// More than one is GitHub issue #105. The config signal has already
+	// proved every attribute is client-named, so the identity is entirely
+	// computable - what is missing is only the separator that joins the
+	// values into the provider's legacy import-ID grammar, and no schema
+	// carries one. Terraform 1.12 resource identity is what makes that
+	// stop mattering: the projection imports by identity object when the
+	// schema allows, and this type has an identity schema by the check at
+	// the top of this function.
+	//
+	// So the entry carries the attributes and refuses to invent the string.
+	// [TypeIdentity.IdentityObjectOnly] is what makes the refusal stick:
+	// without it, resolve.go's classify would concatenate the values with
+	// nothing between them and hand out "prodsvc" for an aws_ecs_service in
+	// cluster "prod" named "svc" - a string that is not empty, so every
+	// guard downstream passes it through.
+	if len(names) == 1 {
+		return TypeIdentity{
+			Type:          typeName,
+			Components:    components,
+			ImportSyntax:  strings.ToUpper(names[0]),
+			IdentityAttrs: names,
+			Synthesized:   true,
+			Admits:        d.Admits,
+		}, true
 	}
 
 	return TypeIdentity{
-		Type: typeName,
-		Components: []Component{{
-			Attrs:        []string{name},
-			IdentityAttr: name,
-		}},
-		ImportSyntax:  strings.ToUpper(name),
-		IdentityAttrs: []string{name},
-		Synthesized:   true,
-		Admits:        d.Admits,
+		Type:       typeName,
+		Components: components,
+		// Deliberately not a joined grammar: there is none. The syntax
+		// string is documentation, and what it has to document here is that
+		// this type is imported by identity object.
+		ImportSyntax:       "identity{" + strings.Join(names, ", ") + "}",
+		IdentityAttrs:      names,
+		IdentityObjectOnly: true,
+		Synthesized:        true,
+		Admits:             d.Admits,
 	}, true
 }
 

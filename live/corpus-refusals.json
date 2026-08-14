@@ -37,18 +37,17 @@
       "blocked": true,
       "loaded": true,
       "instances": 16,
-      "sites": 58,
+      "sites": 39,
       "unresolved_modules": 5,
       "unset_variables": 0,
-      "schemas": true,
-      "shadowed": 3
+      "schemas": true
     },
     {
       "name": ".corpus/ecs/examples/complete",
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 672,
+      "sites": 666,
       "unresolved_modules": 4,
       "unset_variables": 0,
       "schemas": true
@@ -68,11 +67,10 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 135,
+      "sites": 138,
       "unresolved_modules": 4,
       "unset_variables": 0,
-      "schemas": true,
-      "shadowed": 4
+      "schemas": true
     },
     {
       "name": ".corpus/ecs/examples/express-service",
@@ -90,22 +88,20 @@
       "blocked": true,
       "loaded": true,
       "instances": 14,
-      "sites": 56,
+      "sites": 55,
       "unresolved_modules": 2,
       "unset_variables": 0,
-      "schemas": true,
-      "shadowed": 4
+      "schemas": true
     },
     {
       "name": ".corpus/ecs/examples/managed-instances",
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 106,
+      "sites": 109,
       "unresolved_modules": 2,
       "unset_variables": 0,
-      "schemas": true,
-      "shadowed": 4
+      "schemas": true
     },
     {
       "name": ".corpus/eks/examples/basic",
@@ -249,7 +245,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 53,
+      "sites": 52,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -260,7 +256,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 26,
+      "sites": 25,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -271,7 +267,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 62,
-      "sites": 473,
+      "sites": 444,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -282,29 +278,29 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 28,
+      "sites": 27,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3
+      "shadowed": 2
     },
     {
       "name": ".corpus/lambda/examples/complete",
       "blocked": true,
       "loaded": true,
       "instances": 23,
-      "sites": 322,
+      "sites": 312,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 9
+      "shadowed": 7
     },
     {
       "name": ".corpus/lambda/examples/container-image",
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 62,
+      "sites": 60,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -315,7 +311,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 8,
-      "sites": 39,
+      "sites": 38,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -326,7 +322,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 53,
+      "sites": 52,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -337,7 +333,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 62,
+      "sites": 60,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -348,7 +344,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 93,
+      "sites": 89,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -359,7 +355,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 25,
+      "sites": 24,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -370,7 +366,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 25,
+      "sites": 24,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -381,7 +377,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 30,
+      "sites": 29,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -392,7 +388,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 26,
+      "sites": 25,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -403,7 +399,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 26,
+      "sites": 25,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -414,7 +410,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 26,
+      "sites": 25,
       "unresolved_modules": 5,
       "unset_variables": 0,
       "schemas": true,
@@ -590,11 +586,11 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 27,
+      "sites": 31,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 5
+      "shadowed": 1
     },
     {
       "name": ".corpus/s3-bucket/examples/s3-analytics",
@@ -642,7 +638,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 22,
+      "sites": 17,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true,
@@ -1110,7 +1106,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
       "raised_by": "internal/configs",
       "configs": 66,
-      "sites": 3521,
+      "sites": 3536,
       "examples": [
         ".corpus/alb/main.tf:88",
         ".corpus/alb/main.tf:231",
@@ -1127,15 +1123,11 @@
       "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
       "raised_by": "internal/live/lint",
       "configs": 58,
-      "sites": 961,
+      "sites": 845,
       "types": [
         {
           "type": "aws_lambda_permission",
           "sites": 137
-        },
-        {
-          "type": "aws_s3_object",
-          "sites": 67
         },
         {
           "type": "aws_lambda_function_event_invoke_config",
@@ -1222,20 +1214,8 @@
           "sites": 16
         },
         {
-          "type": "aws_ecs_service",
-          "sites": 14
-        },
-        {
           "type": "aws_ecs_task_set",
           "sites": 14
-        },
-        {
-          "type": "aws_autoscaling_policy",
-          "sites": 11
-        },
-        {
-          "type": "aws_autoscaling_schedule",
-          "sites": 11
         },
         {
           "type": "aws_autoscaling_traffic_source_attachment",
@@ -1246,19 +1226,15 @@
           "sites": 8
         },
         {
-          "type": "aws_appautoscaling_policy",
-          "sites": 7
-        },
-        {
           "type": "aws_appautoscaling_scheduled_action",
           "sites": 7
         },
         {
-          "type": "aws_appautoscaling_target",
-          "sites": 7
+          "type": "aws_ecs_capacity_provider",
+          "sites": 6
         },
         {
-          "type": "aws_ecs_capacity_provider",
+          "type": "aws_ecs_service",
           "sites": 6
         },
         {
@@ -1271,10 +1247,6 @@
         },
         {
           "type": "aws_vpc_security_group_rules_exclusive",
-          "sites": 5
-        },
-        {
-          "type": "aws_vpc_security_group_vpc_association",
           "sites": 5
         },
         {
@@ -1464,13 +1436,13 @@
       "docs_ref": "live/LIMITATIONS.md, \"Unresolvable identity\"",
       "raised_by": "internal/live/identity",
       "configs": 37,
-      "sites": 115,
+      "sites": 121,
       "examples": [
         ".corpus/autoscaling/main.tf:1463",
         ".corpus/ecs/modules/service/main.tf:1237",
-        ".corpus/ecs/modules/service/main.tf:2025",
-        ".corpus/ecs/modules/service/main.tf:2039",
-        ".corpus/ecs/modules/express-service/main.tf:327"
+        ".corpus/ecs/modules/service/main.tf:1589",
+        ".corpus/ecs/modules/service/main.tf:1589",
+        ".corpus/ecs/modules/service/main.tf:2025"
       ],
       "registered": true
     },
@@ -1498,8 +1470,8 @@
       "what": "An identity argument, a count or a for_each reads a child module's output. Module outputs are produced by evaluating the module, which has not happened yet.",
       "docs_ref": "live/LIMITATIONS.md, \"Module output not supported in static context\"",
       "raised_by": "internal/configs",
-      "configs": 30,
-      "sites": 226,
+      "configs": 33,
+      "sites": 239,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:55",
         ".corpus/alb/examples/complete-alb/main.tf:180",
@@ -1605,14 +1577,14 @@
       "what": "An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.",
       "docs_ref": "live/LIMITATIONS.md, \"Identity not resolvable from configuration\"",
       "raised_by": "internal/live/identity",
-      "configs": 6,
-      "sites": 16,
+      "configs": 7,
+      "sites": 19,
       "examples": [
+        ".corpus/autoscaling/main.tf:1116",
+        ".corpus/autoscaling/main.tf:1116",
+        ".corpus/autoscaling/main.tf:1116",
         ".corpus/lambda/modules/deploy/main.tf:213",
-        ".corpus/lambda/modules/deploy/main.tf:270",
-        ".corpus/rds/modules/db_instance/main.tf:233",
-        ".corpus/s3-bucket/main.tf:301",
-        ".corpus/s3-bucket/main.tf:612"
+        ".corpus/lambda/modules/deploy/main.tf:270"
       ],
       "registered": true
     },
@@ -2323,6 +2295,17 @@
     },
     {
       "layer": "identity",
+      "id": "Resource type has no orphan recovery",
+      "title": "Resource type has no orphan recovery",
+      "what": "The type is admitted by the provider's identity schema rather than by the generated admission table, so it plans and applies but the estate-wide sweep will not list it: deleting its last block leaves the live resource with no run proposing to remove it. Reported as a warning.",
+      "docs_ref": "live/LIMITATIONS.md, \"Resource type has no orphan recovery\"",
+      "raised_by": "internal/live/identity",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
       "id": "Resource type outside the live-markers subset",
       "title": "Resource type outside the live-markers subset",
       "what": "The type is absent from the admission table, and neither the provider's identity schema nor the configuration's own arguments settle its identity.",
@@ -2647,9 +2630,9 @@
     "blocked": 81,
     "clean": 24,
     "instances": 1057,
-    "sites": 11713,
+    "sites": 11634,
     "refusals_fired": 17,
-    "refusals_in_set": 105,
+    "refusals_in_set": 106,
     "configs_without_schemas": 0,
     "refusals_unregistered": 0
   },

@@ -318,7 +318,13 @@ func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
 type wanted struct {
 	addr addrs.AbsResourceInstance
 
-	// importID is the provider's import-ID string. Always populated.
+	// importID is the provider's import-ID string.
+	//
+	// Empty for a type identified by several attributes with no separator
+	// between them: there is no such string, and inventing one is what
+	// GitHub issue #105 exists to prevent. See
+	// [identity.TypeIdentity.IdentityObjectOnly]. Such an instance is
+	// imported by identity object or refused, never by an approximation.
 	importID string
 
 	// identity is the provider's own resource identity object, when
@@ -378,6 +384,17 @@ func importTarget(w wanted, schema providers.Schema) providers.ImportTarget {
 
 	if val, ok := identityFromValues(w, schema); ok {
 		return providers.ImportTarget{Identity: val}
+	}
+
+	// The fallback is the string, and for a type that has none there is no
+	// fallback to take. byID is {ID: ""}, which [importAndRead] refuses
+	// rather than sending to a provider - GitHub issue #105's point exactly:
+	// the danger was never an empty ID, it was a plausible one. A
+	// separator-less composite whose values were joined anyway would arrive
+	// here as "prodsvc" and be imported against a real account.
+	if w.importID == "" {
+		log.Printf("[WARN] projection: %s is identified by identity object only and one could not be built from configuration; there is no import ID to fall back to",
+			w.addr)
 	}
 	return byID
 }
@@ -949,7 +966,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Empty import identity",
-			fmt.Sprintf("Nothing was computed as the import identity for a %s: no identity object and an empty import ID. Identity resolution should never produce one.", typeName),
+			fmt.Sprintf("Nothing was computed as the import identity for a %s: no identity object and no import ID. For a type identified by several attributes with no separator between them, the identity object is the only form there is (see internal/live/identity's IdentityObjectOnly), so an identity the provider's schema would not accept leaves nothing to import by - which is refused here rather than approximated with a string.", typeName),
 		))
 		return nil, statusFailed, diags
 	}

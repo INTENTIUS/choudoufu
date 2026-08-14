@@ -762,19 +762,19 @@ one - and each says so in its own entry.
 <!-- limits-gen:begin refusal-table -->
 | Configs | Sites | Layer | Refusal | Raised by | Documented at |
 |---|---|---|---|---|---|
-| 66 | 3521 | identity | Unable to compute static value | `internal/configs` | "Unable to compute static value" |
-| 58 | 961 | lint | unadmitted-type | `internal/live/lint` | "unadmitted-type" |
+| 66 | 3536 | identity | Unable to compute static value | `internal/configs` | "Unable to compute static value" |
+| 58 | 845 | lint | unadmitted-type | `internal/live/lint` | "unadmitted-type" |
 | 57 | 1953 | identity | Dynamic value in static context | `internal/configs` | "Dynamic value in static context" |
 | 49 | 415 | lint | logical-resource | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
-| 37 | 115 | identity | Unresolvable identity | `internal/live/identity` | "Unresolvable identity" |
+| 37 | 121 | identity | Unresolvable identity | `internal/live/identity` | "Unresolvable identity" |
 | 35 | 4254 | lint | count-index | `internal/live/lint` | "count-index-in-tag" |
-| 30 | 226 | identity | Module output not supported in static context | `internal/configs` | "Module output not supported in static context" |
+| 33 | 239 | identity | Module output not supported in static context | `internal/configs` | "Module output not supported in static context" |
 | 27 | 75 | lint | provisioner | `internal/live/lint` | "local-exec" / "remote-exec" |
 | 24 | 77 | identity | Null identity argument | `internal/live/identity` | "Null identity argument" |
 | 13 | 25 | identity | Identity argument not set | `internal/live/identity` | "Identity argument not set" |
 | 13 | 25 | identity | Not an identity attribute | `internal/live/identity` | "Not an identity attribute" |
 | 11 | 20 | identity | Invalid for_each set | `internal/live/identity` | "Invalid for_each set" |
-| 6 | 16 | identity | Identity not resolvable from configuration | `internal/live/identity` | "Identity not resolvable from configuration" |
+| 7 | 19 | identity | Identity not resolvable from configuration | `internal/live/identity` | "Identity not resolvable from configuration" |
 | 6 | 11 | lint | module-providers | `internal/live/lint` | "module-providers" |
 | 4 | 6 | lint | child-module | `internal/live/lint` | "child-module" |
 | 2 | 10 | lint | moved-block | `internal/live/lint` | "moved-block" |
@@ -861,7 +861,7 @@ one - and each says so in its own entry.
 | 0 | 0 | identity | Reference to undeclared resource | `internal/live/identity` | "Reference to undeclared resource" |
 | 0 | 0 | identity | Required variable not set | `internal/configs` | "Required variable not set" |
 | 0 | 0 | identity | Reserved symbol name | `internal/addrs` | "Reserved symbol name" |
-| - | - | identity | Resource type has no orphan recovery | `internal/live/identity` | "Resource type has no orphan recovery" |
+| 0 | 0 | identity | Resource type has no orphan recovery | `internal/live/identity` | "Resource type has no orphan recovery" |
 | 0 | 0 | identity | Resource type outside the live-markers subset | `internal/live/identity` | "unadmitted-type" |
 | 0 | 0 | identity | Sensitive count expression | `internal/live/identity` | "Sensitive count expression" |
 | 0 | 0 | identity | Sensitive for_each expression | `internal/live/identity` | "Sensitive for_each expression" |
@@ -956,7 +956,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 66 configurations in the measured corpus, at 3521 sites.
+**How often.** Blocked 66 configurations in the measured corpus, at 3536 sites.
 
 #### Dynamic value in static context
 
@@ -972,7 +972,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 37 configurations in the measured corpus, at 115 sites.
+**How often.** Blocked 37 configurations in the measured corpus, at 121 sites.
 
 #### Module output not supported in static context
 
@@ -980,7 +980,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 30 configurations in the measured corpus, at 226 sites.
+**How often.** Blocked 33 configurations in the measured corpus, at 239 sites.
 
 #### Null identity argument
 
@@ -1020,7 +1020,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 6 configurations in the measured corpus, at 16 sites.
+**How often.** Blocked 7 configurations in the measured corpus, at 19 sites.
 
 #### Non-static for_each expression
 
@@ -1676,7 +1676,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Sensitive count expression
 

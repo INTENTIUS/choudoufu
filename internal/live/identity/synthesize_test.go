@@ -164,15 +164,60 @@ func TestSchemaFallbackConfigDeclines(t *testing.T) {
 	}
 }
 
-// TestSchemaFallbackRefusesComposite: no separator guessing. A two-attribute
-// identity stays a table decision.
-func TestSchemaFallbackRefusesComposite(t *testing.T) {
-	_, errText := resolveFallback(t, "schema-fallback-composite", fallbackSchemas())
-	if errText == "" {
-		t.Fatal("a composite identity was synthesized, which means a separator was guessed")
+// TestSchemaFallbackAdmitsCompositeByIdentityObject is GitHub issue #105.
+//
+// A two-attribute identity used to be refused outright, because joining the
+// values into the provider's legacy import-ID grammar needs a separator no
+// schema carries. Terraform 1.12 resource identity is what makes that stop
+// mattering: the projection imports by identity object when the schema
+// allows one, and a type reaching synthesis has an identity schema by
+// definition.
+//
+// So the type resolves, and the string it cannot build is absent rather than
+// invented. The absence is the whole safety property - see
+// TestSynthesizedCompositeHasNoImportID.
+func TestSchemaFallbackAdmitsCompositeByIdentityObject(t *testing.T) {
+	result, errText := resolveFallback(t, "schema-fallback-composite", fallbackSchemas())
+	if errText != "" {
+		t.Fatalf("a composite identity whose attributes the configuration all names was refused: %s", errText)
 	}
-	if !strings.Contains(errText, "composite") {
-		t.Errorf("the refusal does not say why a composite is different: %s", errText)
+	if result == nil || result.Len() == 0 {
+		t.Fatal("nothing resolved")
+	}
+}
+
+// TestSynthesizedCompositeHasNoImportID is the guard #105 asks for before
+// the relaxation above is safe.
+//
+// Component values are concatenated with nothing between them, so a
+// two-attribute composite would otherwise produce "leftright" - a string
+// that is not empty, so every downstream guard that tests for emptiness
+// passes it through, and a fallback from the identity object would import it
+// against a real account with a TRACE log to say so.
+func TestSynthesizedCompositeHasNoImportID(t *testing.T) {
+	result, errText := resolveFallback(t, "schema-fallback-composite", fallbackSchemas())
+	if errText != "" {
+		t.Fatalf("resolution failed: %s", errText)
+	}
+
+	var checked int
+	for _, res := range result.All() {
+		if res.Addr.Resource.Resource.Type != "aws_composite_thing" {
+			continue
+		}
+		checked++
+		if res.Class != ClassConcrete {
+			t.Errorf("%s classified %s, want %s", res.Addr, res.Class, ClassConcrete)
+		}
+		if res.ImportID != "" {
+			t.Errorf("%s carries the import ID %q, which is its identity values run together with no separator between them", res.Addr, res.ImportID)
+		}
+		if len(res.IdentityValues) != 2 {
+			t.Errorf("%s carries %d identity values, want both attributes: %v", res.Addr, len(res.IdentityValues), res.IdentityValues)
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no aws_composite_thing instance resolved, so this asserted nothing")
 	}
 }
 
@@ -211,8 +256,26 @@ func TestSynthesizeTypeIdentityShape(t *testing.T) {
 		t.Errorf("aws_named_thing was admitted as %q, want %q", named.Admits, AdmitConfigSignal)
 	}
 
-	if _, ok := SynthesizeTypeIdentity("aws_composite_thing", fallbackSchemas(), signal); ok {
-		t.Error("a composite identity was synthesized")
+	composite, ok := SynthesizeTypeIdentity("aws_composite_thing", fallbackSchemas(), signal)
+	if !ok {
+		t.Fatal("a composite identity whose attributes the configuration all names was not synthesized (#105)")
+	}
+	if !composite.IdentityObjectOnly {
+		t.Error("a composite entry does not mark itself identity-object-only, so classify would concatenate its values into an import ID with no separator")
+	}
+	if len(composite.IdentityAttrs) != 2 {
+		t.Errorf("composite identity attributes are %v, want both", composite.IdentityAttrs)
+	}
+	if len(composite.Components) != len(composite.IdentityAttrs) {
+		t.Errorf("composite has %d components for %d identity attributes; each attribute needs its own so IdentityValues carries them all", len(composite.Components), len(composite.IdentityAttrs))
+	}
+	for _, c := range composite.Components {
+		if c.IdentityAttr == "" {
+			t.Errorf("composite component %#v supplies no identity attribute, so its value would never reach IdentityValues", c)
+		}
+		if c.Literal != "" {
+			t.Errorf("composite component %#v carries a literal, which is the separator this must not invent", c)
+		}
 	}
 	if _, ok := SynthesizeTypeIdentity("aws_thing", nil, signal); ok {
 		t.Error("something was synthesized with no schemas at all")

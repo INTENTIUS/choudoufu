@@ -64,6 +64,26 @@ type TypeIdentity struct {
 	// ID.
 	IdentityAttrs []string
 
+	// IdentityObjectOnly is true for an entry whose identity has more than
+	// one attribute and no separator to join them with, so there is no
+	// import-ID string to build. A resolution of such a type carries
+	// [Resolution.IdentityValues] and an empty [Resolution.ImportID], and
+	// the projection imports it by identity object or not at all.
+	//
+	// It exists because the alternative is worse than a refusal. Component
+	// values are concatenated with nothing between them
+	// (internal/live/identity/resolve.go's classify), so a two-attribute
+	// composite with cluster="prod" and name="svc" would produce the import
+	// ID "prodsvc" - not empty, so every guard that tests for emptiness
+	// passes it through, and a run that fell back from the identity object
+	// would import "prodsvc" against a real account with a TRACE log to say
+	// so. GitHub issue #105 names that as the thing to guard before relaxing
+	// the composite refusal at all.
+	//
+	// Only [SynthesizeTypeIdentity] sets it. A hand-written row states its
+	// separator, which is the whole reason those rows are hand-written.
+	IdentityObjectOnly bool
+
 	// Synthesized is true when this entry was not written by hand but built
 	// from the provider's own identity schema at resolution time. See
 	// [SynthesizeTypeIdentity].

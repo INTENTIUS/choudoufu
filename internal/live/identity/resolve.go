@@ -588,7 +588,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		addTo(comp.identityAttrFor(attr.Name), got)
 	}
 
-	return classify(addr, coalesce(parts), attrFormulas(byAttr, attrOrder)), true
+	return classify(addr, coalesce(parts), attrFormulas(byAttr, attrOrder), entry.IdentityObjectOnly), true
 }
 
 // attrFormulas turns the per-attribute part lists into the ordered form a
@@ -607,7 +607,12 @@ func attrFormulas(byAttr map[string][]Part, order []string) []AttrFormula {
 // classify turns a resolved part list into a Resolution: concrete if every
 // part is a literal, parent-derived if any part waits on a live value. The
 // per-attribute split follows the same fork, since it is the same parts.
-func classify(addr addrs.AbsResourceInstance, parts []Part, attrs []AttrFormula) Resolution {
+// idObjectOnly is [TypeIdentity.IdentityObjectOnly]: the type's identity has
+// several attributes and no separator to join them with, so there is no
+// import-ID string to build and the concatenation below must not run. See
+// that field's doc comment for what the concatenation would otherwise hand
+// out.
+func classify(addr addrs.AbsResourceInstance, parts []Part, attrs []AttrFormula, idObjectOnly bool) Resolution {
 	var parents []addrs.AbsResourceInstance
 	seen := make(map[string]bool)
 	for _, p := range parts {
@@ -637,10 +642,18 @@ func classify(addr addrs.AbsResourceInstance, parts []Part, attrs []AttrFormula)
 				values[a.Name] = v.String()
 			}
 		}
+		importID := buf.String()
+		if idObjectOnly {
+			// The values are the whole answer, and joining them would
+			// invent a grammar no schema carries. An empty ImportID is what
+			// makes the projection import by identity object or fail
+			// loudly, rather than fall back to a plausible-looking string.
+			importID = ""
+		}
 		return Resolution{
 			Addr:           addr,
 			Class:          ClassConcrete,
-			ImportID:       buf.String(),
+			ImportID:       importID,
 			IdentityValues: values,
 		}
 	}
