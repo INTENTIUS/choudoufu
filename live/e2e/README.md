@@ -18,9 +18,6 @@ You need four things.
 - Go, or a prebuilt `choudoufu` binary via `TOFU_BIN` (see below). Without
   `TOFU_BIN`, the harness runs `go build ./cmd/choudoufu` from this
   checkout itself, so it always exercises the code actually on the branch.
-- `git` on `PATH`. `drift-observation` gives its phase-local estate copy
-  its own throwaway git repository, the carrier the observational
-  snapshot's `snapshots = true` branch mode needs.
 
 The one command, from the repository root.
 
@@ -41,7 +38,7 @@ Steps whose command surface isn't wired up yet in this build report `NOT
 IMPLEMENTED (phase N)` instead of failing. See "Flags" below for the
 `--expect` grouping. As of this branch every step is green, including
 drift-exact, removal-exact, receipt-cycle, receipt-cycle-existence and
-drift-observation (phase 5, P5.1's exactness work, gated additionally on
+drift-reconverge (phase 5, P5.1's exactness work, gated additionally on
 `LIVE_E2E_EXACTNESS`, see "Env knobs").
 
 | Step | Proves |
@@ -61,14 +58,14 @@ drift-observation (phase 5, P5.1's exactness work, gated additionally on
 | `plain-plan-works` | A `live { estate = "..." }` block in `terraform{}` puts a plain `choudoufu plan`/`apply` on markers, with no `live-`-prefixed subcommand anywhere. `-out` and `refresh` are rejected by name. |
 | `receipt-cycle` | The estate's receipt (`aws_ssm_parameter.demo_effect`, the HASH flavor, live/RECEIPTS.md) exists with a 64-char hash after standup. Breaking it out of band (a value overwrite) re-arms the plan's "effect will fire" signal on exactly that resource's value. A corrective write converges it back to clean. |
 | `receipt-cycle-existence` | The estate's other receipt (`aws_ssm_parameter.demo_existence`, the EXISTENCE flavor, RA.6, live/RECEIPTS.md's default recommendation) exists with the constant value `"done"`. Breaking it out of band THE EXISTENCE WAY, a genuine `aws ssm delete-parameter` rather than an overwrite, re-arms the plan's "effect will fire" signal as exactly one create on that resource. Recreating it (playing the Op) converges it back to clean. |
-| `drift-observation` | A phase-local copy of the standing estate, given its own `live { estate = "stateless-e2e", snapshots = true }` block, adopts the same live resources with no changes at all (no second standup) and enables the observational snapshot's git-branch carrier. Three drifts injected out of band (a log group's retention, a plain tag beside the markers on the VPC, a whole CloudWatch alarm deleted) render on the next plain `choudoufu plan` as exactly two in-place updates and one create, nothing else. A targeted apply (`-target` does not shrink discovery) commits an observational snapshot *while* the estate is still drifted, then a full apply reconverges everything and commits a third snapshot. `git log`/`git diff` on `refs/heads/tofu-snapshots/stateless-e2e` show the drift arriving and departing: the alarm's entry leaving and returning, each changed resource's `attributesHash` changing and reverting. |
+| `drift-reconverge` | A phase-local copy of the standing estate, given its own `live { estate = "stateless-e2e" }` block, adopts the same live resources with no changes at all (no second standup). Three drifts of three different shapes injected out of band (a log group's retention, a plain tag beside the markers on the VPC, a whole CloudWatch alarm deleted) render on ONE plain `choudoufu plan` as exactly two in-place updates and one create, nothing else, and one untargeted apply reconverges all three in the same breath (1 added, 2 changed). drift-exact proves each shape alone under live-plan; this step proves them together under the plain-command path. (The observational-snapshot half this step used to carry — the `tofu-snapshots` git branch and its `git log`/`git diff` assertions — was removed with the subsystem, issue #109.) |
 | `lint-rejects` | Every directory in `live/e2e/limits/` is refused by the shipped binary, naming exactly the lint rule that fixture exists for and no other. The one construct no lint rule catches yet (duplicate-identity, refused at identity resolution instead) is asserted as unenforced, so the gap is visible in the output rather than hidden by omission. |
 
 Every step that mutates the shared live estate ($MAIN) restores it before
 finishing. `count-scale-down` reallocates the EIP it released,
 `removal-exact` recreates the security group it destroyed,
 `rename-no-churn` rewrites the live tag back to the original address, and
-`drift-observation` applies its own phase-local copy of the config to
+`drift-reconverge` applies its own phase-local copy of the config to
 reconverge the log group, VPC and alarm it drifted, so every later step
 still sees the full estate its own config declares.
 
@@ -139,7 +136,7 @@ still sees the full estate its own config declares.
   | 2 | `empty-plan-full`, `foreign-protected` |
   | 3 | `count-scale-down`, `rename-no-churn` |
   | 4 | `plain-plan-works` |
-  | 5 | `drift-exact`, `removal-exact`, `receipt-cycle`, `receipt-cycle-existence`, `drift-observation`, `lint-rejects` |
+  | 5 | `drift-exact`, `removal-exact`, `receipt-cycle`, `receipt-cycle-existence`, `drift-reconverge`, `lint-rejects` |
 
 ## Exit-code meanings
 
@@ -166,14 +163,14 @@ bash live/e2e/run.sh --expect 5
 
 This passes. Every step through phase 5, including `drift-exact`,
 `removal-exact`, `receipt-cycle`, `receipt-cycle-existence` and
-`drift-observation`, is `pass`, and no step reports `not_implemented`.
+`drift-reconverge`, is `pass`, and no step reports `not_implemented`.
 
 ```
 bash live/e2e/run.sh --expect 4
 ```
 
 This now FAILS, naming `drift-exact`, `removal-exact`, `receipt-cycle`,
-`receipt-cycle-existence` and `drift-observation` as blockers. `--expect 4`
+`receipt-cycle-existence` and `drift-reconverge` as blockers. `--expect 4`
 requires every step above phase 4 to be `not_implemented`, and all five are
 `pass` now that P5.1's exactness work is merged and P5.2 wired the harness
 steps and flipped `LIVE_E2E_EXACTNESS`'s default to `1`. It stays
