@@ -1154,7 +1154,7 @@ func statelessNeedsDiscoveryProvider(config *configs.Config, needs []identity.Re
 		tfdiags.Error,
 		"Marker discovery across several provider configurations",
 		fmt.Sprintf(
-			"The resources waiting on marker discovery use %s. Marker discovery v0 goes through one provider configuration per run, because a list issued against the wrong account or region would report an estate as missing rather than as unreachable. Split the configuration, or use -target to plan one provider's resources at a time.",
+			"The resources waiting on marker discovery use %s. Marker discovery goes through one provider configuration per run, because a list issued against the wrong account or region would report an estate as missing rather than as unreachable. Split the configuration so the resources waiting on marker discovery all use one provider configuration. -target does not help here: this check runs over the whole configuration during discovery, before any target filter applies.",
 			strings.Join(names, " and ")),
 	))
 }
@@ -1494,15 +1494,15 @@ func livePlanRejectUnsupported(args *arguments.Plan) tfdiags.Diagnostics {
 	}
 	if args.OutPath != "" {
 		reject("Saved plan files are not available under live resource markers",
-			"A saved plan file records the state snapshot the plan was made against so that apply can check the state has not moved since. A live-markers run has no state snapshot to record and no apply command to consume the file yet. Rerun without -out.")
+			"A saved plan file records the state snapshot the plan was made against so that apply can check the state has not moved since. A live-markers run has no state snapshot to record. Rerun without -out, review the plan, then run \"choudoufu apply\" - a live-markers apply reads the live system at the moment it runs, so what it applies is never staler than the apply itself. In a pipeline the shape is \"choudoufu plan\" to review and \"choudoufu apply -auto-approve\" to act; an approval gate between them approves the intent rather than a frozen diff.")
 	}
 	if args.GenerateConfigPath != "" {
 		reject("Config generation is not available under live resource markers yet",
-			"-generate-config-out generates configuration for import blocks, which a live-markers run does not process yet. Rerun without -generate-config-out.")
+			"-generate-config-out writes generated configuration for import blocks into a file, and that generated form has not been checked against the live-markers configuration subset yet. Rerun without -generate-config-out.")
 	}
 	if args.Operation.PlanMode != plans.NormalMode {
 		reject("Only the normal planning mode is available under live resource markers yet",
-			"live-plan v0 produces a normal plan. -destroy needs a live-markers apply to consume it (roadmap P2.1), and -refresh-only compares a stored record against the live system, which is the comparison a live-markers run does not have a stored side for. Rerun without -destroy and -refresh-only.")
+			"live-plan produces a normal plan. -destroy is not verified against a live-markers apply yet; deleting a resource block from the configuration is the tested way to have its live resource destroyed, since the estate sweep plans an owned-but-undeclared resource as a destroy. -refresh-only compares a stored record against the live system, which is the comparison a live-markers run has no stored side for. Rerun without -destroy and -refresh-only.")
 	}
 	if args.State.StatePath != "" || args.State.StateOutPath != "" || args.State.BackupPath != "" {
 		reject("State file options are not available under live resource markers",

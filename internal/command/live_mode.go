@@ -243,11 +243,19 @@ func statelessRejections(op *arguments.Operation, state *arguments.State, viewOp
 	}
 	if generateConfigOut != "" {
 		reject("Config generation is not available under live resource markers yet",
-			"-generate-config-out generates configuration for import blocks, which a live-markers run does not process yet. Rerun without -generate-config-out.")
+			"-generate-config-out writes generated configuration for import blocks into a file, and that generated form has not been checked against the live-markers configuration subset yet. Rerun without -generate-config-out.")
 	}
 	if op != nil && op.PlanMode != plans.NormalMode {
-		reject("Only the normal planning mode is available under live resource markers",
-			"Live resource markers v0 produce and apply normal plans. -refresh-only compares a stored record against the live system, which is the comparison a live-markers run has no stored side for; -destroy is not verified against a live-markers apply yet, and removing a resource from the configuration is the tested way to have it destroyed. Rerun without -destroy and -refresh-only.")
+		// The remedy has to branch on how the mode was selected. "choudoufu
+		// destroy" is registered as ApplyCommand{Destroy: true}
+		// (cmd/choudoufu/commands.go) and ParseApplyDestroy sets DestroyMode
+		// with no flag involved, so telling that user to "rerun without
+		// -destroy" names a flag they never typed. See #101.
+		detail := "Live resource markers produce and apply normal plans. -refresh-only compares a stored record against the live system, which is the comparison a live-markers run has no stored side for. Rerun without -refresh-only."
+		if op.PlanMode == plans.DestroyMode {
+			detail = "Live resource markers produce and apply normal plans, and destroying a whole estate in one command is not verified against a live-markers apply yet. To tear down what this estate owns, delete the resource blocks from the configuration and run \"choudoufu apply\": the estate sweep plans an owned resource with no configuration as a destroy, which is the tested path."
+		}
+		reject("Only the normal planning mode is available under live resource markers", detail)
 	}
 	if state != nil && (state.StatePath != "" || state.StateOutPath != "" || state.BackupPath != "") {
 		reject("State file options are not available under live resource markers",

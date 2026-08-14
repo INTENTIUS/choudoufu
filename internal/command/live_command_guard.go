@@ -45,7 +45,7 @@ func (m *Meta) statelessCommandGuard(ctx context.Context, command string) tfdiag
 		// refused, with the answer that is true of all of them.
 		refusal = statelessCommandRefusal{
 			summary: "Command not available under live resource markers",
-			detail: fmt.Sprintf("\"choudoufu %s\" operates on a stored state file, and this configuration's live block says there is no stored state. ", command) +
+			detail: fmt.Sprintf("\"choudoufu %s\" operates on a stored state file, and this configuration's live block says there is no state file. ", command) +
 				"Run \"choudoufu plan\", which reads the live system on every run.",
 		}
 	}
@@ -66,7 +66,7 @@ var statelessCommandRefusals = map[string]statelessCommandRefusal{
 	},
 	"refresh": {
 		summary: "Refresh is not available under live resource markers",
-		detail:  "\"choudoufu refresh\" updates a stored state file to match the live system, and this configuration's live block says there is no stored state to update. Run \"choudoufu plan\": it reads the live system on every run, which is the comparison refresh exists to make possible.",
+		detail:  "\"choudoufu refresh\" updates a stored state file to match the live system, and this configuration's live block says there is no state file to update. Run \"choudoufu plan\": it reads the live system on every run, which is the comparison refresh exists to make possible.",
 	},
 	"taint": {
 		summary: "Taint is not available under live resource markers",

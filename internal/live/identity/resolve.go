@@ -439,10 +439,21 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 
 	entry, ok := r.lookupType(resAddr.Type)
 	if !ok {
+		// This used to interpolate strings.Join(AdmittedTypes(), ", "),
+		// which was reasonable when the table held a few dozen rows and
+		// renders a 25KB diagnostic now that it holds 846. It also cited
+		// "the roadmap", a document that is not in this repository - the
+		// only text carrying that phrase is live/LIMITATIONS.md quoting it.
+		//
+		// This is lint.go's unadmitted-type refusal seen from the
+		// resolution layer, and the two are meant to read as one rule, so
+		// the wording tracks it. Found by the #101 message audit.
 		r.errorf(rng, "Resource type outside the live-markers subset",
 			"There is no identity knowledge for resource type %q, so %s cannot be admitted to a live-markers projection. "+
-				"The v0 identity table covers: %s.%s See the roadmap's \"The admission rule\".",
-			resAddr.Type, addr.String(), strings.Join(AdmittedTypes(), ", "), r.schemaRefusal(resAddr.Type))
+				"A type participates only if its identity is recoverable from the live system with no memory. "+
+				"The table is generated from ratified identity rows and is not extensible from here; "+
+				"see live/LIMITATIONS.md, \"unadmitted-type\".%s",
+			resAddr.Type, addr.String(), r.schemaRefusal(resAddr.Type))
 		return Resolution{}, false
 	}
 
@@ -1055,8 +1066,13 @@ func (r *resolver) expansionFor(rc *configs.Resource) (*expansion, bool) {
 		return nil, false
 	}
 	if r.expVisit[key] {
+		// rc.Addr(), not key: expKey joins the module instance and the
+		// address with a NUL byte, which rendered into the diagnostic as a
+		// control character ahead of the address. resolve.go's other cycle
+		// message (Circular identity reference) uses the address directly
+		// and always has. Found by the #101 message audit.
 		r.errorf(rc.DeclRange, "Circular for_each reference",
-			"The instances of %s depend on themselves, directly or through other resources' for_each expressions.", key)
+			"The instances of %s depend on themselves, directly or through other resources' for_each expressions.", rc.Addr().String())
 		r.expFailed[key] = true
 		return nil, false
 	}
