@@ -114,8 +114,10 @@ hashes and never `SecureString`.
 
 ## Running this with other people
 
-There is no lock, because there is no file for a lock to protect. Two
-simultaneous applies against one estate resolve one of four ways:
+There is no lock. Ownership lives on the resources, so there is no shared
+file for a lock to protect, and the micro-state records use conditional writes
+instead (see below). Two simultaneous applies against one estate resolve one of
+four ways:
 
 | Race | Outcome |
 |---|---|

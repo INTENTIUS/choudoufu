@@ -20,13 +20,21 @@ bench-estate:
 demo:
     bash live/e2e/run.sh --expect 5
 
-# Build the docs site into site/public/
+# Build the docs site into site/public/. Wipes the directory first, so a
+# page removed from the generator stops being served instead of lingering.
 site:
+    rm -rf site/public
     cd site && go run . -out public/
 
-# Build the docs site and serve it at http://localhost:8000
-site-serve: site
-    python3 -m http.server 8000 --directory site/public
+# Build the docs site and open it. `just site-serve 8001` picks another port,
+# which is what you want when a second checkout or worktree is already serving.
+site-serve port="8000": site
+    @echo "choudoufu docs: http://127.0.0.1:{{port}}/  (serving $(pwd)/site/public)"
+    @if lsof -nP -iTCP:{{port}} -sTCP:LISTEN >/dev/null 2>&1; then \
+        echo "port {{port}} is already in use - run: just site-serve 8001" >&2; exit 1; \
+    fi
+    @( sleep 1; command -v open >/dev/null 2>&1 && open "http://127.0.0.1:{{port}}/" ) &
+    python3 -m http.server {{port}} --bind 127.0.0.1 --directory site/public
 
 # Lint exactly as upstream CI would (golangci-lint, both GOOS passes)
 lint:

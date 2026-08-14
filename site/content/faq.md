@@ -9,7 +9,8 @@ Stinky tofu. It is off-putting on first encounter and people who like it like
 it a lot.
 
 Practically: the fork is OpenTofu, and the feature is one most people's first
-reaction to is that removing the state file cannot possibly be a good idea.
+reaction to is that letting the record of what you own go stale cannot
+possibly be a good idea.
 
 ## Is it a separate tool or a drop-in replacement?
 
@@ -33,16 +34,33 @@ still holds.
 
 ## Does it really keep no record at all?
 
-It keeps records. None of them are authoritative.
+No, and that claim is worth stating carefully, because a stronger version of it
+gets repeated a lot.
 
-A record is authoritative when believing it over the live system would make
-OpenTofu do the wrong thing to your infrastructure. Prior state under markers
-is a projection: rebuilt from the live system on every run by reading ownership
-tags off your resources, and discarded when the run ends. A stale or missing
-projection costs one re-read, never a wrong plan.
+**What goes away is state operations, not the idea of a record.** You never
+configure a backend, take a lock, migrate a state file, or run state surgery.
+That is the invariant.
 
-That is the difference worth holding on to. There is nothing to store, lock,
-back up, or repair.
+**Most of the record moved onto the resources themselves.** Identity lives in
+two tags on each resource, in your account, readable and writable with your own
+cloud tools. Prior state is a projection rebuilt from those tags on every run
+and discarded when the run ends. It is allowed to be stale, because a stale or
+missing projection costs a re-read, never a wrong plan. That is the property
+OpenTofu's state file does not have, and it is the whole argument.
+
+**A small amount genuinely cannot be rebuilt.** An effect with no cloud twin
+leaves nothing to read back: `null_resource`, `terraform_data`, `time_*`, and
+`random_*` whose output carries no secret. Those persist as micro-state, one
+small record per resource, through a `record_store` declared in the `live`
+block. The backends are SSM Parameter Store, S3, or a local directory.
+
+Secret-generating resources are refused rather than recorded. `random_password`,
+`random_bytes` and every `tls_*` produce material only the state file ever
+remembered, and a record that holds a secret is a state file with extra steps.
+
+So: no state file to manage in the ordinary case, and a per-resource record for
+the effects that need one. Nothing to store, lock, back up, or repair either
+way.
 
 ## What happens to my existing state file?
 
@@ -75,6 +93,11 @@ Nothing prevents it, the same way a lock never actually prevented the conflicts
 people think it did. What changes is the failure mode: every race resolves to a
 clean re-plan or a loud collision naming both live resources, and none of them
 silently orphans anything.
+
+The micro-state records are the one place ordering genuinely matters, and they
+handle it without a lock. Writes are conditional: a record is written only if
+it still holds the version the writer read. A losing writer gets a named
+failure rather than a blocking wait or a silent overwrite.
 
 [Day-2 operations](day2.html#running-this-with-other-people) has the case-by-case
 table.

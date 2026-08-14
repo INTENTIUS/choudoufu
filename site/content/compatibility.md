@@ -216,9 +216,10 @@ invoked.
 - `data "terraform_remote_state"`. Use `live/OUTPUTS.md`'s cross-estate
   pattern instead.
 - `moved` blocks. Renaming is `choudoufu live-mv`.
-- `random_password`, `random_bytes` and every `tls_*` resource. These generate
-  secrets that only the state file remembered, and there is no state file.
-  Permanent.
+- `random_password`, `random_bytes` and every `tls_*` resource. Their output
+  is secret material that only the state file ever remembered. A micro-state
+  record that holds a secret would be a state file with extra steps, so these
+  are refused rather than recorded. Permanent.
 - `local_file` and other `local_*` resources.
 - `module { count = ... }`. Permanent. A `for_each` on a module call works when
   its keys are static.

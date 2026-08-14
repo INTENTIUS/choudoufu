@@ -50,7 +50,10 @@ The estate name is the unit of ownership. Every resource this configuration
 manages gets tagged with it, and that tag is how the next plan finds the
 resource again.
 
-There is nothing else to configure. No backend, no lock, no state file.
+There is nothing else to configure. No backend, no lock, no state
+migration. If your configuration later needs an effect the cloud cannot report
+back on, you add a `record_store` to this same block; until then nothing is
+persisted at all.
 
 :::warning
 Stock Terraform and stock OpenTofu reject a configuration containing a `live`
@@ -111,16 +114,17 @@ Those two tags are the whole ownership contract. `live/MARKERS.md` in the
 repository is the normative spec, and it is the surface external tooling can
 rely on.
 
-## Check there is no state file
+## Check that nothing was written
 
 ```
 $ ls terraform.tfstate
 ls: terraform.tfstate: No such file or directory
 ```
 
-Nothing wrote one. The next `choudoufu plan` in this directory rebuilds prior
-state by reading the `tofu-estate` and `tofu-address` tags back off the live
-resources, and reports no changes.
+Nothing wrote one, because this configuration declares only resources the
+cloud can report back on. The next `choudoufu plan` in this directory rebuilds
+prior state by reading the `tofu-estate` and `tofu-address` tags back off the
+live resources, and reports no changes.
 
 That is the check worth repeating on your own estate, because it is the one a
 reader can perform without trusting this page: after a live apply, the plan

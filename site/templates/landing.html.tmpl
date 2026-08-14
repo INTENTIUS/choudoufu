@@ -9,14 +9,24 @@
 </section>
 
 <section class="lead">
-  <p>choudoufu is OpenTofu with live resource markers. There is no state
-  file, no backend and no lock. Each resource carries its own ownership
-  record as ordinary cloud tags, and every plan rebuilds prior state by
-  reading those markers off the live system.</p>
+  <p>choudoufu is OpenTofu with live resource markers. Each resource carries
+  its own ownership record as ordinary cloud tags, and every plan rebuilds
+  prior state by reading those markers back off the live system. Your
+  configuration says what should exist and the cloud says what does.</p>
 
-  <p>Your configuration says what should exist and the cloud says what does.
-  No file gets a vote. Adoption is a tag you write, a rename is a tag you
-  rewrite, and there is nothing to store, lock, back up, or repair.</p>
+  <p><strong>Choudoufu state is allowed to be stale. OpenTofu state is
+  not.</strong> That is the whole difference. A record here is rebuilt from
+  the live system on demand, so a stale or missing one costs a re-read, never
+  a wrong plan. Adoption is a tag you write and a rename is a tag you
+  rewrite.</p>
+
+  <p>You never configure a backend, take a lock, or perform state surgery.
+  What genuinely cannot be read back from the cloud — an effect with no cloud
+  twin, like a <code>null_resource</code> or a <code>time_*</code> — persists
+  as one small record per resource in SSM Parameter Store, S3, or a local
+  file. Those records are written with conditional writes rather than
+  protected by a lock, so a race is a loud, named failure instead of a
+  blocking mutex or a silent clobber.</p>
 
   <p>Everything else in this fork is stock OpenTofu, unmodified. The name is
   stinky tofu, which is off-putting on first encounter and grows on
