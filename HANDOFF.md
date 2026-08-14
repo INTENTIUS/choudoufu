@@ -1,8 +1,8 @@
 # Handoff
 
-Rewritten 2026-08-13, phase 3 folded in 2026-08-14. This replaces a version
-organized around the wrong goal; if you find a copy that opens with "no
-manual wiring", it is superseded.
+Rewritten 2026-08-13. Phases 3 and 4 folded in 2026-08-14, with phase 5
+half-done. This replaces a version organized around the wrong goal; if you
+find a copy that opens with "no manual wiring", it is superseded.
 
 ## What this is
 
@@ -36,7 +36,8 @@ between the first two. The table was right; the sentence under it was not.
 ```sh
 # 1. Effects are admitted behind record_store.
 grep -n 'ClassRecordAdmitted && recordStoreConfigured' internal/live/lint/lint.go
-# expect a hit at internal/live/lint/lint.go:267
+# expect one hit; the line number drifts (267 -> 269 when #103's rule landed),
+# so the hit is the claim and the number is not
 
 # 2. The tier-2 connective-tissue types are genuinely not admitted.
 for t in aws_ecs_service aws_lambda_permission aws_cloudwatch_event_target; do
@@ -47,14 +48,20 @@ done
 # 3. The cohort corpus size, which two agents disagreed on (657 vs 649).
 grep -rhoE '^resource "aws_[a-z0-9_]+"' live/e2e/estates --include="*.tf" | sort -u | wc -l
 # expect 649; if you get something else, this document's corpus numbers are wrong
+
+# 4. The whole live path's refusal count, which two audits guessed at (77, 128)
+#    before it was enumerable.
+go run ./tools/limits-gen   # expect "163 refusals", and no diff afterwards
 ```
 
 If any of them disagrees with what is written here, trust the code and fix this
 file before doing anything else.
 
-One thing in here is weaker than it reads. Every count in the next section came
-from an agent; two of them were later recomputed and disagreed with the
-original, which is why they are hedged there rather than quoted.
+One thing in here is weaker than it reads. Every count in the "what to
+measure" section came from an agent; two of them were later recomputed and
+disagreed with the original, which is why they are hedged there rather than
+quoted. Everything in the scoreboard and phase sections below is recomputed
+from a committed artifact and reproducible by the commands above.
 
 The phase order used to carry the same warning, because phases 3 onward were a
 prediction about what an instrument that did not exist yet would say. **That
@@ -136,16 +143,17 @@ Top blockers, by configurations blocked out of 105:
 
 | Configs | Sites | Layer | Refusal | Raised by |
 |---|---|---|---|---|
-| 66 | 3521 | identity | Unable to compute static value | `internal/configs` |
-| 58 | 961 | lint | `unadmitted-type` | `internal/live/lint` |
+| 66 | 3536 | identity | Unable to compute static value | `internal/configs` |
+| 58 | 845 | lint | `unadmitted-type` | `internal/live/lint` |
 | 57 | 1953 | identity | Dynamic value in static context | `internal/configs` |
 | 49 | 415 | lint | `logical-resource` | `internal/live/lint` |
-| 37 | 115 | identity | Unresolvable identity | `internal/live/identity` |
+| 37 | 121 | identity | Unresolvable identity | `internal/live/identity` |
 | 35 | 4254 | lint | `count-index` | `internal/live/lint` |
-| 30 | 226 | identity | Module output not supported in static context | `internal/configs` |
+| 33 | 239 | identity | Module output not supported in static context | `internal/configs` |
 | 27 | 75 | lint | `provisioner` | `internal/live/lint` |
+| 6 | 11 | lint | `module-providers` | `internal/live/lint` |
 
-Three things this settles.
+Four things this settles.
 
 **Static evaluability is the binding constraint, measured rather than
 asserted.** Four of the top seven are static-evaluation failures.
@@ -163,6 +171,20 @@ They are not, and the error propagated into five source files before an
 audit recomputed it: `unadmitted-type` at 58 sits between the first and the
 second. Rank 1 is the part that is true.
 
+**Admission moves a refusal downstream; it does not remove it.** This is
+the finding phase 5 produced and the one most likely to mislead the next
+session. #105 admitted six resource types, and `unadmitted-type` fell from
+961 sites to 845. `totals.blocked` did not move at all - the six appear in
+configurations already blocked by something else - and three identity
+refusals went **up**, because a type admitted at lint now reaches identity
+resolution and is refused there instead when its arguments are not
+statically evaluable. Compare the rows above against
+`git show 5d4a78d8c:live/corpus-refusals.json` to see it.
+
+So "types admitted" is not a proxy for progress, and neither is a falling
+`unadmitted-type`. The number that would mean something is `totals.blocked`,
+and nothing has moved it yet.
+
 **Read `totals.blocked` (81 of 105) as a ranking, not a rate.** Module
 `examples/` lean far harder on variables, conditionals and `dynamic` blocks
 than an ordinary estate, so this corpus reports worse than typical user code.
@@ -172,7 +194,8 @@ onto the docs site.
 
 Two caveats to carry. The run covers **two of five layers** — `lint` and
 `identity`; `discovery`, `projection` and `stamp` are unchecked, and the
-artifact says so. And it was measured against provider **6.58.0** while
+artifact says so. All five now have refusal registries (#110), so what those
+three can refuse is documented even though no corpus run reaches it. And it was measured against provider **6.58.0** while
 survey-gen pins 6.59.0 (#117).
 
 Regenerate it with `just corpus`, which now passes the provider-schema flags
@@ -180,6 +203,46 @@ the committed artifact was actually produced with. It did not, so the
 documented command produced a worse artifact than the one in the tree: with
 no schemas every type outside the admission table reads as refused, and
 `unadmitted-type` tops the ranking for a reason belonging to the run.
+
+## What phases 3-5 built, so you do not rebuild it
+
+Five things landed on 2026-08-14 that later work should use rather than
+reinvent.
+
+**Every refusal the live path can produce is enumerable.** `check.AllRefusals()`
+returns 163, from a registry per stage - lint 18, identity 35, passthrough
+53, projection 26, discovery 24, stamp 7. The pass-through registry holds
+the diagnostics this fork shows without having written them, from
+`internal/configs`, `internal/addrs` and HCL; they surface during identity
+resolution, so `check.Layer` files them under `identity` (88 rows) while
+`Refusal.RaisedBy` names who actually wrote each one.
+`check.Catalog()` is the narrower set the corpus ranks: the two passes that
+run without a cloud. Do not conflate them - a zero in the corpus means
+"measured and blocked nothing", and a stamping refusal has never been
+measured by anything.
+
+**A refusal cannot be added without documenting it.** `internal/live/refusalscan`
+parses each package's source and fails on a summary with no registry entry.
+It is strict: anything it cannot resolve to a literal is an error, not a
+skip. If you add a diagnostic and the test complains, name the string - a
+`Summary`-prefixed constant, or an entry in a declared summary map - rather
+than working around it.
+
+**`live/LIMITATIONS.md` is generated.** `just limits`. Two spans; the
+narrative sections stay hand-written. Every refusal's `DocsRef` is derived
+from its own summary, so adding a registry row adds a document heading, and
+`TestEveryRefusalDocsRefIsResolvable` fails if the generator has not run.
+
+**`live/identity-sources.json` compares the identity sources.** `just
+identity-sources`. The finding that matters: the provider's identity schema
+and the scraped documentation describe 438 types between them and agree on
+every one, so a future disagreement is a scraper bug and there is a ratchet
+holding it at zero.
+
+**Three generators, one convention.** `internal/live/mdspan` owns the
+span-marker mechanics `tools/survey-gen` and `tools/limits-gen` both write
+with. A third generator writing into a shipped document should use it rather
+than copy it.
 
 ## What is already true, and reads as unfinished
 
@@ -227,7 +290,7 @@ not before.
 
 **3. `phase-3-documentable` — make the top blockers documentable (#110).
 Done.**
-`live/LIMITATIONS.md` has a generated section holding all 159 refusals the
+`live/LIMITATIONS.md` has a generated section holding all 163 refusals the
 live path can produce, from a registry per stage plus
 `internal/live/passthrough` for the diagnostics this fork does not write.
 Every one carries a resolvable reference to its own entry, and a scan per
@@ -237,8 +300,9 @@ writes it; `just limits` runs it.
 The estimate in the line above this one was wrong in a way worth keeping.
 Criterion 2's generator was said to need three inputs; it needed six. The
 two extra registries nobody had counted were `projection` (26 refusals) and
-the pass-through class turning out to be 53 rather than 3, and both were
-found by adversarial audits rather than by the work itself. A count of what
+the pass-through class turning out to be 53 rather than the 3 the corpus
+had seen fire, and both were found by adversarial audits rather than by the
+work itself. A count of what
 a codebase refuses is not something to estimate.
 
 **4. `phase-4-silent-hazards` — correctness bugs with no diagnostic
@@ -260,19 +324,53 @@ than a task: whether a root resource naming an undeclared provider alias
 reaches the same empty-body fallback, or whether upstream validation already
 refuses it. Establish that by running it before building anything.
 
-**5. `phase-5-coverage` — the top measured refusals themselves**
-(#105, #106, #107, verified by #108).
+**5. `phase-5-coverage` — the top measured refusals themselves
+(#105, #106, #107, #108). Half done, and this is the front of the queue.**
 
-`unadmitted-type` at 58 configurations is the work in #105/#106/#107.
-`logical-resource` at 49 is largely configurations that declare no
-`record_store`, so part of that number is an onboarding-surface problem rather
-than a capability one, and it may move to phase 6 once #110's documentation
-makes the distinction visible to users.
+#107 is closed. #105 and #106 are open with one acceptance criterion each
+left; #108 is untouched. Read the closing comments on #105, #106 and #107
+before starting - each records a correction to its own issue text, and two
+of them narrow what is left considerably.
 
-Note #107 argues in its own text that it belongs in phase 4 ("silence is the
-one unacceptable outcome"). It is here because the population it affects is
-schema-synthesized types, which is a coverage question. If phase 4 is worked
-first, take #107 with it.
+**What is left, smallest first.**
+
+*#106's third criterion: derive the `arn` identity mappings.* The issue says
+"468 components use SameNameIdentity and 95 carry an explicit name... 76
+identical values is a rule nobody has written down". Those are component
+**sites**, not rows. Per row it is 17: eleven `arn`, four `id`, one `url`,
+one `member_account_id`. Every one of the eleven `arn` rows has a first
+literal beginning `arn:aws:` - no exceptions, verified against
+`table_generated.go`. `url` is the same rule with `https://`. So twelve of
+the seventeen derive from the leading literal, and five rows need hand
+evidence rather than ninety-five. Row-gen does not propose `IdentityAttr` at
+all today (convergence calls it "identity-attrs-not-proposed (issue #44
+non-goal)"), so this is a new proposal rule, not a change to an existing one.
+
+*#105's third criterion: an end-to-end test.* Admit, plan, apply, replan
+empty, against a cloud. It needs the acceptance tier #108 builds, so do #108
+first or do them together.
+
+*#108: the corpus acceptance tier.* Untouched. Its four criteria are
+substantial and independent; read the issue.
+
+**Two measurements from this phase that should shape how #108 is judged.**
+
+Admitting six types (#105) moved `unadmitted-type` from 961 sites to 845,
+moved `totals.blocked` by zero, and moved three identity refusals **up**.
+See "Admission moves a refusal downstream" in the scoreboard section. An
+acceptance tier that counts admitted types will report progress that nobody
+experiences.
+
+And #107's silence turned out to be one path's, not both. The estate-wide
+tag sweep was already reporting those resources - under a message about ARN
+parsing that described something else entirely. Check which paths a claim
+covers before sizing work against it.
+
+Note #107 argued in its own text that it belonged in phase 4 ("silence is
+the one unacceptable outcome"). Working it first, ahead of #105 and #106,
+was right for a reason worth reusing: #105's acceptance asks that
+synthesized types either join the sweep or take #107's decision explicitly,
+so #107 had to have a decision before #105 could cite one.
 
 **6. `phase-6-onboarding` — finish #73's charter and the onboarding surface**
 (#72, #73, #74, #81, #82, #109).
@@ -303,6 +401,36 @@ other types that agent cannot see. That much of the old handoff was right.
 The diagnosis usually lives a layer above the slice. When an agent reports that
 something "can't be generated", treat it as the start of the investigation.
 Verify claims by recomputing them, not by reading the summary line.
+
+## Run an adversarial audit after each phase
+
+Two ran on 2026-08-14, one per phase, and both found defects in work that was
+green, committed, and believed finished. This is not optional polish; it is
+the step that made the difference between the two phases shipping what they
+claimed and shipping something weaker.
+
+What they caught, as a guide to what to ask for:
+
+- **A completeness test that could see almost nothing.** The registry
+  scanner recorded the shapes it recognised and silently skipped the rest,
+  so it reported everything registered *because* it was blind. Discovery had
+  2 refusals registered and 23 real ones - 24 now, after #107 added one;
+  projection had no registry at all and 26 refusals. Ask an auditor to
+  *defeat* a test, not to review it.
+- **A claim copied without recomputing.** "The three largest blockers" came
+  from this document into five source files. Ranks 1, 3 and 7. Ask an
+  auditor to recompute every number in the diff.
+- **A fix that made things worse.** #115's per-instance comparison bound
+  `each.value` to the key on both sides, so a wrong marker over a `for_each`
+  map verified silently where it had previously warned. Ask specifically:
+  did this change turn any warning into silence?
+- **A rule that refused working configurations.** #103's first version fired
+  on types with no markers at all, explained as losing tags they do not
+  have. Ask: what does this newly refuse that used to work?
+
+Give the auditor the environment notes below, tell it to run rather than
+read, and tell it that a claim surviving attack is a one-line answer, not a
+paragraph.
 
 ## Traps that cost real time
 
@@ -336,6 +464,17 @@ orchestrator verifies and lands to `main` as single writer.
 - Small commits, each independently revertable.
 - Do not push unless asked. CI is deprioritised; keep work local.
 - When stopping an agent mid-flight, commit its work to its own branch first.
+
+Two mechanical traps that cost time on 2026-08-14:
+
+- **Do not pipe a generator into `head`.** `go run ./tools/corpus-gen | head`
+  kills it with SIGPIPE before it writes the artifact, and it looks exactly
+  like a run that produced no change. Redirect to a file and `tail` that.
+- **A regenerated artifact is the measurement.** After changing anything the
+  generators read, regenerate and diff rather than reasoning about what
+  should have moved. `just corpus` needs the provider-schema flags it now
+  passes by default; `just limits` and `just identity-sources` need neither
+  network nor provider.
 
 ## Decisions taken 2026-08-13
 
