@@ -199,6 +199,9 @@ func run(cohort, typesFlag, out string, count int, initBin, fmtBin string, modul
 // README.md rather than the full provenance table (there is exactly one
 // provenance row to show).
 func writeCountedCohort(out, cohort, typeName string, count int, g *generator) error {
+	if err := checkForeignTF(out, cohort); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
 	}
@@ -239,7 +242,9 @@ go run ./tools/estate-gen -cohort %s -types %s -count %d -out %s
 	if err := os.WriteFile(filepath.Join(out, "README.md"), []byte(readme), 0o644); err != nil { //nolint:gosec // a committed fixture, not a secret
 		return err
 	}
-	return nil
+	return removeStaleOwned(out, cohort, map[string]bool{
+		"versions.tf": true, "locals.tf": true, cohort + ".tf": true, "README.md": true,
+	})
 }
 
 func countKind(g *generator, k resourceKind) int {
@@ -257,9 +262,93 @@ func countKind(g *generator, k resourceKind) int {
 // root's generated main.tf points at it with.
 const wrappedModuleDir = "wrapped"
 
+// ownedFiles is every file name writeCohort can ever emit into a cohort
+// directory (wrapped/ entries listed by their slash-joined relative path).
+// It is the ownership boundary issue #108's fourth criterion asks for: a
+// file in this set that a regeneration no longer produces is deleted, and a
+// *.tf file OUTSIDE this set is an error - it would declare resources the
+// generator does not know about, and the last time that was allowed to pass
+// silently, four cohorts grew hand-written iam.tf/ecr.tf files that a
+// regeneration would have duplicated resource-by-resource.
+func ownedFiles(cohort string) map[string]bool {
+	return map[string]bool{
+		"versions.tf":                           true,
+		"locals.tf":                             true,
+		"main.tf":                               true,
+		cohort + ".tf":                          true,
+		"supporting.tf":                         true,
+		"README.md":                             true,
+		wrappedModuleDir + "/locals.tf":         true,
+		wrappedModuleDir + "/" + cohort + ".tf": true,
+		wrappedModuleDir + "/supporting.tf":     true,
+		wrappedModuleDir + "/variables.tf":      true,
+	}
+}
+
+// checkForeignTF errors when the output directory holds a *.tf file the
+// generator does not own. Non-.tf files (a README a human annotated is
+// still owned; anything else is not policed) and a directory that does not
+// exist yet are fine.
+func checkForeignTF(out, cohort string) error {
+	owned := ownedFiles(cohort)
+	var foreign []string
+	for _, dir := range []string{out, filepath.Join(out, wrappedModuleDir)} {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue // not existing yet is the ordinary first run
+		}
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".tf") {
+				continue
+			}
+			rel := e.Name()
+			if dir != out {
+				rel = wrappedModuleDir + "/" + rel
+			}
+			if !owned[rel] {
+				foreign = append(foreign, rel)
+			}
+		}
+	}
+	if len(foreign) > 0 {
+		sort.Strings(foreign)
+		return fmt.Errorf(
+			"%s holds .tf files this generator does not emit: %s. Regenerating around them would "+
+				"duplicate any resource both declare, silently. Fold their content into the generator "+
+				"(a typeOverride, a per-cohort override file, or the supporting-resource pass) or delete "+
+				"them, then rerun",
+			out, strings.Join(foreign, ", "))
+	}
+	return nil
+}
+
+// removeStaleOwned deletes owned files a previous run emitted that this run
+// did not: a supporting.tf whose last supporting resource moved into
+// coverage, a wrapped/ tree from a -module-wrap run regenerated flat.
+func removeStaleOwned(out, cohort string, wrote map[string]bool) error {
+	for rel := range ownedFiles(cohort) {
+		if wrote[rel] {
+			continue
+		}
+		path := filepath.Join(out, filepath.FromSlash(rel))
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	// A wrapped/ directory left empty by the deletions above goes too.
+	_ = os.Remove(filepath.Join(out, wrappedModuleDir))
+	return nil
+}
+
 // writeCohort renders every planned resource and writes the cohort
 // directory's files: versions.tf, locals.tf, README.md, "<cohort>.tf" for
 // coverage rows and, only when this run added any, "supporting.tf".
+//
+// It owns the directory's *.tf surface (issue #108 criterion 4): a .tf
+// file it does not emit is an error before anything is written, and an
+// owned file this run no longer produces is removed afterwards, so that
+// regenerating a cohort is one command whose output is the whole truth of
+// the directory.
 //
 // With moduleWrap, everything except versions.tf and README.md moves one
 // level down into wrappedModuleDir/, and the root gains a main.tf holding
@@ -276,6 +365,9 @@ const wrappedModuleDir = "wrapped"
 // wiring [gen.go's tofuAddressLiteral] leans on to write a tofu-address
 // that reads correctly for whichever instance evaluates it.
 func writeCohort(out, cohort string, requested []string, g *generator, moduleWrap bool, moduleKeys []string) error {
+	if err := checkForeignTF(out, cohort); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
 	}
@@ -298,47 +390,50 @@ func writeCohort(out, cohort string, requested []string, g *generator, moduleWra
 		}
 	}
 
-	contentDir := out
+	wrote := map[string]bool{}
+	write := func(rel string, content string) error {
+		wrote[rel] = true
+		return os.WriteFile(filepath.Join(out, filepath.FromSlash(rel)), []byte(content), 0o644) //nolint:gosec // a committed fixture, not a secret
+	}
+
+	contentPrefix := ""
 	if moduleWrap {
-		contentDir = filepath.Join(out, wrappedModuleDir)
-		if err := os.MkdirAll(contentDir, 0o755); err != nil {
+		contentPrefix = wrappedModuleDir + "/"
+		if err := os.MkdirAll(filepath.Join(out, wrappedModuleDir), 0o755); err != nil {
 			return err
 		}
 		mainTF := moduleWrapMainTF()
 		if len(moduleKeys) > 0 {
 			mainTF = moduleWrapKeyedMainTF(moduleKeys, g.moduleKeyVar)
-			if err := os.WriteFile(filepath.Join(contentDir, "variables.tf"), []byte(wrappedVariablesTF(g.moduleKeyVar)), 0o644); err != nil { //nolint:gosec // a committed fixture, not a secret
+			if err := write(contentPrefix+"variables.tf", wrappedVariablesTF(g.moduleKeyVar)); err != nil {
 				return err
 			}
 		}
-		if err := os.WriteFile(filepath.Join(out, "main.tf"), []byte(mainTF), 0o644); err != nil { //nolint:gosec // a committed fixture, not a secret
+		if err := write("main.tf", mainTF); err != nil {
 			return err
 		}
 	}
 
-	if err := os.WriteFile(filepath.Join(out, "versions.tf"), []byte(versionsTF(cohort)), 0o644); err != nil { //nolint:gosec // a committed fixture, not a secret
+	if err := write("versions.tf", versionsTF(cohort)); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(contentDir, "locals.tf"), []byte(localsTF(cohort)), 0o644); err != nil { //nolint:gosec // a committed fixture, not a secret
+	if err := write(contentPrefix+"locals.tf", localsTF(cohort)); err != nil {
 		return err
 	}
 	if len(coverage) > 0 {
-		body := strings.Join(coverage, "\n")
-		if err := os.WriteFile(filepath.Join(contentDir, cohort+".tf"), []byte(body), 0o644); err != nil { //nolint:gosec // a committed fixture, not a secret
+		if err := write(contentPrefix+cohort+".tf", strings.Join(coverage, "\n")); err != nil {
 			return err
 		}
 	}
 	if len(supporting) > 0 {
-		body := strings.Join(supporting, "\n")
-		if err := os.WriteFile(filepath.Join(contentDir, "supporting.tf"), []byte(body), 0o644); err != nil { //nolint:gosec // a committed fixture, not a secret
+		if err := write(contentPrefix+"supporting.tf", strings.Join(supporting, "\n")); err != nil {
 			return err
 		}
 	}
-	readme := readmeMD(cohort, requested, g, moduleWrap, moduleKeys)
-	if err := os.WriteFile(filepath.Join(out, "README.md"), []byte(readme), 0o644); err != nil { //nolint:gosec // a committed fixture, not a secret
+	if err := write("README.md", readmeMD(cohort, requested, g, moduleWrap, moduleKeys)); err != nil {
 		return err
 	}
-	return nil
+	return removeStaleOwned(out, cohort, wrote)
 }
 
 // moduleWrapMainTF is the root main.tf a static -module-wrap run writes:
