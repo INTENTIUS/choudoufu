@@ -122,7 +122,13 @@ var ruleInfo = map[Rule]struct {
 		docsRef: `live/LIMITATIONS.md, "moved-block"`,
 	},
 	RuleLogicalResource: {
-		summary: "Logical resources are not available under live resource markers",
+		// Not "logical resources are not available": a RECORD_ADMITTED type
+		// is admitted whenever a live block declares a record_store (#73
+		// phase (d)), so the absolute was false for the commonest members of
+		// this rule - null_resource and terraform_data. The three classes
+		// differ enough that only the Detail can name a remedy; the summary's
+		// job is to avoid claiming there isn't one. See #101.
+		summary: "Logical resource is not admitted as configured",
 		docsRef: `live/LIMITATIONS.md, "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep"`,
 	},
 	RuleUnadmittedType: {
@@ -142,7 +148,14 @@ var ruleInfo = map[Rule]struct {
 		docsRef: `live/LIMITATIONS.md, "foreach-dotted-key"`,
 	},
 	RuleChildModule: {
-		summary: "Child modules are not available under live resource markers",
+		// Child modules ARE available: childModuleDetail admits a static call
+		// and a for_each call whose keys are statically evaluable, reporting
+		// neither. This rule fires only on the two shapes it cannot address -
+		// count, refused permanently because positional renumbering moves
+		// addresses out from under their markers, and a non-static for_each.
+		// The old summary said modules were unavailable outright, which sent
+		// operators looking for a workaround they did not need. See #101.
+		summary: "count and non-static for_each on a module call are not available under live resource markers",
 		docsRef: `live/LIMITATIONS.md, "child-module"`,
 	},
 	RuleOverlongAddress: {
@@ -168,9 +181,11 @@ var ruleInfo = map[Rule]struct {
 		docsRef: `live/RECEIPTS.md, "Secrets discipline"`,
 	},
 	RulePolicyVerb: {
-		// No shipped doc describes the policy block yet - it lands with the
-		// behavioral half (GitHub issue #67) - so this cites the issue
-		// itself rather than inventing a doc page.
+		// The behavioral half of GitHub issue #67 has landed, but no shipped
+		// doc describes the policy block, so this still cites the issue
+		// rather than inventing a doc page. The three policy-* rules are the
+		// only ones in this table with no live/ entry at all; giving them one
+		// is tracked as part of #101.
 		summary: "Policy verb is not valid for its quadrant",
 		docsRef: `GitHub issue #67, "Design"`,
 	},

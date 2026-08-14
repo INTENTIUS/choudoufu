@@ -360,7 +360,7 @@ func TestLiveMv_lintFatal(t *testing.T) {
 	}
 
 	stderr := output.Stderr()
-	if !strings.Contains(stderr, "Logical resources are not available under live resource markers") {
+	if !strings.Contains(stderr, "Logical resource is not admitted as configured") {
 		t.Errorf("no lint diagnostic for the logical resource:\n%s", stderr)
 	}
 	if !strings.Contains(stderr, "logical-resource") {
