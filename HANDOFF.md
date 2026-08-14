@@ -1,8 +1,11 @@
 # Handoff
 
-Rewritten 2026-08-13. Phases 3 and 4 folded in 2026-08-14, with phase 5
-half-done. This replaces a version organized around the wrong goal; if you
-find a copy that opens with "no manual wiring", it is superseded.
+Rewritten 2026-08-13. Phases 3 and 4 folded in 2026-08-14; later the same
+day phases 4 and 5 closed out (#123, #105, #106, #107 all closed) and #108
+landed three of its four criteria plus a second instrument,
+`live/cohort-acceptance.json`. This replaces a version organized around the
+wrong goal; if you find a copy that opens with "no manual wiring", it is
+superseded.
 
 ## What this is
 
@@ -51,7 +54,12 @@ grep -rhoE '^resource "aws_[a-z0-9_]+"' live/e2e/estates --include="*.tf" | sort
 
 # 4. The whole live path's refusal count, which two audits guessed at (77, 128)
 #    before it was enumerable.
-go run ./tools/limits-gen   # expect "163 refusals", and no diff afterwards
+go run ./tools/limits-gen   # expect "live/LIMITATIONS.md is already current";
+                            # rerun after any registry change expects "164 refusals"
+
+# 5. The cohort acceptance artifact's headline: one cohort round-trips.
+python3 -c "import json; a=json.load(open('live/cohort-acceptance.json')); print(a['totals'])"
+# expect {'cohorts': 31, 'pass': 1, 'fail': 30}; s3 is the pass
 ```
 
 If any of them disagrees with what is written here, trust the code and fix this
@@ -117,11 +125,26 @@ The gate users actually hit is **admission**, and above that the
   measurement, until #102 produces one.
 - the live path carries a lot of hard refusals. Two audits counted 77 and
   128 and neither defined "hard refusal" precisely enough to reproduce.
-  There is a reproducible answer now: `check.AllRefusals()` returns **159**,
-  assembled from a registry per stage plus the pass-through class, and every
-  one of them has an entry in `live/LIMITATIONS.md`. The split is 16 lint,
-  87 identity (34 its own plus 53 passed through), 26 projection, 23
-  discovery, 7 stamp
+  There is a reproducible answer now: `check.AllRefusals()` returns **164**
+  (163 before #123's `undeclared-provider-alias` rule), assembled from a
+  registry per stage plus the pass-through class, and every one has an
+  entry in `live/LIMITATIONS.md`. An earlier revision of this bullet said
+  159; the scoreboard section's per-stage split is the recomputed one.
+
+**A second instrument exists: `live/cohort-acceptance.json`** (#108). It
+measures the other end of the funnel - not "what refuses" but "what
+round-trips": apply a cohort estate against floci with stock terraform,
+delete the state, `live-plan` from markers, assert empty. First full run:
+**1 of 31 cohorts passes (s3)**, 30 fail at apply, and the failure detail
+per cohort names whether the emulator or the fixture refused. Two things
+it settled on day one: the marker round trip works end to end when the
+fixture applies, and #99's capability probe ("517/517 listable types
+implemented") does not transfer - list-support is not create-support, and
+creates are what the tier needs. Regenerate with
+`TF_FLOCI_TEST=1 TF_FLOCI_ACCEPTANCE_ARTIFACT=1 go test
+./internal/live/acceptance -run TestCohortAcceptance -timeout 6h` (~30
+min; the committed artifact is a ratchet, so a cohort recorded as passing
+fails the tier if it stops).
 
 **Type coverage is not the binding constraint.** A user at 100% type coverage
 still fails on `backend "s3"`, `-out` plus `apply <planfile>` (how CI runs
@@ -210,7 +233,7 @@ Five things landed on 2026-08-14 that later work should use rather than
 reinvent.
 
 **Every refusal the live path can produce is enumerable.** `check.AllRefusals()`
-returns 163, from a registry per stage - lint 18, identity 35, passthrough
+returns 164, from a registry per stage - lint 19, identity 35, passthrough
 53, projection 26, discovery 24, stamp 7. The pass-through registry holds
 the diagnostics this fork shows without having written them, from
 `internal/configs`, `internal/addrs` and HCL; they surface during identity
@@ -242,7 +265,24 @@ holding it at zero.
 **Three generators, one convention.** `internal/live/mdspan` owns the
 span-marker mechanics `tools/survey-gen` and `tools/limits-gen` both write
 with. A third generator writing into a shipped document should use it rather
-than copy it.
+than copy it - estate-gen's readmeMD is the named next adopter (#108
+follow-up 2).
+
+Late on 2026-08-14, #108 added two more things later work should use:
+
+**The acceptance tier and its artifact.** `internal/live/acceptance`
+applies every cohort against floci, deletes the state, replans from
+markers, and records per-cohort verdicts in `live/cohort-acceptance.json`
+- a ratchet protecting every recorded pass. Built on
+`internal/live/flocitest` primitives; `live/e2e/run.sh` was deliberately
+not extended. Add a cohort by adding a directory, not by editing a
+harness.
+
+**estate-gen owns its output, and drift is a named table.** `writeCohort`
+refuses foreign configuration files and deletes stale owned ones;
+`TestCommittedCohortsMatchGenerator` (gated, needs only terraform)
+regenerates every cohort with a recorded command and holds the measured
+`knownDrift`/`regenGaps` tables exact - per drift line, not per cohort.
 
 ## What is already true, and reads as unfinished
 
@@ -306,11 +346,11 @@ work itself. A count of what
 a codebase refuses is not something to estimate.
 
 **4. `phase-4-silent-hazards` — correctness bugs with no diagnostic
-(#103, #104, #115, #116). Done.**
+(#103, #104, #115, #116, #123). Done, all closed.**
 
-All four closed. They never appeared in the scoreboard and never would have,
-because a silent failure produces no refusal to count - which is why they
-were done on principle rather than by rank.
+They never appeared in the scoreboard and never would have, because a
+silent failure produces no refusal to count - which is why they were done
+on principle rather than by rank.
 
 Two of them turned out to be measurable after the fact, which is the useful
 surprise. `module-providers` (#104) fires on **6 of the 105 corpus
@@ -319,58 +359,70 @@ rds, s3-bucket and lambda examples that live mode was silently planning
 against the wrong region. The refusal made a hazard visible that no
 instrument could see while it was silent.
 
-#123 is the one thing left open from this phase, and it is a question rather
-than a task: whether a root resource naming an undeclared provider alias
-reaches the same empty-body fallback, or whether upstream validation already
-refuses it. Establish that by running it before building anything.
+#123 closed by running it, as its own text demanded. Case 2 was reachable
+and worse than the audit's key reproduction suggested: no upstream
+validation fires under `live-plan` (the graph's "Provider configuration
+not present" only runs at `tfCtx.Plan`, after discovery), and the real AWS
+provider accepts the empty body, so the run proceeded silently against
+whatever the environment named. Now `undeclared-provider-alias` refuses at
+lint (0 of 105 corpus configs - it refuses nothing that works) and
+`providerConfigValue` hard-errors on any aliased miss lint did not see.
+The follow-up audit then caught the fix's own defect: resolving the block
+by round-tripping the FQN through `LocalNameForProvider` is Go-map-order
+nondeterministic when one provider has two local names; both the rule and
+the guard now resolve by each block's own FQN.
 
 **5. `phase-5-coverage` — the top measured refusals themselves
-(#105, #106, #107, #108). Half done, and this is the front of the queue.**
+(#105, #106, #107, #108). #105, #106, #107 closed; #108 is the working
+front, with three of four criteria landed.**
 
-#107 is closed. #105 and #106 are open with one acceptance criterion each
-left; #108 is untouched. Read the closing comments on #105, #106 and #107
-before starting - each records a correction to its own issue text, and two
-of them narrow what is left considerably.
+*#106 closed.* The IdentityAttr derivation is a rule (leading `arn:` /
+`https://` literal) plus an evidence ledger, and both of this document's
+prior counts were wrong in ways the work caught: 12 rows derive, and the
+ledger holds **8** entries, not 5 - two codeartifact policy rows lead with
+an ARN literal while the wire schema names `resource_arn` (the rule would
+have derived a wrong value), and `aws_sagemaker_user_profile` satisfies
+the rule while the 6.59.0 schema has no arn attribute at all. The ratchet
+(`tools/row-gen/identityattr_test.go`) checks rule AND wire schema, after
+an audit defeated the rule-only version.
 
-**What is left, smallest first.**
+*#105 closed.* The against-a-cloud half runs on the acceptance tier:
+`TestSynthesizedCompositeEndToEnd` applies an `aws_s3_object` (in neither
+generated table, synthesized, IdentityObjectOnly - no import-ID string
+exists) and replans empty, so the identity-object import path is proven
+end to end. Found on the way: `content` can never round-trip (the
+provider's Read fetches no object body) - that is #73's record-less
+residue, recorded in the fixture, not solved.
 
-*#106's third criterion: derive the `arn` identity mappings.* The issue says
-"468 components use SameNameIdentity and 95 carry an explicit name... 76
-identical values is a rule nobody has written down". Those are component
-**sites**, not rows. Per row it is 17: eleven `arn`, four `id`, one `url`,
-one `member_account_id`. Every one of the eleven `arn` rows has a first
-literal beginning `arn:aws:` - no exceptions, verified against
-`table_generated.go`. `url` is the same rule with `https://`. So twelve of
-the seventeen derive from the leading literal, and five rows need hand
-evidence rather than ninety-five. Row-gen does not propose `IdentityAttr` at
-all today (convergence calls it "identity-attrs-not-proposed (issue #44
-non-goal)"), so this is a new proposal rule, not a change to an existing one.
+*#108: criteria 2 and 4 landed; 1 and 3 are reshaped by measurement.*
+The tier and artifact are described under "What to measure". What remains,
+smallest first, per the issue's latest comment:
 
-*#105's third criterion: an end-to-end test.* Admit, plan, apply, replan
-empty, against a cloud. It needs the acceptance tier #108 builds, so do #108
-first or do them together.
-
-*#108: the corpus acceptance tier.* Untouched. Its four criteria are
-substantial and independent; read the issue.
+1. estate-gen fixes for fixture-attributable failures, re-measured against
+   the tier (three landed 2026-08-14: sagemaker's exactly-one-of image
+   config, fsx_openzfs throughput, amplify_branch's unwired app_id
+   cross-reference to a server-assigned parent).
+2. readmeMD writing mdspan-marked spans, so the 12 README-drift cohorts
+   clear without destroying their hand evidence (see the trap below).
+3. Folding the 4 hand cohorts' .tf into overrides; recording commands for
+   the 13 no-command cohorts (`TestCommittedCohortsMatchGenerator`'s
+   `regenGaps` table is the authoritative list).
+4. The floci gap list from the artifact, for the emulator fork at
+   ~/checkouts/floci - most of the 30 apply failures are the emulator's
+   (unimplemented creates, two plugin crashes, waiters that never
+   resolve), not the fixtures'.
 
 **Two measurements from this phase that should shape how #108 is judged.**
 
 Admitting six types (#105) moved `unadmitted-type` from 961 sites to 845,
 moved `totals.blocked` by zero, and moved three identity refusals **up**.
-See "Admission moves a refusal downstream" in the scoreboard section. An
-acceptance tier that counts admitted types will report progress that nobody
-experiences.
+An acceptance tier that counts admitted types will report progress that
+nobody experiences - which is why `cohort-acceptance.json` reports
+cohorts-that-round-trip and nothing else.
 
-And #107's silence turned out to be one path's, not both. The estate-wide
-tag sweep was already reporting those resources - under a message about ARN
-parsing that described something else entirely. Check which paths a claim
-covers before sizing work against it.
-
-Note #107 argued in its own text that it belonged in phase 4 ("silence is
-the one unacceptable outcome"). Working it first, ahead of #105 and #106,
-was right for a reason worth reusing: #105's acceptance asks that
-synthesized types either join the sweep or take #107's decision explicitly,
-so #107 had to have a decision before #105 could cite one.
+And #99's probe measured ListResources while the tier measures create;
+the two disagree about nearly every cohort. Check what a capability claim
+actually measured before planning around it.
 
 **6. `phase-6-onboarding` — finish #73's charter and the onboarding surface**
 (#72, #73, #74, #81, #82, #109).
@@ -428,6 +480,26 @@ What they caught, as a guide to what to ask for:
   on types with no markers at all, explained as losing tags they do not
   have. Ask: what does this newly refuse that used to work?
 
+The 2026-08-14 phase-4/5 audit added four shapes to this list, all found in
+work that was green and committed:
+
+- **A ratchet that measured agreement with itself.** The identityattr test
+  passed any row the derivation rule reproduced - including one the
+  provider's schema contradicts - and its failure message told the editor
+  to delete the ledger entry that was the only guard. Ask: what EXTERNAL
+  source does this test consult, and what happens if I mutate the data to
+  agree with the rule?
+- **Go map order as hidden nondeterminism.** `LocalNameForProvider` keeps
+  one winner per FQN; the #123 refusal fired at random across parses. Ask:
+  does any lookup round-trip through a map keyed by the thing being
+  resolved?
+- **A filter narrower than the loader.** Ownership and drift checks read
+  `.tf` while the loader also accepts `.tf.json` and `.tofu`. Ask: is the
+  guard's file filter the same set the thing it guards actually loads?
+- **A mask wider than its label.** `knownDrift` keyed on cohort names, so a
+  listed cohort accepted unlimited new drift. Ask: does an allowlist entry
+  bound WHAT it allows, or only WHO?
+
 Give the auditor the environment notes below, tell it to run rather than
 read, and tell it that a claim surviving attack is a one-line answer, not a
 paragraph.
@@ -475,6 +547,15 @@ Two mechanical traps that cost time on 2026-08-14:
   should have moved. `just corpus` needs the provider-schema flags it now
   passes by default; `just limits` and `just identity-sources` need neither
   network nor provider.
+- **Never regenerate a cohort README in place.** Twelve cohort READMEs are
+  readmeMD's skeleton plus ~2,500 lines of hand-written ratification
+  evidence (the notes `table_generated.go` cites). A regeneration sweep was
+  actually run on them on 2026-08-14 and deleted all of it - caught by
+  inspecting the diff before committing, reverted. Until readmeMD writes
+  mdspan-marked spans, sync a regenerated cohort by copying the changed
+  `.tf` file alone from a temp-dir run (see commit aa4958cee for the
+  shape). `tools/estate-gen` also needs `env -u PWD` for an -out outside
+  the repo, the same symlink trap as the tests.
 
 ## Decisions taken 2026-08-13
 
