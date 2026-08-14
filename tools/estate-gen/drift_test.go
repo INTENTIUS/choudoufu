@@ -37,94 +37,49 @@ import (
 // keeps them exact along the way.
 
 // knownDrift: cohort -> the exact drift lines the recorded command's output
-// shows against the committed tree today, plus why. Measured 2026-08-14 by
-// running this test; every reason states what the measurement showed, not
-// what an issue predicted. Twelve of the thirteen differ in README.md alone
-// - readmeMD's format changed after those cohorts were committed - so a
-// single regeneration commit clears them.
+// shows against the committed tree, plus why. Measured 2026-08-14, twice:
+// the first tables listed 13 drifting cohorts and 18 regeneration gaps;
+// the GENERATED.md ownership split (generator owns the facts file outright,
+// README.md is hand-owned and never rewritten) plus a regeneration sweep
+// with rosters derived from the committed coverage files cleared all of
+// them but the entries below. The sweep also surfaced ecs-eks's documented
+// hand edit - a supporting aws_ecs_cluster - which is now the generator's
+// own NeedsSupporting mechanism rather than a hand block regeneration kept
+// reverting.
 //
 // The files list is exact, not a mask: a listed cohort whose drift GROWS -
-// a .tf file joining a README-only entry - fails the same as an unlisted
-// cohort would. The first version keyed on the cohort name alone, and an
-// audit pointed out that made every listed cohort a hole through which any
-// new drift passed silently.
+// a .tf file joining a GENERATED.md-only entry - fails the same as an
+// unlisted cohort would. The first version keyed on the cohort name alone,
+// and an audit pointed out that made every listed cohort a hole through
+// which any new drift passed silently.
 type driftEntry struct {
 	files  []string
 	reason string
 }
 
-// readmeOnlyDrift is NOT clearable by regenerating in place. It reads like
-// a stale-skeleton problem, and a regeneration sweep was actually run on
-// the twelve cohorts carrying it before the diff was inspected: the
-// committed READMEs are readmeMD's skeleton PLUS ~2,500 lines of
-// hand-written ratification evidence across the twelve - the per-type
-// floci verification notes internal/live/identity/table_generated.go's own
-// comments cite - and the sweep deleted all of it (reverted before
-// commit). Clearing this drift means readmeMD writing into
-// internal/live/mdspan-marked spans the way survey-gen and limits-gen
-// already do, so the hand narrative survives regeneration; until then the
-// entry stays, and regenerating these cohorts in place is the #92
-// content-loss shape.
-var readmeOnlyDrift = driftEntry{
-	files:  []string{"README.md: content differs"},
-	reason: "the committed README is the generated skeleton plus hand-written ratification evidence; regeneration destroys the evidence, so this drift stands until readmeMD emits mdspan-marked spans",
-}
-
 var knownDrift = map[string]driftEntry{
-	// The one content drift: a type admitted since the last regen maps
-	// into the cohort, so regeneration emits one more resource than the
-	// tree holds (issue #108's own finding, confirmed).
+	// The one remaining drift, held deliberately: a type admitted since
+	// the last regen maps into the cohort, so regeneration adds a resource
+	// - and s3 is the acceptance tier's one recorded PASS. Adopting the
+	// regen means re-running the tier so the ratchet judges the new
+	// resource too; do both in one change, not the regen alone.
 	"s3": {
-		files:  []string{"README.md: content differs", "s3.tf: content differs"},
-		reason: "a type admitted since the last regen maps into the cohort",
+		files:  []string{"GENERATED.md: only in the regeneration", "s3.tf: content differs"},
+		reason: "a type admitted since the last regen maps into the cohort; adopting it must accompany a tier re-run because s3 is the recorded pass the acceptance ratchet protects",
 	},
-
-	"apigateway":    readmeOnlyDrift,
-	"aps":           readmeOnlyDrift,
-	"data-movement": readmeOnlyDrift,
-	"databases":     readmeOnlyDrift,
-	"devtools":      readmeOnlyDrift,
-	"iot":           readmeOnlyDrift,
-	"media":         readmeOnlyDrift,
-	// Issue #89 recorded this cohort as "no longer regenerable" after a
-	// merge lost 38 override entries. Measured: its .tf surface
-	// regenerates byte-identical; only the README differs. The overrides
-	// were evidently restored, and #89's claim is stale.
-	"networking-advanced": readmeOnlyDrift,
-	"observability":       readmeOnlyDrift,
-	"sagemaker":           readmeOnlyDrift,
-	"security":            readmeOnlyDrift,
-	"stragglers":          readmeOnlyDrift,
 }
 
 // regenGaps: cohort -> why no working one-command regeneration exists yet.
-// A cohort listed here is skipped outright: either its README records no
-// command, or the recorded command is broken or would destroy hand-written
-// content the generator does not know how to emit.
+// A cohort listed here is skipped outright. What remains is exactly the
+// hand-written class: trees carrying configuration files the generator
+// refuses to regenerate around, whose content and evidence comments need
+// folding into overrides (the ecs-eks NeedsSupporting fold is the
+// template).
 var regenGaps = map[string]string{
 	"iam-ecr":   "fully hand-written cohort (coverage lives in iam.tf/ecr.tf); its ratification evidence is in file comments the generator does not emit",
 	"identity":  "hand-written iam.tf outside the emit set; the README's recorded command would regenerate around it",
 	"lambda":    "hand-written iam.tf outside the emit set (the function's execution role)",
 	"messaging": "hand-written iam.tf outside the emit set (streams.metrics.cloudwatch principal, not derivable from the cohort name)",
-
-	// The README records `-cohort data` with no -types, and
-	// defaultCohortTypes cannot derive a "data" CFN service - the recorded
-	// command does not run. Measured by this test's first version.
-	"data": "the README's recorded regeneration command is broken: no -types, and no CFN service lowercases to \"data\"",
-
-	"ai-location":          "README records no regeneration command",
-	"compute-platforms":    "README records no regeneration command",
-	"connect-euc":          "README records no regeneration command",
-	"dynamodb-elasticache": "README records no regeneration command",
-	"ec2-core":             "README records no regeneration command",
-	"ec2-networking":       "README records no regeneration command",
-	"ecs-eks":              "README records no regeneration command",
-	"governance":           "README records no regeneration command",
-	"rds":                  "README records no regeneration command",
-	"remainder":            "README records no regeneration command",
-	"route53-cloudfront":   "README records no regeneration command",
-	"storage":              "README records no regeneration command",
-	"streaming":            "README records no regeneration command",
 }
 
 // recordedRegenTypes reads the command out of the cohort README's
@@ -140,11 +95,20 @@ var typesFlagArg = regexp.MustCompile(`-types[= ]([^ \n]+)`)
 func recordedRegenTypes(t *testing.T, cohortDir string) ([]string, bool) {
 	t.Helper()
 
-	data, err := os.ReadFile(filepath.Join(cohortDir, "README.md")) //nolint:gosec // fixture paths
-	if err != nil {
+	// GENERATED.md is the generator-owned home of the command; README.md is
+	// the fallback for cohorts whose hand READMEs still carry one from
+	// before the ownership split.
+	var text string
+	for _, name := range []string{"GENERATED.md", "README.md"} {
+		data, err := os.ReadFile(filepath.Join(cohortDir, name)) //nolint:gosec // fixture paths
+		if err == nil && strings.Contains(string(data), "Regenerate with") {
+			text = string(data)
+			break
+		}
+	}
+	if text == "" {
 		return nil, false
 	}
-	text := string(data)
 	i := strings.Index(text, "Regenerate with")
 	if i < 0 {
 		return nil, false
@@ -285,7 +249,7 @@ func TestCommittedCohortsMatchGenerator(t *testing.T) {
 	}
 }
 
-// diffDirs compares the configuration and README.md surface of two cohort
+// diffDirs compares the configuration and GENERATED.md surface of two cohort
 // trees, recursively, and returns one line per difference. Recursive and
 // extension-complete on purpose: the first version read the top level's
 // *.tf only, which would have hidden both a -module-wrap cohort's wrapped/
@@ -299,7 +263,7 @@ func diffDirs(t *testing.T, committed, generated string) []string {
 			if err != nil || d.IsDir() {
 				return err
 			}
-			if !isConfigFile(d.Name()) && d.Name() != "README.md" {
+			if !isConfigFile(d.Name()) && d.Name() != "GENERATED.md" {
 				return nil
 			}
 			rel, err := filepath.Rel(root, path)

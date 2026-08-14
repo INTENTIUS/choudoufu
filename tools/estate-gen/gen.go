@@ -187,22 +187,40 @@ func planCohort(cohort string, schemas providers.GetProviderSchemaResponse, requ
 	}
 
 	needsRole := false
+	supporting := map[string]bool{}
 	for _, p := range g.order {
 		for name := range requiredArgNames(schemas.ResourceTypes[p.Addr.Type].Block) {
 			if isRoleArg(name) {
 				needsRole = true
 			}
 		}
-		if ov, ok := typeOverrides[p.Addr.Type]; ok && ov.NeedsIAMRole {
-			needsRole = true
+		if ov, ok := typeOverrides[p.Addr.Type]; ok {
+			if ov.NeedsIAMRole {
+				needsRole = true
+			}
+			for _, t := range ov.NeedsSupporting {
+				supporting[t] = true
+			}
 		}
 	}
 	if needsRole {
-		if _, already := g.byType["aws_iam_role"]; !already {
-			addr := resourceAddr{Type: "aws_iam_role", Label: cohort}
-			g.order = append(g.order, planned{Addr: addr, Kind: kindSupporting})
-			g.byType["aws_iam_role"] = addr
+		supporting["aws_iam_role"] = true
+	}
+	supportingSorted := make([]string, 0, len(supporting))
+	for t := range supporting {
+		supportingSorted = append(supportingSorted, t)
+	}
+	sort.Strings(supportingSorted)
+	for _, t := range supportingSorted {
+		if _, already := g.byType[t]; already {
+			continue
 		}
+		if _, ok := schemas.ResourceTypes[t]; !ok {
+			return nil, fmt.Errorf("supporting type %s: not in the provider's schema (%s %s)", t, providerSource, providerVersion)
+		}
+		addr := resourceAddr{Type: t, Label: cohort}
+		g.order = append(g.order, planned{Addr: addr, Kind: kindSupporting})
+		g.byType[t] = addr
 	}
 
 	return g, nil

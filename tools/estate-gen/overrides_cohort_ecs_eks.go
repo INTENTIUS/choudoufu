@@ -87,6 +87,17 @@ var typeOverridesEcsEks = map[string]typeOverride{
 			}
 		},
 	},
+	"aws_ecs_cluster_capacity_providers": {
+		Reasons: []string{
+			`cluster_name must name an actual ECS cluster - PutClusterCapacityProviders 400s with ClusterNotFoundException against one that does not exist - and no resource in this cohort's own requested types creates one, since aws_ecs_cluster is already covered by live/e2e/estate/ rather than by this cohort. A supporting aws_ecs_cluster is generated instead (NeedsSupporting), the same "supporting, not coverage" shape as the shared aws_iam_role; this entry folds the hand-written block live/e2e/estates/ecs-eks carried before #108 criterion 4, which every regeneration reverted`,
+		},
+		NeedsSupporting: []string{"aws_ecs_cluster"},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if cluster, ok := g.byType["aws_ecs_cluster"]; ok {
+				body.SetAttributeRaw("cluster_name", exprTokens(cluster.Type+"."+cluster.Label+".name"))
+			}
+		},
+	},
 	"aws_ecs_daemon": {
 		Reasons: []string{
 			`the generic pass's same-name parent search matches this type's own client-chosen "name" argument against aws_eks_cluster (an unrelated EKS type whose single-component identity also happens to be named "name"), producing a cross-service reference where a plain placeholder string belongs; overridden back to a placeholder. capacity_provider_arns and daemon_task_definition_arn are required arguments the provider validates as well-formed ARNs (validate: "cannot be parsed as an ARN"); this batch rejected both aws_ecs_capacity_provider and aws_ecs_daemon_task_definition (see internal/live/identity/table.go), so no real sibling resource supplies either, and both are set to well-formed placeholder ARNs instead`,

@@ -34,6 +34,17 @@ type typeOverride struct {
 	// block the generic required-only pass never visits).
 	NeedsIAMRole bool
 
+	// NeedsSupporting names additional resource types planCohort must add
+	// as supporting rows (rendered by the generic pass, labelled with the
+	// cohort name, exactly like the shared aws_iam_role) so that this
+	// type's Apply has a real sibling to reference. It generalizes
+	// NeedsIAMRole: aws_ecs_cluster_capacity_providers 400s with
+	// ClusterNotFoundException against a cluster that does not exist, and
+	// live/e2e/estates/ecs-eks carried that supporting cluster as a
+	// hand-written block regeneration kept reverting (#108 criterion 4's
+	// documented-hand-edit class; folded here instead).
+	NeedsSupporting []string
+
 	// Apply runs after the generic required-only pass (and after
 	// iamRoleRefExpr and identityArgName have already filled in every
 	// argument the schema or the identity table account for): it adds or
