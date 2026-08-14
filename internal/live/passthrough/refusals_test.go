@@ -7,13 +7,9 @@ package passthrough
 
 import (
 	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/token"
-	"path/filepath"
-	"sort"
-	"strconv"
 	"testing"
+
+	"github.com/intentius/choudoufu/internal/live/refusalscan"
 )
 
 // staticEvalSources are the internal/configs files whose diagnostics reach a
@@ -37,38 +33,38 @@ var staticEvalSources = []string{
 // package, applied across a package boundary because the diagnostics are
 // upstream's and the documentation obligation is ours.
 func TestConfigsRefusalsRegistered(t *testing.T) {
-	found := summariesInFiles(t, staticEvalSources)
-	if len(found) == 0 {
-		t.Fatal("scanned the static-evaluation sources and found no diagnostic summaries; the scanner has stopped working")
-	}
-
-	registered := map[string]Refusal{}
+	// Only the internal/configs half. The addrs and HCL entries have no
+	// call site in these two files by construction, so they are declared
+	// unproduced rather than deleted - see this package's doc comment for
+	// why their completeness rests on a corpus sweep instead.
+	var summaries, elsewhere []string
+	whats := map[string]string{}
 	for _, r := range Refusals() {
-		if _, dup := registered[r.Summary]; dup {
-			t.Errorf("registry lists %q twice", r.Summary)
-		}
-		registered[r.Summary] = r
-	}
-
-	for _, s := range found {
-		r, ok := registered[s]
-		if !ok {
-			t.Errorf("internal/configs' static evaluator can produce the refusal %q and this registry does not list it.\n"+
-				"A user reaches it through identity resolution with no way to look it up. Add an entry describing the configuration shape that triggers it.", s)
-			continue
-		}
+		summaries = append(summaries, r.Summary)
+		whats[r.Summary] = r.What
 		if r.Origin != OriginConfigs {
-			t.Errorf("%q is raised in %v but registered with origin %q; the origin decides how far this package's completeness claim reaches, so it has to be accurate", s, staticEvalSources, r.Origin)
+			elsewhere = append(elsewhere, r.Summary)
 		}
 	}
+	refusalscan.Check(t, refusalscan.Params{
+		Files:           staticEvalSources,
+		Registered:      summaries,
+		What:            whats,
+		AllowUnproduced: elsewhere,
+	})
 
-	inSource := map[string]bool{}
-	for _, s := range found {
-		inSource[s] = true
+	// The origin field has to be accurate, because it is what decides how
+	// far this package's completeness claim reaches.
+	inConfigs := map[string]bool{}
+	for _, s := range refusalscan.Summaries(t, refusalscan.Params{Files: staticEvalSources}) {
+		inConfigs[s] = true
 	}
-	for summary, r := range registered {
-		if r.Origin == OriginConfigs && !inSource[summary] {
-			t.Errorf("this registry lists %q with origin %q, but no site in %v produces it. Remove the entry, or it was renamed upstream without updating this.", summary, r.Origin, staticEvalSources)
+	for _, r := range Refusals() {
+		switch {
+		case r.Origin == OriginConfigs && !inConfigs[r.Summary]:
+			t.Errorf("%q is registered with origin %q but no site in %v produces it", r.Summary, r.Origin, staticEvalSources)
+		case r.Origin != OriginConfigs && inConfigs[r.Summary]:
+			t.Errorf("%q is raised in %v but registered with origin %q; the origin decides how far the scan-enforced claim reaches, so it has to be accurate", r.Summary, staticEvalSources, r.Origin)
 		}
 	}
 }
@@ -114,62 +110,4 @@ func TestLookupRefusal(t *testing.T) {
 	if _, ok := LookupRefusal("no such refusal"); ok {
 		t.Error("LookupRefusal invented an entry")
 	}
-}
-
-// summariesInFiles parses the named files and returns every string literal
-// assigned to a Summary field of a diagnostic literal.
-func summariesInFiles(t *testing.T, files []string) []string {
-	t.Helper()
-
-	seen := map[string]bool{}
-	var nonLiteral []string
-	fset := token.NewFileSet()
-	for _, rel := range files {
-		file, err := parser.ParseFile(fset, filepath.Clean(rel), nil, 0)
-		if err != nil {
-			t.Fatalf("parsing %s: %s", rel, err)
-		}
-		ast.Inspect(file, func(n ast.Node) bool {
-			kv, ok := n.(*ast.KeyValueExpr)
-			if !ok {
-				return true
-			}
-			key, ok := kv.Key.(*ast.Ident)
-			if !ok || key.Name != "Summary" {
-				return true
-			}
-			if s, ok := stringLit(kv.Value); ok {
-				seen[s] = true
-			} else {
-				// Loud, not skipped, for the same reason identity's scanner
-				// is: a summary assembled at runtime is exactly the shape
-				// that evades this test.
-				nonLiteral = append(nonLiteral, fset.Position(kv.Value.Pos()).String())
-			}
-			return true
-		})
-	}
-
-	for _, pos := range nonLiteral {
-		t.Errorf("%s: the diagnostic's Summary is not a string literal, so this scanner cannot see it and the registry cannot cover it", pos)
-	}
-
-	out := make([]string, 0, len(seen))
-	for s := range seen {
-		out = append(out, s)
-	}
-	sort.Strings(out)
-	return out
-}
-
-func stringLit(e ast.Expr) (string, bool) {
-	lit, ok := e.(*ast.BasicLit)
-	if !ok || lit.Kind != token.STRING {
-		return "", false
-	}
-	s, err := strconv.Unquote(lit.Value)
-	if err != nil {
-		return "", false
-	}
-	return s, true
 }

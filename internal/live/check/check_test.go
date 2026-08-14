@@ -80,17 +80,18 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		"cloudcontrol":    true, // a client for one AWS API
 		"docsref":         true, // parses the doc references refusals carry
 		"flocitest":       true, // test harness
-		"mdspan":          true, // rewrites generated regions of a markdown doc
-		"passthrough":     true, // a registry of upstream diagnostics, not a pass
 		"foreign":         true, // classification of unclaimed resources, inside discovery's stage
 		"lifecycle":       true,
 		"listclient":      true, // a client
 		"liveimport":      true, // the bulk migration command's engine
 		"markerkey":       true,
 		"markers":         true, // the marker vocabulary itself
+		"mdspan":          true, // rewrites generated regions of a markdown doc
 		"mv":              true, // the rename command's engine
+		"passthrough":     true, // a registry of upstream diagnostics, not a pass
 		"pluginschema":    true, // provider schema reading
 		"policy":          true, // the ownership policy matrix
+		"refusalscan":     true, // the shared lockstep scanner behind those registries
 		"providerversion": true,
 		"registry":        true,
 		"slots":           true,

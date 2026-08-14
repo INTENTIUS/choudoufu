@@ -673,6 +673,8 @@ step that failed varies, not because the rules differ.
 | 4 | 6 | lint | child-module | `internal/live/lint` | "child-module" |
 | 2 | 10 | lint | moved-block | `internal/live/lint` | "moved-block" |
 | 2 | 3 | identity | Non-static for_each expression | `internal/live/identity` | "Non-static for_each expression" |
+| - | - | discovery | Address too long to carry an ownership marker | `internal/live/discovery` | "overlong-address" |
+| - | - | discovery | One marker value for two declared addresses | `internal/live/discovery` | "One marker value for two declared addresses" |
 | 0 | 0 | identity | Circular for_each reference | `internal/live/identity` | "Circular for_each reference" |
 | 0 | 0 | identity | Circular identity reference | `internal/live/identity` | "Circular identity reference" |
 | 0 | 0 | identity | Circular reference | `internal/configs` | "Circular reference" |
@@ -726,10 +728,14 @@ step that failed varies, not because the rules differ.
 | 0 | 0 | lint | receipt-value | `internal/live/lint` | live/RECEIPTS.md, "Guard 2. Hash-only values, and never SecureString" |
 | 0 | 0 | lint | remote-state | `internal/live/lint` | "remote-state" |
 | 0 | 0 | lint | state-backend | `internal/live/lint` | "backend-block" / "cloud-block" |
+| - | - | stamp | Ownership marker conflict | `internal/live/stamp` | "Ownership marker conflict" |
+| - | - | stamp | Ownership marker could not be checked | `internal/live/stamp` | "Ownership marker could not be checked" |
+| - | - | stamp | Ownership markers not stamped | `internal/live/stamp` | "Ownership markers not stamped" |
+| - | - | stamp | Unmarked apply of a marker-only resource | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 
-**69 refusals**, from three registries: `internal/live/lint`'s rule table, `internal/live/identity`'s and `internal/live/passthrough`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
+**75 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
 
-Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not in the artifact when this was generated.
+Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
 
 **The entries below** are the refusals with no hand-written treatment of
@@ -823,6 +829,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked 2 configurations in the measured corpus, at 3 sites.
+
+#### One marker value for two declared addresses
+
+**What.** Two declared instances escape to the same tofu-address value, so a marker cannot say which of them a live object belongs to. Binding either would be a guess.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
 
 #### Circular for_each reference
 
@@ -1143,6 +1157,38 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked no configuration in the measured corpus.
+
+#### Ownership marker conflict
+
+**What.** The configuration already sets an ownership tag by hand, to a value other than the one this estate's markers require. Overwriting it would move ownership of a live resource without anyone saying so, so the run stops instead.
+
+**Where.** The stamp pass, raised by `internal/live/stamp`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Ownership marker could not be checked
+
+**What.** An ownership tag is already set in the configuration to an expression this run cannot evaluate, so whether it agrees with this estate's markers is unknown. A warning for a resource that can be found another way; an error for one that can only be found by its marker.
+
+**Where.** The stamp pass, raised by `internal/live/stamp`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Ownership markers not stamped
+
+**What.** A resource's tags could not be given this estate's ownership markers - most often an untaggable type, or a tags argument this pass cannot append to. Reported as a warning, because the resource is still identifiable from its configuration.
+
+**Where.** The stamp pass, raised by `internal/live/stamp`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Unmarked apply of a marker-only resource
+
+**What.** The same failure as the entries above, on a resource whose instances can only ever be found by their ownership marker. Applying it unmarked would create a live object no later run could recognise as this estate's, so this one is an error rather than a warning.
+
+**Where.** The stamp pass, raised by `internal/live/stamp`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
 
 <!-- limits-gen:end refusal-entries -->
 

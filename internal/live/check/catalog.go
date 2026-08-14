@@ -8,9 +8,11 @@ package check
 import (
 	"sort"
 
+	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/passthrough"
+	"github.com/intentius/choudoufu/internal/live/stamp"
 )
 
 // Layer is one of the analysis passes this package runs, or one it
@@ -184,6 +186,49 @@ func Catalog() []Refusal {
 			What:     refusal.What,
 			DocsRef:  refusal.DocsRef(),
 			RaisedBy: string(refusal.Origin),
+		})
+	}
+
+	sortRefusals(out)
+	return out
+}
+
+// AllRefusals is every refusal the whole live path can produce, including
+// the stages this instrument cannot run.
+//
+// [Catalog] is deliberately narrower, and the two must not be conflated. A
+// zero in the corpus artifact means "measured over 105 configurations and
+// blocked none of them", which is a finding. A stamping refusal has never
+// been measured by anything, because measuring it needs a cloud, and giving
+// it a zero in the same column would turn "unknown" into "harmless" - the
+// exact confusion the artifact's checked/unchecked layer lists exist to
+// prevent. So the corpus ranks [Catalog], and this is what documentation is
+// generated from.
+//
+// #110's first acceptance criterion is every hard refusal in the live path,
+// which is this set rather than that one.
+func AllRefusals() []Refusal {
+	out := Catalog()
+
+	for _, refusal := range stamp.Refusals() {
+		out = append(out, Refusal{
+			Layer:    LayerStamp,
+			ID:       refusal.Summary,
+			Title:    refusal.Summary,
+			What:     refusal.What,
+			DocsRef:  refusal.DocsRef(),
+			RaisedBy: "internal/live/stamp",
+		})
+	}
+
+	for _, refusal := range discovery.Refusals() {
+		out = append(out, Refusal{
+			Layer:    LayerDiscovery,
+			ID:       refusal.Summary,
+			Title:    refusal.Summary,
+			What:     refusal.What,
+			DocsRef:  refusal.DocsRef(),
+			RaisedBy: "internal/live/discovery",
 		})
 	}
 

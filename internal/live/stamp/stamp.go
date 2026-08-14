@@ -623,7 +623,7 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 			case verifyConflict:
 				diags = diags.Append(&hcl.Diagnostic{
 					Severity: hcl.DiagError,
-					Summary:  "Ownership marker conflict",
+					Summary:  SummaryMarkerConflict,
 					Detail:   detail,
 					Subject:  rc.DeclRange.Ptr(),
 				})
@@ -636,13 +636,13 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 		case verifyConflict:
 			diags = diags.Append(&hcl.Diagnostic{
 				Severity: hcl.DiagError,
-				Summary:  "Ownership marker conflict",
+				Summary:  SummaryMarkerConflict,
 				Detail:   detail,
 				Subject:  cur.Range().Ptr(),
 			})
 		case verifyUnreadable:
 			s.skip(addr, SkipMarkerUnreadable, detail)
-			diags = diags.Append(s.unstampableAt(rc, cur.Range(), "Ownership marker could not be checked", detail))
+			diags = diags.Append(s.unstampableAt(rc, cur.Range(), SummaryMarkerUncheckable, detail))
 		}
 	}
 
@@ -732,7 +732,7 @@ func (s *stamper) mustStamp(rc *configs.Resource) bool {
 // unstampable is the diagnostic for a resource that did not get its markers,
 // at the severity its identity class earns.
 func (s *stamper) unstampable(rc *configs.Resource, detail string) *hcl.Diagnostic {
-	return s.unstampableAt(rc, rc.DeclRange, "Ownership markers not stamped", detail)
+	return s.unstampableAt(rc, rc.DeclRange, SummaryNotStamped, detail)
 }
 
 // unstampableAt is [stamper.unstampable] pointing at a range inside the
@@ -748,7 +748,7 @@ func (s *stamper) unstampableAt(rc *configs.Resource, rng hcl.Range, summary, de
 	}
 	return &hcl.Diagnostic{
 		Severity: hcl.DiagError,
-		Summary:  "Unmarked apply of a marker-only resource",
+		Summary:  SummaryUnmarkedApply,
 		Detail:   detail + " " + unmarkedDiscoveryDetail(addrs.ConfigResource{Module: s.modInst.Module(), Resource: rc.Addr()}),
 		Subject:  rng.Ptr(),
 	}

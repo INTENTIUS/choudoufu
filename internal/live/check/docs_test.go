@@ -34,7 +34,11 @@ import (
 func TestEveryRefusalDocsRefIsResolvable(t *testing.T) {
 	root := flocitest.RepoRoot(t)
 
-	for _, refusal := range Catalog() {
+	// AllRefusals, not Catalog: the criterion is every hard refusal in the
+	// live path, and stamping and discovery are the two passes this
+	// instrument cannot run. A refusal it cannot measure is not a refusal a
+	// user cannot hit.
+	for _, refusal := range AllRefusals() {
 		if refusal.DocsRef == "" {
 			t.Errorf("%s/%s has no DocsRef at all", refusal.Layer, refusal.ID)
 			continue

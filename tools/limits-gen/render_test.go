@@ -28,7 +28,7 @@ func TestSpansAreCurrent(t *testing.T) {
 		t.Fatal(err)
 	}
 	md, freq, measured := readForTest(t, root)
-	catalog := check.Catalog()
+	catalog := check.AllRefusals()
 
 	for _, span := range []struct {
 		name, want string
@@ -73,7 +73,7 @@ func TestSpansAreCurrent(t *testing.T) {
 // excludes lint outright now; this is what would notice if that stopped
 // being true.
 func TestEveryGeneratedEntryHasContent(t *testing.T) {
-	for _, r := range check.Catalog() {
+	for _, r := range check.AllRefusals() {
 		if !ownsEntry(r) {
 			continue
 		}
@@ -102,8 +102,8 @@ func TestGeneratedHeadingsMatchTheRefusalsThatCiteThem(t *testing.T) {
 	}
 	_, freq, measured := readForTest(t, root)
 
-	rendered := docsref.Headings(renderEntries(check.Catalog(), freq, measured))
-	for _, r := range check.Catalog() {
+	rendered := docsref.Headings(renderEntries(check.AllRefusals(), freq, measured))
+	for _, r := range check.AllRefusals() {
 		if !ownsEntry(r) {
 			continue
 		}

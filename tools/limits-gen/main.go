@@ -21,14 +21,19 @@
 // section, marked the way tools/survey-gen already marks its own (see
 // internal/live/mdspan):
 //
-//   - refusal-table: every refusal in internal/live/check's catalog, ranked
-//     by how many corpus configurations it blocks, with where it is
+//   - refusal-table: every refusal in internal/live/check's AllRefusals,
+//     ranked by how many corpus configurations it blocks, with where it is
 //     documented and which package raises it.
 //   - refusal-entries: a heading and a description per refusal that has no
-//     hand-written entry of its own - the identity and pass-through
-//     registries. Their DocsRef points at the heading written here, which is
-//     what closes the loop: internal/live/check's
+//     hand-written entry of its own - the identity, pass-through, stamping
+//     and discovery registries. Their DocsRef points at the heading written
+//     here, which is what closes the loop: internal/live/check's
 //     TestEveryRefusalDocsRefIsResolvable fails if this has not been run.
+//
+// AllRefusals rather than Catalog is deliberate. The corpus ranks the two
+// passes it can run without a cloud; documentation covers all five, and a
+// stamping refusal shows a dash in the frequency columns because it has
+// never been measured rather than because it blocks nothing.
 //
 // The narrative sections stay hand-written, per #110's own scope: the
 // "Enforced today" entries, which carry a Construct / Why banned /
@@ -101,7 +106,7 @@ func run() error {
 		return err
 	}
 
-	catalog := check.Catalog()
+	catalog := check.AllRefusals()
 	out, err := markers.Replace(limitationsRel, string(src), spanTable, renderTable(catalog, freq, measured))
 	if err != nil {
 		return err
@@ -206,17 +211,20 @@ func renderTable(catalog []check.Refusal, freq map[string]frequency, measured bo
 			configs, sites, r.Layer, mdCell(r.ID), r.RaisedBy, mdCell(documentedAt(r)))
 	}
 
-	fmt.Fprintf(&b, "\n**%d refusals**, from three registries: `internal/live/lint`'s rule "+
-		"table, `internal/live/identity`'s and `internal/live/passthrough`'s. "+
-		"A refusal blocking nothing is not an error in this table - it is the "+
-		"interesting end of it, and a set assembled by watching output could "+
-		"never contain one.\n", len(catalog))
+	fmt.Fprintf(&b, "\n**%d refusals**, from every registry the live path has: "+
+		"`internal/live/lint`'s rule table, and `internal/live/identity`'s, "+
+		"`internal/live/passthrough`'s, `internal/live/stamp`'s and "+
+		"`internal/live/discovery`'s. A refusal blocking nothing is not an "+
+		"error in this table - it is the interesting end of it, and a set "+
+		"assembled by watching output could never contain one.\n", len(catalog))
 	if measured {
 		fmt.Fprintf(&b, "\nCounts are from `%s`, over the corpus that artifact names. "+
 			"Read them as a ranking and not as a rate: the corpus leans on module "+
 			"`examples/`, which use variables, conditionals and `dynamic` blocks "+
 			"harder than an ordinary estate does. A dash means the refusal is in "+
-			"the registries but was not in the artifact when this was generated.\n", corpusRel)
+			"the registries but was not measured. Every `stamp` and `discovery` "+
+			"row shows one: those two passes need a cloud, so no corpus run "+
+			"reaches them.\n", corpusRel)
 	} else {
 		fmt.Fprintf(&b, "\nCounts are absent because `%s` was not present when this was "+
 			"generated. Run `just corpus-fetch && just corpus`, then regenerate.\n", corpusRel)
