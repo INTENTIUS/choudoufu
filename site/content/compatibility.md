@@ -27,21 +27,27 @@ there is no marker to write.
 
 Most of the refusals below are a consequence of that one rule.
 
-## How to find out
-
-Add a `live` block to a copy of your configuration and run:
+## Ask it directly
 
 ```
-choudoufu validate
+choudoufu live-check ./
 ```
 
-Lint and identity resolution run before anything touches a provider, so the
-refusals come back immediately and without cloud credentials. Work through
-them, then run `choudoufu plan` against a non-production account.
+Point it at any OpenTofu configuration. It needs no `live` block, makes no
+cloud calls, and does not care whether the directory has ever heard of this
+fork. It prints a verdict, then every refusal that fired with its site count,
+the types responsible, and what to do about each.
 
-A single command that reports this as a verdict, without needing a `live`
-block at all, is
-[issue #114](https://github.com/INTENTIUS/choudoufu/issues/114).
+Run `choudoufu init` in the directory first if you can. With provider schemas
+available it judges types from the provider's own identity schema as well as
+the built-in table, and admits more; without them it says so and tells you the
+answer is pessimistic.
+
+**It checks two of the five stages.** Lint and identity resolution run without a
+provider, which is what makes the command fast and credential-free. Marker
+stamping, discovery and projection need a cloud and are not checked, and the
+command says so every time. A clean result is necessary, not sufficient: run a
+plan against a non-production account before believing a migration will work.
 
 ## Your provider
 
@@ -310,15 +316,35 @@ block in a small root module that stock tooling has no reason to touch.
 A sidecar configuration file that keeps `.tf` files free of non-standard syntax
 is [#72](https://github.com/INTENTIUS/choudoufu/issues/72).
 
-## What this page does not cover
+## Where this page's ordering comes from
 
-`choudoufu validate` sees lint and identity resolution. It does not see marker
-stamping, live discovery, or anything that needs a provider call, so a clean
-validate is necessary and not sufficient. Run a plan against a non-production
-account before believing a migration will work.
+Not from opinion, as of August 2026. `live/corpus-refusals.json` in the
+repository ranks which refusals actually fire across 105 configurations, 74 of
+them the `examples/` root modules of ten `terraform-aws-modules` repositories
+pinned to exact commits.
 
-The frequencies described here come from an audit of the live path rather than
-from measurement against a corpus of real configurations. Building that
-measurement is
-[#102](https://github.com/INTENTIUS/choudoufu/issues/102), and it will change
-the ordering on this page.
+The measured top blockers, by configurations affected:
+
+| Configs | Refusal |
+|---|---|
+| 66 | an expression that cannot be computed statically |
+| 58 | a resource type outside the subset |
+| 57 | a dynamic value where a static one is required |
+| 49 | a logical resource with no `record_store` declared |
+| 37 | an identity that could not be built |
+| 35 | `count.index` in a resource argument |
+| 30 | a module output used where a static value is required |
+
+Four of the top seven are the static-evaluability rule at the top of this page,
+which is why it leads.
+
+**Do not read that corpus as a compatibility rate.** Module `examples/`
+directories exist to demonstrate a module's full surface, so they lean much
+harder on variables, conditionals and `dynamic` blocks than a configuration
+describing one deployment. It reports worse than ordinary user code almost
+certainly. It is a good ranking and a bad percentage, and the work to give it
+an estate-shaped population is
+[#118](https://github.com/INTENTIUS/choudoufu/issues/118).
+
+Run `choudoufu live-check` on your own configuration rather than inferring
+anything about it from that table.
