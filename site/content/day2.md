@@ -135,9 +135,8 @@ live {
 The label picks the backend: `local`, `ssm` or `s3`. Those resources then run
 through the stock provider lifecycle exactly as upstream.
 
-For an effect that needs an auditable record of *what* ran, `live/RECEIPTS.md`
-covers the receipt pattern and the guards on it, including why values are
-hashes and never `SecureString`.
+[Where things are stored](storage.html) covers the backends, what the records
+hold, and why a receipt is a different thing that must not go in there.
 
 ## Running this with other people
 

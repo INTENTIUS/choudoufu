@@ -239,8 +239,8 @@ live {
 }
 ```
 
-The label picks the backend: `local`, `ssm` or `s3`. `key_prefix` and `region`
-are optional overrides; `s3` also needs a `bucket`.
+The label picks the backend: `local`, `ssm` or `s3`. [Where things are
+stored](storage.html) has the arguments and how to choose.
 
 Without one they are refused. With one they run through the stock provider
 lifecycle exactly as upstream.

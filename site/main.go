@@ -106,6 +106,13 @@ var docPages = []docPage{
 		ContentFile: "day2.md",
 	},
 	{
+		Slug:        "storage",
+		NavLabel:    "Where things are stored",
+		Title:       "Where things are stored",
+		Section:     "Start Here",
+		ContentFile: "storage.md",
+	},
+	{
 		Slug:        "faq",
 		NavLabel:    "Questions",
 		Title:       "Questions",
