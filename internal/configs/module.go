@@ -354,6 +354,24 @@ func (m *Module) appendFile(file *File) hcl.Diagnostics {
 
 	for _, s := range file.Lives {
 		if m.Live != nil {
+			if s.Sidecar != m.Live.Sidecar {
+				// One source is the sidecar file and the other is a live
+				// block in a .tf file. That is not a duplicate block to
+				// deduplicate but two competing sources of truth, and the
+				// error names both places so the fix is deleting one file
+				// or one block, whichever the author meant less.
+				sidecar, block := s, m.Live
+				if !sidecar.Sidecar {
+					sidecar, block = block, sidecar
+				}
+				diags = append(diags, &hcl.Diagnostic{
+					Severity: hcl.DiagError,
+					Summary:  "Both a live sidecar file and a live block are present",
+					Detail:   fmt.Sprintf("A module's live configuration must have one source of truth: either the %s sidecar file or a 'live' block inside a terraform block, not both. The sidecar file is %s; the live block is at %s. Remove one of them.", LiveSidecarFilename, sidecar.DeclRange.Filename, block.DeclRange),
+					Subject:  &s.DeclRange,
+				})
+				continue
+			}
 			diags = append(diags, &hcl.Diagnostic{
 				Severity: hcl.DiagError,
 				Summary:  "Duplicate live configuration",

@@ -15,10 +15,11 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-// Live represents a "live" block inside a "terraform" block in a
-// module. Its presence is what puts a run into stateless mode: no state file,
-// no backend, no lock, with prior state rebuilt from the live system on every
-// operation.
+// Live represents a module's live configuration: a "live" block inside a
+// "terraform" block, or the [LiveSidecarFilename] sidecar file, whose whole
+// body is the same content the block would carry. Its presence is what puts a
+// run into stateless mode: no state file, no backend, no lock, with prior
+// state rebuilt from the live system on every operation.
 //
 // It is deliberately a configuration block and not a command-line flag.
 // Whether a team's infrastructure has an authoritative state file is a
@@ -58,8 +59,18 @@ type Live struct {
 
 	// DeclRange is the "live" block's own header, which is what a diagnostic
 	// about the block as a whole points at - a backend beside it, or a
-	// stateless refusal that has no more specific argument to name.
+	// stateless refusal that has no more specific argument to name. For a
+	// live configuration read from the sidecar file it is the start of that
+	// file, so the same diagnostics point at the file instead.
 	DeclRange hcl.Range
+
+	// Sidecar records that this live configuration was read from the
+	// [LiveSidecarFilename] sidecar file rather than from a live block inside
+	// a terraform block. The two sources are equivalent everywhere else; the
+	// field exists so that a module carrying both can be told exactly which
+	// two places disagree, rather than getting the duplicate-block error
+	// meant for two live blocks in .tf files.
+	Sidecar bool
 
 	// Policy is the optional nested "policy" block: one verb per ownership
 	// quadrant (declared-in-source x carries-the-tag), plus the tag those
@@ -271,11 +282,21 @@ var recordStoreBlockSchema = &hcl.BodySchema{
 }
 
 func decodeLiveBlock(block *hcl.Block) (*Live, hcl.Diagnostics) {
+	return decodeLiveBody(block.Body, block.DefRange)
+}
+
+// decodeLiveBody decodes a live configuration from its body, which is either
+// a live block's body (declRange being the block header) or the whole body of
+// the sidecar file (declRange being the start of that file). Every rule is
+// shared: the sidecar is a second place to write the same content, not a
+// second dialect, so the estate grammar, the snapshot tombstones and the
+// nested blocks all behave identically in both.
+func decodeLiveBody(body hcl.Body, declRange hcl.Range) (*Live, hcl.Diagnostics) {
 	s := &Live{
-		DeclRange: block.DefRange,
+		DeclRange: declRange,
 	}
 
-	content, diags := block.Body.Content(liveBlockSchema)
+	content, diags := body.Content(liveBlockSchema)
 
 	if attr, exists := content.Attributes["estate"]; exists {
 		s.EstateRange = attr.Range

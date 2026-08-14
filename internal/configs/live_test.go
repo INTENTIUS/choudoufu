@@ -6,6 +6,7 @@
 package configs
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -319,6 +320,140 @@ func TestModule_liveConflicts(t *testing.T) {
 				t.Errorf("wrong diagnostic:\n%s", diags.Error())
 			}
 		})
+	}
+}
+
+// TestModule_liveSidecar is GitHub issue #72's happy path: a directory whose
+// .tf files carry nothing choudoufu-specific, with the live configuration in
+// the estate.chdf.hcl sidecar file instead. The sidecar's body is the live
+// block's content, decoded by the same decoder, so nested blocks come
+// through identically.
+func TestModule_liveSidecar(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/live-sidecar")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	if mod.Live == nil {
+		t.Fatal("no live configuration was decoded from the sidecar")
+	}
+	if !mod.Live.Sidecar {
+		t.Error("Sidecar is false for a live configuration read from the sidecar file")
+	}
+	if got, want := mod.Live.Estate, "my-estate"; got != want || !mod.Live.EstateSet {
+		t.Errorf("estate is %q (set=%v), want %q (set=true)", got, mod.Live.EstateSet, want)
+	}
+	rs := mod.Live.RecordStore
+	if rs == nil {
+		t.Fatal("the sidecar's record_store block was not decoded")
+	}
+	if rs.Type != "local" || rs.Path != ".tofu-records" {
+		t.Errorf("record_store decoded as %+v, want local/.tofu-records", rs)
+	}
+	if got, want := mod.Live.DeclRange.Filename, "testdata/valid-modules/live-sidecar/"+LiveSidecarFilename; filepath.ToSlash(got) != want {
+		t.Errorf("DeclRange filename is %q, want %q", got, want)
+	}
+}
+
+// TestModule_liveSidecarSelectiveBackendWall is the hazard the maintainer
+// named on issue #72: SelectiveLoadBackend deliberately carries Lives
+// alongside Backends and CloudConfigs so the backend-refusal wall in
+// Module.appendFile can see all three in one load - the load every command
+// performs before it would reach for a state manager. The sidecar must be
+// visible under that same selective load, or a sidecar user's backend block
+// would sail past the wall and a command would touch state while believing
+// it is stateless.
+func TestModule_liveSidecarSelectiveBackendWall(t *testing.T) {
+	parser := NewParser(nil)
+	_, diags := parser.LoadConfigDirSelective("testdata/invalid-modules/live-sidecar-and-backend", RootModuleCallForTesting(), SelectiveLoadBackend)
+	if !diags.HasErrors() {
+		t.Fatal("a sidecar live configuration beside a backend block loaded with no errors under SelectiveLoadBackend")
+	}
+	if !strings.Contains(diags.Error(), "Both a backend and a live configuration are present") {
+		t.Errorf("the backend wall did not fire for a sidecar live configuration:\n%s", diags.Error())
+	}
+}
+
+// TestModule_liveSidecarSelectiveBackendVisible is the positive half of the
+// wall test: a selective backend load of a sidecar-only configuration
+// surfaces the Live, which is what puts plain plan and apply into stateless
+// mode before any state manager is built.
+func TestModule_liveSidecarSelectiveBackendVisible(t *testing.T) {
+	for name, load := range map[string]SelectiveLoader{
+		"SelectiveLoadBackend": SelectiveLoadBackend,
+		"SelectiveLoadAll":     SelectiveLoadAll,
+	} {
+		t.Run(name, func(t *testing.T) {
+			parser := NewParser(nil)
+			mod, diags := parser.LoadConfigDirSelective("testdata/valid-modules/live-sidecar", RootModuleCallForTesting(), load)
+			if diags.HasErrors() {
+				t.Fatalf("unexpected diagnostics: %s", diags.Error())
+			}
+			if mod.Live == nil || !mod.Live.Sidecar {
+				t.Fatalf("the sidecar live configuration is not visible under %s: %+v", name, mod.Live)
+			}
+		})
+	}
+
+	t.Run("LoadConfigDirUneval", func(t *testing.T) {
+		parser := NewParser(nil)
+		mod, diags := parser.LoadConfigDirUneval("testdata/valid-modules/live-sidecar", SelectiveLoadAll)
+		if diags.HasErrors() {
+			t.Fatalf("unexpected diagnostics: %s", diags.Error())
+		}
+		if mod.Live == nil || !mod.Live.Sidecar {
+			t.Fatalf("the sidecar live configuration is not visible under LoadConfigDirUneval: %+v", mod.Live)
+		}
+	})
+
+	t.Run("LoadConfigDirWithTests", func(t *testing.T) {
+		parser := NewParser(nil)
+		mod, diags := parser.LoadConfigDirWithTests("testdata/valid-modules/live-sidecar", DefaultTestDirectory, RootModuleCallForTesting())
+		if diags.HasErrors() {
+			t.Fatalf("unexpected diagnostics: %s", diags.Error())
+		}
+		if mod.Live == nil || !mod.Live.Sidecar {
+			t.Fatalf("the sidecar live configuration is not visible under LoadConfigDirWithTests: %+v", mod.Live)
+		}
+	})
+}
+
+// TestModule_liveSidecarAndBlockConflict: the sidecar and the in-terraform{}
+// form are two spellings of one configuration, so a module carrying both has
+// two sources of truth and is refused with an error naming both places -
+// not the duplicate-block error meant for two live blocks in .tf files.
+func TestModule_liveSidecarAndBlockConflict(t *testing.T) {
+	_, diags := testModuleFromDir("testdata/invalid-modules/live-sidecar-and-block")
+	if !diags.HasErrors() {
+		t.Fatal("a module with both a sidecar and a live block loaded with no errors")
+	}
+	for _, want := range []string{
+		"Both a live sidecar file and a live block are present",
+		LiveSidecarFilename,
+		"main.tf",
+	} {
+		if !strings.Contains(diags.Error(), want) {
+			t.Errorf("the conflict error does not mention %q:\n%s", want, diags.Error())
+		}
+	}
+}
+
+// TestModule_liveSidecarSnapshotTombstone: the sidecar goes through the same
+// decodeLiveBody as the in-terraform{} form, so issue #109's tombstones for
+// the removed snapshot arguments fire there too, with the authored removal
+// error rather than HCL's generic unsupported-argument one.
+func TestModule_liveSidecarSnapshotTombstone(t *testing.T) {
+	_, diags := testModuleFromDir("testdata/invalid-modules/live-sidecar-snapshots-removed")
+	if !diags.HasErrors() {
+		t.Fatal("a sidecar carrying the removed snapshots argument loaded with no errors")
+	}
+	for _, want := range []string{
+		"Observational snapshots were removed",
+		"Remove the argument",
+		"record_store",
+	} {
+		if !strings.Contains(diags.Error(), want) {
+			t.Errorf("the removal error does not mention %q:\n%s", want, diags.Error())
+		}
 	}
 }
 
