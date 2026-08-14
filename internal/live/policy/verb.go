@@ -43,9 +43,14 @@ const (
 	// visibility without a side effect, available in every quadrant.
 	Report Verb = "report"
 
-	// Delete is scoped account reconciliation - aws-nuke semantics - and
-	// gets the strictest treatment: see internal/live/lint's refusal of a
-	// delete quadrant with no scope block.
+	// Delete means two different things by quadrant. In undeclared_untagged
+	// it is scoped account reconciliation - aws-nuke semantics - and gets the
+	// strictest treatment: see internal/live/lint's refusal of THAT quadrant
+	// with no scope block, and [Policy.Scope]'s only consumer in
+	// internal/live/discovery's reconcile pass. In undeclared_tagged it is
+	// the ordinary orphan sweep over resources already carrying this estate's
+	// marker, which is its own scope; it is also that quadrant's DefaultVerb,
+	// so it needs no scope block and never did (#101).
 	Delete Verb = "delete"
 )
 

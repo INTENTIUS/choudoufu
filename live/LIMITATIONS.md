@@ -406,7 +406,7 @@ and `aws_acm_certificate_validation` (a waiter pretending to be a resource;
 it moves to lifecycle sequencing, the same forwarding as `time_sleep`).
 `live/SURVEY.md`, "The three the rule excludes", has the full account.
 
-**Forwarding address.** For types awaiting wiring: the provider survey
+**Forwarding address.** For types not yet covered: the provider survey
 (`live/SURVEY.md`) and the generated admission table, which grows as
 ratified identity rows are added. Note that provider resource identity
 schemas are already plumbed and load-bearing (issue #22): `admitted()`

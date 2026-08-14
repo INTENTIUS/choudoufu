@@ -88,10 +88,11 @@ const (
 	// example). See policy.go.
 	RulePolicyVerb Rule = "policy-verb"
 
-	// RulePolicyScope covers a policy block quadrant explicitly assigned
-	// "delete" with no scope block: an unscoped account-wide purge, which
-	// GitHub issue #67 makes a lint refusal rather than a default. See
-	// policy.go.
+	// RulePolicyScope covers undeclared_untagged = "delete" with no scope
+	// block: an unscoped account-wide purge, which GitHub issue #67 makes a
+	// lint refusal rather than a default. Only that quadrant -
+	// undeclared_tagged's delete is the ordinary orphan sweep, scoped by the
+	// estate's own marker, and needs no scope block (#101). See policy.go.
 	RulePolicyScope Rule = "policy-scope"
 
 	// RulePolicyThreshold covers a policy block's threshold argument set to

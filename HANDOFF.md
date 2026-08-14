@@ -28,7 +28,7 @@ never recomputed. Run these three first. They take under a minute and each one
 tests a different claim this document depends on.
 
 ```sh
-# 1. Effects are admitted behind record_store (the message says otherwise).
+# 1. Effects are admitted behind record_store.
 grep -n 'ClassRecordAdmitted && recordStoreConfigured' internal/live/lint/lint.go
 # expect a hit at internal/live/lint/lint.go:267
 
@@ -49,7 +49,9 @@ file before doing anything else.
 Two other things in here are weaker than they read. The phase order after phase
 2 is a prediction about what an instrument that does not exist yet will say;
 `-out` plus `apply <planfile>` being the top refusal is a guess, not a finding.
-And the count of 77 hard refusals came from one audit and was not recomputed.
+And every count in the next section came from an agent; two of them were later
+recomputed and disagreed with the original, which is why they are hedged there
+rather than quoted.
 
 ## The invariant: no state ops (#73)
 
@@ -81,12 +83,18 @@ thing it rewards.
 The gate users actually hit is **admission**, and above that the
 **config-language subset**. Measured 2026-08-13:
 
-- of the 36 most commonly used AWS types, 35 are admitted
-- of the next 73, 17 are not, and they are connective tissue:
-  `aws_lambda_permission`, `aws_cloudwatch_event_rule` and `_target`,
-  `aws_api_gateway_deployment` and `_resource`, `aws_ecs_service`
-- the live path carries 77 hard refusals, roughly two dozen common in
-  production Terraform
+- of a 36-type "most commonly used" list, 35 are admitted; of the next 73, 17
+  are not, and they are connective tissue: `aws_lambda_permission`,
+  `aws_cloudwatch_event_rule` and `_target`, `aws_api_gateway_deployment` and
+  `_resource`, `aws_ecs_service`. **Those six are verified unadmitted; the
+  ratios are not reproducible** - the 36/73 list exists nowhere in the repo and
+  was one agent's judgement of real-world usage. Treat them as a shape, not a
+  measurement, until #102 produces one.
+- the live path carries a lot of hard refusals - one audit enumerated 77,
+  a later recount of distinct error-severity summaries over
+  `internal/live/**` plus `internal/command/live_*.go` found 128. Neither
+  defined "hard refusal" precisely enough to reproduce. The enumerated
+  inventory is on #101; the count is not load-bearing for anything
 
 **Type coverage is not the binding constraint.** A user at 100% type coverage
 still fails on `backend "s3"`, `-out` plus `apply <planfile>` (how CI runs
@@ -110,9 +118,9 @@ completed). They are read from unconfigured plugins early
 cover when the schema settles it. 479 types carry one at provider 6.59.0.
 
 **Effects already work.** `null_resource` and friends are admitted the moment a
-`live` block declares a `record_store` (`lint.go:266`). The refusal message at
-`logical_type.go:290` still says the support "does not exist yet" and never
-mentions `record_store`. That message is wrong, not the behaviour (#101).
+`live` block declares a `record_store` (`lint.go:267`). The refusal message
+used to claim the support "does not exist yet"; that was fixed in `05d52b319`
+and now names `record_store` and shows the block to write.
 
 **The product layer is further along than any generator document suggests.**
 `live-plan`, `live-mv`, `live-import` and plain `plan`/`apply` under a `live`
@@ -128,9 +136,11 @@ around it.
 
 ## Phase order
 
-1. **Stop misreporting what ships** (#101). Refusal messages that name the real
-   cause and remedy; `LIMITATIONS.md` generated from the rule table so a rule
-   cannot exist without a doc entry.
+1. ~~**Stop misreporting what ships** (#101)~~ - **done.** Every refusal message
+   in lint, identity, stamp, discovery, projection and the command layer was
+   audited and corrected. Its second half, generating `LIMITATIONS.md` from an
+   enumerable rule table, is **#110** and is half-landed: the identity registry
+   exists (`refusals.go`), the renderer does not.
 2. **Build the scoreboard** (#102). Real OpenTofu configs, lint plus identity
    resolution, no cloud. Output is a ranked table of which refusals fire.
 3. **Close the silent hazards, then the top measured refusals** (#103, #104).
@@ -167,8 +177,9 @@ The doc cache is offline and complete at
 `~/Library/Caches/choudoufu/importdocs-gen/6.59.0/`, 1699 files. Re-running a
 doc sweep needs no network.
 
-`just lint` runs the repo twice, once per GOOS, in about 41 seconds. Six issues
-are outstanding and all predate this work.
+`just lint` does NOT complete: the `GOOS=windows` pass fails, `make` exits 2,
+and the darwin pass never runs. About 23 seconds to that point. Six issues are
+outstanding (5 staticcheck, 1 unused) and all predate this work.
 
 ## Working model
 
