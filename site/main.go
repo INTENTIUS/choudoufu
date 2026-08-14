@@ -33,19 +33,56 @@ var templatesFS embed.FS
 //go:embed static/*
 var staticFS embed.FS
 
-// docPage is one fork-unique doc rendered from a source markdown/mdx file
-// that lives elsewhere in the repository. Source files are read in place;
-// this generator never edits or moves them.
+//go:embed content/*.md
+var contentFS embed.FS
+
+// docPage is one page of the site. Its markdown comes from one of two
+// places, and exactly one of ContentFile or SourcePath names it.
+//
+// ContentFile names a file under site/content/, written for this site and
+// for no other reader, embedded into the generator binary. That is where
+// pages aimed at the two user paths live.
+//
+// SourcePath names a file elsewhere in the repository, read in place. Those
+// files are written for contributors and have their own job; this generator
+// never edits or moves them.
 type docPage struct {
-	Slug       string // output basename, without .html
-	NavLabel   string
-	Title      string
-	Section    string // sidebar group the page is listed under
-	SourcePath string // relative to the repo root
-	IsMDX      bool   // needs frontmatter + admonition preprocessing
+	Slug        string // output basename, without .html
+	NavLabel    string
+	Title       string
+	Section     string // sidebar group the page is listed under
+	ContentFile string // basename under site/content/
+	SourcePath  string // relative to the repo root
+	IsMDX       bool   // needs frontmatter + admonition preprocessing
+}
+
+// read returns the page's markdown, from whichever of the two sources it
+// declares, and the location to name in an error.
+func (p docPage) read(root string) ([]byte, string, error) {
+	switch {
+	case p.ContentFile != "" && p.SourcePath != "":
+		return nil, "", fmt.Errorf("page %q sets both ContentFile and SourcePath", p.Slug)
+	case p.ContentFile != "":
+		where := "site/content/" + p.ContentFile
+		data, err := contentFS.ReadFile("content/" + p.ContentFile)
+		return data, where, err
+	case p.SourcePath != "":
+		where := filepath.Join(root, p.SourcePath)
+		data, err := os.ReadFile(where)
+		return data, where, err
+	default:
+		return nil, "", fmt.Errorf("page %q sets neither ContentFile nor SourcePath", p.Slug)
+	}
 }
 
 var docPages = []docPage{
+	{
+		Slug:        "start",
+		NavLabel:    "Start a new estate",
+		Title:       "Start a new estate",
+		Section:     "Start Here",
+		ContentFile: "start.md",
+	},
 	{
 		Slug:       "faq",
 		NavLabel:   "FAQ",
@@ -106,17 +143,13 @@ var docPages = []docPage{
 }
 
 // navItem is one link in the sidebar or on the landing page. A Soon item
-// has no page yet and renders greyed out (the coming-soon providers).
+// has no page yet and renders greyed out.
 type navItem struct {
 	Href   string
 	Label  string
 	Active bool
 	Soon   bool
 }
-
-// comingSoonProviders render greyed out under the Providers section, so
-// the nav itself says AWS is the only provider today and what is next.
-var comingSoonProviders = []string{"Azure", "Google Cloud"}
 
 // sidebarSection is one titled group of doc links in the sidebar.
 type sidebarSection struct {
@@ -247,9 +280,12 @@ func run(root, out string) error {
 
 	// Doc pages.
 	for _, p := range docPages {
-		srcPath := filepath.Join(root, p.SourcePath)
-		raw, err := os.ReadFile(srcPath)
-		if err != nil {
+		raw, srcPath, err := p.read(root)
+		switch {
+		case err != nil && srcPath == "":
+			// The page is misdeclared; there is no location to name.
+			return err
+		case err != nil:
 			return fmt.Errorf("reading %s: %w", srcPath, err)
 		}
 
@@ -383,14 +419,6 @@ func buildSidebar(current string) []sidebarSection {
 			continue
 		}
 		sections = append(sections, sidebarSection{Title: p.Section, Items: []navItem{item}})
-	}
-	for i := range sections {
-		if sections[i].Title != "Providers" {
-			continue
-		}
-		for _, name := range comingSoonProviders {
-			sections[i].Items = append(sections[i].Items, navItem{Label: name, Soon: true})
-		}
 	}
 	return sections
 }
