@@ -1,0 +1,21 @@
+{
+  "_comment": [
+    "The corpus tools/corpus-gen measures, as globs rather than a list of paths:",
+    "adding a configuration to the corpus should mean adding the configuration.",
+    "",
+    "Origin is carried into live/corpus-refusals.json and is the field that",
+    "decides what a ranking over this corpus is worth. The seed below is this",
+    "repository's own estate fixtures, written by this project against what it",
+    "already admits. A run over them exercises the instrument; it does not",
+    "measure the product promise, which is about configurations nobody here",
+    "wrote. GitHub issue #102 names that as its one genuinely undecided input.",
+    "Third-party sources belong here as they are obtained, each with its own",
+    "origin string."
+  ],
+  "sources": [
+    {
+      "glob": "live/e2e/estates/*",
+      "origin": "in-repo fixture"
+    }
+  ]
+}

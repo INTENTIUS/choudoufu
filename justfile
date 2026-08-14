@@ -39,3 +39,11 @@ site-serve port="8000": site
 # Lint exactly as upstream CI would (golangci-lint, both GOOS passes)
 lint:
     make golangci-lint
+
+# The config-language scoreboard (#102): rank which refusals fire across the corpus in live/corpus-manifest.json, into live/corpus-refusals.json. No cloud.
+corpus:
+    go run ./tools/corpus-gen
+
+# Will this configuration work under live markers? (#114) DIR defaults to "."
+live-check dir=".":
+    go run ./cmd/choudoufu live-check {{dir}}

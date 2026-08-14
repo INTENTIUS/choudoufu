@@ -1,0 +1,796 @@
+{
+  "entries": [
+    {
+      "name": "live/e2e/estates/ai-location",
+      "blocked": true,
+      "loaded": true,
+      "instances": 35,
+      "sites": 1,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/apigateway",
+      "blocked": true,
+      "loaded": true,
+      "instances": 19,
+      "sites": 6,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/aps",
+      "blocked": false,
+      "loaded": true,
+      "instances": 5,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/compute-platforms",
+      "blocked": false,
+      "loaded": true,
+      "instances": 28,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/connect-euc",
+      "blocked": false,
+      "loaded": true,
+      "instances": 34,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/data",
+      "blocked": false,
+      "loaded": true,
+      "instances": 16,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/data-movement",
+      "blocked": false,
+      "loaded": true,
+      "instances": 28,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/databases",
+      "blocked": false,
+      "loaded": true,
+      "instances": 33,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/devtools",
+      "blocked": false,
+      "loaded": true,
+      "instances": 21,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/dynamodb-elasticache",
+      "blocked": false,
+      "loaded": true,
+      "instances": 9,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/ec2-core",
+      "blocked": false,
+      "loaded": true,
+      "instances": 13,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/ec2-networking",
+      "blocked": true,
+      "loaded": true,
+      "instances": 37,
+      "sites": 5,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/ecs-eks",
+      "blocked": true,
+      "loaded": true,
+      "instances": 8,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/governance",
+      "blocked": false,
+      "loaded": true,
+      "instances": 24,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/iam-ecr",
+      "blocked": false,
+      "loaded": true,
+      "instances": 9,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/identity",
+      "blocked": true,
+      "loaded": true,
+      "instances": 19,
+      "sites": 5,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/iot",
+      "blocked": false,
+      "loaded": true,
+      "instances": 12,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/lambda",
+      "blocked": false,
+      "loaded": true,
+      "instances": 6,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/media",
+      "blocked": false,
+      "loaded": true,
+      "instances": 9,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/messaging",
+      "blocked": false,
+      "loaded": true,
+      "instances": 8,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/networking-advanced",
+      "blocked": true,
+      "loaded": true,
+      "instances": 41,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/observability",
+      "blocked": true,
+      "loaded": true,
+      "instances": 29,
+      "sites": 1,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/rds",
+      "blocked": true,
+      "loaded": true,
+      "instances": 16,
+      "sites": 1,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/remainder",
+      "blocked": false,
+      "loaded": true,
+      "instances": 25,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/route53-cloudfront",
+      "blocked": true,
+      "loaded": true,
+      "instances": 29,
+      "sites": 1,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/s3",
+      "blocked": false,
+      "loaded": true,
+      "instances": 6,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/sagemaker",
+      "blocked": false,
+      "loaded": true,
+      "instances": 28,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/security",
+      "blocked": false,
+      "loaded": true,
+      "instances": 47,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/storage",
+      "blocked": false,
+      "loaded": true,
+      "instances": 18,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/stragglers",
+      "blocked": false,
+      "loaded": true,
+      "instances": 12,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    },
+    {
+      "name": "live/e2e/estates/streaming",
+      "blocked": false,
+      "loaded": true,
+      "instances": 14,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": false
+    }
+  ],
+  "refusals": [
+    {
+      "layer": "identity",
+      "id": "Not an identity attribute",
+      "title": "Not an identity attribute",
+      "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
+      "configs": 9,
+      "sites": 20,
+      "examples": [
+        "live/e2e/estates/ai-location/ai-location.tf:401",
+        "live/e2e/estates/apigateway/apigateway.tf:72",
+        "live/e2e/estates/apigateway/apigateway.tf:81",
+        "live/e2e/estates/apigateway/apigateway.tf:91",
+        "live/e2e/estates/apigateway/apigateway.tf:99"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Identity argument not set",
+      "title": "Identity argument not set",
+      "what": "The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.",
+      "configs": 4,
+      "sites": 6,
+      "examples": [
+        "live/e2e/estates/apigateway/apigateway.tf:18",
+        "live/e2e/estates/ec2-networking/ec2-networking.tf:225",
+        "live/e2e/estates/ec2-networking/ec2-networking.tf:329",
+        "live/e2e/estates/ecs-eks/ecs-eks.tf:104",
+        "live/e2e/estates/identity/identity.tf:88"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Circular for_each reference",
+      "title": "Circular for_each reference",
+      "what": "A resource's for_each depends on its own instances, directly or through another resource's for_each.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Circular identity reference",
+      "title": "Circular identity reference",
+      "what": "A resource's identity is composed, directly or transitively, from its own identity.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Configuration loaded without a static evaluator",
+      "title": "Configuration loaded without a static evaluator",
+      "what": "The configuration was not loaded through configs.Parser.LoadConfigDir or the configload package. A caller error, not a configuration one.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Expression not evaluable here",
+      "title": "Expression not evaluable here",
+      "what": "Static evaluation of an identity argument panicked and was recovered; most often an expression inside a keyed module resolving, several layers down, back to the module call's own each.key or each.value.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Identity derived from a sensitive value",
+      "title": "Identity derived from a sensitive value",
+      "what": "An identity argument reads a sensitive variable. Import identities are written to logs and plan output.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Identity derived from an impure function",
+      "title": "Identity derived from an impure function",
+      "what": "An identity argument calls uuid(), timestamp() or bcrypt(), which return a different value on every evaluation.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Identity not resolvable from configuration",
+      "title": "Identity not resolvable from configuration",
+      "what": "An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Identity table and provider schema disagree",
+      "title": "Identity table and provider schema disagree",
+      "what": "The identity table and the installed provider's schema differ about a type in a way that is not fatal; reported as a warning.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Invalid count",
+      "title": "Invalid count",
+      "what": "A count expression is not a whole non-negative number.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Invalid for_each set",
+      "title": "Invalid for_each set",
+      "what": "A for_each set's element type is not a string.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Invalid for_each value",
+      "title": "Invalid for_each value",
+      "what": "A for_each value is neither a map nor a set of strings.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "No configuration to resolve",
+      "title": "No configuration to resolve",
+      "what": "Resolution was handed an empty configuration. A caller error, not a configuration one.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "No configuration to scan",
+      "title": "No configuration to scan",
+      "what": "Signal collection was handed an empty configuration. A caller error, not a configuration one.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Non-static count expression",
+      "title": "Non-static count expression",
+      "what": "A count expression evaluates to null, or to a value not knowable from configuration alone.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Non-static for_each expression",
+      "title": "Non-static for_each expression",
+      "what": "A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Non-static identity argument",
+      "title": "Non-static identity argument",
+      "what": "An identity argument cannot be evaluated from configuration alone, including an impure call reached through a local or written in .tf.json.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Non-static lifecycle.enabled expression",
+      "title": "Non-static lifecycle.enabled expression",
+      "what": "A lifecycle.enabled expression cannot be resolved from configuration alone.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Non-string identity argument",
+      "title": "Non-string identity argument",
+      "what": "An identity argument evaluates to a value that is not a string.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Null identity argument",
+      "title": "Null identity argument",
+      "what": "An identity argument evaluates to null.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Reference to a module instance that does not exist",
+      "title": "Reference to a module instance that does not exist",
+      "what": "A reference names a module instance the configuration does not expand to.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Reference to a resource instance that does not exist",
+      "title": "Reference to a resource instance that does not exist",
+      "what": "A reference names an instance key the target resource does not expand to, or omits one it requires.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Reference to undeclared resource",
+      "title": "Reference to undeclared resource",
+      "what": "A reference, or a for_each parent, names a resource the module does not declare.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Resource type outside the live-markers subset",
+      "title": "Resource type outside the live-markers subset",
+      "what": "The type is absent from the admission table, and neither the provider's identity schema nor the configuration's own arguments settle its identity.",
+      "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Sensitive for_each expression",
+      "title": "Sensitive for_each expression",
+      "what": "A for_each expression reads a sensitive value; instance keys become marker values.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "The identity table names something the provider does not have",
+      "title": "The identity table names something the provider does not have",
+      "what": "The identity table builds a type's identity from an argument the installed provider's schema has no such name for; usually provider-version skew.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Two resources with the same identity",
+      "title": "Two resources with the same identity",
+      "what": "Two resource blocks resolve to one identity, so one live object would have two owners.",
+      "docs_ref": "live/LIMITATIONS.md, \"duplicate-identity\"",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Unresolvable identity",
+      "title": "Unresolvable identity",
+      "what": "An identity could not be built because a reference it depends on failed; the reference's own error explains why.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Unsupported each.value reference",
+      "title": "Unsupported each.value reference",
+      "what": "each.value is used as other than each.value.\u003cattr\u003e when for_each iterates over a resource.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "for_each key cannot be recorded as a marker",
+      "title": "for_each key cannot be recorded as a marker",
+      "what": "A for_each key contains a character the tofu-address marker cannot carry.",
+      "docs_ref": "live/MARKERS.md, \"Ownership semantics\"",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "for_each over a resource that is not keyed",
+      "title": "for_each over a resource that is not keyed",
+      "what": "for_each iterates a resource that has no instance keys to iterate - one expanded with count, or one using neither count nor for_each.",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "child-module",
+      "title": "This module call cannot be expanded under live resource markers",
+      "docs_ref": "live/LIMITATIONS.md, \"child-module\"",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "count-index",
+      "title": "count.index is not available in resource arguments",
+      "docs_ref": "live/LIMITATIONS.md, \"count-index-in-tag\"",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "for-each-key",
+      "title": "for_each key is outside the marker character set",
+      "docs_ref": "live/LIMITATIONS.md, \"foreach-dotted-key\"",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "logical-resource",
+      "title": "Logical resource is not admitted",
+      "docs_ref": "live/LIMITATIONS.md, \"null-resource\" / \"terraform-data\" / \"local-file\" / \"random-password\" / \"time-sleep\"",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "moved-block",
+      "title": "moved blocks are not available under live resource markers",
+      "docs_ref": "live/LIMITATIONS.md, \"moved-block\"",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "overlong-address",
+      "title": "Resource address does not fit in a marker",
+      "docs_ref": "live/LIMITATIONS.md, \"overlong-address\"",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "policy-scope",
+      "title": "Delete quadrant has no scope block",
+      "docs_ref": "GitHub issue #67, \"Safety rails on the delete quadrant\"",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "policy-threshold",
+      "title": "Policy threshold is not a positive number",
+      "docs_ref": "GitHub issue #67, \"Safety rails on the delete quadrant\"",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "policy-verb",
+      "title": "Policy verb is not valid for its quadrant",
+      "docs_ref": "GitHub issue #67, \"Design\"",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "provisioner",
+      "title": "Provisioners are not available under live resource markers",
+      "docs_ref": "live/LIMITATIONS.md, \"local-exec\" / \"remote-exec\"",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "receipt-leaf",
+      "title": "Nothing may reference a receipt's attributes",
+      "docs_ref": "live/RECEIPTS.md, \"Guard 4. The leaf rule\"",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "receipt-secret",
+      "title": "Receipt inputs reference secrets by pointer, never by value",
+      "docs_ref": "live/RECEIPTS.md, \"Secrets discipline\"",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "receipt-value",
+      "title": "A receipt's value is a hash or a constant, and its type is never SecureString",
+      "docs_ref": "live/RECEIPTS.md, \"Guard 2. Hash-only values, and never SecureString\"",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "remote-state",
+      "title": "terraform_remote_state is not available under live resource markers",
+      "docs_ref": "live/LIMITATIONS.md, \"remote-state\"",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "state-backend",
+      "title": "State backends are not available under live resource markers",
+      "docs_ref": "live/LIMITATIONS.md, \"backend-block\" / \"cloud-block\"",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "unadmitted-type",
+      "title": "Resource type is outside the live-markers subset",
+      "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    }
+  ],
+  "totals": {
+    "configs": 31,
+    "loaded": 31,
+    "blocked": 9,
+    "clean": 22,
+    "instances": 638,
+    "sites": 26,
+    "refusals_fired": 2,
+    "refusals_in_set": 48,
+    "configs_without_schemas": 31,
+    "refusals_unregistered": 0
+  },
+  "checked_layers": [
+    "lint",
+    "identity"
+  ],
+  "unchecked_layers": [
+    "discovery",
+    "projection",
+    "stamp"
+  ],
+  "schemas": {
+    "present": false,
+    "caveat": "Run without provider schemas. Resource types were judged from the generated admission table alone, so types the provider's own identity schema would have admitted are counted as refused here and the unadmitted-type rules are overstated."
+  },
+  "origins": [
+    {
+      "origin": "in-repo fixture",
+      "configs": 31
+    }
+  ]
+}
