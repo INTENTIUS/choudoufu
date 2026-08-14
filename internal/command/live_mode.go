@@ -386,6 +386,11 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		diags = diags.Append(provs.close(ctx))
 		return nil, diags
 	}
+	// GitHub issue #126's ruling: setting a write-only or sensitive argument
+	// warns, never refuses, so it rides alongside the subset check rather
+	// than gating on it. See [lint.CheckResidueAttributes].
+	diags = diags.Append(lint.CheckResidueAttributes(config, resourceSchemas))
+
 	// Resolved now that lint has passed and the estate name is settled, so
 	// that any verb here is already known valid for its quadrant.
 	if config.Module != nil {
