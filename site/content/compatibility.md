@@ -276,12 +276,14 @@ instead ([#104](https://github.com/INTENTIUS/choudoufu/issues/104) has the
 reasoning). `providers = { aws = aws }` is admitted, since it names what live
 mode already does, and provider aliases at the root work correctly.
 
-A `provider` block declared *inside* a child module is the adjacent shape that
-still only warns: the module's resources are served by the root
-configuration's provider config instead, and lint warns by name once per run.
-[#70](https://github.com/INTENTIUS/choudoufu/issues/70) is the open design.
-Configure providers at the root and let modules receive them implicitly, which
-is the only proven pattern.
+A `provider` block declared *inside* a child module is the adjacent shape,
+and it is refused too: the module's resources would be served by the root
+configuration's provider config instead, silently, so lint refuses the block
+by name ([#70](https://github.com/INTENTIUS/choudoufu/issues/70) has the
+measurement behind the ruling - none of the ten most-installed shared AWS
+modules declares one, and upstream itself calls the shape legacy). Configure
+providers at the root and let modules receive them implicitly, which is the
+only proven pattern.
 
 ## Editors and linters
 

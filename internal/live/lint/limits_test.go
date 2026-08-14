@@ -61,6 +61,13 @@ var enforcedLimits = map[string]Rule{
 	// does declare - is pinned by TestCheck's
 	// undeclared-provider-alias-declared case.
 	"undeclared-provider-alias": RuleUndeclaredProviderAlias,
+	// GitHub issue #70's ruling: the in-child-module provider block, warned
+	// about while the design question was open, is refused now that the
+	// measurement (0 of 740 module-source files in the ten corpus repos
+	// declare one) and upstream's own legacy guidance both point the same
+	// way. The admitted twin - the same provider block declared at root -
+	// is pinned by TestCheck's module-provider-root case.
+	"module-provider-block": RuleModuleProviderBlock,
 	// The three policy rules joined the limits wing under GitHub issue
 	// #110's fourth criterion. They were the only rules in ruleInfo citing
 	// the issue tracker as their documentation, which is not a document a

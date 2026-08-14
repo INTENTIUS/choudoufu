@@ -164,9 +164,10 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 		diags = diags.Append(lint.Diagnostics(issues))
 		return nil, diags
 	}
-	// GitHub issue #70's interim half: never fatal, so it rides alongside the
-	// subset check rather than gating on it. See [lint.CheckModuleProviders].
-	diags = diags.Append(lint.CheckModuleProviders(config))
+	// GitHub issue #126's ruling: setting a write-only or sensitive argument
+	// warns, never refuses, so it rides alongside the subset check rather
+	// than gating on it. See [lint.CheckResidueAttributes].
+	diags = diags.Append(lint.CheckResidueAttributes(config, resourceSchemas))
 
 	// Resolved now that lint has passed and the estate name is settled, so
 	// that any verb here is already known valid for its quadrant (see

@@ -119,6 +119,12 @@ const (
 	// mode used to configure silently from the environment. See
 	// undeclared_provider_alias.go.
 	RuleUndeclaredProviderAlias Rule = "undeclared-provider-alias"
+
+	// RuleModuleProviderBlock covers a provider block declared inside a
+	// child module, which live mode never consults - the module's resources
+	// are served by the root configuration's provider config instead. See
+	// module_provider_block.go.
+	RuleModuleProviderBlock Rule = "module-provider-block"
 )
 
 // ruleInfo is the fixed part of every issue a rule produces: the one-line
@@ -235,6 +241,10 @@ var ruleInfo = map[Rule]struct {
 	RuleUndeclaredProviderAlias: {
 		summary: "Provider configuration is not declared",
 		docsRef: `live/LIMITATIONS.md, "undeclared-provider-alias"`,
+	},
+	RuleModuleProviderBlock: {
+		summary: "Provider block in a child module is not consulted",
+		docsRef: `live/LIMITATIONS.md, "module-provider-block"`,
 	},
 }
 

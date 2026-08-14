@@ -3,7 +3,7 @@ provider "aws" {
   region = "us-east-1"
 }
 
-resource "aws_cloudwatch_event_rule" "web" {
+resource "aws_s3_bucket" "data" {
   provider = aws.east
-  name     = "example-rule"
+  bucket   = "module-provider-aliased-child"
 }

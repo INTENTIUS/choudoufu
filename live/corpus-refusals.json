@@ -2644,6 +2644,16 @@
     },
     {
       "layer": "lint",
+      "id": "module-provider-block",
+      "title": "Provider block in a child module is not consulted",
+      "docs_ref": "live/LIMITATIONS.md, \"module-provider-block\"",
+      "raised_by": "internal/live/lint",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
       "id": "overlong-address",
       "title": "Resource address does not fit in a marker",
       "docs_ref": "live/LIMITATIONS.md, \"overlong-address\"",
@@ -2749,7 +2759,7 @@
     "instances": 1053,
     "sites": 11640,
     "refusals_fired": 17,
-    "refusals_in_set": 107,
+    "refusals_in_set": 108,
     "configs_without_schemas": 0,
     "refusals_unregistered": 0
   },
