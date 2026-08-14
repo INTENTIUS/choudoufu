@@ -1516,7 +1516,7 @@ func livePlanRejectUnsupported(args *arguments.Plan) tfdiags.Diagnostics {
 	}
 	if args.OutPath != "" {
 		reject("Saved plan files are not available under live resource markers",
-			"A saved plan file records the state snapshot the plan was made against so that apply can check the state has not moved since. A live-markers run has no state snapshot to record. Rerun without -out, review the plan, then run \"choudoufu apply\" - a live-markers apply reads the live system at the moment it runs, so what it applies is never staler than the apply itself. In a pipeline the shape is \"choudoufu plan\" to review and \"choudoufu apply -auto-approve\" to act; an approval gate between them approves the intent rather than a frozen diff.")
+			"A saved plan file records the state snapshot the plan was made against so that apply can check the state has not moved since. A live-markers run has no state snapshot to record. Rerun without -out. Note that this configuration has no live block, so plain \"choudoufu plan\" and \"choudoufu apply\" here are ORDINARY state-backed commands, not live-markers ones - they would write a state file and propose creating resources this estate already owns. A live-markers apply exists only for a configuration carrying a live block, where plain plan and apply run on markers and an approval gate between them approves the intent rather than a frozen diff.")
 	}
 	if args.GenerateConfigPath != "" {
 		reject("Config generation is not available under live resource markers yet",

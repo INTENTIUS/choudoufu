@@ -75,7 +75,7 @@ var statelessStateReplacements = map[string]string{
 	"rm": "Delete the resource block from the configuration, or, to stop managing a resource without destroying it, remove its tofu-estate and tofu-address tags. " +
 		"A resource block deleted from the configuration is planned as a destroy by the estate sweep, so forgetting a resource without destroying it is a tag removal here rather than an edit to a record.",
 	"pull": "There is no state file to pull. Prior state under live resource markers is a projection built by reading the live system. If you are moving an existing state-backed estate onto markers, pull the file with stock OpenTofu before adding the live block, then run \"choudoufu live-import -state=PATH -estate=NAME\", which reads it once, read-only, and reports what it can stamp.",
-	"push": "There is no state file to push, and the record it would install is exactly the authority live resource markers remove. To seed an estate from an existing state file, \"choudoufu live-import -state=PATH -estate=NAME\" adopts what it can by stamping ownership markers, rather than installing a record.",
+	"push": "There is no state file to push, and the record it would install is exactly the authority live resource markers remove. To seed an estate from an existing state file, \"choudoufu live-import -state=PATH -estate=NAME\" reports what it can adopt, and with -approve stamps the ownership markers, rather than installing a record.",
 	"replace-provider": "Provider addresses live in a state file, and a live-markers run derives each resource's provider from the configuration on every run, " +
 		"so changing the configuration is the whole operation.",
 }

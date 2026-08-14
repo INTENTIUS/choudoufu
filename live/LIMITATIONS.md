@@ -411,9 +411,14 @@ it moves to lifecycle sequencing, the same forwarding as `time_sleep`).
 ratified identity rows are added. Note that provider resource identity
 schemas are already plumbed and load-bearing (issue #22): `admitted()`
 consults the provider's own schema, and the configuration's naming signal,
-*before* this rule refuses anything, so a type reaching this refusal has
-already been declined by both. That is why the refusal names no command to
-run — nothing in a user's configuration will admit the type. For the three
+*before* this rule refuses anything. Both are conditional, so a
+configuration change **can** admit a type that reached this refusal. The
+schema fallback runs only when the caller supplied provider schemas
+(`admitted()` returns false immediately with none, which is what
+`CheckContext` passes). And the naming signal flips a refusal to an
+admission when every block of the type sets its identity argument
+explicitly — a `*_prefix` argument used in place of the name itself is the
+usual reason a type lands here. For the three
 types the rule excludes: the lifecycle layer, per their entries in
 `live/SURVEY.md`.
 

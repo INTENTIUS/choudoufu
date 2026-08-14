@@ -21,9 +21,10 @@
 // retired, that a CloudFormation type is a template mechanism rather than
 // an infrastructure resource, or that an emulator gap blocks a type from
 // e2e proof. Those three judgments are curated below, with their evidence
-// in comments. (This once cited internal/live/lint/admission.go's
-// opsExcluded as the same shape; that symbol no longer exists anywhere in
-// the tree.)
+// in comments, the same way tools/survey-gen/classify.go's opsExcluded
+// carries the credential and waiter judgments no schema can prove. (That
+// symbol used to be cited here as living in internal/live/lint/admission.go;
+// it moved packages, it did not go away.)
 //
 // The other cohorts - unmapped (unclassified) TF types, tf-only constructs,
 // cfn-unmodeled resources, and registry-laggard live services - are entirely
