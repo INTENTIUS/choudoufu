@@ -99,7 +99,7 @@ func TestRefusalSilentForTypeInNoCohort(t *testing.T) {
 	// closing words: if you reword the base refusal, reword this too. It last
 	// moved in #101, when the sentence stopped naming admission.go as the
 	// table's home and stopped promising provider identity schemas "later".
-	const baseTail = `The table is generated into internal/live/lint/admission_generated.go by "go run ./tools/row-gen -emit"`
+	const baseTail = `If this type has a documented import ID, it belongs in that ledger - open an issue naming the type and the ID`
 	if !strings.HasSuffix(issues[0].Detail, baseTail) {
 		t.Errorf("a type in no cohort should end with the base table sentence unchanged, got: %s", issues[0].Detail)
 	}

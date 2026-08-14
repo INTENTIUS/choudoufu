@@ -165,6 +165,19 @@ func TestCheck(t *testing.T) {
 			want: nil,
 		},
 		{
+			// GitHub issue #101. Writing DefaultVerb's four verbs out by
+			// hand must lint exactly as omitting them does - the invariant
+			// policy/verb.go's DefaultVerb doc states outright. It did not:
+			// the scope rule fired on any quadrant written as "delete", and
+			// undeclared_tagged's default IS "delete", so spelling out the
+			// documented default was a hard error while omitting it was
+			// clean. Only undeclared_untagged's delete is account
+			// reconciliation, and only it needs a scope block.
+			name: "policy block, default verbs written out explicitly",
+			dir:  "testdata/policy-default-written-out",
+			want: nil,
+		},
+		{
 			name: "logical resources, one per banned prefix",
 			dir:  "testdata/logical",
 			want: []wantIssue{

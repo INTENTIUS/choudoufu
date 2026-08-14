@@ -291,14 +291,24 @@ func checkManagedResources(mod *configs.Module, path addrs.Module, schemas map[s
 		}
 
 		if !admitted(resource.Type, schemas, signal) {
-			// Two clauses of this sentence went stale and had to be
-			// rewritten (#101). It said the table was "hardcoded in
+			// Three clauses of this sentence have gone stale in turn (#101).
+			// It said the table was "hardcoded in
 			// internal/live/lint/admission.go", which stopped being true
 			// when row-gen -emit took the table over; and it promised
 			// provider identity schemas "later", when in fact admitted()
 			// has already consulted them by the time this line runs, and
 			// they declined. Telling an operator to wait for a mechanism
 			// that just ran and said no is worse than saying nothing.
+			//
+			// The first repair then put "generated into
+			// admission_generated.go by go run ./tools/row-gen -emit" in
+			// the remedy slot, which is worse still: emit.go:44 makes -emit
+			// a fixed point, so an operator who runs the command this
+			// refusal handed them gets a byte-identical file and the same
+			// refusal. Provenance is not a remedy. The rule for this
+			// sentence is that its closing clause must tell the reader what
+			// to DO, and "nothing, here" is an acceptable answer where
+			// pointing at a no-op is not.
 			//
 			// Do not let the phrase "The provider" into this base sentence:
 			// TestAdmittedRefusesRouteWithTableRowBypassed uses it as the
@@ -310,9 +320,12 @@ func checkManagedResources(mod *configs.Module, path addrs.Module, schemas map[s
 					"arguments settled its identity either. A type participates only if "+
 					"its identity is recoverable from the live system with no memory, by "+
 					"one of the four admission paths: client-assigned identity, marker, "+
-					"parent-derived, or list plus content match. The table is generated "+
-					"into internal/live/lint/admission_generated.go by "+
-					"\"go run ./tools/row-gen -emit\"",
+					"parent-derived, or list plus content match. Nothing you can change "+
+					"in this configuration will admit it, and the table is not extensible "+
+					"from here: it is generated from ratified identity rows, and "+
+					"re-running its generator reproduces it byte for byte. If this type "+
+					"has a documented import ID, it belongs in that ledger - open an issue "+
+					"naming the type and the ID",
 				resource.Type,
 			)
 			// A caller with no schemas gets exactly the sentence above, byte

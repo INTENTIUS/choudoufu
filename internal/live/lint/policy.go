@@ -69,16 +69,33 @@ func checkLivePolicy(mod *configs.Module, path addrs.Module, issues *[]Issue) {
 			continue // No scope rule to check against a verb this fork does not recognize there.
 		}
 
-		if verb == policy.Delete && !scopeIsSet(p.Scope) {
+		// Only undeclared+untagged's delete is account reconciliation, and
+		// only it needs a scope. undeclared+tagged's delete is the ordinary
+		// orphan sweep: those resources carry this estate's own ownership
+		// marker, so the marker is the scope, and DefaultVerb assigns delete
+		// there anyway.
+		//
+		// The omitted-quadrant branch above already said exactly this, and
+		// this check used to disagree with it whenever the same verb was
+		// written out rather than left implicit - so `undeclared_tagged =
+		// "delete"`, which is the documented default, was a hard lint error
+		// while omitting it was clean. That contradicted the invariant
+		// policy/verb.go's DefaultVerb doc states and
+		// TestPolicyOmittedIsByteIdenticalToDefaultVerb enforces downstream:
+		// a policy block spelling out the four default verbs must produce
+		// the same run as no policy block at all. Fixed under #101.
+		if verb == policy.Delete && q.quadrant == policy.UndeclaredUntagged && !scopeIsSet(p.Scope) {
 			*issues = append(*issues, Issue{
 				Rule:      RulePolicyScope,
 				Construct: fmt.Sprintf("policy.%s = \"delete\"", q.quadrant.Attribute()),
 				Module:    path,
 				Detail: fmt.Sprintf(
-					"the %s quadrant is assigned \"delete\", scoped account reconciliation with aws-nuke "+
-						"semantics. An unscoped account-wide purge is a lint refusal, not a default: add a "+
-						"\"scope\" block to the policy naming at least one service, type, or region this "+
-						"quadrant's delete may reach",
+					"the %s quadrant is assigned \"delete\", which is scoped account reconciliation with "+
+						"aws-nuke semantics: it can reach resources this configuration has never named. An "+
+						"unscoped account-wide purge is a lint refusal, not a default: add a \"scope\" block "+
+						"to the policy naming at least one service, type, or region it may reach. (The other "+
+						"delete quadrant, undeclared_tagged, needs no scope - it only ever removes resources "+
+						"already carrying this estate's ownership marker.)",
 					q.quadrant,
 				),
 				Subject: p.DeclRange,
