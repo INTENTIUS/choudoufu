@@ -46,12 +46,16 @@ grep -rhoE '^resource "aws_[a-z0-9_]+"' live/e2e/estates --include="*.tf" | sort
 If any of them disagrees with what is written here, trust the code and fix this
 file before doing anything else.
 
-Two other things in here are weaker than they read. The phase order after phase
-2 is a prediction about what an instrument that does not exist yet will say;
-`-out` plus `apply <planfile>` being the top refusal is a guess, not a finding.
-And every count in the next section came from an agent; two of them were later
-recomputed and disagreed with the original, which is why they are hedged there
-rather than quoted.
+One thing in here is weaker than it reads. Every count in the next section came
+from an agent; two of them were later recomputed and disagreed with the
+original, which is why they are hedged there rather than quoted.
+
+The phase order used to carry the same warning, because phases 3 onward were a
+prediction about what an instrument that did not exist yet would say. **That
+instrument now exists** and the phase order below is measured rather than
+guessed. The guess it replaced was wrong in a useful way: `-out` plus `apply
+<planfile>` was named as the likely top refusal, and it does not appear in the
+top twelve.
 
 ## The invariant: no state ops (#73)
 
@@ -59,11 +63,19 @@ The user never configures a backend, manages a lock, or performs state
 surgery. State is progressively emptied:
 
 - identity moves to cloud tags (markers)
-- receipts move to the live system, as per-estate cloud records (`record_store`,
-  SSM or S3)
-- what remains is **effects only**: `null_resource`, `terraform_data`,
+- effects with no cloud twin move to per-estate micro-state records
+  (`record_store`, local / SSM / S3): `null_resource`, `terraform_data`,
   `time_*`, non-secret `random_*`, run through the completely stock provider
   lifecycle exactly as upstream
+
+**Receipts are not part of that.** They never move onto the record store, and
+the boundary is enforced: a `record_store` `key_prefix` whose first segment is
+`tofu-receipts` is a decode error. A receipt stays an ordinary declared
+resource, deliberately AWS-shaped so its value reads with a plain `aws ssm
+get-parameter` by someone with read-only IAM and no `choudoufu` binary. A
+`staterecord` payload is a tool-internal ctyjson envelope. An earlier version of
+this file said receipts move to the record store; that was wrong, and
+`live/RECEIPTS.md`'s "Boundary" section is the authority.
 
 That gives a definition of done a user can check for themselves. After a live
 apply, the plan rebuilt from markers alone is empty and the residual state file
@@ -104,8 +116,49 @@ binding rule is **static evaluability**: every `count`, every `for_each`, and
 every identity-bearing argument must be computable from `var` / `local` /
 `path` / `terraform` alone.
 
-#102 builds the instrument that measures this. Until it exists, no number in
-this repo predicts onboarding success.
+## The scoreboard, which now exists
+
+`live/corpus-refusals.json` is the artifact to read. #102 built it: lint plus
+identity resolution over 105 configurations, no cloud. 74 of them are the
+`examples/` root modules of ten `terraform-aws-modules` repositories pinned to
+exact commits; 31 are this repo's own fixtures. Regenerate with `just corpus`
+after `just corpus-fetch`.
+
+Top blockers, by configurations blocked out of 105:
+
+| Configs | Sites | Layer | Refusal |
+|---|---|---|---|
+| 66 | 3521 | identity | Unable to compute static value **(unregistered)** |
+| 58 | 961 | lint | `unadmitted-type` |
+| 57 | 1953 | identity | Dynamic value in static context **(unregistered)** |
+| 49 | 415 | lint | `logical-resource` |
+| 37 | 115 | identity | Unresolvable identity |
+| 35 | 4254 | lint | `count-index` |
+| 30 | 226 | identity | Module output not supported in static context **(unregistered)** |
+| 27 | 75 | lint | `provisioner` |
+
+Three things this settles.
+
+**Static evaluability is the binding constraint, measured rather than
+asserted.** Four of the top seven are static-evaluation failures.
+
+**The single largest blocker is a refusal we cannot document.** The three
+marked unregistered are static-evaluator diagnostics passed through identity,
+present in neither `lint.Rules()` nor `identity.Refusals()`. `LIMITATIONS.md`
+generated from those two tables alone would omit the top three.
+`totals.refusals_unregistered` counts them. This raises #110's priority.
+
+**Read `totals.blocked` (81 of 105) as a ranking, not a rate.** Module
+`examples/` lean far harder on variables, conditionals and `dynamic` blocks
+than an ordinary estate, so this corpus reports worse than typical user code.
+It is third-party, which is what it was missing; it is not estate-shaped, which
+is #118. Do not quote the figure as a compatibility number, and do not let it
+onto the docs site.
+
+Two caveats to carry. The run covers **two of five layers** — `lint` and
+`identity`; `discovery`, `projection` and `stamp` are unchecked, and the
+artifact says so. And it was measured against provider **6.58.0** while
+survey-gen pins 6.59.0 (#117).
 
 ## What is already true, and reads as unfinished
 
@@ -141,12 +194,29 @@ around it.
    audited and corrected. Its second half, generating `LIMITATIONS.md` from an
    enumerable rule table, is **#110** and is half-landed: the identity registry
    exists (`refusals.go`), the renderer does not.
-2. **Build the scoreboard** (#102). Real OpenTofu configs, lint plus identity
-   resolution, no cloud. Output is a ranked table of which refusals fire.
-3. **Close the silent hazards, then the top measured refusals** (#103, #104).
-   Silence is worse than a refusal; both of these are correctness bugs.
-4. **Type coverage, correctly scoped** (#105, #106, #107, verified by #108).
-5. **Finish #73 and the onboarding surface** (#81, #82, #84, #109, #72).
+2. ~~**Build the scoreboard** (#102)~~ - **done.**
+   `live/corpus-refusals.json` ranks which refusals fire over 105
+   configurations. See "The scoreboard" above; it is what phases 3-5 are now
+   ordered by.
+3. **Make the top blockers documentable** (#110). The three largest are
+   refusals in no registry, so they cannot appear in `LIMITATIONS.md` at all.
+   This was phase 5 work when the order was a guess; the measurement moved it
+   to the front. Criterion 2's generator now needs three inputs, not two.
+4. **Close the silent hazards** (#103, #104). Unchanged in position and for the
+   same reason: silence is worse than a refusal, and both are correctness bugs
+   rather than gaps. Neither shows in the scoreboard, because a silent failure
+   produces no refusal to count - which is the argument for doing them on
+   principle rather than by rank.
+5. **The top measured refusals themselves.** `unadmitted-type` at 58
+   configurations is #105/#106/#107. `logical-resource` at 49 is largely
+   configurations with no `record_store` declared, so some of it is an
+   onboarding-surface problem rather than a capability one. Verified by #108.
+6. **Finish #73 and the onboarding surface** (#81, #82, #109, #72).
+   #84 closed with the docs-site work.
+
+Two standing items that are not phases. The corpus needs an estate-shaped
+population before its rate means anything (#118), and the docs site's remaining
+hand-written numbers want generated spans (#79).
 
 ## How to slice the work
 
