@@ -813,8 +813,24 @@ func (s *stamper) verify(ctx context.Context, rc *configs.Resource, m marker, cu
 		if sameExpr(cur, m.expr) {
 			return verifyOK, ""
 		}
+		// A constant first. An expression that evaluates with no repetition
+		// data at all is the same value on every instance, and verifyValue
+		// has the messages for that: the fungible-set one for tofu-slot,
+		// and "the constant %q on a block where each instance owns a
+		// different address" for tofu-address.
 		if got, ok := s.staticString(ctx, rc, cur); ok {
 			return s.verifyValue(rc, m, got)
+		}
+		// Not a constant, and not this pass's own template. That does not
+		// settle it either way: an expression built another way can produce
+		// exactly the marker this pass would write - format(), or a
+		// template over a local holding the prefix - and one that merely
+		// mentions ${count.index} can produce a marker discovery will never
+		// match. Comparing the values the two expressions produce, once per
+		// instance, tells those apart. Before #115 both came out below as a
+		// warning saying the tag was left as written (#115).
+		if verdict, detail, ok := s.perInstanceVerdict(ctx, rc, m, cur); ok {
+			return verdict, detail
 		}
 		return verifyUnreadable, fmt.Sprintf(
 			"%s sets %s to an expression this run cannot read from configuration alone, so it cannot check that it matches what this estate would stamp (%s). The tag was left exactly as written; nothing was overwritten.",

@@ -317,3 +317,183 @@ func slotTableKeys(t *testing.T, cfg *configs.Config, addr string) []string {
 	t.Fatalf("%s carries no %s tag", addr, TagSlot)
 	return nil
 }
+
+// perInstanceMarkerCases is GitHub issue #115's own table: the five
+// expressions it lists, plus the two shapes that motivated comparing values
+// rather than structure.
+//
+// Before #115 exactly one of these was accepted and the other six produced
+// "Ownership marker could not be checked" - a warning, with the tag left as
+// written, so four wrong markers reached the cloud quietly and two correct
+// ones were reported as unverifiable.
+var perInstanceMarkerCases = []struct {
+	name string
+	expr string
+	// wantErr is whether the marker is wrong and must be refused.
+	wantErr bool
+	// wantIn is a fragment the refusal has to carry, so a refusal for the
+	// wrong reason fails too.
+	wantIn string
+}{
+	{
+		name: "the template this pass writes",
+		expr: `"aws_eip.pool:${count.index}"`,
+	},
+	{
+		name: "format producing the same value",
+		expr: `format("aws_eip.pool:%d", count.index)`,
+	},
+	{
+		name: "a template over a local holding the prefix",
+		expr: `"${local.prefix}${count.index}"`,
+	},
+	{
+		name:    "square brackets instead of the escaped colon",
+		expr:    `"aws_eip.pool[${count.index}]"`,
+		wantErr: true,
+		wantIn:  `produces "aws_eip.pool[0]"`,
+	},
+	{
+		name:    "the index alone",
+		expr:    `"${count.index}"`,
+		wantErr: true,
+		wantIn:  `produces "0"`,
+	},
+	{
+		name:    "a different prefix",
+		expr:    `"pool-${count.index}"`,
+		wantErr: true,
+		wantIn:  `produces "pool-0"`,
+	},
+	{
+		name:    "right prefix, wrong separator",
+		expr:    `"aws_eip.pool.${count.index}"`,
+		wantErr: true,
+		wantIn:  `produces "aws_eip.pool.0"`,
+	},
+}
+
+// TestStamp_perInstanceMarkerIsCheckedByValue is #115's acceptance: an
+// expression that interpolates the instance key but produces the wrong
+// marker is refused, not warned.
+func TestStamp_perInstanceMarkerIsCheckedByValue(t *testing.T) {
+	for _, tc := range perInstanceMarkerCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := loadSource(t, `
+locals {
+  prefix = "aws_eip.pool:"
+}
+
+resource "aws_eip" "pool" {
+  count = 2
+
+  tags = {
+    tofu-estate  = "stamp-unit"
+    tofu-address = `+tc.expr+`
+  }
+}
+`)
+
+			_, diags := Stamp(t.Context(), Request{
+				Estate:  "stamp-unit",
+				Config:  cfg,
+				Schemas: testSchemas(),
+			})
+
+			switch {
+			case tc.wantErr && !diags.HasErrors():
+				t.Fatalf("%s was accepted; it produces a marker discovery will never match.\ngot: %s", tc.expr, diags.Err())
+			case !tc.wantErr && diags.HasErrors():
+				t.Fatalf("%s produces exactly the marker this pass would write and was refused: %s", tc.expr, diags.Err())
+			}
+			if tc.wantErr {
+				assertDiagContains(t, diags, "Ownership marker conflict", tc.wantIn, "aws_eip.pool[0]")
+			}
+			// A correct-but-differently-written expression must not be
+			// reported as unverifiable either: that was the other half of
+			// the old behaviour, and it is what sent operators looking for
+			// a problem that was not there.
+			for _, d := range diags {
+				if desc := d.Description(); desc.Summary == SummaryMarkerUncheckable {
+					t.Errorf("%s was reported as unverifiable: %s", tc.expr, desc.Detail)
+				}
+			}
+		})
+	}
+}
+
+// TestStamp_chunkedPerInstanceAddressHasAValidAnswer is GitHub issue #115's
+// second half, and the case it says no current test covers.
+//
+// When an escaped address exceeds markers.MaxTagValue, the address is split
+// across tofu-address and its continuations, and this pass's own expression
+// for each continuation is a substr() window over the instance template. No
+// expression that merely interpolates ${count.index} can match that
+// structurally, so before #115 every continuation tag's conflict message
+// demanded a form that could not be written - while a sibling message in the
+// same file told the operator continuation tags are never edited by hand.
+//
+// Comparing values gives it an answer both ways: an unstamped block is
+// stamped, and a wrong hand-written continuation is refused with a remedy
+// that exists.
+func TestStamp_chunkedPerInstanceAddressHasAValidAnswer(t *testing.T) {
+	// A label long enough that the escaped address needs a continuation.
+	longName := strings.Repeat("n", 300)
+
+	t.Run("unstamped block is stamped across continuations", func(t *testing.T) {
+		cfg := loadSource(t, `
+resource "aws_eip" "`+longName+`" {
+  count = 2
+}
+`)
+		res, diags := Stamp(t.Context(), Request{
+			Estate:  "stamp-unit",
+			Config:  cfg,
+			Schemas: testSchemas(),
+		})
+		assertNoErrors(t, diags)
+		if len(res.Stamped) != 1 {
+			t.Fatalf("want the block stamped once, got %+v", res.Stamped)
+		}
+		var continuations int
+		for _, k := range res.Stamped[0].Keys {
+			if strings.HasPrefix(k, TagAddress+"-") {
+				continuations++
+			}
+		}
+		if continuations == 0 {
+			t.Fatalf("a %d-character address was written with no continuation tags: %v", len(longName), res.Stamped[0].Keys)
+		}
+	})
+
+	t.Run("a wrong hand-written continuation is refused with a remedy", func(t *testing.T) {
+		cfg := loadSource(t, `
+resource "aws_eip" "`+longName+`" {
+  count = 2
+
+  tags = {
+    tofu-estate    = "stamp-unit"
+    tofu-address-2 = "definitely-not-the-right-chunk-${count.index}"
+  }
+}
+`)
+		_, diags := Stamp(t.Context(), Request{
+			Estate:  "stamp-unit",
+			Config:  cfg,
+			Schemas: testSchemas(),
+		})
+		if !diags.HasErrors() {
+			t.Fatal("a wrong continuation tag was accepted")
+		}
+		// The remedy has to be one that exists. This pass appends a marker
+		// the configuration does not set, so removing the tag works;
+		// hand-writing a substr() window does not, which is what the old
+		// message asked for.
+		assertDiagContains(t, diags, "Ownership marker conflict", "Remove the tag", "continuation")
+		for _, d := range diags {
+			if desc := d.Description(); desc.Summary == SummaryMarkerUncheckable {
+				t.Errorf("a chunked continuation was reported as unverifiable rather than wrong: %s", desc.Detail)
+			}
+		}
+	})
+}
