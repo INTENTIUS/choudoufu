@@ -20,10 +20,17 @@
 // other two classes, and no scan of a live package can find them.
 //
 // The class is not a long tail. Measured over the corpus #102 assembled,
-// three pass-through refusals are the three largest blockers there are - 66,
-// 57 and 30 configurations of 105, ahead of every rule either live package
-// owns. A LIMITATIONS.md generated from the other two registries alone would
-// omit the top of its own list.
+// pass-through refusals take ranks 1, 3 and 7 of the top seven blockers - 66,
+// 57 and 30 configurations of 105 - and the single largest blocker of all is
+// one of them. So a LIMITATIONS.md generated from the other two registries
+// alone would omit the top of its own list.
+//
+// An earlier version of this paragraph called them "the three largest
+// blockers there are, ahead of every rule either live package owns", which
+// is false four times over: unadmitted-type at 58 and logical-resource at 49
+// both outrank the third, and unadmitted-type outranks the second. The claim
+// came from HANDOFF.md and was copied into five files before an audit
+// recomputed it. Rank 1 is the part that is true and the part that matters.
 //
 // # What is in here, and how completeness is argued
 //
@@ -142,7 +149,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: "Circular reference",
-		What:    "A local or variable is defined, directly or transitively, in terms of itself.",
+		What:    "A local is defined, directly or transitively, in terms of itself. Only local-to-local cycles are detected here: the static scope pushes a frame when it resolves a local and not when it resolves a variable.",
 		Origin:  OriginConfigs,
 	},
 	{
@@ -157,12 +164,12 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: "Dynamic value in static context",
-		What:    "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, a data source, or any reference other than var, local, path and terraform.",
+		What:    "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.",
 		Origin:  OriginConfigs,
 	},
 	{
 		Summary: "Ephemeral value not allowed",
-		What:    "A statically evaluated expression resolves to an ephemeral value, which by definition is not written down anywhere this run can read back.",
+		What:    "A module source or a backend argument resolves to an ephemeral value. It is raised while decoding those two expressions, not during identity resolution: an ephemeral value in an identity argument is refused by identity itself, under \"Identity derived from a sensitive value\".",
 		Origin:  OriginConfigs,
 	},
 	{
@@ -332,7 +339,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: "Sensitive value not allowed",
-		What:    "A statically evaluated expression resolves to a sensitive value in a position that would write it somewhere readable.",
+		What:    "A module source or a backend argument resolves to a sensitive value. Same decoding step as the ephemeral case above, and not the one an identity argument goes through.",
 		Origin:  OriginConfigs,
 	},
 	{

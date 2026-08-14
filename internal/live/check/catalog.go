@@ -12,6 +12,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/passthrough"
+	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/stamp"
 )
 
@@ -117,10 +118,11 @@ type Refusal struct {
 // internal/configs, internal/addrs, hcl - and a column mixing "identity"
 // with "internal/configs" reads as two different kinds of fact.
 const (
-	RaisedByLint      = "internal/live/lint"
-	RaisedByIdentity  = "internal/live/identity"
-	RaisedByStamp     = "internal/live/stamp"
-	RaisedByDiscovery = "internal/live/discovery"
+	RaisedByLint       = "internal/live/lint"
+	RaisedByIdentity   = "internal/live/identity"
+	RaisedByStamp      = "internal/live/stamp"
+	RaisedByDiscovery  = "internal/live/discovery"
+	RaisedByProjection = "internal/live/projection"
 )
 
 // livePackages is every RaisedBy value belonging to this fork. Anything else
@@ -135,10 +137,11 @@ const (
 // opposite of the fact and the exact premise of the commit that added them.
 // Found by an adversarial audit.
 var livePackages = map[string]bool{
-	RaisedByLint:      true,
-	RaisedByIdentity:  true,
-	RaisedByStamp:     true,
-	RaisedByDiscovery: true,
+	RaisedByLint:       true,
+	RaisedByIdentity:   true,
+	RaisedByStamp:      true,
+	RaisedByDiscovery:  true,
+	RaisedByProjection: true,
 }
 
 // Passthrough reports whether this refusal is one the live path shows a user
@@ -162,13 +165,14 @@ func (r Refusal) Documented() bool { return r.DocsRef != "" }
 // table, and one no instrument assembled from observed output can ever
 // contain.
 //
-// The third source is GitHub issue #110's work. Before it, the three
-// largest blockers in the corpus were in no table at all: they are
-// diagnostics identity resolution passes through from the static evaluator,
-// so a document generated from the two live registries alone omitted the
-// top of its own list. They are catalogued under [LayerIdentity], because
-// that is the pass a user hits them in, with [Refusal.RaisedBy] naming the
-// package that actually wrote them.
+// The third source is GitHub issue #110's work. Before it, the largest
+// single blocker in the corpus was in no table at all, and neither were two
+// more of the top seven: they are diagnostics identity resolution passes
+// through from the static evaluator, so a document generated from the two
+// live registries alone omitted the top of its own list. They are
+// catalogued under [LayerIdentity], because that is the pass a user hits
+// them in, with [Refusal.RaisedBy] naming the package that actually wrote
+// them.
 func Catalog() []Refusal {
 	var out []Refusal
 
@@ -209,7 +213,7 @@ func Catalog() []Refusal {
 }
 
 // AllRefusals is every refusal the whole live path can produce, including
-// the stages this instrument cannot run.
+// the three stages this instrument cannot run.
 //
 // [Catalog] is deliberately narrower, and the two must not be conflated. A
 // zero in the corpus artifact means "measured over 105 configurations and
@@ -247,8 +251,32 @@ func AllRefusals() []Refusal {
 		})
 	}
 
+	for _, refusal := range projection.Refusals() {
+		out = append(out, Refusal{
+			Layer:    LayerProjection,
+			ID:       refusal.Summary,
+			Title:    refusal.Summary,
+			What:     refusal.What,
+			DocsRef:  refusal.DocsRef(),
+			RaisedBy: RaisedByProjection,
+		})
+	}
+
 	sortRefusals(out)
 	return out
+}
+
+// LayersWithRegistries is every [Layer] [AllRefusals] draws from.
+//
+// It exists so that TestEveryLayerHasARegistry can compare it against
+// CheckedLayers and UncheckedLayers. The first version of AllRefusals added
+// stamp and discovery and stopped, describing them in a commit message as
+// "the other two" when UncheckedLayers had always returned three - so
+// projection's twenty-six refusals stayed in no table, AllRefusals was
+// smaller than its own doc comment claimed, and nothing said so. A list an
+// author can forget to extend is exactly the shape that needs the test.
+func LayersWithRegistries() []Layer {
+	return []Layer{LayerLint, LayerIdentity, LayerStamp, LayerDiscovery, LayerProjection}
 }
 
 // lookup returns the catalog entry for one layer and ID.

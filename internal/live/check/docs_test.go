@@ -75,6 +75,55 @@ func TestEveryRefusalDocsRefIsResolvable(t *testing.T) {
 	}
 }
 
+// TestEveryLayerHasARegistry is what would have caught projection.
+//
+// #110's first criterion is every hard refusal in the live path. The work
+// added registries to lint, identity, stamp and discovery, described those
+// last two in a commit message as "the other two", and stopped - while
+// [UncheckedLayers] had always returned three. Projection's twenty-six
+// diagnostics stayed in no table, [AllRefusals] was smaller than its own doc
+// comment claimed, and every test passed. An audit found it by reading.
+//
+// So the layer list checks itself against the registry list. There is no
+// clever mechanism here; the point is that the omission becomes a failure
+// instead of a sentence somebody has to notice is wrong.
+func TestEveryLayerHasARegistry(t *testing.T) {
+	withRegistry := map[Layer]bool{}
+	for _, layer := range LayersWithRegistries() {
+		withRegistry[layer] = true
+	}
+
+	for _, layer := range append(CheckedLayers(), UncheckedLayers()...) {
+		if !withRegistry[layer] {
+			t.Errorf("the %s layer has no registry in AllRefusals, so its refusals are in no table and in no document", layer)
+		}
+	}
+
+	// And the other direction: a registry for a layer nothing lists.
+	classified := map[Layer]bool{}
+	for _, layer := range append(CheckedLayers(), UncheckedLayers()...) {
+		classified[layer] = true
+	}
+	for _, layer := range LayersWithRegistries() {
+		if !classified[layer] {
+			t.Errorf("AllRefusals draws from the %s layer, which is neither checked nor unchecked", layer)
+		}
+	}
+
+	// Every layer with a registry actually contributes. A registry wired in
+	// but returning nothing would satisfy the lists above and document
+	// nothing.
+	byLayer := map[Layer]int{}
+	for _, refusal := range AllRefusals() {
+		byLayer[refusal.Layer]++
+	}
+	for _, layer := range LayersWithRegistries() {
+		if byLayer[layer] == 0 {
+			t.Errorf("the %s layer has a registry that contributes no refusals to AllRefusals", layer)
+		}
+	}
+}
+
 // TestCorpusArtifactHasNoUnregisteredRefusals holds the committed #102
 // artifact to zero unregistered refusals.
 //
@@ -84,9 +133,9 @@ func TestEveryRefusalDocsRefIsResolvable(t *testing.T) {
 // so the evidence that the registry covers them is that a run over the corpus
 // finds nothing it cannot name.
 //
-// It was three when #110 opened, and those three were the top three rows of
-// the ranking - the largest blockers this repository has measured, in no
-// table, in no document. A test rather than a note because the artifact is
+// It was three when #110 opened, and one of those three was the top row of
+// the ranking: the largest single blocker this repository has measured, in
+// no table and in no document. A test rather than a note because the artifact is
 // regenerated whenever the corpus or the registries change, and a new
 // unregistered refusal appearing there is exactly the event that should stop
 // someone.

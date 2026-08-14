@@ -115,13 +115,18 @@ func checkLivePolicy(mod *configs.Module, path addrs.Module, issues *[]Issue) {
 		}
 	}
 
+	// <= 0 rather than == 0 defensively only: internal/configs' decoder
+	// refuses a negative threshold and leaves ThresholdSet false, so zero is
+	// the only value that reaches here. The message says "zero" rather than
+	// "zero or below" for that reason - an audit pointed out it was
+	// describing a value no configuration can deliver.
 	if p.ThresholdSet && p.Threshold <= 0 {
 		*issues = append(*issues, Issue{
 			Rule:      RulePolicyThreshold,
 			Construct: fmt.Sprintf("policy.threshold = %d", p.Threshold),
 			Module:    path,
 			Detail: "the delete quadrant's first-run threshold must be a positive whole number: it exists " +
-				"to be raised deliberately once the roster has been reviewed, not to be set to zero or below",
+				"to be raised deliberately once the roster has been reviewed, and zero reviews nothing",
 			Subject: p.ThresholdRange,
 		})
 	}

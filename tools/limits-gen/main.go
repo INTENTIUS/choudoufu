@@ -9,11 +9,13 @@
 //
 // This is GitHub issue #110's second acceptance criterion. The document's job
 // is to tell an operator whether their configuration can move to live
-// markers, and it was hand-written against a set nothing could enumerate:
-// sixteen lint rules had entries, thirty-four identity refusals had none, and
-// the three largest blockers in the #102 corpus were in no table at all.
-// Anything hand-maintained against a set that large drifts, and the drift is
-// invisible until someone hits an undocumented refusal.
+// markers, and it was hand-written against a set nothing could enumerate.
+// Thirteen of the sixteen lint rules had an entry here; three cited the issue
+// tracker instead. The thirty-two identity refusals had three between them.
+// And the largest single blocker in the #102 corpus, along with two more of
+// the top seven, was in no table at all. Anything hand-maintained against a
+// set that large drifts, and the drift is invisible until someone hits an
+// undocumented refusal.
 //
 // # What it generates, and what it does not
 //
@@ -273,11 +275,17 @@ func renderEntries(catalog []check.Refusal, freq map[string]frequency, measured 
 		}
 		fmt.Fprintf(&b, "#### %s\n\n", r.ID)
 		fmt.Fprintf(&b, "**What.** %s\n\n", r.What)
-		fmt.Fprintf(&b, "**Where.** The %s pass, raised by `%s`.", r.Layer, r.RaisedBy)
+		// A pass-through refusal is not named with a pass. The catalog files
+		// it under identity because that is where most of them surface, but
+		// two are raised while the configuration is still being decoded, and
+		// an audit caught the generated entry telling the reader those two
+		// come from the identity pass. Naming the package that raises it is
+		// true of all of them.
 		if r.Passthrough() {
-			b.WriteString(" This is a diagnostic the live path shows without having written it; see the section preamble.")
+			fmt.Fprintf(&b, "**Where.** Raised by `%s` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.\n\n", r.RaisedBy)
+		} else {
+			fmt.Fprintf(&b, "**Where.** The %s pass, raised by `%s`.\n\n", r.Layer, r.RaisedBy)
 		}
-		b.WriteString("\n\n")
 		f, inArtifact := freq[key(r)]
 		switch {
 		case !measured || !inArtifact:

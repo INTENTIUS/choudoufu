@@ -56,9 +56,12 @@ func (r Refusal) DocsRef() string {
 // hand, disagreeing with what this run would write or unreadable to it. That
 // is the shape of most stamping trouble: the configuration and the live
 // object each hold an opinion about ownership, and this pass will not
-// silently pick one. The last two are one failure at two severities, which
-// [stamper.unstampableAt] decides from whether the resource can be found any
-// other way.
+// silently pick one.
+//
+// The last three are two warnings and the error they become. [stamper.unstampableAt]
+// picks between them on whether the resource can be found any other way, and
+// it swaps the summary along with the severity - so a user who saw the error
+// looks it up under its own heading, not under either warning's.
 var refusals = []Refusal{
 	{
 		Summary: SummaryMarkerConflict,
@@ -66,7 +69,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: SummaryMarkerUncheckable,
-		What:    "An ownership tag is already set in the configuration to an expression this run cannot evaluate, so whether it agrees with this estate's markers is unknown. A warning for a resource that can be found another way; an error for one that can only be found by its marker.",
+		What:    "An ownership tag is already set in the configuration to an expression this run cannot evaluate, so whether it agrees with this estate's markers is unknown. A warning: a resource that can only be found by its marker gets the error below instead, under its own heading, because [stamper.unstampableAt] swaps the summary as well as the severity.",
 	},
 	{
 		Summary: SummaryNotStamped,
@@ -86,7 +89,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: SummaryUnmarkedApply,
-		What:    "The same failure as the entries above, on a resource whose instances can only ever be found by their ownership marker. Applying it unmarked would create a live object no later run could recognise as this estate's, so this one is an error rather than a warning.",
+		What:    "Markers could not be written, on a resource whose instances can only ever be found by their ownership marker. It is the error form of the two warnings above - \"Ownership markers not stamped\" and \"Ownership marker could not be checked\" - because applying this one unmarked would create a live object no later run could recognise as this estate's.",
 	},
 }
 
