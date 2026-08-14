@@ -49,7 +49,7 @@
         "aws_rekognition_project.app",
         "aws_rekognition_stream_processor.app"
       ],
-      "detail": "Error: Request cancelled"
+      "detail": "Error: creating Amazon Bedrock Guardrail (\"tofu-ai-location-cohort-iam-role\"): operation error Bedrock: CreateGuardrail, https response error StatusCode: 400, RequestID: 8878a752-2103-4bb4-bcce-87040fb5dc2e, deserialization failed, failed to decode response body, invalid character '\u003c' looking for beginning of value"
     },
     {
       "name": "apigateway",
@@ -78,7 +78,7 @@
       "failed_resources": [
         "aws_prometheus_workspace.app"
       ],
-      "detail": "Error: creating Prometheus Workspace: operation error amp: CreateWorkspace, https response error StatusCode: 400, RequestID: 91bc6e53-3106-473f-acef-0f21b20176c2, deserialization failed, failed to decode response body, invalid character '\u003c' looking for beginning of value"
+      "detail": "Error: creating Prometheus Workspace: operation error amp: CreateWorkspace, https response error StatusCode: 400, RequestID: e9d28532-5f0b-4679-b82a-887d07270ce1, deserialization failed, failed to decode response body, invalid character '\u003c' looking for beginning of value"
     },
     {
       "name": "compute-platforms",
@@ -86,7 +86,6 @@
       "phase": "apply",
       "resources": 28,
       "failed_resources": [
-        "aws_amplify_branch.app",
         "aws_apprunner_auto_scaling_configuration_version.app",
         "aws_apprunner_observability_configuration.app",
         "aws_apprunner_service.app",
@@ -99,7 +98,7 @@
         "aws_lightsail_distribution.app",
         "aws_lightsail_lb.app"
       ],
-      "detail": "Error: creating Amplify Branch (placeholder/tofu-compute-platforms-cohort-amplify-branch): operation error Amplify: CreateBranch, https response error StatusCode: 400, RequestID: 8ec2e2b3-46f1-45d4-8ad9-f242083770ef, deserialization failed, failed to decode response body, invalid character '\u003c' looking for beginning of value"
+      "detail": "Error: creating App Runner AutoScaling Configuration Version (tofu-compute-platforms-cohort-apprunner-auto-scaling-configuration-version): operation error AppRunner: CreateAutoScalingConfiguration, https response error StatusCode: 404, RequestID: 56a3558b-2f8c-47ea-a109-de3d19241c9d, api error UnknownOperationException: Unknown operation: AppRunner.CreateAutoScalingConfiguration"
     },
     {
       "name": "connect-euc",
@@ -141,7 +140,7 @@
         "aws_glue_job.app",
         "aws_kinesis_stream_consumer.app"
       ],
-      "detail": "Error: creating Athena Data Catalog (tofu-data-cohort-athena-data-catalog): operation error Athena: CreateDataCatalog, https response error StatusCode: 400, RequestID: 9042d849-e133-4df4-8e44-5c833b55ad22, api error InvalidAction: Action CreateDataCatalog is not supported"
+      "detail": "Error: creating Athena Data Catalog (tofu-data-cohort-athena-data-catalog): operation error Athena: CreateDataCatalog, https response error StatusCode: 400, RequestID: d3e24feb-8c2c-4992-9472-ee334e64b0f7, api error InvalidAction: Action CreateDataCatalog is not supported"
     },
     {
       "name": "data-movement",
@@ -171,7 +170,7 @@
         "aws_transfer_connector.app",
         "aws_transfer_workflow.app"
       ],
-      "detail": "Error: creating AppIntegrations Event Integration (tofu-data-movement-cohort-appintegrations-event-integration): operation error AppIntegrations: CreateEventIntegration, https response error StatusCode: 400, RequestID: 1e3701c4-339e-4f7b-be4f-2409b20d12c4, deserialization failed, failed to decode response body, invalid character '\u003c' looking for beginning of value"
+      "detail": "Error: creating AppIntegrations Event Integration (tofu-data-movement-cohort-appintegrations-event-integration): operation error AppIntegrations: CreateEventIntegration, https response error StatusCode: 400, RequestID: 9d95e924-eb23-4206-b2ba-d13843fa64fe, deserialization failed, failed to decode response body, invalid character '\u003c' looking for beginning of value"
     },
     {
       "name": "databases",
@@ -200,7 +199,7 @@
         "aws_codestarconnections_connection.app",
         "aws_ecrpublic_repository.app"
       ],
-      "detail": "Error: creating CodeArtifact Domain (placeholder): operation error codeartifact: CreateDomain, https response error StatusCode: 400, RequestID: 190882b4-35f7-41b4-bb0f-da74f38dee46, deserialization failed, failed to decode response body, invalid character '\u003c' looking for beginning of value"
+      "detail": "Error: creating CodeArtifact Domain (placeholder): operation error codeartifact: CreateDomain, https response error StatusCode: 400, RequestID: 459ecd81-39b2-4a6d-bd6d-da44d254a5be, deserialization failed, failed to decode response body, invalid character '\u003c' looking for beginning of value"
     },
     {
       "name": "dynamodb-elasticache",
@@ -226,7 +225,7 @@
         "aws_spot_fleet_request.app",
         "aws_volume_attachment.app"
       ],
-      "detail": "Error: enabling EBS Snapshot Block Public Access (block-new-sharing): operation error EC2: EnableSnapshotBlockPublicAccess, https response error StatusCode: 400, RequestID: f7756731-7d87-46a0-8ebd-65ed8dbbd35e, api error UnsupportedOperation: Operation EnableSnapshotBlockPublicAccess is not supported."
+      "detail": "Error: enabling EBS Snapshot Block Public Access (block-new-sharing): operation error EC2: EnableSnapshotBlockPublicAccess, https response error StatusCode: 400, RequestID: 52f00873-7dae-4786-96de-facbe41458ef, api error UnsupportedOperation: Operation EnableSnapshotBlockPublicAccess is not supported."
     },
     {
       "name": "ec2-networking",
@@ -269,7 +268,7 @@
         "aws_vpn_connection.app",
         "aws_vpn_gateway.app"
       ],
-      "detail": "Error: creating EC2 Customer Gateway: operation error EC2: CreateCustomerGateway, https response error StatusCode: 400, RequestID: 656481a7-aa6c-4b2b-9626-4ec959e7f25f, api error UnsupportedOperation: Operation CreateCustomerGateway is not supported."
+      "detail": "Error: creating EC2 Customer Gateway: operation error EC2: CreateCustomerGateway, https response error StatusCode: 400, RequestID: ac355852-494d-4d88-8c6d-69bb380a5671, api error UnsupportedOperation: Operation CreateCustomerGateway is not supported."
     },
     {
       "name": "ecs-eks",
@@ -326,7 +325,7 @@
         "aws_ecr_replication_configuration.app",
         "aws_iam_service_linked_role.app"
       ],
-      "detail": "Error: creating ECR Registry Policy: operation error ECR: PutRegistryPolicy, https response error StatusCode: 400, RequestID: 6fa7962c-52af-436b-afa3-f0f8a53e8efa, api error UnsupportedOperation: Operation PutRegistryPolicy is not supported."
+      "detail": "Error: creating ECR Registry Policy: operation error ECR: PutRegistryPolicy, https response error StatusCode: 400, RequestID: 788b888c-1fb5-4cad-bcaa-47e3be5e2484, api error UnsupportedOperation: Operation PutRegistryPolicy is not supported."
     },
     {
       "name": "identity",
@@ -342,7 +341,7 @@
         "aws_iam_server_certificate.app",
         "aws_ssoadmin_instance_access_control_attributes.app"
       ],
-      "detail": "Error: creating Cognito Identity Pool: operation error Cognito Identity: CreateIdentityPool, https response error StatusCode: 404, RequestID: 0a2825d4-b4db-414d-a3a5-49aa387946d7, api error UnknownOperationException: Unknown operation: AWSCognitoIdentityService.CreateIdentityPool"
+      "detail": "Error: creating Cognito Identity Pool: operation error Cognito Identity: CreateIdentityPool, https response error StatusCode: 404, RequestID: d8d754ff-4503-4989-89c8-0c6b30d9cbf0, api error UnknownOperationException: Unknown operation: AWSCognitoIdentityService.CreateIdentityPool"
     },
     {
       "name": "iot",
@@ -359,7 +358,7 @@
         "aws_iot_thing_type.app",
         "aws_iot_topic_rule_destination.app"
       ],
-      "detail": "Error: creating IoT Authorizer (tofu-iot-cohort-authorizer): operation error IoT: CreateAuthorizer, https response error StatusCode: 400, RequestID: 7262ad61-1fb3-48a5-9deb-688358e9c52b, deserialization failed, failed to decode response body, invalid character '\u003c' looking for beginning of value"
+      "detail": "Error: creating IoT Authorizer (tofu-iot-cohort-authorizer): operation error IoT: CreateAuthorizer, https response error StatusCode: 400, RequestID: 96714a5f-1b46-42e8-a0ec-41f1b639177e, deserialization failed, failed to decode response body, invalid character '\u003c' looking for beginning of value"
     },
     {
       "name": "lambda",
@@ -388,7 +387,7 @@
         "aws_media_packagev2_channel_group.app",
         "aws_medialive_multiplex.app"
       ],
-      "detail": "Error: creating AWS IVS (Interactive Video) Channel: operation error ivs: CreateChannel, https response error StatusCode: 400, RequestID: 86d62fae-9b2e-40fa-a637-b014d793c230, deserialization failed, failed to decode response body, invalid character '\u003c' looking for beginning of value"
+      "detail": "Error: creating AWS IVS (Interactive Video) Channel: operation error ivs: CreateChannel, https response error StatusCode: 400, RequestID: be740ca4-9d28-4e77-966b-7852e32790b3, deserialization failed, failed to decode response body, invalid character '\u003c' looking for beginning of value"
     },
     {
       "name": "messaging",
@@ -398,7 +397,8 @@
       "failed_resources": [
         "aws_cloudwatch_composite_alarm.app",
         "aws_cloudwatch_dashboard.app",
-        "aws_cloudwatch_metric_stream.app"
+        "aws_cloudwatch_metric_stream.app",
+        "aws_sqs_queue_policy.app"
       ],
       "detail": "Error: creating CloudWatch Composite Alarm"
     },
@@ -423,7 +423,7 @@
         "aws_vpclattice_service_network.app",
         "aws_vpclattice_target_group.app"
       ],
-      "detail": "Error: creating Global Accelerator Accelerator (tofu-networking-advanced-cohort-globalaccelerator-accelerator): operation error Global Accelerator: CreateAccelerator, https response error StatusCode: 404, RequestID: 0cca785f-3fc6-4b35-a1b0-be8ba2934ee8, api error UnknownOperationException: Unknown operation: GlobalAccelerator_V20180706.CreateAccelerator"
+      "detail": "Error: creating Global Accelerator Accelerator (tofu-networking-advanced-cohort-globalaccelerator-accelerator): operation error Global Accelerator: CreateAccelerator, https response error StatusCode: 404, RequestID: d0babf64-519d-4bcd-b86f-13b696fb881e, api error UnknownOperationException: Unknown operation: GlobalAccelerator_V20180706.CreateAccelerator"
     },
     {
       "name": "observability",
@@ -521,9 +521,30 @@
       "phase": "apply",
       "resources": 28,
       "failed_resources": [
-        "aws_sagemaker_app_image_config.app"
+        "aws_sagemaker_algorithm.app",
+        "aws_sagemaker_app_image_config.app",
+        "aws_sagemaker_code_repository.app",
+        "aws_sagemaker_data_quality_job_definition.app",
+        "aws_sagemaker_device_fleet.app",
+        "aws_sagemaker_domain.app",
+        "aws_sagemaker_endpoint_configuration.app",
+        "aws_sagemaker_feature_group.app",
+        "aws_sagemaker_hub.app",
+        "aws_sagemaker_image.app",
+        "aws_sagemaker_mlflow_app.app",
+        "aws_sagemaker_mlflow_tracking_server.app",
+        "aws_sagemaker_model.app",
+        "aws_sagemaker_model_card.app",
+        "aws_sagemaker_model_package_group.app",
+        "aws_sagemaker_monitoring_schedule.app",
+        "aws_sagemaker_notebook_instance.app",
+        "aws_sagemaker_notebook_instance_lifecycle_configuration.app",
+        "aws_sagemaker_pipeline.app",
+        "aws_sagemaker_project.app",
+        "aws_sagemaker_studio_lifecycle_config.app",
+        "aws_sagemaker_workteam.app"
       ],
-      "detail": "Error: exactly one `code_editor_app_image_config`, `jupyter_lab_image_config`, or `kernel_gateway_image_config` block must be configured"
+      "detail": "Error: creating SageMaker Algorithm (tofu-sagemaker-cohort-algorithm)"
     },
     {
       "name": "security",
@@ -569,9 +590,19 @@
       "phase": "apply",
       "resources": 18,
       "failed_resources": [
-        "aws_fsx_openzfs_file_system.app"
+        "aws_backup_framework.app",
+        "aws_backup_logically_air_gapped_vault.app",
+        "aws_backup_report_plan.app",
+        "aws_backup_restore_testing_plan.app",
+        "aws_efs_access_point.app",
+        "aws_efs_file_system.app",
+        "aws_fsx_data_repository_association.app",
+        "aws_fsx_lustre_file_system.app",
+        "aws_fsx_ontap_file_system.app",
+        "aws_fsx_openzfs_file_system.app",
+        "aws_fsx_windows_file_system.app"
       ],
-      "detail": "Error: 0 is not a valid value for `throughput_capacity` when `deployment_type` is \"SINGLE_AZ_1\". Valid values: [64 128 256 512 1024 2048 3072 4096]"
+      "detail": "Error: creating Backup Framework (tofu_storage_cohort_backup_framework): operation error Backup: CreateFramework, https response error StatusCode: 400, RequestID: d4b4de66-4dd6-435a-8e41-69f963bfdbcd, deserialization failed, failed to decode response body, invalid character '\u003c' looking for beginning of value"
     },
     {
       "name": "stragglers",
@@ -592,7 +623,7 @@
         "aws_transfer_web_app.app",
         "aws_transfer_web_app_customization.app"
       ],
-      "detail": "Error: creating ECR Lifecycle Policy (tofu-stragglers-cohort-ecr-lifecycle-policy): operation error ECR: PutLifecyclePolicy, https response error StatusCode: 400, RequestID: f99e8586-6efd-46b2-9158-a63705ca9a2b, RepositoryNotFoundException: The repository with name 'tofu-stragglers-cohort-ecr-lifecycle-policy' does not exist in the registry with id '000000000000'"
+      "detail": "Error: creating ECR Lifecycle Policy (tofu-stragglers-cohort-ecr-lifecycle-policy): operation error ECR: PutLifecyclePolicy, https response error StatusCode: 400, RequestID: c5132ea2-86a5-4568-bf73-7524da975b12, RepositoryNotFoundException: The repository with name 'tofu-stragglers-cohort-ecr-lifecycle-policy' does not exist in the registry with id '000000000000'"
     },
     {
       "name": "streaming",
