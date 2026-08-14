@@ -316,8 +316,8 @@ func bindOne(typeName string, addr addrs.AbsResourceInstance, escaped string, c 
 			Addr:     addr,
 			Marker:   escaped,
 			Detail: fmt.Sprintf(
-				"The live %s bound to %s came back from the list call with no usable identity, so there is no import ID to build a projection from. The provider must serve an identity for a type discovered by marker.",
-				typeName, addr),
+				"The live %s bound to %s came back from the list call with no usable identity, so there is no import ID to build a projection from. The identity this type is looked up by (%s) was not among the attributes the list call returned. A provider that serves no identity at all cannot be discovered by marker; one that serves a different set is issue #105.",
+				typeName, addr, identityAttrNames(typeName)),
 		}))
 		return Binding{}, false
 	}

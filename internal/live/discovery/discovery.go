@@ -1288,8 +1288,8 @@ func classifyOrphans(req Request, res *Result) tfdiags.Diagnostics {
 				Addr:     o.Addr,
 				Marker:   o.Normalized,
 				Detail: fmt.Sprintf(
-					"A live %s carrying this estate's marker for %s came back from the list call with no usable identity, so there is nothing to read it with and no destroy can be planned for it. The provider must serve an identity for a type discovered by marker.",
-					o.TypeName, o.Addr),
+					"A live %s carrying this estate's marker for %s came back from the list call with no usable identity, so there is nothing to read it with and no destroy can be planned for it. The identity this type is looked up by (%s) was not among the attributes the list call returned. A provider that serves no identity at all cannot be discovered by marker; one that serves a different set is issue #105.",
+					o.TypeName, o.Addr, identityAttrNames(o.TypeName)),
 			}))
 			o.Withheld = "the provider served no identity for it, so it cannot be read or destroyed"
 		case len(byAddr[o.Addr.String()]) > 1:
@@ -1438,6 +1438,18 @@ func hasAttr(b *configschema.Block, name string) bool {
 // the identity table's IdentityAttrs for the type - "id" for every EC2 type
 // in the v0 subset, with aws_eip also accepting allocation_id - and falling
 // back to "id" for a type the table does not cover.
+// identityAttrNames renders the attributes importIdentity will look for, so
+// a ProblemNoIdentity can say which ones it wanted rather than blaming the
+// provider for serving none. It mirrors importIdentity's own defaulting
+// exactly; keep the two in step.
+func identityAttrNames(typeName string) string {
+	attrs := []string{"id"}
+	if ti, ok := identity.LookupType(typeName); ok && len(ti.IdentityAttrs) > 0 {
+		attrs = ti.IdentityAttrs
+	}
+	return strings.Join(attrs, ", ")
+}
+
 func importIdentity(typeName string, r listclient.Result) (string, string, bool) {
 	attrs := []string{"id"}
 	if ti, ok := identity.LookupType(typeName); ok && len(ti.IdentityAttrs) > 0 {
@@ -1510,8 +1522,8 @@ func bind(req Request, decl *declared, res *Result) tfdiags.Diagnostics {
 						Addr:     entry.res.Addr,
 						Marker:   escaped,
 						Detail: fmt.Sprintf(
-							"The live %s carrying the marker for %s came back from the list call with no usable identity, so there is no import ID to build a projection from. The provider must serve an identity for a type discovered by marker.",
-							typeName, entry.res.Addr),
+							"The live %s carrying the marker for %s came back from the list call with no usable identity, so there is no import ID to build a projection from. The identity this type is looked up by (%s) was not among the attributes the list call returned. A provider that serves no identity at all cannot be discovered by marker; one that serves a different set is issue #105.",
+							typeName, entry.res.Addr, identityAttrNames(typeName)),
 					}))
 					continue
 				}
