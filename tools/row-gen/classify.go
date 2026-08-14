@@ -115,6 +115,12 @@ type proposal struct {
 	CompositeArgs []string
 	CompositeSep  string
 
+	// CrossCheck is what the three identity sources disagreed about for
+	// this type, recorded by applyIdentitySchemaCrossCheck so the rendered
+	// block can print it. Empty is the ordinary case. See crosscheck.go and
+	// GitHub issue #106.
+	CrossCheck []crossCheckFinding
+
 	// DerivedImportSyntax and DerivedIdentityAttrs are
 	// applyImportGrammarPrecedence's narrow, evidence-gated corrections to
 	// a bucketServerAssigned proposal's placeholder text and identity-

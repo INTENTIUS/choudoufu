@@ -146,6 +146,11 @@ func applyImportGrammarPrecedence(proposals []proposal, importGrammar map[string
 		}
 		tryCompoundArnImportSyntax(p, g)
 		applyIdentitySchemaAttrsCorrection(p, g)
+		// Last, so that whatever the rules above settled on is what gets
+		// compared against the provider's own two answers. See
+		// crosscheck.go: this is the pass that would have caught
+		// aws_ecs_service's phantom service_arn.
+		applyIdentitySchemaCrossCheck(p, g)
 	}
 }
 
