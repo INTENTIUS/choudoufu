@@ -4,14 +4,14 @@ Spec version 1
 
 This file is the format for live resource markers, the ownership records
 this fork keeps on resources instead of in a state file. It is the only
-integration surface external tools rely on. Nothing else about the mode's
-internals is a contract. This document is.
+integration surface external tools rely on: this document is a contract,
+and nothing else about the mode's internals is.
 
 A marker is an ownership record carried on the resource itself, as AWS
 resource tags. There is no side channel, no registry, and no shared library.
 If a tool reads and writes these three tags according to the grammar below,
 it can identify, adopt, and safely modify resources that belong to a
-marker-managed estate, whether or not it has ever heard of OpenTofu.
+marker-managed estate, with no dependency on OpenTofu itself.
 
 ## Tag keys
 
@@ -36,12 +36,12 @@ could not hold. See "tofu-address continuation tags" below.
 
 ## AWS tag constraints
 
-These are hard limits imposed by AWS, not choices made here, and everything
+These limits come from AWS, and everything
 below is designed to fit inside them.
 
 - A tag value holds at most 256 Unicode characters.
-- A tag key holds at most 128 Unicode characters. Not a concern here, since
-  all three keys are short, fixed strings.
+- A tag key holds at most 128 Unicode characters. This is not a concern
+  here, since all three keys are short, fixed strings.
 - A value may contain letters and numbers representable in UTF-8, space,
   and the characters `+ - = . _ : / @`. No other punctuation, including
   `[`, `]`, and `"`, is permitted by AWS in a tag value.
@@ -73,25 +73,25 @@ config block owns this resource". The entire binding mechanism for the
 marker admission path (path 2) rests on this value matching an address that
 exists in configuration.
 
-**Grammar vs. what ships today.** The `module.` segment below is shipped,
-not forward-looking: identity resolution, projection, discovery, stamping
+**Grammar vs. current builds.** The `module.` segment below is already
+implemented: identity resolution, projection, discovery, stamping
 and the rename all traverse `cfg.Children`, and a `tofu-address` value
 carries the full module-qualified address for a resource inside a static
 module tree or a `for_each`-keyed module call with statically-evaluable
 keys, at any nesting depth (issue #59, phases 1-2 / "59b"/"59c"). The one
 segment shape this grammar allows but no build ever produces is a `count`
-instance key on a `module.` segment - a module block expanded with `count`
+instance key on a `module.` segment: a module block expanded with `count`
 is refused outright before anything reads the live system, permanently,
 because the position-based renumbering it causes is exactly the ambiguity
 a `tofu-address` marker exists to remove (`RuleChildModule`,
 `internal/live/lint/child_module.go`; `live/LIMITATIONS.md`,
-"child-module"). A resource inside a `for_each`-keyed module's own
-instances is not auto-written even though its address is shipped: stamping
+"child-module"). A resource inside a `for_each`-keyed module's
+instances is not auto-written even though its address is supported: stamping
 cannot inject a marker into a shared configuration body, so that address is
 built by hand instead (`live/LIMITATIONS.md`'s "keyed module" behavioral
 limit; the concept page's "Modules" section has the idiom).
 
-The unescaped grammar, in informal EBNF matching OpenTofu's own address
+The unescaped grammar, in informal EBNF matching OpenTofu's address
 syntax.
 
 ```
@@ -135,7 +135,7 @@ index runs to the next `.` or the end of the string.
 
 A single tag value holds at most 256 characters (the AWS hard cap on tag
 values). An escaped address that does not fit is carried across several
-tags instead - see "tofu-address continuation tags", directly below - up to
+tags instead (see "tofu-address continuation tags", directly below), up to
 a total of 1024 characters. Past that wider ceiling, the original rule
 still holds without exception: an address that does not fit is a lint-time
 error, not a truncation. Silently truncating an ownership key is worse than
@@ -144,37 +144,37 @@ refusing to admit the resource.
 ### `tofu-address` continuation tags
 
 Deep module trees and long `for_each` keys can produce an escaped address
-longer than one 256-character tag value holds. Rather than refuse every
+longer than one 256-character tag value holds. Instead of refusing every
 such address outright, `tofu-address` carries the first 256 characters and
-up to three more tags - `tofu-address-2`, `tofu-address-3`,
-`tofu-address-4` - carry the rest, in order, 256 characters at a time. A
+up to three more tags (`tofu-address-2`, `tofu-address-3`,
+`tofu-address-4`) carry the rest, in order, 256 characters at a time. A
 reader concatenates `tofu-address`, then `tofu-address-2` if present, then
 `tofu-address-3`, then `tofu-address-4`, and the result is the one escaped
 address that would not fit in a single tag. This is the only sanctioned way
 to read a split address; the continuation tags are never meaningful on
 their own, individually or out of order.
 
-This raises the effective limit to 1024 characters (four tags of 256), not
-an unbounded one. An address that does not fit in four tags is still a
-lint-time error - RuleOverlongAddress, `internal/live/lint/overlong_address.go`
-- for the same reason the original 256-character refusal existed:
+This raises the effective limit to 1024 characters (four tags of 256); the
+limit remains bounded. An address that does not fit in four tags is still a
+lint-time error (RuleOverlongAddress, `internal/live/lint/overlong_address.go`)
+for the same reason the original 256-character refusal existed:
 truncating an ownership key is worse than refusing to admit the resource,
 and a fourth tier of continuation would just move the same question further
 out without answering it. Four tags is deliberately generous headroom
 against the 50-tag-per-resource AWS limit (minus whatever tags the
-configuration's own `tags` block already uses) while staying a small, fixed
-number rather than a knob a configuration can turn.
+configuration's `tags` block already uses) while staying a small, fixed
+number instead of a knob a configuration can turn.
 
-A resource whose address fits in 256 characters - the overwhelming common
-case, and every marker written before this addition existed - carries only
+A resource whose address fits in 256 characters (the overwhelming common
+case, and every marker written before this addition existed) carries only
 `tofu-address` and no continuation tags at all, exactly as before. Nothing
 about a short address changes.
 
 **Reading a corrupt chain.** A continuation tag can only exist because
 something wrote the whole set together; the three tags below `tofu-address`
 are never independently meaningful. A tag map where `tofu-address-3` is
-present but `tofu-address-2` is not - the middle of the chain deleted by a
-hand edit, a tag policy misfire, or two racing writes - cannot be
+present but `tofu-address-2` is not (the middle of the chain deleted by a
+hand edit, a tag policy misfire, or two racing writes) cannot be
 concatenated into anything, and per "Ownership semantics" below it is
 malformed: reported loudly and by name, never silently read as the address
 up to the gap and never treated as unowned.
@@ -186,9 +186,8 @@ whichever tag holds the last of the address (a shorter final chunk is
 normal and is not padded). A tool that only ever writes addresses under 256
 characters never has to think about this section at all.
 
-**Known limitation, left for the lint layer to enforce, not this spec to
-paper over.** The escaping is lossy in two ways, both by design rather than
-oversight.
+**Known limitation, left for the lint layer to enforce.** The escaping is
+lossy in two ways, both by design.
 
 - A bare integer `for_each`/`count` index and a quoted string index with
   the same digits collide. `this[2]` and `this["2"]` both escape to
@@ -222,10 +221,10 @@ created.
 Reuse is bounded, not absolute (amended, spec v1). A marker-managed estate
 has no registry and no side channel. The only record of a slot is the tag
 on the live resource, so once that resource is gone the slot is
-unrecoverable. The guarantee is therefore as follows. The minting
+unrecoverable. The guarantee is therefore as follows. The assignment
 high-water mark is the highest slot among the block's live resources. A
 slot is never reused while any resource holds it, and never duplicated
-within a set. A slot whose resource has been deleted may be minted again
+within a set. A slot whose resource has been deleted may be assigned again
 later.
 
 The format is an unsigned base-10 integer, ASCII digits only, no leading
@@ -233,18 +232,18 @@ zeros (the value `0` is written as `0`, not `00`). Slots are assigned from
 a monotonic counter per `count` resource block (not per instance address,
 since an instance's address contains the index a slot is deliberately
 independent of), starting at `0`. The first instance of `aws_eip.this`
-gets slot `0`, the second gets slot `1`, and so on. New instances mint
-above the live high-water mark. Ten digits (up to 4294967295) is the
-ceiling. No realistic `count` approaches it.
+gets slot `0`, the second gets slot `1`, and so on. New instances are
+assigned slots above the live high-water mark. Ten digits (up to
+4294967295) is the ceiling. No realistic `count` approaches it.
 
-Slots bind, addresses follow. For a `count` instance carrying a slot, the
-slot is what binds it to a declared instance. The k-th lowest live slot
+For a `count` instance carrying a slot, the slot is what binds it to a
+declared instance, and the address follows. The k-th lowest live slot
 binds to index k. `tofu-address` remains mandatory and remains the full
 indexed address, but a value naming a different index than the slot bound
-to is STALE, not a rival claim. It is repaired by the next plan's ordinary
+to is stale, never a rival claim. It is repaired by the next plan's ordinary
 tag write, and it is never a collision. Scale-down deletes the highest
 slots, compared numerically, so every survivor keeps the index it already
-occupied. That is the no-churn rule stated precisely.
+occupied. That is the no-churn rule.
 
 Slot values are compared numerically, not lexicographically, because they
 are carried as strings in a tag. `"9"` is a lower slot than `"10"` even
@@ -253,12 +252,12 @@ rule ("surplus deletes the highest slots") must parse before comparing.
 
 `tofu-slot` is independent of `tofu-address`. A plain rename that does not
 change cardinality leaves slot assignments untouched. Only a
-change in the number of live instances mints or retires slots.
+change in the number of live instances assigns or retires slots.
 
 ## Ownership semantics
 
-- A resource carrying a `tofu-estate` tag belongs to that estate, full
-  stop. The value is the entire ownership claim, and there is no secondary
+- A resource carrying a `tofu-estate` tag belongs to that estate. The
+  value is the entire ownership claim, and there is no secondary
   check.
 - A resource carrying neither `tofu-estate` nor `tofu-address` is foreign.
   It sits outside every estate's ownership and is reported, protected, and
@@ -269,9 +268,9 @@ change in the number of live instances mints or retires slots.
   live resources claiming one address). It is never guessed at, and never
   silently treated as either "belongs to no one" or "belongs to whichever
   address looks close enough." A `tofu-address` continuation chain with a
-  gap in it - a `tofu-address-3` present while `tofu-address-2` is not - is
+  gap in it (a `tofu-address-3` present while `tofu-address-2` is not) is
   the same malformed case: it cannot be concatenated into anything, so it
-  is reported rather than read as the address up to the gap.
+  is reported, never read as the address up to the gap.
 - Two resources carrying the same `tofu-estate` and the same
   `tofu-address` at once is also a named error. The marker admission path
   assumes at most one live resource per address per estate, and a
@@ -289,8 +288,8 @@ change in the number of live instances mints or retires slots.
 Renaming a resource in config, whether changing its address, moving it into
 or out of a module, or changing a `for_each` key, is done by rewriting the
 `tofu-address` tag on the live resource to the new escaped address. That
-tag write *is* the move operation. There is no state to surgically edit, no
-`moved` block to author, no two-step "mark old, create new" dance. The old
+tag write is the move operation; there is no state to edit, no `moved`
+block to author, and no two-step migration. The old
 address is simply gone from the tag the instant the new one is written,
 because a single tag value cannot hold both.
 
@@ -300,21 +299,21 @@ overwrites it with the new escaped value in one tag-update call. After it
 runs, a plan against the old address finds nothing (it was never a delete,
 since the resource was never bound to "old" as far as anything after the
 rewrite is concerned), and a plan against the new address finds the
-resource already bound. Zero churn, by construction rather than by
-special-casing renames in the plan engine.
+resource already bound. The result is zero churn, with no special-casing
+of renames in the plan engine.
 
 Old markers never linger. There is exactly one `tofu-address` value on a
 resource at any time, and after a rewrite that value is the new address,
 not a history of addresses it once had. This holds for continuation tags
 too: a rename onto a shorter address writes fewer `tofu-address-*` tags
 than the old one carried, and a rename tool is expected to delete whichever
-continuation tags the new address does not reach rather than leave a stale
-tag that a later read would concatenate onto the new value.
+continuation tags the new address does not reach, so that no stale
+tag remains for a later read to concatenate onto the new value.
 
 ## Versioning
 
 The header at the top of this file ("Spec version 1") versions this
-*document*, not the resources it describes. There is no
+document, not the resources it describes. There is no
 `tofu-marker-version` tag, and none is planned. Markers written under an
 older revision of this spec remain on live resources indefinitely. Nothing
 rewrites them proactively.
@@ -326,11 +325,11 @@ does adding a new optional tag key that absence-tolerant readers can
 ignore. The `tofu-address` continuation tags are exactly this: every marker
 written before they existed has no `tofu-address-*` tag and reads exactly
 as it always did, so no existing marker is invalidated. The asymmetry runs
-the other way instead - a reader built only against spec version 1's single
-`tofu-address` tag will read a NEW split marker's first 256 characters as
-the whole address, silently, rather than erroring. That is a real gap for
+the other way instead: a reader built only against spec version 1's single
+`tofu-address` tag will silently read a new split marker's first 256
+characters as the whole address instead of erroring. That is a real gap for
 anything that has not been updated to read continuation tags, and it is
-accepted rather than papered over with a version bump, because the
+accepted without a version bump, because the
 definition above is about old data under new code, not new data under old
 code; the versioning number cannot help with the latter no matter which way
 it is called.
@@ -348,7 +347,7 @@ can refuse to guess instead of misreading them.
 
 This file is the entire contract. Nothing about the mode's Go internals
 (the projection builder, the lint rules, the identity resolution) is
-load-bearing for another tool to participate. Any tool that reads and
+required for another tool to participate. Any tool that reads and
 writes `tofu-estate`, `tofu-address`, and `tofu-slot` per the grammar
 above, on the resource types it manages, can discover, classify, and
 safely mutate resources in a marker-managed estate.
@@ -356,9 +355,8 @@ safely mutate resources in a marker-managed estate.
 This grammar is designed for external adoption. Any tool, in any language,
 can read and write these three tags without linking against this fork or
 knowing it exists. No known implementation of this spec exists outside
-this fork today. That is expected at this stage. The spec is written to be
-the stable integration surface a future tool builds against, not proof
-that one already has.
+this fork today, which is expected at this stage: the spec is written to
+be the stable integration surface a future tool builds against.
 
 ## Protecting the markers
 
@@ -371,30 +369,29 @@ type.
 For a client-named resource (`aws_s3_bucket`, `aws_iam_role`, the rest of
 admission path 1) it is a nuisance and nothing worse: the next plan reports
 the resource `[UNOWNED]` with the exact adoption command, because the
-cloud's own uniqueness constraint means a duplicate can never actually be
+cloud's uniqueness constraint means a duplicate can never actually be
 created under the same name. For a server-assigned resource (`aws_vpc`,
 `aws_security_group`, and the rest of admission path 2's table above) the
-marker is the *only* handle discovery has. Strip it off a live one and the
+marker is the only handle discovery has. Strip it off a live one and the
 declared address it used to bind to looks exactly like a resource that was
 never created: the next plan proposes CREATE, and unless something
 intervenes, apply produces a second, functionally identical resource
-sitting beside the orphaned first one. This section is about that case -
-the one a veteran operator fears most, because nothing about it looks like
-an error until the bill or the drift shows up.
+sitting beside the orphaned first one. This section is about that case:
+nothing about it looks like an error until the bill or the drift shows up.
 
 ### What actually stops it, checked rather than assumed
 
 Two AWS Organizations mechanisms sound like they cover this. One does not,
 and the other only partially.
 
-**Tag policies enforce values, not survival.** Per AWS's own documentation
+**Tag policies enforce values, not survival.** Per AWS's documentation
 ([Tag policies](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_tag-policies.html),
 [Enforce tagging consistency](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_tag-policies-enforcement.html)),
 a tag policy "can specify that when the `CostCenter` tag is attached to a
 resource, it must use the case treatment and tag values that the tag
 policy defines," and enforcement mode "prevents noncompliant tagging
 requests on specified resource types from completing." That is a check on
-what a tag is set *to*, run when a tag is written, on resource types the
+the value a tag is set to, run when a tag is written, on resource types the
 feature explicitly supports. Nothing in that mechanism inspects a
 `DeleteTags`-shaped call at all, and AWS says so directly: "Basic
 compliance rules do not enforce tag compliance on resources that are
@@ -408,11 +405,11 @@ member accounts, and only where the condition key is honored.** A service
 control policy is a guardrail on what IAM principals in an organization's
 *member* accounts can do
 ([Service control policies](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_scps.html)):
-it never grants anything, it can `Deny` an action outright, and - per that
-same page - it has no effect on the management account or on any
+it never grants anything, it can `Deny` an action outright, and, per that
+same page, it has no effect on the management account or on any
 principal outside the organization. Denying the tag-removal actions for
-the marker keys - `tofu-estate`, `tofu-slot`, and `tofu-address` together
-with its `tofu-address-2` through `tofu-address-4` continuation tags -
+the marker keys (`tofu-estate`, `tofu-slot`, and `tofu-address` together
+with its `tofu-address-2` through `tofu-address-4` continuation tags),
 with an exception for whichever principal runs `choudoufu`, is the closest
 thing to a real backstop:
 
@@ -453,36 +450,36 @@ without a long address ever needs: `aws:TagKeys` in an SCP condition is a
 set-membership check, with no prefix wildcard for "any `tofu-address-*`
 key," so a policy that lists only the bare `tofu-address` leaves
 `tofu-address-2` through `tofu-address-4` unprotected on any resource whose
-escaped address needed them - stripping just the continuation tags corrupts
+escaped address needed them. Stripping just the continuation tags corrupts
 the same ownership record as stripping `tofu-address` itself, since a
 reader that cannot gather every chunk cannot reconstruct the address at
 all. See "`tofu-address` continuation tags," above.
 
 That action list is illustrative, not exhaustive or verified for every
-admitted type - it has to be, since this fork tracks each type's tagging
-*verb* (`live/tag-verbs.json`, `residue.TagVerbForType`) but not its
+admitted type. It has to be, since this fork tracks each type's tagging
+verb (`live/tag-verbs.json`, `residue.TagVerbForType`) but not its
 untagging one, so there is no generated artifact to check it against the
 way the adoption hint's command is checked. Before deploying anything like
 it:
 
 - **Confirm `aws:TagKeys` is actually honored by each action**, per
-  service, per action. IAM's own docs point at the [Service Authorization
+  service, per action. IAM's docs point at the [Service Authorization
   Reference](https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html)
-  to check this rather than promising it applies uniformly, and it does
+  to check this instead of promising it applies uniformly, and it does
   not: operators have reported services whose tag-removal call does not
   evaluate the condition the way EC2's `DeleteTags` does. A statement that
   looks correct and silently does nothing for one service in the list is
   worse than no policy, because it reads as protection that is not there.
 - **`route53:ChangeTagsForResource`** folds adding and removing tags into
-  one call keyed by a "keys to remove" parameter rather than a
+  one call keyed by a "keys to remove" parameter instead of a
   dedicated untag action; the condition still keys off `aws:TagKeys`, but
-  verify the shape against that action's own reference page before
+  verify the shape against that action's reference page before
   trusting it.
 - **The management account and any standalone (non-Organizations) account
   are outside SCP reach entirely.** A principal there needs ordinary
   least-privilege IAM to protect the marker keys, because no
   organization-level guardrail reaches it.
-- **Nothing here stops the resource from being deleted outright** - only
+- **Nothing here stops the resource from being deleted outright**, only
   its markers being stripped while the resource survives. Outright
   deletion is a different, already-handled case: the next plan's estate
   sweep reports the address as gone and proposes nothing, since there is
@@ -493,7 +490,7 @@ it:
 Even a correct SCP leaves gaps: the management account, a standalone
 account, a compromised or misused exemption for the automation principal,
 a service whose untag action does not honor `aws:TagKeys`, or simply a
-policy nobody has written yet. Prevention is not the whole answer, which
+policy nobody has written yet. Prevention cannot cover every case, which
 is why this fork does not rely on it alone.
 
 At plan time, when a declared resource of an admitted type would be
@@ -501,11 +498,11 @@ created and the estate sweep saw one or more live resources of the same
 type that this estate does not own, the plan runs the same content-match
 machinery that offers adoption elsewhere (`internal/live/foreign`'s match
 table and its one-to-one rule) against the declared configuration. On a
-match it does not change what the plan does - the create may be genuinely
-intended - but the create's entry in the plan gains a `[POSSIBLE
+match it does not change what the plan does (the create may be
+intended), but the create's entry in the plan gains a `[POSSIBLE
 DUPLICATE]` warning, naming the matched live resource's ID and the exact
 command that adopts it instead. A type with no content-match rule (a route
-table, an EIP - nothing in their configuration distinguishes one from
+table, an EIP: nothing in their configuration distinguishes one from
 another) still gets a generic warning when exactly one same-type unowned
 resource exists, naming it the same way. Either way the warning sits
 immediately above the plan diff itself, not buried in a report an operator
@@ -513,6 +510,6 @@ could plan past without reading. This is the guard that assumes the tags
 will get stripped sometime, by someone, despite whatever policy is in
 place, and catches it anyway.
 
-That is the honest layering: a tag policy cannot do this job at all, an
-SCP narrows who can strip a marker and where, and the plan-time guard is
-what catches it when someone does it regardless.
+Taken together: a tag policy cannot do this job at all, an
+SCP narrows who can strip a marker and where, and the plan-time guard
+catches it when someone does it regardless.
