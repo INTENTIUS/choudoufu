@@ -317,6 +317,48 @@ func TestSweepReportsUntaggableTypes(t *testing.T) {
 	}
 }
 
+// TestSweepDegradesUntaggedObjectToGap: an admitted, schema-taggable type
+// that lists an object with no readable tags during the estate-wide sweep is
+// a recorded gap under its own reason (SweepGapObjectUntagged), never a hard
+// failure - the object-level runtime twin of TestSweepReportsUntaggableTypes'
+// schema-level standing fact, and distinct from it. One gap per type, however
+// many objects are unreadable, and it is announced as a warning because it is
+// this run's own news rather than a standing fact. The declared-type
+// contrast - the same condition on a type the configuration declares stays a
+// hard ProblemNoTags - is pinned by TestDiscoverNoTags. Issue #90: this
+// branch was lost once in a merge, silently, because nothing pinned it.
+func TestSweepDegradesUntaggedObjectToGap(t *testing.T) {
+	cloud := newFakeCloud()
+	ownWholeEstate(cloud)
+	cloud.listable("aws_cloudwatch_log_group")
+	// Two marked objects that pass the sweep's tag filter but come back
+	// without a readable resource object: their markers cannot be read.
+	cloud.own("aws_cloudwatch_log_group", "lg-1", `aws_cloudwatch_log_group.a`)
+	cloud.own("aws_cloudwatch_log_group", "lg-2", `aws_cloudwatch_log_group.b`)
+	for _, o := range cloud.objects["aws_cloudwatch_log_group"] {
+		o.noObject = true
+	}
+
+	res, diags := discoverFixture(t, cloud, Request{Sweep: true})
+	assertNoErrors(t, diags)
+
+	var gaps []SweepGap
+	for _, g := range res.SweepGaps {
+		if g.TypeName == "aws_cloudwatch_log_group" {
+			gaps = append(gaps, g)
+		}
+	}
+	if len(gaps) != 1 {
+		t.Fatalf("want exactly one sweep gap for the type with two unreadable objects, got %d:\n%s", len(gaps), res)
+	}
+	if gaps[0].Reason != SweepGapObjectUntagged {
+		t.Errorf("the untagged object's gap is filed as %s, want %s", gaps[0].Reason, SweepGapObjectUntagged)
+	}
+	if !hasDiag(diags, "Incomplete sweep for undeclared resources", "no tags attribute on the returned object") {
+		t.Errorf("no warning announced the object-level gap:\n%s", renderDiags(diags))
+	}
+}
+
 // TestSweepUsesTheServerSideFilterWhereItCan is the cost claim. A sweep is
 // paid for on every plan, so it asks the provider to do the filtering for
 // every type whose list schema offers it: an estate that holds nothing of a

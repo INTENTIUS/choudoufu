@@ -970,7 +970,9 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				// type's schema DOES declare a tags attribute, but this
 				// particular listed object came back without one anyway -
 				// a provider or emulator quirk on the object, not a fact
-				// about the type. Either way a sweep is looking for THIS
+				// about the type, which is why it files under its own
+				// reason (SweepGapObjectUntagged) rather than the
+				// standing-fact one. Either way a sweep is looking for THIS
 				// estate's markers among an admitted type the configuration
 				// never declares, and an unreadable object there is a hole
 				// in removal coverage, not a reason to fail every plan this
@@ -984,9 +986,9 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 					sweepUntaggedReported = true
 					diags = diags.Append(sweepGapDiag(res, SweepGap{
 						TypeName: typeName,
-						Reason:   SweepGapNotTaggable,
+						Reason:   SweepGapObjectUntagged,
 						Detail: fmt.Sprintf(
-							"A live %s came back from the provider with no tags attribute, so this sweep cannot tell whether it (or any other unreadable instance of the type) belongs to this estate. Destroy a resource of this type before removing its block, or delete it out of band.",
+							"The estate-wide sweep listed a %s with no tags attribute on the returned object, so its ownership markers cannot be read and it cannot be matched to this estate. This is a provider or emulator bug; the sweep continues over the rest of this type's objects and every other type.",
 							typeName),
 					}))
 				}
