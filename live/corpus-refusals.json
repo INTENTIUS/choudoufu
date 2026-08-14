@@ -1,6 +1,796 @@
 {
   "entries": [
     {
+      "name": ".corpus/alb/examples/complete-alb",
+      "blocked": true,
+      "loaded": true,
+      "instances": 9,
+      "sites": 64,
+      "unresolved_modules": 6,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 1
+    },
+    {
+      "name": ".corpus/alb/examples/complete-nlb",
+      "blocked": true,
+      "loaded": true,
+      "instances": 5,
+      "sites": 31,
+      "unresolved_modules": 3,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/alb/examples/mutual-auth-alb",
+      "blocked": true,
+      "loaded": true,
+      "instances": 6,
+      "sites": 39,
+      "unresolved_modules": 6,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 8
+    },
+    {
+      "name": ".corpus/autoscaling/examples/complete",
+      "blocked": true,
+      "loaded": true,
+      "instances": 16,
+      "sites": 58,
+      "unresolved_modules": 5,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 3
+    },
+    {
+      "name": ".corpus/ecs/examples/complete",
+      "blocked": true,
+      "loaded": true,
+      "instances": 5,
+      "sites": 672,
+      "unresolved_modules": 4,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/ecs/examples/container-definition",
+      "blocked": true,
+      "loaded": true,
+      "instances": 3,
+      "sites": 4,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/ecs/examples/ec2-autoscaling",
+      "blocked": true,
+      "loaded": true,
+      "instances": 7,
+      "sites": 135,
+      "unresolved_modules": 4,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 4
+    },
+    {
+      "name": ".corpus/ecs/examples/express-service",
+      "blocked": true,
+      "loaded": true,
+      "instances": 4,
+      "sites": 19,
+      "unresolved_modules": 1,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 1
+    },
+    {
+      "name": ".corpus/ecs/examples/fargate",
+      "blocked": true,
+      "loaded": true,
+      "instances": 14,
+      "sites": 56,
+      "unresolved_modules": 2,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 4
+    },
+    {
+      "name": ".corpus/ecs/examples/managed-instances",
+      "blocked": true,
+      "loaded": true,
+      "instances": 7,
+      "sites": 106,
+      "unresolved_modules": 2,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 4
+    },
+    {
+      "name": ".corpus/eks/examples/basic",
+      "blocked": true,
+      "loaded": true,
+      "instances": 6,
+      "sites": 200,
+      "unresolved_modules": 1,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 9
+    },
+    {
+      "name": ".corpus/eks/examples/irsa",
+      "blocked": true,
+      "loaded": true,
+      "instances": 7,
+      "sites": 183,
+      "unresolved_modules": 2,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 8
+    },
+    {
+      "name": ".corpus/eks/examples/launch_templates",
+      "blocked": true,
+      "loaded": true,
+      "instances": 7,
+      "sites": 188,
+      "unresolved_modules": 1,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 9
+    },
+    {
+      "name": ".corpus/eks/examples/managed_node_groups",
+      "blocked": true,
+      "loaded": true,
+      "instances": 3,
+      "sites": 184,
+      "unresolved_modules": 1,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 9
+    },
+    {
+      "name": ".corpus/eks/examples/spot_instances",
+      "blocked": true,
+      "loaded": true,
+      "instances": 5,
+      "sites": 186,
+      "unresolved_modules": 1,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 9
+    },
+    {
+      "name": ".corpus/iam/examples/iam-account",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 2,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 2
+    },
+    {
+      "name": ".corpus/iam/examples/iam-group",
+      "blocked": true,
+      "loaded": true,
+      "instances": 7,
+      "sites": 15,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/iam/examples/iam-oidc-provider",
+      "blocked": true,
+      "loaded": true,
+      "instances": 1,
+      "sites": 2,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/iam/examples/iam-policy",
+      "blocked": false,
+      "loaded": true,
+      "instances": 2,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/iam/examples/iam-read-only-policy",
+      "blocked": false,
+      "loaded": true,
+      "instances": 1,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/iam/examples/iam-role",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 17,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/iam/examples/iam-role-for-service-accounts",
+      "blocked": true,
+      "loaded": true,
+      "instances": 1,
+      "sites": 861,
+      "unresolved_modules": 2,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/iam/examples/iam-user",
+      "blocked": true,
+      "loaded": true,
+      "instances": 7,
+      "sites": 12,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 2
+    },
+    {
+      "name": ".corpus/lambda/examples/alias",
+      "blocked": true,
+      "loaded": true,
+      "instances": 3,
+      "sites": 53,
+      "unresolved_modules": 1,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 9
+    },
+    {
+      "name": ".corpus/lambda/examples/async",
+      "blocked": true,
+      "loaded": true,
+      "instances": 5,
+      "sites": 26,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 3
+    },
+    {
+      "name": ".corpus/lambda/examples/build-package",
+      "blocked": true,
+      "loaded": true,
+      "instances": 62,
+      "sites": 473,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 28
+    },
+    {
+      "name": ".corpus/lambda/examples/code-signing",
+      "blocked": true,
+      "loaded": true,
+      "instances": 3,
+      "sites": 28,
+      "unresolved_modules": 1,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 3
+    },
+    {
+      "name": ".corpus/lambda/examples/complete",
+      "blocked": true,
+      "loaded": true,
+      "instances": 23,
+      "sites": 322,
+      "unresolved_modules": 1,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 9
+    },
+    {
+      "name": ".corpus/lambda/examples/container-image",
+      "blocked": true,
+      "loaded": true,
+      "instances": 3,
+      "sites": 62,
+      "unresolved_modules": 1,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 6
+    },
+    {
+      "name": ".corpus/lambda/examples/deploy",
+      "blocked": true,
+      "loaded": true,
+      "instances": 8,
+      "sites": 39,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 3
+    },
+    {
+      "name": ".corpus/lambda/examples/event-source-mapping",
+      "blocked": true,
+      "loaded": true,
+      "instances": 7,
+      "sites": 53,
+      "unresolved_modules": 1,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 3
+    },
+    {
+      "name": ".corpus/lambda/examples/multiple-regions",
+      "blocked": true,
+      "loaded": true,
+      "instances": 7,
+      "sites": 61,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 2
+    },
+    {
+      "name": ".corpus/lambda/examples/runtimes",
+      "blocked": true,
+      "loaded": true,
+      "instances": 9,
+      "sites": 93,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 7
+    },
+    {
+      "name": ".corpus/lambda/examples/simple",
+      "blocked": true,
+      "loaded": true,
+      "instances": 3,
+      "sites": 25,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 1
+    },
+    {
+      "name": ".corpus/lambda/examples/simple-cicd",
+      "blocked": true,
+      "loaded": true,
+      "instances": 3,
+      "sites": 25,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 1
+    },
+    {
+      "name": ".corpus/lambda/examples/triggers",
+      "blocked": true,
+      "loaded": true,
+      "instances": 3,
+      "sites": 30,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 1
+    },
+    {
+      "name": ".corpus/lambda/examples/with-efs",
+      "blocked": true,
+      "loaded": true,
+      "instances": 6,
+      "sites": 26,
+      "unresolved_modules": 1,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 1
+    },
+    {
+      "name": ".corpus/lambda/examples/with-vpc",
+      "blocked": true,
+      "loaded": true,
+      "instances": 3,
+      "sites": 26,
+      "unresolved_modules": 1,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 1
+    },
+    {
+      "name": ".corpus/lambda/examples/with-vpc-s3-endpoint",
+      "blocked": true,
+      "loaded": true,
+      "instances": 3,
+      "sites": 26,
+      "unresolved_modules": 5,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 1
+    },
+    {
+      "name": ".corpus/rds/examples/blue-green-deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 5,
+      "sites": 9,
+      "unresolved_modules": 3,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/rds/examples/complete-mssql",
+      "blocked": true,
+      "loaded": true,
+      "instances": 5,
+      "sites": 11,
+      "unresolved_modules": 2,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 2
+    },
+    {
+      "name": ".corpus/rds/examples/complete-mysql",
+      "blocked": true,
+      "loaded": true,
+      "instances": 5,
+      "sites": 14,
+      "unresolved_modules": 2,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/rds/examples/complete-oracle",
+      "blocked": true,
+      "loaded": true,
+      "instances": 4,
+      "sites": 11,
+      "unresolved_modules": 3,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 1
+    },
+    {
+      "name": ".corpus/rds/examples/complete-postgres",
+      "blocked": true,
+      "loaded": true,
+      "instances": 4,
+      "sites": 17,
+      "unresolved_modules": 3,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 1
+    },
+    {
+      "name": ".corpus/rds/examples/cross-region-replica-postgres",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 9,
+      "unresolved_modules": 5,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/rds/examples/enhanced-monitoring",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 9,
+      "unresolved_modules": 2,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/rds/examples/groups",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 23,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/rds/examples/replica-mysql",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 12,
+      "unresolved_modules": 2,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/rds/examples/replica-postgres",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 10,
+      "unresolved_modules": 2,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/rds/examples/role-association-postgres",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 6,
+      "unresolved_modules": 5,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/rds/examples/s3-import-mysql",
+      "blocked": true,
+      "loaded": true,
+      "instances": 1,
+      "sites": 9,
+      "unresolved_modules": 3,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/s3-bucket/examples/account-public-access",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 1,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 1
+    },
+    {
+      "name": ".corpus/s3-bucket/examples/complete",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 77,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 8
+    },
+    {
+      "name": ".corpus/s3-bucket/examples/directory-bucket",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 29,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/s3-bucket/examples/notification",
+      "blocked": true,
+      "loaded": true,
+      "instances": 5,
+      "sites": 29,
+      "unresolved_modules": 4,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/s3-bucket/examples/object",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 27,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 5
+    },
+    {
+      "name": ".corpus/s3-bucket/examples/s3-analytics",
+      "blocked": true,
+      "loaded": true,
+      "instances": 1,
+      "sites": 55,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/s3-bucket/examples/s3-inventory",
+      "blocked": true,
+      "loaded": true,
+      "instances": 1,
+      "sites": 42,
+      "unresolved_modules": 1,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/s3-bucket/examples/s3-replication",
+      "blocked": true,
+      "loaded": true,
+      "instances": 4,
+      "sites": 32,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/s3-bucket/examples/table-bucket",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 17,
+      "unresolved_modules": 1,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 1
+    },
+    {
+      "name": ".corpus/security-group/examples/complete",
+      "blocked": true,
+      "loaded": true,
+      "instances": 9,
+      "sites": 22,
+      "unresolved_modules": 2,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 3
+    },
+    {
+      "name": ".corpus/vpc/examples/block-public-access",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 348,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 4
+    },
+    {
+      "name": ".corpus/vpc/examples/complete",
+      "blocked": true,
+      "loaded": true,
+      "instances": 8,
+      "sites": 806,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/vpc/examples/flow-log",
+      "blocked": true,
+      "loaded": true,
+      "instances": 6,
+      "sites": 470,
+      "unresolved_modules": 1,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 3
+    },
+    {
+      "name": ".corpus/vpc/examples/ipam",
+      "blocked": true,
+      "loaded": true,
+      "instances": 11,
+      "sites": 712,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 14
+    },
+    {
+      "name": ".corpus/vpc/examples/ipv6-dualstack",
+      "blocked": true,
+      "loaded": true,
+      "instances": 1,
+      "sites": 567,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 3
+    },
+    {
+      "name": ".corpus/vpc/examples/ipv6-only",
+      "blocked": true,
+      "loaded": true,
+      "instances": 7,
+      "sites": 252,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 11
+    },
+    {
+      "name": ".corpus/vpc/examples/issues",
+      "blocked": true,
+      "loaded": true,
+      "instances": 24,
+      "sites": 777,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 32
+    },
+    {
+      "name": ".corpus/vpc/examples/manage-default-vpc",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 232,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 1
+    },
+    {
+      "name": ".corpus/vpc/examples/network-acls",
+      "blocked": true,
+      "loaded": true,
+      "instances": 1,
+      "sites": 531,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 3
+    },
+    {
+      "name": ".corpus/vpc/examples/outpost",
+      "blocked": true,
+      "loaded": true,
+      "instances": 16,
+      "sites": 452,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 6
+    },
+    {
+      "name": ".corpus/vpc/examples/secondary-cidr-blocks",
+      "blocked": true,
+      "loaded": true,
+      "instances": 1,
+      "sites": 524,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 5
+    },
+    {
+      "name": ".corpus/vpc/examples/separate-route-tables",
+      "blocked": true,
+      "loaded": true,
+      "instances": 1,
+      "sites": 784,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 3
+    },
+    {
+      "name": ".corpus/vpc/examples/simple",
+      "blocked": true,
+      "loaded": true,
+      "instances": 1,
+      "sites": 348,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 3
+    },
+    {
       "name": "live/e2e/estates/ai-location",
       "blocked": true,
       "loaded": true,
@@ -8,7 +798,7 @@
       "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/apigateway",
@@ -18,7 +808,7 @@
       "sites": 6,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/aps",
@@ -28,7 +818,7 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/compute-platforms",
@@ -38,7 +828,7 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/connect-euc",
@@ -48,7 +838,7 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/data",
@@ -58,7 +848,7 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/data-movement",
@@ -68,7 +858,7 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/databases",
@@ -78,7 +868,7 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/devtools",
@@ -88,7 +878,7 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/dynamodb-elasticache",
@@ -98,7 +888,7 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/ec2-core",
@@ -108,7 +898,7 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/ec2-networking",
@@ -118,7 +908,7 @@
       "sites": 5,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/ecs-eks",
@@ -128,7 +918,7 @@
       "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/governance",
@@ -138,7 +928,7 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/iam-ecr",
@@ -148,7 +938,7 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/identity",
@@ -158,7 +948,7 @@
       "sites": 5,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/iot",
@@ -168,7 +958,7 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/lambda",
@@ -178,7 +968,7 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/media",
@@ -188,7 +978,7 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/messaging",
@@ -198,7 +988,7 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/networking-advanced",
@@ -208,7 +998,7 @@
       "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/observability",
@@ -218,7 +1008,7 @@
       "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/rds",
@@ -228,7 +1018,7 @@
       "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/remainder",
@@ -238,7 +1028,7 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/route53-cloudfront",
@@ -248,7 +1038,7 @@
       "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/s3",
@@ -258,7 +1048,7 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/sagemaker",
@@ -268,7 +1058,7 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/security",
@@ -278,7 +1068,7 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/storage",
@@ -288,7 +1078,7 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/stragglers",
@@ -298,7 +1088,7 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     },
     {
       "name": "live/e2e/estates/streaming",
@@ -308,23 +1098,432 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": false
+      "schemas": true
     }
   ],
   "refusals": [
     {
       "layer": "identity",
-      "id": "Not an identity attribute",
-      "title": "Not an identity attribute",
-      "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
-      "configs": 9,
-      "sites": 20,
+      "id": "Unable to compute static value",
+      "title": "Unable to compute static value",
+      "configs": 66,
+      "sites": 3521,
       "examples": [
-        "live/e2e/estates/ai-location/ai-location.tf:401",
-        "live/e2e/estates/apigateway/apigateway.tf:72",
-        "live/e2e/estates/apigateway/apigateway.tf:81",
-        "live/e2e/estates/apigateway/apigateway.tf:91",
-        "live/e2e/estates/apigateway/apigateway.tf:99"
+        ".corpus/alb/main.tf:88",
+        ".corpus/alb/main.tf:231",
+        ".corpus/alb/main.tf:243",
+        ".corpus/alb/main.tf:460",
+        ".corpus/alb/main.tf:477"
+      ],
+      "registered": false
+    },
+    {
+      "layer": "lint",
+      "id": "unadmitted-type",
+      "title": "Resource type is outside the live-markers subset",
+      "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+      "configs": 58,
+      "sites": 961,
+      "types": [
+        {
+          "type": "aws_lambda_permission",
+          "sites": 137
+        },
+        {
+          "type": "aws_s3_object",
+          "sites": 67
+        },
+        {
+          "type": "aws_lambda_function_event_invoke_config",
+          "sites": 66
+        },
+        {
+          "type": "aws_lambda_function_recursion_config",
+          "sites": 62
+        },
+        {
+          "type": "aws_lambda_function_url",
+          "sites": 62
+        },
+        {
+          "type": "aws_lambda_provisioned_concurrency_config",
+          "sites": 62
+        },
+        {
+          "type": "aws_vpn_gateway_route_propagation",
+          "sites": 48
+        },
+        {
+          "type": "aws_security_group_rule",
+          "sites": 37
+        },
+        {
+          "type": "aws_s3_bucket_accelerate_configuration",
+          "sites": 19
+        },
+        {
+          "type": "aws_s3_bucket_analytics_configuration",
+          "sites": 19
+        },
+        {
+          "type": "aws_s3_bucket_intelligent_tiering_configuration",
+          "sites": 19
+        },
+        {
+          "type": "aws_s3_bucket_inventory",
+          "sites": 19
+        },
+        {
+          "type": "aws_s3_bucket_metric",
+          "sites": 19
+        },
+        {
+          "type": "aws_s3_bucket_object_lock_configuration",
+          "sites": 19
+        },
+        {
+          "type": "aws_s3_bucket_replication_configuration",
+          "sites": 19
+        },
+        {
+          "type": "aws_s3_bucket_request_payment_configuration",
+          "sites": 19
+        },
+        {
+          "type": "aws_default_network_acl",
+          "sites": 16
+        },
+        {
+          "type": "aws_default_route_table",
+          "sites": 16
+        },
+        {
+          "type": "aws_default_security_group",
+          "sites": 16
+        },
+        {
+          "type": "aws_default_vpc",
+          "sites": 16
+        },
+        {
+          "type": "aws_vpc_block_public_access_options",
+          "sites": 16
+        },
+        {
+          "type": "aws_vpc_ipv4_cidr_block_association",
+          "sites": 16
+        },
+        {
+          "type": "aws_vpn_gateway_attachment",
+          "sites": 16
+        },
+        {
+          "type": "aws_ecs_service",
+          "sites": 14
+        },
+        {
+          "type": "aws_ecs_task_set",
+          "sites": 14
+        },
+        {
+          "type": "aws_autoscaling_policy",
+          "sites": 11
+        },
+        {
+          "type": "aws_autoscaling_schedule",
+          "sites": 11
+        },
+        {
+          "type": "aws_autoscaling_traffic_source_attachment",
+          "sites": 11
+        },
+        {
+          "type": "aws_lambda_alias",
+          "sites": 8
+        },
+        {
+          "type": "aws_appautoscaling_policy",
+          "sites": 7
+        },
+        {
+          "type": "aws_appautoscaling_scheduled_action",
+          "sites": 7
+        },
+        {
+          "type": "aws_appautoscaling_target",
+          "sites": 7
+        },
+        {
+          "type": "aws_ecs_capacity_provider",
+          "sites": 6
+        },
+        {
+          "type": "aws_iam_user_login_profile",
+          "sites": 6
+        },
+        {
+          "type": "aws_iam_user_ssh_key",
+          "sites": 6
+        },
+        {
+          "type": "aws_vpc_security_group_rules_exclusive",
+          "sites": 5
+        },
+        {
+          "type": "aws_vpc_security_group_vpc_association",
+          "sites": 5
+        },
+        {
+          "type": "kubernetes_config_map",
+          "sites": 5
+        },
+        {
+          "type": "aws_lb_listener_certificate",
+          "sites": 4
+        },
+        {
+          "type": "aws_wafv2_web_acl_association",
+          "sites": 4
+        },
+        {
+          "type": "aws_db_instance_automated_backups_replication",
+          "sites": 3
+        },
+        {
+          "type": "docker_image",
+          "sites": 3
+        },
+        {
+          "type": "docker_registry_image",
+          "sites": 3
+        },
+        {
+          "type": "aws_iam_group_membership",
+          "sites": 2
+        },
+        {
+          "type": "aws_cloudwatch_event_target",
+          "sites": 1
+        },
+        {
+          "type": "aws_cognito_user_pool_client",
+          "sites": 1
+        },
+        {
+          "type": "aws_directory_service_directory",
+          "sites": 1
+        },
+        {
+          "type": "aws_iam_account_alias",
+          "sites": 1
+        },
+        {
+          "type": "aws_iam_account_password_policy",
+          "sites": 1
+        },
+        {
+          "type": "aws_lb_trust_store_revocation",
+          "sites": 1
+        },
+        {
+          "type": "aws_s3_account_public_access_block",
+          "sites": 1
+        },
+        {
+          "type": "aws_s3tables_namespace",
+          "sites": 1
+        },
+        {
+          "type": "aws_s3tables_table",
+          "sites": 1
+        },
+        {
+          "type": "aws_s3tables_table_policy",
+          "sites": 1
+        },
+        {
+          "type": "aws_secretsmanager_secret_version",
+          "sites": 1
+        },
+        {
+          "type": "aws_signer_signing_job",
+          "sites": 1
+        },
+        {
+          "type": "aws_signer_signing_profile",
+          "sites": 1
+        },
+        {
+          "type": "aws_vpc_ipam_preview_next_cidr",
+          "sites": 1
+        }
+      ],
+      "examples": [
+        ".corpus/alb/examples/complete-alb/main.tf:561",
+        ".corpus/alb/main.tf:476",
+        ".corpus/alb/main.tf:476",
+        ".corpus/alb/main.tf:603",
+        ".corpus/alb/main.tf:603"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Dynamic value in static context",
+      "title": "Dynamic value in static context",
+      "configs": 57,
+      "sites": 1953,
+      "examples": [
+        ".corpus/alb/examples/complete-alb/main.tf:195",
+        ".corpus/alb/examples/complete-alb/main.tf:195",
+        ".corpus/alb/examples/complete-alb/main.tf:195",
+        ".corpus/alb/examples/complete-alb/main.tf:196",
+        ".corpus/alb/examples/complete-alb/main.tf:196"
+      ],
+      "registered": false
+    },
+    {
+      "layer": "lint",
+      "id": "logical-resource",
+      "title": "Logical resource is not admitted",
+      "docs_ref": "live/LIMITATIONS.md, \"null-resource\" / \"terraform-data\" / \"local-file\" / \"random-password\" / \"time-sleep\"",
+      "configs": 49,
+      "sites": 415,
+      "types": [
+        {
+          "type": "null_resource",
+          "sites": 200
+        },
+        {
+          "type": "local_file",
+          "sites": 68
+        },
+        {
+          "type": "terraform_data",
+          "sites": 62
+        },
+        {
+          "type": "random_pet",
+          "sites": 39
+        },
+        {
+          "type": "random_id",
+          "sites": 26
+        },
+        {
+          "type": "time_sleep",
+          "sites": 6
+        },
+        {
+          "type": "random_string",
+          "sites": 5
+        },
+        {
+          "type": "tls_private_key",
+          "sites": 3
+        },
+        {
+          "type": "tls_cert_request",
+          "sites": 2
+        },
+        {
+          "type": "tls_locally_signed_cert",
+          "sites": 2
+        },
+        {
+          "type": "random_password",
+          "sites": 1
+        },
+        {
+          "type": "tls_self_signed_cert",
+          "sites": 1
+        }
+      ],
+      "examples": [
+        ".corpus/alb/examples/complete-alb/main.tf:447",
+        ".corpus/alb/examples/mutual-auth-alb/main.tf:243",
+        ".corpus/alb/examples/mutual-auth-alb/main.tf:293",
+        ".corpus/alb/examples/mutual-auth-alb/main.tf:298",
+        ".corpus/alb/examples/mutual-auth-alb/main.tf:322"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Unresolvable identity",
+      "title": "Unresolvable identity",
+      "what": "An identity could not be built because a reference it depends on failed; the reference's own error explains why.",
+      "configs": 37,
+      "sites": 115,
+      "examples": [
+        ".corpus/autoscaling/main.tf:1463",
+        ".corpus/ecs/modules/service/main.tf:1237",
+        ".corpus/ecs/modules/service/main.tf:2025",
+        ".corpus/ecs/modules/service/main.tf:2039",
+        ".corpus/ecs/modules/express-service/main.tf:327"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "count-index",
+      "title": "count.index is not available in resource arguments",
+      "docs_ref": "live/LIMITATIONS.md, \"count-index-in-tag\"",
+      "configs": 35,
+      "sites": 4254,
+      "examples": [
+        ".corpus/eks/workers.tf:10",
+        ".corpus/eks/workers.tf:10",
+        ".corpus/eks/workers.tf:11",
+        ".corpus/eks/workers.tf:11",
+        ".corpus/eks/workers.tf:16"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Module output not supported in static context",
+      "title": "Module output not supported in static context",
+      "configs": 30,
+      "sites": 226,
+      "examples": [
+        ".corpus/alb/examples/complete-alb/main.tf:55",
+        ".corpus/alb/examples/complete-alb/main.tf:180",
+        ".corpus/alb/examples/complete-alb/main.tf:180",
+        ".corpus/alb/examples/complete-alb/main.tf:180",
+        ".corpus/alb/examples/complete-alb/main.tf:181"
+      ],
+      "registered": false
+    },
+    {
+      "layer": "lint",
+      "id": "provisioner",
+      "title": "Provisioners are not available under live resource markers",
+      "docs_ref": "live/LIMITATIONS.md, \"local-exec\" / \"remote-exec\"",
+      "configs": 27,
+      "sites": 75,
+      "examples": [
+        ".corpus/alb/examples/complete-alb/main.tf:452",
+        ".corpus/alb/examples/mutual-auth-alb/main.tf:244",
+        ".corpus/autoscaling/examples/complete/main.tf:882",
+        ".corpus/ecs/examples/container-definition/outputs.tf:22",
+        ".corpus/ecs/examples/container-definition/outputs.tf:45"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Null identity argument",
+      "title": "Null identity argument",
+      "what": "An identity argument evaluates to null.",
+      "configs": 24,
+      "sites": 77,
+      "examples": [
+        ".corpus/autoscaling/main.tf:293",
+        ".corpus/autoscaling/main.tf:293",
+        ".corpus/autoscaling/main.tf:293",
+        ".corpus/autoscaling/main.tf:293",
+        ".corpus/autoscaling/main.tf:293"
       ],
       "registered": true
     },
@@ -333,14 +1532,108 @@
       "id": "Identity argument not set",
       "title": "Identity argument not set",
       "what": "The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.",
+      "configs": 13,
+      "sites": 25,
+      "examples": [
+        ".corpus/eks/cluster.tf:87",
+        ".corpus/eks/cluster.tf:87",
+        ".corpus/eks/workers.tf:3",
+        ".corpus/eks/workers.tf:122",
+        ".corpus/eks/workers.tf:302"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Not an identity attribute",
+      "title": "Not an identity attribute",
+      "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
+      "configs": 13,
+      "sites": 25,
+      "examples": [
+        ".corpus/lambda/examples/complete/main.tf:486",
+        ".corpus/lambda/examples/event-source-mapping/main.tf:217",
+        ".corpus/lambda/examples/event-source-mapping/main.tf:237",
+        ".corpus/s3-bucket/examples/s3-replication/iam.tf:2",
+        ".corpus/s3-bucket/modules/table-bucket/main.tf:19"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Invalid for_each set",
+      "title": "Invalid for_each set",
+      "what": "A for_each set's element type is not a string.",
+      "configs": 11,
+      "sites": 20,
+      "examples": [
+        ".corpus/rds/modules/db_instance/main.tf:168",
+        ".corpus/rds/modules/db_instance/main.tf:168",
+        ".corpus/rds/modules/db_instance/main.tf:168",
+        ".corpus/rds/modules/db_instance/main.tf:168",
+        ".corpus/rds/modules/db_instance/main.tf:168"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Identity not resolvable from configuration",
+      "title": "Identity not resolvable from configuration",
+      "what": "An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.",
+      "configs": 6,
+      "sites": 16,
+      "examples": [
+        ".corpus/lambda/modules/deploy/main.tf:213",
+        ".corpus/lambda/modules/deploy/main.tf:270",
+        ".corpus/rds/modules/db_instance/main.tf:233",
+        ".corpus/s3-bucket/main.tf:301",
+        ".corpus/s3-bucket/main.tf:612"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "child-module",
+      "title": "This module call cannot be expanded under live resource markers",
+      "docs_ref": "live/LIMITATIONS.md, \"child-module\"",
       "configs": 4,
       "sites": 6,
       "examples": [
-        "live/e2e/estates/apigateway/apigateway.tf:18",
-        "live/e2e/estates/ec2-networking/ec2-networking.tf:225",
-        "live/e2e/estates/ec2-networking/ec2-networking.tf:329",
-        "live/e2e/estates/ecs-eks/ecs-eks.tf:104",
-        "live/e2e/estates/identity/identity.tf:88"
+        ".corpus/ecs/main.tf:96",
+        ".corpus/ecs/modules/service/main.tf:867",
+        ".corpus/ecs/modules/service/main.tf:867",
+        ".corpus/ecs/modules/service/main.tf:867",
+        ".corpus/iam/examples/iam-role/main.tf:21"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "moved-block",
+      "title": "moved blocks are not available under live resource markers",
+      "docs_ref": "live/LIMITATIONS.md, \"moved-block\"",
+      "configs": 2,
+      "sites": 10,
+      "examples": [
+        ".corpus/iam/modules/iam-group/migrations.tf:5",
+        ".corpus/iam/modules/iam-group/migrations.tf:5",
+        ".corpus/iam/modules/iam-group/migrations.tf:10",
+        ".corpus/iam/modules/iam-group/migrations.tf:10",
+        ".corpus/iam/modules/iam-user/migrations.tf:5"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Non-static for_each expression",
+      "title": "Non-static for_each expression",
+      "what": "A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.",
+      "configs": 2,
+      "sites": 3,
+      "examples": [
+        ".corpus/ecs/modules/service/main.tf:872",
+        ".corpus/ecs/modules/service/main.tf:872",
+        ".corpus/ecs/modules/service/main.tf:872"
       ],
       "registered": true
     },
@@ -400,15 +1693,6 @@
     },
     {
       "layer": "identity",
-      "id": "Identity not resolvable from configuration",
-      "title": "Identity not resolvable from configuration",
-      "what": "An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "identity",
       "id": "Identity table and provider schema disagree",
       "title": "Identity table and provider schema disagree",
       "what": "The identity table and the installed provider's schema differ about a type in a way that is not fatal; reported as a warning.",
@@ -421,15 +1705,6 @@
       "id": "Invalid count",
       "title": "Invalid count",
       "what": "A count expression is not a whole non-negative number.",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "identity",
-      "id": "Invalid for_each set",
-      "title": "Invalid for_each set",
-      "what": "A for_each set's element type is not a string.",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -472,15 +1747,6 @@
     },
     {
       "layer": "identity",
-      "id": "Non-static for_each expression",
-      "title": "Non-static for_each expression",
-      "what": "A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "identity",
       "id": "Non-static identity argument",
       "title": "Non-static identity argument",
       "what": "An identity argument cannot be evaluated from configuration alone, including an impure call reached through a local or written in .tf.json.",
@@ -502,15 +1768,6 @@
       "id": "Non-string identity argument",
       "title": "Non-string identity argument",
       "what": "An identity argument evaluates to a value that is not a string.",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "identity",
-      "id": "Null identity argument",
-      "title": "Null identity argument",
-      "what": "An identity argument evaluates to null.",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -582,15 +1839,6 @@
     },
     {
       "layer": "identity",
-      "id": "Unresolvable identity",
-      "title": "Unresolvable identity",
-      "what": "An identity could not be built because a reference it depends on failed; the reference's own error explains why.",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "identity",
       "id": "Unsupported each.value reference",
       "title": "Unsupported each.value reference",
       "what": "each.value is used as other than each.value.\u003cattr\u003e when for_each iterates over a resource.",
@@ -619,45 +1867,9 @@
     },
     {
       "layer": "lint",
-      "id": "child-module",
-      "title": "This module call cannot be expanded under live resource markers",
-      "docs_ref": "live/LIMITATIONS.md, \"child-module\"",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "lint",
-      "id": "count-index",
-      "title": "count.index is not available in resource arguments",
-      "docs_ref": "live/LIMITATIONS.md, \"count-index-in-tag\"",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "lint",
       "id": "for-each-key",
       "title": "for_each key is outside the marker character set",
       "docs_ref": "live/LIMITATIONS.md, \"foreach-dotted-key\"",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "lint",
-      "id": "logical-resource",
-      "title": "Logical resource is not admitted",
-      "docs_ref": "live/LIMITATIONS.md, \"null-resource\" / \"terraform-data\" / \"local-file\" / \"random-password\" / \"time-sleep\"",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "lint",
-      "id": "moved-block",
-      "title": "moved blocks are not available under live resource markers",
-      "docs_ref": "live/LIMITATIONS.md, \"moved-block\"",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -694,15 +1906,6 @@
       "id": "policy-verb",
       "title": "Policy verb is not valid for its quadrant",
       "docs_ref": "GitHub issue #67, \"Design\"",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "lint",
-      "id": "provisioner",
-      "title": "Provisioners are not available under live resource markers",
-      "docs_ref": "live/LIMITATIONS.md, \"local-exec\" / \"remote-exec\"",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -751,28 +1954,19 @@
       "configs": 0,
       "sites": 0,
       "registered": true
-    },
-    {
-      "layer": "lint",
-      "id": "unadmitted-type",
-      "title": "Resource type is outside the live-markers subset",
-      "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
     }
   ],
   "totals": {
-    "configs": 31,
-    "loaded": 31,
-    "blocked": 9,
-    "clean": 22,
-    "instances": 638,
-    "sites": 26,
-    "refusals_fired": 2,
-    "refusals_in_set": 48,
-    "configs_without_schemas": 31,
-    "refusals_unregistered": 0
+    "configs": 105,
+    "loaded": 105,
+    "blocked": 81,
+    "clean": 24,
+    "instances": 1057,
+    "sites": 11702,
+    "refusals_fired": 16,
+    "refusals_in_set": 51,
+    "configs_without_schemas": 0,
+    "refusals_unregistered": 3
   },
   "checked_layers": [
     "lint",
@@ -784,10 +1978,16 @@
     "stamp"
   ],
   "schemas": {
-    "present": false,
-    "caveat": "Run without provider schemas. Resource types were judged from the generated admission table alone, so types the provider's own identity schema would have admitted are counted as refused here and the unadmitted-type rules are overstated."
+    "present": true,
+    "provider": "hashicorp/aws",
+    "version": "6.58.0",
+    "resource_types": 1691
   },
   "origins": [
+    {
+      "origin": "terraform-aws-modules",
+      "configs": 74
+    },
     {
       "origin": "in-repo fixture",
       "configs": 31
