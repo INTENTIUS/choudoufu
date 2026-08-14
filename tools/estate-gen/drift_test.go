@@ -57,17 +57,15 @@ type driftEntry struct {
 	reason string
 }
 
-var knownDrift = map[string]driftEntry{
-	// The one remaining drift, held deliberately: a type admitted since
-	// the last regen maps into the cohort, so regeneration adds a resource
-	// - and s3 is the acceptance tier's one recorded PASS. Adopting the
-	// regen means re-running the tier so the ratchet judges the new
-	// resource too; do both in one change, not the regen alone.
-	"s3": {
-		files:  []string{"GENERATED.md: only in the regeneration", "s3.tf: content differs"},
-		reason: "a type admitted since the last regen maps into the cohort; adopting it must accompany a tier re-run because s3 is the recorded pass the acceptance ratchet protects",
-	},
-}
+// Empty since 2026-08-14: the last entry was s3, whose recorded command
+// (bare -cohort, following admission growth) emitted a newly-mapped type -
+// aws_s3control_multi_region_access_point - that the acceptance tier then
+// failed on a generator defect (the identity argument emitted for a
+// Computed-only attribute; fixed in fillBlock). s3's GENERATED.md now pins
+// the six-type roster, so its regeneration reproduces the tree exactly and
+// pulling the new type in is a deliberate roster edit judged by a tier
+// run, not a side effect of regenerating.
+var knownDrift = map[string]driftEntry{}
 
 // regenGaps: cohort -> why no working one-command regeneration exists yet.
 // A cohort listed here is skipped outright. Empty since the four

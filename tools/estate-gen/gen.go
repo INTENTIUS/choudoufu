@@ -420,8 +420,19 @@ func (g *generator) fillBlock(body *hclwrite.Body, b *configschema.Block, addr r
 	identityArg := ""
 	if root {
 		if argName, ok := identityArgName(addr.Type); ok {
-			identityArg = argName
-			names[argName] = true
+			// Only when the schema says the attribute is configurable. The
+			// identity table describes how a value IDENTIFIES the resource,
+			// not where it is written: aws_s3control_multi_region_access_point
+			// is identified by its top-level "name", but that attribute is
+			// Computed-only - the configurable name lives at details.name -
+			// and emitting it produced 'Can't configure a value for "name"',
+			// which cost the s3 cohort its acceptance-tier pass when the
+			// type was adopted (#108; found by the tier, reverted, fixed
+			// here as the rule-level gap it is).
+			if attr, ok := b.Attributes[argName]; ok && (attr.Required || attr.Optional) {
+				identityArg = argName
+				names[argName] = true
+			}
 		}
 	}
 
