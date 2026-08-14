@@ -50,12 +50,15 @@ done
 
 # 3. The cohort corpus size, which two agents disagreed on (657 vs 649).
 grep -rhoE '^resource "aws_[a-z0-9_]+"' live/e2e/estates --include="*.tf" | sort -u | wc -l
-# expect 649; if you get something else, this document's corpus numbers are wrong
+# expect 648 (649 until #125 removed aws_iam_access_key on 2026-08-14); if
+# you get something else, this document's corpus numbers are wrong
 
 # 4. The whole live path's refusal count, which two audits guessed at (77, 128)
 #    before it was enumerable.
 go run ./tools/limits-gen   # expect "live/LIMITATIONS.md is already current";
-                            # rerun after any registry change expects "164 refusals"
+                            # rerun after any registry change expects "165 refusals"
+                            # (164 + #70's module-provider-block; #109's removal
+                            # and its tombstone error balanced out)
 
 # 5. The cohort acceptance artifact's headline: one cohort round-trips.
 python3 -c "import json; a=json.load(open('live/cohort-acceptance.json')); print(a['totals'])"
@@ -167,14 +170,14 @@ Top blockers, by configurations blocked out of 105:
 | Configs | Sites | Layer | Refusal | Raised by |
 |---|---|---|---|---|
 | 66 | 3536 | identity | Unable to compute static value | `internal/configs` |
-| 58 | 845 | lint | `unadmitted-type` | `internal/live/lint` |
+| 58 | 851 | lint | unadmitted-type | `internal/live/lint` |
 | 57 | 1953 | identity | Dynamic value in static context | `internal/configs` |
-| 49 | 415 | lint | `logical-resource` | `internal/live/lint` |
+| 49 | 415 | lint | logical-resource | `internal/live/lint` |
 | 37 | 121 | identity | Unresolvable identity | `internal/live/identity` |
-| 35 | 4254 | lint | `count-index` | `internal/live/lint` |
+| 35 | 4254 | lint | count-index | `internal/live/lint` |
 | 33 | 239 | identity | Module output not supported in static context | `internal/configs` |
-| 27 | 75 | lint | `provisioner` | `internal/live/lint` |
-| 6 | 11 | lint | `module-providers` | `internal/live/lint` |
+| 27 | 75 | lint | provisioner | `internal/live/lint` |
+| 24 | 77 | identity | Null identity argument | `internal/live/identity` |
 
 Four things this settles.
 
@@ -239,8 +242,9 @@ Five things landed on 2026-08-14 that later work should use rather than
 reinvent.
 
 **Every refusal the live path can produce is enumerable.** `check.AllRefusals()`
-returns 164, from a registry per stage - lint 19, identity 35, passthrough
-53, projection 26, discovery 24, stamp 7. The pass-through registry holds
+returns 165, from a registry per stage - lint 20, identity 35, passthrough
+53, projection 26, discovery 24, stamp 7 (recount after #109/#70 landed;
+the split drifts with the registries, the command is the claim). The pass-through registry holds
 the diagnostics this fork shows without having written them, from
 `internal/configs`, `internal/addrs` and HCL; they surface during identity
 resolution, so `check.Layer` files them under `identity` (88 rows) while
@@ -434,10 +438,33 @@ And #99's probe measured ListResources while the tier measures create;
 the two disagree about nearly every cohort. Check what a capability claim
 actually measured before planning around it.
 
-**6. `phase-6-onboarding` — finish #73's charter and the onboarding surface**
-(#72, #73, #74, #81, #82, #109).
+**6. `phase-6-onboarding` — done, all closed 2026-08-14.**
 
-#84 closed with the docs-site work.
+#81/#82 closed as the two rfc/ documents (projection-nativeness, the
+store ruling). #109 removed observational snapshots end to end - the
+live block carries tombstone errors for `snapshots`/`snapshot_path`, and
+guided discovery's hint rides the record_store under a key orphan
+discovery provably cannot see. #72 shipped the `estate.chdf.hcl` sidecar
+(one decoder for both forms; the SelectiveLoadBackend wall tested by
+name; docs lead with it). #74 closed on rfc/20260814-plan-approval.md
+(the plan-fingerprint design, implementation deferred with four named
+rulings). #73's charter closed with every phase done or superseded, and
+its one uncovered question - attribute-level residue - was filed,
+measured (tools/wo-sweep; 10 write-only types / 21 attrs, 53
+sensitive-settable / 132), ruled, and shipped as
+lint.CheckResidueAttributes: a warning, never a refusal, with the
+schema-invisible remainder (aws_s3_object.content) documented and pinned
+by a test asserting the blind spot.
+
+Four maintainer rulings landed the same day and are executed: #70
+(in-child-module provider blocks REFUSED - measured 0 of 740 module-source
+files in the ten corpus repos, upstream calls them legacy;
+`module-provider-block`, fires on 0 of 105), #125 (aws_iam_access_key's
+admission withdrawn; 845 types; the survey/admission conflict machinery
+emptied), #126 (above), #75 (history purge deferred to one combined
+rewrite; the script is on the issue).
+
+#84 closed earlier with the docs-site work.
 
 ### Standing work, outside the ladder
 
@@ -541,6 +568,15 @@ orchestrator verifies and lands to `main` as single writer.
 
 - Run `go build ./...` and the relevant tests before committing. Never commit
   red. If it cannot be made green, commit nothing and report.
+- **Agent-ops rules 2026-08-14 paid for:** a worktree agent's branch base
+  is checked FIRST - three agents worked from the session-start commit
+  and would have reverted the day's work on merge (the fix each time:
+  fetch main into the worktree, rebase/redo, revalidate). Collect an
+  agent's report BEFORE pruning its worktree - a pruned agent cannot be
+  resumed. Never `git add -A` while another agent shares the main tree
+  (it swept a concurrent agent's file into an unrelated commit). And one
+  agent pushed to origin unprompted - state "do not push" in prompts for
+  agents working on main.
 - Small commits, each independently revertable.
 - Do not push unless asked. CI is deprioritised; keep work local.
 - When stopping an agent mid-flight, commit its work to its own branch first.
