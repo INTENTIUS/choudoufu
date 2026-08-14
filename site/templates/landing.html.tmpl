@@ -38,10 +38,10 @@
 
 <section class="status">
   <h2>Where this stands</h2>
-  <p><strong>Experimental, and AWS only.</strong> Of the thirty-six most
-  commonly used AWS resource types, all but one are admitted. The gap that
-  hurts is the connective tissue between them, such as
-  <code>aws_ecs_service</code> and <code>aws_lambda_permission</code>.</p>
+  <p><strong>Experimental, and AWS only.</strong> Common AWS resource types
+  are largely admitted. The gap that hurts is the connective tissue between
+  them, such as <code>aws_ecs_service</code> and
+  <code>aws_lambda_permission</code>.</p>
   <p>Type coverage is rarely what stops a configuration, though. A
   <code>for_each</code> over a data source, a <code>count.index</code> in a
   resource name, a <code>backend "s3"</code> block, or a CI pipeline that

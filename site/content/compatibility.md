@@ -3,11 +3,11 @@
 Probably not without changes, and the reason is usually not the one people
 expect.
 
-Resource type coverage is rarely what stops a configuration. Of the thirty-six
-most commonly used AWS resource types, all but one are admitted. What stops
-configurations is how they are written and how they are run: a `for_each` over
-a data source, a `count.index` in a resource name, a `backend "s3"` block, or a
-CI pipeline that saves a plan file.
+Resource type coverage is rarely what stops a configuration, and `choudoufu
+live-check` below answers for your exact types. What stops configurations is
+how they are written and how they are run: a `for_each` over a data source, a
+`count.index` in a resource name, a `backend "s3"` block, or a CI pipeline
+that saves a plan file.
 
 This page lists what actually bounces. Read it before you spend an afternoon on
 a migration.
@@ -65,8 +65,8 @@ Common types are largely covered. The gap that hurts is connective tissue:
 `aws_ecs_service`, `aws_lambda_permission`, `aws_cloudwatch_event_rule` and
 `aws_cloudwatch_event_target`, `aws_api_gateway_deployment` and
 `aws_api_gateway_resource`. You cannot run ECS, EventBridge or an API Gateway
-without some of these, and work to admit them is
-[#105](https://github.com/INTENTIUS/choudoufu/issues/105).
+without some of these, and none of them is reachable yet through any of the
+three admission paths above.
 
 `live/LIMITATIONS.md` in the repository carries the current per-type detail.
 
@@ -209,8 +209,11 @@ invoked.
 - `import`, `refresh`, `taint`, `untaint`.
 - `-out` to save a plan, and `apply <planfile>`. **This is how most CI runs
   Terraform**, so check it first. Ordinary `apply`
-  re-plans and re-confirms; tying a reviewed plan to the apply that follows is
-  [#74](https://github.com/INTENTIUS/choudoufu/issues/74).
+  re-plans and re-confirms. The design that ties a reviewed plan to the apply
+  that follows is settled in
+  [#74](https://github.com/INTENTIUS/choudoufu/issues/74)'s RFC
+  (`rfc/20260814-plan-approval.md` in the repository); it is not implemented
+  yet.
 - `-json` and `-json-into`.
 - `-destroy` and `-refresh-only`.
 - `-state`, `-state-out`, `-backup`, `-generate-config-out`.
@@ -251,40 +254,35 @@ stored](storage.html) has the arguments and how to choose.
 Without one they are refused. With one they run through the stock provider
 lifecycle exactly as upstream.
 
-## Two things that fail silently
+## Two hazards that are now refusals
 
-These do not produce a refusal today, and both are being fixed. Check for them
-by hand in the meantime. The failure is silent.
+Both of these used to fail silently. Lint refuses them now, with a message
+naming the fix.
 
-:::warning
-**`lifecycle { ignore_changes = [tags] }` defeats ownership markers.** The stamp
-pass adds `tofu-estate` and `tofu-address` to the resource's tags, the plan
-renders it, and the core then discards the change because you asked it to
-ignore tags. The resource is never marked, so the next plan cannot find it and
-proposes creating another one. Nothing warns.
+**`lifecycle { ignore_changes = [tags] }` would defeat ownership markers.** The
+stamp pass adds `tofu-estate` and `tofu-address` to the resource's tags, and a
+plan that ignores tag changes discards the markers before they are ever
+written. The resource would never be marked, and the next plan would propose
+creating another one. Lint refuses `ignore_changes = all`,
+`ignore_changes = [tags]`, and any entry naming a marker key directly
+([#103](https://github.com/INTENTIUS/choudoufu/issues/103)). Ignoring a tag
+key of your own, such as `tags["Owner"]`, stays admitted.
 
-Drop `tags` from `ignore_changes`, or narrow it to the specific keys you need
-ignored. Tracked as
-[#103](https://github.com/INTENTIUS/choudoufu/issues/103).
-:::
+**A module call's `providers` mapping to an aliased configuration is refused.**
+Live mode plans a module's resources against the root configuration's default
+provider, so honouring `providers = { aws = aws.useast1 }` would take a design
+change, and until that lands an estate built that way would plan against the
+wrong account or region with no diagnostic. Lint refuses the aliased mapping
+instead ([#104](https://github.com/INTENTIUS/choudoufu/issues/104) has the
+reasoning). `providers = { aws = aws }` is admitted, since it names what live
+mode already does, and provider aliases at the root work correctly.
 
-:::warning
-**A module call's `providers` mapping is not read.** Resources inside a module
-called with `providers = { aws = aws.useast1 }` are served by the root
-configuration's default provider instead. A multi-account or multi-region
-estate built the standard way plans against the wrong account or region with no
-diagnostic. Tracked as
-[#104](https://github.com/INTENTIUS/choudoufu/issues/104).
-
-Provider aliases at the root work correctly. It is only the module-call mapping.
-
-A `provider` block declared *inside* a child module has the same shape: the
-module's resources are served by the root configuration's provider config
-instead, and lint warns by name once per run rather than failing.
+A `provider` block declared *inside* a child module is the adjacent shape that
+still only warns: the module's resources are served by the root
+configuration's provider config instead, and lint warns by name once per run.
 [#70](https://github.com/INTENTIUS/choudoufu/issues/70) is the open design.
 Configure providers at the root and let modules receive them implicitly, which
 is the only proven pattern.
-:::
 
 ## Editors and linters
 
@@ -318,33 +316,27 @@ is [#72](https://github.com/INTENTIUS/choudoufu/issues/72).
 
 ## Where this page's ordering comes from
 
-Not from opinion, as of August 2026. `live/corpus-refusals.json` in the
-repository ranks which refusals actually fire across 105 configurations, 74 of
-them the `examples/` root modules of ten `terraform-aws-modules` repositories
-pinned to exact commits.
+[`live/corpus-refusals.json`](https://github.com/INTENTIUS/choudoufu/blob/main/live/corpus-refusals.json)
+in the repository measures which refusals fire, and how often, across a corpus
+with two populations: the fixtures in this repository, and the `examples/`
+root modules of `terraform-aws-modules` repositories pinned to exact commits.
+The per-refusal and per-population counts live in that artifact; this page
+deliberately does not copy them, because a copied count is stale the moment
+the corpus is re-run.
 
-The measured top blockers, by configurations affected:
+That measured ranking is why the static-evaluability rule leads this page:
+several of the refusals that fire most often are that one rule, surfacing
+under different diagnostics.
 
-| Configs | Refusal |
-|---|---|
-| 66 | an expression that cannot be computed statically |
-| 58 | a resource type outside the subset |
-| 57 | a dynamic value where a static one is required |
-| 49 | a logical resource with no `record_store` declared |
-| 37 | an identity that could not be built |
-| 35 | `count.index` in a resource argument |
-| 30 | a module output used where a static value is required |
-
-Four of the top seven are the static-evaluability rule at the top of this page,
-which is why it leads.
-
-**Do not read that corpus as a compatibility rate.** Module `examples/`
+**Do not read the corpus as a compatibility rate.** Module `examples/`
 directories exist to demonstrate a module's full surface, so they lean much
 harder on variables, conditionals and `dynamic` blocks than a configuration
-describing one deployment. It reports worse than ordinary user code almost
-certainly. It is a good ranking and a bad percentage, and the work to give it
-an estate-shaped population is
-[#118](https://github.com/INTENTIUS/choudoufu/issues/118).
+describing one deployment, and they refuse almost across the board. For that
+reason the artifact marks each population as a ranking and carries no
+rate-shaped figure; [#118](https://github.com/INTENTIUS/choudoufu/issues/118)
+settled that. A number that could honestly be read as a rate waits on a
+population of whole single-deployment estates, which needs a source before it
+can exist.
 
 Run `choudoufu live-check` on your own configuration rather than inferring
-anything about it from that table.
+anything about it from the corpus.

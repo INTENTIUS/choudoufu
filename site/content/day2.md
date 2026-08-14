@@ -176,5 +176,8 @@ applying exactly that artifact has no direct equivalent yet. Ordinary `apply`
 re-plans and re-confirms against the live system, which is the honest behaviour,
 but nothing today detects that the world moved between review and apply.
 
-Tying a reviewed plan to the apply that follows is
-[#74](https://github.com/INTENTIUS/choudoufu/issues/74).
+The design that closes that gap is settled:
+[#74](https://github.com/INTENTIUS/choudoufu/issues/74) chose a plan
+fingerprint, a digest printed at plan time that apply checks against its own
+fresh plan and refuses on mismatch. `rfc/20260814-plan-approval.md` in the
+repository is the design; it is not implemented yet.

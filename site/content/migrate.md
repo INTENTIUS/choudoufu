@@ -28,24 +28,13 @@ arriving from `choudoufu live-import`, this is everything.
 **Offered for adoption.** For a resource whose identity AWS assigned (a VPC, a
 subnet, a security group), the configuration holds nothing that identifies the
 live object, so the marker is the only way back to it. The plan can still offer
-a match when the configuration content is distinctive enough to be compared.
-The classifier does that for these types:
-
-| Type | Matched on |
-|---|---|
-| `aws_security_group` | `name` |
-| `aws_vpc` | `cidr_block` |
-| `aws_subnet` | `cidr_block` and `availability_zone` |
-| `aws_route53_zone` | `name` |
-| `aws_lb` | `name` |
-| `aws_lb_target_group` | `name` |
-| `aws_sns_topic` | `name` |
-| `aws_launch_template` | `name` |
-| `aws_sfn_state_machine` | `name` |
-| `aws_acm_certificate` | `domain_name` |
-
-`internal/live/foreign/classify.go` is what settles this list; check it there
-before relying on this table.
+a match when the configuration content is distinctive enough to be compared: a
+VPC by its `cidr_block`, a security group by its `name`, a subnet by its
+`cidr_block` and `availability_zone`. The full list of matchable types, and
+what each is matched on, is `matchTable` in
+[`internal/live/foreign/classify.go`](https://github.com/INTENTIUS/choudoufu/blob/main/internal/live/foreign/classify.go).
+You do not need that list in advance: the plan's `Adoptable` section names
+each match it found and what it matched on.
 
 **Adopted by hand.** Everything else with an ownership marker to write.
 `aws_route_table`, `aws_internet_gateway`, `aws_kms_key` and `aws_lb_listener`
