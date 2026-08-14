@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/states/statemgr"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -128,6 +129,20 @@ type Manager struct {
 	// it: returning an error there would turn a cache failure into an
 	// apply failure, which rule 5 of P4.2 forbids.
 	snapshotWarning tfdiags.Diagnostics
+
+	// hintStore and hintEstate are guided discovery's hint carrier (issue
+	// #109): when hintStore is non-nil, every PersistState call writes the
+	// estate's type roster and a timestamp to [HintKey](hintEstate) in it.
+	// Nil disables the write entirely - the default, and the only state a
+	// Manager nobody called EnableHint on is ever in.
+	hintStore  staterecord.Store
+	hintEstate string
+
+	// hintWarning is the diagnostic from the most recent failed hint
+	// write, or nil if the last attempt succeeded or none was made. Same
+	// reasoning as snapshotWarning: PersistState's return value cannot
+	// carry it without turning a cache failure into an apply failure.
+	hintWarning tfdiags.Diagnostics
 }
 
 var _ statemgr.Full = (*Manager)(nil)
@@ -179,32 +194,42 @@ func (m *Manager) RefreshState(context.Context) error {
 // writes a few individual values (an import ID, an identity, the ownership
 // markers) rather than only hashes - so throwing it away here is what let
 // secrets reach the file in the clear.
-func (m *Manager) PersistState(_ context.Context, schemas *tofu.Schemas) error {
+func (m *Manager) PersistState(ctx context.Context, schemas *tofu.Schemas) error {
 	m.mu.Lock()
 	m.persists++
 	path := m.snapshotPath
 	branchDir := m.snapshotBranchDir
-	if path == "" && branchDir == "" {
+	store := m.hintStore
+	if path == "" && branchDir == "" && store == nil {
 		m.mu.Unlock()
 		return nil
 	}
 	estate := m.snapshotEstate
+	hintEstate := m.hintEstate
 	clock := m.clock
 	if clock == nil {
 		clock = time.Now
 	}
-	// A copy, not the live pointer: buildSnapshot walks the state after the
-	// lock is released, and states.State is not safe for concurrent
-	// read/write (see its own doc comment).
+	// A copy, not the live pointer: buildSnapshot and writeHint walk the
+	// state after the lock is released, and states.State is not safe for
+	// concurrent read/write (see its own doc comment).
 	state := m.current.DeepCopy()
 	m.mu.Unlock()
 
-	snap := buildSnapshot(state, estate, clock(), schemas)
-	warning := m.writeSnapshotCarriers(path, branchDir, estate, snap)
+	var warning tfdiags.Diagnostics
+	if path != "" || branchDir != "" {
+		snap := buildSnapshot(state, estate, clock(), schemas)
+		warning = m.writeSnapshotCarriers(path, branchDir, estate, snap)
+	}
+	var hintWarning tfdiags.Diagnostics
+	if store != nil {
+		hintWarning = writeHint(ctx, store, hintEstate, state, clock())
+	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.snapshotWarning = warning
+	m.hintWarning = hintWarning
 	return nil
 }
 
@@ -345,6 +370,37 @@ func (m *Manager) SnapshotWarning() tfdiags.Diagnostics {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.snapshotWarning
+}
+
+// EnableHint turns on guided discovery's hint write (issue #109): from the
+// next PersistState call onward, the estate's resource type roster and a
+// timestamp are written to [HintKey](estate) in store. clock supplies the
+// "writtenAt" timestamp; a nil clock defaults to time.Now, and tests inject
+// a fixed one for reproducible output.
+//
+// Not calling this method at all is the manager's half of "no record_store
+// in the live block -> nothing written, ever": there is no default store a
+// Manager falls back to, and nothing else in this package can turn the
+// hint write on. The caller (internal/command's stateless runner) calls it
+// once the estate name is settled and the live block's record store is
+// open, which is why - unlike the snapshot carriers - the estate here is
+// always the settled name, never a placeholder filled in later.
+func (m *Manager) EnableHint(store staterecord.Store, estate string, clock func() time.Time) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.hintStore = store
+	m.hintEstate = estate
+	m.clock = clock
+}
+
+// HintWarning returns the diagnostic from the most recent failed hint
+// write, or nil diagnostics if the last attempt succeeded or the hint was
+// never enabled. Same contract as SnapshotWarning: the one way a cache
+// write failure becomes observable without ever failing the apply.
+func (m *Manager) HintWarning() tfdiags.Diagnostics {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.hintWarning
 }
 
 // GetRootOutputValues implements [statemgr.OutputReader] from the in-memory
