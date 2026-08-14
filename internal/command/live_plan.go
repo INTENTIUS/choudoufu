@@ -980,7 +980,22 @@ func statelessNeedsDiscovery(resolutions *identity.Result) map[string]bool {
 	needs := resolutions.NeedsDiscovery()
 	out := make(map[string]bool, len(needs))
 	for _, r := range needs {
-		out[r.Addr.ContainingResource().String()] = true
+		// .Config(), not .ContainingResource(): both consumers key on an
+		// addrs.ConfigResource, which carries no instance keys.
+		// [stamp.Request.NeedsDiscovery] documents the contract as
+		// "module-qualified block address", stamp.mustStamp builds its
+		// lookup from addrs.ConfigResource, and stamp.Skip.Addr is one.
+		//
+		// Identity resolution walks KEYED module instances, so
+		// AbsResource.String() rendered module.wrapped["a"].aws_eip.app
+		// while both readers looked up module.wrapped.aws_eip.app. Inside a
+		// for_each'd module the two could never match, which silently
+		// downgraded the must-stamp error to a warning and let a
+		// server-assigned resource be created with no ownership marker on
+		// it - unfindable by any later run, with every subsequent plan
+		// proposing another one. live/LIMITATIONS.md documented the
+		// guarantee as holding. See #111.
+		out[r.Addr.ContainingResource().Config().String()] = true
 	}
 	return out
 }

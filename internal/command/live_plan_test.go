@@ -1576,3 +1576,84 @@ func TestStatelessProgress_throttlesButAlwaysShowsTheFirstEvent(t *testing.T) {
 		t.Errorf("the second event that passed through is %q, want aws_eip", rec.progress[1].TypeName)
 	}
 }
+
+// TestStatelessNeedsDiscovery_keyedModuleKeyForm is GitHub issue #111's
+// regression guard.
+//
+// The map statelessNeedsDiscovery builds is consumed by two readers that both
+// key on an addrs.ConfigResource, which carries no instance keys:
+// stamp.mustStamp builds its lookup from one, and stamp.Skip.Addr (what
+// statelessStampGaps compares) is one. stamp.Request.NeedsDiscovery documents
+// the contract as "module-qualified block address".
+//
+// Identity resolution walks KEYED module instances, so producing the map from
+// AbsResource.String() emitted module.wrapped["a"].aws_eip.app while both
+// readers looked up module.wrapped.aws_eip.app. Inside a for_each'd module
+// the two could never match, so mustStamp returned false for every resource
+// there: the must-stamp error silently became a warning, and a
+// server-assigned resource could be created carrying no ownership marker,
+// which nothing later can find. live/LIMITATIONS.md documents that error as
+// firing.
+func TestStatelessNeedsDiscovery_keyedModuleKeyForm(t *testing.T) {
+	cfg := statelessTestLoadConfigWithModules(t, "../../live/e2e/estate-module-keyed")
+
+	resolutions, diags := identity.Resolve(t.Context(), cfg)
+	if diags.HasErrors() {
+		t.Fatalf("resolving the keyed-module fixture: %s", diags.Err())
+	}
+	if len(resolutions.NeedsDiscovery()) == 0 {
+		t.Fatal("fixture resolved no needs-discovery instances; it can no longer guard this")
+	}
+
+	got := statelessNeedsDiscovery(resolutions)
+	if len(got) == 0 {
+		t.Fatal("statelessNeedsDiscovery produced no keys")
+	}
+
+	for key := range got {
+		if strings.Contains(key, `["`) {
+			t.Errorf("key %q carries an instance key; both readers look up an addrs.ConfigResource, which never has one", key)
+		}
+	}
+
+	// The positive half: the key the readers will actually build for the
+	// block inside the keyed module has to be present.
+	const want = "module.wrapped.aws_eip.app"
+	if !got[want] {
+		keys := make([]string, 0, len(got))
+		for k := range got {
+			keys = append(keys, k)
+		}
+		t.Errorf("missing %q, which is what stamp.mustStamp looks up; got %v", want, keys)
+	}
+}
+
+// statelessTestLoadConfigWithModules is statelessTestLoadConfig for a fixture
+// that calls local child modules, which the plain helper refuses on purpose.
+func statelessTestLoadConfigWithModules(t *testing.T, dir string) *configs.Config {
+	t.Helper()
+
+	parser := configs.NewParser(nil)
+	vars := func(v *configs.Variable) (cty.Value, hcl.Diagnostics) { return v.Default, nil }
+
+	load := func(addr addrs.Module, srcDir string) (*configs.Module, hcl.Diagnostics) {
+		call := configs.NewStaticModuleCall(addr, hcl.Range{}, vars, srcDir, "default")
+		return parser.LoadConfigDir(srcDir, call)
+	}
+
+	mod, diags := load(addrs.RootModule, dir)
+	if diags.HasErrors() {
+		t.Fatalf("loading %s: %s", dir, diags.Error())
+	}
+
+	cfg, cfgDiags := configs.BuildConfig(t.Context(), mod, configs.ModuleWalkerFunc(
+		func(_ context.Context, req *configs.ModuleRequest) (*configs.Module, *version.Version, hcl.Diagnostics) {
+			child, childDiags := load(req.Path, filepath.Join(dir, req.SourceAddr.String()))
+			return child, nil, childDiags
+		},
+	))
+	if cfgDiags.HasErrors() {
+		t.Fatalf("building config for %s: %s", dir, cfgDiags.Error())
+	}
+	return cfg
+}
