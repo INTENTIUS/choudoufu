@@ -155,10 +155,10 @@ token per row.
 | Status | Meaning | Rows |
 |---|---|---|
 | `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | <!-- survey-gen:begin wired-count -->846<!-- survey-gen:end wired-count --> |
-| `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 7 |
+| `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 1 |
 | `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components | 0 |
 | `ops` | excluded by the rule, forwarded to the lifecycle layer | 3 |
-| `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 12 |
+| `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 3 |
 | `unknown` | path not determined | 0 |
 
 The `wired` count above is the admission table's global size
@@ -166,7 +166,7 @@ The `wired` count above is the admission table's global size
 more than the rows below. Most of it is rows below,
 classified and wired the way every batch before #40 was, or later
 reclassified from `blocked-emulator` by a registry-ratified batch; the
-rest comes from the three registry-ratified batches (#40, #44) so far. The
+rest comes from the registry-ratified batches (#40, #44, #65). The
 first (Lambda) contributed `aws_lambda_capacity_provider`,
 `aws_lambda_code_signing_config`, `aws_lambda_event_source_mapping` and
 `aws_lambda_layer_version`, plus `aws_lambda_function`, already a row
@@ -235,7 +235,9 @@ the emulator alone; and F4 turned out not to be an
 account-derivation problem at all. The token stays in the vocabulary
 because the next provider survey may find rows that need it again.
 
-`blocked-emulator` was empty in the first pass and holds twenty rows now,
+`blocked-emulator` was empty in the first pass, held twenty rows at its
+2026-08-13 peak, and holds three now after the ratification batches and
+the 2026-08-14 status reconciliation,
 all of them found by wiring lanes probing each candidate against floci.
 Each names its gap and its tracking issue in
 the identity column; choudoufu#26 is the umbrella. Six of the gaps
@@ -357,9 +359,9 @@ where the survey put it, since moving it would break the summary counts,
 but a wiring batch that reaches RDS should expect to admit it by name. The
 generator later added a second reason to expect that: v6.58.0 has no list
 resource for the type either, so the marker path could not enumerate it at
-all. The row is `blocked-emulator` today (floci needs the Docker socket
-mounted to serve RDS, lex00/floci#28), and when that unblocks it wires
-client-named by `identifier`.
+all. The row is `wired` today (the 2026-08-14 reconciliation); proving it
+live still waits on floci serving RDS (Docker socket, lex00/floci#28),
+which is now an emulator-proof gap rather than an admission one.
 
 A fourth is the `account-derived` token itself. `aws_sns_topic` and
 `aws_sqs_queue` are both client-named in the survey's classing and stay
@@ -374,9 +376,9 @@ The survey note kept per-path counts and per-path examples; it did not
 keep the 68-row roster. Thirty-six rows carry `survey note` provenance: the types the note
 named as examples, plus the fourteen that were wired from it before this
 pass. The other thirty-two are inference to fit the counts, sixteen of which
-have since been wired by the #19, #20 and #21 lanes, which is why
-twenty-one of the thirty-seven `wired` rows are `survey note` and sixteen
-are `roster fit`. In survey
+have since been wired by the #19, #20 and #21 lanes. Of the sixty-one
+`wired` rows today, thirty-two source from `survey note` and twenty-nine
+from `roster fit` (seven of those also cite the registry). In survey
 terms the sourced rows are 15 client-named, 12 marker,
 and complete rosters for parent-derived (5), list-plus-content (1) and
 moves-to-Ops (3), which leaves exactly 21 client-named and 11 marker to
@@ -409,21 +411,18 @@ every client-named and parent-derived row: can the import identity be built
 from config arguments alone, with no call to AWS and no knowledge of the
 account? Six rows fail it. They keep their survey path, because the summary
 counts are the survey's result and this file does not restate them, and
-they carry status `needs-account-derived` in the per-type
-table above where the failure blocks wiring.
+they carried status `needs-account-derived` in the per-type table until
+the wiring lanes below picked them up; the Status table's zero for that
+row is the after-state.
 
-Which component each one needs, and the open question about
-`aws_secretsmanager_secret`, are recorded on the wiring lanes that will
-pick them up: issue #19 for the client-named rows, issue #21 for
-`aws_sns_topic_subscription`. Two further rows fail the strict test on a
-parent component instead of the account: `aws_route53_record` (the
-zone's Z-ID) and `aws_sns_topic_subscription` (the topic ARN). Both need
-parent resolution, which the fork already has; the record is wired through
-the `aws_route53_zone` marker today.
 Which component each one needs is recorded on the wiring lanes that picked
 them up: issue #19 for the client-named rows, issues #20 and #21 for the
 rest. Five of the six are settled and the per-type rows above carry the
-outcome, so only a summary of the finding is repeated here.
+outcome, so only a summary of the finding is repeated here. Two further
+rows fail the strict test on a parent component instead of the account:
+`aws_route53_record` (the zone's Z-ID) and `aws_sns_topic_subscription`
+(the topic ARN). Both need parent resolution, which the fork already has;
+the record is wired through the `aws_route53_zone` marker today.
 
 The account-derived mechanism `internal/live/identity`'s
 `CloudContext` provides is exact for the two rows whose identity is a
@@ -485,7 +484,7 @@ Exactly three of the 68 fail the admission rule, and they fail it
 permanently: the rule itself excludes them, and no later scope change
 readmits them. This is a
 different kind of "not admitted" than the surveyed types that are merely
-not wired yet (28 of them at the 37 types wired today, the `ready` and
+not wired yet (4 of them at the 61 types wired today: the `ready` and
 `blocked-emulator` rows above), and `live/LIMITATIONS.md`'s
 `unadmitted-type` entry draws the same distinction.
 
