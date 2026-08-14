@@ -57,6 +57,17 @@ type typeOverride struct {
 	Apply func(g *generator, body *hclwrite.Body, addr resourceAddr)
 }
 
+// supportingRolePrincipals overrides the service principal the shared
+// supporting aws_iam_role's assume policy trusts, for the cohorts where
+// "<cohort>.amazonaws.com" is not the service that assumes it. The
+// messaging cohort's aws_cloudwatch_metric_stream streams under
+// streams.metrics.cloudwatch.amazonaws.com - knowledge that lived in a
+// hand-written iam.tf (with the cohort-name rule silently wrong for it)
+// until #108 criterion 4 folded the hand cohorts into the generator.
+var supportingRolePrincipals = map[string]string{
+	"messaging": "streams.metrics.cloudwatch.amazonaws.com",
+}
+
 // typeOverrides is keyed by provider-local type name. Empty for every type
 // the generic pass alone renders validate-clean; the two cohorts this
 // generator has actually been run against (lambda, s3) are exactly what
@@ -69,14 +80,18 @@ var typeOverrides = map[string]typeOverride{
 			`schema requires "assume_role_policy" as a plain string, but the provider validates it is well-formed JSON (validate: "\"assume_role_policy\" contains an invalid JSON"); the generic string placeholder is not JSON`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			principal := g.cohort + ".amazonaws.com"
+			if p, ok := supportingRolePrincipals[g.cohort]; ok {
+				principal = p
+			}
 			body.SetAttributeRaw("assume_role_policy", exprTokens(fmt.Sprintf(`jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect    = "Allow"
-      Principal = { Service = "%s.amazonaws.com" }
+      Principal = { Service = %q }
       Action    = "sts:AssumeRole"
     }]
-  })`, g.cohort)))
+  })`, principal)))
 		},
 	},
 	"aws_s3_bucket_policy": {

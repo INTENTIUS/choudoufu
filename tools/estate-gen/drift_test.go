@@ -70,17 +70,17 @@ var knownDrift = map[string]driftEntry{
 }
 
 // regenGaps: cohort -> why no working one-command regeneration exists yet.
-// A cohort listed here is skipped outright. What remains is exactly the
-// hand-written class: trees carrying configuration files the generator
-// refuses to regenerate around, whose content and evidence comments need
-// folding into overrides (the ecs-eks NeedsSupporting fold is the
-// template).
-var regenGaps = map[string]string{
-	"iam-ecr":   "fully hand-written cohort (coverage lives in iam.tf/ecr.tf); its ratification evidence is in file comments the generator does not emit",
-	"identity":  "hand-written iam.tf outside the emit set; the README's recorded command would regenerate around it",
-	"lambda":    "hand-written iam.tf outside the emit set (the function's execution role)",
-	"messaging": "hand-written iam.tf outside the emit set (streams.metrics.cloudwatch principal, not derivable from the cohort name)",
-}
+// A cohort listed here is skipped outright. Empty since the four
+// hand-written cohorts were folded on 2026-08-14: their supporting
+// resources became NeedsSupporting/NeedsIAMRole overrides, their
+// hand-tuned values became override Apply rules citing the hand evidence,
+// and every displaced comment block was relocated verbatim into the
+// cohort's hand-owned README before the regeneration - the messaging fold
+// initially missed the coverage file's own evidence comments and the
+// value knowledge in dashboard_body/firehose_arn/alarm_rule, which is why
+// the relocation step now precedes every fold rather than only covering
+// the file being deleted.
+var regenGaps = map[string]string{}
 
 // recordedRegenTypes reads the command out of the cohort README's
 // "Regenerate with" fenced block and returns the -types roster it names

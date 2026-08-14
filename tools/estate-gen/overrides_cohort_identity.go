@@ -82,8 +82,13 @@ var typeOverridesIdentity = map[string]typeOverride{
 	"aws_iam_group_policy": {
 		Reasons: []string{
 			`schema requires "policy" as a plain string, but the provider validates it is well-formed JSON (validate: "\"policy\" contains an invalid JSON policy"); the generic string placeholder is not JSON - the group-policy sibling of aws_s3_bucket_policy's own override above`,
+			`"group" must name an actual IAM group and no cohort type creates one (aws_iam_group is covered by the IAM/ECR batch, not here); a supporting aws_iam_group is generated (NeedsSupporting) and referenced - folds the hand-written iam.tf block #108 criterion 4 found, whose own comment recorded that the generic pass has no cross-type alias for "group"`,
 		},
+		NeedsSupporting: []string{"aws_iam_group"},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if sup, ok := g.byType["aws_iam_group"]; ok {
+				body.SetAttributeRaw("group", exprTokens(sup.Type+"."+sup.Label+".name"))
+			}
 			body.SetAttributeRaw("policy", exprTokens(`jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -97,8 +102,13 @@ var typeOverridesIdentity = map[string]typeOverride{
 	"aws_iam_user_policy": {
 		Reasons: []string{
 			`schema requires "policy" as a plain string, but the provider validates it is well-formed JSON; the generic string placeholder is not JSON - the user-policy sibling of aws_iam_group_policy's own override above`,
+			`"user" must name an actual IAM user; a supporting aws_iam_user is generated and referenced, same fold as aws_iam_group_policy's "group"`,
 		},
+		NeedsSupporting: []string{"aws_iam_user"},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if sup, ok := g.byType["aws_iam_user"]; ok {
+				body.SetAttributeRaw("user", exprTokens(sup.Type+"."+sup.Label+".name"))
+			}
 			body.SetAttributeRaw("policy", exprTokens(`jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -128,16 +138,24 @@ var typeOverridesIdentity = map[string]typeOverride{
 		Reasons: []string{
 			`"policy_arn" is a required string the schema does not constrain, but the provider validates it is a well-formed ARN (validate: "is an invalid ARN"); the generic placeholder string is not one - resolved by hand to the sibling aws_iam_policy's own real arn attribute (aws_iam_policy is server-assigned, so identityArgName gives gen.go's parentRef nothing to link automatically) rather than a synthesized literal ARN no CreateOpenIDConnectProvider-style call ever minted, so an attach actually has a real policy on the other end during a floci apply`,
 		},
+		NeedsSupporting: []string{"aws_iam_group"},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("policy_arn", exprTokens(iamPolicyArnRef(g)))
+			if sup, ok := g.byType["aws_iam_group"]; ok {
+				body.SetAttributeRaw("group", exprTokens(sup.Type+"."+sup.Label+".name"))
+			}
 		},
 	},
 	"aws_iam_user_policy_attachment": {
 		Reasons: []string{
 			`"policy_arn" is a required string the schema does not constrain, but the provider validates it is a well-formed ARN; the generic placeholder string is not one - resolved to the sibling aws_iam_policy's own real arn attribute, same fix as aws_iam_group_policy_attachment above`,
 		},
+		NeedsSupporting: []string{"aws_iam_user"},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("policy_arn", exprTokens(iamPolicyArnRef(g)))
+			if sup, ok := g.byType["aws_iam_user"]; ok {
+				body.SetAttributeRaw("user", exprTokens(sup.Type+"."+sup.Label+".name"))
+			}
 		},
 	},
 	"aws_iam_openid_connect_provider": {
