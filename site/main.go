@@ -77,6 +77,13 @@ func (p docPage) read(root string) ([]byte, string, error) {
 
 var docPages = []docPage{
 	{
+		Slug:        "migrate",
+		NavLabel:    "Migrate an existing estate",
+		Title:       "Migrate an existing estate",
+		Section:     "Start Here",
+		ContentFile: "migrate.md",
+	},
+	{
 		Slug:        "start",
 		NavLabel:    "Start a new estate",
 		Title:       "Start a new estate",
