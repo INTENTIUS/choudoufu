@@ -53,8 +53,10 @@ const (
 	// "." and ":" within it. See foreach_key.go.
 	RuleForEachKey Rule = "for-each-key"
 
-	// RuleChildModule covers module calls: stateless mode v0 is a
-	// root-module mode. See child_module.go.
+	// RuleChildModule covers a module call this mode cannot expand: count,
+	// or a for_each whose keys it cannot pin down. Static calls and
+	// statically-keyed for_each calls are admitted and never reach it (#59).
+	// See child_module.go.
 	RuleChildModule Rule = "child-module"
 
 	// RuleOverlongAddress covers a resource instance whose escaped
@@ -128,8 +130,12 @@ var ruleInfo = map[Rule]struct {
 		// phase (d)), so the absolute was false for the commonest members of
 		// this rule - null_resource and terraform_data. The three classes
 		// differ enough that only the Detail can name a remedy; the summary's
-		// job is to avoid claiming there isn't one. See #101.
-		summary: "Logical resource is not admitted as configured",
+		// job is to avoid claiming there isn't one - and equally to avoid
+		// promising one, since SECRET_REFUSED is permanent and OTHER_REFUSED
+		// has had no per-type review. "as configured" leaned too far toward
+		// promising; the detail is where the class-specific answer lives.
+		// See #101.
+		summary: "Logical resource is not admitted",
 		docsRef: `live/LIMITATIONS.md, "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep"`,
 	},
 	RuleUnadmittedType: {
@@ -155,8 +161,16 @@ var ruleInfo = map[Rule]struct {
 		// count, refused permanently because positional renumbering moves
 		// addresses out from under their markers, and a non-static for_each.
 		// The old summary said modules were unavailable outright, which sent
-		// operators looking for a workaround they did not need. See #101.
-		summary: "count and non-static for_each on a module call are not available under live resource markers",
+		// operators looking for a workaround they did not need.
+		//
+		// Nor is it only count and non-static for_each: identity's
+		// ChildModuleKeys also refuses a for_each that IS static but has the
+		// wrong type or shape - `for_each = ["a", "b"]` is a tuple, and an
+		// audit found the user being told they wrote a non-static expression
+		// when they had written a perfectly static one of the wrong type. The
+		// summary now says what is true of every shape and leaves the
+		// specifics to the detail, which names them accurately. See #101.
+		summary: "This module call cannot be expanded under live resource markers",
 		docsRef: `live/LIMITATIONS.md, "child-module"`,
 	},
 	RuleOverlongAddress: {
