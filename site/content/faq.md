@@ -15,9 +15,9 @@ possibly be a good idea.
 ## Is it a separate tool or a drop-in replacement?
 
 All of OpenTofu plus one feature. The binary is `choudoufu`, and until a
-configuration declares a `live` block it behaves exactly like the OpenTofu
-commit it was forked from. The marker machinery only wakes up when a
-configuration opts in.
+configuration opts in - with an `estate.chdf.hcl` sidecar file or a `live`
+block - it behaves exactly like the OpenTofu commit it was forked from. The
+marker machinery only wakes up when a configuration asks for it.
 
 Everything that is not live markers is stock OpenTofu, unmodified, documented
 at [opentofu.org](https://opentofu.org/docs/).
@@ -49,8 +49,8 @@ does not have that property.
 **A small amount cannot be rebuilt.** An effect with no cloud twin
 leaves nothing to read back: `null_resource`, `terraform_data`, `time_*`, and
 `random_*` whose output carries no secret. Those persist as micro-state, one
-small record per resource, through a `record_store` declared in the `live`
-block. The backends are SSM Parameter Store, S3, or a local directory.
+small record per resource, through a `record_store` declared in the live
+configuration. The backends are SSM Parameter Store, S3, or a local directory.
 
 Secret-generating resources are refused rather than recorded. `random_password`,
 `random_bytes` and every `tls_*` produce material only the state file ever
@@ -83,10 +83,11 @@ whole story.
 
 Yes, and it costs nothing to keep the door open.
 
-The markers are plain tags and the resources are ordinary resources. Remove the
-`live` block, restore a `backend` if you want one, and import the resources
-into a fresh state file with stock tooling. The marker tags can stay, since
-stock OpenTofu ignores them, or you can delete them with your cloud CLI.
+The markers are plain tags and the resources are ordinary resources. Remove
+the live configuration - the `estate.chdf.hcl` sidecar or the `live` block -
+restore a `backend` if you want one, and import the resources into a fresh
+state file with stock tooling. The marker tags can stay, since stock OpenTofu
+ignores them, or you can delete them with your cloud CLI.
 
 ## What stops someone stripping a resource's markers?
 

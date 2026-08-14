@@ -31,12 +31,11 @@ To stop managing something without destroying it, change what happens to a
 resource you have stopped declaring:
 
 ```hcl
-live {
-  estate = "my-estate"
+# estate.chdf.hcl
+estate = "my-estate"
 
-  policy {
-    undeclared_tagged = "untag"
-  }
+policy {
+  undeclared_tagged = "untag"
 }
 ```
 
@@ -122,14 +121,13 @@ A database migration, a script, a one-shot API call: nothing in the live system
 records that it happened, so there is no marker to read back.
 
 `null_resource`, `terraform_data`, `time_*` and non-secret `random_*` work as
-soon as the `live` block declares a `record_store`:
+soon as the live configuration declares a `record_store`:
 
 ```hcl
-live {
-  estate = "my-estate"
+# estate.chdf.hcl
+estate = "my-estate"
 
-  record_store "ssm" {}
-}
+record_store "ssm" {}
 ```
 
 The label picks the backend: `local`, `ssm` or `s3`. Those resources then run

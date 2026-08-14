@@ -238,14 +238,13 @@ invoked.
 An older refusal message said these were unsupported. They are not.
 
 `null_resource`, `terraform_data`, `time_*` and non-secret `random_*` are
-admitted as soon as the `live` block declares a `record_store`:
+admitted as soon as the live configuration declares a `record_store`:
 
 ```hcl
-live {
-  estate = "my-estate"
+# estate.chdf.hcl
+estate = "my-estate"
 
-  record_store "ssm" {}
-}
+record_store "ssm" {}
 ```
 
 The label picks the backend: `local`, `ssm` or `s3`. [Where things are
@@ -286,8 +285,15 @@ is the only proven pattern.
 
 ## Editors and linters
 
-Stock Terraform and stock OpenTofu reject a configuration containing a `live`
-block:
+The `estate.chdf.hcl` sidecar file exists for exactly this concern
+([#72](https://github.com/INTENTIUS/choudoufu/issues/72)): it carries the
+live configuration in a file whose extension stock tooling never reads, so a
+repository adopting live markers through the sidecar keeps every `.tf` file
+free of non-standard syntax. Stock `terraform validate`, `tflint` and editors
+keep passing untouched.
+
+The in-`terraform` `live` block is the one form that costs you here. Stock
+Terraform and stock OpenTofu reject a configuration containing one:
 
 ```
 Error: Unsupported block type
@@ -305,14 +311,12 @@ which includes `tflint`, since it decodes HCL through OpenTofu's own
 configuration libraries. Tools that only tokenize HCL, including most syntax
 highlighters and formatters, are unaffected.
 
-There is no workaround that keeps a `live`-bearing configuration validating
-against stock tooling. The block is either in the schema the tool decodes
-against or it is not. The two practical options are running `choudoufu
-validate` in CI instead of stock `terraform validate`, or keeping the `live`
-block in a small root module that stock tooling has no reason to touch.
-
-A sidecar configuration file that keeps `.tf` files free of non-standard syntax
-is [#72](https://github.com/INTENTIUS/choudoufu/issues/72).
+If you keep the in-block form anyway - some teams prefer the configuration in
+one place - the options are running `choudoufu validate` in CI instead of
+stock `terraform validate`, or keeping the `live` block in a small root module
+that stock tooling has no reason to touch. Or move the block's content into
+the sidecar, which is one file and zero edited lines; declaring both forms at
+once is an error.
 
 ## Where this page's ordering comes from
 

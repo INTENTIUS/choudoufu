@@ -29,14 +29,34 @@ Building from a checkout is one command:
 go build ./cmd/choudoufu
 ```
 
-The binary is called `choudoufu`. Until a configuration declares a `live`
-block it behaves as the OpenTofu commit it was forked from, so you can point it
-at existing work without changing anything.
+The binary is called `choudoufu`. Until a configuration opts in - with the
+sidecar file below, or a `live` block - it behaves as the OpenTofu commit it
+was forked from, so you can point it at existing work without changing
+anything.
 
 ## Turn markers on
 
-Add a `live` block inside `terraform`, and remove any `backend` or `cloud`
-block.
+Create a file named `estate.chdf.hcl` beside your configuration, and remove
+any `backend` or `cloud` block.
+
+```hcl
+# estate.chdf.hcl
+estate = "my-estate"
+```
+
+The estate name is the unit of ownership. Every resource this configuration
+manages gets tagged with it, and that tag is how the next plan finds the
+resource again.
+
+That one file is the whole adoption: no `.tf` file changes, so stock
+`terraform validate`, `tflint` and editors keep passing on the rest of the
+repository, and reverting is deleting the file. There is nothing else to
+configure. No backend, no lock, no state migration. If your configuration
+later needs an effect the cloud cannot report back on, you add a
+`record_store` to this same file; until then nothing is persisted at all.
+
+If you prefer the configuration in one place, the same content can live as a
+`live` block inside `terraform` instead:
 
 ```hcl
 terraform {
@@ -46,24 +66,18 @@ terraform {
 }
 ```
 
-The estate name is the unit of ownership. Every resource this configuration
-manages gets tagged with it, and that tag is how the next plan finds the
-resource again.
-
-There is nothing else to configure. No backend, no lock, no state
-migration. If your configuration later needs an effect the cloud cannot report
-back on, you add a `record_store` to this same block; until then nothing is
-persisted at all.
+The two forms are equivalent, and declaring both at once is an error: one
+source of truth.
 
 :::warning
-Stock Terraform and stock OpenTofu reject a configuration containing a `live`
-block, because `live` is this fork's addition to the `terraform` block's
-schema and nothing signals it to a tool that never heard of it. Any tool that
-validates the `terraform` block against upstream's schema will do the same.
-Tools that only tokenize HCL, including most syntax highlighters and
-formatters, are unaffected. See
-[Will my config work](compatibility.html#editors-and-linters) for what to run
-in CI instead.
+The in-block form only: stock Terraform and stock OpenTofu reject a
+configuration containing a `live` block, because `live` is this fork's
+addition to the `terraform` block's schema and nothing signals it to a tool
+that never heard of it. Any tool that validates the `terraform` block against
+upstream's schema will do the same. The sidecar file has none of this cost -
+its extension is one those tools never read. See
+[Will my config work](compatibility.html#editors-and-linters) for the
+details.
 :::
 
 ## A first configuration

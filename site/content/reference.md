@@ -49,13 +49,12 @@ commands:
 Not documented here yet, deliberately.
 [#109](https://github.com/INTENTIUS/choudoufu/issues/109) removed `snapshots`
 and `snapshot_path` (guided discovery's hint now rides the `record_store`),
-and one open change still alters the block:
-[#72](https://github.com/INTENTIUS/choudoufu/issues/72)
-adds a sidecar file that becomes the form the docs lead with. Writing the
-argument reference before it lands would mean rewriting it.
+and [#72](https://github.com/INTENTIUS/choudoufu/issues/72) added the
+`estate.chdf.hcl` sidecar file the docs now lead with - its body is the
+block's content, and either form works, but not both at once.
 
-Until then, `internal/configs/live.go` carries the schema, and the path pages
-show the forms in use.
+Until the argument reference is written, `internal/configs/live.go` carries
+the schema, and the path pages show the forms in use.
 
 ## Everything else is OpenTofu
 

@@ -8,8 +8,8 @@ configuration is the half that needs attention, because it does not happen
 automatically and the failure mode is quiet.
 
 :::warning
-Adding a `live` block to a configuration that already manages live resources
-does not bind them. A resource with no ownership marker is not yours yet, so
+Turning on live markers for a configuration that already manages live
+resources does not bind them. A resource with no ownership marker is not yours yet, so
 the first plan reads it as absent and proposes creating a second one beside it.
 Applying that plan does not fail. It creates the duplicate.
 
@@ -52,9 +52,11 @@ hand-write its markers before the first apply.
 
 ## The loop
 
-1. **Add the block.** Put `live { estate = "..." }` in `terraform`, remove any
-   `backend` or `cloud` block, and delete the state file. The two blocks are
-   refused alongside a `live` block, so this is not optional.
+1. **Add the sidecar.** Create `estate.chdf.hcl` beside the configuration with
+   `estate = "..."` as its body (or put `live { estate = "..." }` in
+   `terraform` - either form, not both), remove any `backend` or `cloud`
+   block, and delete the state file. The two blocks are refused alongside a
+   live configuration, so this is not optional.
 2. **Plan.** `choudoufu plan` runs discovery and prints an `Adoptable` section
    above the ordinary plan, one entry per live resource that matches a declared
    block on everything discovery can compare but carries no marker yet.
@@ -114,9 +116,9 @@ Adoption here is the same deliberate tag write as the server-assigned path.
 Read the entry, run the tag write it names, plan again.
 
 If you would rather not do this one resource at a time, the ownership policy
-matrix can do it for you: `policy { declared_untagged = "adopt" }` in the `live`
-block adopts every resource in that situation at once. Read what the other
-three settings do before you set it.
+matrix can do it for you: `policy { declared_untagged = "adopt" }` in the live
+configuration adopts every resource in that situation at once. Read what the
+other three settings do before you set it.
 
 ## What has no adoption path
 
@@ -156,12 +158,11 @@ The equivalent of `removed` with `destroy = false` is to set that instead of
 accepting the default:
 
 ```hcl
-live {
-  estate = "my-estate"
+# estate.chdf.hcl
+estate = "my-estate"
 
-  policy {
-    undeclared_tagged = "untag"   # stop managing it, leave it running
-  }
+policy {
+  undeclared_tagged = "untag"   # stop managing it, leave it running
 }
 ```
 
@@ -173,7 +174,8 @@ operations](day2.html) covers the rest of the matrix.
 
 Know this before you start. Keeping the door open costs nothing.
 
-The markers are plain tags and the resources are ordinary resources. Remove the
-`live` block, restore a `backend` if you want one, and import the resources
-into a fresh state file with stock tooling. The marker tags can stay, since
-stock OpenTofu ignores them, or you can delete them with your cloud CLI.
+The markers are plain tags and the resources are ordinary resources. Remove
+the live configuration - the `estate.chdf.hcl` sidecar or the `live` block -
+restore a `backend` if you want one, and import the resources into a fresh
+state file with stock tooling. The marker tags can stay, since stock OpenTofu
+ignores them, or you can delete them with your cloud CLI.

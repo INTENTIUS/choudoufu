@@ -38,16 +38,14 @@ Those persist as **micro-state**: one small record per resource. Declare a
 store and they are admitted; without one they are refused.
 
 ```hcl
-terraform {
-  live {
-    estate = "my-estate"
+# estate.chdf.hcl
+estate = "my-estate"
 
-    record_store "ssm" {}
-  }
-}
+record_store "ssm" {}
 ```
 
-The label picks the backend.
+The same block goes inside `live` if the configuration uses the in-`terraform`
+form instead of the sidecar file. The label picks the backend.
 
 | Backend | Where it writes | Arguments |
 |---|---|---|
