@@ -14,6 +14,13 @@ import (
 // carveSeedEntry is one row of tools/mapping-gen/carve-seed.json (issue
 // #43): chant's hand-curated AWS_CARVE_TYPES table, transcribed. identityAttr
 // is nil for the entries whose chant row carries none.
+//
+// Adjudicated under #100: deliberate curation, almost fully retired. This
+// source sits last in resolveArgName's precedence, and a full proposal run
+// on 2026-08-14 attributed exactly one argument to it (aws_ecs_cluster's
+// "name"). The file's own _provenance records the staleness rule: a
+// provider release that adds an identity schema for a seeded type retires
+// that entry, and when the last one retires this loader goes with it.
 type carveSeedEntry struct {
 	TFType       string  `json:"tfType"`
 	IdentityAttr *string `json:"identityAttr"`

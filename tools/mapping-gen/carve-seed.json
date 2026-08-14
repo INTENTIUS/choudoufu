@@ -3,7 +3,8 @@
     "Vendored from chant packages/core/src/terraform/aws-resources.ts (AWS_CARVE_TYPES), the hand-curated AWS carve-out table for chant's carve advisor and carve emit (issue #43, tools/mapping-gen).",
     "chant is a sibling checkout at ../chant relative to this repo's parent, not a dependency of this repo; this file is a data transcription, not an import.",
     "78 entries transcribed by hand on 2026-08-12, one per AWS_CARVE_TYPES array element, in source order. identityAttr is null for the 27 entries whose chant row carries none.",
-    "Consumed by the row generator (a separate issue in this batch), not by mapping-gen's own join; it travels with the mapping artifact because both are keyed by tf_type."
+    "Consumed by the row generator (a separate issue in this batch), not by mapping-gen's own join; it travels with the mapping artifact because both are keyed by tf_type.",
+    "Adjudicated 2026-08-14 (#100): deliberate curation, almost fully retired by sharper sources. row-gen consults this file LAST among argument-name sources (identity schema, then import grammar, then this; tools/row-gen/classify.go resolveArgName), and a full proposal run attributes exactly ONE argument to it today: aws_ecs_cluster's \"name\", where the 6.59.0 provider serves no identity schema and the import grammar composes nothing. It goes stale in one direction only - every provider release that adds an identity schema for a seeded type retires that entry silently - and it is invalidated for a type the moment live/survey-full.json carries required_for_import for it. When the aws_ecs_cluster entry retires, delete this file and the carveseed.go loader with it."
   ],
   "entries": [
     {
