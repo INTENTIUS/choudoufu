@@ -428,16 +428,17 @@ type StatelessPlan interface {
 	// ran. A no-op when rep.Empty().
 	Policy(rep StatelessPolicyReport)
 
-	// GuidedFallback reports why a pass that had snapshot-guided discovery
+	// GuidedFallback reports why a pass that had guided discovery
 	// configured (issue #64) fell back to today's full sweep instead of
-	// using it - a stale, missing or unreadable snapshot hint, in one
-	// sentence from [discovery.Result.GuidedFallback]. reason is empty
-	// whenever guided discovery was never configured for this pass, or
-	// whenever it engaged successfully, and an empty reason renders
-	// nothing: this is informational only, never a warning that something
-	// is wrong with the plan itself, which the fallback's own safety
-	// argument (a stale or missing snapshot costs one full re-read, never a
-	// wrong plan) is what makes true.
+	// using it - a stale, missing or unreadable hint in the estate's
+	// record store, in one sentence from
+	// [discovery.Result.GuidedFallback]. reason is empty whenever guided
+	// discovery was never configured for this pass, or whenever it engaged
+	// successfully, and an empty reason renders nothing: this is
+	// informational only, never a warning that something is wrong with the
+	// plan itself, which the fallback's own safety argument (a stale or
+	// missing hint costs one full re-read, never a wrong plan) is what
+	// makes true.
 	GuidedFallback(reason string)
 
 	// Lookalikes reports the lookalike guard's findings: planned creates
@@ -530,7 +531,7 @@ func (v *StatelessPlanHuman) GuidedFallback(reason string) {
 	cols := v.view.outputColumns()
 
 	v.view.streams.Print(v.view.colorize.Color(
-		"\n[reset][bold]Snapshot-guided discovery: fell back to a full sweep[reset]\n\n",
+		"\n[reset][bold]Guided discovery: fell back to a full sweep[reset]\n\n",
 	))
 	v.view.streams.Print(format.WordWrap(reason, cols) + "\n")
 

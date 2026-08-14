@@ -443,6 +443,13 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		}
 		r.recordStore = store
 		r.recordKeyPrefix = projection.RecordStoreKeyPrefix(recordStoreCfg, estate)
+		// Guided discovery's hint (issue #109) rides the same store: from
+		// the apply's final persist onward, the estate's type roster and a
+		// timestamp land at [projection.HintKey](estate), where the next
+		// run's guided sweep reads them back. Enabled here rather than in
+		// statelessBegin because the store and the settled estate name both
+		// exist only now. A plan never persists, so a plan never writes one.
+		r.mgr.EnableHint(store, estate, time.Now)
 	}
 
 	// Resolution runs ahead of the providers being configured and is handed
@@ -462,7 +469,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	}
 
 	merged := resolutions.All()
-	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy, r.view)
+	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy, r.recordStore, r.view)
 	diags = diags.Append(discoDiags)
 	if discoDiags.HasErrors() {
 		// A marker problem means the estate's ownership records disagree with

@@ -194,14 +194,14 @@ func runGuidedSweepBenchmark(t *testing.T) guidedSweepReport {
 	flocitest.Run(t, dir, terraformBin, "apply", "-auto-approve", "-input=false", "-no-color")
 	proxy.Reset()
 
-	// The hint: a real snapshot, built through projection.Manager exactly as
-	// writeGuidedHintFixture is for the equivalence tests, recording both
-	// types this estate now actually holds. aws_kms_key and
-	// aws_route53_zone are never mentioned - this estate never created any -
-	// so both stay absent from the hint and, per the design, always fully
-	// swept.
-	hintPath := filepath.Join(dir, "hint-snapshot.json")
-	writeGuidedHintFixture(t, hintPath, time.Now(), benchType, "aws_sns_topic")
+	// The hint: a real one, persisted to a real record store through
+	// projection.Manager exactly as writeGuidedHintFixture is for the
+	// equivalence tests, recording both types this estate now actually
+	// holds. aws_kms_key and aws_route53_zone are never mentioned - this
+	// estate never created any - so both stay absent from the hint and, per
+	// the design, always fully swept.
+	hintStore := newGuidedHintStore(t)
+	writeGuidedHintFixtureFor(t, hintStore, guidedBenchEstate, time.Now(), benchType, "aws_sns_topic")
 
 	// The undeclared-but-owned resource stays live; only its configuration
 	// block goes away, so the next config load declares nothing of it -
@@ -242,7 +242,7 @@ func runGuidedSweepBenchmark(t *testing.T) guidedSweepReport {
 	proxy.Reset()
 	routineReq := baseReq
 	routineReq.Guided = true
-	routineReq.SnapshotPath = hintPath
+	routineReq.HintStore = hintStore
 	routineRes, diags := Discover(context.Background(), routineReq)
 	assertNoErrors(t, diags)
 	if !routineRes.Guided {

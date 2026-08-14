@@ -156,12 +156,13 @@
 // route tables, gateway and security groups but not the default VPC, and no
 // call this package can make changes that.
 //
-// # Snapshot-guided discovery (issue #64)
+// # Guided discovery (issue #64)
 //
 // [Request.Guided] is an opt-in (default off) cost optimization over the
-// estate-wide sweep, nothing more: it reads the most recent observational
-// snapshot (internal/live/projection's P4.2 cache) through
-// [projection.ReadHintFile] / [projection.ReadHintBranch] as a HINT of which
+// estate-wide sweep, nothing more: it reads the most recent hint the
+// estate's record store carries (issue #109; written by
+// internal/live/projection after every apply) through
+// [projection.ReadHintStore] as a HINT of which
 // admitted types this estate has ever held, and skips re-listing a type the
 // hint has no record of on a routine pass rather than paying one List call
 // per admitted type on every plan.
@@ -169,8 +170,8 @@
 // The hint is never authority, and the package's central safety claim -
 // nothing here guesses at ownership - extends to it without exception. A
 // type absent from the hint is swept in full on every run regardless, and
-// any problem trusting the hint at all (no source configured, a missing or
-// corrupted snapshot, one older than [Request.GuidedMaxAge]) falls back to
+// any problem trusting the hint at all (no store configured, a missing or
+// corrupted hint, one older than [Request.GuidedMaxAge]) falls back to
 // exactly today's full enumeration, silently: [Result.GuidedFallback] names
 // why for an operator who wants to know, and Discover never returns an
 // error for it. See guided.go and TestGuided_equivalence for the mechanism
