@@ -93,7 +93,14 @@ func TestRefusalSilentForTypeInNoCohort(t *testing.T) {
 	if len(issues) != 1 || issues[0].Rule != RuleUnadmittedType {
 		t.Fatalf("expected exactly one RuleUnadmittedType issue, got %v", issues)
 	}
-	if !strings.HasSuffix(issues[0].Detail, "provider identity schemas") {
+	// The property under test is "residue.Lookup appended nothing", and the
+	// only way to see that from here is that the Detail still ends where the
+	// base sentence ends. That couples this assertion to checkManagedResources'
+	// closing words: if you reword the base refusal, reword this too. It last
+	// moved in #101, when the sentence stopped naming admission.go as the
+	// table's home and stopped promising provider identity schemas "later".
+	const baseTail = `The table is generated into internal/live/lint/admission_generated.go by "go run ./tools/row-gen -emit"`
+	if !strings.HasSuffix(issues[0].Detail, baseTail) {
 		t.Errorf("a type in no cohort should end with the base table sentence unchanged, got: %s", issues[0].Detail)
 	}
 }

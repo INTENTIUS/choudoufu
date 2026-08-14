@@ -291,13 +291,28 @@ func checkManagedResources(mod *configs.Module, path addrs.Module, schemas map[s
 		}
 
 		if !admitted(resource.Type, schemas, signal) {
+			// Two clauses of this sentence went stale and had to be
+			// rewritten (#101). It said the table was "hardcoded in
+			// internal/live/lint/admission.go", which stopped being true
+			// when row-gen -emit took the table over; and it promised
+			// provider identity schemas "later", when in fact admitted()
+			// has already consulted them by the time this line runs, and
+			// they declined. Telling an operator to wait for a mechanism
+			// that just ran and said no is worse than saying nothing.
+			//
+			// Do not let the phrase "The provider" into this base sentence:
+			// TestAdmittedRefusesRouteWithTableRowBypassed uses it as the
+			// marker for [identity.SchemaRefusal]'s appended clause, to tell
+			// a schema-informed refusal from a schema-less one.
 			detail := fmt.Sprintf(
-				"resource type %q is not in the live-markers v0 admission table. A type "+
-					"participates only if its identity is recoverable from the live system "+
-					"with no memory, by one of the four admission paths: client-assigned "+
-					"identity, marker, parent-derived, or list plus content match. The v0 "+
-					"table is hardcoded in internal/live/lint/admission.go and grows "+
-					"with the provider survey and, later, provider identity schemas",
+				"resource type %q is not in the live-markers admission table, and "+
+					"neither the provider's identity schema nor this configuration's own "+
+					"arguments settled its identity either. A type participates only if "+
+					"its identity is recoverable from the live system with no memory, by "+
+					"one of the four admission paths: client-assigned identity, marker, "+
+					"parent-derived, or list plus content match. The table is generated "+
+					"into internal/live/lint/admission_generated.go by "+
+					"\"go run ./tools/row-gen -emit\"",
 				resource.Type,
 			)
 			// A caller with no schemas gets exactly the sentence above, byte
