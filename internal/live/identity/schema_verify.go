@@ -418,13 +418,24 @@ func (v Verification) Diagnostics() tfdiags.Diagnostics {
 	return diags
 }
 
+// The two summaries [Finding.Diagnostic] can produce. They are constants
+// rather than fmt.Sprintf templates because a Summary is this package's rule
+// identity - see refusals.go - and an interpolated one is invisible to
+// [TestRefusalsRegistered]'s scanner, which is exactly how both of these
+// escaped the registry when it was written. The type name they used to
+// interpolate is in every Detail already.
+const (
+	SummarySchemaDisagreement = "Identity table and provider schema disagree"
+	SummarySchemaBreaking     = "The identity table names something the provider does not have"
+)
+
 // Diagnostic renders one finding. See [Verification.Diagnostics].
 func (f Finding) Diagnostic() tfdiags.Diagnostic {
 	severity := tfdiags.Warning
-	summary := fmt.Sprintf("Identity table and provider schema disagree about %s", f.Type)
+	summary := SummarySchemaDisagreement
 	if f.Breaking {
 		severity = tfdiags.Error
-		summary = fmt.Sprintf("The identity table names something %s does not have", f.Type)
+		summary = SummarySchemaBreaking
 	}
 	return tfdiags.Sourceless(severity, summary, f.Detail)
 }

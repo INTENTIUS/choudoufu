@@ -1434,10 +1434,6 @@ func hasAttr(b *configschema.Block, name string) bool {
 	return ok
 }
 
-// importIdentity reads the live import ID out of a list result, following
-// the identity table's IdentityAttrs for the type - "id" for every EC2 type
-// in the v0 subset, with aws_eip also accepting allocation_id - and falling
-// back to "id" for a type the table does not cover.
 // identityAttrNames renders the attributes importIdentity will look for, so
 // a ProblemNoIdentity can say which ones it wanted rather than blaming the
 // provider for serving none. It mirrors importIdentity's own defaulting
@@ -1450,6 +1446,10 @@ func identityAttrNames(typeName string) string {
 	return strings.Join(attrs, ", ")
 }
 
+// importIdentity reads the live import ID out of a list result, following
+// the identity table's IdentityAttrs for the type - "id" for every EC2 type
+// in the v0 subset, with aws_eip also accepting allocation_id - and falling
+// back to "id" for a type the table does not cover.
 func importIdentity(typeName string, r listclient.Result) (string, string, bool) {
 	attrs := []string{"id"}
 	if ti, ok := identity.LookupType(typeName); ok && len(ti.IdentityAttrs) > 0 {

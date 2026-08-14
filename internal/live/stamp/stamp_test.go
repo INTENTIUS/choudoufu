@@ -688,9 +688,16 @@ resource "aws_eip" "pool" {
 	// See #101.
 	assertDiagContains(t, diags, "Ownership marker conflict", "count", "${count.index}")
 
+	// The rule is not "don't use this one verb", it is "never quote
+	// addressExpr's display string as something to type": it has the
+	// interpolation stripped out, so writing it sets the same constant on
+	// every instance - the error being reported. An audit defeated the
+	// earlier verb-specific check in one attempt by switching "Write it as"
+	// to "Set the tag to". Assert the string is absent outright.
+	const displayForm = "aws_eip.pool:count.index"
 	for _, d := range diags {
-		if strings.Contains(d.Description().Detail, `Write it as "aws_eip.pool:count.index"`) {
-			t.Errorf("the remedy quotes addressExpr's display string, which has no interpolation in it: %s", d.Description().Detail)
+		if strings.Contains(d.Description().Detail, displayForm) {
+			t.Errorf("the remedy quotes addressExpr's display string %q, which has no interpolation in it and reproduces this very error if typed: %s", displayForm, d.Description().Detail)
 		}
 	}
 }

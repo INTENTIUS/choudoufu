@@ -282,13 +282,25 @@ func ClassifyLogicalType(resourceType string) (LogicalType, bool) {
 // does not exist yet" for long enough that operators read a one-block fix as
 // an unsupported type; that was the defect #101 exists for. Do not
 // reintroduce a "not yet" here without checking lint.go's guard first.
+// recordStoreSupportExists is the load-bearing claim of the RECORD_ADMITTED
+// detail, factored out so a test can pin it by value.
+//
+// A ban-list of the old wording ("does not exist yet", "not yet", ...) was
+// tried first and an audit defeated it in one attempt, by writing "has not
+// shipped" instead - there are unbounded ways to spell a false promise, and
+// only one thing worth asserting: that the message states the support is
+// here NOW. TestLogicalResourceDetailsRenderByClass asserts both that the
+// detail contains this string and that this string still says what it says,
+// so rewording the claim means editing the test on purpose.
+const recordStoreSupportExists = "That support exists"
+
 func logicalResourceDetail(resourceType string, lt LogicalType) string {
 	switch lt.Class {
 	case ClassRecordAdmitted:
 		return fmt.Sprintf(
 			"%q is a logical resource, classified RECORD_ADMITTED: its outputs carry "+
 				"no secret material (%s), so a persisted micro-state record can hold "+
-				"its value where no cloud observation could. That support exists - "+
+				"its value where no cloud observation could. "+recordStoreSupportExists+" - "+
 				"GitHub issue #73's record-backed identity - and this configuration "+
 				"has simply not turned it on, which is the only reason %s is refused "+
 				"here. Declare a record_store in the live block and it is admitted, "+

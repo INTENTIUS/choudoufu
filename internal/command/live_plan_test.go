@@ -254,7 +254,7 @@ func TestLivePlan_lintFatal(t *testing.T) {
 	}
 
 	stderr := output.Stderr()
-	if !strings.Contains(stderr, "Logical resource is not admitted as configured") {
+	if !strings.Contains(stderr, "Logical resource is not admitted") {
 		t.Errorf("no lint diagnostic for the logical resource:\n%s", stderr)
 	}
 	if !strings.Contains(stderr, "logical-resource") {

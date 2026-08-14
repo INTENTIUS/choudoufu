@@ -10,10 +10,14 @@ import "sort"
 // This file is GitHub issue #110's first half: making this package's refusals
 // enumerable.
 //
-// internal/live/lint has had this since it existed - a Rule constant per
-// refusal, a summary and docs anchor per Rule, a fixture directory per rule,
-// and four tests keeping code, fixture and documentation in lockstep. Adding
-// a lint rule without a documentation entry fails a test today.
+// internal/live/lint has most of this - a Rule constant per refusal, a
+// summary and docs anchor per Rule, and tests tying fixture directories to
+// live/LIMITATIONS.md headings. Note it does NOT close the loop an earlier
+// version of this comment claimed: nothing there asserts every Rule has a
+// ruleInfo entry or a resolvable docsRef, and an audit added a Rule with
+// neither and watched the package pass. Six of its sixteen rules have no
+// fixture, and three point their docsRef at a GitHub issue. That gap is
+// tracked on #110.
 //
 // This package had none of it. Its refusals are hcl.Diagnostic values built
 // inline, so nothing could ask "what can this package refuse?" - which is
@@ -22,7 +26,7 @@ import "sort"
 // operator can find no documentation for.
 //
 // The Summary strings turned out to be de-facto rule identities already:
-// thirty distinct ones across roughly forty sites, with the repeats being
+// thirty-two distinct ones across roughly forty sites, with the repeats being
 // genuinely one rule reached several ways (five sites share "Identity not
 // resolvable from configuration"). So the registry keys on the Summary rather
 // than introducing a parallel constant nobody would remember to set.
@@ -49,7 +53,7 @@ type Refusal struct {
 	// Empty means no shipped document describes this refusal. That is a
 	// gap, not a category: it is deliberately representable so the gap can
 	// be counted (see [UndocumentedRefusals]) rather than discovered one
-	// support question at a time. Twenty-six of the thirty are empty today.
+	// support question at a time. Most are empty today; TestUndocumentedRefusalsAreCounted carries the exact number and ratchets it.
 	DocsRef string
 }
 
@@ -59,7 +63,7 @@ var refusals = []Refusal{
 	{"Circular for_each reference", "A resource's for_each depends on its own instances, directly or through another resource's for_each.", ""},
 	{"Circular identity reference", "A resource's identity is composed, directly or transitively, from its own identity.", ""},
 	{"Configuration loaded without a static evaluator", "The configuration was not loaded through configs.Parser.LoadConfigDir or the configload package. A caller error, not a configuration one.", ""},
-	{"Expression not evaluable here", "An expression inside a keyed module resolves, several layers down, back to the module call's own each.key or each.value.", ""},
+	{"Expression not evaluable here", "Static evaluation of an identity argument panicked and was recovered; most often an expression inside a keyed module resolving, several layers down, back to the module call's own each.key or each.value.", ""},
 	{"Identity argument not set", "The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.", ""},
 	{"Identity derived from a sensitive value", "An identity argument reads a sensitive variable. Import identities are written to logs and plan output.", ""},
 	{"Identity derived from an impure function", "An identity argument calls uuid(), timestamp() or bcrypt(), which return a different value on every evaluation.", ""},
@@ -80,12 +84,14 @@ var refusals = []Refusal{
 	{"Reference to a resource instance that does not exist", "A reference names an instance key the target resource does not expand to, or omits one it requires.", ""},
 	{"Reference to undeclared resource", "A reference, or a for_each parent, names a resource the module does not declare.", ""},
 	{"Resource type outside the live-markers subset", "The type is absent from the admission table, and neither the provider's identity schema nor the configuration's own arguments settle its identity.", `live/LIMITATIONS.md, "unadmitted-type"`},
+	{"Identity table and provider schema disagree", "The identity table and the installed provider's schema differ about a type in a way that is not fatal; reported as a warning.", ""},
 	{"Sensitive for_each expression", "A for_each expression reads a sensitive value; instance keys become marker values.", ""},
+	{"The identity table names something the provider does not have", "The identity table builds a type's identity from an argument the installed provider's schema has no such name for; usually provider-version skew.", ""},
 	{"Two resources with the same identity", "Two resource blocks resolve to one identity, so one live object would have two owners.", `live/LIMITATIONS.md, "duplicate-identity"`},
 	{"Unresolvable identity", "An identity could not be built because a reference it depends on failed; the reference's own error explains why.", ""},
 	{"Unsupported each.value reference", "each.value is used as other than each.value.<attr> when for_each iterates over a resource.", ""},
 	{"for_each key cannot be recorded as a marker", "A for_each key contains a character the tofu-address marker cannot carry.", `live/MARKERS.md, "Ownership semantics"`},
-	{"for_each over a resource that is not keyed", "for_each iterates a resource expanded with count, which has indices rather than keys.", ""},
+	{"for_each over a resource that is not keyed", "for_each iterates a resource that has no instance keys to iterate - one expanded with count, or one using neither count nor for_each.", ""},
 }
 
 // Refusals returns every refusal this package can produce, sorted by Summary.

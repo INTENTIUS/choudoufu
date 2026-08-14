@@ -320,12 +320,13 @@ func checkManagedResources(mod *configs.Module, path addrs.Module, schemas map[s
 					"arguments settled its identity either. A type participates only if "+
 					"its identity is recoverable from the live system with no memory, by "+
 					"one of the four admission paths: client-assigned identity, marker, "+
-					"parent-derived, or list plus content match. Nothing you can change "+
-					"in this configuration will admit it, and the table is not extensible "+
-					"from here: it is generated from ratified identity rows, and "+
-					"re-running its generator reproduces it byte for byte. If this type "+
-					"has a documented import ID, it belongs in that ledger - open an issue "+
-					"naming the type and the ID",
+					"parent-derived, or list plus content match. Two things can change "+
+					"that. If this type's identity argument is one the provider lets you "+
+					"omit, setting it explicitly on every block of this type admits it - "+
+					"a *_prefix argument in place of the name itself is the usual reason "+
+					"a type lands here. Failing that, the table is generated from "+
+					"ratified identity rows and is not extensible locally: if this type "+
+					"has a documented import ID, open an issue naming the type and the ID",
 				resource.Type,
 			)
 			// A caller with no schemas gets exactly the sentence above, byte
