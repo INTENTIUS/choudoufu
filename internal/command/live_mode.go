@@ -657,8 +657,8 @@ func (r *statelessRunner) estateName(ctx context.Context, config *configs.Config
 			Severity: hcl.DiagError,
 			Summary:  "No estate named by the live block",
 			Detail: fmt.Sprintf(
-				"A live-markers run recovers what it owns from the ownership markers on the live resources, so every run needs the estate name those markers carry. Nothing in this configuration stamps a %s tag with a value readable from configuration alone. Name it in the block:\n\n  terraform {\n    live {\n      estate = \"my-estate\"\n    }\n  }",
-				discovery.TagEstate,
+				"A live-markers run recovers what it owns from the ownership markers on the live resources, so every run needs the estate name those markers carry. Nothing in this configuration stamps a %s tag with a value readable from configuration alone. Name it in the %s sidecar file beside the configuration:\n\n  estate = \"my-estate\"\n\nor in the live block:\n\n  terraform {\n    live {\n      estate = \"my-estate\"\n    }\n  }",
+				discovery.TagEstate, configs.LiveSidecarFilename,
 			),
 			Subject: subject,
 		})
