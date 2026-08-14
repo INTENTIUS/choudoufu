@@ -912,3 +912,36 @@ func mustAddr(t *testing.T, s string) addrs.AbsResourceInstance {
 	}
 	return addr
 }
+
+// TestSynthesizedTypeWarnsAboutOrphanRecovery is GitHub issue #107 on the
+// path every run takes.
+//
+// A type absent from DefaultTable can still be admitted, when the provider's
+// identity schema settles it. The estate-wide sweep draws its universe from
+// the table, so removing the last block of such a type leaves the live
+// resource with no run proposing to remove it - and at that point there is
+// nothing left to warn about, which is why the warning fires while the block
+// is still declared.
+func TestSynthesizedTypeWarnsAboutOrphanRecovery(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "schema-fallback"), nil)
+	_, diags := ResolveWith(context.Background(), cfg, Context{Schemas: fallbackSchemas()})
+	assertNoErrors(t, diags)
+
+	var warned []string
+	for _, d := range diags {
+		if d.Severity() != tfdiags.Warning {
+			continue
+		}
+		if d.Description().Summary == SummaryNoOrphanRecovery {
+			warned = append(warned, d.Description().Detail)
+		}
+	}
+	if len(warned) == 0 {
+		t.Fatalf("a schema-synthesized type resolved with no orphan-recovery warning:\n%s", renderDiags(diags))
+	}
+	for _, detail := range warned {
+		if !strings.Contains(detail, "no run proposing to remove it") {
+			t.Errorf("the warning does not say what will not happen: %q", detail)
+		}
+	}
+}

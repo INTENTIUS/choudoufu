@@ -16,6 +16,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/flocitest"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/registry"
 )
 
@@ -534,5 +535,88 @@ func TestTaggingSweepOffIsByteIdentical(t *testing.T) {
 				t.Errorf("behavior changed with the tagging sweep left off:\nbase:\n%s\ngot:\n%s", baseStr, got)
 			}
 		})
+	}
+}
+
+// TestTaggingSweepReportsUnsweepableOwnedType is GitHub issue #107's
+// population, reported rather than described as something else.
+//
+// A type absent from the generated admission table can still be admitted for
+// planning, when the provider's identity schema or the configuration's own
+// arguments settle it. The estate-wide sweep draws its universe from that
+// table, so deleting the last block of such a type leaves the live resource
+// in the account with no run that will ever propose removing it.
+//
+// The tagging sweep is the one path that sees it at all - it asks the cloud
+// for everything carrying the marker rather than asking per type - and it
+// was calling this an ARN it could not place. It could place it perfectly
+// well; what it could not do was remove it. aws_ec2_carrier_gateway is the
+// mapped-but-unadmitted case arnJoinTable's own comment keeps for exactly
+// this purpose.
+func TestTaggingSweepReportsUnsweepableOwnedType(t *testing.T) {
+	const unswept = "aws_ec2_carrier_gateway"
+	if _, inTable := identity.LookupType(unswept); inTable {
+		t.Skipf("%s has joined the admission table; arnJoinTable's comment names the replacement case", unswept)
+	}
+
+	cloud := newFakeCloud()
+	ownWholeEstate(cloud)
+
+	arn := "arn:aws:ec2:us-east-1:123456789012:carrier-gateway/cagw-0123456789abcdef0"
+	srv := &taggingServer{
+		arns: []string{arn},
+		tags: map[string]map[string]string{
+			arn: {TagEstate: estateName, TagAddress: unswept + ".deleted"},
+		},
+	}
+	server := srv.start(t)
+	defer server.Close()
+
+	req := Request{
+		Sweep:        true,
+		Tagging:      cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: server.URL}),
+		TaggingSweep: true,
+		// The roster has to carry the carrier-gateway mapping for the join
+		// to reach the admission-table check at all; without it the ARN
+		// fails one step earlier, on live/mapping.json rather than on the
+		// identity table. live/mapping.json does carry this row - see
+		// arnJoinTable's own comment - so this mirrors the real artifacts.
+		Roster: ccRoster(t,
+			map[string]string{
+				"aws_cloudwatch_log_group": "AWS::Logs::LogGroup",
+				unswept:                    "AWS::EC2::CarrierGateway",
+			},
+			nil,
+			map[string]bool{"AWS::Logs::LogGroup": true, "AWS::EC2::CarrierGateway": true},
+		),
+	}
+	res, diags := discoverFixture(t, cloud, req)
+	// A warning: nothing about this run is wrong, one live resource is
+	// simply outside removal coverage.
+	assertNoErrors(t, diags)
+
+	problems := res.ProblemsOfKind(ProblemUnsweepableOwnedType)
+	if len(problems) != 1 {
+		t.Fatalf("want one unsweepable-owned-type problem, got %d:\n%s", len(problems), res)
+	}
+	if !strings.Contains(problems[0].Detail, unswept) {
+		t.Errorf("the problem does not name the type: %q", problems[0].Detail)
+	}
+	if !strings.Contains(problems[0].Detail, "not planned for destruction") {
+		t.Errorf("the problem does not say what will not happen: %q", problems[0].Detail)
+	}
+
+	// It must not still be filed as an ARN nobody could place. That was the
+	// old message, and it described the wrong thing: the ARN placed fine.
+	if unplaceable := res.ProblemsOfKind(ProblemUnresolvedTaggedARN); len(unplaceable) != 0 {
+		t.Errorf("still reported as an unplaceable ARN: %+v", unplaceable)
+	}
+
+	// And it must not be proposed for destruction, which it has no table row
+	// to carry out.
+	for addr := range removalsByAddr(res) {
+		if strings.HasPrefix(addr, unswept) {
+			t.Errorf("%s was proposed for destruction with no import identity to do it with", addr)
+		}
 	}
 }

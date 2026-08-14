@@ -794,6 +794,7 @@ one - and each says so in its own entry.
 | - | - | discovery | No provider access | `internal/live/discovery` | "No provider access" |
 | - | - | discovery | No slot left to mint | `internal/live/discovery` | "No slot left to mint" |
 | - | - | discovery | One marker value for two declared addresses | `internal/live/discovery` | "One marker value for two declared addresses" |
+| - | - | discovery | Owned resource of a type the sweep cannot cover | `internal/live/discovery` | "Owned resource of a type the sweep cannot cover" |
 | - | - | discovery | Partial slot markers on a count set | `internal/live/discovery` | "Partial slot markers on a count set" |
 | - | - | discovery | Resolved resource missing from the configuration | `internal/live/discovery` | "Resolved resource missing from the configuration" |
 | - | - | discovery | Tagged resource's ARN could not be joined to a resource type | `internal/live/discovery` | "Tagged resource's ARN could not be joined to a resource type" |
@@ -860,6 +861,7 @@ one - and each says so in its own entry.
 | 0 | 0 | identity | Reference to undeclared resource | `internal/live/identity` | "Reference to undeclared resource" |
 | 0 | 0 | identity | Required variable not set | `internal/configs` | "Required variable not set" |
 | 0 | 0 | identity | Reserved symbol name | `internal/addrs` | "Reserved symbol name" |
+| - | - | identity | Resource type has no orphan recovery | `internal/live/identity` | "Resource type has no orphan recovery" |
 | 0 | 0 | identity | Resource type outside the live-markers subset | `internal/live/identity` | "unadmitted-type" |
 | 0 | 0 | identity | Sensitive count expression | `internal/live/identity` | "Sensitive count expression" |
 | 0 | 0 | identity | Sensitive for_each expression | `internal/live/identity` | "Sensitive for_each expression" |
@@ -924,7 +926,7 @@ one - and each says so in its own entry.
 | - | - | stamp | Ownership markers not stamped | `internal/live/stamp` | "Ownership markers not stamped" |
 | - | - | stamp | Unmarked apply of a marker-only resource | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 
-**161 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
+**163 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -1135,6 +1137,14 @@ reserved for the limits wing's fixture directories, and
 #### One marker value for two declared addresses
 
 **What.** Two declared instances escape to the same tofu-address value, so a marker cannot say which of them a live object belongs to. Binding either would be a guess.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Owned resource of a type the sweep cannot cover
+
+**What.** A live resource carries this estate's ownership marker, the configuration no longer declares it, and its type is outside the sweep's universe - admitted by the provider's identity schema rather than by the generated admission table. It is not planned for destruction and no later run will propose one.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 
@@ -1659,6 +1669,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** Raised by `internal/addrs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
 **How often.** Blocked no configuration in the measured corpus.
+
+#### Resource type has no orphan recovery
+
+**What.** The type is admitted by the provider's identity schema rather than by the generated admission table, so it plans and applies but the estate-wide sweep will not list it: deleting its last block leaves the live resource with no run proposing to remove it. Reported as a warning.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
 
 #### Sensitive count expression
 

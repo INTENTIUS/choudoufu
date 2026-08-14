@@ -122,6 +122,10 @@ var refusals = []Refusal{
 		What:    "Two declared instances escape to the same tofu-address value, so a marker cannot say which of them a live object belongs to. Binding either would be a guess.",
 	},
 	{
+		Summary: "Owned resource of a type the sweep cannot cover",
+		What:    "A live resource carries this estate's ownership marker, the configuration no longer declares it, and its type is outside the sweep's universe - admitted by the provider's identity schema rather than by the generated admission table. It is not planned for destruction and no later run will propose one.",
+	},
+	{
 		Summary: "Partial slot markers on a count set",
 		What:    "Some instances of a count-expanded resource carry tofu-slot markers and some do not, so the set cannot be read either as slotted or as positional.",
 	},

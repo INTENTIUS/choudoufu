@@ -118,6 +118,7 @@ var refusals = []Refusal{
 	{"Reference to a module instance that does not exist", "A reference names a module instance the configuration does not expand to.", ""},
 	{"Reference to a resource instance that does not exist", "A reference names an instance key the target resource does not expand to, or omits one it requires.", ""},
 	{"Reference to undeclared resource", "A reference, or a for_each parent, names a resource the module does not declare.", ""},
+	{"Resource type has no orphan recovery", "The type is admitted by the provider's identity schema rather than by the generated admission table, so it plans and applies but the estate-wide sweep will not list it: deleting its last block leaves the live resource with no run proposing to remove it. Reported as a warning.", ""},
 	{"Resource type outside the live-markers subset", "The type is absent from the admission table, and neither the provider's identity schema nor the configuration's own arguments settle its identity.", `live/LIMITATIONS.md, "unadmitted-type"`},
 	{"Identity table and provider schema disagree", "The identity table and the installed provider's schema differ about a type in a way that is not fatal; reported as a warning.", ""},
 	{"Sensitive count expression", "A count expression reads a sensitive or ephemeral value; the instance keys it produces become marker values.", ""},

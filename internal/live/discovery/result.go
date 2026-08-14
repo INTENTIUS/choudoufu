@@ -626,6 +626,28 @@ const (
 	// error: the resource simply stays outside this pass's removal
 	// coverage, the same safe direction a [SweepGap] fails in.
 	ProblemUnresolvedTaggedARN ProblemKind = "UNRESOLVED_TAGGED_ARN"
+
+	// ProblemUnsweepableOwnedType is a resource the tagging sweep
+	// ([Request.TaggingSweep], issue #51) found carrying this estate's
+	// marker, of a type the sweep's own universe does not contain and the
+	// configuration no longer declares.
+	//
+	// That is GitHub issue #107's population. A type absent from the
+	// admission table can still be admitted, when the provider's identity
+	// schema or the configuration's own arguments settle it
+	// (internal/live/lint/admission.go), but the sweep draws its universe
+	// from [identity.AdmittedTypes] - the table's keys. So deleting the last
+	// block of such a type left the live resource in the account with
+	// nothing said about it: not swept, not reported, not a residue note.
+	//
+	// The tagging sweep is the one path that can see it at all, because it
+	// asks the cloud for everything carrying the marker rather than asking
+	// per type. It cannot destroy it - there is no table row to build an
+	// import identity from - but it can refuse to be silent about it, which
+	// is what #107 says is the one unacceptable outcome. A warning, not an
+	// error: nothing about the run in front of the operator is wrong, and
+	// the resource simply sits outside removal coverage.
+	ProblemUnsweepableOwnedType ProblemKind = "UNSWEEPABLE_OWNED_TYPE"
 )
 
 // Severity is the diagnostic severity a problem of this kind carries.
@@ -633,7 +655,8 @@ const (
 // the account-ID smoke alarm is a warning because the run in front of the
 // operator may be perfectly correct.
 func (k ProblemKind) Severity() Severity {
-	if k == ProblemUnresolvedAccount || k == ProblemUnresolvedTaggedARN {
+	switch k {
+	case ProblemUnresolvedAccount, ProblemUnresolvedTaggedARN, ProblemUnsweepableOwnedType:
 		return SeverityWarning
 	}
 	return SeverityError

@@ -128,8 +128,50 @@ func resolveWith(ctx context.Context, cfg *configs.Config, rctx Context) (*Resul
 	r.walkModule(cfg, addrs.RootModuleInstance, result)
 
 	r.checkCollisions(result)
+	r.warnUnsweepableTypes()
 
 	return result, r.diags
+}
+
+// warnUnsweepableTypes says once per run which resource types this
+// configuration relies on that no estate-wide sweep can recover.
+//
+// GitHub issue #107. A type absent from [DefaultTable] can still be admitted,
+// when the provider's identity schema or the configuration's own arguments
+// settle it ([SynthesizeTypeIdentity]) - and that admission is deliberately
+// additive, so it only ever widens what plans. The sweep did not follow:
+// internal/live/discovery draws its universe from [AdmittedTypes], which is
+// the table's keys, so removing the last block of a synthesized type leaves
+// the live resource in the account with no run that will ever propose
+// removing it.
+//
+// The estate-wide tag sweep can see such a resource and reports it
+// (discovery's ProblemUnsweepableOwnedType), but it is capability-gated and
+// no command sets it today. This warning is on the path every run takes, and
+// it fires while the block is still declared - which is the only moment the
+// information is useful, because once the block is gone there is nothing
+// left to warn about.
+//
+// A warning rather than an error: the type plans and applies correctly, and
+// refusing it would withdraw coverage this fork went out of its way to add.
+func (r *resolver) warnUnsweepableTypes() {
+	names := make([]string, 0, len(r.synth))
+	for typeName, entry := range r.synth {
+		if entry != nil {
+			names = append(names, typeName)
+		}
+	}
+	sort.Strings(names)
+
+	for _, typeName := range names {
+		r.diags = r.diags.Append(tfdiags.Sourceless(
+			tfdiags.Warning,
+			SummaryNoOrphanRecovery,
+			fmt.Sprintf(
+				"%s is admitted by the provider's own identity schema rather than by this fork's admission table, so it plans and applies normally - but the estate-wide sweep draws its type universe from that table and will not list it. Deleting the last %s block from this configuration leaves the live resource in the account with no run proposing to remove it, and no warning at that point either. Remove it by hand when you remove the block. See live/LIMITATIONS.md, %q.",
+				typeName, typeName, SummaryNoOrphanRecovery),
+		))
+	}
 }
 
 // walkModule classifies every managed resource instance in one node of the

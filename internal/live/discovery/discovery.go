@@ -1717,4 +1717,5 @@ var problemSummaries = map[ProblemKind]string{
 	ProblemListFailed:             "Failed to list a resource type",
 	ProblemUncomposableIdentifier: "Cloud Control identifier could not be composed",
 	ProblemUnresolvedTaggedARN:    "Tagged resource's ARN could not be joined to a resource type",
+	ProblemUnsweepableOwnedType:   "Owned resource of a type the sweep cannot cover",
 }

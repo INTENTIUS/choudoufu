@@ -1243,6 +1243,7 @@ func TestProblemSummariesCoverKinds(t *testing.T) {
 		ProblemListFailed,
 		ProblemUncomposableIdentifier,
 		ProblemUnresolvedTaggedARN,
+		ProblemUnsweepableOwnedType,
 	}
 	for _, kind := range kinds {
 		if problemSummaries[kind] == "" {

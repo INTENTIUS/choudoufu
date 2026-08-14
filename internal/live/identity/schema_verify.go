@@ -427,6 +427,12 @@ func (v Verification) Diagnostics() tfdiags.Diagnostics {
 const (
 	SummarySchemaDisagreement = "Identity table and provider schema disagree"
 	SummarySchemaBreaking     = "The identity table names something the provider does not have"
+
+	// SummaryNoOrphanRecovery is GitHub issue #107's warning. It lives with
+	// the other two for the same reason they are constants rather than
+	// literals: it reaches tfdiags.Sourceless through a helper, which no
+	// scan of diagnostic literals can see.
+	SummaryNoOrphanRecovery = "Resource type has no orphan recovery"
 )
 
 // Diagnostic renders one finding. See [Verification.Diagnostics].

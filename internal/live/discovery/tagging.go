@@ -267,6 +267,11 @@ type arnJoinOutcome struct {
 	identityAttr string
 	ok           bool
 	reason       string
+
+	// noTableRow distinguishes "this ARN joined to a type the admission
+	// table does not carry" from every other reason the join failed. See
+	// [ProblemUnsweepableOwnedType].
+	noTableRow bool
 }
 
 // joinTaggedResource is issue #51's join proper: one Tagging API ARN,
@@ -323,7 +328,15 @@ func joinTaggedResource(roster *registry.Roster, arnStr string) arnJoinOutcome {
 
 	ti, ok := identity.LookupType(tfType)
 	if !ok {
-		return arnJoinOutcome{cfnType: cfnType, typeName: tfType, reason: fmt.Sprintf(
+		// The join succeeded and the type is simply outside the generated
+		// admission table. That is a different thing from an ARN nobody can
+		// place, and GitHub issue #107's population: such a type can still
+		// be admitted for planning, by the provider's identity schema or by
+		// the configuration's own arguments, so a live resource of it can
+		// be carrying this estate's marker with no table row to remove it
+		// by. The caller reports it as its own problem rather than as an
+		// unplaceable ARN.
+		return arnJoinOutcome{cfnType: cfnType, typeName: tfType, noTableRow: true, reason: fmt.Sprintf(
 			"%s (CFN type %s) has no entry in internal/live/identity's table, so its ARN's resource id cannot be composed into an import ID",
 			tfType, cfnType)}
 	}
@@ -410,6 +423,29 @@ func sweepViaTagging(ctx context.Context, req Request, decl *declared, res *Resu
 	byType := make(map[string][]taggedCandidate)
 	for _, tr := range tagged {
 		out := joinTaggedResource(req.Roster, tr.ResourceARN)
+		if out.noTableRow && decl.types[out.typeName] == nil {
+			// GitHub issue #107. The type is outside the generated
+			// admission table, so the sweep's universe - which is that
+			// table's keys - never lists it, and a block deleted from the
+			// configuration leaves the live resource here with no run that
+			// will ever propose removing it. It can still have been
+			// admitted for planning, which is what makes this reachable
+			// rather than theoretical.
+			//
+			// This pass cannot destroy it: there is no table row to build
+			// an import identity from. What it can do is stop describing
+			// the situation as an unplaceable ARN, which is what the
+			// message said before and is not what happened.
+			diags = diags.Append(problemDiag(res, Problem{
+				Kind:    ProblemUnsweepableOwnedType,
+				Marker:  out.typeName,
+				LiveIDs: liveIDs(tr.ResourceARN),
+				Detail: fmt.Sprintf(
+					"A %s resource carries estate %q's ownership marker and this configuration no longer declares it, but %s is outside the generated admission table. The estate-wide sweep draws its universe from that table, so this resource is not planned for destruction and no later run will propose one either: remove it by hand, or declare it again. See live/LIMITATIONS.md, \"Owned resource of a type the sweep cannot cover\".",
+					out.typeName, req.Estate, out.typeName),
+			}))
+			continue
+		}
 		if !out.ok {
 			diags = diags.Append(problemDiag(res, Problem{
 				Kind:    ProblemUnresolvedTaggedARN,
@@ -422,9 +458,9 @@ func sweepViaTagging(ctx context.Context, req Request, decl *declared, res *Resu
 			continue
 		}
 		if !inUniverse[out.typeName] {
-			// A type the config-driven scan already covers (or that is not
-			// in the sweep's own universe for some other reason): not this
-			// pass's to file.
+			// A type the config-driven scan already covers. The
+			// admitted-but-untabled case is handled above, before the join
+			// outcome is even consulted for an identifier.
 			continue
 		}
 		byType[out.typeName] = append(byType[out.typeName], taggedCandidate{
