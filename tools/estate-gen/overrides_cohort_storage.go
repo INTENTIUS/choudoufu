@@ -80,9 +80,11 @@ var typeOverridesStorage = map[string]typeOverride{
 	"aws_fsx_openzfs_file_system": {
 		Reasons: []string{
 			`deployment_type is a plain string in the schema but the provider validates it against a fixed enum, a different set than aws_fsx_ontap_file_system's own (validate: "expected deployment_type to be one of [...]")`,
+			`throughput_capacity is optional/computed in the schema, rendered as the generic pass's numeric zero placeholder, but the provider's plan-time check rejects zero for SINGLE_AZ_1 (apply: "0 is not a valid value for throughput_capacity when deployment_type is SINGLE_AZ_1. Valid values: [64 128 ...]") - found by the #108 acceptance tier, not by validate, which never runs this check`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("deployment_type", exprTokens(`"SINGLE_AZ_1"`))
+			body.SetAttributeRaw("throughput_capacity", exprTokens(`64`))
 		},
 	},
 	"aws_fsx_windows_file_system": {

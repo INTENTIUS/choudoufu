@@ -15,6 +15,16 @@ import (
 // Registered by init below; see contributing/LIVE-TABLES.md.
 var typeOverridesComputePlatforms = map[string]typeOverride{
 	// ---- compute-platforms cohort (fifth ratification batch) -----------
+	"aws_amplify_branch": {
+		Reasons: []string{
+			`app_id names an Amplify app, and this cohort generates aws_amplify_app.app in the same run; the generic pass cannot wire the reference because parentRef matches on identity ARGUMENT names and a server-assigned parent has none - its identity is the exported id attribute. The literal "placeholder" the pass emitted referenced nothing (#108 criterion 1's unresolvable-cross-reference shape)`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if parent, ok := g.byType["aws_amplify_app"]; ok {
+				body.SetAttributeRaw("app_id", exprTokens(parent.Type+"."+parent.Label+".id"))
+			}
+		},
+	},
 	"aws_apprunner_service": {
 		Reasons: []string{
 			`source_configuration is a required block with no required attributes the schema itself names inside it, but the provider requires exactly one of source_configuration.code_repository or source_configuration.image_repository set (validate: "one of ... must be specified"); the generic pass emits the outer block empty`,

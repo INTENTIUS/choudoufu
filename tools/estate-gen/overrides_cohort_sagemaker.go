@@ -14,6 +14,16 @@ import (
 // typeOverridesSagemaker is the sagemaker cohort's slice of [typeOverrides].
 // Registered by init below; see contributing/LIVE-TABLES.md.
 var typeOverridesSagemaker = map[string]typeOverride{
+	"aws_sagemaker_app_image_config": {
+		Reasons: []string{
+			`every image-config block is Optional in the wire schema, but the provider requires exactly one of code_editor_app_image_config, jupyter_lab_image_config or kernel_gateway_image_config (apply: "exactly one ... block must be configured") - found by the #108 acceptance tier; validate never runs this check`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			kg := body.AppendNewBlock("kernel_gateway_image_config", nil)
+			spec := kg.Body().AppendNewBlock("kernel_spec", nil)
+			spec.Body().SetAttributeRaw("name", exprTokens(`"tofu-sagemaker-cohort-kernel"`))
+		},
+	},
 	// SageMaker batch (issue #65). Every argument below is Optional in the
 	// wire schema (an ExactlyOneOf/enum/format the provider validates at
 	// plan time, not a schema-Required field) or a required block the
