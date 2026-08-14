@@ -1319,7 +1319,7 @@ func (s *stamper) staticCount(ctx context.Context, rc *configs.Resource) (int, b
 	}
 	for _, trav := range rc.Count.Variables() {
 		switch trav.RootName() {
-		case "var", "local", "path", "terraform":
+		case "var", "local", "path", "terraform", "tofu":
 			// Evaluable in a static scope.
 		default:
 			return 0, false
@@ -1348,7 +1348,7 @@ func (s *stamper) staticForEachKeys(ctx context.Context, rc *configs.Resource) (
 	}
 	for _, trav := range rc.ForEach.Variables() {
 		switch trav.RootName() {
-		case "var", "local", "path", "terraform":
+		case "var", "local", "path", "terraform", "tofu":
 			// Evaluable in a static scope.
 		default:
 			return nil, false

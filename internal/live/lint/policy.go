@@ -18,9 +18,16 @@ import (
 // checkLivePolicy validates the optional policy block nested in a live
 // block, GitHub issue #67's configurable ownership-policy matrix: every
 // quadrant verb an author wrote has to be one this fork considers safe for
-// that quadrant, and a quadrant explicitly assigned "delete" has to carry a
-// scope block, so an unscoped account-wide purge is a lint refusal rather
-// than a default.
+// that quadrant, and undeclared_untagged = "delete" has to carry a scope
+// block, so an unscoped account-wide purge is a lint refusal rather than a
+// default.
+//
+// Only that one quadrant. This used to say "a quadrant explicitly assigned
+// delete", which was both what the code did and wrong: undeclared_tagged's
+// default IS delete, so writing the documented default by hand was a lint
+// error while omitting it was clean, and a scope block added to satisfy the
+// refusal would have been ignored (reconcile.go is Scope's only consumer,
+// and it runs only for undeclared_untagged). See #101.
 //
 // A live block DOES decode in a child module - configs.Module.Live is set
 // per-module (internal/configs/module.go) and child modules are admitted

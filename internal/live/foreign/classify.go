@@ -694,7 +694,7 @@ func staticString(ctx context.Context, mod *configs.Module, rc *configs.Resource
 
 	for _, trav := range attr.Expr.Variables() {
 		switch trav.RootName() {
-		case "var", "local", "path", "terraform":
+		case "var", "local", "path", "terraform", "tofu":
 			// Statically evaluable.
 		default:
 			return "", fmt.Sprintf(

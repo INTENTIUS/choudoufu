@@ -198,7 +198,7 @@ func staticForEachKeys(ctx context.Context, mod *configs.Module, expr hcl.Expres
 	}
 	for _, trav := range expr.Variables() {
 		switch trav.RootName() {
-		case "var", "local", "path", "terraform":
+		case "var", "local", "path", "terraform", "tofu":
 			// Evaluable in a static scope.
 		default:
 			return nil, false
