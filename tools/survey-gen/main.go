@@ -16,7 +16,12 @@
 // composition, and the classifier in classify.go turns those into an
 // admission path per the rules in SURVEY.md's Method section.
 //
-// The roster itself stays human: the 68 types are read out of SURVEY.md's
+// The roster itself stays human (adjudicated under #100 item 1: which 68
+// types make up "the top set" is editorial, the rows carry evidence prose
+// no data file should flatten, readRoster is a strict parser that fails on
+// malformation, and TestRosterStatusAgreesWithAdmission holds the one
+// checkable claim - the Status column - against the identity table, which
+// is what actually went stale in #91): the 68 types are read out of SURVEY.md's
 // own table, because which types make up "the top set" is curation, not
 // schema. Everything else in survey.json is derived.
 //
