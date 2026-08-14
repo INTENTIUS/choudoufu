@@ -72,3 +72,9 @@ site/public/
 /selected-go-version
 /survey-gen
 /tagverbs-gen
+
+# The #102 corpus: third-party configurations pinned in live/corpus-manifest.json
+# and materialized by tools/corpus-fetch. Reproducible from the pins, so not
+# committed - vendoring it would add weight and third-party licenses for no
+# measurement value.
+/.corpus/

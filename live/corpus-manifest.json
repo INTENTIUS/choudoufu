@@ -4,18 +4,128 @@
     "adding a configuration to the corpus should mean adding the configuration.",
     "",
     "Origin is carried into live/corpus-refusals.json and is the field that",
-    "decides what a ranking over this corpus is worth. The seed below is this",
-    "repository's own estate fixtures, written by this project against what it",
-    "already admits. A run over them exercises the instrument; it does not",
-    "measure the product promise, which is about configurations nobody here",
-    "wrote. GitHub issue #102 names that as its one genuinely undecided input.",
-    "Third-party sources belong here as they are obtained, each with its own",
-    "origin string."
+    "decides what a ranking over this corpus is worth. Configurations this",
+    "project wrote measure this project's own idea of what works; only",
+    "third-party ones measure the product promise, which is about",
+    "configurations nobody here wrote.",
+    "",
+    "The terraform-aws-modules sources are pinned to an exact commit and",
+    "materialized by tools/corpus-fetch into .corpus/, which is gitignored.",
+    "They are the examples/ root modules each module ships - real, widely",
+    "deployed, and written by people who have never heard of live markers.",
+    "One caveat to hold while reading the ranking: module-author style leans",
+    "harder on variables, conditionals and dynamic blocks than an ordinary",
+    "estate does, so this corpus probably reports worse than typical user",
+    "code rather than better.",
+    "",
+    "Each fetch block records both a tag and the commit it must resolve to.",
+    "corpus-fetch refuses a tag that has been moved, so the artifact cannot",
+    "silently change under an input nobody watched."
   ],
   "sources": [
     {
       "glob": "live/e2e/estates/*",
       "origin": "in-repo fixture"
+    },
+    {
+      "glob": ".corpus/vpc/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/vpc",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-vpc.git",
+        "tag": "v6.6.1",
+        "commit": "3ffbd46fb1c7733e1b34d8666893280454e27436"
+      }
+    },
+    {
+      "glob": ".corpus/eks/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/eks",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-eks.git",
+        "tag": "v9.0.0",
+        "commit": "908c656cf5da50d576d77696efac1d76dfb86a07"
+      }
+    },
+    {
+      "glob": ".corpus/rds/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/rds",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-rds.git",
+        "tag": "v7.2.1",
+        "commit": "9920097a40175c084c46fee1c306fa61cdbaf823"
+      }
+    },
+    {
+      "glob": ".corpus/s3-bucket/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/s3-bucket",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-s3-bucket.git",
+        "tag": "v5.9.1",
+        "commit": "3170c8beeb346b53c10a3ac2164e637ed161f828"
+      }
+    },
+    {
+      "glob": ".corpus/security-group/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/security-group",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-security-group.git",
+        "tag": "v6.0.0",
+        "commit": "58d8e895915f5573767081142d063b7caf7a2b47"
+      }
+    },
+    {
+      "glob": ".corpus/iam/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/iam",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-iam.git",
+        "tag": "v6.8.0",
+        "commit": "d6e381ccfa95b944149c8b14ba4087e517c57ac7"
+      }
+    },
+    {
+      "glob": ".corpus/lambda/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/lambda",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-lambda.git",
+        "tag": "v8.8.1",
+        "commit": "23d00f7daef40091e87ed2f9dc5d8532e9d2cc22"
+      }
+    },
+    {
+      "glob": ".corpus/alb/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/alb",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-alb.git",
+        "tag": "v9.9.0",
+        "commit": "454d2cbf78d48b9eaeb499bfe6dd05fe30b4ae0c"
+      }
+    },
+    {
+      "glob": ".corpus/autoscaling/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/autoscaling",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-autoscaling.git",
+        "tag": "v9.3.0",
+        "commit": "75cce8749f70a6a55294ad262e60b8aa11f5ac69"
+      }
+    },
+    {
+      "glob": ".corpus/ecs/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/ecs",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-ecs.git",
+        "tag": "v7.6.0",
+        "commit": "c83279b39a69c19cb206038a7c0e24768caa5e35"
+      }
     }
   ]
 }

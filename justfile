@@ -40,7 +40,11 @@ site-serve port="8000": site
 lint:
     make golangci-lint
 
-# The config-language scoreboard (#102): rank which refusals fire across the corpus in live/corpus-manifest.json, into live/corpus-refusals.json. No cloud.
+# Fetch the third-party corpus pinned in live/corpus-manifest.json into .corpus/ (gitignored). Needs network; run once.
+corpus-fetch:
+    go run ./tools/corpus-fetch
+
+# The config-language scoreboard (#102): rank which refusals fire across the corpus, into live/corpus-refusals.json. Run corpus-fetch first. No cloud.
 corpus:
     go run ./tools/corpus-gen
 
