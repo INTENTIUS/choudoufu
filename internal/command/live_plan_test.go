@@ -1155,6 +1155,37 @@ func TestLivePlan_undeclaredProviderAliasIsRefused(t *testing.T) {
 	}
 }
 
+// TestLivePlan_residueAttributeWarningIsWired pins that
+// lint.CheckResidueAttributes runs in the live-plan entry point. The
+// wave-3 audit deleted the call and the whole command suite stayed green;
+// this is the consumer-level guard that makes that mutation loud. The
+// warning's own behavior is pinned in internal/live/lint; here only the
+// wiring is under test.
+func TestLivePlan_residueAttributeWarningIsWired(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-plan-residue-attr"), td)
+	t.Chdir(td)
+
+	cloud := newStatelessTestCloud()
+	cloud.putMarked("aws_s3_bucket", "tofu-residue-attr-bucket", "residue-attr-unit", "aws_s3_bucket.app", map[string]string{
+		"id": "tofu-residue-attr-bucket", "bucket": "tofu-residue-attr-bucket",
+	})
+
+	c, done := newLivePlanCommand(t, cloud)
+	code := c.Run([]string{"-no-color", "-estate=residue-attr-unit"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0\nstderr:\n%s", code, output.Stderr())
+	}
+	combined := output.Stdout() + output.Stderr()
+	if !strings.Contains(combined, "Attribute value cannot round-trip a stateless replan") {
+		t.Errorf("the residue-attribute warning did not reach the output; lint.CheckResidueAttributes is not wired into live-plan:\n%s", combined)
+	}
+	if !strings.Contains(combined, "secret_policy_seed") {
+		t.Errorf("the warning does not name the attribute:\n%s", combined)
+	}
+}
+
 func TestLivePlan_multiProviderSweepSucceeds(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-plan-multi-provider"), td)
@@ -1386,7 +1417,7 @@ func statelessTestSchemas() map[string]providers.Schema {
 		}
 		return providers.Schema{Block: &configschema.Block{Attributes: attrs}}
 	}
-	return map[string]providers.Schema{
+	base := map[string]providers.Schema{
 		"aws_s3_bucket": schema("id", "bucket", "arn"),
 		"aws_vpc":       schema("id", "cidr_block"),
 		// The keyed type: a for_each member whose key lives in its
@@ -1397,6 +1428,15 @@ func statelessTestSchemas() map[string]providers.Schema {
 		// slot markers.
 		"aws_eip": schema("id", "domain"),
 	}
+	// A sensitive, settable attribute on the bucket, so command-level tests
+	// can pin that lint.CheckResidueAttributes is actually WIRED into the
+	// live entry points - the wave-3 audit removed the call and watched
+	// this suite stay green, which is the unpinned-wiring shape wave 1
+	// found once already.
+	base["aws_s3_bucket"].Block.Attributes["secret_policy_seed"] = &configschema.Attribute{
+		Type: cty.String, Optional: true, Sensitive: true,
+	}
+	return base
 }
 
 // statelessTestListSchemas is the list-protocol half of the caricature: the

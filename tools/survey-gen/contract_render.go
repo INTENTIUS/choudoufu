@@ -13,7 +13,7 @@
 //
 // The spans lived in website/docs/language/live-markers.mdx until issue #79
 // moved the docs site to hand-written pages under site/content/ and #112
-// deleted that file. An 846-entry enumeration is reference material, so it
+// deleted that file. An enumeration of 800-plus entries is reference material, so it
 // moved to the coverage ledger rather than onto a user-facing page.
 package main
 

@@ -483,7 +483,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	if !ok {
 		// This used to interpolate strings.Join(AdmittedTypes(), ", "),
 		// which was reasonable when the table held a few dozen rows and
-		// renders a 25KB diagnostic now that it holds 846. It also cited
+		// renders a 25KB diagnostic at the table's 800-plus rows. It also cited
 		// "the roadmap", a document that is not in this repository - the
 		// only text carrying that phrase is live/LIMITATIONS.md quoting it.
 		//

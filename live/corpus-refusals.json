@@ -2624,6 +2624,16 @@
     },
     {
       "layer": "lint",
+      "id": "child-live-config",
+      "title": "Live configuration in a child module is not consulted",
+      "docs_ref": "live/LIMITATIONS.md, \"child-live-config\"",
+      "raised_by": "internal/live/lint",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
       "id": "for-each-key",
       "title": "for_each key is outside the marker character set",
       "docs_ref": "live/LIMITATIONS.md, \"foreach-dotted-key\"",
@@ -2759,7 +2769,7 @@
     "instances": 1053,
     "sites": 11640,
     "refusals_fired": 17,
-    "refusals_in_set": 108,
+    "refusals_in_set": 109,
     "configs_without_schemas": 0,
     "refusals_unregistered": 0
   },

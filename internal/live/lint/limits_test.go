@@ -68,6 +68,9 @@ var enforcedLimits = map[string]Rule{
 	// way. The admitted twin - the same provider block declared at root -
 	// is pinned by TestCheck's module-provider-root case.
 	"module-provider-block": RuleModuleProviderBlock,
+	// Wave-3 audit of #72: a child module's live configuration was decoded
+	// and silently ignored; now refused.
+	"child-live-config": RuleChildLiveConfig,
 	// The three policy rules joined the limits wing under GitHub issue
 	// #110's fourth criterion. They were the only rules in ruleInfo citing
 	// the issue tracker as their documentation, which is not a document a

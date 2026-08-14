@@ -177,7 +177,7 @@ func liveCheckFinding(finding check.Finding) views.LiveCheckFinding {
 
 	// A type-shaped rule is summarized by type rather than enumerated by
 	// site. #114 asks for this by name, because the identity layer's
-	// unadmitted-type refusal once interpolated its whole 846-row admitted
+	// unadmitted-type refusal once interpolated its whole 800-plus-row admitted
 	// list into a single 25KB error, and a report listing every site would
 	// be that mistake with more steps.
 	if types := finding.Types(); len(types) > 0 {

@@ -114,6 +114,11 @@ const (
 	// value cannot mean. See policy.go.
 	RulePolicyThreshold Rule = "policy-threshold"
 
+	// RuleChildLiveConfig covers a live configuration - block or sidecar -
+	// declared inside a child module, which live mode would silently ignore.
+	// See child_live_config.go.
+	RuleChildLiveConfig Rule = "child-live-config"
+
 	// RuleUndeclaredProviderAlias covers a root resource whose provider
 	// argument names an alias no root provider block declares, which live
 	// mode used to configure silently from the environment. See
@@ -237,6 +242,10 @@ var ruleInfo = map[Rule]struct {
 	RuleModuleProviders: {
 		summary: "Module provider mapping is not honoured",
 		docsRef: `live/LIMITATIONS.md, "module-providers"`,
+	},
+	RuleChildLiveConfig: {
+		summary: "Live configuration in a child module is not consulted",
+		docsRef: `live/LIMITATIONS.md, "child-live-config"`,
 	},
 	RuleUndeclaredProviderAlias: {
 		summary: "Provider configuration is not declared",

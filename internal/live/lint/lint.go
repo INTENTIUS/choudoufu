@@ -151,6 +151,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	checkModuleProviderMapping(mod, path, issues)
 	checkModuleProviderBlocks(mod, path, issues)
 	checkUndeclaredProviderAlias(mod, path, issues)
+	checkChildLiveConfig(mod, path, issues)
 	checkMovedBlocks(mod, path, issues)
 	checkLivePolicy(mod, path, issues)
 	checkManagedResources(mod, path, schemas, signal, recordStoreConfigured, issues)

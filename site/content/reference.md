@@ -88,8 +88,8 @@ are in [Storage](storage.html).
 |---|---|---|
 | `path` | `local` | Directory for the records, relative to the module. |
 | `bucket` | `s3` | The bucket holding the records. |
-| `key_prefix` | `ssm`, `s3` | Namespace for this estate's records. A prefix whose first segment is `tofu-receipts` is a decode error: receipts are ordinary declared resources and never live in the record store. |
-| `region` | `ssm`, `s3` | Region of the store, when it differs from the provider's. |
+| `key_prefix` | `ssm`, `s3` | Namespace for this estate's records. A prefix whose first segment is `tofu-receipts` or `tofu-hints` is a decode error: those namespaces belong to receipts (ordinary declared resources) and the guided-discovery hint respectively. |
+| `region` | `ssm`, `s3` | Region of the store; unset, the AWS SDK's own default-configuration chain decides. |
 
 ### `policy` block
 
@@ -102,10 +102,13 @@ verbs, defaults, and the reasoning live in
 |---|---|
 | `declared_tagged`, `declared_untagged`, `undeclared_tagged`, `undeclared_untagged` | The verb for each quadrant. |
 | `tag_key`, `tag_value` | Override the marker tag names. |
-| `threshold` | Guard for a delete quadrant: the run refuses when more resources than this would be deleted. Must be positive. |
+| `threshold` | Guard for a delete quadrant: the run refuses when more resources than this would be deleted. The decoder accepts any non-negative whole number; lint refuses zero. |
 
-A delete quadrant requires a nested `scope` block bounding what a sweep
-may touch: `services`, `types`, and `regions`, each a list.
+The `undeclared_untagged = "delete"` quadrant — account reconciliation —
+requires a nested `scope` block bounding what a sweep may touch:
+`services`, `types`, and `regions`, each a list. The other quadrants'
+delete verbs (including `undeclared_tagged`'s, the default estate-scoped
+sweep) need none.
 
 ## Everything else is OpenTofu
 

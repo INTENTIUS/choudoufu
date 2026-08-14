@@ -711,6 +711,36 @@ root provider block does declare - is pinned by `TestCheck`'s
 rather than an empty body, for any provider address lint did not see; the
 child-module routes into that fallback are `module-providers`' subject.
 
+### child-live-config
+
+**Construct.** A live configuration - a `live` block or an
+`estate.chdf.hcl` sidecar file - declared inside a child module:
+
+```
+module "vendored" { source = "./mod" }   # ./mod carries estate.chdf.hcl
+```
+
+**Why banned.** Live mode reads the root module's live configuration only.
+A child module's own was decoded and then read by nobody, so its resources
+were silently absorbed into the calling estate - the module's declared
+estate boundary reinterpreted with nothing said, the same misattribution
+class `module-providers` and `undeclared-provider-alias` refuse one level
+down. Found by the wave-3 adversarial audit of the sidecar work (#72): the
+sidecar exists precisely so a module repository can check the file in,
+which made the silent case likely rather than exotic.
+
+**Forwarding address.** Declare the live configuration at the root; remove
+it from the module. A module that should be its own estate is a root
+module of its own run.
+
+**What is not refused.** A child module with no live configuration of its
+own - the ordinary shape - and the root's own block or sidecar. Both forms
+present in one module is a separate, earlier error from the decoder.
+
+**Enforcement.** `RuleChildLiveConfig`,
+`internal/live/lint/child_live_config.go` (`checkChildLiveConfig`).
+Fixture at `live/e2e/limits/child-live-config/`.
+
 ### policy-verb
 
 **Construct.** A `policy` block inside a `live` block assigning a verb to an
@@ -1040,6 +1070,7 @@ one - and each says so in its own entry.
 | 0 | 0 | identity | Variables not allowed | `hcl` | "Variables not allowed" |
 | 0 | 0 | identity | for_each key cannot be recorded as a marker | `internal/live/identity` | live/MARKERS.md, "Ownership semantics" |
 | 0 | 0 | identity | for_each over a resource that is not keyed | `internal/live/identity` | "for_each over a resource that is not keyed" |
+| 0 | 0 | lint | child-live-config | `internal/live/lint` | "child-live-config" |
 | 0 | 0 | lint | for-each-key | `internal/live/lint` | "foreach-dotted-key" |
 | 0 | 0 | lint | ignore-changes | `internal/live/lint` | "ignore-changes" |
 | 0 | 0 | lint | module-provider-block | `internal/live/lint` | "module-provider-block" |
@@ -1087,7 +1118,7 @@ one - and each says so in its own entry.
 | - | - | stamp | Ownership markers not stamped | `internal/live/stamp` | "Ownership markers not stamped" |
 | - | - | stamp | Unmarked apply of a marker-only resource | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 
-**165 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
+**166 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->

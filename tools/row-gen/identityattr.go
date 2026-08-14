@@ -34,7 +34,7 @@ import (
 // A rule that reaches further than this was tried and measured before this
 // one was written down, because the provider's own identity schema looks
 // like the stronger source: "when the schema requires exactly one attribute,
-// the components supply it". Over the 846 ratified rows it mis-fires six
+// the components supply it". Over the 845 ratified rows it mis-fires six
 // times - aws_route and aws_route_table_association assemble a composite
 // whose components each supply their own same-named attribute even though
 // the schema's required list has one entry, and aws_codebuild_project,

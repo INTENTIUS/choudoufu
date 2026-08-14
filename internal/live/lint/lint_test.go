@@ -433,6 +433,23 @@ func TestCheck(t *testing.T) {
 			want: nil,
 		},
 		{
+			// Wave-3 audit of #72: a child module's live configuration -
+			// here a sidecar file - decoded cleanly and was read by nobody,
+			// silently absorbing the module's resources into the caller's
+			// estate.
+			name: "live sidecar in a child module",
+			dir:  "testdata/child-live-config",
+			want: []wantIssue{
+				{
+					rule:      RuleChildLiveConfig,
+					construct: "estate.chdf.hcl sidecar file in module module.vendored",
+					module:    "module.vendored",
+					file:      "testdata/child-live-config/mod/estate.chdf.hcl",
+					line:      1,
+				},
+			},
+		},
+		{
 			// One provider FQN under two local names, block and reference
 			// using different ones. Stock OpenTofu resolves both to the same
 			// configuration; the rule's first literal-name comparison
