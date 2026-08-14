@@ -6,6 +6,7 @@
 package identity
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -67,61 +68,60 @@ func TestRefusalsRegistered(t *testing.T) {
 	}
 }
 
-// TestUndocumentedRefusalsAreCounted pins the documentation gap as a number
-// rather than a vague impression, so that closing it is visible.
+// TestRefusalsWithOwnDoc pins the four refusals that override where they are
+// documented, because an override is the one way a refusal can end up with no
+// generated entry and no hand-written one either.
 //
-// This is deliberately a ratchet on the count and not an assertion that the
-// gap is zero: it is 27 of 30 today, closing it is issue #110's second half
-// (generating live/LIMITATIONS.md from this registry plus lint's), and the
-// useful property in the meantime is that it cannot silently grow.
-func TestUndocumentedRefusalsAreCounted(t *testing.T) {
-	// A SET, not a count. An audit defeated the count version by blanking
-	// duplicate-identity's DocsRef and moving it onto an unrelated refusal:
-	// documentation removed from a real refusal, parked somewhere it did not
-	// belong, total unchanged, test green. Pinning the membership makes both
-	// directions of that move visible.
-	undocumented := map[string]bool{
-		"Circular for_each reference":                                   true,
-		"Circular identity reference":                                   true,
-		"Configuration loaded without a static evaluator":               true,
-		"Expression not evaluable here":                                 true,
-		"Identity argument not set":                                     true,
-		"Identity derived from a sensitive value":                       true,
-		"Identity derived from an impure function":                      true,
-		"Identity not resolvable from configuration":                    true,
-		"Identity table and provider schema disagree":                   true,
-		"Invalid count":                                                 true,
-		"Invalid for_each set":                                          true,
-		"Invalid for_each value":                                        true,
-		"No configuration to resolve":                                   true,
-		"No configuration to scan":                                      true,
-		"Non-static count expression":                                   true,
-		"Non-static for_each expression":                                true,
-		"Non-static identity argument":                                  true,
-		"Non-static lifecycle.enabled expression":                       true,
-		"Non-string identity argument":                                  true,
-		"Not an identity attribute":                                     true,
-		"Null identity argument":                                        true,
-		"Reference to a module instance that does not exist":            true,
-		"Reference to a resource instance that does not exist":          true,
-		"Reference to undeclared resource":                              true,
-		"Sensitive count expression":                                    true,
-		"Sensitive for_each expression":                                 true,
-		"Sensitive lifecycle.enabled expression":                        true,
-		"The identity table names something the provider does not have": true,
-		"Unresolvable identity":                                         true,
-		"Unsupported each.value reference":                              true,
-		"for_each over a resource that is not keyed":                    true,
+// This replaces a ratchet on the count of undocumented refusals. That
+// measure meant something while the gap was 27 of 30 and closing it was
+// pending work; once live/LIMITATIONS.md is generated from this table there
+// are no undocumented refusals to count, and what can still go wrong is a
+// row pointing somewhere nobody wrote. internal/live/check's
+// TestEveryRefusalDocsRefIsResolvable checks that for every row; this checks
+// that the set of rows claiming to be documented elsewhere is the set
+// someone decided on.
+//
+// An audit once defeated the old count by blanking one refusal's DocsRef and
+// moving it onto an unrelated one: total unchanged, test green. Pinning
+// membership rather than a number is what makes both directions visible, and
+// that property is kept here.
+func TestRefusalsWithOwnDoc(t *testing.T) {
+	elsewhere := map[string]string{
+		"Resource type outside the live-markers subset": `live/LIMITATIONS.md, "unadmitted-type"`,
+		"Two resources with the same identity":          `live/LIMITATIONS.md, "duplicate-identity"`,
+		"for_each key cannot be recorded as a marker":   `live/MARKERS.md, "Ownership semantics"`,
 	}
 
-	for _, r := range UndocumentedRefusals() {
-		if !undocumented[r.Summary] {
-			t.Errorf("%q lost its DocsRef. Documentation is not removed from a refusal by accident - if this is deliberate, take it out of this test's set.", r.Summary)
+	for _, r := range RefusalsWithOwnDoc() {
+		want, ok := elsewhere[r.Summary]
+		if !ok {
+			t.Errorf("%q now overrides its documentation to %q. An override means no generated entry is written for it, so the target has to be a fuller treatment somebody wrote - if that is what this is, add it to this test's set.", r.Summary, r.Doc)
+			continue
 		}
-		delete(undocumented, r.Summary)
+		if r.Doc != want {
+			t.Errorf("%q points at %q, want %q", r.Summary, r.Doc, want)
+		}
+		delete(elsewhere, r.Summary)
 	}
-	for s := range undocumented {
-		t.Errorf("%q is documented now - remove it from this test's set to lock the improvement in", s)
+	for summary, ref := range elsewhere {
+		t.Errorf("%q no longer points at %q. Its hand-written entry is the fuller one; losing the override silently downgrades it to the generated one-liner.", summary, ref)
+	}
+}
+
+// TestDocsRefDerivesFromSummary covers the derivation itself: a row with no
+// override is documented under its own Summary.
+func TestDocsRefDerivesFromSummary(t *testing.T) {
+	for _, r := range Refusals() {
+		if r.Doc != "" {
+			if got := r.DocsRef(); got != r.Doc {
+				t.Errorf("%q: DocsRef() = %q, want the override %q", r.Summary, got, r.Doc)
+			}
+			continue
+		}
+		want := fmt.Sprintf("live/LIMITATIONS.md, %q", r.Summary)
+		if got := r.DocsRef(); got != want {
+			t.Errorf("%q: DocsRef() = %q, want %q", r.Summary, got, want)
+		}
 	}
 }
 

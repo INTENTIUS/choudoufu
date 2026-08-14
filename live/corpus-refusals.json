@@ -1106,6 +1106,9 @@
       "layer": "identity",
       "id": "Unable to compute static value",
       "title": "Unable to compute static value",
+      "what": "Something an identity argument, a count or a for_each depends on could not be computed. It is the trailing half of another refusal: the diagnostic before it names what actually failed, and this one names the chain that led there.",
+      "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
+      "raised_by": "internal/configs",
       "configs": 66,
       "sites": 3521,
       "examples": [
@@ -1115,13 +1118,14 @@
         ".corpus/alb/main.tf:460",
         ".corpus/alb/main.tf:477"
       ],
-      "registered": false
+      "registered": true
     },
     {
       "layer": "lint",
       "id": "unadmitted-type",
       "title": "Resource type is outside the live-markers subset",
       "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+      "raised_by": "internal/live/lint",
       "configs": 58,
       "sites": 961,
       "types": [
@@ -1371,6 +1375,9 @@
       "layer": "identity",
       "id": "Dynamic value in static context",
       "title": "Dynamic value in static context",
+      "what": "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, a data source, or any reference other than var, local, path and terraform.",
+      "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
+      "raised_by": "internal/configs",
       "configs": 57,
       "sites": 1953,
       "examples": [
@@ -1380,13 +1387,14 @@
         ".corpus/alb/examples/complete-alb/main.tf:196",
         ".corpus/alb/examples/complete-alb/main.tf:196"
       ],
-      "registered": false
+      "registered": true
     },
     {
       "layer": "lint",
       "id": "logical-resource",
       "title": "Logical resource is not admitted",
       "docs_ref": "live/LIMITATIONS.md, \"null-resource\" / \"terraform-data\" / \"local-file\" / \"random-password\" / \"time-sleep\"",
+      "raised_by": "internal/live/lint",
       "configs": 49,
       "sites": 415,
       "types": [
@@ -1453,6 +1461,8 @@
       "id": "Unresolvable identity",
       "title": "Unresolvable identity",
       "what": "An identity could not be built because a reference it depends on failed; the reference's own error explains why.",
+      "docs_ref": "live/LIMITATIONS.md, \"Unresolvable identity\"",
+      "raised_by": "internal/live/identity",
       "configs": 37,
       "sites": 115,
       "examples": [
@@ -1469,6 +1479,7 @@
       "id": "count-index",
       "title": "count.index is not available in resource arguments",
       "docs_ref": "live/LIMITATIONS.md, \"count-index-in-tag\"",
+      "raised_by": "internal/live/lint",
       "configs": 35,
       "sites": 4254,
       "examples": [
@@ -1484,6 +1495,9 @@
       "layer": "identity",
       "id": "Module output not supported in static context",
       "title": "Module output not supported in static context",
+      "what": "An identity argument, a count or a for_each reads a child module's output. Module outputs are produced by evaluating the module, which has not happened yet.",
+      "docs_ref": "live/LIMITATIONS.md, \"Module output not supported in static context\"",
+      "raised_by": "internal/configs",
       "configs": 30,
       "sites": 226,
       "examples": [
@@ -1493,13 +1507,14 @@
         ".corpus/alb/examples/complete-alb/main.tf:180",
         ".corpus/alb/examples/complete-alb/main.tf:181"
       ],
-      "registered": false
+      "registered": true
     },
     {
       "layer": "lint",
       "id": "provisioner",
       "title": "Provisioners are not available under live resource markers",
       "docs_ref": "live/LIMITATIONS.md, \"local-exec\" / \"remote-exec\"",
+      "raised_by": "internal/live/lint",
       "configs": 27,
       "sites": 75,
       "examples": [
@@ -1516,6 +1531,8 @@
       "id": "Null identity argument",
       "title": "Null identity argument",
       "what": "An identity argument evaluates to null.",
+      "docs_ref": "live/LIMITATIONS.md, \"Null identity argument\"",
+      "raised_by": "internal/live/identity",
       "configs": 24,
       "sites": 77,
       "examples": [
@@ -1532,6 +1549,8 @@
       "id": "Identity argument not set",
       "title": "Identity argument not set",
       "what": "The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.",
+      "docs_ref": "live/LIMITATIONS.md, \"Identity argument not set\"",
+      "raised_by": "internal/live/identity",
       "configs": 13,
       "sites": 25,
       "examples": [
@@ -1548,6 +1567,8 @@
       "id": "Not an identity attribute",
       "title": "Not an identity attribute",
       "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
+      "docs_ref": "live/LIMITATIONS.md, \"Not an identity attribute\"",
+      "raised_by": "internal/live/identity",
       "configs": 13,
       "sites": 25,
       "examples": [
@@ -1564,6 +1585,8 @@
       "id": "Invalid for_each set",
       "title": "Invalid for_each set",
       "what": "A for_each set's element type is not a string.",
+      "docs_ref": "live/LIMITATIONS.md, \"Invalid for_each set\"",
+      "raised_by": "internal/live/identity",
       "configs": 11,
       "sites": 20,
       "examples": [
@@ -1580,6 +1603,8 @@
       "id": "Identity not resolvable from configuration",
       "title": "Identity not resolvable from configuration",
       "what": "An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.",
+      "docs_ref": "live/LIMITATIONS.md, \"Identity not resolvable from configuration\"",
+      "raised_by": "internal/live/identity",
       "configs": 6,
       "sites": 16,
       "examples": [
@@ -1596,6 +1621,7 @@
       "id": "child-module",
       "title": "This module call cannot be expanded under live resource markers",
       "docs_ref": "live/LIMITATIONS.md, \"child-module\"",
+      "raised_by": "internal/live/lint",
       "configs": 4,
       "sites": 6,
       "examples": [
@@ -1612,6 +1638,7 @@
       "id": "moved-block",
       "title": "moved blocks are not available under live resource markers",
       "docs_ref": "live/LIMITATIONS.md, \"moved-block\"",
+      "raised_by": "internal/live/lint",
       "configs": 2,
       "sites": 10,
       "examples": [
@@ -1628,6 +1655,8 @@
       "id": "Non-static for_each expression",
       "title": "Non-static for_each expression",
       "what": "A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.",
+      "docs_ref": "live/LIMITATIONS.md, \"Non-static for_each expression\"",
+      "raised_by": "internal/live/identity",
       "configs": 2,
       "sites": 3,
       "examples": [
@@ -1642,6 +1671,8 @@
       "id": "Circular for_each reference",
       "title": "Circular for_each reference",
       "what": "A resource's for_each depends on its own instances, directly or through another resource's for_each.",
+      "docs_ref": "live/LIMITATIONS.md, \"Circular for_each reference\"",
+      "raised_by": "internal/live/identity",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1651,6 +1682,19 @@
       "id": "Circular identity reference",
       "title": "Circular identity reference",
       "what": "A resource's identity is composed, directly or transitively, from its own identity.",
+      "docs_ref": "live/LIMITATIONS.md, \"Circular identity reference\"",
+      "raised_by": "internal/live/identity",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Circular reference",
+      "title": "Circular reference",
+      "what": "A local or variable is defined, directly or transitively, in terms of itself.",
+      "docs_ref": "live/LIMITATIONS.md, \"Circular reference\"",
+      "raised_by": "internal/configs",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1660,6 +1704,19 @@
       "id": "Configuration loaded without a static evaluator",
       "title": "Configuration loaded without a static evaluator",
       "what": "The configuration was not loaded through configs.Parser.LoadConfigDir or the configload package. A caller error, not a configuration one.",
+      "docs_ref": "live/LIMITATIONS.md, \"Configuration loaded without a static evaluator\"",
+      "raised_by": "internal/live/identity",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Ephemeral value not allowed",
+      "title": "Ephemeral value not allowed",
+      "what": "A statically evaluated expression resolves to an ephemeral value, which by definition is not written down anywhere this run can read back.",
+      "docs_ref": "live/LIMITATIONS.md, \"Ephemeral value not allowed\"",
+      "raised_by": "internal/configs",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1669,6 +1726,19 @@
       "id": "Expression not evaluable here",
       "title": "Expression not evaluable here",
       "what": "Static evaluation of an identity argument panicked and was recovered; most often an expression inside a keyed module resolving, several layers down, back to the module call's own each.key or each.value.",
+      "docs_ref": "live/LIMITATIONS.md, \"Expression not evaluable here\"",
+      "raised_by": "internal/live/identity",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Failed to get working directory",
+      "title": "Failed to get working directory",
+      "what": "path.cwd could not be resolved because the operating system refused the working directory. An environment failure, not a configuration one.",
+      "docs_ref": "live/LIMITATIONS.md, \"Failed to get working directory\"",
+      "raised_by": "internal/configs",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1678,6 +1748,8 @@
       "id": "Identity derived from a sensitive value",
       "title": "Identity derived from a sensitive value",
       "what": "An identity argument reads a sensitive variable. Import identities are written to logs and plan output.",
+      "docs_ref": "live/LIMITATIONS.md, \"Identity derived from a sensitive value\"",
+      "raised_by": "internal/live/identity",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1687,6 +1759,8 @@
       "id": "Identity derived from an impure function",
       "title": "Identity derived from an impure function",
       "what": "An identity argument calls uuid(), timestamp() or bcrypt(), which return a different value on every evaluation.",
+      "docs_ref": "live/LIMITATIONS.md, \"Identity derived from an impure function\"",
+      "raised_by": "internal/live/identity",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1696,6 +1770,41 @@
       "id": "Identity table and provider schema disagree",
       "title": "Identity table and provider schema disagree",
       "what": "The identity table and the installed provider's schema differ about a type in a way that is not fatal; reported as a warning.",
+      "docs_ref": "live/LIMITATIONS.md, \"Identity table and provider schema disagree\"",
+      "raised_by": "internal/live/identity",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Invalid \"path\" attribute",
+      "title": "Invalid \"path\" attribute",
+      "what": "path is read with an attribute other than cwd, module or root.",
+      "docs_ref": "live/LIMITATIONS.md, \"Invalid \\\"path\\\" attribute\"",
+      "raised_by": "internal/configs",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Invalid \"terraform\" attribute",
+      "title": "Invalid \"terraform\" attribute",
+      "what": "terraform is read with an attribute other than workspace, including the terraform.env removed in v0.12.",
+      "docs_ref": "live/LIMITATIONS.md, \"Invalid \\\"terraform\\\" attribute\"",
+      "raised_by": "internal/configs",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Invalid attribute in static context",
+      "title": "Invalid attribute in static context",
+      "what": "terraform.applying is read where only configuration is available; it has a value during plan and apply, and none here.",
+      "docs_ref": "live/LIMITATIONS.md, \"Invalid attribute in static context\"",
+      "raised_by": "internal/configs",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1705,6 +1814,19 @@
       "id": "Invalid count",
       "title": "Invalid count",
       "what": "A count expression is not a whole non-negative number.",
+      "docs_ref": "live/LIMITATIONS.md, \"Invalid count\"",
+      "raised_by": "internal/live/identity",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Invalid default value for module argument",
+      "title": "Invalid default value for module argument",
+      "what": "A variable's default does not fit its own type constraint, so no value for it can be produced.",
+      "docs_ref": "live/LIMITATIONS.md, \"Invalid default value for module argument\"",
+      "raised_by": "internal/configs",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1714,6 +1836,30 @@
       "id": "Invalid for_each value",
       "title": "Invalid for_each value",
       "what": "A for_each value is neither a map nor a set of strings.",
+      "docs_ref": "live/LIMITATIONS.md, \"Invalid for_each value\"",
+      "raised_by": "internal/live/identity",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Invalid reference",
+      "title": "Invalid reference",
+      "what": "A reference is not a shape this fork's address parser recognises at all - an operator, an index, or a traversal into something that has no attributes.",
+      "docs_ref": "live/LIMITATIONS.md, \"Invalid reference\"",
+      "raised_by": "internal/addrs",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Invalid value for input variable",
+      "title": "Invalid value for input variable",
+      "what": "The value supplied for a variable does not convert to its declared type.",
+      "docs_ref": "live/LIMITATIONS.md, \"Invalid value for input variable\"",
+      "raised_by": "internal/configs",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1723,6 +1869,8 @@
       "id": "No configuration to resolve",
       "title": "No configuration to resolve",
       "what": "Resolution was handed an empty configuration. A caller error, not a configuration one.",
+      "docs_ref": "live/LIMITATIONS.md, \"No configuration to resolve\"",
+      "raised_by": "internal/live/identity",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1732,6 +1880,8 @@
       "id": "No configuration to scan",
       "title": "No configuration to scan",
       "what": "Signal collection was handed an empty configuration. A caller error, not a configuration one.",
+      "docs_ref": "live/LIMITATIONS.md, \"No configuration to scan\"",
+      "raised_by": "internal/live/identity",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1741,6 +1891,8 @@
       "id": "Non-static count expression",
       "title": "Non-static count expression",
       "what": "A count expression evaluates to null, or to a value not knowable from configuration alone.",
+      "docs_ref": "live/LIMITATIONS.md, \"Non-static count expression\"",
+      "raised_by": "internal/live/identity",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1750,6 +1902,8 @@
       "id": "Non-static identity argument",
       "title": "Non-static identity argument",
       "what": "An identity argument cannot be evaluated from configuration alone, including an impure call reached through a local or written in .tf.json.",
+      "docs_ref": "live/LIMITATIONS.md, \"Non-static identity argument\"",
+      "raised_by": "internal/live/identity",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1759,6 +1913,8 @@
       "id": "Non-static lifecycle.enabled expression",
       "title": "Non-static lifecycle.enabled expression",
       "what": "A lifecycle.enabled expression cannot be resolved from configuration alone.",
+      "docs_ref": "live/LIMITATIONS.md, \"Non-static lifecycle.enabled expression\"",
+      "raised_by": "internal/live/identity",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1768,6 +1924,19 @@
       "id": "Non-string identity argument",
       "title": "Non-string identity argument",
       "what": "An identity argument evaluates to a value that is not a string.",
+      "docs_ref": "live/LIMITATIONS.md, \"Non-string identity argument\"",
+      "raised_by": "internal/live/identity",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Provider function in static context",
+      "title": "Provider function in static context",
+      "what": "A statically evaluated expression calls a provider-defined function, which needs a configured provider this run has not started.",
+      "docs_ref": "live/LIMITATIONS.md, \"Provider function in static context\"",
+      "raised_by": "internal/configs",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1777,6 +1946,8 @@
       "id": "Reference to a module instance that does not exist",
       "title": "Reference to a module instance that does not exist",
       "what": "A reference names a module instance the configuration does not expand to.",
+      "docs_ref": "live/LIMITATIONS.md, \"Reference to a module instance that does not exist\"",
+      "raised_by": "internal/live/identity",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1786,6 +1957,8 @@
       "id": "Reference to a resource instance that does not exist",
       "title": "Reference to a resource instance that does not exist",
       "what": "A reference names an instance key the target resource does not expand to, or omits one it requires.",
+      "docs_ref": "live/LIMITATIONS.md, \"Reference to a resource instance that does not exist\"",
+      "raised_by": "internal/live/identity",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1795,6 +1968,19 @@
       "id": "Reference to undeclared resource",
       "title": "Reference to undeclared resource",
       "what": "A reference, or a for_each parent, names a resource the module does not declare.",
+      "docs_ref": "live/LIMITATIONS.md, \"Reference to undeclared resource\"",
+      "raised_by": "internal/live/identity",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Required variable not set",
+      "title": "Required variable not set",
+      "what": "A non-nullable variable with no default was given no value, so nothing depending on it can be evaluated.",
+      "docs_ref": "live/LIMITATIONS.md, \"Required variable not set\"",
+      "raised_by": "internal/configs",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1805,6 +1991,18 @@
       "title": "Resource type outside the live-markers subset",
       "what": "The type is absent from the admission table, and neither the provider's identity schema nor the configuration's own arguments settle its identity.",
       "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+      "raised_by": "internal/live/identity",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Sensitive count expression",
+      "title": "Sensitive count expression",
+      "what": "A count expression reads a sensitive or ephemeral value; the instance keys it produces become marker values.",
+      "docs_ref": "live/LIMITATIONS.md, \"Sensitive count expression\"",
+      "raised_by": "internal/live/identity",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1814,6 +2012,30 @@
       "id": "Sensitive for_each expression",
       "title": "Sensitive for_each expression",
       "what": "A for_each expression reads a sensitive value; instance keys become marker values.",
+      "docs_ref": "live/LIMITATIONS.md, \"Sensitive for_each expression\"",
+      "raised_by": "internal/live/identity",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Sensitive lifecycle.enabled expression",
+      "title": "Sensitive lifecycle.enabled expression",
+      "what": "A lifecycle.enabled expression reads a sensitive or ephemeral value, so whether the resource exists is decided by something this run may not record.",
+      "docs_ref": "live/LIMITATIONS.md, \"Sensitive lifecycle.enabled expression\"",
+      "raised_by": "internal/live/identity",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Sensitive value not allowed",
+      "title": "Sensitive value not allowed",
+      "what": "A statically evaluated expression resolves to a sensitive value in a position that would write it somewhere readable.",
+      "docs_ref": "live/LIMITATIONS.md, \"Sensitive value not allowed\"",
+      "raised_by": "internal/configs",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1823,6 +2045,8 @@
       "id": "The identity table names something the provider does not have",
       "title": "The identity table names something the provider does not have",
       "what": "The identity table builds a type's identity from an argument the installed provider's schema has no such name for; usually provider-version skew.",
+      "docs_ref": "live/LIMITATIONS.md, \"The identity table names something the provider does not have\"",
+      "raised_by": "internal/live/identity",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1833,6 +2057,51 @@
       "title": "Two resources with the same identity",
       "what": "Two resource blocks resolve to one identity, so one live object would have two owners.",
       "docs_ref": "live/LIMITATIONS.md, \"duplicate-identity\"",
+      "raised_by": "internal/live/identity",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Unable to use variable in static context",
+      "title": "Unable to use variable in static context",
+      "what": "A variable declared const = false is read where only configuration is available.",
+      "docs_ref": "live/LIMITATIONS.md, \"Unable to use variable in static context\"",
+      "raised_by": "internal/configs",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Undefined local",
+      "title": "Undefined local",
+      "what": "A reference names a local the module does not declare.",
+      "docs_ref": "live/LIMITATIONS.md, \"Undefined local\"",
+      "raised_by": "internal/configs",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Undefined variable",
+      "title": "Undefined variable",
+      "what": "A reference names a variable the module does not declare.",
+      "docs_ref": "live/LIMITATIONS.md, \"Undefined variable\"",
+      "raised_by": "internal/configs",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Unknown variable",
+      "title": "Unknown variable",
+      "what": "A reference names a symbol that reached evaluation with nothing bound to it - most often each or count read where this run does not supply repetition data.",
+      "docs_ref": "live/LIMITATIONS.md, \"Unknown variable\"",
+      "raised_by": "hcl",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1842,6 +2111,8 @@
       "id": "Unsupported each.value reference",
       "title": "Unsupported each.value reference",
       "what": "each.value is used as other than each.value.\u003cattr\u003e when for_each iterates over a resource.",
+      "docs_ref": "live/LIMITATIONS.md, \"Unsupported each.value reference\"",
+      "raised_by": "internal/live/identity",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1852,6 +2123,7 @@
       "title": "for_each key cannot be recorded as a marker",
       "what": "A for_each key contains a character the tofu-address marker cannot carry.",
       "docs_ref": "live/MARKERS.md, \"Ownership semantics\"",
+      "raised_by": "internal/live/identity",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1861,6 +2133,8 @@
       "id": "for_each over a resource that is not keyed",
       "title": "for_each over a resource that is not keyed",
       "what": "for_each iterates a resource that has no instance keys to iterate - one expanded with count, or one using neither count nor for_each.",
+      "docs_ref": "live/LIMITATIONS.md, \"for_each over a resource that is not keyed\"",
+      "raised_by": "internal/live/identity",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1870,6 +2144,7 @@
       "id": "for-each-key",
       "title": "for_each key is outside the marker character set",
       "docs_ref": "live/LIMITATIONS.md, \"foreach-dotted-key\"",
+      "raised_by": "internal/live/lint",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1879,6 +2154,7 @@
       "id": "overlong-address",
       "title": "Resource address does not fit in a marker",
       "docs_ref": "live/LIMITATIONS.md, \"overlong-address\"",
+      "raised_by": "internal/live/lint",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1887,7 +2163,8 @@
       "layer": "lint",
       "id": "policy-scope",
       "title": "Delete quadrant has no scope block",
-      "docs_ref": "GitHub issue #67, \"Safety rails on the delete quadrant\"",
+      "docs_ref": "live/LIMITATIONS.md, \"policy-scope\"",
+      "raised_by": "internal/live/lint",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1896,7 +2173,8 @@
       "layer": "lint",
       "id": "policy-threshold",
       "title": "Policy threshold is not a positive number",
-      "docs_ref": "GitHub issue #67, \"Safety rails on the delete quadrant\"",
+      "docs_ref": "live/LIMITATIONS.md, \"policy-threshold\"",
+      "raised_by": "internal/live/lint",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1905,7 +2183,8 @@
       "layer": "lint",
       "id": "policy-verb",
       "title": "Policy verb is not valid for its quadrant",
-      "docs_ref": "GitHub issue #67, \"Design\"",
+      "docs_ref": "live/LIMITATIONS.md, \"policy-verb\"",
+      "raised_by": "internal/live/lint",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1915,6 +2194,7 @@
       "id": "receipt-leaf",
       "title": "Nothing may reference a receipt's attributes",
       "docs_ref": "live/RECEIPTS.md, \"Guard 4. The leaf rule\"",
+      "raised_by": "internal/live/lint",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1924,6 +2204,7 @@
       "id": "receipt-secret",
       "title": "Receipt inputs reference secrets by pointer, never by value",
       "docs_ref": "live/RECEIPTS.md, \"Secrets discipline\"",
+      "raised_by": "internal/live/lint",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1933,6 +2214,7 @@
       "id": "receipt-value",
       "title": "A receipt's value is a hash or a constant, and its type is never SecureString",
       "docs_ref": "live/RECEIPTS.md, \"Guard 2. Hash-only values, and never SecureString\"",
+      "raised_by": "internal/live/lint",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1942,6 +2224,7 @@
       "id": "remote-state",
       "title": "terraform_remote_state is not available under live resource markers",
       "docs_ref": "live/LIMITATIONS.md, \"remote-state\"",
+      "raised_by": "internal/live/lint",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1951,6 +2234,7 @@
       "id": "state-backend",
       "title": "State backends are not available under live resource markers",
       "docs_ref": "live/LIMITATIONS.md, \"backend-block\" / \"cloud-block\"",
+      "raised_by": "internal/live/lint",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -1964,9 +2248,9 @@
     "instances": 1057,
     "sites": 11702,
     "refusals_fired": 16,
-    "refusals_in_set": 51,
+    "refusals_in_set": 69,
     "configs_without_schemas": 0,
-    "refusals_unregistered": 3
+    "refusals_unregistered": 0
   },
   "checked_layers": [
     "lint",

@@ -12,6 +12,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
+	"github.com/intentius/choudoufu/internal/live/passthrough"
 )
 
 // TestCatalogComesFromBothTables is #114's fourth acceptance criterion: the
@@ -26,6 +27,13 @@ func TestCatalogComesFromBothTables(t *testing.T) {
 		want[string(LayerLint)+"/"+string(rule)] = true
 	}
 	for _, refusal := range identity.Refusals() {
+		want[string(LayerIdentity)+"/"+refusal.Summary] = true
+	}
+	// The third table, added by #110. Its refusals surface during identity
+	// resolution - that is the pass the user hits them in - so they are
+	// catalogued under that layer with RaisedBy naming the package that
+	// actually wrote the diagnostic.
+	for _, refusal := range passthrough.Refusals() {
 		want[string(LayerIdentity)+"/"+refusal.Summary] = true
 	}
 
@@ -70,7 +78,10 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 	notAStage := map[string]bool{
 		"check":           true, // this package: the instrument itself
 		"cloudcontrol":    true, // a client for one AWS API
+		"docsref":         true, // parses the doc references refusals carry
 		"flocitest":       true, // test harness
+		"mdspan":          true, // rewrites generated regions of a markdown doc
+		"passthrough":     true, // a registry of upstream diagnostics, not a pass
 		"foreign":         true, // classification of unclaimed resources, inside discovery's stage
 		"lifecycle":       true,
 		"listclient":      true, // a client

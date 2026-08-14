@@ -10,6 +10,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
+	"github.com/intentius/choudoufu/internal/live/passthrough"
 )
 
 // Layer is one of the analysis passes this package runs, or one it
@@ -83,12 +84,50 @@ type Refusal struct {
 	// instead.
 	What string
 
-	// DocsRef is the shipped document that explains it, in the form both
-	// source tables use. Empty means no shipped document describes this
-	// refusal, which is a gap those tables already count
-	// ([identity.UndocumentedRefusals]) and which a report repeats rather
-	// than hides: a user who cannot look it up should be told that is why.
+	// DocsRef is the shipped document that explains it, in the form all
+	// three source tables use.
+	//
+	// It was once empty for most identity refusals, and the count of empties
+	// was how the repository measured its own documentation gap. Since #110
+	// every refusal has an entry in live/LIMITATIONS.md - generated from
+	// these same tables - so the field is always set and the check that
+	// matters is whether the entry it names exists. That is
+	// TestEveryRefusalDocsRefIsResolvable, which is a stronger contract than
+	// counting empties ever was: a reference to a heading nobody wrote used
+	// to pass.
 	DocsRef string
+
+	// RaisedBy is the import path of the package that constructs the
+	// diagnostic.
+	//
+	// For the two live registries it restates [Refusal.Layer] and carries
+	// nothing new. It exists for the third: a pass-through refusal surfaces
+	// during identity resolution but is written by internal/configs' static
+	// evaluator, internal/addrs' reference parser or HCL itself, and that
+	// distinction is the whole reason those refusals were invisible to
+	// every instrument until #110. A reader of the artifact should be able
+	// to see it without knowing the history.
+	RaisedBy string
+}
+
+// The two live registries' RaisedBy values. They are import paths rather
+// than layer names because the third registry's values are import paths -
+// internal/configs, internal/addrs, hcl - and a column mixing "identity"
+// with "internal/configs" reads as two different kinds of fact.
+const (
+	RaisedByLint     = "internal/live/lint"
+	RaisedByIdentity = "internal/live/identity"
+)
+
+// Passthrough reports whether this refusal is one the live path shows a user
+// without having written it. See internal/live/passthrough.
+func (r Refusal) Passthrough() bool {
+	switch r.RaisedBy {
+	case RaisedByLint, RaisedByIdentity, "":
+		return false
+	default:
+		return true
+	}
 }
 
 // Documented reports whether any shipped document explains this refusal.
@@ -97,35 +136,54 @@ func (r Refusal) Documented() bool { return r.DocsRef != "" }
 // Catalog is every refusal the two checked layers can produce, sorted by
 // layer then ID.
 //
-// It is assembled from [lint.Rules] and [identity.Refusals] on every call,
-// which is the property that matters: a refusal cannot be added to either
-// package's table and be missing here, and one cannot be listed here that
-// neither package has. #114's fourth acceptance criterion is exactly this,
-// and it is why the corpus artifact can report the refusals that fired
-// nowhere - the interesting end of that table, and one no instrument
-// assembled from observed output can ever contain.
+// It is assembled from [lint.Rules], [identity.Refusals] and
+// [passthrough.Refusals] on every call, which is the property that matters:
+// a refusal cannot be added to any of the three tables and be missing here,
+// and one cannot be listed here that none of them has. #114's fourth
+// acceptance criterion is exactly this, and it is why the corpus artifact
+// can report the refusals that fired nowhere - the interesting end of that
+// table, and one no instrument assembled from observed output can ever
+// contain.
 //
-// The one gap is stated on [lint.Rules]: a lint.Rule constant with no
-// ruleInfo entry would be absent from both. GitHub issue #110 tracks it.
+// The third source is GitHub issue #110's work. Before it, the three
+// largest blockers in the corpus were in no table at all: they are
+// diagnostics identity resolution passes through from the static evaluator,
+// so a document generated from the two live registries alone omitted the
+// top of its own list. They are catalogued under [LayerIdentity], because
+// that is the pass a user hits them in, with [Refusal.RaisedBy] naming the
+// package that actually wrote them.
 func Catalog() []Refusal {
 	var out []Refusal
 
 	for _, rule := range lint.Rules() {
 		out = append(out, Refusal{
-			Layer:   LayerLint,
-			ID:      string(rule),
-			Title:   rule.Summary(),
-			DocsRef: rule.DocsRef(),
+			Layer:    LayerLint,
+			ID:       string(rule),
+			Title:    rule.Summary(),
+			DocsRef:  rule.DocsRef(),
+			RaisedBy: RaisedByLint,
 		})
 	}
 
 	for _, refusal := range identity.Refusals() {
 		out = append(out, Refusal{
-			Layer:   LayerIdentity,
-			ID:      refusal.Summary,
-			Title:   refusal.Summary,
-			What:    refusal.What,
-			DocsRef: refusal.DocsRef,
+			Layer:    LayerIdentity,
+			ID:       refusal.Summary,
+			Title:    refusal.Summary,
+			What:     refusal.What,
+			DocsRef:  refusal.DocsRef(),
+			RaisedBy: RaisedByIdentity,
+		})
+	}
+
+	for _, refusal := range passthrough.Refusals() {
+		out = append(out, Refusal{
+			Layer:    LayerIdentity,
+			ID:       refusal.Summary,
+			Title:    refusal.Summary,
+			What:     refusal.What,
+			DocsRef:  refusal.DocsRef(),
+			RaisedBy: string(refusal.Origin),
 		})
 	}
 
@@ -135,12 +193,14 @@ func Catalog() []Refusal {
 
 // lookup returns the catalog entry for one layer and ID.
 //
-// A miss is possible in one direction only: an identity diagnostic whose
-// Summary is not in the registry. identity's own TestRefusalsRegistered
-// makes that a build-time failure in that package, so reaching it here
-// means the two have drifted, and [Analyze] reports the finding with the
-// Summary as its own title rather than dropping it. A refusal this
-// instrument cannot name is still a refusal the user hit.
+// A miss is still possible - a diagnostic reaching a user under a Summary
+// none of the three registries has - and [Analyze] reports such a finding
+// with the Summary as its own title rather than dropping it. A refusal this
+// instrument cannot name is still a refusal the user hit, and
+// live/corpus-refusals.json counts it as unregistered so the gap is a
+// number. That number is asserted at zero over the committed corpus by
+// TestCorpusArtifactHasNoUnregisteredRefusals; before #110 it was three,
+// and those three were the top of the ranking.
 func lookup(layer Layer, id string) (Refusal, bool) {
 	switch layer {
 	case LayerLint:
@@ -148,21 +208,33 @@ func lookup(layer Layer, id string) (Refusal, bool) {
 		for _, known := range lint.Rules() {
 			if known == rule {
 				return Refusal{
-					Layer:   LayerLint,
-					ID:      id,
-					Title:   rule.Summary(),
-					DocsRef: rule.DocsRef(),
+					Layer:    LayerLint,
+					ID:       id,
+					Title:    rule.Summary(),
+					DocsRef:  rule.DocsRef(),
+					RaisedBy: RaisedByLint,
 				}, true
 			}
 		}
 	case LayerIdentity:
 		if refusal, ok := identity.LookupRefusal(id); ok {
 			return Refusal{
-				Layer:   LayerIdentity,
-				ID:      refusal.Summary,
-				Title:   refusal.Summary,
-				What:    refusal.What,
-				DocsRef: refusal.DocsRef,
+				Layer:    LayerIdentity,
+				ID:       refusal.Summary,
+				Title:    refusal.Summary,
+				What:     refusal.What,
+				DocsRef:  refusal.DocsRef(),
+				RaisedBy: RaisedByIdentity,
+			}, true
+		}
+		if refusal, ok := passthrough.LookupRefusal(id); ok {
+			return Refusal{
+				Layer:    LayerIdentity,
+				ID:       refusal.Summary,
+				Title:    refusal.Summary,
+				What:     refusal.What,
+				DocsRef:  refusal.DocsRef(),
+				RaisedBy: string(refusal.Origin),
 			}, true
 		}
 	}

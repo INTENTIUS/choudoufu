@@ -5,7 +5,10 @@
 
 package identity
 
-import "sort"
+import (
+	"fmt"
+	"sort"
+)
 
 // This file is GitHub issue #110's first half: making this package's refusals
 // enumerable.
@@ -47,18 +50,45 @@ type Refusal struct {
 	// triggers it, in the voice live/LIMITATIONS.md's entries use.
 	What string
 
-	// DocsRef is the live/ anchor documenting it, in the same form
+	// Doc overrides where this refusal is documented, in the same form
 	// lint.Rule.DocsRef uses.
 	//
-	// Empty means no shipped document describes this refusal. That is a
-	// gap, not a category: it is deliberately representable so the gap can
-	// be counted (see [UndocumentedRefusals]) rather than discovered one
-	// support question at a time. Most are empty today; TestUndocumentedRefusalsAreCounted carries the exact number and ratchets it.
-	DocsRef string
+	// Empty is the ordinary case and does NOT mean undocumented. Every
+	// refusal here has an entry in live/LIMITATIONS.md's enumerated
+	// section, generated from this table by tools/limits-gen under its own
+	// Summary as the heading, and [Refusal.DocsRef] derives the reference
+	// to it. Set this only when a fuller treatment exists somewhere else -
+	// a hand-written limits entry, or a page like live/MARKERS.md that
+	// specifies the rule rather than just naming it.
+	//
+	// It used to be the reference itself, stored per row. Thirty of the
+	// thirty-four rows would now carry the same mechanically derivable
+	// string, and the field's emptiness was the repository's measure of an
+	// undocumented refusal - a measure that stopped meaning anything the
+	// moment the document was generated from the table it measures.
+	Doc string
+}
+
+// DocsRef is where a user is sent to read about this refusal, in the form
+// lint.Rule.DocsRef uses.
+//
+// It is [Refusal.Doc] when that names a fuller treatment, and otherwise the
+// generated entry in live/LIMITATIONS.md. Deriving it is what keeps a new
+// refusal documented by default: adding a row to this table adds a heading
+// to the document, and internal/live/check's TestEveryRefusalDocsRefIsResolvable
+// fails if the generator has not been run.
+func (r Refusal) DocsRef() string {
+	if r.Doc != "" {
+		return r.Doc
+	}
+	return fmt.Sprintf("live/LIMITATIONS.md, %q", r.Summary)
 }
 
 // refusals is the registry. Keep it sorted by Summary; the test compares
 // sets, but a sorted literal keeps its diffs readable.
+//
+// The third field is [Refusal.Doc], an override, not the reference itself:
+// empty means "the generated entry", which is the ordinary case.
 var refusals = []Refusal{
 	{"Circular for_each reference", "A resource's for_each depends on its own instances, directly or through another resource's for_each.", ""},
 	{"Circular identity reference", "A resource's identity is composed, directly or transitively, from its own identity.", ""},
@@ -114,15 +144,17 @@ func LookupRefusal(summary string) (Refusal, bool) {
 	return Refusal{}, false
 }
 
-// UndocumentedRefusals returns the refusals no shipped document describes.
+// RefusalsWithOwnDoc returns the refusals whose [Refusal.Doc] names a fuller
+// treatment somewhere else.
 //
-// It exists to be counted. The set is large today, and the point of naming it
-// in code is that it can be watched shrinking rather than rediscovered by an
-// operator who cannot find out why their configuration was refused.
-func UndocumentedRefusals() []Refusal {
+// tools/limits-gen skips these when generating live/LIMITATIONS.md's
+// enumerated section: a refusal already described by a hand-written entry
+// should not also get a one-line generated one under a second heading, or
+// the document would answer the same question twice and in two voices.
+func RefusalsWithOwnDoc() []Refusal {
 	var out []Refusal
 	for _, r := range Refusals() {
-		if r.DocsRef == "" {
+		if r.Doc != "" {
 			out = append(out, r)
 		}
 	}

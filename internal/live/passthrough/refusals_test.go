@@ -6,6 +6,7 @@
 package passthrough
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -91,17 +92,17 @@ func TestEveryRefusalDescribesItself(t *testing.T) {
 	}
 }
 
-// TestNoUndocumentedRefusals holds this registry to zero rather than to a
-// ratchet.
-//
-// identity's equivalent is a ratchet because it inherited a large gap. This
-// package has no history to burn down: it was written after live/LIMITATIONS.md
-// gained the "static-evaluation" entry every row below points at, so an
-// undocumented entry here would be a new gap rather than an old one, and there
-// is no reason to allow it.
-func TestNoUndocumentedRefusals(t *testing.T) {
-	for _, r := range UndocumentedRefusals() {
-		t.Errorf("%q has no DocsRef. Every pass-through refusal has a live/LIMITATIONS.md entry; add this one to the same section rather than shipping a refusal a user cannot look up.", r.Summary)
+// TestDocsRefNamesTheRefusalsOwnHeading pins the derivation rather than the
+// strings it produces. Whether the heading it names actually exists is
+// internal/live/check's TestEveryRefusalDocsRefIsResolvable, which can read
+// the document; this only checks that a reference is built at all and is
+// built from the Summary.
+func TestDocsRefNamesTheRefusalsOwnHeading(t *testing.T) {
+	for _, r := range Refusals() {
+		want := fmt.Sprintf("live/LIMITATIONS.md, %q", r.Summary)
+		if got := r.DocsRef(); got != want {
+			t.Errorf("%q: DocsRef() = %q, want %q", r.Summary, got, want)
+		}
 	}
 }
 

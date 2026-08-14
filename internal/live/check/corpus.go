@@ -94,6 +94,10 @@ type CorpusRefusal struct {
 	// gap, not an oversight here; see [Refusal.DocsRef].
 	DocsRef string `json:"docs_ref,omitempty"`
 
+	// RaisedBy names the package that constructs the diagnostic, which is
+	// not always the layer it surfaces in. See [Refusal.RaisedBy].
+	RaisedBy string `json:"raised_by,omitempty"`
+
 	// Configs is how many corpus configurations this refusal blocked, and
 	// the number the table is ranked by.
 	Configs int `json:"configs"`
@@ -193,11 +197,12 @@ func (c *Corpus) row(refusal Refusal) *CorpusRefusal {
 		}
 	}
 	c.Refusals = append(c.Refusals, CorpusRefusal{
-		Layer:   refusal.Layer,
-		ID:      refusal.ID,
-		Title:   refusal.Title,
-		What:    refusal.What,
-		DocsRef: refusal.DocsRef,
+		Layer:    refusal.Layer,
+		ID:       refusal.ID,
+		Title:    refusal.Title,
+		What:     refusal.What,
+		DocsRef:  refusal.DocsRef,
+		RaisedBy: refusal.RaisedBy,
 	})
 	return &c.Refusals[len(c.Refusals)-1]
 }

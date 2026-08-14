@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -70,15 +71,24 @@ func Parse(s string) (Ref, error) {
 		return ref, nil
 	}
 
+	// Headings are Go-quoted, because the registries build the reference
+	// with %q and two of the pass-through summaries contain double quotes
+	// of their own (`Invalid "path" attribute`). Unquoting rather than
+	// trimming the outer pair is what makes those two round-trip; trimming
+	// left the backslashes in and pointed at a heading nobody could write.
+	//
+	// The separator between several headings is "/", which means a heading
+	// containing one cannot be expressed. That is a real limit and it fails
+	// loudly here rather than mis-parsing.
 	for _, part := range strings.Split(rest, "/") {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			return Ref{}, fmt.Errorf("%q has an empty section between separators", s)
 		}
-		if !strings.HasPrefix(part, `"`) || !strings.HasSuffix(part, `"`) || len(part) < 2 {
-			return Ref{}, fmt.Errorf("%q: section %s is not quoted; the form is `doc.md, \"Heading\"`", s, part)
+		heading, err := strconv.Unquote(part)
+		if err != nil {
+			return Ref{}, fmt.Errorf("%q: section %s is not a quoted string; the form is `doc.md, \"Heading\"`", s, part)
 		}
-		heading := part[1 : len(part)-1]
 		if strings.TrimSpace(heading) == "" {
 			return Ref{}, fmt.Errorf("%q has an empty section title", s)
 		}
@@ -95,7 +105,7 @@ func (r Ref) String() string {
 	}
 	quoted := make([]string, len(r.Headings))
 	for i, h := range r.Headings {
-		quoted[i] = `"` + h + `"`
+		quoted[i] = strconv.Quote(h)
 	}
 	return r.Doc + ", " + strings.Join(quoted, " / ")
 }

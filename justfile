@@ -45,8 +45,22 @@ corpus-fetch:
     go run ./tools/corpus-fetch
 
 # The config-language scoreboard (#102): rank which refusals fire across the corpus, into live/corpus-refusals.json. Run corpus-fetch first. No cloud.
-corpus:
-    go run ./tools/corpus-gen
+#
+# The schema flags are not optional decoration. Without them every resource
+# type absent from the generated admission table reads as refused, so
+# unadmitted-type tops the ranking for a reason belonging to the run rather
+# than to the corpus - the single outcome #102 exists to prevent. This recipe
+# omitted them, so `just corpus` produced a worse artifact than the one
+# committed, which is how a regeneration command silently stops reproducing
+# its own output. Provider install needs network once; after that the plugin
+# cache serves it.
+corpus provider_version="6.58.0" init_bin="terraform":
+    go run ./tools/corpus-gen -init-bin {{init_bin}} -provider-version {{provider_version}}
+
+# live/LIMITATIONS.md's per-refusal content (#110), from the three refusal
+# registries plus the corpus artifact above. No provider, no network.
+limits:
+    go run ./tools/limits-gen
 
 # Will this configuration work under live markers? (#114) DIR defaults to "."
 live-check dir=".":

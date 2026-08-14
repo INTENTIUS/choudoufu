@@ -52,7 +52,10 @@
 // first, and it is stated here rather than left for a reader to discover.
 package passthrough
 
-import "sort"
+import (
+	"fmt"
+	"sort"
+)
 
 // Origin is which package raised a pass-through diagnostic. It is what
 // decides how far the completeness claim above reaches, so it is recorded
@@ -87,12 +90,21 @@ type Refusal struct {
 	// triggers it, in the voice live/LIMITATIONS.md's entries use.
 	What string
 
-	// DocsRef is the live/ anchor documenting it, in the same form
-	// lint.Rule.DocsRef and identity.Refusal.DocsRef use.
-	DocsRef string
-
 	// Origin is which package raises it. See [Origin].
 	Origin Origin
+}
+
+// DocsRef is where a user is sent to read about this refusal, in the form
+// lint.Rule.DocsRef uses.
+//
+// Every entry here is documented by the same generated section of
+// live/LIMITATIONS.md, under its own Summary as the heading, so unlike
+// [identity.Refusal] this has no per-row override: there is no fuller
+// treatment of an upstream diagnostic anywhere in live/ for a row to point
+// at, and inventing a field for a case that does not exist would be
+// speculative.
+func (r Refusal) DocsRef() string {
+	return fmt.Sprintf("live/LIMITATIONS.md, %q", r.Summary)
 }
 
 // refusals is the registry. Keep it sorted by Summary.
@@ -105,115 +117,96 @@ var refusals = []Refusal{
 	{
 		Summary: "Circular reference",
 		What:    "A local or variable is defined, directly or transitively, in terms of itself.",
-		DocsRef: `live/LIMITATIONS.md, "static-evaluation"`,
 		Origin:  OriginConfigs,
 	},
 	{
 		Summary: "Dynamic value in static context",
 		What:    "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, a data source, or any reference other than var, local, path and terraform.",
-		DocsRef: `live/LIMITATIONS.md, "static-evaluation"`,
 		Origin:  OriginConfigs,
 	},
 	{
 		Summary: "Ephemeral value not allowed",
 		What:    "A statically evaluated expression resolves to an ephemeral value, which by definition is not written down anywhere this run can read back.",
-		DocsRef: `live/LIMITATIONS.md, "static-evaluation"`,
 		Origin:  OriginConfigs,
 	},
 	{
 		Summary: "Failed to get working directory",
 		What:    "path.cwd could not be resolved because the operating system refused the working directory. An environment failure, not a configuration one.",
-		DocsRef: `live/LIMITATIONS.md, "static-evaluation"`,
 		Origin:  OriginConfigs,
 	},
 	{
 		Summary: "Invalid attribute in static context",
 		What:    "terraform.applying is read where only configuration is available; it has a value during plan and apply, and none here.",
-		DocsRef: `live/LIMITATIONS.md, "static-evaluation"`,
 		Origin:  OriginConfigs,
 	},
 	{
 		Summary: "Invalid default value for module argument",
 		What:    "A variable's default does not fit its own type constraint, so no value for it can be produced.",
-		DocsRef: `live/LIMITATIONS.md, "static-evaluation"`,
 		Origin:  OriginConfigs,
 	},
 	{
 		Summary: "Invalid reference",
 		What:    "A reference is not a shape this fork's address parser recognises at all - an operator, an index, or a traversal into something that has no attributes.",
-		DocsRef: `live/LIMITATIONS.md, "static-evaluation"`,
 		Origin:  OriginAddrs,
 	},
 	{
 		Summary: "Invalid value for input variable",
 		What:    "The value supplied for a variable does not convert to its declared type.",
-		DocsRef: `live/LIMITATIONS.md, "static-evaluation"`,
 		Origin:  OriginConfigs,
 	},
 	{
 		Summary: `Invalid "path" attribute`,
 		What:    "path is read with an attribute other than cwd, module or root.",
-		DocsRef: `live/LIMITATIONS.md, "static-evaluation"`,
 		Origin:  OriginConfigs,
 	},
 	{
 		Summary: `Invalid "terraform" attribute`,
 		What:    "terraform is read with an attribute other than workspace, including the terraform.env removed in v0.12.",
-		DocsRef: `live/LIMITATIONS.md, "static-evaluation"`,
 		Origin:  OriginConfigs,
 	},
 	{
 		Summary: "Module output not supported in static context",
 		What:    "An identity argument, a count or a for_each reads a child module's output. Module outputs are produced by evaluating the module, which has not happened yet.",
-		DocsRef: `live/LIMITATIONS.md, "static-evaluation"`,
 		Origin:  OriginConfigs,
 	},
 	{
 		Summary: "Provider function in static context",
 		What:    "A statically evaluated expression calls a provider-defined function, which needs a configured provider this run has not started.",
-		DocsRef: `live/LIMITATIONS.md, "static-evaluation"`,
 		Origin:  OriginConfigs,
 	},
 	{
 		Summary: "Required variable not set",
 		What:    "A non-nullable variable with no default was given no value, so nothing depending on it can be evaluated.",
-		DocsRef: `live/LIMITATIONS.md, "static-evaluation"`,
 		Origin:  OriginConfigs,
 	},
 	{
 		Summary: "Sensitive value not allowed",
 		What:    "A statically evaluated expression resolves to a sensitive value in a position that would write it somewhere readable.",
-		DocsRef: `live/LIMITATIONS.md, "static-evaluation"`,
 		Origin:  OriginConfigs,
 	},
 	{
 		Summary: "Unable to compute static value",
 		What:    "Something an identity argument, a count or a for_each depends on could not be computed. It is the trailing half of another refusal: the diagnostic before it names what actually failed, and this one names the chain that led there.",
-		DocsRef: `live/LIMITATIONS.md, "static-evaluation"`,
 		Origin:  OriginConfigs,
 	},
 	{
 		Summary: "Unable to use variable in static context",
 		What:    "A variable declared const = false is read where only configuration is available.",
-		DocsRef: `live/LIMITATIONS.md, "static-evaluation"`,
 		Origin:  OriginConfigs,
 	},
 	{
 		Summary: "Undefined local",
 		What:    "A reference names a local the module does not declare.",
-		DocsRef: `live/LIMITATIONS.md, "static-evaluation"`,
 		Origin:  OriginConfigs,
 	},
 	{
 		Summary: "Undefined variable",
 		What:    "A reference names a variable the module does not declare.",
-		DocsRef: `live/LIMITATIONS.md, "static-evaluation"`,
 		Origin:  OriginConfigs,
 	},
 	{
 		Summary: "Unknown variable",
 		What:    "A reference names a symbol that reached evaluation with nothing bound to it - most often each or count read where this run does not supply repetition data.",
-		DocsRef: `live/LIMITATIONS.md, "static-evaluation"`,
 		Origin:  OriginHCL,
 	},
 }
@@ -236,16 +229,3 @@ func LookupRefusal(summary string) (Refusal, bool) {
 	return Refusal{}, false
 }
 
-// UndocumentedRefusals returns the pass-through refusals no shipped document
-// describes. It is the counterpart of [identity.UndocumentedRefusals] and
-// exists for the same reason: so the gap is a number rather than a
-// discovery. It is empty today and a test keeps it that way.
-func UndocumentedRefusals() []Refusal {
-	var out []Refusal
-	for _, r := range Refusals() {
-		if r.DocsRef == "" {
-			out = append(out, r)
-		}
-	}
-	return out
-}
