@@ -514,6 +514,74 @@ measured once per statically evaluable key under the same boundary as
 index when the count is statically evaluable. Fixture at
 `live/e2e/limits/overlong-address/`.
 
+### policy-verb
+
+**Construct.** A `policy` block inside a `live` block assigning a verb to an
+ownership quadrant that verb is not allowed in, such as `declared_tagged =
+"delete"`.
+
+**Why bounded.** The ownership matrix (GitHub issue #67) crosses two
+questions - does the configuration declare this resource, and does it carry
+this estate's marker - and each of the four answers admits a different set
+of safe verbs. `internal/live/policy`'s `ValidVerbs` is that matrix.
+Declared and tagged is the ordinary converge path; a delete there would turn
+an edit to a resource block into a destroy of the live object it names.
+Assigning a verb the matrix does not allow is refused rather than clamped,
+because clamping would run a policy the author did not write while reporting
+success.
+
+**Forwarding address.** Pick a verb the quadrant allows; the refusal lists
+them. If the intent was to remove resources the configuration still declares,
+delete the blocks instead - that is the ordinary destroy path, and it leaves
+a plan to review.
+
+**Enforcement.** `RulePolicyVerb`, `internal/live/lint/policy.go`
+(`checkLivePolicy`). Fixture at `live/e2e/limits/policy-verb/`. An omitted
+quadrant is not checked: it resolves to `internal/live/policy.DefaultVerb`,
+which is valid for its quadrant by construction, so existing estates that
+write no policy block change nothing.
+
+### policy-scope
+
+**Construct.** `undeclared_untagged = "delete"` in a `policy` block with no
+`scope` block, or with a `scope` block naming no service, type or region.
+
+**Why bounded.** That one quadrant is the only one whose delete reaches
+resources this configuration has never named *and* which carry no marker of
+this estate's. It is account reconciliation with aws-nuke semantics, and
+unscoped it is an account-wide purge. An empty `scope` block does not
+satisfy the requirement either, because it narrows nothing and would
+otherwise be a way to acknowledge the rail without accepting it. The other
+delete quadrant, `undeclared_tagged`, needs no scope and is not checked:
+those resources already carry this estate's ownership marker, so the marker
+is the scope, and it is the ordinary orphan sweep `DefaultVerb` assigns
+there anyway.
+
+**Forwarding address.** Add a `scope` block naming at least one service,
+type or region the purge may reach.
+
+**Enforcement.** `RulePolicyScope`, `internal/live/lint/policy.go`
+(`checkLivePolicy`, `scopeIsSet`). Fixture at
+`live/e2e/limits/policy-scope/`.
+
+### policy-threshold
+
+**Construct.** A `policy` block whose `threshold` argument is zero or
+negative.
+
+**Why bounded.** The threshold is the delete quadrant's first-run guard: a
+run proposing more deletions than it allows stops and asks. It exists to be
+raised deliberately, once the roster it would remove has been reviewed. Zero
+and negative numbers express neither a reviewed roster nor a guard, and the
+decode layer accepts them because they are ordinary non-negative literals,
+so the refusal has to be here.
+
+**Forwarding address.** Set a positive whole number, or omit the argument
+and take the default.
+
+**Enforcement.** `RulePolicyThreshold`, `internal/live/lint/policy.go`
+(`checkLivePolicy`). Fixture at `live/e2e/limits/policy-threshold/`.
+
 ## Documented, not yet enforced
 
 ### duplicate-identity

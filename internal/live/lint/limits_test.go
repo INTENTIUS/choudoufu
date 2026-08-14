@@ -47,6 +47,17 @@ var enforcedLimits = map[string]Rule{
 	"count-index-in-tag": RuleCountIndex,
 	"foreach-dotted-key": RuleForEachKey,
 	"overlong-address":   RuleOverlongAddress,
+	// The three policy rules joined the limits wing under GitHub issue
+	// #110's fourth criterion. They were the only rules in ruleInfo citing
+	// the issue tracker as their documentation, which is not a document a
+	// user deciding whether their configuration can move has any reason to
+	// read. internal/live/lint/testdata keeps the wider policy matrix
+	// (valid combinations, defaults written out, an empty scope block);
+	// these three are the refusals, one per rule, in the shape the limits
+	// wing requires - doc entry, fixture, and asserted rule.
+	"policy-verb":      RulePolicyVerb,
+	"policy-scope":     RulePolicyScope,
+	"policy-threshold": RulePolicyThreshold,
 }
 
 // notYetEnforcedLimits is every live/e2e/limits directory whose

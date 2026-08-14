@@ -196,21 +196,16 @@ var ruleInfo = map[Rule]struct {
 		docsRef: `live/RECEIPTS.md, "Secrets discipline"`,
 	},
 	RulePolicyVerb: {
-		// The behavioral half of GitHub issue #67 has landed, but no shipped
-		// doc describes the policy block, so this still cites the issue
-		// rather than inventing a doc page. The three policy-* rules are the
-		// only ones in this table with no live/ entry at all; giving them one
-		// is tracked as part of #101.
 		summary: "Policy verb is not valid for its quadrant",
-		docsRef: `GitHub issue #67, "Design"`,
+		docsRef: `live/LIMITATIONS.md, "policy-verb"`,
 	},
 	RulePolicyScope: {
 		summary: "Delete quadrant has no scope block",
-		docsRef: `GitHub issue #67, "Safety rails on the delete quadrant"`,
+		docsRef: `live/LIMITATIONS.md, "policy-scope"`,
 	},
 	RulePolicyThreshold: {
 		summary: "Policy threshold is not a positive number",
-		docsRef: `GitHub issue #67, "Safety rails on the delete quadrant"`,
+		docsRef: `live/LIMITATIONS.md, "policy-threshold"`,
 	},
 }
 
