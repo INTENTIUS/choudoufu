@@ -5,15 +5,28 @@
 
 package residue
 
-import "testing"
+import (
+	"os"
+	"strings"
+	"testing"
+)
 
-// pinnedDigest is the digest internal/live/flocitest.defaultImage and
-// live/e2e/run.sh's own FLOCI_IMAGE default currently pin, duplicated here
-// (rather than imported - internal/live/flocitest cannot be imported from
-// this package without a cycle, since flocitest itself will come to depend
-// on this package) so this test fails loudly, not silently, the day the pin
-// moves without live/floci-capabilities.json gaining a matching entry.
-const pinnedDigest = "sha256:4753246c0260a22af1056c65993f4d73b0a907729a9580b9baba5d628b6dad34"
+// pinnedDigest reads the digest out of live/floci-image, the pin's single
+// source of truth (#98), so this test fails loudly, not silently, the day
+// the pin moves without live/floci-capabilities.json gaining a matching
+// entry. It used to be a fourth hand-duplicated copy of the digest.
+var pinnedDigest = func() string {
+	data, err := os.ReadFile("floci-image")
+	if err != nil {
+		panic("reading live/floci-image: " + err.Error())
+	}
+	ref := strings.TrimSpace(string(data))
+	i := strings.Index(ref, "@")
+	if i < 0 {
+		panic("live/floci-image holds no @sha256 digest: " + ref)
+	}
+	return ref[i+1:]
+}()
 
 func TestFlociServiceCapability(t *testing.T) {
 	cap, ok := FlociServiceCapability(pinnedDigest, "networkmanager")

@@ -47,8 +47,8 @@ set -euo pipefail
 #   FLOCI_PORT   emulator port (default 4601; change it if that port is
 #                taken on your machine)
 #   FLOCI_NAME   container name (default includes $$ for uniqueness)
-#   FLOCI_IMAGE  the emulator image (default ghcr.io/lex00/floci@sha256:
-#                4753246c0260a22af1056c65993f4d73b0a907729a9580b9baba5d628b6dad34,
+#   FLOCI_IMAGE  the emulator image (default: the pinned digest in
+#                live/floci-image, the single source of truth —
 #                lex00/floci's `latest` as of 2026-08-12, commit b2548a0 —
 #                see the note above `docker run` in step 1 for why this fork
 #                replaced upstream floci/floci:latest)
@@ -87,8 +87,10 @@ BLOCK_SRC="$ROOT/live/e2e/estate-block"
 FLOCI_PORT="${FLOCI_PORT:-4601}"
 FLOCI_NAME="${FLOCI_NAME:-tofu-stateless-e2e-$$}"
 # See the note above docker run in step 1 for why this is lex00/floci, not
-# upstream floci/floci, and why it is pinned by digest.
-FLOCI_IMAGE="${FLOCI_IMAGE:-ghcr.io/lex00/floci@sha256:4753246c0260a22af1056c65993f4d73b0a907729a9580b9baba5d628b6dad34}"
+# upstream floci/floci, and why it is pinned by digest. The pin's single
+# source of truth is live/floci-image (#98); internal/live/flocitest and the
+# Makefile read the same file.
+FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
 ENDPOINT="http://localhost:${FLOCI_PORT}"
 
 # ── CLI flags: --json / --expect <phase> (task PE.2) ────────────────────────

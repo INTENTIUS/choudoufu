@@ -234,7 +234,10 @@ test-kubernetes-clean: ## Cleans environment after `test-kubernetes`.
 # integration test for the stateless mode, against the floci AWS emulator
 .PHONY: test-floci test-floci-clean
 
-FLOCI_IMAGE := floci/floci:latest
+# The pinned emulator image; live/floci-image is the single source (#98).
+# This had drifted to upstream floci/floci:latest, so test-floci-clean was
+# cleaning containers of an image nothing here runs.
+FLOCI_IMAGE := $(shell cat live/floci-image)
 
 define infoTestFloci
  Test requires:

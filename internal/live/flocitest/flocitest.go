@@ -58,15 +58,33 @@ import (
 // new digest with tools/floci-capability-gen before relying on
 // CapabilityGate/ServiceCapabilityGate's skips meaning anything for it - see
 // that tool's own doc comment for the probe/merge workflow.
-const defaultImage = "ghcr.io/lex00/floci@sha256:4753246c0260a22af1056c65993f4d73b0a907729a9580b9baba5d628b6dad34"
+// The pin's single source of truth is live/floci-image (#98), which
+// live/e2e/run.sh and the Makefile read too; this harness reads it at
+// runtime rather than carrying a const copy that drifts.
+const imageFileRel = "live/floci-image"
 
-// image is what StartFloci actually runs: defaultImage unless FLOCI_IMAGE
-// overrides it.
+// image is what StartFloci actually runs: live/floci-image's pinned digest
+// unless FLOCI_IMAGE overrides it. A missing or empty pin file is a broken
+// checkout and panics with the path, deliberately: a silent fallback here
+// is exactly the hand-duplication drift #98 removed.
 func image() string {
 	if v := os.Getenv("FLOCI_IMAGE"); v != "" {
 		return v
 	}
-	return defaultImage
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("flocitest: cannot resolve the repository root to read " + imageFileRel)
+	}
+	path := filepath.Join(filepath.Dir(file), "..", "..", "..", filepath.FromSlash(imageFileRel))
+	data, err := os.ReadFile(path) //nolint:gosec // a fixed path inside the checkout
+	if err != nil {
+		panic("flocitest: reading the pinned emulator image: " + err.Error())
+	}
+	ref := strings.TrimSpace(string(data))
+	if ref == "" {
+		panic("flocitest: " + imageFileRel + " is empty; it must hold the pinned emulator image ref")
+	}
+	return ref
 }
 
 // Image is the emulator image a StartFloci call in this process would run,
