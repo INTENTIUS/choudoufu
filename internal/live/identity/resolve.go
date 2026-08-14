@@ -1098,6 +1098,18 @@ func (r *resolver) buildExpansion(rc *configs.Resource) (*expansion, bool) {
 		if !ok {
 			return nil, false
 		}
+		if val.IsMarked() {
+			// Before the marked check, gocty.FromCtyValue below panicked
+			// ("value is marked, so must be unmarked first") and took the
+			// whole run down. An ephemeral variable in count is the shortest
+			// way there - internal/command/e2etest/testdata/
+			// ephemeral-repetition/count is exactly that configuration - and
+			// a sensitive one reaches it too. for_each already refused its
+			// own marked value a few lines below; count did not.
+			r.errorf(rc.Count.Range(), "Sensitive count expression",
+				"The count for %s is sensitive or ephemeral, so the instance keys it produces cannot become part of resource addresses. Addresses are written to markers, logs and plan output.", addr.String())
+			return nil, false
+		}
 		if !val.IsKnown() || val.IsNull() {
 			r.errorf(rc.Count.Range(), "Non-static count expression",
 				"The count for %s evaluated to null, or to a value not knowable from configuration alone. Instance keys are the addresses a projection binds against, so a count has to be a whole number this run can compute before anything is read from the cloud; guessing a cardinality would silently drop or invent instances.", addr.String())
@@ -1133,6 +1145,15 @@ func (r *resolver) buildExpansion(rc *configs.Resource) (*expansion, bool) {
 		ident := r.moduleIdentifier(addr.String()+" lifecycle.enabled", rc.Enabled.Range())
 		val, ok := r.evalStatic(rc.Enabled, instScope{}, ident)
 		if !ok {
+			return nil, false
+		}
+		if val.IsMarked() {
+			// Same crash as count above, one branch further down: b.False()
+			// asserts the value is unmarked and panics when it is not.
+			// internal/command/e2etest/testdata/ephemeral-repetition/enabled
+			// is the reproducing configuration.
+			r.errorf(rc.Enabled.Range(), "Sensitive lifecycle.enabled expression",
+				"Whether %s exists is decided by a sensitive or ephemeral value. Existence decides which markers this run writes and which live objects it claims, so it cannot come from a value this run may not record.", addr.String())
 			return nil, false
 		}
 		b, err := convert.Convert(val, cty.Bool)

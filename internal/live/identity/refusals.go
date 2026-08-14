@@ -85,6 +85,8 @@ var refusals = []Refusal{
 	{"Reference to undeclared resource", "A reference, or a for_each parent, names a resource the module does not declare.", ""},
 	{"Resource type outside the live-markers subset", "The type is absent from the admission table, and neither the provider's identity schema nor the configuration's own arguments settle its identity.", `live/LIMITATIONS.md, "unadmitted-type"`},
 	{"Identity table and provider schema disagree", "The identity table and the installed provider's schema differ about a type in a way that is not fatal; reported as a warning.", ""},
+	{"Sensitive count expression", "A count expression reads a sensitive or ephemeral value; the instance keys it produces become marker values.", ""},
+	{"Sensitive lifecycle.enabled expression", "A lifecycle.enabled expression reads a sensitive or ephemeral value, so whether the resource exists is decided by something this run may not record.", ""},
 	{"Sensitive for_each expression", "A for_each expression reads a sensitive value; instance keys become marker values.", ""},
 	{"The identity table names something the provider does not have", "The identity table builds a type's identity from an argument the installed provider's schema has no such name for; usually provider-version skew.", ""},
 	{"Two resources with the same identity", "Two resource blocks resolve to one identity, so one live object would have two owners.", `live/LIMITATIONS.md, "duplicate-identity"`},
