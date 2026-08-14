@@ -233,9 +233,12 @@ store, still refused); the admitted path is exercised by
 **Why banned.** It reads a state file, and a marker run has no state file
 to read. Named explicitly in "Banned, and why".
 
-**Forwarding address.** Live data sources. Read the same live objects the
-other estate reads with a data source of their own type, or pass values
-across explicitly as variables or module outputs.
+**Forwarding address.** Live data sources. Read the producer estate's own
+live resource with a data source of its own type, filtered on its
+`tofu-estate`/`tofu-address` marker tags, or pass values across explicitly
+as variables or module outputs. `live/OUTPUTS.md` is this pattern's spec:
+issue #62's recorded decision, weighed against a first-class SSM-parameter
+output surface and declined in favor of this, plus the live demonstration.
 
 **Enforcement.** `RuleRemoteState`, `internal/live/lint/lint.go`
 (`checkDataResources`). Fixture at `live/e2e/limits/remote-state/`.
