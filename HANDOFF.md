@@ -189,34 +189,70 @@ around it.
 
 ## Phase order
 
-1. ~~**Stop misreporting what ships** (#101)~~ - **done.** Every refusal message
-   in lint, identity, stamp, discovery, projection and the command layer was
-   audited and corrected. Its second half, generating `LIMITATIONS.md` from an
-   enumerable rule table, is **#110** and is half-landed: the identity registry
-   exists (`refusals.go`), the renderer does not.
-2. ~~**Build the scoreboard** (#102)~~ - **done.**
-   `live/corpus-refusals.json` ranks which refusals fire over 105
-   configurations. See "The scoreboard" above; it is what phases 3-5 are now
-   ordered by.
-3. **Make the top blockers documentable** (#110). The three largest are
-   refusals in no registry, so they cannot appear in `LIMITATIONS.md` at all.
-   This was phase 5 work when the order was a guess; the measurement moved it
-   to the front. Criterion 2's generator now needs three inputs, not two.
-4. **Close the silent hazards** (#103, #104). Unchanged in position and for the
-   same reason: silence is worse than a refusal, and both are correctness bugs
-   rather than gaps. Neither shows in the scoreboard, because a silent failure
-   produces no refusal to count - which is the argument for doing them on
-   principle rather than by rank.
-5. **The top measured refusals themselves.** `unadmitted-type` at 58
-   configurations is #105/#106/#107. `logical-resource` at 49 is largely
-   configurations with no `record_store` declared, so some of it is an
-   onboarding-surface problem rather than a capability one. Verified by #108.
-6. **Finish #73 and the onboarding surface** (#81, #82, #109, #72).
-   #84 closed with the docs-site work.
+Every open issue carries a phase label, so the tracker and this list cannot
+drift apart. `gh issue list -R INTENTIUS/choudoufu --label phase-3-documentable`
+is the front of the queue. Work outside the ladder is labelled `standing`.
 
-Two standing items that are not phases. The corpus needs an estate-shaped
-population before its rate means anything (#118), and the docs site's remaining
-hand-written numbers want generated spans (#79).
+**1. `phase-1-messages` — stop misreporting what ships (#101). Done.**
+Every refusal message in lint, identity, stamp, discovery, projection and the
+command layer was audited and corrected. It also spawned #115 and #116, which
+are behaviour bugs the audit found underneath the messages it was fixing.
+
+**2. `phase-2-scoreboard` — build the instrument (#102). Done.**
+`live/corpus-refusals.json` ranks which refusals fire over 105 configurations.
+See "The scoreboard" above. Phases 3-5 are ordered by it rather than by
+judgement, which is the whole reason this ladder can be trusted now and could
+not before.
+
+**3. `phase-3-documentable` — make the top blockers documentable (#110).**
+One issue, and it is the front of the queue. The three largest blockers (66, 57
+and 30 configurations) are static-evaluator diagnostics in neither
+`lint.Rules()` nor `identity.Refusals()`, so `LIMITATIONS.md` cannot describe
+the top of its own list at any priority. This was phase 5 work when the order
+was a guess. Criterion 2's generator needs three inputs, not two: the third is
+whatever accounts for pass-through refusals.
+
+**4. `phase-4-silent-hazards` — correctness bugs with no diagnostic**
+(#103, #104, #115, #116).
+
+These do not appear in the scoreboard and never will, because a silent failure
+produces no refusal to count. That is the argument for doing them on principle
+rather than by rank, and it is why they sit above the measured refusals despite
+having no measurement behind them. #103 and #104 are silent wrong behaviour;
+#115 and #116 are wrong behaviour that only warns.
+
+**5. `phase-5-coverage` — the top measured refusals themselves**
+(#105, #106, #107, verified by #108).
+
+`unadmitted-type` at 58 configurations is the work in #105/#106/#107.
+`logical-resource` at 49 is largely configurations that declare no
+`record_store`, so part of that number is an onboarding-surface problem rather
+than a capability one, and it may move to phase 6 once #110's documentation
+makes the distinction visible to users.
+
+Note #107 argues in its own text that it belongs in phase 4 ("silence is the
+one unacceptable outcome"). It is here because the population it affects is
+schema-synthesized types, which is a coverage question. If phase 4 is worked
+first, take #107 with it.
+
+**6. `phase-6-onboarding` — finish #73's charter and the onboarding surface**
+(#72, #73, #74, #81, #82, #109).
+
+#84 closed with the docs-site work.
+
+### Standing work, outside the ladder
+
+Labelled `standing`; sixteen issues. The ones that bear on the ladder:
+
+- **#118** — the corpus measures module examples, not estates, so its rate does
+  not mean what a reader assumes. Until this lands, quote the ranking and never
+  the percentage.
+- **#117** — the corpus used provider 6.58.0; survey-gen pins 6.59.0. Two
+  artifacts describing different providers.
+- **#79** — the docs site's last two hand-written numbers want generated spans.
+- **#92** and its three instances (#89, #90, #91) — silent merge loss. Not a
+  phase, but the reason every merge in this repo is verified rather than
+  trusted.
 
 ## How to slice the work
 
