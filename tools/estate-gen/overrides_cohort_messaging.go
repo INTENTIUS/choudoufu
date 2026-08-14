@@ -28,9 +28,17 @@ var typeOverridesMessaging = map[string]typeOverride{
 			body.SetAttributeRaw("alarm_rule", exprTokens(`"ALARM(\"tofu-messaging-cohort-placeholder\")"`))
 		},
 	},
+	"aws_sqs_queue": {
+		Reasons: []string{
+			`name is Optional in the schema and the generic pass emits nothing for it (the type's identity is a six-component URL assembly, so identityArgName never fires), but identity resolution reads the name argument to build that URL - without it the queue auto-names at apply and the estate's own identity cannot be computed from configuration. The hand-maintained cohort named it; the first fold dropped it (wave-2 audit)`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(`"tofu-messaging-cohort-queue"`))
+		},
+	},
 	"aws_sns_topic_policy": {
 		Reasons: []string{
-			`arn is validated as a well-formed ARN and policy as well-formed JSON; the hand-maintained cohort referenced the sibling aws_sns_topic's own arn for both (the named-singleton-child shape of aws_s3_bucket_policy) and the fold keeps it`,
+			`arn is validated as a well-formed ARN and policy as well-formed JSON; the hand-maintained cohort referenced the sibling aws_sns_topic's arn for both (the named-singleton-child shape of aws_s3_bucket_policy) and conditioned AllowPublish on AWS:SourceOwner = the emulator's own account - the condition was silently dropped by the first fold (wave-2 audit) and is restored`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			topic, ok := g.byType["aws_sns_topic"]
@@ -47,13 +55,16 @@ var typeOverridesMessaging = map[string]typeOverride{
       Principal = { AWS = "*" }
       Action    = "SNS:Publish"
       Resource  = `+ref+`.arn
+      Condition = {
+        StringEquals = { "AWS:SourceOwner" = "000000000000" }
+      }
     }]
   })`))
 		},
 	},
 	"aws_sqs_queue_policy": {
 		Reasons: []string{
-			`policy is validated as well-formed JSON; the hand-maintained cohort granted SQS:SendMessage on the sibling queue, conditioned on the sibling topic's arn, and the fold keeps it (queue_url wires itself: it is the type's identity argument and aws_sqs_queue is in the cohort)`,
+			`policy is validated as well-formed JSON; the hand-maintained cohort granted SQS:SendMessage on the sibling queue, conditioned on the sibling topic's arn, and the fold keeps it. queue_url is wired to the sibling queue's url here too: the generic pass emits a name-shaped placeholder for it (aws_sqs_queue's identity is a six-component URL assembly, not a single argument, so identityArgName never fires), and the first fold shipped that placeholder with a Reason claiming the opposite - caught by the wave-2 audit as an apply-time loss validate cannot see`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			queue, qok := g.byType["aws_sqs_queue"]
@@ -63,6 +74,7 @@ var typeOverridesMessaging = map[string]typeOverride{
 			}
 			q := queue.Type + "." + queue.Label
 			tp := topic.Type + "." + topic.Label
+			body.SetAttributeRaw("queue_url", exprTokens(q+".url"))
 			body.SetAttributeRaw("policy", exprTokens(`jsonencode({
     Version = "2012-10-17"
     Statement = [{

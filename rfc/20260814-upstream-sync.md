@@ -33,14 +33,25 @@ The number that decides the sync cost is the overlap between what upstream
 changed and what the fork changed, classified by whether the fork's change
 is real logic or only the rename:
 
-- Files upstream changed that also differ in the fork: **20**.
-- Of those, differing from the fork point **only by the module-path
+- Files upstream changed that also differ in the fork, over ALL paths:
+  **33**. Restricted to non-test Go files under `internal/` and `cmd/` —
+  the filter the first version of this document applied without stating
+  it, which a wave-2 audit called out — **20**.
+- Of those 20, differing from the fork point **only by the module-path
   rename** (verified by normalizing the path with `sed` and diffing): **19**.
-- Files with real fork logic AND upstream churn — the genuine conflict
-  surface of a sync performed today: **1**, `internal/command/init.go`. The
-  fork adds a `case rootModEarly.Live != nil` arm to init's backend switch;
-  upstream's only change there is an unrelated 32-bit deprecation warning
-  (`97a20581b`). The two do not even touch the same lines today.
+- Go files with real fork logic AND upstream churn: **2**, not the one
+  the first version claimed. `internal/command/init.go` (the fork's
+  `case rootModEarly.Live != nil` arm vs upstream's unrelated 32-bit
+  deprecation warning, `97a20581b` — different lines, trivial) and
+  `internal/command/init_test.go`, which the non-test filter had hidden:
+  a ~150-line fork-authored section with upstream appending a test to the
+  same trailing region — a real merge conflict, the largest single item in
+  a sync performed today.
+- The remaining 13 of the 33 are the always-both-sides files: `go.mod`,
+  `go.sum`, `CHANGELOG.md`, `.goreleaser.yaml` and the workflow files.
+  Each carries fork changes and upstream churn on every sync forever;
+  they are resolved by policy (fork's module path and release identity
+  win; upstream's dependency bumps win), not by inspection.
 
 The seam files the nativeness audit named (`internal/backend/local/*.go`,
 `internal/configs/module.go`, `cmd/tofu/commands.go`) have **zero** upstream
@@ -59,8 +70,9 @@ is a normalized-tree diff transplant:
 2. Diff the previous normalized upstream tree (the fork point, normalized
    the same way) against the new one. That diff is upstream's changes in
    the fork's own vocabulary.
-3. Apply it to `main`. With today's numbers, 84 of 85 files apply clean and
-   one (`init.go`) needs a look that is not currently even a conflict.
+3. Apply it to `main`. With today's numbers, 83 of 85 files apply clean;
+   `init_test.go` needs a real merge and `init.go` a look that is not
+   currently even a conflict, plus the policy-resolved metadata files.
 4. Run the fork's own instruments before committing: the full suite, `just
    corpus` (upstream `internal/configs` changes can move the pass-through
    refusal set — those diagnostics are ranked 1, 3 and 7 in the corpus),
@@ -73,11 +85,11 @@ is a normalized-tree diff transplant:
 ## Cadence recommendation
 
 Sync on upstream **minor releases**, not on `upstream/main`. The conflict
-surface is one file today and grows with both clocks; the instruments above
+surface is two files today (one of them a test) and grows with both clocks; the instruments above
 make each sync's blast radius measurable, so smaller, regular transplants
 are strictly cheaper than a big-bang catch-up. The first sync should happen
-while the overlap is still one file — it doubles as the procedure's shakeout
-at the lowest possible stakes.
+while the conflict surface is still this small — it doubles as the
+procedure's shakeout at the lowest possible stakes.
 
 ## What this document does not decide
 

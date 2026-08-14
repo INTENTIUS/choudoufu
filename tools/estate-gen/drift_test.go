@@ -80,8 +80,9 @@ var knownDrift = map[string]driftEntry{}
 // the file being deleted.
 var regenGaps = map[string]string{}
 
-// recordedRegenTypes reads the command out of the cohort README's
-// "Regenerate with" fenced block and returns the -types roster it names
+// recordedRegenTypes reads the command out of the cohort's "Regenerate
+// with" fenced block - GENERATED.md first, README.md as the pre-split
+// fallback - and returns the -types roster it names
 // (nil, true when the command exists but carries no -types flag - the
 // defaultCohortTypes shape). Only that block counts: several READMEs
 // mention estate-gen invocations in prose, and the first version of this
@@ -164,7 +165,7 @@ func TestCommittedCohortsMatchGenerator(t *testing.T) {
 		}
 		cohort := e.Name()
 		committed := filepath.Join(estates, cohort)
-		if tfs, _ := filepath.Glob(filepath.Join(committed, "*.tf")); len(tfs) == 0 {
+		if !holdsConfig(t, committed) {
 			continue // live/e2e/estates/example holds only a README
 		}
 		seen[cohort] = true
@@ -296,4 +297,29 @@ func diffDirs(t *testing.T, committed, generated string) []string {
 		}
 	}
 	return drift
+}
+
+// holdsConfig reports whether the cohort directory contains any loadable
+// configuration file, recursively. The first version globbed *.tf at the
+// top level only, so a cohort declaring resources in a .tf.json file or a
+// wrapped/ subdirectory was invisible to BOTH ratchet tables - the same
+// filter-narrower-than-the-loader shape the wave-2 audit demonstrated by
+// planting exactly those two cohorts and watching nothing fail.
+func holdsConfig(t *testing.T, dir string) bool {
+	t.Helper()
+
+	found := false
+	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		if isConfigFile(d.Name()) {
+			found = true
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return found
 }

@@ -167,9 +167,14 @@ strings do not satisfy; and one scaling-config minimum the generic pass's
 zero value undershoots. See `eksClusterNameRef` and each type's own
 `Reasons` entry in that file for the detail.
 
-Two adjustments could not be expressed as an override, because they add an
-entirely new resource block rather than editing the type's own — a
-`typeOverride.Apply` closure receives only its own resource's body:
+Two adjustments could not be expressed as an override at the time this
+section was first written, because they add an entirely new resource block
+rather than editing the type's own. That limitation is gone: 405a1788b gave
+`typeOverride` a `NeedsSupporting` field, and both adjustments below are
+now the generator's own doing (`overrides_cohort_ecs_eks.go`'s
+`aws_ecs_cluster_capacity_providers` entry) — regeneration reproduces them
+rather than reverting them. Kept as the record of what was hand-done
+before the fold:
 
 - `aws_ecs_cluster_capacity_providers.app.cluster_name` names a real ECS
   cluster (`PutClusterCapacityProviders` 400s with `ClusterNotFoundException`
