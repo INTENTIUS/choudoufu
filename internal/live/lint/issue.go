@@ -97,6 +97,12 @@ const (
 	// estate's own marker, and needs no scope block (#101). See policy.go.
 	RulePolicyScope Rule = "policy-scope"
 
+	// RuleIgnoreChanges covers a lifecycle block that discards the changes
+	// this mode makes to write ownership markers: ignore_changes = all, or
+	// an ignore_changes entry covering the whole tags argument or one of
+	// the marker keys inside it. See ignore_changes.go.
+	RuleIgnoreChanges Rule = "ignore-changes"
+
 	// RulePolicyThreshold covers a policy block's threshold argument set to
 	// zero or a negative number. It exists to be raised deliberately once a
 	// delete quadrant's roster has been reviewed, which a non-positive
@@ -206,6 +212,10 @@ var ruleInfo = map[Rule]struct {
 	RulePolicyThreshold: {
 		summary: "Policy threshold is not a positive number",
 		docsRef: `live/LIMITATIONS.md, "policy-threshold"`,
+	},
+	RuleIgnoreChanges: {
+		summary: "Ownership markers would be ignored",
+		docsRef: `live/LIMITATIONS.md, "ignore-changes"`,
 	},
 }
 

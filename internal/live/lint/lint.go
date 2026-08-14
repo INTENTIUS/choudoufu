@@ -259,6 +259,7 @@ func checkManagedResources(mod *configs.Module, path addrs.Module, schemas map[s
 
 		checkProvisioners(resource, addr, path, issues)
 		checkCountIndex(resource, addr, path, issues)
+		checkIgnoreChanges(resource, addr, path, issues)
 
 		// Type classification is managed-resources-only on purpose: a data
 		// source stores nothing and is re-read every operation, so it has no

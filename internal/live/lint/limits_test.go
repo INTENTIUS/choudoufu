@@ -47,6 +47,10 @@ var enforcedLimits = map[string]Rule{
 	"count-index-in-tag": RuleCountIndex,
 	"foreach-dotted-key": RuleForEachKey,
 	"overlong-address":   RuleOverlongAddress,
+	// GitHub issue #103. Its fixture carries a fourth resource that must
+	// NOT be refused - ignore_changes on a single non-marker tag key - and
+	// TestIgnoreChangesAdmitsAForeignTagKey is what pins that half.
+	"ignore-changes": RuleIgnoreChanges,
 	// The three policy rules joined the limits wing under GitHub issue
 	// #110's fourth criterion. They were the only rules in ruleInfo citing
 	// the issue tracker as their documentation, which is not a document a
@@ -323,6 +327,42 @@ func TestLimitationsDocCoversDirs(t *testing.T) {
 		name := strings.TrimSpace(strings.TrimPrefix(line, "### "))
 		if !known[name] {
 			t.Errorf("live/LIMITATIONS.md heading %q does not match any known limits directory", line)
+		}
+	}
+}
+
+// TestIgnoreChangesAdmitsAForeignTagKey is the other half of GitHub issue
+// #103's rule, and the half a blanket refusal would have got wrong.
+//
+// Ignoring one tag key that something outside this configuration writes is an
+// ordinary thing to want, and it does not touch the ownership markers. The
+// fixture carries three refused shapes and this one admitted shape, and
+// TestLimitsEnforced only checks that every issue is the right rule - it
+// would pass just as happily if all four were refused.
+func TestIgnoreChangesAdmitsAForeignTagKey(t *testing.T) {
+	cfg := loadConfigDir(t, filepath.Join(limitsDir(t), "ignore-changes"))
+	issues := CheckContext(t.Context(), cfg)
+
+	for _, issue := range issues {
+		if strings.Contains(issue.Construct, "one_foreign_key") {
+			t.Errorf(`ignore_changes = [tags["Owner"]] was refused: %s`+
+				"\nOwner is not a marker key, so ignoring it leaves tofu-estate and tofu-address alone.", issue)
+		}
+	}
+
+	// And the three that must fire, each named, so that a rule narrowed too
+	// far shows up here rather than as a silently smaller count.
+	want := map[string]bool{"whole_tags": false, "marker_key": false, "everything": false}
+	for _, issue := range issues {
+		for name := range want {
+			if strings.Contains(issue.Construct, name) {
+				want[name] = true
+			}
+		}
+	}
+	for name, fired := range want {
+		if !fired {
+			t.Errorf("aws_s3_bucket.%s was not refused; its ignore_changes covers the ownership markers", name)
 		}
 	}
 }

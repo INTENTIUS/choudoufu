@@ -521,6 +521,39 @@ measured once per statically evaluable key under the same boundary as
 index when the count is statically evaluable. Fixture at
 `live/e2e/limits/overlong-address/`.
 
+### ignore-changes
+
+**Construct.** `lifecycle { ignore_changes = all }`, or an `ignore_changes`
+entry covering the whole `tags` argument or one of the ownership markers
+inside it.
+
+**Why banned.** This is the quietest failure the live path had, and it is
+worse than a refusal. The stamp pass writes `tofu-estate` and `tofu-address`
+into the resource's `tags`; the plan renders that as an in-place update; and
+the core then throws the change away, because the configuration asked for
+tags to be ignored. Nothing warns. The resource is applied unmarked, the next
+run's discovery cannot find it, and every run after that proposes creating a
+duplicate of something that already exists.
+
+`ignore_changes = [tags]` is a common idiom, and it is usually added for
+exactly the reason that makes it dangerous here: something outside Terraform
+writes tags on this resource. Under live markers, this tool is that something.
+
+**Forwarding address.** Ignore the individual keys rather than the argument:
+`ignore_changes = [tags["Owner"]]`. A non-marker key is not refused, because
+ignoring a tag this tool does not write changes nothing about ownership.
+
+**What is not refused.** `tags_all` is the provider's computed union of `tags`
+and the provider-level `default_tags`. Ignoring it does not stop the markers
+being written into `tags`, so the update still happens and the rule leaves it
+alone.
+
+**Enforcement.** `RuleIgnoreChanges`, `internal/live/lint/ignore_changes.go`
+(`checkIgnoreChanges`). Fixture at `live/e2e/limits/ignore-changes/`, whose
+fourth resource is the admitted single-key shape - pinned by
+`TestIgnoreChangesAdmitsAForeignTagKey`, since `TestLimitsEnforced` alone
+would pass just as happily if all four were refused.
+
 ### policy-verb
 
 **Construct.** A `policy` block inside a `live` block assigning a verb to an
@@ -790,6 +823,7 @@ one - and each says so in its own entry.
 | 0 | 0 | identity | for_each key cannot be recorded as a marker | `internal/live/identity` | live/MARKERS.md, "Ownership semantics" |
 | 0 | 0 | identity | for_each over a resource that is not keyed | `internal/live/identity` | "for_each over a resource that is not keyed" |
 | 0 | 0 | lint | for-each-key | `internal/live/lint` | "foreach-dotted-key" |
+| - | - | lint | ignore-changes | `internal/live/lint` | "ignore-changes" |
 | 0 | 0 | lint | overlong-address | `internal/live/lint` | "overlong-address" |
 | 0 | 0 | lint | policy-scope | `internal/live/lint` | "policy-scope" |
 | 0 | 0 | lint | policy-threshold | `internal/live/lint` | "policy-threshold" |
@@ -833,7 +867,7 @@ one - and each says so in its own entry.
 | - | - | stamp | Ownership markers not stamped | `internal/live/stamp` | "Ownership markers not stamped" |
 | - | - | stamp | Unmarked apply of a marker-only resource | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 
-**159 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
+**160 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
