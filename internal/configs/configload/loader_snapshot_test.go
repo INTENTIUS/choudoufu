@@ -148,3 +148,39 @@ func TestSnapshotRoundtrip(t *testing.T) {
 		t.Errorf("wrong number of module calls in child_a %d; want %d", got, want)
 	}
 }
+
+// TestSnapshotRoundtrip_liveSidecar: the live sidecar file (GitHub issue
+// #72) is not a .tf file, so it takes its own step into the snapshot; a
+// configuration reloaded from the snapshot must see the same live
+// configuration the original directory carried.
+func TestSnapshotRoundtrip_liveSidecar(t *testing.T) {
+	fixtureDir := filepath.Clean("testdata/live-sidecar")
+	loader, err := NewLoader(&Config{
+		ModulesDir: filepath.Join(fixtureDir, ".terraform/modules"),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error from NewLoader: %s", err)
+	}
+
+	_, snap, diags := loader.LoadConfigWithSnapshot(t.Context(), fixtureDir, configs.RootModuleCallForTesting())
+	assertNoDiagnostics(t, diags)
+	if snap == nil {
+		t.Fatalf("snapshot is nil; want non-nil")
+	}
+	if _, exists := snap.Modules[""].Files[configs.LiveSidecarFilename]; !exists {
+		t.Fatalf("the snapshot does not carry %s; files are %v", configs.LiveSidecarFilename, snap.Modules[""].Files)
+	}
+
+	snapLoader := NewLoaderFromSnapshot(snap)
+	config, diags := snapLoader.LoadConfig(t.Context(), fixtureDir, configs.RootModuleCallForTesting())
+	assertNoDiagnostics(t, diags)
+	if config == nil || config.Module == nil {
+		t.Fatalf("config or its root module is nil")
+	}
+	if config.Module.Live == nil || !config.Module.Live.Sidecar {
+		t.Errorf("the reloaded configuration lost the sidecar live configuration: %+v", config.Module.Live)
+	}
+	if got, want := config.Module.Live.Estate, "my-estate"; got != want {
+		t.Errorf("reloaded estate is %q, want %q", got, want)
+	}
+}
