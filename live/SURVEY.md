@@ -154,10 +154,10 @@ token per row.
 | Status | Meaning | Rows |
 |---|---|---|
 | `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | <!-- survey-gen:begin wired-count -->846<!-- survey-gen:end wired-count --> |
-| `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 8 |
+| `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 7 |
 | `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components | 0 |
 | `ops` | excluded by the rule, forwarded to the lifecycle layer | 3 |
-| `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 13 |
+| `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 12 |
 | `unknown` | path not determined | 0 |
 
 `wired`'s count above is the admission table's global size
@@ -181,7 +181,15 @@ third (messaging: SQS, SNS beyond `aws_sns_topic`, CloudWatch) contributed
 `aws_sqs_queue_policy`, plus `aws_sqs_queue`, already a row below
 (`blocked-emulator`) and reclassified `wired` in that batch despite the
 emulator gap that row's own note still names — see
-`live/e2e/estates/messaging/README.md`. Most registry-ratified types have
+`live/e2e/estates/messaging/README.md`. The fourth (EC2 core: instances,
+EBS, ENI; issue #65) contributed `aws_placement_group`, `aws_ec2_fleet`,
+`aws_ec2_capacity_reservation`, `aws_ec2_host`, `aws_network_interface`,
+`aws_network_interface_attachment`, `aws_network_interface_permission`,
+`aws_eip_association`, `aws_volume_attachment`, `aws_spot_fleet_request`
+and `aws_ebs_snapshot_block_public_access`, plus two rows already below —
+`aws_instance` (`blocked-emulator`) and `aws_key_pair` (`ready`), both
+reclassified `wired` in that batch — see
+`live/e2e/estates/ec2-core/README.md`. Most registry-ratified types have
 no row in this table at all: they are outside the curated 68 this survey
 measures, reached by `live/registry.json` and `tools/row-gen` (#44) rather
 than by this file's own provider-schema path. The messaging batch also
@@ -193,7 +201,7 @@ roster and `live/survey.json` to the full registry-backed universe was
 shows up only in the rendered count above and in
 `internal/live/lint/admission.go`, never as a hand edit here.
 
-The fourth (Route53 remainder and CloudFront, #65) reclassified two rows
+The fifth (Route53 remainder and CloudFront, #65) reclassified two rows
 already below from `blocked-emulator` to `wired`: `aws_cloudfront_distribution`
 (the pinned floci image now creates and reads a distribution back cleanly —
 lex00/floci#29's fix landed in it, closing the gap `blocked-emulator`'s own
@@ -278,7 +286,7 @@ identity argument were derived like every other row's.
 | aws_iam_policy | client-named | blocked-emulator | name + path, but the required import attribute is the policy ARN; the account-derived mechanism builds it, and floci's iam:GetPolicy omits Tags so the row cannot be proven live (choudoufu#26) | survey note; schema |
 | aws_sqs_queue | account-derived | wired | name, wrapped in the run's region and account as https://sqs.REGION.amazonaws.com/ACCOUNT/NAME; registry-ratified (#40, #44) despite the gap this row was blocked on — floci still reports a queue's URL as its own endpoint rather than the amazonaws.com form the provider's importer parses, so the marker path a context-less run takes still cannot complete (choudoufu#26), but a plain apply against floci creates and destroys the type cleanly regardless — see live/e2e/estates/messaging/README.md | survey note, registry; schema |
 | aws_sns_topic | account-derived | wired | name, wrapped in the run's region and account as arn:aws:sns:REGION:ACCOUNT:NAME | survey note; schema |
-| aws_instance | marker | blocked-emulator | server-assigned instance ID (i-...); floci jumps a new instance straight to `terminated` and the provider's create waits for `running` (lex00/floci#32, closed 2026-08-12; blocked until a pullable harness image carries the fix — reprobed the same evening, the published image still terminates; choudoufu#26) | survey note; schema |
+| aws_instance | marker | wired | server-assigned instance ID (i-...); registry-ratified (#40, #44, issue #65) despite the gap this row was blocked on — lex00/floci#32 ("floci jumps a new instance straight to `terminated`") closed upstream 2026-08-12, and a manual apply against the pinned harness image during the EC2 core batch's own ratification created and destroyed the type cleanly with no waiter hang; a same-evening reprobe recorded the published image still terminating, but a 2026-08-14 run-instances probe against the same pinned digest reached `running` and stayed there, so the clean behavior is the one that reproduces (choudoufu#26) — see live/e2e/estates/ec2-core/README.md | survey note; schema |
 | aws_cloudfront_distribution | marker | wired | server-assigned distribution ID; registry-ratified (#40, #44, #65) rather than reached by this survey's own provider-schema path — the pinned floci image now creates and reads a distribution back cleanly (lex00/floci#29's lifecycle fix landed in the image this checkout pins), so the earlier blocked-emulator note no longer holds; floci's resourcegroupstagging still covers no CloudFront, an open question for the marker-discovery wiring lane rather than for admission | survey note, registry; schema |
 | aws_db_instance | marker | blocked-emulator | taggable, but v6.58.0 ships neither an identity schema nor a list resource for it, and `identifier` is the documented import ID, so it wires client-named when unblocked (see the wrinkles below); RDS needs the Docker socket mounted into the emulator (lex00/floci#28, choudoufu#26) | survey note; docs |
 | aws_route53_zone | marker | wired | server-assigned hosted zone ID (Z...); the identity schema names zone_id rather than id | survey note; schema |
@@ -299,7 +307,7 @@ identity argument were derived like every other row's.
 | aws_iam_role_policy | client-named | wired | role + name, both client-named, so concrete wherever the role is | roster fit; schema |
 | aws_iam_group | client-named | ready | name; no identity schema shipped, import ID documented as the group name | roster fit; docs |
 | aws_autoscaling_group | client-named | ready | name; tags are `tag` blocks rather than a `tags` argument, so the marker path is not open to it | roster fit; schema |
-| aws_key_pair | client-named | ready | key_name; no identity schema shipped, import ID documented as key_name | roster fit; docs |
+| aws_key_pair | client-named | wired | key_name; no identity schema shipped, import ID documented as key_name; registry-ratified (#40, #44, issue #65) — see live/e2e/estates/ec2-core/README.md | roster fit; docs |
 | aws_cloudwatch_metric_alarm | client-named | wired | alarm_name | roster fit; schema |
 | aws_cloudwatch_event_rule | client-named | ready | name; import ID is event_bus_name/name, the bus defaulting to `default` when omitted | roster fit; schema |
 | aws_db_subnet_group | client-named | blocked-emulator | name; blocked: floci's rds:ListTagsForResource serves no tags back, so the written marker never reads back (probed 2026-08-12; choudoufu#26) | roster fit; schema |
