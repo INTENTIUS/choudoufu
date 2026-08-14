@@ -218,8 +218,10 @@ onto the docs site.
 Two caveats to carry. The run covers **two of five layers** — `lint` and
 `identity`; `discovery`, `projection` and `stamp` are unchecked, and the
 artifact says so. All five now have refusal registries (#110), so what those
-three can refuse is documented even though no corpus run reaches it. And it was measured against provider **6.58.0** while
-survey-gen pins 6.59.0 (#117).
+three can refuse is documented even though no corpus run reaches it. The version skew #117 tracked is gone:
+the corpus and the survey both derive from `internal/live/pins` (6.59.0),
+a drift test holds them together, and the re-measurement moved nothing -
+totals identical, resource_types 1691 to 1699.
 
 Regenerate it with `just corpus`, which now passes the provider-schema flags
 the committed artifact was actually produced with. It did not, so the
@@ -436,8 +438,6 @@ Labelled `standing`; sixteen issues. The ones that bear on the ladder:
 - **#118** — the corpus measures module examples, not estates, so its rate does
   not mean what a reader assumes. Until this lands, quote the ranking and never
   the percentage.
-- **#117** — the corpus used provider 6.58.0; survey-gen pins 6.59.0. Two
-  artifacts describing different providers.
 - **#79** — the docs site's last two hand-written numbers want generated spans.
 - **#92** and its three instances (#89, #90, #91) — silent merge loss. Not a
   phase, but the reason every merge in this repo is verified rather than

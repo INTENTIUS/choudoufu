@@ -54,8 +54,8 @@ corpus-fetch:
 # committed, which is how a regeneration command silently stops reproducing
 # its own output. Provider install needs network once; after that the plugin
 # cache serves it.
-corpus provider_version="6.58.0" init_bin="terraform":
-    go run ./tools/corpus-gen -init-bin {{init_bin}} -provider-version {{provider_version}}
+corpus init_bin="terraform":
+    go run ./tools/corpus-gen -init-bin {{init_bin}}
 
 # Where the sources describing each type's identity disagree (#106), into
 # live/identity-sources.json. No provider, no network.

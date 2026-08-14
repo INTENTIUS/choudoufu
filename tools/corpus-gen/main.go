@@ -35,6 +35,8 @@
 package main
 
 import (
+	"github.com/intentius/choudoufu/internal/live/pins"
+
 	"context"
 	"encoding/json"
 	"flag"
@@ -64,7 +66,7 @@ func run() error {
 		root         = flag.String("root", ".", "repository root that relative manifest paths are resolved against")
 		initBin      = flag.String("init-bin", "", "binary used to install the provider for schema reading; empty runs without schemas")
 		provSource   = flag.String("provider-source", "hashicorp/aws", "provider to read schemas from")
-		provVersion  = flag.String("provider-version", "", "exact provider version to pin; required with -init-bin")
+		provVersion  = flag.String("provider-version", pins.AWSProviderVersion, "exact provider version to pin (default: internal/live/pins.AWSProviderVersion, the same pin survey-gen builds the admission evidence from - #117)")
 		noSchemas    = flag.Bool("no-schemas", false, "run without provider schemas, and say so in the artifact")
 		quiet        = flag.Bool("quiet", false, "suppress the progress log")
 	)

@@ -2658,8 +2658,8 @@
   "schemas": {
     "present": true,
     "provider": "hashicorp/aws",
-    "version": "6.58.0",
-    "resource_types": 1691
+    "version": "6.59.0",
+    "resource_types": 1699
   },
   "origins": [
     {

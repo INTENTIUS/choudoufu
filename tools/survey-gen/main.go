@@ -64,6 +64,8 @@
 package main
 
 import (
+	"github.com/intentius/choudoufu/internal/live/pins"
+
 	"flag"
 	"fmt"
 	"io"
@@ -93,11 +95,14 @@ const (
 	// roster this tool derives signals and paths for.
 	surveyMDRel = "live/SURVEY.md"
 
-	// providerSource and providerVersion pin the provider release surveyed,
-	// the same release the estate fixture pins
-	// (live/e2e/estate/versions.tf).
+	// providerSource and providerVersion pin the provider release surveyed.
+	// The version is internal/live/pins.AWSProviderVersion, one constant
+	// shared with tools/corpus-gen so the instrument that ranks admission
+	// failures and the artifacts that define admission cannot describe
+	// different providers again (#117). The estate fixtures pin their own
+	// release deliberately; see the pins package doc.
 	providerSource  = "hashicorp/aws"
-	providerVersion = "6.59.0"
+	providerVersion = pins.AWSProviderVersion
 
 	// defaultInitBin downloads the provider. Stock terraform, the same
 	// binary the gated test tier drives; -init-bin swaps it for choudoufu

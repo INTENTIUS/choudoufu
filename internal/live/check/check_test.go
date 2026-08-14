@@ -90,6 +90,7 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		"mdspan":          true, // rewrites generated regions of a markdown doc
 		"mv":              true, // the rename command's engine
 		"passthrough":     true, // a registry of upstream diagnostics, not a pass
+		"pins":            true, // the shared provider-version pin (#117), one constant
 		"pluginschema":    true, // provider schema reading
 		"policy":          true, // the ownership policy matrix
 		"refusalscan":     true, // the shared lockstep scanner behind those registries
