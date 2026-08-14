@@ -396,7 +396,11 @@ end to end. Found on the way: `content` can never round-trip (the
 provider's Read fetches no object body) - that is #73's record-less
 residue, recorded in the fixture, not solved.
 
-*#108: criteria 2 and 4 landed; 1 and 3 are reshaped by measurement.*
+*#108: closed 2026-08-14 evening, all criteria done or measured to their
+honest end state - both regeneration ratchet tables empty, the four
+hand-written cohorts folded into the generator, the artifact refreshed
+(still 1 pass / 30 fail; every remaining failure is an emulator gap,
+#124's ledger). The list below is its residue at closing:*
 The tier and artifact are described under "What to measure". What remains,
 smallest first, per the issue's latest comment:
 
