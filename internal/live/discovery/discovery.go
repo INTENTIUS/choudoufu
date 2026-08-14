@@ -25,6 +25,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/registry"
+	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -157,31 +158,31 @@ type Request struct {
 	ScopeProvider addrs.AbsProviderConfig
 
 	// ---------------------------------------------------------------------
-	// Snapshot-guided discovery (issue #64's second leg)
+	// Guided discovery (issue #64's second leg)
 	// ---------------------------------------------------------------------
 
 	// Guided opts the estate-wide sweep into consuming the most recent
-	// observational snapshot (see internal/live/projection's P4.2 doc
-	// comment) as a cost HINT: which admitted types this estate has ever
-	// held, so the sweep's routine pass can skip re-listing a type with no
-	// evidence behind it instead of paying one List call per admitted type
-	// on every plan. Default off in this package: a direct caller of
-	// [Discover] that never sets this gets exactly today's full
-	// enumeration, unchanged. The fork's own commands (internal/command's
-	// statelessDiscover) turn it on automatically instead of leaving it at
-	// the zero value - see the policy note in guided.go's file doc comment
-	// for exactly when, and with what defaults.
+	// hint the estate's record store carries (issue #109; written by
+	// [projection.Manager] after every apply's final persist) as a cost
+	// HINT: which admitted types this estate has ever held, so the sweep's
+	// routine pass can skip re-listing a type with no evidence behind it
+	// instead of paying one List call per admitted type on every plan.
+	// Default off in this package: a direct caller of [Discover] that
+	// never sets this gets exactly today's full enumeration, unchanged.
+	// The fork's own commands (internal/command's statelessDiscover) turn
+	// it on automatically instead of leaving it at the zero value - see
+	// the policy note in guided.go's file doc comment for exactly when,
+	// and with what defaults.
 	//
 	// The hint is never authority. A type absent from the hint is always
 	// swept in full, on every run - see guidedSweepUniverse - and any
-	// problem reading the hint (no source configured, a missing or
-	// corrupted snapshot, one older than GuidedMaxAge) falls back to full
+	// problem reading the hint (no store configured, no hint recorded yet,
+	// a corrupted one, one older than GuidedMaxAge) falls back to full
 	// enumeration silently: [Result.GuidedFallback] names why, and
 	// discovery never returns an error for it. TestGuided_equivalence pins
 	// the load-bearing half of that promise: guided discovery, given any
 	// such problem, produces byte-identical output to Guided: false over
-	// the same estate. See TestSnapshot_noReader's restated invariant in
-	// internal/live/projection for the read side of the same guarantee.
+	// the same estate.
 	//
 	// Guided only narrows the sweep of undeclared types. The config-driven
 	// scan (every type something in configuration is waiting on) is
@@ -190,26 +191,19 @@ type Request struct {
 	// there is no per-run universe for a hint to narrow there.
 	Guided bool
 
-	// SnapshotPath is the file-carrier snapshot to read the guided hint
-	// from - the same path a "live" block's snapshot_path argument names
-	// and [projection.Manager.EnableSnapshot] writes to. Empty disables the
-	// file form. Read through [projection.ReadHintFile].
-	SnapshotPath string
+	// HintStore is the estate's record store, the one carrier the guided
+	// hint has (issue #109) - ordinarily the same store [Request]'s caller
+	// opened from the live block's record_store block. Read through
+	// [projection.ReadHintStore], at the key [projection.HintKey](Estate)
+	// derives. Nil disables the hint read, which under Guided means every
+	// pass falls back to full enumeration.
+	HintStore staterecord.Store
 
-	// SnapshotBranchDir is the module directory whose enclosing git
-	// repository carries the tofu-snapshots/<estate> branch to read the
-	// guided hint from, mirroring [projection.Manager.EnableSnapshotBranch]
-	// and read through [projection.ReadHintBranch]. Empty disables the
-	// branch form. When both this and SnapshotPath are set, the branch is
-	// tried first and the file is the fallback - the same priority the
-	// writer gives the two carriers.
-	SnapshotBranchDir string
-
-	// GuidedMaxAge is how old a snapshot hint may be before guided
-	// discovery treats it exactly like a missing one: readable, but not
-	// trusted. Zero uses defaultGuidedMaxAge. Staleness beyond this bound
-	// falls back to full enumeration for the same reason a missing snapshot
-	// does - see TestGuided_equivalence's stale case.
+	// GuidedMaxAge is how old a hint may be before guided discovery treats
+	// it exactly like a missing one: readable, but not trusted. Zero uses
+	// defaultGuidedMaxAge. Staleness beyond this bound falls back to full
+	// enumeration for the same reason a missing hint does - see
+	// TestGuided_equivalence's stale case.
 	GuidedMaxAge time.Duration
 
 	// GuidedVerify forces this pass to fully sweep every admitted type even
@@ -347,7 +341,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			// Request.Guided is false, so this is a no-op for every
 			// existing caller. See the Request.Guided doc comment and
 			// guided.go for what changes when it is set.
-			universe, skipped, fallback := guidedSweepUniverse(req, decl)
+			universe, skipped, fallback := guidedSweepUniverse(ctx, req, decl)
 			res.Guided = req.Guided && fallback == ""
 			res.GuidedFallback = fallback
 			res.GuidedSweepSkipped = skipped

@@ -7,31 +7,29 @@ package discovery
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/states"
 )
 
 // This file is issue #64's equivalence proof: the same fake estate, planned
-// guided and unguided, has to come out byte-identical whenever the snapshot
-// hint cannot be trusted (missing, corrupted, or stale) - "a stale or
-// missing snapshot costs one full re-read, never a wrong plan", the design
+// guided and unguided, has to come out byte-identical whenever the record
+// store's hint cannot be trusted (missing, corrupted, or stale) - "a stale
+// or missing hint costs one full re-read, never a wrong plan", the design
 // comment's own words. It also proves the positive case: a fresh,
 // well-formed hint really does change what gets listed, which is the whole
-// point of the feature and the reason TestSnapshot_noReader's restated
-// invariant was worth loosening for.
+// point of the feature.
 
 // ---------------------------------------------------------------------------
 // The equivalence table
 // ---------------------------------------------------------------------------
 
-// TestGuided_equivalence is table-driven over every way a snapshot hint can
+// TestGuided_equivalence is table-driven over every way a stored hint can
 // fail to be trusted. In each case, Guided discovery must fall back to
 // today's full enumeration and produce output identical to an unguided pass
 // over the exact same fake estate - not merely "no error", but the same
@@ -39,51 +37,48 @@ import (
 func TestGuided_equivalence(t *testing.T) {
 	cases := []struct {
 		name  string
-		build func(t *testing.T, path string) // leaves path in the broken state under test
+		build func(t *testing.T, store staterecord.Store) // leaves the store in the broken state under test
 	}{
 		{
 			name: "missing",
-			build: func(t *testing.T, path string) {
-				// No file is ever written at path at all - the ordinary
-				// "guided discovery was asked for, but nothing has ever
-				// been persisted with a snapshot carrier enabled" case.
+			build: func(t *testing.T, store staterecord.Store) {
+				// Nothing is ever written to the store at all - the
+				// ordinary "guided discovery was asked for, but no apply
+				// has ever persisted a hint" case.
 			},
 		},
 		{
 			name: "corrupted",
-			build: func(t *testing.T, path string) {
-				writeGuidedHintFixture(t, path, time.Now(), "aws_cloudwatch_log_group")
-				if err := os.WriteFile(path, []byte("not a snapshot at all {{{"), 0o600); err != nil {
+			build: func(t *testing.T, store staterecord.Store) {
+				if _, err := store.PutIfAbsent(context.Background(), projection.HintKey(estateName), []byte("not a hint at all {{{")); err != nil {
 					t.Fatalf("corrupting the fixture: %s", err)
 				}
 			},
 		},
 		{
 			name: "wrong format version",
-			build: func(t *testing.T, path string) {
-				writeGuidedHintFixture(t, path, time.Now(), "aws_cloudwatch_log_group")
-				bad := `{"formatVersion":"some-future-format-v9","estate":"x","writtenAt":"2026-08-12T00:00:00Z","resources":[]}`
-				if err := os.WriteFile(path, []byte(bad), 0o600); err != nil {
+			build: func(t *testing.T, store staterecord.Store) {
+				bad := `{"formatVersion":"some-future-format-v9","estate":"x","writtenAt":"2026-08-12T00:00:00Z","types":["aws_cloudwatch_log_group"]}`
+				if _, err := store.PutIfAbsent(context.Background(), projection.HintKey(estateName), []byte(bad)); err != nil {
 					t.Fatalf("corrupting the fixture: %s", err)
 				}
 			},
 		},
 		{
 			name: "stale",
-			build: func(t *testing.T, path string) {
+			build: func(t *testing.T, store staterecord.Store) {
 				// Well past defaultGuidedMaxAge (24h): a perfectly
-				// well-formed snapshot that guided mode must still refuse
-				// to trust.
-				writeGuidedHintFixture(t, path, time.Now().Add(-72*time.Hour), "aws_cloudwatch_log_group")
+				// well-formed hint that guided mode must still refuse to
+				// trust.
+				writeGuidedHintFixture(t, store, time.Now().Add(-72*time.Hour), "aws_cloudwatch_log_group")
 			},
 		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			dir := t.TempDir()
-			path := filepath.Join(dir, "snapshot.json")
-			c.build(t, path)
+			store := newGuidedHintStore(t)
+			c.build(t, store)
 
 			// The same fake estate for both passes: an ordinary owned
 			// fixture plus one orphan of a type nothing in the fixture
@@ -104,17 +99,17 @@ func TestGuided_equivalence(t *testing.T) {
 			assertNoErrors(t, diags)
 
 			guided, diags := discoverFixture(t, buildOrphanEstate(), Request{
-				Sweep:        true,
-				Guided:       true,
-				SnapshotPath: path,
+				Sweep:     true,
+				Guided:    true,
+				HintStore: store,
 			})
 			assertNoErrors(t, diags)
 
 			if guided.Guided {
-				t.Errorf("Guided = true for a %s snapshot; want a fallback", c.name)
+				t.Errorf("Guided = true for a %s hint; want a fallback", c.name)
 			}
 			if guided.GuidedFallback == "" {
-				t.Errorf("GuidedFallback is empty for a %s snapshot; want a reason", c.name)
+				t.Errorf("GuidedFallback is empty for a %s hint; want a reason", c.name)
 			} else {
 				t.Logf("fallback reason: %s", guided.GuidedFallback)
 			}
@@ -123,7 +118,7 @@ func TestGuided_equivalence(t *testing.T) {
 			}
 
 			if got, want := guided.String(), unguided.String(); got != want {
-				t.Errorf("guided output differs from unguided under a %s snapshot:\n--- guided ---\n%s--- unguided ---\n%s", c.name, got, want)
+				t.Errorf("guided output differs from unguided under a %s hint:\n--- guided ---\n%s--- unguided ---\n%s", c.name, got, want)
 			}
 			// Belt and suspenders on the one field the equivalence test
 			// actually exists to protect: the removal proposed for the
@@ -162,11 +157,10 @@ func TestGuided_narrowsRoutineSweep(t *testing.T) {
 		return cloud
 	}
 
-	dir := t.TempDir()
-	path := filepath.Join(dir, "snapshot.json")
+	store := newGuidedHintStore(t)
 	// The hint records aws_cloudwatch_log_group only - never aws_kms_key -
 	// mirroring a prior run that swept both and found one of them empty.
-	writeGuidedHintFixture(t, path, time.Now(), "aws_cloudwatch_log_group")
+	writeGuidedHintFixture(t, store, time.Now(), "aws_cloudwatch_log_group")
 
 	cold, diags := discoverFixture(t, buildEstate(), Request{Sweep: true, SweepTypes: sweepTypesUnderTest})
 	assertNoErrors(t, diags)
@@ -178,10 +172,10 @@ func TestGuided_narrowsRoutineSweep(t *testing.T) {
 	}
 
 	routine, diags := discoverFixture(t, buildEstate(), Request{
-		Sweep:        true,
-		SweepTypes:   sweepTypesUnderTest,
-		Guided:       true,
-		SnapshotPath: path,
+		Sweep:      true,
+		SweepTypes: sweepTypesUnderTest,
+		Guided:     true,
+		HintStore:  store,
 	})
 	assertNoErrors(t, diags)
 	if !routine.Guided {
@@ -207,7 +201,7 @@ func TestGuided_narrowsRoutineSweep(t *testing.T) {
 		SweepTypes:   sweepTypesUnderTest,
 		Guided:       true,
 		GuidedVerify: true,
-		SnapshotPath: path,
+		HintStore:    store,
 	})
 	assertNoErrors(t, diags)
 	if len(verify.GuidedSweepSkipped) != 0 {
@@ -243,22 +237,20 @@ func TestGuided_verifyAge(t *testing.T) {
 		return cloud
 	}
 
-	dir := t.TempDir()
-
 	cold, diags := discoverFixture(t, buildEstate(), Request{Sweep: true, SweepTypes: sweepTypesUnderTest})
 	assertNoErrors(t, diags)
 
 	// 36h old: past a 24h GuidedVerifyAge, but nowhere near the 7-day
 	// GuidedMaxAge also in play here - mirroring the fork's own default-on
 	// policy (internal/command/live_plan.go's statelessApplyGuidedDiscovery).
-	agedPath := filepath.Join(dir, "aged.json")
-	writeGuidedHintFixture(t, agedPath, time.Now().Add(-36*time.Hour), "aws_cloudwatch_log_group")
+	agedStore := newGuidedHintStore(t)
+	writeGuidedHintFixture(t, agedStore, time.Now().Add(-36*time.Hour), "aws_cloudwatch_log_group")
 
 	aged, diags := discoverFixture(t, buildEstate(), Request{
 		Sweep:           true,
 		SweepTypes:      sweepTypesUnderTest,
 		Guided:          true,
-		SnapshotPath:    agedPath,
+		HintStore:       agedStore,
 		GuidedMaxAge:    7 * 24 * time.Hour,
 		GuidedVerifyAge: 24 * time.Hour,
 	})
@@ -279,13 +271,13 @@ func TestGuided_verifyAge(t *testing.T) {
 	// Younger than GuidedVerifyAge: narrows exactly as
 	// TestGuided_narrowsRoutineSweep's routine case does, confirming
 	// GuidedVerifyAge does not force a verify before its own threshold.
-	freshPath := filepath.Join(dir, "fresh.json")
-	writeGuidedHintFixture(t, freshPath, time.Now(), "aws_cloudwatch_log_group")
+	freshStore := newGuidedHintStore(t)
+	writeGuidedHintFixture(t, freshStore, time.Now(), "aws_cloudwatch_log_group")
 	fresh, diags := discoverFixture(t, buildEstate(), Request{
 		Sweep:           true,
 		SweepTypes:      sweepTypesUnderTest,
 		Guided:          true,
-		SnapshotPath:    freshPath,
+		HintStore:       freshStore,
 		GuidedMaxAge:    7 * 24 * time.Hour,
 		GuidedVerifyAge: 24 * time.Hour,
 	})
@@ -302,7 +294,7 @@ func TestGuided_verifyAge(t *testing.T) {
 		Sweep:        true,
 		SweepTypes:   sweepTypesUnderTest,
 		Guided:       true,
-		SnapshotPath: agedPath,
+		HintStore:    agedStore,
 		GuidedMaxAge: 7 * 24 * time.Hour,
 	})
 	assertNoErrors(t, diags)
@@ -315,12 +307,33 @@ func TestGuided_verifyAge(t *testing.T) {
 // helpers
 // ---------------------------------------------------------------------------
 
-// writeGuidedHintFixture builds a real snapshot through projection.Manager -
+// newGuidedHintStore is a real, empty record store in a temp directory -
+// the same staterecord.Store shape a live block's record_store "local"
+// backend opens.
+func newGuidedHintStore(t *testing.T) staterecord.Store {
+	t.Helper()
+	store, err := staterecord.NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewLocalStore: %s", err)
+	}
+	return store
+}
+
+// writeGuidedHintFixture builds a real hint through projection.Manager -
 // never hand-rolled JSON - recording one resource instance per type named,
-// and writes it to path with the given writtenAt. This is the fixture
-// builder every case in this file uses so that "a snapshot hint" in these
-// tests is always something the real writer could have produced.
-func writeGuidedHintFixture(t *testing.T, path string, writtenAt time.Time, types ...string) {
+// and persists it to store for estateName with the given writtenAt. This is
+// the fixture builder every case in this file uses so that "a hint" in
+// these tests is always something the real writer could have produced;
+// guided_scale_bench_test.go's estate writes through
+// writeGuidedHintFixtureFor instead, under its own name.
+func writeGuidedHintFixture(t *testing.T, store staterecord.Store, writtenAt time.Time, types ...string) {
+	t.Helper()
+	writeGuidedHintFixtureFor(t, store, estateName, writtenAt, types...)
+}
+
+// writeGuidedHintFixtureFor is writeGuidedHintFixture with the estate name
+// explicit, since the hint's store key is derived from it.
+func writeGuidedHintFixtureFor(t *testing.T, store staterecord.Store, estate string, writtenAt time.Time, types ...string) {
 	t.Helper()
 
 	state := states.NewState()
@@ -337,7 +350,7 @@ func writeGuidedHintFixture(t *testing.T, path string, writtenAt time.Time, type
 	}
 
 	m := projection.NewManager()
-	m.EnableSnapshot(path, estateName, func() time.Time { return writtenAt })
+	m.EnableHint(store, estate, func() time.Time { return writtenAt })
 	if err := m.WriteState(state); err != nil {
 		t.Fatalf("WriteState: %s", err)
 	}

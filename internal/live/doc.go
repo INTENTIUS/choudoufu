@@ -70,8 +70,9 @@
 //   - internal/states/statemgr: Filesystem is the model for a projection
 //     manager. A projection manager's Refresh/State builds its snapshot
 //     from live reads instead of a file, and Persist writes nothing (or,
-//     for the optional snapshot cache, a scrubbed, observational-only
-//     record that no code path reads back as truth).
+//     when a record_store is configured, guided discovery's plan-cost
+//     hint - a type roster and a timestamp that no code path reads back
+//     as truth; issue #109).
 //   - Import machinery in internal/tofu: resource identity is merged
 //     upstream (opentofu#2854); the same import-by-identity path that
 //     backs tofu import is how a projection materializes a states.State

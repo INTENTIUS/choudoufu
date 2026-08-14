@@ -13,12 +13,10 @@ set -euo pipefail
 # with no churn, rename with no churn, a plain `choudoufu plan`/`apply` against a
 # `live` block with no live-prefixed command anywhere in sight,
 # a receipt cycle (break an effect's memory out of band, watch the plan
-# re-arm it), and a drift-and-observation pass that pairs that same drift
-# detection with the optional observational snapshot (P4.2): three drifts
-# injected out of band render correctly on the next plan, and the
-# `tofu-snapshots/<estate>` git branch itself carries the drift arriving and
-# departing across its own commits, checked with `git log`/`git diff` on the
-# branch rather than this harness's own say-so. Nothing here is simulated or
+# re-arm it), and a drift-reconverge pass: three drifts of three different
+# shapes injected out of band render on one plain plan as exactly two
+# in-place updates and one create, and one untargeted apply reconverges
+# all three. Nothing here is simulated or
 # mocked: the emulator is a real AWS API surface, and every step is a real
 # `choudoufu` binary built from this checkout.
 #
@@ -140,7 +138,7 @@ phase_of_step() {
     empty-plan-full|foreign-protected) printf '2' ;;
     count-scale-down|rename-no-churn) printf '3' ;;
     plain-plan-works) printf '4' ;;
-    drift-exact|removal-exact|receipt-cycle|receipt-cycle-existence|drift-observation|lint-rejects) printf '5' ;;
+    drift-exact|removal-exact|receipt-cycle|receipt-cycle-existence|drift-reconverge|lint-rejects) printf '5' ;;
     *) printf '' ;;
   esac
 }
@@ -278,11 +276,10 @@ command -v aws >/dev/null 2>&1 || skip "aws CLI not installed"
 if [ -z "${TOFU_BIN:-}" ]; then
   command -v go >/dev/null 2>&1 || skip "go not installed (needed to build choudoufu from source; set TOFU_BIN to skip the build)"
 fi
-# git is the observational snapshot's own branch carrier (internal/live/
-# projection/snapshot_git.go), needed only by drift-observation's -estate
-# copy below; checked here rather than inline so a missing git produces the
-# same clean SKIP every other missing-tool case does.
-command -v git >/dev/null 2>&1 || skip "git not installed"
+# git was required here while the observational snapshot's branch carrier
+# existed (removed by issue #109); the only git left in this harness is the
+# cosmetic branch-name line after the build, which already tolerates a
+# missing git on its own, so there is nothing to gate on anymore.
 
 WORK="$(mktemp -d)"
 MAIN="$WORK/estate"
@@ -632,40 +629,6 @@ assert_drift_case() {
   [ -z "$bad" ] || fail "$step" "the $label diff touches attribute(s) beyond $allowed: $bad"
 
   echo "  $label: $attr PASS"
-}
-
-# snapshot_block extracts one resource entry from the observational
-# snapshot JSON in $1 (internal/live/projection/snapshot.go's [snapshot]
-# type, written by json.MarshalIndent(snap, "", "  ") — the "resources"
-# array, one object per instance, each opening/closing at exactly 4-space
-# indent, "address" always its first field at 6-space indent and
-# "attributesHash" always its last since neither carries `omitempty` and
-# struct field order is JSON key order), by its address $2. Same "walk back
-# to the opening brace, forward to the matching close" technique plan_block
-# uses on a plan's diff blocks, anchored on the "address" field instead of a
-# "# addr will be" header since a snapshot entry has no header of its own.
-# The closing anchor is exactly 4 spaces, not "some indent" — deliberately,
-# for the same reason plan_block's own comment gives: a resource carrying an
-# "identity" or "markers" object (both present here) closes THAT nested map
-# first, at 6-space indent, and a naive "any indent" match stops there,
-# truncating the block before attributesHash is ever reached (caught live:
-# the first version of this helper did exactly that).
-# Empty (nothing printed) if the address has no entry at all — which for
-# drift-observation's case (c) is itself the assertion: a specific address
-# genuinely absent from one commit's blob.
-snapshot_block() {
-  local content="$1" addr="$2" hit
-  hit="$(printf '%s\n' "$content" | grep -n -F "\"address\": \"$addr\"" | head -n1 | cut -d: -f1)"
-  [ -n "$hit" ] || return 0
-  printf '%s\n' "$content" | tail -n "+$((hit - 1))" | awk '
-    NR == 1 { print; next }
-    { print; if ($0 ~ /^ {4}\},?$/) exit }
-  '
-}
-
-# snapshot_hash reads the attributesHash value out of one snapshot_block.
-snapshot_hash() {
-  printf '%s\n' "$1" | sed -n 's/^ *"attributesHash": "\([^"]*\)".*/\1/p'
 }
 
 # ── 0. choudoufu binary (from THIS repo, unless TOFU_BIN overrides) ────────
@@ -2018,159 +1981,120 @@ else
   record_step "receipt-cycle-existence" pass
 fi
 
-# ── 13. drift-observation — drift matrix + observational git-branch snapshots ──
-# The claim this file's own header makes about the optional P4.2 snapshot
-# (issue #109 removes the subsystem; this step goes with it): an apply under a
-# "live" block with snapshots = true can leave a scrubbed, metadata-only
-# JSON record behind, one commit per apply on an orphan
-# refs/heads/tofu-snapshots/<estate> branch (internal/live/projection/
-# snapshot_git.go), and nothing in this fork ever reads it back
-# (TestSnapshot_noReader). This step proves the record exists and is
-# faithful to what actually happened, live: three drifts injected out of
-# band render correctly on the next plan (drift-exact's own claim, P5.1,
-# reproven here rather than assumed), and the observational branch itself
-# carries the drift arriving and departing across its own commits.
+# ── 13. drift-reconverge — three simultaneous drifts under plain plan/apply ──
+# Issue #109 removed the observational snapshot this step used to pair its
+# drift matrix with: the tofu-snapshots/<estate> git branch, its commits,
+# and every git log / git diff assertion went with the subsystem (the live
+# system is authoritative and readable at any time, so a stored snapshot
+# was a stale copy of what every run re-derives). What survives, rehomed
+# here rather than lost, is the matrix itself: three drifts of three
+# different shapes injected out of band — (a) an attribute the plan reads
+# back, (b) a plain tag beside the markers on a marked resource, (c) a
+# whole marked, taggable resource deleted — must render on ONE plain
+# "choudoufu plan" as exactly two in-place updates and one create, nothing
+# else, and one untargeted apply must reconverge all three in the same
+# breath. drift-exact (step 6) proves each shape alone, one at a time,
+# under live-plan; this step proves them together, under the plain-command
+# path (P4.1's "no live-prefixed command anywhere in sight").
 #
-# Snapshots need a "live" block (P4.1's plain choudoufu plan/apply path;
-# internal/command/live_mode.go's statelessBegin is the only caller of
-# projection.Manager.EnableSnapshotBranch) and the live-plan/live-mv
-# subcommands $MAIN uses everywhere else in this harness do not carry one —
-# confirmed by reading internal/command/live_plan.go, which never
-# references the projection.Manager snapshot machinery at all. $MAIN itself
-# must also stay free of a live block: adding one to live/e2e/estate/ would
-# make standup's own apply (step 2) stateless and stop it from producing
-# the terraform.tfstate adopt (step 3) exists to delete. So this step works
-# against $DO_DIR, a mktemp copy of $MAIN's current on-disk config (byte-
-# identical to live/e2e/estate/, per standup's own cp) plus one additional
-# file adding the live block — a phase-local estate copy, never a second
-# standup: $DO_DIR names the SAME estate ($MAIN's "stateless-e2e") and
-# declares the SAME resources $MAIN already applied, so its own baseline
-# apply below adopts what standup already created rather than creating
-# anything new (asserted the same way plain-plan-works, step 11, asserts
-# its own clean plan — by the apply summary line itself). The AWS CLI
+# Plain plan/apply need a "live" block, and $MAIN must stay free of one:
+# adding it to live/e2e/estate/ would make standup's own apply (step 2)
+# stateless and stop it from producing the terraform.tfstate adopt (step 3)
+# exists to delete. So this step works against $DO_DIR, a mktemp copy of
+# $MAIN's current on-disk config plus one additional file adding the live
+# block — a phase-local estate copy, never a second standup: $DO_DIR names
+# the SAME estate ($MAIN's "stateless-e2e") and declares the SAME resources
+# $MAIN already applied, so its own baseline apply below adopts what
+# standup already created rather than creating anything new. The AWS CLI
 # mutations below land on those same shared live resources, so every other
 # step that plans against $MAIN after this one still needs to see a clean,
-# converged estate, which is why this step's last acts are a full,
+# converged estate — which is why this step's last acts are a full,
 # untargeted apply that undoes every drift it injected and a clean
 # live-plan against $MAIN itself, before moving on.
-echo "=== 13. drift-observation — drift matrix + observational git-branch snapshots ==="
+echo "=== 13. drift-reconverge — three simultaneous drifts under plain plan/apply ==="
 if [ "$HAVE_LIVE_ESTATE" -eq 0 ] || [ "$HAVE_LIVE_BLOCK" -eq 0 ] || [ "$LIVE_E2E_EXACTNESS" != "1" ]; then
-  not_implemented "drift-observation" 5 "needs full-estate discovery (-estate probe) to adopt the standing estate, the config-level live block (P4.1, probed via 'choudoufu validate' in section 0b) for the snapshot-carrying plain plan/apply path, and P5.1's exactness work (LIVE_E2E_EXACTNESS=1, P5.2 flipped the default to 1)"
+  not_implemented "drift-reconverge" 5 "needs full-estate discovery (-estate probe) to adopt the standing estate, the config-level live block (P4.1, probed via 'choudoufu validate' in section 0b) for the plain plan/apply path, and P5.1's exactness work (LIVE_E2E_EXACTNESS=1, P5.2 flipped the default to 1)"
 else
   STEP13_T0=$(date +%s)
   DO_DIR="$(mktemp -d)"
   cp -R "$MAIN/." "$DO_DIR/"
 
-  # A git repository of its own: writeSnapshotBranch refuses to write
-  # anywhere that is not "inside a git repository" (its own `rev-parse
-  # --git-dir` probe), and the plumbing it uses never touches HEAD, the
-  # index or the worktree of whatever repository it finds — so a bare `git
-  # init` here, with no commit and nothing tracked, is the entire carrier
-  # this step needs. Nothing about $DO_DIR itself is ever committed to any
-  # branch but the orphan one the snapshot writer makes for itself.
-  git init -q "$DO_DIR"
-
   # The one addition that turns $DO_DIR's plain "choudoufu plan"/"apply"
-  # stateless with the git-branch carrier on: a second terraform{} block —
-  # merges fine alongside the copied versions.tf's own terraform{} block,
-  # the same way a real module splitting required_providers from a live
-  # block across files would — naming the SAME estate $MAIN already owns,
-  # with snapshots = true (internal/configs/live.go's Snapshots field; the
-  # branch wins over snapshot_path when both are set, and only the branch
-  # form is exercised here per this step's own brief).
-  cat > "$DO_DIR/live_snapshot.tf" <<'DOEOF'
+  # stateless: a second terraform{} block — merges fine alongside the
+  # copied versions.tf's own terraform{} block, the same way a real module
+  # splitting required_providers from a live block across files would —
+  # naming the SAME estate $MAIN already owns.
+  cat > "$DO_DIR/live_block.tf" <<'DOEOF'
 terraform {
   live {
-    estate    = "stateless-e2e"
-    snapshots = true
+    estate = "stateless-e2e"
   }
 }
 DOEOF
 
   ( cd "$DO_DIR" && "$TOFU" init -input=false >/dev/null ) \
-    || fail "drift-observation" "choudoufu init in the snapshot-enabled copy did not succeed"
+    || fail "drift-reconverge" "choudoufu init in the live-block copy did not succeed"
 
   # Baseline apply: $DO_DIR declares exactly what $MAIN already applied and
   # names the estate $MAIN's live resources already carry, so this adopts
   # the standing estate rather than creating anything — "no second
-  # standup". It is also the first commit on
-  # refs/heads/tofu-snapshots/stateless-e2e.
+  # standup".
   run_tf "$DO_DIR" apply -auto-approve -input=false -no-color
   BASE_APPLY_OUT="$TF_OUT"
-  [ "$TF_RC" -eq 0 ] || fail "drift-observation" "the baseline apply against the standing estate failed: $BASE_APPLY_OUT"
+  [ "$TF_RC" -eq 0 ] || fail "drift-reconverge" "the baseline apply against the standing estate failed: $BASE_APPLY_OUT"
   echo "$BASE_APPLY_OUT" | grep -qE '^Apply complete! Resources: 0 added, 0 changed, 0 destroyed\.$' \
-    || fail "drift-observation" "the baseline apply should adopt the standing estate with no changes at all: $BASE_APPLY_OUT"
+    || fail "drift-reconverge" "the baseline apply should adopt the standing estate with no changes at all: $BASE_APPLY_OUT"
+  echo "  baseline apply adopted the standing estate with no changes"
 
-  SNAP_REF="refs/heads/tofu-snapshots/stateless-e2e"
-  BASE_COMMIT="$(git -C "$DO_DIR" rev-parse --verify -q "$SNAP_REF")" \
-    || fail "drift-observation" "no commit landed on $SNAP_REF after the baseline apply"
-  BASE_SNAP="$(git -C "$DO_DIR" show "$BASE_COMMIT:snapshot.json")"
-  echo "$BASE_SNAP" | grep -q '"formatVersion": "tofu-live-snapshot-v1"' \
-    || fail "drift-observation" "the baseline snapshot commit does not carry the expected formatVersion: $BASE_SNAP"
-  echo "$BASE_SNAP" | grep -q '"estate": "stateless-e2e"' \
-    || fail "drift-observation" "the baseline snapshot commit does not name estate stateless-e2e: $BASE_SNAP"
-  BASE_LOG_BLOCK="$(snapshot_block "$BASE_SNAP" "aws_cloudwatch_log_group.app")"
-  BASE_VPC_BLOCK="$(snapshot_block "$BASE_SNAP" "aws_vpc.main")"
-  [ -n "$BASE_LOG_BLOCK" ] || fail "drift-observation" "the baseline snapshot has no entry for aws_cloudwatch_log_group.app: $BASE_SNAP"
-  [ -n "$BASE_VPC_BLOCK" ] || fail "drift-observation" "the baseline snapshot has no entry for aws_vpc.main: $BASE_SNAP"
-  echo "$BASE_SNAP" | grep -qF '"address": "aws_cloudwatch_metric_alarm.cpu"' \
-    || fail "drift-observation" "the baseline snapshot has no entry for aws_cloudwatch_metric_alarm.cpu, needed as this step's before-drift witness: $BASE_SNAP"
-  BASE_LOG_HASH="$(snapshot_hash "$BASE_LOG_BLOCK")"
-  BASE_VPC_HASH="$(snapshot_hash "$BASE_VPC_BLOCK")"
-  [ -n "$BASE_LOG_HASH" ] && [ -n "$BASE_VPC_HASH" ] \
-    || fail "drift-observation" "could not read attributesHash off the baseline snapshot's log group or VPC entry"
-  echo "  baseline apply adopted the standing estate with no changes; commit $BASE_COMMIT on tofu-snapshots/stateless-e2e"
-
-  # ── Inject three drifts out of band, the task brief's own shape: (a) an
+  # ── Inject three drifts out of band, one of each shape: (a) an
   # attribute the plan reads back, (b) a plain tag beside the marker on a
   # marked resource, (c) a whole marked, taggable resource deleted.
   DO_LOG_NAME="/stateless-e2e/app"
   DO_ALARM_NAME="tofu-stateless-e2e-cpu"
   DO_VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=stateless-e2e" \
     --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo None)"
-  [ -n "$DO_VPC_ID" ] && [ "$DO_VPC_ID" != "None" ] || fail "drift-observation" "could not find the estate's VPC"
+  [ -n "$DO_VPC_ID" ] && [ "$DO_VPC_ID" != "None" ] || fail "drift-reconverge" "could not find the estate's VPC"
 
   # (a) attribute drift: the log group's retention, the same mechanism
   # drift-exact's log-group-retention case (step 6) already proves reads
   # back and renders — reused rather than reinvented, on the same address,
   # once step 6 has already run and reconverged it back to 1.
   awsl logs put-retention-policy --log-group-name "$DO_LOG_NAME" --retention-in-days 7 >/dev/null \
-    || fail "drift-observation" "could not set the log group retention out of band"
+    || fail "drift-reconverge" "could not set the log group retention out of band"
 
   # (b) tag drift: a plain tag beside the two markers on the VPC — never
   # tofu-estate or tofu-address themselves, which is the "not the marker
   # itself" this step's own brief asks for.
   awsl ec2 create-tags --resources "$DO_VPC_ID" --tags Key=DriftObserved,Value=present >/dev/null \
-    || fail "drift-observation" "could not tag the VPC out of band"
+    || fail "drift-reconverge" "could not tag the VPC out of band"
 
   # (c) whole-resource drift: the CloudWatch alarm, deleted entirely.
   # Client-named (its identity is alarm_name, already in config), taggable,
   # and untouched by any other step in this harness.
   awsl cloudwatch delete-alarms --alarm-names "$DO_ALARM_NAME" >/dev/null \
-    || fail "drift-observation" "could not delete the CloudWatch alarm out of band"
+    || fail "drift-reconverge" "could not delete the CloudWatch alarm out of band"
 
   echo "  drift injected: log group retention -> 7, VPC tagged DriftObserved=present, the CloudWatch alarm deleted"
 
   # ── The next plan renders all three, and nothing else. Plain "choudoufu
   # plan" here, never "live-plan": under a live block that IS the whole
-  # point (P4.1's "no live-prefixed command anywhere in sight"), and it is
-  # the stock renderer (internal/command/jsonformat/plan.go) doing the
-  # per-resource diff blocks either way — the same "# <addr> will be ..."
-  # header shape plan_addrs/plan_block already parse for live-plan's
-  # output.
+  # point (P4.1), and it is the stock renderer
+  # (internal/command/jsonformat/plan.go) doing the per-resource diff
+  # blocks either way — the same "# <addr> will be ..." header shape
+  # plan_addrs/plan_block already parse for live-plan's output.
   set +e
   DRIFT_PLAN_OUT="$(cd "$DO_DIR" && "$TOFU" plan -input=false -no-color -detailed-exitcode 2>&1)"
   DRIFT_PLAN_RC=$?
   set -e
   [ "$DRIFT_PLAN_RC" -eq 2 ] \
-    || fail "drift-observation" "-detailed-exitcode after the three out-of-band drifts: want 2, got $DRIFT_PLAN_RC: $DRIFT_PLAN_OUT"
+    || fail "drift-reconverge" "-detailed-exitcode after the three out-of-band drifts: want 2, got $DRIFT_PLAN_RC: $DRIFT_PLAN_OUT"
 
   # (a) in-place update naming the attribute the plan read back.
   echo "$DRIFT_PLAN_OUT" | grep -qF "  # aws_cloudwatch_log_group.app will be updated in-place" \
-    || fail "drift-observation" "the log group retention drift is not visible in the plan: $DRIFT_PLAN_OUT"
+    || fail "drift-reconverge" "the log group retention drift is not visible in the plan: $DRIFT_PLAN_OUT"
   DRIFT_LOG_BLOCK="$(plan_block "$DRIFT_PLAN_OUT" "aws_cloudwatch_log_group.app")"
   echo "$DRIFT_LOG_BLOCK" | grep -q "retention_in_days" \
-    || fail "drift-observation" "the log group diff does not mention retention_in_days: $DRIFT_LOG_BLOCK"
+    || fail "drift-reconverge" "the log group diff does not mention retention_in_days: $DRIFT_LOG_BLOCK"
 
   # (b) current design, per drift-exact's own "vpc" case (step 6): a plain
   # tag beside the markers gets no special marker-adjacent handling of its
@@ -2184,10 +2108,10 @@ DOEOF
   # own declared tags to begin with — MARKERS.md), and everything else is
   # fair game like this one.
   echo "$DRIFT_PLAN_OUT" | grep -qF "  # aws_vpc.main will be updated in-place" \
-    || fail "drift-observation" "the VPC tag drift is not visible in the plan: $DRIFT_PLAN_OUT"
+    || fail "drift-reconverge" "the VPC tag drift is not visible in the plan: $DRIFT_PLAN_OUT"
   DRIFT_VPC_BLOCK="$(plan_block "$DRIFT_PLAN_OUT" "aws_vpc.main")"
   echo "$DRIFT_VPC_BLOCK" | grep -q "DriftObserved" \
-    || fail "drift-observation" "the VPC diff does not mention the out-of-band DriftObserved tag: $DRIFT_VPC_BLOCK"
+    || fail "drift-reconverge" "the VPC diff does not mention the out-of-band DriftObserved tag: $DRIFT_VPC_BLOCK"
 
   # (c) markers are the record, not the live resource: the alarm vanished,
   # so the plan proposes recreating exactly what config still declares — a
@@ -2198,7 +2122,7 @@ DOEOF
   # omit anything FROM, so the resource simply reads as new, the same as
   # any resource's first apply.
   echo "$DRIFT_PLAN_OUT" | grep -qF "  # aws_cloudwatch_metric_alarm.cpu will be created" \
-    || fail "drift-observation" "the deleted alarm did not re-arm a create in the plan: $DRIFT_PLAN_OUT"
+    || fail "drift-reconverge" "the deleted alarm did not re-arm a create in the plan: $DRIFT_PLAN_OUT"
 
   # And nothing else moved: exactly these three addresses have a diff, and
   # the summary line agrees.
@@ -2208,136 +2132,23 @@ DOEOF
   { [ "$(count_lines "$DRIFT_CHANGED")" -eq 2 ] \
     && in_list "aws_cloudwatch_log_group.app" "$DRIFT_CHANGED" \
     && in_list "aws_vpc.main" "$DRIFT_CHANGED"; } \
-    || fail "drift-observation" "expected exactly 2 in-place updates (the log group, the VPC), got: $DRIFT_CHANGED"
+    || fail "drift-reconverge" "expected exactly 2 in-place updates (the log group, the VPC), got: $DRIFT_CHANGED"
   { [ "$(count_lines "$DRIFT_CREATED")" -eq 1 ] \
     && in_list "aws_cloudwatch_metric_alarm.cpu" "$DRIFT_CREATED"; } \
-    || fail "drift-observation" "expected exactly 1 create (the alarm), got: $DRIFT_CREATED"
+    || fail "drift-reconverge" "expected exactly 1 create (the alarm), got: $DRIFT_CREATED"
   [ -z "$DRIFT_DESTROYED" ] \
-    || fail "drift-observation" "expected no destroys, got: $DRIFT_DESTROYED"
+    || fail "drift-reconverge" "expected no destroys, got: $DRIFT_DESTROYED"
   echo "$DRIFT_PLAN_OUT" | grep -qE '^Plan: 1 to add, 2 to change, 0 to destroy\.$' \
-    || fail "drift-observation" "the plan summary disagrees with its own headers: $(echo "$DRIFT_PLAN_OUT" | grep -E '^Plan:' || echo 'no Plan: line at all')"
+    || fail "drift-reconverge" "the plan summary disagrees with its own headers: $(echo "$DRIFT_PLAN_OUT" | grep -E '^Plan:' || echo 'no Plan: line at all')"
   echo "  plan renders all three: log group retention in-place, VPC tags in-place, alarm re-armed as a create — nothing else"
 
-  # ── The observational commit: apply -target on a resource none of the
-  # three drifts touch (the bucket). -target does not shrink discovery —
-  # the same fact empty-plan-named's own header comment establishes for
-  # live-plan — so the projection this apply's prior state comes from still
-  # reads all three drifts; the target itself has no diff, so nothing about
-  # it changes; and the final state statemgr.WriteAndPersist commits is
-  # whatever the walk produced for every resource, touched or not. The net
-  # effect: a real apply, with a real "Apply complete!" line, whose own
-  # snapshot commit captures the estate WHILE drifted rather than after
-  # converging it — the observational middle state this step's brief asks
-  # for, since an ordinary untargeted apply here would fix all three drifts
-  # in the same breath it recorded them.
-  run_tf "$DO_DIR" apply -auto-approve -input=false -no-color -target=aws_s3_bucket.data
-  OBS_APPLY_OUT="$TF_OUT"
-  [ "$TF_RC" -eq 0 ] || fail "drift-observation" "the targeted observational apply failed: $OBS_APPLY_OUT"
-  echo "$OBS_APPLY_OUT" | grep -qE '^Apply complete! Resources: 0 added, 0 changed, 0 destroyed\.$' \
-    || fail "drift-observation" "the targeted apply should touch nothing (the bucket has no drift of its own): $OBS_APPLY_OUT"
-
-  OBS_COMMIT="$(git -C "$DO_DIR" rev-parse --verify -q "$SNAP_REF")" \
-    || fail "drift-observation" "no commit landed on $SNAP_REF after the observational apply"
-  [ "$OBS_COMMIT" != "$BASE_COMMIT" ] \
-    || fail "drift-observation" "the observational apply did not add a new commit to $SNAP_REF"
-  # Ancestor, not "the" parent: PersistState fires once more per ~20s of
-  # graph walk (internal/live/projection/manager.go's own doc comment, "the
-  # apply's state hook calls it periodically... roughly every 20s"), and the
-  # 43-resource baseline apply above is long enough to have landed one such
-  # intermediate commit of its own before its final one — confirmed live,
-  # not assumed: two commits came out of that one apply, not one. So
-  # $BASE_COMMIT and $OBS_COMMIT are not guaranteed direct parent/child, only
-  # ordered: $OBS_COMMIT must still be reachable from $BASE_COMMIT going
-  # forward, i.e. $BASE_COMMIT is its ancestor, keeping the branch a single
-  # line of history with no rewrite.
-  git -C "$DO_DIR" merge-base --is-ancestor "$BASE_COMMIT" "$OBS_COMMIT" \
-    || fail "drift-observation" "$BASE_COMMIT is not an ancestor of $OBS_COMMIT — the branch is not a linear history of this estate's applies"
-  OBS_SNAP="$(git -C "$DO_DIR" show "$OBS_COMMIT:snapshot.json")"
-
-  # Content specifics, not just "a commit landed". The snapshot format is
-  # deliberately scrubbed — internal/live/projection/snapshot.go's own doc
-  # comment: "no resource's attribute values appear here in bulk, by
-  # construction" — so neither the retention value 7 nor the tag value
-  # "present" is ever written anywhere in this file; what a drifted
-  # resource leaves behind is its attributesHash changing (a real, specific
-  # value this step can name and compare, if not the raw attribute itself)
-  # and, for the deleted resource, its entry vanishing from the record
-  # outright — which IS the literal, content-specific fact this step
-  # asserts for case (c): the exact string
-  # `"address": "aws_cloudwatch_metric_alarm.cpu"` present in one commit's
-  # blob and absent from the next.
-  OBS_LOG_BLOCK="$(snapshot_block "$OBS_SNAP" "aws_cloudwatch_log_group.app")"
-  OBS_VPC_BLOCK="$(snapshot_block "$OBS_SNAP" "aws_vpc.main")"
-  [ -n "$OBS_LOG_BLOCK" ] || fail "drift-observation" "the observational snapshot has no entry for aws_cloudwatch_log_group.app: $OBS_SNAP"
-  [ -n "$OBS_VPC_BLOCK" ] || fail "drift-observation" "the observational snapshot has no entry for aws_vpc.main: $OBS_SNAP"
-  OBS_LOG_HASH="$(snapshot_hash "$OBS_LOG_BLOCK")"
-  OBS_VPC_HASH="$(snapshot_hash "$OBS_VPC_BLOCK")"
-  [ -n "$OBS_LOG_HASH" ] && [ "$OBS_LOG_HASH" != "$BASE_LOG_HASH" ] \
-    || fail "drift-observation" "the log group's attributesHash did not change between the baseline and observational snapshots ($BASE_LOG_HASH); the retention drift left no trace in the record"
-  [ -n "$OBS_VPC_HASH" ] && [ "$OBS_VPC_HASH" != "$BASE_VPC_HASH" ] \
-    || fail "drift-observation" "the VPC's attributesHash did not change between the baseline and observational snapshots ($BASE_VPC_HASH); the tag drift left no trace in the record"
-  echo "$OBS_SNAP" | grep -qF '"address": "aws_cloudwatch_metric_alarm.cpu"' \
-    && fail "drift-observation" "the observational snapshot still lists the deleted alarm; it should have vanished from the record along with the live resource: $OBS_SNAP"
-  echo "  observational commit $OBS_COMMIT (descends from baseline $BASE_COMMIT): log group attributesHash $BASE_LOG_HASH -> $OBS_LOG_HASH, VPC $BASE_VPC_HASH -> $OBS_VPC_HASH, alarm entry gone"
-
-  # git log/git diff on the branch itself, not this harness's own
-  # bookkeeping — the FAQ's own words for what the snapshot is for ("drift
-  # over time becomes git log and git diff on the branch"). At least 2
-  # commits (never an exact count — see the ancestor check above for why),
-  # and a real diff between the two endpoints that matter regardless of how
-  # many intermediate persists sit between them: git diff compares trees,
-  # not adjacent history, so it is exact here even though the commit COUNT
-  # is not.
-  OBS_LOG="$(git -C "$DO_DIR" log --oneline "$SNAP_REF")"
-  [ "$(count_lines "$OBS_LOG")" -ge 2 ] \
-    || fail "drift-observation" "expected at least 2 commits on $SNAP_REF after the baseline and observational applies, got: $OBS_LOG"
-  OBS_DIFF="$(git -C "$DO_DIR" diff "$BASE_COMMIT" "$OBS_COMMIT" -- snapshot.json)"
-  echo "$OBS_DIFF" | grep -Eq '^-.*"address": "aws_cloudwatch_metric_alarm\.cpu",' \
-    || fail "drift-observation" "git diff $BASE_COMMIT $OBS_COMMIT does not show the alarm's entry being removed: $OBS_DIFF"
-  echo "$OBS_DIFF" | grep -Eq "^-.*\"attributesHash\": \"$BASE_LOG_HASH\"" \
-    || fail "drift-observation" "git diff $BASE_COMMIT $OBS_COMMIT does not remove the log group's baseline attributesHash: $OBS_DIFF"
-  echo "$OBS_DIFF" | grep -Eq "^\+.*\"attributesHash\": \"$OBS_LOG_HASH\"" \
-    || fail "drift-observation" "git diff $BASE_COMMIT $OBS_COMMIT does not add the log group's drifted attributesHash: $OBS_DIFF"
-  echo "  git diff $BASE_COMMIT..$OBS_COMMIT on tofu-snapshots/stateless-e2e shows the drift arriving: the alarm's entry removed, the log group's and VPC's attributesHash both changed"
-
   # ── Reconverge: a real, untargeted apply corrects all three drifts in one
-  # pass — 2 changed (the log group, the VPC), 1 added (the alarm) — and
-  # commits the third, "after-reconverge" state.
+  # pass — 2 changed (the log group, the VPC), 1 added (the alarm).
   run_tf "$DO_DIR" apply -auto-approve -input=false -no-color
   CONVERGE_APPLY_OUT="$TF_OUT"
-  [ "$TF_RC" -eq 0 ] || fail "drift-observation" "the reconverging apply failed: $CONVERGE_APPLY_OUT"
+  [ "$TF_RC" -eq 0 ] || fail "drift-reconverge" "the reconverging apply failed: $CONVERGE_APPLY_OUT"
   echo "$CONVERGE_APPLY_OUT" | grep -qE '^Apply complete! Resources: 1 added, 2 changed, 0 destroyed\.$' \
-    || fail "drift-observation" "expected the reconverging apply to add 1 (the alarm) and change 2 (the log group, the VPC): $CONVERGE_APPLY_OUT"
-
-  CONVERGE_COMMIT="$(git -C "$DO_DIR" rev-parse --verify -q "$SNAP_REF")" \
-    || fail "drift-observation" "no commit landed on $SNAP_REF after the reconverging apply"
-  [ "$CONVERGE_COMMIT" != "$OBS_COMMIT" ] \
-    || fail "drift-observation" "the reconverging apply did not add a new commit to $SNAP_REF"
-  git -C "$DO_DIR" merge-base --is-ancestor "$OBS_COMMIT" "$CONVERGE_COMMIT" \
-    || fail "drift-observation" "$OBS_COMMIT is not an ancestor of $CONVERGE_COMMIT — the branch is not a linear history of this estate's applies"
-  CONVERGE_SNAP="$(git -C "$DO_DIR" show "$CONVERGE_COMMIT:snapshot.json")"
-
-  CONVERGE_LOG_BLOCK="$(snapshot_block "$CONVERGE_SNAP" "aws_cloudwatch_log_group.app")"
-  CONVERGE_VPC_BLOCK="$(snapshot_block "$CONVERGE_SNAP" "aws_vpc.main")"
-  CONVERGE_LOG_HASH="$(snapshot_hash "$CONVERGE_LOG_BLOCK")"
-  CONVERGE_VPC_HASH="$(snapshot_hash "$CONVERGE_VPC_BLOCK")"
-  [ "$CONVERGE_LOG_HASH" = "$BASE_LOG_HASH" ] \
-    || fail "drift-observation" "the log group's attributesHash after reconverging ($CONVERGE_LOG_HASH) does not match the baseline ($BASE_LOG_HASH) — the retention drift did not fully revert"
-  [ "$CONVERGE_VPC_HASH" = "$BASE_VPC_HASH" ] \
-    || fail "drift-observation" "the VPC's attributesHash after reconverging ($CONVERGE_VPC_HASH) does not match the baseline ($BASE_VPC_HASH) — the tag drift did not fully revert"
-  echo "$CONVERGE_SNAP" | grep -qF '"address": "aws_cloudwatch_metric_alarm.cpu"' \
-    || fail "drift-observation" "the alarm's entry did not return to the record after the reconverging apply recreated it: $CONVERGE_SNAP"
-
-  CONVERGE_DIFF="$(git -C "$DO_DIR" diff "$OBS_COMMIT" "$CONVERGE_COMMIT" -- snapshot.json)"
-  echo "$CONVERGE_DIFF" | grep -Eq '^\+.*"address": "aws_cloudwatch_metric_alarm\.cpu",' \
-    || fail "drift-observation" "git diff $OBS_COMMIT $CONVERGE_COMMIT does not show the alarm's entry returning: $CONVERGE_DIFF"
-  echo "$CONVERGE_DIFF" | grep -Eq "^\+.*\"attributesHash\": \"$BASE_LOG_HASH\"" \
-    || fail "drift-observation" "git diff $OBS_COMMIT $CONVERGE_COMMIT does not restore the log group's baseline attributesHash: $CONVERGE_DIFF"
-  echo "  reconverge commit $CONVERGE_COMMIT (descends from observational $OBS_COMMIT): log group and VPC attributesHash both back to baseline, alarm entry restored — git diff $OBS_COMMIT..$CONVERGE_COMMIT shows the drift departing"
-
-  FINAL_LOG="$(git -C "$DO_DIR" log --oneline "$SNAP_REF")"
-  [ "$(count_lines "$FINAL_LOG")" -ge 3 ] \
-    || fail "drift-observation" "expected at least 3 commits on $SNAP_REF (baseline, observational, reconverge, plus any periodic intermediate persists), got: $FINAL_LOG"
+    || fail "drift-reconverge" "expected the reconverging apply to add 1 (the alarm) and change 2 (the log group, the VPC): $CONVERGE_APPLY_OUT"
 
   # ── Convergence, confirmed by a plan too, not only by the apply's own
   # report — the same double-check drift-exact and the receipt-cycle steps
@@ -2347,20 +2158,20 @@ DOEOF
   CLEAN_PLAN_RC=$?
   set -e
   [ "$CLEAN_PLAN_RC" -eq 0 ] \
-    || fail "drift-observation" "-detailed-exitcode after reconverging: want 0, got $CLEAN_PLAN_RC: $CLEAN_PLAN_OUT"
+    || fail "drift-reconverge" "-detailed-exitcode after reconverging: want 0, got $CLEAN_PLAN_RC: $CLEAN_PLAN_OUT"
 
   # And $MAIN itself — the estate every later step plans against — is clean
   # too: this step's AWS CLI mutations landed on $MAIN's own live
   # resources, so its own convergence is what every step after this one is
   # relying on, the same restoration obligation removal-exact,
   # count-scale-down and rename-no-churn already carry.
-  live_plan "$MAIN" "drift-observation"
-  assert_full_estate_clean "$TF_OUT" "drift-observation"
+  live_plan "$MAIN" "drift-reconverge"
+  assert_full_estate_clean "$TF_OUT" "drift-reconverge"
 
   rm -rf "$DO_DIR"
   STEP13_T1=$(date +%s)
   echo "  reconverged; \$MAIN's own live-plan is clean again; $((STEP13_T1 - STEP13_T0))s"
-  record_step "drift-observation" pass
+  record_step "drift-reconverge" pass
 fi
 
 # ── 14. lint-rejects ─────────────────────────────────────────────────────────

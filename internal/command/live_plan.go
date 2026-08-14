@@ -34,6 +34,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/stamp"
+	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plugins"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -309,11 +310,26 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		log.Printf("[TRACE] live: ownership policy: %s", pol)
 	}
 
+	// The estate's record store, when the live block names one - opened
+	// here only as guided discovery's hint source (issue #109). A store
+	// that will not open is not this command's error to fail on: the hint
+	// is a plan-cost cache, so the run proceeds hintless (guided discovery
+	// stays off) and the projection below behaves exactly as it always has.
+	var hintStore staterecord.Store
+	if config.Module != nil && config.Module.Live != nil && config.Module.Live.RecordStore != nil {
+		store, storeErr := projection.NewRecordStore(ctx, config.Module.Live.RecordStore, estate, ".")
+		if storeErr != nil {
+			log.Printf("[WARN] live: could not open the record store for guided discovery's hint: %s", storeErr)
+		} else {
+			hintStore = store
+		}
+	}
+
 	// Marker discovery, when anything is waiting on it. Its output is a
 	// resolution list with the discovered instances made concrete, plus the
 	// unclaimed live resources the classifier below sorts out.
 	merged := resolutions.All()
-	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estateFlag, provs, pol, statelessView)
+	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estateFlag, provs, pol, hintStore, statelessView)
 	diags = diags.Append(discoDiags)
 	if discoDiags.HasErrors() {
 		// A marker problem means the estate's ownership records disagree with
@@ -528,7 +544,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 // answer, and the third return value is what a caller uses instead for
 // materializing undeclared instances correctly, per-address, regardless of
 // which provider found them.
-func statelessDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, estateFlag string, provs *statelessProviders, pol *policy.Policy, statelessView views.StatelessPlan) (*discovery.Result, addrs.AbsProviderConfig, map[string]addrs.AbsProviderConfig, tfdiags.Diagnostics) {
+func statelessDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, estateFlag string, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan) (*discovery.Result, addrs.AbsProviderConfig, map[string]addrs.AbsProviderConfig, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	var noProvider addrs.AbsProviderConfig
 
@@ -557,7 +573,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		providerAddr := sweepProviders[0]
 		// No ScopeProvider: the single-provider path is the exact call
 		// every caller made before issue #69 existed.
-		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, addrs.AbsProviderConfig{}, provs, pol, statelessView)
+		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, addrs.AbsProviderConfig{}, provs, pol, hintStore, statelessView)
 		diags = diags.Append(discoDiags)
 		if discoDiags.HasErrors() {
 			return nil, noProvider, nil, diags
@@ -580,7 +596,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 	// else's declared, owned resource rather than an orphan to remove.
 	passes := make([]discovery.Pass, 0, len(sweepProviders))
 	for _, providerAddr := range sweepProviders {
-		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, providerAddr, provs, pol, statelessView)
+		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, providerAddr, provs, pol, hintStore, statelessView)
 		diags = diags.Append(discoDiags)
 		if discoDiags.HasErrors() {
 			return nil, noProvider, nil, diags
@@ -610,7 +626,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 // path and each iteration of its multi-provider loop. scopeProvider is
 // [discovery.Request.ScopeProvider]; its zero value means unscoped, which is
 // what the single-provider path passes.
-func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutions []identity.Resolution, estate string, providerAddr, scopeProvider addrs.AbsProviderConfig, provs *statelessProviders, pol *policy.Policy, statelessView views.StatelessPlan) (*discovery.Result, tfdiags.Diagnostics) {
+func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutions []identity.Resolution, estate string, providerAddr, scopeProvider addrs.AbsProviderConfig, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan) (*discovery.Result, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	provider, err := provs.ConfiguredProvider(ctx, providerAddr)
@@ -634,7 +650,7 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 		ScopeProvider:    scopeProvider,
 		Progress:         statelessProgress(statelessView),
 	}
-	statelessApplyGuidedDiscovery(config, &req)
+	statelessApplyGuidedDiscovery(config, hintStore, &req)
 
 	res, discoDiags := discovery.Discover(ctx, req)
 	diags = diags.Append(discoDiags)
@@ -642,7 +658,7 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 }
 
 // guidedDiscoveryDisableEnvVar opts every estate this process plans or
-// applies out of the default-on snapshot-guided discovery
+// applies out of the default-on guided discovery
 // [statelessApplyGuidedDiscovery] turns on, forcing today's full sweep
 // regardless of what the "live" block configures. Set it to any non-empty
 // value.
@@ -652,20 +668,20 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 // TF_DISABLE_PLUGIN_TLS in meta_providers.go is the precedent - rather than
 // a new "live" block attribute: turning guided discovery off is an
 // operational lever for a run that is misbehaving, not a decision a team
-// checks in and reviews the way estate, snapshot_path and snapshots are, so
-// it does not belong beside them in configuration.
+// checks in and reviews the way estate and record_store are, so it does not
+// belong beside them in configuration.
 const guidedDiscoveryDisableEnvVar = "TOFU_DISABLE_GUIDED_DISCOVERY"
 
 // defaultAutoGuidedMaxAge is the GuidedMaxAge [statelessApplyGuidedDiscovery]
-// sets when it turns guided discovery on automatically: a snapshot hint has
+// sets when it turns guided discovery on automatically: a stored hint has
 // up to a week to keep narrowing the estate-wide sweep before it is treated
 // as though it were never written at all, and discovery falls all the way
 // back to full enumeration (see [discovery.Result.GuidedFallback]). A week
 // is deliberately generous compared to [defaultGuidedMaxAge] in
 // internal/live/discovery/guided.go (24h, the fallback for a direct API
 // caller that sets Request.Guided with no GuidedMaxAge of its own): an
-// operator who explicitly turned a snapshot on already made the choice to
-// pay for it, and defaultAutoGuidedVerifyAge below is what keeps a week-old
+// operator who configured a record store already pays for the hint's
+// carrier, and defaultAutoGuidedVerifyAge below is what keeps a week-old
 // hint from also meaning "drift can hide for a week" - the freshness ceiling
 // here only decides when a hint is too old to be worth reading at all.
 const defaultAutoGuidedMaxAge = 7 * 24 * time.Hour
@@ -681,53 +697,42 @@ const defaultAutoGuidedMaxAge = 7 * 24 * time.Hour
 const defaultAutoGuidedVerifyAge = 24 * time.Hour
 
 // statelessApplyGuidedDiscovery is issue #64's default-on policy: it turns
-// req.Guided on, with req.SnapshotPath, req.SnapshotBranchDir,
-// req.GuidedMaxAge and req.GuidedVerifyAge populated from the configuration's
-// own snapshot destination, whenever all of the following hold -
+// req.Guided on, with req.HintStore, req.GuidedMaxAge and
+// req.GuidedVerifyAge populated, whenever all of the following hold -
 //
-//   - the configuration's "live" block turns on an observational snapshot at
-//     all (snapshot_path, snapshots = true, or both - see [configs.Live]);
+//   - the configuration's "live" block has a record_store block, the hint's
+//     one carrier since issue #109 removed the observational snapshot;
+//   - the caller actually opened that store (hintStore non-nil - the same
+//     handle the run's record-backed resources and hint write go through,
+//     see [statelessRunner.PriorState] and [projection.Manager.EnableHint]);
 //   - guidedDiscoveryDisableEnvVar is not set to a non-empty value.
 //
-// Nothing here invents a hint source: a configuration that never turned a
-// snapshot on leaves req untouched, and discovery.Discover behaves exactly as
-// it always has for it (Request.Guided's own zero value is false). The
-// snapshot fields it does populate are read from the same [configs.Live]
-// settings [statelessBegin] and [statelessRunner.PriorState] already read to
-// decide whether to write a snapshot in the first place (see live_mode.go),
-// so a run that writes a snapshot and a run that reads one back as a guided
-// hint always agree on where it lives - the branch carrier first when
-// "snapshots" is set, the file carrier as its fallback or on its own when
-// only "snapshot_path" is set, the same priority
-// [projection.Manager.writeSnapshotCarriers] gives the write side.
+// Nothing here invents a hint source: a configuration with no record_store
+// leaves req untouched, and discovery.Discover behaves exactly as it always
+// has for it (Request.Guided's own zero value is false). A run that writes
+// the hint and a run that reads one back always agree on where it lives,
+// because both go through the one store the record_store block names and
+// the one key [projection.HintKey] derives.
 //
 // See internal/live/discovery/guided.go's file doc comment for the full
 // policy statement from the discovery package's own side, including why its
 // defaults (defaultGuidedMaxAge, and no automatic GuidedVerifyAge at all) stay
 // unchanged for a direct caller of Discover.
-func statelessApplyGuidedDiscovery(config *configs.Config, req *discovery.Request) {
+func statelessApplyGuidedDiscovery(config *configs.Config, hintStore staterecord.Store, req *discovery.Request) {
 	if os.Getenv(guidedDiscoveryDisableEnvVar) != "" {
 		return
 	}
 	if config == nil || config.Module == nil || config.Module.Live == nil {
 		return
 	}
-	settings := config.Module.Live
-	if settings.SnapshotPath == "" && !settings.Snapshots {
-		// No snapshot destination configured at all: there is no hint to
-		// guide anything, and today's full enumeration is exactly right.
+	if config.Module.Live.RecordStore == nil || hintStore == nil {
+		// No record store configured (or none could be opened): there is no
+		// hint carrier, and today's full enumeration is exactly right.
 		return
 	}
 
 	req.Guided = true
-	req.SnapshotPath = settings.SnapshotPath
-	if settings.Snapshots {
-		// "." is the module directory every command in this package already
-		// loads configuration from, the same directory [statelessBegin]
-		// passes to [projection.Manager.EnableSnapshotBranch] for the write
-		// side.
-		req.SnapshotBranchDir = "."
-	}
+	req.HintStore = hintStore
 	req.GuidedMaxAge = defaultAutoGuidedMaxAge
 	req.GuidedVerifyAge = defaultAutoGuidedVerifyAge
 }

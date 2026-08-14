@@ -6,16 +6,17 @@
 package discovery
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/intentius/choudoufu/internal/live/projection"
 )
 
-// This file is issue #64's snapshot-guided leg: the estate-wide sweep's
-// optional narrowing, behind Request.Guided. See the doc comment on
-// Request.Guided in discovery.go for the design and the safety argument;
-// this file is the mechanics.
+// This file is issue #64's guided leg: the estate-wide sweep's optional
+// narrowing, behind Request.Guided. See the doc comment on Request.Guided in
+// discovery.go for the design and the safety argument; this file is the
+// mechanics.
 //
 // The one invariant every function here is written to honor: a problem
 // reading or trusting the hint is never an error and never changes what the
@@ -30,13 +31,13 @@ import (
 // passes for that reason. What changed is the fork's own commands
 // (internal/command's statelessDiscover, the Request builder behind both
 // "choudoufu live-plan" and a plain plan/apply under a "live" block): they
-// now turn Guided on automatically whenever the estate's configuration
-// already pays for a snapshot - a "live" block setting snapshot_path,
-// snapshots = true, or both - and no explicit opt-out is set
-// (TOFU_DISABLE_GUIDED_DISCOVERY, checked at the command layer). A
-// configuration that never turned a snapshot on has no hint to guide
-// anything and is completely unaffected: nothing here invents a hint source
-// an operator never configured.
+// turn Guided on automatically whenever the estate has a record store to
+// read a hint from - a "live" block with a record_store block, the same
+// store the hint is written to after every apply (issue #109) - and no
+// explicit opt-out is set (TOFU_DISABLE_GUIDED_DISCOVERY, checked at the
+// command layer). A configuration with no record_store has no hint carrier
+// and is completely unaffected: nothing here invents a hint source an
+// operator never configured.
 //
 // That automatic path sets two things this package does not default for
 // itself: GuidedMaxAge to defaultAutoGuidedMaxAge (7 days, in
@@ -46,15 +47,15 @@ import (
 // without a fresh sweep runs this pass as a verification sweep anyway - the
 // safety valve that keeps "trust a week-old hint" from also meaning "drift
 // can hide for a week". See GuidedVerifyAge below and
-// internal/command/live_plan.go's statelessGuidedDiscovery for where these
-// numbers are set and documented in full.
+// internal/command/live_plan.go's statelessApplyGuidedDiscovery for where
+// these numbers are set and documented in full.
 
-// defaultGuidedMaxAge is how old a snapshot hint may be before guided
-// discovery treats it exactly like a missing one - see Request.GuidedMaxAge.
-// It is deliberately generous: a day-old hint is still useful for deciding
-// which types to skip, and Request.GuidedVerify (the periodic or flagged
-// full sweep) is the mechanism that keeps a long-lived snapshot honest, not
-// this threshold. A caller that wants a tighter bound sets GuidedMaxAge.
+// defaultGuidedMaxAge is how old a hint may be before guided discovery
+// treats it exactly like a missing one - see Request.GuidedMaxAge. It is
+// deliberately generous: a day-old hint is still useful for deciding which
+// types to skip, and Request.GuidedVerify (the periodic or flagged full
+// sweep) is the mechanism that keeps a long-lived hint honest, not this
+// threshold. A caller that wants a tighter bound sets GuidedMaxAge.
 //
 // This is the fallback used only when a caller sets Request.Guided directly
 // with no GuidedMaxAge of its own - a direct API user, or this file's own
@@ -86,13 +87,13 @@ const defaultGuidedMaxAge = 24 * time.Hour
 // (Request.GuidedVerify) or the hint's own age (Request.GuidedVerifyAge),
 // never silent and never a wrong plan - it changes only when a real removal
 // is proposed, never what gets destroyed once it is.
-func guidedSweepUniverse(req Request, decl *declared) (universe, skipped []string, fallback string) {
+func guidedSweepUniverse(ctx context.Context, req Request, decl *declared) (universe, skipped []string, fallback string) {
 	full := sweepTypes(req, decl)
 	if !req.Guided {
 		return full, nil, ""
 	}
 
-	hint, reason := loadGuidedHint(req)
+	hint, reason := loadGuidedHint(ctx, req)
 	if hint == nil {
 		return full, nil, reason
 	}
@@ -121,18 +122,20 @@ func guidedSweepUniverse(req Request, decl *declared) (universe, skipped []strin
 	return universe, skipped, ""
 }
 
-// loadGuidedHint reads req's configured hint source and applies the
+// loadGuidedHint reads the hint from the estate's record store
+// (Request.HintStore, the one source issue #109 left) and applies the
 // freshness rule guided discovery enforces before trusting a hint at all.
-// Every non-nil second return means "fall back to full enumeration"; there
-// is no other signal this function's caller needs to act on.
-func loadGuidedHint(req Request) (*projection.Hint, string) {
-	if req.SnapshotBranchDir == "" && req.SnapshotPath == "" {
-		return nil, "guided discovery was requested but no snapshot source (SnapshotBranchDir or SnapshotPath) is configured; falling back to full enumeration"
+// Every non-empty second return means "fall back to full enumeration";
+// there is no other signal this function's caller needs to act on.
+func loadGuidedHint(ctx context.Context, req Request) (*projection.Hint, string) {
+	if req.HintStore == nil {
+		return nil, "guided discovery was requested but no record store is configured to read a hint from; falling back to full enumeration"
 	}
 
-	hint, source, err := readGuidedHint(req)
+	source := fmt.Sprintf("the record store's hint for estate %q", req.Estate)
+	hint, err := projection.ReadHintStore(ctx, req.HintStore, req.Estate)
 	if hint == nil {
-		return nil, fmt.Sprintf("could not read a snapshot hint from %s: %s; falling back to full enumeration", source, err)
+		return nil, fmt.Sprintf("could not read %s: %s; falling back to full enumeration", source, err)
 	}
 
 	maxAge := req.GuidedMaxAge
@@ -140,39 +143,10 @@ func loadGuidedHint(req Request) (*projection.Hint, string) {
 		maxAge = defaultGuidedMaxAge
 	}
 	if hint.WrittenAt.IsZero() {
-		return nil, fmt.Sprintf("the snapshot hint at %s carries no readable writtenAt timestamp, so its freshness cannot be established; falling back to full enumeration", source)
+		return nil, fmt.Sprintf("%s carries no readable writtenAt timestamp, so its freshness cannot be established; falling back to full enumeration", source)
 	}
 	if age := time.Since(hint.WrittenAt); age > maxAge {
-		return nil, fmt.Sprintf("the snapshot hint at %s is stale (%s old, over the %s limit); falling back to full enumeration", source, age.Round(time.Second), maxAge)
+		return nil, fmt.Sprintf("%s is stale (%s old, over the %s limit); falling back to full enumeration", source, age.Round(time.Second), maxAge)
 	}
 	return hint, ""
-}
-
-// readGuidedHint tries the branch carrier and then the file carrier, the
-// same priority projection.Manager.writeSnapshotCarriers gives the write
-// side (branch primary, file the fallback, file alone when no branch is
-// configured) so a guided reader and a snapshot writer pointed at the same
-// two settings agree on which one is "the" snapshot.
-func readGuidedHint(req Request) (hint *projection.Hint, source string, err error) {
-	var branchErr error
-	if req.SnapshotBranchDir != "" {
-		source = fmt.Sprintf("branch tofu-snapshots/%s", req.Estate)
-		hint, branchErr = projection.ReadHintBranch(req.SnapshotBranchDir, req.Estate)
-		if branchErr == nil {
-			return hint, source, nil
-		}
-	}
-	if req.SnapshotPath != "" {
-		source = req.SnapshotPath
-		var fileErr error
-		hint, fileErr = projection.ReadHintFile(req.SnapshotPath)
-		if fileErr == nil {
-			return hint, source, nil
-		}
-		if branchErr != nil {
-			return nil, source, fmt.Errorf("branch: %s; file: %w", branchErr, fileErr)
-		}
-		return nil, source, fileErr
-	}
-	return nil, source, branchErr
 }

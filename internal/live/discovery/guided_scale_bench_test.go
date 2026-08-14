@@ -194,14 +194,14 @@ func runGuidedSweepBenchmark(t *testing.T) guidedSweepReport {
 	flocitest.Run(t, dir, terraformBin, "apply", "-auto-approve", "-input=false", "-no-color")
 	proxy.Reset()
 
-	// The hint: a real snapshot, built through projection.Manager exactly as
-	// writeGuidedHintFixture is for the equivalence tests, recording both
-	// types this estate now actually holds. aws_kms_key and
-	// aws_route53_zone are never mentioned - this estate never created any -
-	// so both stay absent from the hint and, per the design, always fully
-	// swept.
-	hintPath := filepath.Join(dir, "hint-snapshot.json")
-	writeGuidedHintFixture(t, hintPath, time.Now(), benchType, "aws_sns_topic")
+	// The hint: a real one, persisted to a real record store through
+	// projection.Manager exactly as writeGuidedHintFixture is for the
+	// equivalence tests, recording both types this estate now actually
+	// holds. aws_kms_key and aws_route53_zone are never mentioned - this
+	// estate never created any - so both stay absent from the hint and, per
+	// the design, always fully swept.
+	hintStore := newGuidedHintStore(t)
+	writeGuidedHintFixtureFor(t, hintStore, guidedBenchEstate, time.Now(), benchType, "aws_sns_topic")
 
 	// The undeclared-but-owned resource stays live; only its configuration
 	// block goes away, so the next config load declares nothing of it -
@@ -242,7 +242,7 @@ func runGuidedSweepBenchmark(t *testing.T) guidedSweepReport {
 	proxy.Reset()
 	routineReq := baseReq
 	routineReq.Guided = true
-	routineReq.SnapshotPath = hintPath
+	routineReq.HintStore = hintStore
 	routineRes, diags := Discover(context.Background(), routineReq)
 	assertNoErrors(t, diags)
 	if !routineRes.Guided {
@@ -320,7 +320,7 @@ func recordGuidedMeasurement(t *testing.T, report guidedSweepReport) {
 		"note": "Issue #64's guided-discovery axis, from TestGuidedSweepAgainstFloci " +
 			"(go test -run TestGuidedSweepAgainstFloci, TF_FLOCI_TEST=1). cold_calls is the estate-wide " +
 			"sweep's API call count over sweep_types with Request.Guided false; guided_routine_calls is the same " +
-			"sweep with Request.Guided true and a fresh snapshot hint (aws_sns_topic present, aws_kms_key and " +
+			"sweep with Request.Guided true and a fresh record-store hint (aws_sns_topic present, aws_kms_key and " +
 			"aws_route53_zone absent); guided_verify_calls adds Request.GuidedVerify, which must match cold_calls " +
 			"exactly. The config-driven scan costs nothing in any of the three numbers -- aws_s3_bucket is " +
 			"client-named and never reaches Discover's list/bind machinery, see assertBucketsCostNothing -- so " +

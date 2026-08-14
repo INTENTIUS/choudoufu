@@ -119,9 +119,9 @@ type Result struct {
 	// this pass trusts to remove rather than only report.
 	ParentReads []ParentReadFinding
 
-	// Guided is true when this pass actually consumed a snapshot hint:
-	// Request.Guided was set, a source was configured, and a fresh,
-	// well-formed snapshot was read from it. False whenever Request.Guided
+	// Guided is true when this pass actually consumed a hint:
+	// Request.Guided was set, a record store was configured, and a fresh,
+	// well-formed hint was read from it. False whenever Request.Guided
 	// was never set, and also false when it was set but the pass fell back
 	// to full enumeration - see GuidedFallback for why. Scan metadata only;
 	// nothing else in this Result depends on how Guided came to be true.
@@ -130,7 +130,7 @@ type Result struct {
 	// GuidedFallback is empty whenever Guided is true, or whenever
 	// Request.Guided was never set. Otherwise it names, in one sentence, why
 	// a requested guided pass fell back to today's full enumeration: no
-	// snapshot source configured, a missing or corrupted snapshot, or one
+	// record store configured, no hint recorded yet, a corrupted one, or one
 	// older than Request.GuidedMaxAge. Falling back is never an error and
 	// never changes what the plan proposes - see Request.Guided - only how
 	// many calls it cost to compute.

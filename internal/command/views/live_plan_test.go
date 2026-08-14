@@ -121,12 +121,12 @@ func TestStatelessPlan_guidedFallback(t *testing.T) {
 	streams, done := terminal.StreamsForTesting(t)
 	v := NewStatelessPlan(NewView(streams).SetRunningInAutomation(true))
 
-	v.GuidedFallback("the snapshot hint at snapshot/estate.json is stale (72h0m0s old, over the 168h0m0s limit); falling back to full enumeration")
+	v.GuidedFallback(`the record store's hint for estate "unit" is stale (72h0m0s old, over the 168h0m0s limit); falling back to full enumeration`)
 
 	got := done(t).Stdout()
 	for _, want := range []string{
-		"Snapshot-guided discovery: fell back to a full sweep",
-		"the snapshot hint at snapshot/estate.json is stale",
+		"Guided discovery: fell back to a full sweep",
+		`the record store's hint for estate "unit" is stale`,
 		"falling back to full enumeration",
 	} {
 		if !strings.Contains(got, want) {

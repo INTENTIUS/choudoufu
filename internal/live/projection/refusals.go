@@ -82,8 +82,8 @@ var refusals = []Refusal{
 		What:    "The provider refused the read this projection needed to fill in a resource's current state.",
 	},
 	{
-		Summary: "Could not write the observational snapshot",
-		What:    "The observational snapshot could not be written to its configured path.",
+		Summary: "Could not write the discovery hint",
+		What:    "Guided discovery's plan-cost hint could not be written to the estate's record store, so the next run pays a full estate sweep instead of a narrowed one.",
 	},
 	{
 		Summary: "Cyclic parent-derived identities",

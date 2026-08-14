@@ -949,7 +949,7 @@ one - and each says so in its own entry.
 | - | - | projection | Cannot read a parent's identity from the projection | `internal/live/projection` | "Cannot read a parent's identity from the projection" |
 | - | - | projection | Cannot read a persisted record | `internal/live/projection` | "Cannot read a persisted record" |
 | - | - | projection | Cannot read for projection | `internal/live/projection` | "Cannot read for projection" |
-| - | - | projection | Could not write the observational snapshot | `internal/live/projection` | "Could not write the observational snapshot" |
+| - | - | projection | Could not write the discovery hint | `internal/live/projection` | "Could not write the discovery hint" |
 | - | - | projection | Cyclic parent-derived identities | `internal/live/projection` | "Cyclic parent-derived identities" |
 | - | - | projection | Empty import identity | `internal/live/projection` | "Empty import identity" |
 | - | - | projection | Ignoring an additional imported object | `internal/live/projection` | "Ignoring an additional imported object" |
@@ -1919,9 +1919,9 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
-#### Could not write the observational snapshot
+#### Could not write the discovery hint
 
-**What.** The observational snapshot could not be written to its configured path.
+**What.** Guided discovery's plan-cost hint could not be written to the estate's record store, so the next run pays a full estate sweep instead of a narrowed one.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
