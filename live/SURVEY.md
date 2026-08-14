@@ -154,7 +154,7 @@ token per row.
 
 | Status | Meaning | Rows |
 |---|---|---|
-| `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | <!-- survey-gen:begin wired-count -->846<!-- survey-gen:end wired-count --> |
+| `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | <!-- survey-gen:begin wired-count -->845<!-- survey-gen:end wired-count --> |
 | `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 1 |
 | `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components | 0 |
 | `ops` | excluded by the rule, forwarded to the lifecycle layer | 3 |
@@ -299,7 +299,7 @@ identity argument were derived like every other row's.
 | aws_secretsmanager_secret | client-named | wired | name in config, but the required import attribute is the secret ARN, whose six-character server-generated suffix no account/region template reconstructs; deferred, and ready by the marker path since the type is taggable Row corrected 2026-08-14: the type is in the admission and identity tables, so the status is wired regardless of what the emulator note describes - found by TestRosterStatusAgreesWithAdmission, the #91-class drift check (#100). | roster fit; schema |
 | aws_ecs_task_definition | parent-derived | wired | family + revision, the revision assigned server-side per registration Row corrected 2026-08-14: the type is in the admission and identity tables, so the status is wired regardless of what the emulator note describes - found by TestRosterStatusAgreesWithAdmission, the #91-class drift check (#100). | survey note; schema |
 | aws_cloudfront_origin_access_control | list + content match | wired | server-assigned OAC ID, recovered by listing and matching on the required, AWS-enforced-unique "name" argument, since the type carries no tags; registry-ratified (#40, #44, #65), outside this survey's provider-schema path; the pinned floci image creates and lists OACs cleanly, so the earlier blocked-emulator note no longer holds | survey note, registry; docs |
-| aws_iam_access_key | moves to Ops | ops | server-assigned access key ID (AKIA...), and the secret half is unreadable after create | survey note; schema |
+| aws_iam_access_key | moves to Ops | ops | server-assigned access key ID (AKIA...), and the secret half is unreadable after create. The REMAINDER batch briefly admitted it against this rule; #125 ruled for the exclusion and the admission was removed 2026-08-14 | survey note; schema |
 | aws_secretsmanager_secret_version | moves to Ops | ops | secret_id + server-assigned version_id (a UUID) | survey note; schema |
 | aws_acm_certificate_validation | moves to Ops | ops | certificate_arn, recording only that the wait finished | survey note; schema |
 | aws_s3_bucket_versioning | client-named | wired | bucket (named singleton child) | roster fit; schema |

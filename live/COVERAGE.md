@@ -29,7 +29,7 @@ every type in it gets a named, one-sentence answer in
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-846<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+845<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
   `aws_amplify_app`, `aws_amplify_branch`, `aws_api_gateway_account`,
@@ -226,14 +226,14 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_guardduty_organization_admin_account`,
   `aws_guardduty_organization_configuration`,
   `aws_guardduty_publishing_destination`, `aws_guardduty_threatintelset`,
-  `aws_iam_access_key`, `aws_iam_group`, `aws_iam_group_policy`,
-  `aws_iam_group_policy_attachment`, `aws_iam_instance_profile`,
-  `aws_iam_openid_connect_provider`, `aws_iam_policy`, `aws_iam_role`,
-  `aws_iam_role_policy`, `aws_iam_role_policy_attachment`,
-  `aws_iam_saml_provider`, `aws_iam_server_certificate`,
-  `aws_iam_service_linked_role`, `aws_iam_user`, `aws_iam_user_policy`,
-  `aws_iam_user_policy_attachment`, `aws_iam_virtual_mfa_device`,
-  `aws_imagebuilder_component`, `aws_imagebuilder_container_recipe`,
+  `aws_iam_group`, `aws_iam_group_policy`, `aws_iam_group_policy_attachment`,
+  `aws_iam_instance_profile`, `aws_iam_openid_connect_provider`,
+  `aws_iam_policy`, `aws_iam_role`, `aws_iam_role_policy`,
+  `aws_iam_role_policy_attachment`, `aws_iam_saml_provider`,
+  `aws_iam_server_certificate`, `aws_iam_service_linked_role`, `aws_iam_user`,
+  `aws_iam_user_policy`, `aws_iam_user_policy_attachment`,
+  `aws_iam_virtual_mfa_device`, `aws_imagebuilder_component`,
+  `aws_imagebuilder_container_recipe`,
   `aws_imagebuilder_distribution_configuration`, `aws_imagebuilder_image`,
   `aws_imagebuilder_image_pipeline`, `aws_imagebuilder_image_recipe`,
   `aws_imagebuilder_infrastructure_configuration`,

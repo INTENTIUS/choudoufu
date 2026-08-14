@@ -191,7 +191,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 15,
+      "sites": 17,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -256,12 +256,12 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 7,
-      "sites": 12,
+      "instances": 4,
+      "sites": 16,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 2
+      "shadowed": 5
     },
     {
       "name": ".corpus/lambda/examples/alias",
@@ -1118,7 +1118,7 @@
       "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
-      "instances": 25,
+      "instances": 24,
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
@@ -1228,7 +1228,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
       "raised_by": "internal/live/lint",
       "configs": 58,
-      "sites": 845,
+      "sites": 851,
       "types": [
         {
           "type": "aws_lambda_permission",
@@ -1340,6 +1340,10 @@
         },
         {
           "type": "aws_ecs_service",
+          "sites": 6
+        },
+        {
+          "type": "aws_iam_access_key",
           "sites": 6
         },
         {
@@ -2742,8 +2746,8 @@
   "totals": {
     "configs": 105,
     "loaded": 105,
-    "instances": 1057,
-    "sites": 11634,
+    "instances": 1053,
+    "sites": 11640,
     "refusals_fired": 17,
     "refusals_in_set": 107,
     "configs_without_schemas": 0,
@@ -2756,7 +2760,7 @@
       "loaded": 31,
       "blocked": 9,
       "clean": 22,
-      "instances": 638,
+      "instances": 637,
       "sites": 26,
       "reads_as": "ranking"
     },
@@ -2766,8 +2770,8 @@
       "loaded": 74,
       "blocked": 72,
       "clean": 2,
-      "instances": 419,
-      "sites": 11608,
+      "instances": 416,
+      "sites": 11614,
       "reads_as": "ranking"
     }
   ],

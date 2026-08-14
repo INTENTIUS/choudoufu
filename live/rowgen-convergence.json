@@ -1,11 +1,11 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 846,
-    "compared": 825,
+    "admitted_total": 845,
+    "compared": 824,
     "not_in_mapped_set": 21,
-    "adopted_unchanged": 631,
-    "adopted_unchanged_pct": 76.48,
+    "adopted_unchanged": 630,
+    "adopted_unchanged_pct": 76.46,
     "genuine_mismatches": 194,
     "annotated": 0,
     "unannotated_mismatches": 194,
@@ -423,9 +423,9 @@
       "adopted_unchanged_pct": 28.57
     },
     "IAM": {
-      "compared": 17,
-      "adopted_unchanged": 11,
-      "adopted_unchanged_pct": 64.71
+      "compared": 16,
+      "adopted_unchanged": 10,
+      "adopted_unchanged_pct": 62.5
     },
     "IVS": {
       "compared": 3,
@@ -5228,14 +5228,6 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_iam_access_key",
-      "service": "IAM",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "matched": true,
       "annotated": false
     },
     {

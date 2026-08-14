@@ -387,7 +387,6 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_guardduty_organization_configuration":                              {},
 	"aws_guardduty_publishing_destination":                                  {},
 	"aws_guardduty_threatintelset":                                          {},
-	"aws_iam_access_key":                                                    {},
 	"aws_iam_group":                                                         {},
 	"aws_iam_group_policy":                                                  {},
 	"aws_iam_group_policy_attachment":                                       {},

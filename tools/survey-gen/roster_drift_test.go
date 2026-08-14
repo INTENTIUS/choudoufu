@@ -46,12 +46,11 @@ func TestRosterStatusAgreesWithAdmission(t *testing.T) {
 	// question rather than table drift, each with the issue that owns it. An
 	// entry here is exempt from the flip rule but still checked for
 	// staleness: the day the conflict resolves, the entry must go.
-	knownConflicts := map[string]string{
-		// The survey's ops rule excludes it (the secret half is unreadable
-		// after create); the identity table admits it ServerAssigned. One
-		// of the two is wrong, and it is not a bookkeeping call.
-		"aws_iam_access_key": "https://github.com/INTENTIUS/choudoufu/issues/125",
-	}
+	// Emptied 2026-08-14: the one entry (aws_iam_access_key) resolved when
+	// #125 ruled for the survey's ops exclusion and the admission was
+	// removed - the tables agree again, which is exactly the transition the
+	// staleness arm below exists to force.
+	knownConflicts := map[string]string{}
 
 	for _, row := range rows {
 		_, admitted := identity.LookupType(row.Type)

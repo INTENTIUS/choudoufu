@@ -811,7 +811,7 @@ one - and each says so in its own entry.
 | Configs | Sites | Layer | Refusal | Raised by | Documented at |
 |---|---|---|---|---|---|
 | 66 | 3536 | identity | Unable to compute static value | `internal/configs` | "Unable to compute static value" |
-| 58 | 845 | lint | unadmitted-type | `internal/live/lint` | "unadmitted-type" |
+| 58 | 851 | lint | unadmitted-type | `internal/live/lint` | "unadmitted-type" |
 | 57 | 1953 | identity | Dynamic value in static context | `internal/configs` | "Dynamic value in static context" |
 | 49 | 415 | lint | logical-resource | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
 | 37 | 121 | identity | Unresolvable identity | `internal/live/identity` | "Unresolvable identity" |
@@ -2223,8 +2223,8 @@ inject into a shared configuration body. (`internal/live/stamp/stamp.go`,
 `aws_glue_data_catalog_encryption_settings`,
 `aws_glue_security_configuration`, `aws_guardduty_member`,
 `aws_guardduty_organization_admin_account`,
-`aws_guardduty_organization_configuration`, `aws_iam_access_key`,
-`aws_iam_group`, `aws_iam_group_policy`, `aws_iam_group_policy_attachment`,
+`aws_guardduty_organization_configuration`, `aws_iam_group`,
+`aws_iam_group_policy`, `aws_iam_group_policy_attachment`,
 `aws_iam_role_policy`, `aws_iam_role_policy_attachment`,
 `aws_iam_user_policy`, `aws_iam_user_policy_attachment`,
 `aws_inspector2_delegated_admin_account`,
@@ -2510,7 +2510,7 @@ per-type reasoning as it stands.
 `aws_eip_association`, `aws_globalaccelerator_endpoint_group`,
 `aws_globalaccelerator_listener`,
 `aws_glue_data_catalog_encryption_settings`,
-`aws_guardduty_organization_admin_account`, `aws_iam_access_key`,
+`aws_guardduty_organization_admin_account`,
 `aws_inspector2_delegated_admin_account`,
 `aws_inspector2_member_association`, `aws_inspector_assessment_target`,
 `aws_iot_topic_rule_destination`, `aws_lambda_layer_version`,
