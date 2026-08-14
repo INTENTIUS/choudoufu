@@ -950,7 +950,6 @@ one - and each says so in its own entry.
 | - | - | projection | Cannot read a persisted record | `internal/live/projection` | "Cannot read a persisted record" |
 | - | - | projection | Cannot read for projection | `internal/live/projection` | "Cannot read for projection" |
 | - | - | projection | Could not write the discovery hint | `internal/live/projection` | "Could not write the discovery hint" |
-| - | - | projection | Could not write the observational snapshot | `internal/live/projection` | "Could not write the observational snapshot" |
 | - | - | projection | Cyclic parent-derived identities | `internal/live/projection` | "Cyclic parent-derived identities" |
 | - | - | projection | Empty import identity | `internal/live/projection` | "Empty import identity" |
 | - | - | projection | Ignoring an additional imported object | `internal/live/projection` | "Ignoring an additional imported object" |
@@ -976,7 +975,7 @@ one - and each says so in its own entry.
 | - | - | stamp | Ownership markers not stamped | `internal/live/stamp` | "Ownership markers not stamped" |
 | - | - | stamp | Unmarked apply of a marker-only resource | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 
-**164 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
+**163 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -1923,14 +1922,6 @@ reserved for the limits wing's fixture directories, and
 #### Could not write the discovery hint
 
 **What.** Guided discovery's plan-cost hint could not be written to the estate's record store, so the next run pays a full estate sweep instead of a narrowed one.
-
-**Where.** The projection pass, raised by `internal/live/projection`.
-
-**How often.** Not measured: absent from the corpus artifact this was generated against.
-
-#### Could not write the observational snapshot
-
-**What.** The observational snapshot could not be written to its configured path.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

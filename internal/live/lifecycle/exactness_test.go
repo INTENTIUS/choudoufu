@@ -37,7 +37,7 @@ import (
 // destroy and recreate a resource that needed a tag rewritten.
 //
 // It runs on its own floci container on its own port, so it is independent of
-// the P4.1 lifecycle test and of the snapshot test beside it.
+// the P4.1 lifecycle test and of the hint test beside it.
 func TestStatelessExactnessAgainstFloci(t *testing.T) {
 	flocitest.Gate(t, "stateless exactness")
 	flocitest.RequireBinary(t, "docker")

@@ -26,80 +26,18 @@ func TestModule_live(t *testing.T) {
 	}
 }
 
-// TestModule_liveSnapshotPath: the optional observational snapshot
-// (P4.2) is opt-in through its own literal-string argument, decoded
-// alongside estate but independent of it.
-func TestModule_liveSnapshotPath(t *testing.T) {
-	mod, diags := testModuleFromDir("testdata/valid-modules/live-snapshot")
-	if diags.HasErrors() {
-		t.Fatalf("unexpected diagnostics: %s", diags.Error())
-	}
-	if mod.Live == nil {
-		t.Fatal("no live block was decoded")
-	}
-	if got, want := mod.Live.SnapshotPath, "snapshots/my-estate.json"; got != want {
-		t.Errorf("SnapshotPath is %q, want %q", got, want)
-	}
-}
-
-// TestModule_liveSnapshots: the branch carrier is opt-in through its own
-// literal-bool argument. Alone it means "orphan branch in the enclosing
-// repository"; combined with snapshot_path it means "branch first, file as
-// the fallback", and both decode side by side rather than excluding each
-// other.
-func TestModule_liveSnapshots(t *testing.T) {
-	mod, diags := testModuleFromDir("testdata/valid-modules/live-snapshot-branch")
-	if diags.HasErrors() {
-		t.Fatalf("unexpected diagnostics: %s", diags.Error())
-	}
-	if mod.Live == nil {
-		t.Fatal("no live block was decoded")
-	}
-	if !mod.Live.Snapshots {
-		t.Error("Snapshots is false for a block that set snapshots = true")
-	}
-	if mod.Live.SnapshotPath != "" {
-		t.Errorf("SnapshotPath is %q for a block that set none, want empty", mod.Live.SnapshotPath)
-	}
-
-	both, diags := testModuleFromDir("testdata/valid-modules/live-snapshot-both")
-	if diags.HasErrors() {
-		t.Fatalf("unexpected diagnostics for the combined block: %s", diags.Error())
-	}
-	if !both.Live.Snapshots {
-		t.Error("Snapshots is false for the combined block")
-	}
-	if got, want := both.Live.SnapshotPath, "snapshots/my-estate.json"; got != want {
-		t.Errorf("SnapshotPath is %q, want %q", got, want)
-	}
-}
-
-// TestModule_liveSnapshotsAbsent: no attribute means false, which must mean
-// the branch carrier is never touched - the same "no attribute -> nothing
-// written, ever" rule snapshot_path follows.
-func TestModule_liveSnapshotsAbsent(t *testing.T) {
-	mod, diags := testModuleFromDir("testdata/valid-modules/live")
-	if diags.HasErrors() {
-		t.Fatalf("unexpected diagnostics: %s", diags.Error())
-	}
-	if mod.Live == nil {
-		t.Fatal("no live block was decoded")
-	}
-	if mod.Live.Snapshots {
-		t.Error("Snapshots is true for a block that set no snapshots argument")
-	}
-}
-
-// TestModule_liveSnapshotsRefused: like estate and snapshot_path, the
-// argument must be a literal, and it must be a bool. Both refusals arrive
-// from the decoder, and neither leaves Snapshots set.
-func TestModule_liveSnapshotsRefused(t *testing.T) {
+// TestModule_liveSnapshotArgumentsRemoved: issue #109 removed observational
+// snapshots, and a configuration still carrying either of the two arguments
+// that configured them gets the authored removal error - naming what the
+// argument did, why the subsystem is gone, and where the surviving piece
+// (guided discovery's hint) went - rather than HCL's generic "Unsupported
+// argument".
+func TestModule_liveSnapshotArgumentsRemoved(t *testing.T) {
 	for _, tc := range []struct {
 		file string
-		want string
 	}{
-		{"testdata/invalid-files/live-non-literal-snapshots.tf", "Variables not allowed"},
-		{"testdata/invalid-files/live-invalid-snapshots.tf", "literal true or false"},
+		{"testdata/invalid-files/live-snapshots-removed.tf"},
+		{"testdata/invalid-files/live-snapshot-path-removed.tf"},
 	} {
 		t.Run(tc.file, func(t *testing.T) {
 			parser := NewParser(nil)
@@ -107,56 +45,47 @@ func TestModule_liveSnapshotsRefused(t *testing.T) {
 			if !diags.HasErrors() {
 				t.Fatal("the configuration loaded with no errors")
 			}
-			if !strings.Contains(diags.Error(), tc.want) {
-				t.Errorf("wrong diagnostic:\n%s", diags.Error())
+			for _, want := range []string{
+				"Observational snapshots were removed",
+				"Remove the argument",
+				"record_store",
+			} {
+				if !strings.Contains(diags.Error(), want) {
+					t.Errorf("the removal error does not mention %q:\n%s", want, diags.Error())
+				}
 			}
 		})
 	}
 }
 
-// TestModule_liveSnapshotPathAbsent: no attribute means an empty
-// SnapshotPath, which is the switch that must mean no snapshot is ever
-// written - the same "no attribute -> no file, ever" rule as the block
-// itself relative to state.
-func TestModule_liveSnapshotPathAbsent(t *testing.T) {
-	mod, diags := testModuleFromDir("testdata/valid-modules/live")
-	if diags.HasErrors() {
-		t.Fatalf("unexpected diagnostics: %s", diags.Error())
-	}
-	if mod.Live == nil {
-		t.Fatal("no live block was decoded")
-	}
-	if mod.Live.SnapshotPath != "" {
-		t.Errorf("SnapshotPath is %q for a block that set no snapshot_path, want empty", mod.Live.SnapshotPath)
-	}
-}
-
-// TestValidateSnapshotPath is C6's regression. The argument used to be
-// accepted as any non-empty literal and then handed straight to os.MkdirAll
-// and os.Rename, which the audit used to destroy a real terraform.tfstate
-// and to write through "../../" into a sibling project. A cache may write
-// one operator-named file inside the module directory and nothing else.
-func TestValidateSnapshotPath(t *testing.T) {
+// TestValidateRecordStorePath is C6's regression, inherited from the
+// removed snapshot_path argument (issue #109): the unchecked version of
+// this rule set was used by an audit to destroy a real terraform.tfstate
+// and to write through "../../" into a sibling project. The local record
+// store may write inside one operator-named directory in the module
+// directory and nowhere else.
+func TestValidateRecordStorePath(t *testing.T) {
 	for _, tc := range []struct {
 		path string
 		want string // a fragment of the refusal, or "" for accepted
 	}{
 		// Accepted: a relative path inside the module directory.
-		{"snapshot.json", ""},
-		{"snapshots/my-estate.json", ""},
-		{"./cache/estate.json", ""},
-		{"a/../b/estate.json", ""},
+		{"records", ""},
+		{".tofu-records", ""},
+		{"records/my-estate", ""},
+		{"./cache/records", ""},
+		{"a/../b/records", ""},
 
 		// Escaping the module directory, in every spelling.
 		{"../victim/terraform.tfstate", "stay inside the module directory"},
-		{"../../victim/terraform.tfstate", "stay inside the module directory"},
-		{"snapshots/../../victim.json", "stay inside the module directory"},
-		{"..\\victim\\snapshot.json", "stay inside the module directory"},
+		{"../../victim/records", "stay inside the module directory"},
+		{"records/../../victim", "stay inside the module directory"},
+		{"..\\victim\\records", "stay inside the module directory"},
 
 		// Absolute, so "inside the module directory" is not even claimed.
 		{"/etc/passwd", "relative path"},
-		{"/tmp/snapshot.json", "relative path"},
-		{"C:\\windows\\system32\\snapshot.json", "relative path"},
+		{"/tmp/records", "relative path"},
+		{"C:\\windows\\system32\\records", "relative path"},
 
 		// Named like a state file.
 		{"terraform.tfstate", "must not name a state file"},
@@ -167,13 +96,13 @@ func TestValidateSnapshotPath(t *testing.T) {
 
 		// OpenTofu's own working directory.
 		{".terraform/terraform.tfstate", "must not name a state file"},
-		{".terraform/snapshot.json", "inside the .terraform directory"},
+		{".terraform/records", "inside the .terraform directory"},
 
-		// A directory is not a file to write.
+		// The module directory itself is not a directory to hand over.
 		{".", "names the module directory itself"},
 	} {
 		t.Run(tc.path, func(t *testing.T) {
-			got := validateSnapshotPath(tc.path)
+			got := validateRecordStorePath(tc.path)
 			switch {
 			case tc.want == "" && got != "":
 				t.Errorf("%q was refused: %s", tc.path, got)
@@ -181,30 +110,6 @@ func TestValidateSnapshotPath(t *testing.T) {
 				t.Errorf("%q was accepted, want a refusal mentioning %q", tc.path, tc.want)
 			case tc.want != "" && !strings.Contains(got, tc.want):
 				t.Errorf("%q was refused with the wrong reason:\ngot:  %s\nwant it to mention: %s", tc.path, got, tc.want)
-			}
-		})
-	}
-}
-
-// TestModule_liveSnapshotPathRefused: the refusal is a configuration error
-// reaching the operator through the decoder, not a runtime surprise, and the
-// path never makes it onto the Live value for anything to act on.
-func TestModule_liveSnapshotPathRefused(t *testing.T) {
-	for _, tc := range []struct {
-		file string
-		want string
-	}{
-		{"testdata/invalid-files/live-snapshot-path-traversal.tf", "stay inside the module directory"},
-		{"testdata/invalid-files/live-snapshot-path-statefile.tf", "must not name a state file"},
-	} {
-		t.Run(tc.file, func(t *testing.T) {
-			parser := NewParser(nil)
-			_, diags := parser.LoadConfigFile(tc.file)
-			if !diags.HasErrors() {
-				t.Fatal("the configuration loaded with no errors")
-			}
-			if !strings.Contains(diags.Error(), tc.want) {
-				t.Errorf("wrong diagnostic:\n%s", diags.Error())
 			}
 		})
 	}
@@ -357,8 +262,8 @@ func TestModule_livePolicyPartial(t *testing.T) {
 }
 
 // TestModule_liveNoPolicy: a live block with no policy block at all decodes
-// with a nil Policy - the same "absent means absent" rule Snapshots and
-// SnapshotPath already follow.
+// with a nil Policy - the same "absent means absent" rule the record_store
+// block follows.
 func TestModule_liveNoPolicy(t *testing.T) {
 	mod, diags := testModuleFromDir("testdata/valid-modules/live")
 	if diags.HasErrors() {
@@ -370,8 +275,8 @@ func TestModule_liveNoPolicy(t *testing.T) {
 }
 
 // TestModule_livePolicyRefused: everything that can be wrong with a policy
-// block's arguments is lexical, the same rule estate and snapshot_path
-// follow, so the decoder catches all of it.
+// block's arguments is lexical, the same rule estate follows, so the
+// decoder catches all of it.
 func TestModule_livePolicyRefused(t *testing.T) {
 	for _, tc := range []struct {
 		file string
@@ -512,6 +417,7 @@ func TestModule_liveRecordStoreRefused(t *testing.T) {
 		{"testdata/invalid-files/live-record-store-unknown-backend.tf", `names a backend this fork does not know`},
 		{"testdata/invalid-files/live-record-store-s3-no-bucket.tf", `requires a "bucket" argument`},
 		{"testdata/invalid-files/live-record-store-key-prefix-receipts.tf", `must not begin with the "tofu-receipts" segment`},
+		{"testdata/invalid-files/live-record-store-key-prefix-hints.tf", `must not begin with the "tofu-hints" segment`},
 		{"testdata/invalid-files/live-record-store-duplicate.tf", "Duplicate record_store block"},
 	} {
 		t.Run(tc.file, func(t *testing.T) {
@@ -530,9 +436,10 @@ func TestModule_liveRecordStoreRefused(t *testing.T) {
 // TestValidateRecordStoreKeyPrefix is the disjointness rule GitHub issue
 // #73's namespace-safety requirement rests on at the config layer: a
 // key_prefix override can never land inside live/RECEIPTS.md's
-// "/tofu-receipts/" namespace, checked at the "/"-delimited segment level
-// so a merely-similar-looking prefix ("tofu-receipts-archive") is not
-// falsely refused.
+// "/tofu-receipts/" namespace, nor inside guided discovery's "tofu-hints/"
+// namespace (issue #109), checked at the "/"-delimited segment level so a
+// merely-similar-looking prefix ("tofu-receipts-archive") is not falsely
+// refused.
 func TestValidateRecordStoreKeyPrefix(t *testing.T) {
 	for _, tc := range []struct {
 		prefix string
@@ -545,10 +452,16 @@ func TestValidateRecordStoreKeyPrefix(t *testing.T) {
 		// segment match and must not be refused.
 		{"tofu-receipts-archive", ""},
 		{"nested/tofu-receipts", ""},
+		{"tofu-hints-archive", ""},
+		{"nested/tofu-hints", ""},
 
 		{"tofu-receipts", "must not begin with the \"tofu-receipts\" segment"},
 		{"tofu-receipts/my-estate", "must not begin with the \"tofu-receipts\" segment"},
 		{"/tofu-receipts/my-estate", "must not begin with the \"tofu-receipts\" segment"},
+
+		{"tofu-hints", "must not begin with the \"tofu-hints\" segment"},
+		{"tofu-hints/my-estate", "must not begin with the \"tofu-hints\" segment"},
+		{"/tofu-hints/my-estate", "must not begin with the \"tofu-hints\" segment"},
 
 		{"", "empty"},
 		{"///", "empty"},

@@ -320,7 +320,7 @@ func recordGuidedMeasurement(t *testing.T, report guidedSweepReport) {
 		"note": "Issue #64's guided-discovery axis, from TestGuidedSweepAgainstFloci " +
 			"(go test -run TestGuidedSweepAgainstFloci, TF_FLOCI_TEST=1). cold_calls is the estate-wide " +
 			"sweep's API call count over sweep_types with Request.Guided false; guided_routine_calls is the same " +
-			"sweep with Request.Guided true and a fresh snapshot hint (aws_sns_topic present, aws_kms_key and " +
+			"sweep with Request.Guided true and a fresh record-store hint (aws_sns_topic present, aws_kms_key and " +
 			"aws_route53_zone absent); guided_verify_calls adds Request.GuidedVerify, which must match cold_calls " +
 			"exactly. The config-driven scan costs nothing in any of the three numbers -- aws_s3_bucket is " +
 			"client-named and never reaches Discover's list/bind machinery, see assertBucketsCostNothing -- so " +

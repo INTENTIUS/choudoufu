@@ -98,7 +98,8 @@ func RecordAddr(prefix, key string) (addrs.AbsResourceInstance, bool) {
 // requiring the reader to already have the exact provider schema type in
 // hand: the type travels with the value, self-described, the same "native
 // state format as internal lingua franca" precedent issue #73's charter
-// names for snapshots and projections alike.
+// names for projections and micro-state alike (its third use, the
+// observational snapshot, was removed by issue #109).
 type recordPayload struct {
 	// ValueType is the value's own cty type, as ctyjson.MarshalType writes
 	// it - what lets decodeRecordPayload rebuild the value with no schema

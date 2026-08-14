@@ -162,25 +162,11 @@ func statelessBegin(
 		return diags
 	}
 
+	// The manager's one optional side effect - guided discovery's hint
+	// (issue #109) - is enabled later, in PriorState, once the estate name
+	// is settled and the live block's record store (its carrier) is open.
+	// Nothing to configure here.
 	mgr := projection.NewManager()
-	if settings.SnapshotPath != "" {
-		// The estate name is not settled yet - it may still need to be
-		// derived from the configuration's own tags, which happens later in
-		// PriorState - so this only turns the snapshot on; the estate field
-		// it records is filled in by statelessRunner.estateName once known.
-		// See [projection.Manager.EnableSnapshot] for why "nobody called
-		// this" is what "no snapshot_path attribute" has to mean.
-		mgr.EnableSnapshot(settings.SnapshotPath, settings.Estate, time.Now)
-	}
-	if settings.Snapshots {
-		// The branch carrier: one commit per apply on the repository
-		// enclosing the module directory, which is this process's working
-		// directory - the same "." every command's config load reads from.
-		// When snapshot_path is set too, the manager treats the file as the
-		// fallback for a directory with no enclosing repository; see
-		// [projection.Manager.EnableSnapshotBranch].
-		mgr.EnableSnapshotBranch(".", settings.Estate, time.Now)
-	}
 
 	runner := &statelessRunner{
 		settings: settings,
@@ -378,16 +364,6 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	if estateDiags.HasErrors() {
 		return nil, diags
 	}
-	// The estate the snapshot (P4.2) records may have been unknown when the
-	// manager was constructed - the live block can leave it to be
-	// derived from configuration tags, which is exactly what estateName just
-	// did - so it is set here, now that it is settled. A no-op when the
-	// snapshot was never enabled. Settling the estate name and recording it
-	// on the manager touches nothing outside this process - no cloud read, no
-	// cloud write - so doing it ahead of lint below is harmless: see
-	// [projection.Manager.SetSnapshotEstate].
-	r.mgr.SetSnapshotEstate(estate)
-
 	provs := newStatelessProviders(config, r.lib)
 
 	// Read once and handed to both the subset check and resolution below, so

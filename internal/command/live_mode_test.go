@@ -6,9 +6,8 @@
 package command
 
 import (
-	"encoding/json"
+	"context"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -16,6 +15,8 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/command/workdir"
+	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/terminal"
 )
@@ -342,15 +343,15 @@ func TestStatelessMode_priorStateRunsOncePlan(t *testing.T) {
 	}
 }
 
-// TestStatelessMode_plainApplySnapshot is the wiring proof for P4.2's
-// snapshot_path attribute: a live block that sets it makes a plain
-// "choudoufu apply" write the observational snapshot after the run, naming the
-// estate this run resolved and listing the resources it applied - and it is
-// the only artifact left behind; the no-persistence proof from
+// TestStatelessMode_plainApplyWritesHint is issue #109's wiring proof: a
+// live block with a record_store makes a plain "choudoufu apply" persist
+// guided discovery's hint into that store after the run, naming the estate
+// this run resolved and the resource types it applied - and the record
+// directory is the only artifact left behind; the no-persistence proof from
 // TestStatelessMode_plainApply still has to hold beside it.
-func TestStatelessMode_plainApplySnapshot(t *testing.T) {
+func TestStatelessMode_plainApplyWritesHint(t *testing.T) {
 	td := t.TempDir()
-	testCopyDir(t, testFixturePath("live-block-snapshot"), td)
+	testCopyDir(t, testFixturePath("live-block-record-store"), td)
 	t.Chdir(td)
 
 	cloud := newStatelessTestCloud()
@@ -367,54 +368,31 @@ func TestStatelessMode_plainApplySnapshot(t *testing.T) {
 		t.Fatalf("apply did not create both resources:\n%s", output.Stdout())
 	}
 
-	snapPath := filepath.Join(td, "snapshot", "estate.json")
-	data, err := os.ReadFile(snapPath)
+	// Read the hint back through the same store shape the fixture's
+	// record_store "local" block defaults to (a ".tofu-records" directory
+	// beside the module) and the exported reader guided discovery itself
+	// uses.
+	store, err := staterecord.NewLocalStore(filepath.Join(td, ".tofu-records"))
 	if err != nil {
-		t.Fatalf("reading the snapshot at %s: %s", snapPath, err)
+		t.Fatalf("opening the record store the apply should have written into: %s", err)
 	}
-
-	// A hand-written shape rather than the writer's own type, which is
-	// unexported precisely so that no package outside the writer can decode
-	// this file into it. Reading it here to assert what the writer produced
-	// is the verification of that contract, not a violation of it; see
-	// TestSnapshot_noReader in internal/live/projection for where the
-	// line is drawn and why test files sit on this side of it.
-	var snap struct {
-		FormatVersion string `json:"formatVersion"`
-		Estate        string `json:"estate"`
-		WrittenAt     string `json:"writtenAt"`
-		Resources     []struct {
-			Address        string `json:"address"`
-			AttributesHash string `json:"attributesHash"`
-		} `json:"resources"`
+	hint, err := projection.ReadHintStore(context.Background(), store, "stateless-unit")
+	if err != nil {
+		t.Fatalf("no hint was persisted by the apply: %s", err)
 	}
-	if err := json.Unmarshal(data, &snap); err != nil {
-		t.Fatalf("decoding the snapshot: %s\nraw: %s", err, data)
+	if hint.Estate != "stateless-unit" {
+		t.Errorf("estate is %q, want %q", hint.Estate, "stateless-unit")
 	}
-	if snap.FormatVersion == "" {
-		t.Error("the snapshot has no formatVersion")
+	if hint.WrittenAt.IsZero() {
+		t.Error("writtenAt is zero")
 	}
-	if snap.Estate != "stateless-unit" {
-		t.Errorf("estate is %q, want %q", snap.Estate, "stateless-unit")
-	}
-	if snap.WrittenAt == "" {
-		t.Error("writtenAt is empty")
-	}
-
-	gotAddrs := make(map[string]bool, len(snap.Resources))
-	for _, res := range snap.Resources {
-		gotAddrs[res.Address] = true
-		if res.AttributesHash == "" {
-			t.Errorf("%s has no attributesHash", res.Address)
-		}
-	}
-	for _, want := range []string{"aws_s3_bucket.data", "aws_vpc.main"} {
-		if !gotAddrs[want] {
-			t.Errorf("the snapshot does not list %s: %v", want, gotAddrs)
+	for _, want := range []string{"aws_s3_bucket", "aws_vpc"} {
+		if !hint.Types[want] {
+			t.Errorf("the hint does not record type %s: %v", want, hint.Types)
 		}
 	}
 
-	// The snapshot is the one artifact this run is allowed to leave behind;
+	// The hint is the one artifact this run is allowed to leave behind;
 	// everything the state-artifact walk looks for still must not exist.
 	assertNoStateArtifacts(t, td)
 }

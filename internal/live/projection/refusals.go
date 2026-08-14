@@ -86,10 +86,6 @@ var refusals = []Refusal{
 		What:    "Guided discovery's plan-cost hint could not be written to the estate's record store, so the next run pays a full estate sweep instead of a narrowed one.",
 	},
 	{
-		Summary: "Could not write the observational snapshot",
-		What:    "The observational snapshot could not be written to its configured path.",
-	},
-	{
 		Summary: "Cyclic parent-derived identities",
 		What:    "Two or more resources derive their identities from each other, directly or transitively, so none of them can be built first.",
 	},
