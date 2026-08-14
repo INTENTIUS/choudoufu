@@ -975,7 +975,7 @@ one - and each says so in its own entry.
 | - | - | stamp | Ownership markers not stamped | `internal/live/stamp` | "Ownership markers not stamped" |
 | - | - | stamp | Unmarked apply of a marker-only resource | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 
-**163 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
+**164 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
