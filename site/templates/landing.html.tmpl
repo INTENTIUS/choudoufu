@@ -15,13 +15,13 @@
   configuration says what should exist and the cloud says what does.</p>
 
   <p><strong>Choudoufu state is allowed to be stale. OpenTofu state is
-  not.</strong> That is the whole difference. A record here is rebuilt from
+  not.</strong> A record here is rebuilt from
   the live system on demand, so a stale or missing one costs a re-read, never
   a wrong plan. Adoption is a tag you write and a rename is a tag you
   rewrite.</p>
 
   <p>You never configure a backend, take a lock, or perform state surgery.
-  What genuinely cannot be read back from the cloud — an effect with no cloud
+  What cannot be read back from the cloud — an effect with no cloud
   twin, like a <code>null_resource</code> or a <code>time_*</code> — persists
   as one small record per resource in SSM Parameter Store, S3, or a local
   file. Those records are written with conditional writes rather than
@@ -43,8 +43,8 @@
   <code>for_each</code> over a data source, a <code>count.index</code> in a
   resource name, a <code>backend "s3"</code> block, or a CI pipeline that
   saves a plan file will each stop one first.
-  <a href="compatibility.html">Will my config work?</a> is the honest list,
-  and it is worth ten minutes before you try a migration.</p>
+  <a href="compatibility.html">Will my config work?</a> is the honest list.
+  Read it before you try a migration.</p>
 </section>
 
 <section class="paths">

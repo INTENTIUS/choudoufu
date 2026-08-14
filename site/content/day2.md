@@ -13,7 +13,7 @@ choudoufu live-mv aws_vpc.old aws_vpc.new
 ```
 
 That rewrites the `tofu-address` tag on the live resource carrying the old
-address. It is the whole replacement for `moved` blocks and state surgery,
+address. It replaces `moved` blocks and state surgery outright,
 because there is no state to edit. It leaves resources that were never adopted
 alone.
 
@@ -85,9 +85,9 @@ quadrant.
 
 Setting `undeclared_untagged = "delete"` turns on account reconciliation, which
 deletes resources your configuration has never mentioned. It requires a `scope`
-block, and it is worth re-reading the two orphan cases above before enabling
-it: the sweep cannot see everything in the account, so a clean reconciliation
-does not mean the account is clean.
+block. Re-read the two orphan cases above before enabling it: the sweep cannot
+see everything in the account, so a clean reconciliation does not mean the
+account is clean.
 
 ## Effects the cloud cannot tell you about
 
@@ -129,8 +129,7 @@ four ways:
 No race orphans a resource silently. Each case is either a clean re-plan or a
 named collision.
 
-The comparison worth understanding is with a backend whose lock fails or was
-never configured: there, the last state write wins and the loser's resource is
+Compare that with a backend whose lock fails or was never configured: the last state write wins and the loser's resource is
 silently dropped from every future plan. A crash mid-apply is the same story,
 lock or no lock, because a resource created but not yet recorded is orphaned
 either way. Under markers the tag rode the create call itself, so the resource

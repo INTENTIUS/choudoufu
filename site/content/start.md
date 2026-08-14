@@ -6,8 +6,8 @@ configuration and choudoufu will create every resource in it.
 If AWS already holds resources this configuration should manage, stop here and
 read [Migrate an existing estate](migrate.html) first. Nothing binds a live
 resource to your configuration until its markers are on it, so applying against
-unmarked resources creates a second copy beside them. That is the one thing
-worth getting right before anything else.
+unmarked resources creates a second copy beside them. Get that right before
+anything else.
 
 ## Install
 
@@ -110,7 +110,7 @@ stamped on it.
     }
 ```
 
-Those two tags are the whole ownership contract. `live/MARKERS.md` in the
+Those two tags are the entire ownership contract. `live/MARKERS.md` in the
 repository is the normative spec, and it is the surface external tooling can
 rely on.
 
@@ -126,9 +126,9 @@ cloud can report back on. The next `choudoufu plan` in this directory rebuilds
 prior state by reading the `tofu-estate` and `tofu-address` tags back off the
 live resources, and reports no changes.
 
-That is the check worth repeating on your own estate, because it is the one a
-reader can perform without trusting this page: after a live apply, the plan
-rebuilt from markers alone is empty, and no state file exists.
+Repeat that check on your own estate. It is the one you can run without
+trusting this page: after a live apply, the plan rebuilt from markers alone is
+empty, and no state file exists.
 
 ## See it prove itself
 
@@ -149,4 +149,4 @@ and what the other exit codes mean.
 - [Day-2 operations](day2.html) for renames, removals and running this with
   other people.
 - [Will my config work](compatibility.html) for the constructs the mode
-  refuses, which is worth reading before the configuration grows.
+  refuses. Read it before the configuration grows.

@@ -202,7 +202,7 @@ invoked.
   `state show`.
 - `import`, `refresh`, `taint`, `untaint`.
 - `-out` to save a plan, and `apply <planfile>`. **This is how most CI runs
-  Terraform**, so it is worth checking before anything else. Ordinary `apply`
+  Terraform**, so check it first. Ordinary `apply`
   re-plans and re-confirms; tying a reviewed plan to the apply that follows is
   [#74](https://github.com/INTENTIUS/choudoufu/issues/74).
 - `-json` and `-json-into`.
@@ -226,7 +226,7 @@ invoked.
 
 ## Effects do work
 
-Worth stating plainly, because an older refusal message said otherwise.
+An older refusal message said these were unsupported. They are not.
 
 `null_resource`, `terraform_data`, `time_*` and non-secret `random_*` are
 admitted as soon as the `live` block declares a `record_store`:
@@ -247,8 +247,8 @@ lifecycle exactly as upstream.
 
 ## Two things that fail silently
 
-These do not produce a refusal today, and both are being fixed. They are worth
-checking by hand in the meantime, because the failure is quiet.
+These do not produce a refusal today, and both are being fixed. Check for them
+by hand in the meantime. The failure is silent.
 
 :::warning
 **`lifecycle { ignore_changes = [tags] }` defeats ownership markers.** The stamp

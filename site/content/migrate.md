@@ -183,7 +183,7 @@ operations](day2.html) covers the rest of the matrix.
 
 ## Getting back out
 
-Worth knowing before you start, because it costs nothing to keep the door open.
+Know this before you start. Keeping the door open costs nothing.
 
 The markers are plain tags and the resources are ordinary resources. Remove the
 `live` block, restore a `backend` if you want one, and import the resources

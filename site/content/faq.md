@@ -34,21 +34,19 @@ still holds.
 
 ## Does it really keep no record at all?
 
-No, and that claim is worth stating carefully, because a stronger version of it
-gets repeated a lot.
+No. It keeps records. What goes away is state operations.
 
-**What goes away is state operations, not the idea of a record.** You never
-configure a backend, take a lock, migrate a state file, or run state surgery.
-That is the invariant.
+You never configure a backend, take a lock, migrate a state file, or run state
+surgery. That is the invariant.
 
 **Most of the record moved onto the resources themselves.** Identity lives in
 two tags on each resource, in your account, readable and writable with your own
 cloud tools. Prior state is a projection rebuilt from those tags on every run
 and discarded when the run ends. It is allowed to be stale, because a stale or
-missing projection costs a re-read, never a wrong plan. That is the property
-OpenTofu's state file does not have, and it is the whole argument.
+missing projection costs a re-read, never a wrong plan. OpenTofu's state file
+does not have that property.
 
-**A small amount genuinely cannot be rebuilt.** An effect with no cloud twin
+**A small amount cannot be rebuilt.** An effect with no cloud twin
 leaves nothing to read back: `null_resource`, `terraform_data`, `time_*`, and
 `random_*` whose output carries no secret. Those persist as micro-state, one
 small record per resource, through a `record_store` declared in the `live`
@@ -61,11 +59,9 @@ remembered, and a record that holds a secret is a state file with extra steps.
 So: no state file to manage in the ordinary case, and a per-resource record for
 the effects that need one.
 
-Worth being precise about what that buys, because the sweeping version of this
-claim does not survive contact with someone who reads it carefully. **There is
-no lock you manage yourself** — no lock to take, none to wait on, and none left
-stuck for someone to force-unlock. There is no backend to configure or migrate,
-and no state surgery.
+**There is no lock you manage yourself** — none to take, none to wait on, and
+none left stuck for someone to force-unlock. No backend to configure or
+migrate. No state surgery.
 
 Durability does not vanish, it moves. Where records exist they live in SSM
 Parameter Store or S3, services you already run and whose durability is theirs
@@ -109,7 +105,7 @@ people think it did. What changes is the failure mode: every race resolves to a
 clean re-plan or a loud collision naming both live resources, and none of them
 silently orphans anything.
 
-The micro-state records are the one place ordering genuinely matters, and they
+The micro-state records are the one place ordering matters, and they
 handle it without a lock. Writes are conditional: a record is written only if
 it still holds the version the writer read. A losing writer gets a named
 failure rather than a blocking wait or a silent overwrite.
