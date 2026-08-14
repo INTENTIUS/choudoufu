@@ -937,7 +937,7 @@ one - and each says so in its own entry.
 | 0 | 0 | lint | receipt-value | `internal/live/lint` | live/RECEIPTS.md, "Guard 2. Hash-only values, and never SecureString" |
 | 0 | 0 | lint | remote-state | `internal/live/lint` | "remote-state" |
 | 0 | 0 | lint | state-backend | `internal/live/lint` | "backend-block" / "cloud-block" |
-| - | - | lint | undeclared-provider-alias | `internal/live/lint` | "undeclared-provider-alias" |
+| 0 | 0 | lint | undeclared-provider-alias | `internal/live/lint` | "undeclared-provider-alias" |
 | - | - | projection | Cannot decode a persisted record | `internal/live/projection` | "Cannot decode a persisted record" |
 | - | - | projection | Cannot encode a projected object | `internal/live/projection` | "Cannot encode a projected object" |
 | - | - | projection | Cannot import for projection | `internal/live/projection` | "Cannot import for projection" |

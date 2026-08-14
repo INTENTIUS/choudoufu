@@ -76,6 +76,7 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 	// and the two front ends' own homes. Adding to this list is the way to
 	// say "not a stage"; the point is that it has to be said.
 	notAStage := map[string]bool{
+		"acceptance":      true, // issue #108's cohort acceptance tier: a gated test harness, not a pass
 		"check":           true, // this package: the instrument itself
 		"cloudcontrol":    true, // a client for one AWS API
 		"docsref":         true, // parses the doc references refusals carry
