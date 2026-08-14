@@ -295,6 +295,12 @@ func proposedFields(p proposal) (serverAssigned bool, components []identity.Comp
 			}
 			components = append(components, identity.Component{Attrs: []string{arg}, IdentityAttr: identity.SameNameIdentity})
 		}
+		// #106 criterion 3: an assembled row whose leading literal names its
+		// own scheme carries the derived IdentityAttr on every component. A
+		// separator-joined composite never has a leading literal, so this is
+		// inert for every proposal shape that exists today; see
+		// identityattr.go for why it is wired anyway.
+		components = applyDerivedIdentityAttrs(components)
 		syn := make([]string, len(p.CompositeArgs))
 		for i, a := range p.CompositeArgs {
 			syn[i] = strings.ToUpper(a)
