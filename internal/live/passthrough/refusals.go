@@ -35,21 +35,27 @@
 // Summary literal there to appear below. A new static-evaluation diagnostic
 // cannot be added upstream without failing that test.
 //
-// The internal/addrs and HCL halves cannot be argued that way. addrs' parser
-// raises one Summary from nine sites, and HCL's expression evaluation is a
-// third-party surface whose diagnostic set is not ours to enumerate - a scan
-// of it would demand entries for parse errors that can never reach here,
-// which would be fiction rather than documentation. What backs those entries
-// instead is a sweep: [OriginHCL] and [OriginAddrs] entries are the ones
-// observed across 1572 loadable configurations spanning .corpus/, live/ and
-// internal/**/testdata, which is the broadest configuration set in the
-// checkout. The instrument that keeps them honest is live/corpus-refusals.json's
-// totals.refusals_unregistered, asserted at zero by
-// internal/live/check's TestCorpusArtifactHasNoUnregisteredRefusals.
+// The internal/addrs and HCL halves cannot be argued that way. HCL's
+// expression evaluation is a third-party surface whose diagnostic set is not
+// ours to enumerate - a scan of it would demand entries for parse errors
+// that can never reach here, which would be fiction rather than
+// documentation. What backs those entries instead is empirical, and it is a
+// test rather than a paragraph: internal/live/check's
+// TestNoUnregisteredRefusalsInTheTree runs both configuration-only passes
+// over every configuration committed to this repository - live/, the whole
+// of internal/**/testdata, and .corpus/ when it has been fetched - and fails
+// on any refusal none of the five registries can name.
+//
+// internal/**/testdata is the interesting part of that set. It is upstream
+// OpenTofu's own test corpus, written to break a parser and an evaluator by
+// people with no interest in this fork's admission table.
+// live/corpus-refusals.json's totals.refusals_unregistered is the second
+// instrument, asserted at zero by TestCorpusArtifactHasNoUnregisteredRefusals.
 //
 // So: the configs half cannot silently grow, and the other two halves cannot
-// silently grow past what the corpus covers. That is a weaker claim than the
-// first, and it is stated here rather than left for a reader to discover.
+// silently grow past what those two instruments cover. That is a weaker
+// claim than the first, and it is stated here rather than left for a reader
+// to discover.
 package passthrough
 
 import (
