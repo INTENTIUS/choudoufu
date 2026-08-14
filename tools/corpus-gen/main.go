@@ -75,12 +75,12 @@ func run() error {
 		logOut = nil
 	}
 
-	manifest, err := readManifest(underRoot(*root, *manifestPath))
+	manifest, err := check.ReadManifest(underRoot(*root, *manifestPath))
 	if err != nil {
 		return err
 	}
 
-	entries, err := manifest.resolve(*root)
+	entries, err := manifest.Resolve(*root)
 	if err != nil {
 		return err
 	}
@@ -156,123 +156,6 @@ type SchemaNote struct {
 type OriginCount struct {
 	Origin  string `json:"origin"`
 	Configs int    `json:"configs"`
-}
-
-// Manifest is the corpus definition: a list of globs, each labelled with
-// where its configurations came from.
-//
-// Globs rather than a list of directories, because a hand-maintained list of
-// paths is the kind of manual wiring this repository's charter is against:
-// adding an estate to the corpus should mean adding the estate.
-type Manifest struct {
-	Sources []ManifestSource `json:"sources"`
-}
-
-// ManifestSource is one glob and its provenance.
-type ManifestSource struct {
-	// Glob is a filepath.Glob pattern, relative to -root unless absolute.
-	Glob string `json:"glob"`
-
-	// Origin says where these configurations came from, in words a reader
-	// can weigh: "in-repo fixture", "terraform-aws-modules", "internal
-	// estate". It is copied into the artifact and never interpreted.
-	Origin string `json:"origin"`
-}
-
-type corpusEntry struct {
-	Name   string
-	Dir    string
-	Origin string
-}
-
-// underRoot resolves a path given on the command line against -root, leaving
-// an absolute path alone so that a caller can write the artifact anywhere.
-func underRoot(root, path string) string {
-	if filepath.IsAbs(path) {
-		return path
-	}
-	return filepath.Join(root, path)
-}
-
-func readManifest(path string) (Manifest, error) {
-	var manifest Manifest
-
-	src, err := os.ReadFile(path)
-	if err != nil {
-		return manifest, fmt.Errorf("reading the corpus manifest: %w", err)
-	}
-	if err := json.Unmarshal(src, &manifest); err != nil {
-		return manifest, fmt.Errorf("parsing %s: %w", path, err)
-	}
-	if len(manifest.Sources) == 0 {
-		return manifest, fmt.Errorf("%s names no sources", path)
-	}
-	return manifest, nil
-}
-
-// resolve expands every glob into the directories that hold a configuration.
-// A matched path that is not a directory, or that holds no .tf files, is
-// skipped rather than counted: an empty directory in the ranking would be a
-// configuration nothing refused, which is a lie about coverage.
-func (m Manifest) resolve(root string) ([]corpusEntry, error) {
-	var entries []corpusEntry
-	seen := map[string]bool{}
-
-	for _, source := range m.Sources {
-		pattern := source.Glob
-		if !filepath.IsAbs(pattern) {
-			pattern = filepath.Join(root, pattern)
-		}
-		matches, err := filepath.Glob(pattern)
-		if err != nil {
-			return nil, fmt.Errorf("bad glob %q: %w", source.Glob, err)
-		}
-		sort.Strings(matches)
-
-		for _, match := range matches {
-			info, err := os.Stat(match)
-			if err != nil || !info.IsDir() {
-				continue
-			}
-			if !hasConfigFiles(match) {
-				continue
-			}
-			if seen[match] {
-				continue
-			}
-			seen[match] = true
-
-			name, err := filepath.Rel(root, match)
-			if err != nil {
-				name = match
-			}
-			entries = append(entries, corpusEntry{
-				Name:   filepath.ToSlash(name),
-				Dir:    match,
-				Origin: source.Origin,
-			})
-		}
-	}
-
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })
-	return entries, nil
-}
-
-func hasConfigFiles(dir string) bool {
-	files, err := os.ReadDir(dir)
-	if err != nil {
-		return false
-	}
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-		name := file.Name()
-		if strings.HasSuffix(name, ".tf") || strings.HasSuffix(name, ".tf.json") {
-			return true
-		}
-	}
-	return false
 }
 
 // acquireSchemas reads the provider's resource type schemas, or explains why
@@ -399,6 +282,15 @@ func renderTable(artifact Artifact) string {
 	b.WriteString("The unchecked stages each need a cloud. Nothing above says a corpus entry applies cleanly.\n")
 
 	return b.String()
+}
+
+// underRoot resolves a path given on the command line against -root, leaving
+// an absolute path alone so that a caller can write the artifact anywhere.
+func underRoot(root, path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(root, path)
 }
 
 func layerNames(layers []check.Layer) []string {
