@@ -44,17 +44,68 @@ commands:
 | `choudoufu live-import` | Bulk migration: reads an existing state file once, verifies each entry, stamps markers on what verifies. |
 | `choudoufu live-plan` | The live plan, invoked directly. |
 
-## The `live` block
+## The live configuration
 
-Not documented here yet, deliberately.
-[#109](https://github.com/INTENTIUS/choudoufu/issues/109) removed `snapshots`
-and `snapshot_path` (guided discovery's hint now rides the `record_store`),
-and [#72](https://github.com/INTENTIUS/choudoufu/issues/72) added the
-`estate.chdf.hcl` sidecar file the docs now lead with - its body is the
-block's content, and either form works, but not both at once.
+Two places to write it, one dialect. The leading form is the sidecar file
+`estate.chdf.hcl` at the configuration root — its body is the live
+configuration itself, and because the extension is not `.tf`, stock
+OpenTofu, Terraform, fmt and linters never parse it:
 
-Until the argument reference is written, `internal/configs/live.go` carries
-the schema, and the path pages show the forms in use.
+```hcl
+# estate.chdf.hcl
+estate = "prod-networking"
+
+record_store "ssm" {
+  key_prefix = "tofu-records/prod-networking"
+}
+```
+
+The same content may instead live in a `live` block inside the `terraform`
+block. Both forms are fully supported; both present at once is an error
+naming the file and the block. A `backend` or `cloud` block alongside
+either form is refused in the decoder, before any command runs.
+
+### Arguments
+
+| Argument | Meaning |
+|---|---|
+| `estate` | The estate this configuration owns — the value the `tofu-estate` marker carries. A literal string, deliberately: a name assembled from variables could differ between plan and apply, and the estate name is an identity, not a computed value. Optional; omitted, the name derives from the markers this configuration stamps. |
+
+`snapshots` and `snapshot_path` are tombstones: the observational-snapshot
+subsystem they configured was removed, and setting either produces an
+error naming what replaced it (guided discovery's hint now rides the
+`record_store`).
+
+### `record_store` block
+
+One label picks the backend: `"local"`, `"ssm"`, or `"s3"`. It stores the
+values of logical resources (`null_resource`, `terraform_data`, `time_*`,
+non-secret `random_*`) — declaring it is also what admits those types.
+Written with conditional writes, never a lock; the trade-offs per backend
+are in [Storage](storage.html).
+
+| Argument | Applies to | Meaning |
+|---|---|---|
+| `path` | `local` | Directory for the records, relative to the module. |
+| `bucket` | `s3` | The bucket holding the records. |
+| `key_prefix` | `ssm`, `s3` | Namespace for this estate's records. A prefix whose first segment is `tofu-receipts` is a decode error: receipts are ordinary declared resources and never live in the record store. |
+| `region` | `ssm`, `s3` | Region of the store, when it differs from the provider's. |
+
+### `policy` block
+
+The ownership matrix: one verb per quadrant of declared-or-not ×
+tagged-or-not, plus the marker key overrides and the delete guard. The
+verbs, defaults, and the reasoning live in
+[Day 2 operations](day2.html); the arguments are:
+
+| Argument | Meaning |
+|---|---|
+| `declared_tagged`, `declared_untagged`, `undeclared_tagged`, `undeclared_untagged` | The verb for each quadrant. |
+| `tag_key`, `tag_value` | Override the marker tag names. |
+| `threshold` | Guard for a delete quadrant: the run refuses when more resources than this would be deleted. Must be positive. |
+
+A delete quadrant requires a nested `scope` block bounding what a sweep
+may touch: `services`, `types`, and `regions`, each a list.
 
 ## Everything else is OpenTofu
 
