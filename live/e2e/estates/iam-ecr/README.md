@@ -197,3 +197,140 @@ aws_iam_group.app` against `floci/floci:latest` creates the group cleanly
 (`id = tofu-iam-ecr-cohort-group`) and `terraform destroy -target
 aws_iam_group.app` removes it, with no drift on refresh in between. No
 floci gap on this row.
+
+## Ratification evidence, relocated from iam.tf/ecr.tf
+
+When this cohort was folded into `tools/estate-gen` (issue #108 criterion
+4), the hand-written `iam.tf` and `ecr.tf` were replaced by the generated
+`iam-ecr.tf` and `supporting.tf`, and every ratification-evidence comment
+those two files carried moved here verbatim (comment markers included).
+Where this README's earlier sections point at `iam.tf` or `ecr.tf`, the
+blocks below are what they point at. The identity placeholder values the
+generator emits differ from the hand files' (for example
+`tofu-iam-ecr-cohort-ecr-repository` where the hand file wrote
+`tofu-iam-ecr-cohort-repo`), and the supporting role is now
+`aws_iam_role.iam-ecr` rather than `aws_iam_role.support`; nothing about
+the identity evidence changes with either.
+
+### iam.tf, file header
+
+```
+# Coverage: the registry-ratified IAM half of the second registry-backed
+# batch (#40's admission strategy, #44's row-gen tool, issue #26). See
+# internal/live/identity/table.go's "Registry-ratified ... second batch"
+# comment for the per-type evidence, and for the row-gen proposals this
+# batch rejected or deferred (aws_iam_access_key, aws_iam_policy,
+# aws_iam_saml_provider, aws_iam_virtual_mfa_device, aws_iam_group).
+#
+# aws_iam_group (below) was the one deferral: correctly proposed client-named
+# by hand, but held back because admitting an untaggable curated-68 type
+# obligated a live/LIMITATIONS.md edit this batch's own mandate left
+# untouched. #54 generalized that doc's derivation past the curated 68, and
+# the ECS/EKS batch (issue #65) ratifies the deferral here rather than
+# opening a second cohort for one already-settled type.
+```
+
+### aws_iam_role.support (now aws_iam_role.iam-ecr, in supporting.tf)
+
+```
+# Supporting, not coverage: aws_iam_role.support exists only so
+# aws_iam_instance_profile.app has a role to carry. It is itself
+# client-named-shaped exactly the way live/e2e/estate/'s own aws_iam_role.app
+# is, but it is not claimed as a coverage row here — aws_iam_role is already
+# covered there and by live/e2e/estates/lambda/iam.tf.
+```
+
+### aws_iam_instance_profile.app
+
+```
+# Coverage: client-named path (aws_iam_instance_profile — identity is the
+# name argument, already in config; confirmed against the provider's own
+# identity schema, live/survey-full.json, and against the documented import
+# command, which sets id to the profile name verbatim). Curated-68 type,
+# previously blocked-emulator (floci's iam:GetInstanceProfile omitted Tags,
+# the GetRole gap family) — see this cohort's README for the floci
+# verification result against the pinned image.
+```
+
+### aws_iam_service_linked_role.app
+
+```
+# Coverage: marker path (aws_iam_service_linked_role — IAM computes the
+# role's name from aws_service_name using its own internal per-service
+# convention, not a string transform of any configured argument; the
+# documented import ID is the role's ARN, not the bare RoleName the CFN
+# registry reports as primaryIdentifier). elasticbeanstalk.amazonaws.com is
+# the provider's own documented example service.
+```
+
+### aws_iam_user.app
+
+```
+# Coverage: client-named path (aws_iam_user — identity is the name
+# argument, already in config; confirmed against the provider's own
+# identity schema and against the documented import command, which sets id
+# to the user name verbatim). Issue #26's second named type: floci's
+# iam:GetUser now returns Tags on the pinned image, so the earlier
+# blocked-emulator note no longer holds — see this cohort's README.
+```
+
+### aws_iam_group.app
+
+```
+# Coverage: client-named path, docs tier (aws_iam_group — identity is the
+# name argument, already in config; no identity schema shipped in v6.58.0,
+# so the evidence is the documented import command, which sets id to the
+# group name verbatim). Untaggable: IAM has no TagGroup API, so this type
+# carries no tags argument at all and no ownership marker — see this
+# cohort's README, "Untaggable types".
+```
+
+### ecr.tf, file header
+
+```
+# Coverage: the registry-ratified ECR half of the second registry-backed
+# batch (#40's admission strategy, #44's row-gen tool, issue #26). See
+# internal/live/identity/table.go's "Registry-ratified ... second batch"
+# comment for the per-type evidence.
+```
+
+### aws_ecr_repository.app
+
+```
+# Coverage: client-named path (aws_ecr_repository — identity is the name
+# argument, already in config; confirmed against the provider's own
+# identity schema, live/survey-full.json, and against the documented import
+# command, which sets id to the repository name verbatim). Issue #26's
+# first named type: floci's ecr:CreateRepository no longer needs a Docker
+# daemon on the pinned image — see this cohort's README for the
+# verification result.
+```
+
+### aws_ecr_registry_policy.app
+
+```
+# Coverage: marker path, untaggable (aws_ecr_registry_policy — a singleton
+# per AWS account; its identity is the account's own ECR registry ID, which
+# pre-exists the resource and is never supplied by a configuration
+# argument. Carries no tags argument in the provider — see this cohort's
+# README, "Untaggable types").
+```
+
+### aws_ecr_registry_scanning_configuration.app
+
+```
+# Coverage: marker path, untaggable (aws_ecr_registry_scanning_configuration
+# — same singleton-per-account shape as the registry policy above; carries
+# no tags argument).
+```
+
+### aws_ecr_replication_configuration.app
+
+```
+# Coverage: marker path, untaggable (aws_ecr_replication_configuration —
+# same singleton-per-account shape; carries no tags argument). The
+# destination is a literal placeholder region and registry ID rather than a
+# second real account, the same "keep the block out of the emulator's
+# boundary" choice live/e2e/estates/lambda/lambda.tf's placeholder ARNs
+# make.
+```
