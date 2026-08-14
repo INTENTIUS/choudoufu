@@ -209,8 +209,32 @@ func runConvergence(out, errOut *os.File) error {
 	fmt.Fprintf(errOut, "row-gen -convergence: %d/%d admitted types compared (%d not in the mapped set), %.2f%% adopted-unchanged, %d genuine mismatches (%d annotated, %d unannotated, %d scrape-gap)\n",
 		art.Summary.Compared, art.Summary.AdmittedTotal, art.Summary.NotInMappedSet,
 		art.Summary.AdoptedUnchangedPct, art.Summary.GenuineMismatches, art.Summary.Annotated, art.Summary.UnannotatedMismatches, art.Summary.ScrapeGapMismatches)
+	fmt.Fprint(errOut, notACoverageMetric)
 	return nil
 }
+
+// notACoverageMetric is printed after every -convergence run, deliberately,
+// because three sessions in a row read adopted-unchanged as "how much of the
+// provider works" and planned months of work around raising it.
+//
+// The tool has to say this about itself. A document saying it is not enough:
+// this number appears on demand, in a repository full of machinery built to
+// move it, while the measurement that does predict onboarding success (issue
+// #102) does not exist yet and produces no number until it is finished. That
+// asymmetry is what the drift keeps following, so the warning belongs where
+// the number is, not only in HANDOFF.md.
+const notACoverageMetric = `
+  NOT A COVERAGE METRIC. This compares row-gen's fresh proposal against the
+  human-ratified row in internal/live/identity.DefaultTable. The ratified row
+  is what ships - emit.go copies every field verbatim - so a mismatch is
+  generator-autonomy debt, not a failure any user experiences, and driving
+  adopted-unchanged to 100% would only mean the generator had memorised a
+  human's judgments.
+
+  The gate users actually hit is admission, and above that the config-language
+  subset (static evaluability). Do not use this number to size coverage, to
+  rank work, or to decide what is blocked. See HANDOFF.md and issue #102.
+`
 
 // runPropose is -propose's entry point: buildProposeReport (propose.go) does
 // the whole computation, so this only has to print its two halves in the
