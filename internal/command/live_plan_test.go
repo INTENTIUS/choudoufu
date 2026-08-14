@@ -84,6 +84,59 @@ func TestLivePlan_noChanges(t *testing.T) {
 	}
 }
 
+// TestLivePlan_sidecarOnlyConfig is issue #72's command-level claim: a
+// directory whose .tf files carry no choudoufu-specific syntax at all, with
+// the live configuration in the estate.chdf.hcl sidecar file, runs the live
+// pipeline exactly as the in-terraform{} form does - the estate name comes
+// from the sidecar, no -estate flag needed.
+func TestLivePlan_sidecarOnlyConfig(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-plan-sidecar"), td)
+	t.Chdir(td)
+
+	cloud := newStatelessTestCloud()
+	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	})
+
+	c, done := newLivePlanCommand(t, cloud)
+
+	code := c.Run([]string{"-no-color"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+	if !strings.Contains(output.Stdout(), "No changes.") {
+		t.Errorf("plan is not empty:\n%s", output.Stdout())
+	}
+	if !cloud.imported("aws_s3_bucket", "tofu-stateless-unit-data") {
+		t.Errorf("the bucket was never read from the live system; imports were %v", cloud.imports)
+	}
+}
+
+// TestLivePlan_sidecarConflictsWithEstateFlag: the -estate flag is refused
+// when the configuration already names an estate, and the sidecar counts as
+// the configuration for that rule - which is also the command-level proof
+// that the sidecar reaches statelessSettings' SelectiveLoadBackend load, the
+// same load the backend wall depends on.
+func TestLivePlan_sidecarConflictsWithEstateFlag(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-plan-sidecar"), td)
+	t.Chdir(td)
+
+	cloud := newStatelessTestCloud()
+	c, done := newLivePlanCommand(t, cloud)
+
+	code := c.Run([]string{"-no-color", "-estate=other-estate"})
+	output := done(t)
+	if code == 0 {
+		t.Fatalf("exit code 0, want failure\nstdout:\n%s", output.Stdout())
+	}
+	if !strings.Contains(output.Stderr(), "Estate named by both the live block and -estate") {
+		t.Errorf("no conflict diagnostic; the sidecar did not reach the selective backend load:\n%s", output.Stderr())
+	}
+}
+
 // TestLivePlan_proposesCreate is the other half of the same run: with no
 // -target, the instance that could not be read is planned as a create, which
 // is the expected phase-1 answer and the thing the omissions section explains.
