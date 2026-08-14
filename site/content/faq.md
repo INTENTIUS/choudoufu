@@ -59,8 +59,23 @@ Secret-generating resources are refused rather than recorded. `random_password`,
 remembered, and a record that holds a secret is a state file with extra steps.
 
 So: no state file to manage in the ordinary case, and a per-resource record for
-the effects that need one. Nothing to store, lock, back up, or repair either
-way.
+the effects that need one.
+
+Worth being precise about what that buys, because the sweeping version of this
+claim does not survive contact with someone who reads it carefully. **There is
+no lock you manage yourself** — no lock to take, none to wait on, and none left
+stuck for someone to force-unlock. There is no backend to configure or migrate,
+and no state surgery.
+
+Durability does not vanish, it moves. Where records exist they live in SSM
+Parameter Store or S3, services you already run and whose durability is theirs
+to provide rather than yours to arrange.
+
+Losing one is churn rather than a lost estate. The effect re-runs or its value
+regenerates, and anything reading that value plans as a change. It cannot cost
+you a resource: a record-backed value is a resource attribute, and identity
+arguments have to be statically evaluable, so such a value can never be the
+thing that names a resource.
 
 ## What happens to my existing state file?
 
