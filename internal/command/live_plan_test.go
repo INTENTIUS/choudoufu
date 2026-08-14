@@ -1053,6 +1053,55 @@ func TestLivePlan_markerConflictIsFatal(t *testing.T) {
 // configuration whose managed resources spanned more than one provider
 // configuration at all - this asserts that refusal is gone and both
 // buckets plan clean, each read through its own provider configuration.
+// TestLivePlan_undeclaredProviderAliasIsRefused pins GitHub issue #123's
+// case 2: a root resource naming a provider alias the root does not declare.
+// Establishing reachability by running it (the issue's own first acceptance
+// criterion) showed no upstream validation fires under live-plan - stock
+// OpenTofu's "Provider configuration not present" lives in the graph's
+// ProviderTransformer, which live mode only reaches at tfCtx.Plan, after
+// discovery has already read the live system - and providerConfigValue's
+// empty-body fallback configured aws.nope from the environment alone,
+// mid-discovery, with types already scanned through other providers. The
+// only error in that characterization run came from the mock provider
+// insisting on a region; the real AWS provider accepts an empty
+// configuration, so against a real account the run proceeded silently.
+// Now lint refuses it before anything is read from a cloud.
+func TestLivePlan_undeclaredProviderAliasIsRefused(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-plan-undeclared-provider-alias"), td)
+	t.Chdir(td)
+
+	cloud := newStatelessTestCloud()
+	cloud.putMarked("aws_s3_bucket", "tofu-undeclared-alias-east", "undeclared-alias-unit", "aws_s3_bucket.east", map[string]string{
+		"id": "tofu-undeclared-alias-east", "bucket": "tofu-undeclared-alias-east",
+	})
+
+	c, done := newLivePlanCommand(t, cloud)
+	code := c.Run([]string{"-no-color", "-estate=undeclared-alias-unit"})
+	output := done(t)
+	if code != 1 {
+		t.Fatalf("exit code %d, want 1 - an undeclared provider alias must be refused, not configured from the environment\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+	stderr := output.Stderr()
+	if !strings.Contains(stderr, "Provider configuration is not declared") {
+		t.Errorf("the undeclared-provider-alias refusal did not fire:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "aws.nope") {
+		t.Errorf("the refusal does not name the missing configuration:\n%s", stderr)
+	}
+	// The refusal is lint's, which runs before discovery: nothing may have
+	// been read from the live system through any provider by the time the
+	// run stops. The characterization run this test replaced had already
+	// scanned types through the default provider when the stray address was
+	// looked up.
+	if len(cloud.imports) != 0 {
+		t.Errorf("the live system was read before the refusal: %v", cloud.imports)
+	}
+	if strings.Contains(stderr, "discovering:") {
+		t.Errorf("discovery ran before the refusal:\n%s", stderr)
+	}
+}
+
 func TestLivePlan_multiProviderSweepSucceeds(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-plan-multi-provider"), td)

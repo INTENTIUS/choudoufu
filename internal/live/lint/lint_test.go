@@ -409,6 +409,29 @@ func TestCheck(t *testing.T) {
 				},
 			},
 		},
+		{
+			// GitHub issue #123: the alias resolves to no root provider
+			// block, so live mode would configure the provider from the
+			// environment alone. The default-provider resource in the same
+			// fixture reports nothing.
+			name: "undeclared provider alias on a root resource",
+			dir:  "testdata/undeclared-provider-alias",
+			want: []wantIssue{
+				{
+					rule:      RuleUndeclaredProviderAlias,
+					construct: "aws_s3_bucket.stray, provider = aws.nope",
+					file:      "testdata/undeclared-provider-alias/main.tf",
+					line:      20,
+				},
+			},
+		},
+		{
+			// #123's admitted twin: the alias names a declared root provider
+			// block, which is the multi-provider shape issue #69 admitted.
+			name: "declared provider alias on a root resource",
+			dir:  "testdata/undeclared-provider-alias-declared",
+			want: nil,
+		},
 	}
 
 	for _, test := range tests {

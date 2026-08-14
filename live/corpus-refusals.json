@@ -2622,6 +2622,16 @@
       "configs": 0,
       "sites": 0,
       "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "undeclared-provider-alias",
+      "title": "Provider configuration is not declared",
+      "docs_ref": "live/LIMITATIONS.md, \"undeclared-provider-alias\"",
+      "raised_by": "internal/live/lint",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
     }
   ],
   "totals": {
@@ -2632,7 +2642,7 @@
     "instances": 1057,
     "sites": 11634,
     "refusals_fired": 17,
-    "refusals_in_set": 106,
+    "refusals_in_set": 107,
     "configs_without_schemas": 0,
     "refusals_unregistered": 0
   },

@@ -113,6 +113,12 @@ const (
 	// delete quadrant's roster has been reviewed, which a non-positive
 	// value cannot mean. See policy.go.
 	RulePolicyThreshold Rule = "policy-threshold"
+
+	// RuleUndeclaredProviderAlias covers a root resource whose provider
+	// argument names an alias no root provider block declares, which live
+	// mode used to configure silently from the environment. See
+	// undeclared_provider_alias.go.
+	RuleUndeclaredProviderAlias Rule = "undeclared-provider-alias"
 )
 
 // ruleInfo is the fixed part of every issue a rule produces: the one-line
@@ -225,6 +231,10 @@ var ruleInfo = map[Rule]struct {
 	RuleModuleProviders: {
 		summary: "Module provider mapping is not honoured",
 		docsRef: `live/LIMITATIONS.md, "module-providers"`,
+	},
+	RuleUndeclaredProviderAlias: {
+		summary: "Provider configuration is not declared",
+		docsRef: `live/LIMITATIONS.md, "undeclared-provider-alias"`,
 	},
 }
 

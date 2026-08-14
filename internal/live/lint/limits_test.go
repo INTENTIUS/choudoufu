@@ -55,6 +55,12 @@ var enforcedLimits = map[string]Rule{
 	// default provider configuration, which live mode already uses, and
 	// must not be refused - TestModuleProvidersAdmitsTheDefaultMapping.
 	"module-providers": RuleModuleProviders,
+	// GitHub issue #123, the root-resource route into the same
+	// environment-configured-provider fallback #104's rule covers for
+	// module mappings. The admitted twin - an alias a root provider block
+	// does declare - is pinned by TestCheck's
+	// undeclared-provider-alias-declared case.
+	"undeclared-provider-alias": RuleUndeclaredProviderAlias,
 	// The three policy rules joined the limits wing under GitHub issue
 	// #110's fourth criterion. They were the only rules in ruleInfo citing
 	// the issue tracker as their documentation, which is not a document a

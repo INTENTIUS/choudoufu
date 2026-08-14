@@ -610,6 +610,51 @@ provider *blocks* declared inside a child module (GitHub issue #70): a
 module can declare no provider block of its own and still be called with a
 mapping.
 
+### undeclared-provider-alias
+
+**Construct.** A root resource whose `provider` argument names an alias no
+root provider block declares:
+
+```hcl
+resource "aws_s3_bucket" "stray" {
+  provider = aws.nope
+  bucket   = "example"
+}
+```
+
+**Why banned.** Stock OpenTofu refuses this configuration in the graph
+("Provider configuration not present"). Live mode resolves the address much
+earlier, during marker discovery, and the lookup miss used to fall through
+to an empty provider configuration: the provider was configured from the
+environment alone, with nothing from the configuration reaching it and no
+diagnostic saying so. The real AWS provider accepts an empty configuration
+and reads the environment, so the run simply proceeded - reading, writing
+and sweeping against whatever account and region the environment happened to
+name. Established by running it (GitHub issue #123): discovery had already
+scanned types through other providers before the stray address was even
+looked up.
+
+**Forwarding address.** Declare the provider block the alias names -
+`provider "aws" { alias = "nope" ... }` - or drop the resource's `provider`
+argument to use the default configuration. Aliases that resolve to a
+declared root provider block work; `live-plan` carries them correctly.
+
+**What is not refused.** A resource with no `provider` argument, or one
+naming an unaliased provider. An absent root provider block for the
+*default* configuration stays legal: that is the documented way a provider
+takes everything from the environment, and refusing it would refuse
+configurations that work today.
+
+**Enforcement.** `RuleUndeclaredProviderAlias`,
+`internal/live/lint/undeclared_provider_alias.go`
+(`checkUndeclaredProviderAlias`). Fixture at
+`live/e2e/limits/undeclared-provider-alias/`; the admitted twin - an alias a
+root provider block does declare - is pinned by `TestCheck`'s
+`undeclared-provider-alias-declared` case. `providerConfigValue` in
+`internal/command/live_plan.go` backstops the same miss with a hard error
+rather than an empty body, for any provider address lint did not see; the
+child-module routes into that fallback are `module-providers`' subject.
+
 ### policy-verb
 
 **Construct.** A `policy` block inside a `live` block assigning a verb to an
@@ -892,6 +937,7 @@ one - and each says so in its own entry.
 | 0 | 0 | lint | receipt-value | `internal/live/lint` | live/RECEIPTS.md, "Guard 2. Hash-only values, and never SecureString" |
 | 0 | 0 | lint | remote-state | `internal/live/lint` | "remote-state" |
 | 0 | 0 | lint | state-backend | `internal/live/lint` | "backend-block" / "cloud-block" |
+| - | - | lint | undeclared-provider-alias | `internal/live/lint` | "undeclared-provider-alias" |
 | - | - | projection | Cannot decode a persisted record | `internal/live/projection` | "Cannot decode a persisted record" |
 | - | - | projection | Cannot encode a projected object | `internal/live/projection` | "Cannot encode a projected object" |
 | - | - | projection | Cannot import for projection | `internal/live/projection` | "Cannot import for projection" |
@@ -926,7 +972,7 @@ one - and each says so in its own entry.
 | - | - | stamp | Ownership markers not stamped | `internal/live/stamp` | "Ownership markers not stamped" |
 | - | - | stamp | Unmarked apply of a marker-only resource | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 
-**163 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
+**164 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->

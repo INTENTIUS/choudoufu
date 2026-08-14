@@ -1756,8 +1756,19 @@ func (p *statelessProviders) ConfiguredProvider(ctx context.Context, addr addrs.
 }
 
 // providerConfigValue evaluates the provider block for the given address, or
-// produces the all-null value that an absent provider block implies, which is
-// how a provider that takes everything from the environment is configured.
+// - for the default (unaliased) configuration only - produces the all-null
+// value that an absent provider block implies, which is how a provider that
+// takes everything from the environment is configured.
+//
+// An ALIASED address with no root provider block is an error, never an empty
+// body. GitHub issue #123: the fallback used to cover that miss too, so a
+// root resource with provider = aws.nope - which stock OpenTofu's graph
+// refuses outright - had its provider configured from the environment alone,
+// silently, and discovery read the live system through it.
+// lint.RuleUndeclaredProviderAlias refuses the root-resource route before any
+// cloud read and checkModuleProviderMapping the module-mapping one, so this
+// diagnostic is the backstop for any address those rules did not see, not a
+// message a user is expected to reach.
 func (p *statelessProviders) providerConfigValue(ctx context.Context, addr addrs.AbsProviderConfig, spec hcldec.Spec) (cty.Value, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
@@ -1775,6 +1786,19 @@ func (p *statelessProviders) providerConfigValue(ctx context.Context, addr addrs
 	if pc, ok := mod.ProviderConfigs[key]; ok {
 		body = pc.Config
 		ident.DeclRange = pc.DeclRange
+	} else if addr.Alias != "" {
+		diags = diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"Provider configuration is not declared",
+			fmt.Sprintf(
+				"This run needs the provider configuration %q, and the root module declares no such provider block. "+
+					"Configuring it from the environment instead would read and write the live system against whatever "+
+					"account and region the environment names, which is not what the configuration says. Declare "+
+					"provider %q with that alias, or remove the reference to it.",
+				key, mod.LocalNameForProvider(addr.Provider),
+			),
+		))
+		return cty.NilVal, diags
 	}
 
 	val, hclDiags := mod.StaticEvaluator.DecodeBlock(ctx, body, spec, ident)
