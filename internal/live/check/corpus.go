@@ -37,6 +37,9 @@ type Corpus struct {
 	// Totals are the corpus-wide counts.
 	Totals CorpusTotals `json:"totals"`
 
+	// Populations are the per-origin counts, where blocked and clean live.
+	Populations []PopulationTotals `json:"populations"`
+
 	// Checked and Unchecked are the layers behind every number above,
 	// repeated here so the artifact carries its own scope. See
 	// [UncheckedLayers].
@@ -48,6 +51,11 @@ type Corpus struct {
 type CorpusEntry struct {
 	// Name identifies the configuration, as the runner was told it.
 	Name string `json:"name"`
+
+	// Origin is the population this configuration belongs to (the
+	// manifest's own vocabulary: "in-repo fixture", "terraform-aws-modules",
+	// ...). Populations are totalled separately; see [PopulationTotals].
+	Origin string `json:"origin,omitempty"`
 
 	// Blocked is whether anything refused it.
 	Blocked bool `json:"blocked"`
@@ -125,12 +133,17 @@ type CorpusRefusal struct {
 	Registered bool `json:"registered"`
 }
 
-// CorpusTotals are the corpus-wide counts.
+// CorpusTotals are the corpus-wide counts. Deliberately absent: a blocked
+// or clean count. Those live per population ([PopulationTotals]), because a
+// corpus-wide blocked-over-configs figure reads as a compatibility rate,
+// and no population this corpus has yet supports one - module examples
+// lean on variables, conditionals and dynamic blocks far harder than an
+// ordinary estate, and the in-repo fixtures measure this repo's own
+// assumptions. Issue #118; the day an estate-shaped population exists, its
+// row may claim otherwise (see [ReadsAsRanking]).
 type CorpusTotals struct {
 	Configs        int `json:"configs"`
 	Loaded         int `json:"loaded"`
-	Blocked        int `json:"blocked"`
-	Clean          int `json:"clean"`
 	Instances      int `json:"instances"`
 	Sites          int `json:"sites"`
 	RefusalsFired  int `json:"refusals_fired"`
@@ -140,6 +153,36 @@ type CorpusTotals struct {
 	// Unregistered is how many refusals fired that are in neither source
 	// table. See [CorpusRefusal.Registered].
 	Unregistered int `json:"refusals_unregistered"`
+}
+
+// ReadsAsRanking is [PopulationTotals.ReadsAs] for every population this
+// corpus currently has: the blocked count orders work, it does not estimate
+// compatibility. The only value ever intended to join it is "rate", and
+// only for an estate-shaped population - whole configurations describing
+// one deployment - which does not exist yet. TestPopulationsClaimNoRate
+// holds the line: a population claiming "rate" must be in
+// rateCapableOrigins, which is empty until such a population lands with
+// its provenance recorded in the manifest like every other origin.
+const ReadsAsRanking = "ranking"
+
+// rateCapableOrigins is the allowlist of populations whose blocked count
+// may be read as a compatibility rate. Empty on purpose; see #118.
+var rateCapableOrigins = map[string]bool{}
+
+// PopulationTotals are one origin's counts, kept apart from the corpus-wide
+// totals so a ranking over module examples and a would-be rate over estates
+// are never read off the same number.
+type PopulationTotals struct {
+	Origin    string `json:"origin"`
+	Configs   int    `json:"configs"`
+	Loaded    int    `json:"loaded"`
+	Blocked   int    `json:"blocked"`
+	Clean     int    `json:"clean"`
+	Instances int    `json:"instances"`
+	Sites     int    `json:"sites"`
+
+	// ReadsAs says what Blocked/Configs means for this population.
+	ReadsAs string `json:"reads_as"`
 }
 
 // maxExamples is how many "file:line" sites each refusal row carries.
@@ -153,10 +196,11 @@ func NewCorpus() *Corpus {
 	}
 }
 
-// Add folds one configuration's report in under the given name.
-func (c *Corpus) Add(name string, report Report) {
+// Add folds one configuration's report in under the given name and origin.
+func (c *Corpus) Add(name, origin string, report Report) {
 	entry := CorpusEntry{
 		Name:              name,
+		Origin:            origin,
 		Blocked:           report.Blocked(),
 		Loaded:            report.Load.Config != nil,
 		Instances:         report.Instances,
@@ -223,21 +267,40 @@ func (c *Corpus) Finish() {
 		Configs:       len(c.Entries),
 		RefusalsInSet: len(c.Refusals),
 	}
+	pops := map[string]*PopulationTotals{}
 	for _, entry := range c.Entries {
+		pop := pops[entry.Origin]
+		if pop == nil {
+			readsAs := ReadsAsRanking
+			if rateCapableOrigins[entry.Origin] {
+				readsAs = "rate"
+			}
+			pop = &PopulationTotals{Origin: entry.Origin, ReadsAs: readsAs}
+			pops[entry.Origin] = pop
+		}
+		pop.Configs++
 		if entry.Loaded {
 			c.Totals.Loaded++
+			pop.Loaded++
 		}
 		if entry.Blocked {
-			c.Totals.Blocked++
+			pop.Blocked++
 		} else if entry.Loaded {
-			c.Totals.Clean++
+			pop.Clean++
 		}
 		if !entry.Schemas {
 			c.Totals.WithoutSchemas++
 		}
 		c.Totals.Instances += entry.Instances
 		c.Totals.Sites += entry.Sites
+		pop.Instances += entry.Instances
+		pop.Sites += entry.Sites
 	}
+	c.Populations = c.Populations[:0]
+	for _, pop := range pops {
+		c.Populations = append(c.Populations, *pop)
+	}
+	sort.Slice(c.Populations, func(i, j int) bool { return c.Populations[i].Origin < c.Populations[j].Origin })
 	for _, row := range c.Refusals {
 		if row.Configs > 0 {
 			c.Totals.RefusalsFired++

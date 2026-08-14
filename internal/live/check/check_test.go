@@ -316,7 +316,7 @@ func findingIDs(report Report) []string {
 // observed output.
 func TestCorpusCarriesRefusalsThatFiredNowhere(t *testing.T) {
 	corpus := NewCorpus()
-	corpus.Add("count-index", Dir(t.Context(), filepath.Join("..", "lint", "testdata", "count-index"), Context{}))
+	corpus.Add("count-index", "test fixture", Dir(t.Context(), filepath.Join("..", "lint", "testdata", "count-index"), Context{}))
 	corpus.Finish()
 
 	if got, want := len(corpus.Refusals), len(Catalog()); got < want {

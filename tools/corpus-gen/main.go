@@ -102,7 +102,7 @@ func run() error {
 	for _, entry := range entries {
 		logf(logOut, "corpus-gen: %s\n", entry.Name)
 		report := check.Dir(ctx, entry.Dir, check.Context{Schemas: schemas})
-		corpus.Add(entry.Name, report)
+		corpus.Add(entry.Name, entry.Origin, report)
 		origins[entry.Origin]++
 	}
 	corpus.Finish()
@@ -250,8 +250,11 @@ func renderTable(artifact Artifact) string {
 	var b strings.Builder
 
 	totals := artifact.Totals
-	fmt.Fprintf(&b, "\n%d configuration(s): %d blocked, %d clean, %d unreadable.\n",
-		totals.Configs, totals.Blocked, totals.Clean, totals.Configs-totals.Loaded)
+	fmt.Fprintf(&b, "\n%d configuration(s), %d unreadable.\n", totals.Configs, totals.Configs-totals.Loaded)
+	for _, pop := range artifact.Populations {
+		fmt.Fprintf(&b, "  %s: %d configuration(s), %d blocked, %d clean (%s - not a compatibility rate)\n",
+			pop.Origin, pop.Configs, pop.Blocked, pop.Clean, pop.ReadsAs)
+	}
 	fmt.Fprintf(&b, "%d of %d known refusals fired, across %d site(s) and %d resolved instance(s).\n",
 		totals.RefusalsFired, totals.RefusalsInSet, totals.Sites, totals.Instances)
 

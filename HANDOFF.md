@@ -205,15 +205,19 @@ statically evaluable. Compare the rows above against
 `git show 5d4a78d8c:live/corpus-refusals.json` to see it.
 
 So "types admitted" is not a proxy for progress, and neither is a falling
-`unadmitted-type`. The number that would mean something is `totals.blocked`,
-and nothing has moved it yet.
+`unadmitted-type`. The numbers that mean something are the per-population
+blocked counts, and nothing has moved them yet.
 
-**Read `totals.blocked` (81 of 105) as a ranking, not a rate.** Module
-`examples/` lean far harder on variables, conditionals and `dynamic` blocks
-than an ordinary estate, so this corpus reports worse than typical user code.
-It is third-party, which is what it was missing; it is not estate-shaped, which
-is #118. Do not quote the figure as a compatibility number, and do not let it
-onto the docs site.
+**The artifact now separates its populations (#118, closed), and the
+split is the finding**: in-repo fixtures block 9 of 31 while module
+`examples/` block 72 of 74 - the old corpus-wide 81-of-105 was a blend of
+two things that mean differently, and `totals` no longer carries a
+blocked count at all. Module examples lean far harder on variables,
+conditionals and `dynamic` blocks than an ordinary estate, so their
+population reads as a ranking, never a rate; every population row says so
+(`reads_as`), and TestPopulationsClaimNoRate keeps it that way until an
+estate-shaped population exists (the sourcing decision that remains
+open). Do not quote any blocked figure as a compatibility number.
 
 Two caveats to carry. The run covers **two of five layers** — `lint` and
 `identity`; `discovery`, `projection` and `stamp` are unchecked, and the

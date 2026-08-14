@@ -2,6 +2,7 @@
   "entries": [
     {
       "name": ".corpus/alb/examples/complete-alb",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 9,
@@ -13,6 +14,7 @@
     },
     {
       "name": ".corpus/alb/examples/complete-nlb",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 5,
@@ -23,6 +25,7 @@
     },
     {
       "name": ".corpus/alb/examples/mutual-auth-alb",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 6,
@@ -34,6 +37,7 @@
     },
     {
       "name": ".corpus/autoscaling/examples/complete",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 16,
@@ -44,6 +48,7 @@
     },
     {
       "name": ".corpus/ecs/examples/complete",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 5,
@@ -54,6 +59,7 @@
     },
     {
       "name": ".corpus/ecs/examples/container-definition",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 3,
@@ -64,6 +70,7 @@
     },
     {
       "name": ".corpus/ecs/examples/ec2-autoscaling",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 7,
@@ -74,6 +81,7 @@
     },
     {
       "name": ".corpus/ecs/examples/express-service",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 4,
@@ -85,6 +93,7 @@
     },
     {
       "name": ".corpus/ecs/examples/fargate",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 14,
@@ -95,6 +104,7 @@
     },
     {
       "name": ".corpus/ecs/examples/managed-instances",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 7,
@@ -105,6 +115,7 @@
     },
     {
       "name": ".corpus/eks/examples/basic",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 6,
@@ -116,6 +127,7 @@
     },
     {
       "name": ".corpus/eks/examples/irsa",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 7,
@@ -127,6 +139,7 @@
     },
     {
       "name": ".corpus/eks/examples/launch_templates",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 7,
@@ -138,6 +151,7 @@
     },
     {
       "name": ".corpus/eks/examples/managed_node_groups",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 3,
@@ -149,6 +163,7 @@
     },
     {
       "name": ".corpus/eks/examples/spot_instances",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 5,
@@ -160,6 +175,7 @@
     },
     {
       "name": ".corpus/iam/examples/iam-account",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 0,
@@ -171,6 +187,7 @@
     },
     {
       "name": ".corpus/iam/examples/iam-group",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 7,
@@ -181,6 +198,7 @@
     },
     {
       "name": ".corpus/iam/examples/iam-oidc-provider",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 1,
@@ -191,6 +209,7 @@
     },
     {
       "name": ".corpus/iam/examples/iam-policy",
+      "origin": "terraform-aws-modules",
       "blocked": false,
       "loaded": true,
       "instances": 2,
@@ -201,6 +220,7 @@
     },
     {
       "name": ".corpus/iam/examples/iam-read-only-policy",
+      "origin": "terraform-aws-modules",
       "blocked": false,
       "loaded": true,
       "instances": 1,
@@ -211,6 +231,7 @@
     },
     {
       "name": ".corpus/iam/examples/iam-role",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 2,
@@ -221,6 +242,7 @@
     },
     {
       "name": ".corpus/iam/examples/iam-role-for-service-accounts",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 1,
@@ -231,6 +253,7 @@
     },
     {
       "name": ".corpus/iam/examples/iam-user",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 7,
@@ -242,6 +265,7 @@
     },
     {
       "name": ".corpus/lambda/examples/alias",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 3,
@@ -253,6 +277,7 @@
     },
     {
       "name": ".corpus/lambda/examples/async",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 5,
@@ -264,6 +289,7 @@
     },
     {
       "name": ".corpus/lambda/examples/build-package",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 62,
@@ -275,6 +301,7 @@
     },
     {
       "name": ".corpus/lambda/examples/code-signing",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 3,
@@ -286,6 +313,7 @@
     },
     {
       "name": ".corpus/lambda/examples/complete",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 23,
@@ -297,6 +325,7 @@
     },
     {
       "name": ".corpus/lambda/examples/container-image",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 3,
@@ -308,6 +337,7 @@
     },
     {
       "name": ".corpus/lambda/examples/deploy",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 8,
@@ -319,6 +349,7 @@
     },
     {
       "name": ".corpus/lambda/examples/event-source-mapping",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 7,
@@ -330,6 +361,7 @@
     },
     {
       "name": ".corpus/lambda/examples/multiple-regions",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 7,
@@ -341,6 +373,7 @@
     },
     {
       "name": ".corpus/lambda/examples/runtimes",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 9,
@@ -352,6 +385,7 @@
     },
     {
       "name": ".corpus/lambda/examples/simple",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 3,
@@ -363,6 +397,7 @@
     },
     {
       "name": ".corpus/lambda/examples/simple-cicd",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 3,
@@ -374,6 +409,7 @@
     },
     {
       "name": ".corpus/lambda/examples/triggers",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 3,
@@ -385,6 +421,7 @@
     },
     {
       "name": ".corpus/lambda/examples/with-efs",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 6,
@@ -396,6 +433,7 @@
     },
     {
       "name": ".corpus/lambda/examples/with-vpc",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 3,
@@ -407,6 +445,7 @@
     },
     {
       "name": ".corpus/lambda/examples/with-vpc-s3-endpoint",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 3,
@@ -418,6 +457,7 @@
     },
     {
       "name": ".corpus/rds/examples/blue-green-deployment",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 5,
@@ -428,6 +468,7 @@
     },
     {
       "name": ".corpus/rds/examples/complete-mssql",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 5,
@@ -439,6 +480,7 @@
     },
     {
       "name": ".corpus/rds/examples/complete-mysql",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 5,
@@ -449,6 +491,7 @@
     },
     {
       "name": ".corpus/rds/examples/complete-oracle",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 4,
@@ -460,6 +503,7 @@
     },
     {
       "name": ".corpus/rds/examples/complete-postgres",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 4,
@@ -471,6 +515,7 @@
     },
     {
       "name": ".corpus/rds/examples/cross-region-replica-postgres",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 2,
@@ -481,6 +526,7 @@
     },
     {
       "name": ".corpus/rds/examples/enhanced-monitoring",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 2,
@@ -491,6 +537,7 @@
     },
     {
       "name": ".corpus/rds/examples/groups",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 2,
@@ -501,6 +548,7 @@
     },
     {
       "name": ".corpus/rds/examples/replica-mysql",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 2,
@@ -511,6 +559,7 @@
     },
     {
       "name": ".corpus/rds/examples/replica-postgres",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 2,
@@ -521,6 +570,7 @@
     },
     {
       "name": ".corpus/rds/examples/role-association-postgres",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 2,
@@ -531,6 +581,7 @@
     },
     {
       "name": ".corpus/rds/examples/s3-import-mysql",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 1,
@@ -541,6 +592,7 @@
     },
     {
       "name": ".corpus/s3-bucket/examples/account-public-access",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 0,
@@ -552,6 +604,7 @@
     },
     {
       "name": ".corpus/s3-bucket/examples/complete",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 2,
@@ -563,6 +616,7 @@
     },
     {
       "name": ".corpus/s3-bucket/examples/directory-bucket",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 2,
@@ -573,6 +627,7 @@
     },
     {
       "name": ".corpus/s3-bucket/examples/notification",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 5,
@@ -583,6 +638,7 @@
     },
     {
       "name": ".corpus/s3-bucket/examples/object",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 2,
@@ -594,6 +650,7 @@
     },
     {
       "name": ".corpus/s3-bucket/examples/s3-analytics",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 1,
@@ -604,6 +661,7 @@
     },
     {
       "name": ".corpus/s3-bucket/examples/s3-inventory",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 1,
@@ -614,6 +672,7 @@
     },
     {
       "name": ".corpus/s3-bucket/examples/s3-replication",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 4,
@@ -624,6 +683,7 @@
     },
     {
       "name": ".corpus/s3-bucket/examples/table-bucket",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 2,
@@ -635,6 +695,7 @@
     },
     {
       "name": ".corpus/security-group/examples/complete",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 9,
@@ -646,6 +707,7 @@
     },
     {
       "name": ".corpus/vpc/examples/block-public-access",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 2,
@@ -657,6 +719,7 @@
     },
     {
       "name": ".corpus/vpc/examples/complete",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 8,
@@ -667,6 +730,7 @@
     },
     {
       "name": ".corpus/vpc/examples/flow-log",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 6,
@@ -678,6 +742,7 @@
     },
     {
       "name": ".corpus/vpc/examples/ipam",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 11,
@@ -689,6 +754,7 @@
     },
     {
       "name": ".corpus/vpc/examples/ipv6-dualstack",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 1,
@@ -700,6 +766,7 @@
     },
     {
       "name": ".corpus/vpc/examples/ipv6-only",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 7,
@@ -711,6 +778,7 @@
     },
     {
       "name": ".corpus/vpc/examples/issues",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 24,
@@ -722,6 +790,7 @@
     },
     {
       "name": ".corpus/vpc/examples/manage-default-vpc",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 0,
@@ -733,6 +802,7 @@
     },
     {
       "name": ".corpus/vpc/examples/network-acls",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 1,
@@ -744,6 +814,7 @@
     },
     {
       "name": ".corpus/vpc/examples/outpost",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 16,
@@ -755,6 +826,7 @@
     },
     {
       "name": ".corpus/vpc/examples/secondary-cidr-blocks",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 1,
@@ -766,6 +838,7 @@
     },
     {
       "name": ".corpus/vpc/examples/separate-route-tables",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 1,
@@ -777,6 +850,7 @@
     },
     {
       "name": ".corpus/vpc/examples/simple",
+      "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
       "instances": 1,
@@ -788,6 +862,7 @@
     },
     {
       "name": "live/e2e/estates/ai-location",
+      "origin": "in-repo fixture",
       "blocked": true,
       "loaded": true,
       "instances": 35,
@@ -798,6 +873,7 @@
     },
     {
       "name": "live/e2e/estates/apigateway",
+      "origin": "in-repo fixture",
       "blocked": true,
       "loaded": true,
       "instances": 19,
@@ -808,6 +884,7 @@
     },
     {
       "name": "live/e2e/estates/aps",
+      "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
       "instances": 5,
@@ -818,6 +895,7 @@
     },
     {
       "name": "live/e2e/estates/compute-platforms",
+      "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
       "instances": 28,
@@ -828,6 +906,7 @@
     },
     {
       "name": "live/e2e/estates/connect-euc",
+      "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
       "instances": 34,
@@ -838,6 +917,7 @@
     },
     {
       "name": "live/e2e/estates/data",
+      "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
       "instances": 16,
@@ -848,6 +928,7 @@
     },
     {
       "name": "live/e2e/estates/data-movement",
+      "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
       "instances": 28,
@@ -858,6 +939,7 @@
     },
     {
       "name": "live/e2e/estates/databases",
+      "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
       "instances": 33,
@@ -868,6 +950,7 @@
     },
     {
       "name": "live/e2e/estates/devtools",
+      "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
       "instances": 21,
@@ -878,6 +961,7 @@
     },
     {
       "name": "live/e2e/estates/dynamodb-elasticache",
+      "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
       "instances": 9,
@@ -888,6 +972,7 @@
     },
     {
       "name": "live/e2e/estates/ec2-core",
+      "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
       "instances": 13,
@@ -898,6 +983,7 @@
     },
     {
       "name": "live/e2e/estates/ec2-networking",
+      "origin": "in-repo fixture",
       "blocked": true,
       "loaded": true,
       "instances": 37,
@@ -908,6 +994,7 @@
     },
     {
       "name": "live/e2e/estates/ecs-eks",
+      "origin": "in-repo fixture",
       "blocked": true,
       "loaded": true,
       "instances": 8,
@@ -918,6 +1005,7 @@
     },
     {
       "name": "live/e2e/estates/governance",
+      "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
       "instances": 24,
@@ -928,6 +1016,7 @@
     },
     {
       "name": "live/e2e/estates/iam-ecr",
+      "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
       "instances": 9,
@@ -938,6 +1027,7 @@
     },
     {
       "name": "live/e2e/estates/identity",
+      "origin": "in-repo fixture",
       "blocked": true,
       "loaded": true,
       "instances": 19,
@@ -948,6 +1038,7 @@
     },
     {
       "name": "live/e2e/estates/iot",
+      "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
       "instances": 12,
@@ -958,6 +1049,7 @@
     },
     {
       "name": "live/e2e/estates/lambda",
+      "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
       "instances": 6,
@@ -968,6 +1060,7 @@
     },
     {
       "name": "live/e2e/estates/media",
+      "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
       "instances": 9,
@@ -978,6 +1071,7 @@
     },
     {
       "name": "live/e2e/estates/messaging",
+      "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
       "instances": 8,
@@ -988,6 +1082,7 @@
     },
     {
       "name": "live/e2e/estates/networking-advanced",
+      "origin": "in-repo fixture",
       "blocked": true,
       "loaded": true,
       "instances": 41,
@@ -998,6 +1093,7 @@
     },
     {
       "name": "live/e2e/estates/observability",
+      "origin": "in-repo fixture",
       "blocked": true,
       "loaded": true,
       "instances": 29,
@@ -1008,6 +1104,7 @@
     },
     {
       "name": "live/e2e/estates/rds",
+      "origin": "in-repo fixture",
       "blocked": true,
       "loaded": true,
       "instances": 16,
@@ -1018,6 +1115,7 @@
     },
     {
       "name": "live/e2e/estates/remainder",
+      "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
       "instances": 25,
@@ -1028,6 +1126,7 @@
     },
     {
       "name": "live/e2e/estates/route53-cloudfront",
+      "origin": "in-repo fixture",
       "blocked": true,
       "loaded": true,
       "instances": 29,
@@ -1038,6 +1137,7 @@
     },
     {
       "name": "live/e2e/estates/s3",
+      "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
       "instances": 6,
@@ -1048,6 +1148,7 @@
     },
     {
       "name": "live/e2e/estates/sagemaker",
+      "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
       "instances": 28,
@@ -1058,6 +1159,7 @@
     },
     {
       "name": "live/e2e/estates/security",
+      "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
       "instances": 47,
@@ -1068,6 +1170,7 @@
     },
     {
       "name": "live/e2e/estates/storage",
+      "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
       "instances": 18,
@@ -1078,6 +1181,7 @@
     },
     {
       "name": "live/e2e/estates/stragglers",
+      "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
       "instances": 12,
@@ -1088,6 +1192,7 @@
     },
     {
       "name": "live/e2e/estates/streaming",
+      "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
       "instances": 14,
@@ -2637,8 +2742,6 @@
   "totals": {
     "configs": 105,
     "loaded": 105,
-    "blocked": 81,
-    "clean": 24,
     "instances": 1057,
     "sites": 11634,
     "refusals_fired": 17,
@@ -2646,6 +2749,28 @@
     "configs_without_schemas": 0,
     "refusals_unregistered": 0
   },
+  "populations": [
+    {
+      "origin": "in-repo fixture",
+      "configs": 31,
+      "loaded": 31,
+      "blocked": 9,
+      "clean": 22,
+      "instances": 638,
+      "sites": 26,
+      "reads_as": "ranking"
+    },
+    {
+      "origin": "terraform-aws-modules",
+      "configs": 74,
+      "loaded": 74,
+      "blocked": 72,
+      "clean": 2,
+      "instances": 419,
+      "sites": 11608,
+      "reads_as": "ranking"
+    }
+  ],
   "checked_layers": [
     "lint",
     "identity"

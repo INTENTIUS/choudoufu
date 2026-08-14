@@ -175,3 +175,34 @@ func TestCorpusArtifactHasNoUnregisteredRefusals(t *testing.T) {
 		t.Errorf("the artifact's totals.refusals_unregistered is %d, want 0", artifact.Totals.Unregistered)
 	}
 }
+
+// TestPopulationsClaimNoRate is issue #118's line: every population in the
+// committed corpus artifact reads as a ranking, because none of them is
+// estate-shaped. The day one is, add its origin to rateCapableOrigins with
+// its provenance in the manifest, and this test starts allowing exactly
+// that row to say "rate".
+func TestPopulationsClaimNoRate(t *testing.T) {
+	src, err := os.ReadFile(filepath.Join("..", "..", "..", "live", "corpus-refusals.json"))
+	if err != nil {
+		t.Fatalf("reading the corpus artifact: %s", err)
+	}
+	var artifact struct {
+		Populations []PopulationTotals `json:"populations"`
+		Totals      map[string]any     `json:"totals"`
+	}
+	if err := json.Unmarshal(src, &artifact); err != nil {
+		t.Fatalf("parsing the corpus artifact: %s", err)
+	}
+	if len(artifact.Populations) == 0 {
+		t.Fatal("the committed corpus artifact carries no populations; regenerate it with `just corpus`")
+	}
+	for _, pop := range artifact.Populations {
+		if pop.ReadsAs != ReadsAsRanking && !rateCapableOrigins[pop.Origin] {
+			t.Errorf("population %q claims reads_as=%q without being in rateCapableOrigins - no current population supports a compatibility rate (#118)", pop.Origin, pop.ReadsAs)
+		}
+	}
+	if _, ok := artifact.Totals["blocked"]; ok {
+		t.Error("totals carries a corpus-wide blocked count again; that figure reads as a compatibility rate and was removed under #118")
+	}
+}
+
