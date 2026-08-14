@@ -97,6 +97,11 @@ const (
 	// estate's own marker, and needs no scope block (#101). See policy.go.
 	RulePolicyScope Rule = "policy-scope"
 
+	// RuleModuleProviders covers a module call whose providers mapping
+	// sends the module's resources to an aliased provider configuration
+	// that live mode does not read. See module_providers_mapping.go.
+	RuleModuleProviders Rule = "module-providers"
+
 	// RuleIgnoreChanges covers a lifecycle block that discards the changes
 	// this mode makes to write ownership markers: ignore_changes = all, or
 	// an ignore_changes entry covering the whole tags argument or one of
@@ -216,6 +221,10 @@ var ruleInfo = map[Rule]struct {
 	RuleIgnoreChanges: {
 		summary: "Ownership markers would be ignored",
 		docsRef: `live/LIMITATIONS.md, "ignore-changes"`,
+	},
+	RuleModuleProviders: {
+		summary: "Module provider mapping is not honoured",
+		docsRef: `live/LIMITATIONS.md, "module-providers"`,
 	},
 }
 

@@ -554,6 +554,53 @@ fourth resource is the admitted single-key shape - pinned by
 `TestIgnoreChangesAdmitsAForeignTagKey`, since `TestLimitsEnforced` alone
 would pass just as happily if all four were refused.
 
+### module-providers
+
+**Construct.** A module call whose `providers` mapping names an aliased
+provider configuration:
+
+```hcl
+module "useast1" {
+  source    = "./vpc"
+  providers = { aws = aws.useast1 }
+}
+```
+
+**Why banned.** Live mode does not read a module call's `providers` mapping.
+The provider cache in `internal/command/live_plan.go` keys on the provider
+and its alias alone, omitting the module, and the provider configuration is
+read from the root module unconditionally. So that module's resources are
+planned and applied against the root's default `aws` configuration instead -
+a different account, or a different region.
+
+That is not a difference a plan shows you. The resources are read, written
+and swept somewhere other than where the configuration asked, discovery
+lists in the wrong place so the estate reads as missing rather than
+unreachable, and under the `undeclared_untagged = "delete"` quadrant the
+blast radius is considerably worse than a bad plan. Refusing is the honest
+answer until the mapping is honoured; silence is not one of the options.
+
+**Forwarding address.** Configure the whole estate against one provider
+configuration, or split it into one configuration per account or region and
+run them separately. Aliases themselves work - a resource's own `provider =`
+argument is honoured, and `live-plan` carries the alias correctly. It is the
+module-call mapping that is not read.
+
+**What is not refused.** `providers = { aws = aws }`, mapping to the default
+configuration, describes exactly what live mode already does, so it is
+admitted. Only an aliased parent configuration asks for something the run
+will not do.
+
+**Enforcement.** `RuleModuleProviders`,
+`internal/live/lint/module_providers_mapping.go`
+(`checkModuleProviderMapping`). Fixture at
+`live/e2e/limits/module-providers/`, whose second call is the admitted
+default mapping, pinned by `TestModuleProvidersAdmitsTheDefaultMapping`.
+This is distinct from the warning `CheckModuleProviders` raises about
+provider *blocks* declared inside a child module (GitHub issue #70): a
+module can declare no provider block of its own and still be called with a
+mapping.
+
 ### policy-verb
 
 **Construct.** A `policy` block inside a `live` block assigning a verb to an
@@ -824,6 +871,7 @@ one - and each says so in its own entry.
 | 0 | 0 | identity | for_each over a resource that is not keyed | `internal/live/identity` | "for_each over a resource that is not keyed" |
 | 0 | 0 | lint | for-each-key | `internal/live/lint` | "foreach-dotted-key" |
 | - | - | lint | ignore-changes | `internal/live/lint` | "ignore-changes" |
+| - | - | lint | module-providers | `internal/live/lint` | "module-providers" |
 | 0 | 0 | lint | overlong-address | `internal/live/lint` | "overlong-address" |
 | 0 | 0 | lint | policy-scope | `internal/live/lint` | "policy-scope" |
 | 0 | 0 | lint | policy-threshold | `internal/live/lint` | "policy-threshold" |
@@ -867,7 +915,7 @@ one - and each says so in its own entry.
 | - | - | stamp | Ownership markers not stamped | `internal/live/stamp` | "Ownership markers not stamped" |
 | - | - | stamp | Unmarked apply of a marker-only resource | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 
-**160 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
+**161 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->

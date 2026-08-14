@@ -51,6 +51,10 @@ var enforcedLimits = map[string]Rule{
 	// NOT be refused - ignore_changes on a single non-marker tag key - and
 	// TestIgnoreChangesAdmitsAForeignTagKey is what pins that half.
 	"ignore-changes": RuleIgnoreChanges,
+	// GitHub issue #104. Its fixture's second module call maps to the
+	// default provider configuration, which live mode already uses, and
+	// must not be refused - TestModuleProvidersAdmitsTheDefaultMapping.
+	"module-providers": RuleModuleProviders,
 	// The three policy rules joined the limits wing under GitHub issue
 	// #110's fourth criterion. They were the only rules in ruleInfo citing
 	// the issue tracker as their documentation, which is not a document a
@@ -365,4 +369,35 @@ func TestIgnoreChangesAdmitsAForeignTagKey(t *testing.T) {
 			t.Errorf("aws_s3_bucket.%s was not refused; its ignore_changes covers the ownership markers", name)
 		}
 	}
+}
+
+// TestModuleProvidersAdmitsTheDefaultMapping is the other half of GitHub
+// issue #104's rule.
+//
+// `providers = { aws = aws }` describes exactly what live mode already does:
+// the module's resources are served by the root's default configuration.
+// Refusing it would refuse a configuration that works, which is the cost
+// this project's goal weighs heaviest. Only a mapping to an *aliased* parent
+// configuration asks for something the run will not do.
+func TestModuleProvidersAdmitsTheDefaultMapping(t *testing.T) {
+	cfg := loadConfigDir(t, filepath.Join(limitsDir(t), "module-providers"))
+	issues := CheckContext(t.Context(), cfg)
+
+	var east, west bool
+	for _, issue := range issues {
+		switch {
+		case strings.Contains(issue.Construct, `module "west"`):
+			west = true
+			t.Errorf("the default mapping was refused: %s\nproviders = { aws = aws } is what live mode does anyway.", issue)
+		case strings.Contains(issue.Construct, `module "east"`):
+			east = true
+			if !strings.Contains(issue.Detail, "account or region") {
+				t.Errorf("the refusal does not name the consequence: %s", issue.Detail)
+			}
+		}
+	}
+	if !east {
+		t.Error(`module "east" maps aws to an aliased configuration and was not refused`)
+	}
+	_ = west
 }
