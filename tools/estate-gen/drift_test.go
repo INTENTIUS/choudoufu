@@ -53,9 +53,21 @@ type driftEntry struct {
 	reason string
 }
 
+// readmeOnlyDrift is NOT clearable by regenerating in place. It reads like
+// a stale-skeleton problem, and a regeneration sweep was actually run on
+// the twelve cohorts carrying it before the diff was inspected: the
+// committed READMEs are readmeMD's skeleton PLUS ~2,500 lines of
+// hand-written ratification evidence across the twelve - the per-type
+// floci verification notes internal/live/identity/table_generated.go's own
+// comments cite - and the sweep deleted all of it (reverted before
+// commit). Clearing this drift means readmeMD writing into
+// internal/live/mdspan-marked spans the way survey-gen and limits-gen
+// already do, so the hand narrative survives regeneration; until then the
+// entry stays, and regenerating these cohorts in place is the #92
+// content-loss shape.
 var readmeOnlyDrift = driftEntry{
 	files:  []string{"README.md: content differs"},
-	reason: "readmeMD's format changed after the cohort was committed",
+	reason: "the committed README is the generated skeleton plus hand-written ratification evidence; regeneration destroys the evidence, so this drift stands until readmeMD emits mdspan-marked spans",
 }
 
 var knownDrift = map[string]driftEntry{
