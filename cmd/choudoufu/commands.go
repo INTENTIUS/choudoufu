@@ -258,6 +258,19 @@ func initCommands(
 			}, nil
 		},
 
+		// The one live-mode command that is not hidden (GitHub issue #114).
+		// Its audience is people who have not committed to the mode: it
+		// answers "will my configuration work" from a directory, with no
+		// cloud, no state and no live block in the configuration under
+		// test. A command nobody can find cannot answer that for anyone,
+		// which is the argument for listing it while its three siblings
+		// stay hidden.
+		"live-check": func() (cli.Command, error) {
+			return &command.LiveCheckCommand{
+				Meta: meta,
+			}, nil
+		},
+
 		// Experimental: stateless mode. Registered like any other command so
 		// that "choudoufu live-plan" and "choudoufu live-plan -help" work,
 		// but listed in hiddenCommands below so it stays out of the
