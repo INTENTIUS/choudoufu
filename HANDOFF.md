@@ -1,7 +1,8 @@
 # Handoff
 
-Rewritten 2026-08-13. This replaces a version organized around the wrong goal;
-if you find a copy that opens with "no manual wiring", it is superseded.
+Rewritten 2026-08-13, phase 3 folded in 2026-08-14. This replaces a version
+organized around the wrong goal; if you find a copy that opens with "no
+manual wiring", it is superseded.
 
 ## What this is
 
@@ -26,6 +27,11 @@ The numbers below are mixed-confidence and the prose does not distinguish them.
 Some were verified to a file and line, some are a single agent's count that was
 never recomputed. Run these three first. They take under a minute and each one
 tests a different claim this document depends on.
+
+This is not a formality. The phase-3 session read the scoreboard table below,
+copied its "three largest blockers" into five source files, and only found
+out from an adversarial audit that the three rank 1, 3 and 7 with a lint rule
+between the first two. The table was right; the sentence under it was not.
 
 ```sh
 # 1. Effects are admitted behind record_store.
@@ -102,11 +108,13 @@ The gate users actually hit is **admission**, and above that the
   ratios are not reproducible** - the 36/73 list exists nowhere in the repo and
   was one agent's judgement of real-world usage. Treat them as a shape, not a
   measurement, until #102 produces one.
-- the live path carries a lot of hard refusals - one audit enumerated 77,
-  a later recount of distinct error-severity summaries over
-  `internal/live/**` plus `internal/command/live_*.go` found 128. Neither
-  defined "hard refusal" precisely enough to reproduce. The enumerated
-  inventory is on #101; the count is not load-bearing for anything
+- the live path carries a lot of hard refusals. Two audits counted 77 and
+  128 and neither defined "hard refusal" precisely enough to reproduce.
+  There is a reproducible answer now: `check.AllRefusals()` returns **159**,
+  assembled from a registry per stage plus the pass-through class, and every
+  one of them has an entry in `live/LIMITATIONS.md`. The split is 16 lint,
+  87 identity (34 its own plus 53 passed through), 26 projection, 23
+  discovery, 7 stamp
 
 **Type coverage is not the binding constraint.** A user at 100% type coverage
 still fails on `backend "s3"`, `-out` plus `apply <planfile>` (how CI runs
@@ -126,27 +134,34 @@ after `just corpus-fetch`.
 
 Top blockers, by configurations blocked out of 105:
 
-| Configs | Sites | Layer | Refusal |
-|---|---|---|---|
-| 66 | 3521 | identity | Unable to compute static value **(unregistered)** |
-| 58 | 961 | lint | `unadmitted-type` |
-| 57 | 1953 | identity | Dynamic value in static context **(unregistered)** |
-| 49 | 415 | lint | `logical-resource` |
-| 37 | 115 | identity | Unresolvable identity |
-| 35 | 4254 | lint | `count-index` |
-| 30 | 226 | identity | Module output not supported in static context **(unregistered)** |
-| 27 | 75 | lint | `provisioner` |
+| Configs | Sites | Layer | Refusal | Raised by |
+|---|---|---|---|---|
+| 66 | 3521 | identity | Unable to compute static value | `internal/configs` |
+| 58 | 961 | lint | `unadmitted-type` | `internal/live/lint` |
+| 57 | 1953 | identity | Dynamic value in static context | `internal/configs` |
+| 49 | 415 | lint | `logical-resource` | `internal/live/lint` |
+| 37 | 115 | identity | Unresolvable identity | `internal/live/identity` |
+| 35 | 4254 | lint | `count-index` | `internal/live/lint` |
+| 30 | 226 | identity | Module output not supported in static context | `internal/configs` |
+| 27 | 75 | lint | `provisioner` | `internal/live/lint` |
 
 Three things this settles.
 
 **Static evaluability is the binding constraint, measured rather than
 asserted.** Four of the top seven are static-evaluation failures.
 
-**The single largest blocker is a refusal we cannot document.** The three
-marked unregistered are static-evaluator diagnostics passed through identity,
-present in neither `lint.Rules()` nor `identity.Refusals()`. `LIMITATIONS.md`
-generated from those two tables alone would omit the top three.
-`totals.refusals_unregistered` counts them. This raises #110's priority.
+**The largest single blocker is a diagnostic this fork does not write.**
+Ranks 1, 3 and 7 are static-evaluator diagnostics passed through identity
+resolution. When this table was first written they were in no registry at
+all, so a `LIMITATIONS.md` generated from `lint.Rules()` and
+`identity.Refusals()` would have omitted the top of its own list. #110 closed
+that: `totals.refusals_unregistered` is 0, and `internal/live/passthrough`
+is the registry that holds them.
+
+An earlier version of this paragraph called those three "the top three".
+They are not, and the error propagated into five source files before an
+audit recomputed it: `unadmitted-type` at 58 sits between the first and the
+second. Rank 1 is the part that is true.
 
 **Read `totals.blocked` (81 of 105) as a ranking, not a rate.** Module
 `examples/` lean far harder on variables, conditionals and `dynamic` blocks
@@ -159,6 +174,12 @@ Two caveats to carry. The run covers **two of five layers** — `lint` and
 `identity`; `discovery`, `projection` and `stamp` are unchecked, and the
 artifact says so. And it was measured against provider **6.58.0** while
 survey-gen pins 6.59.0 (#117).
+
+Regenerate it with `just corpus`, which now passes the provider-schema flags
+the committed artifact was actually produced with. It did not, so the
+documented command produced a worse artifact than the one in the tree: with
+no schemas every type outside the admission table reads as refused, and
+`unadmitted-type` tops the ranking for a reason belonging to the run.
 
 ## What is already true, and reads as unfinished
 
@@ -190,7 +211,7 @@ around it.
 ## Phase order
 
 Every open issue carries a phase label, so the tracker and this list cannot
-drift apart. `gh issue list -R INTENTIUS/choudoufu --label phase-3-documentable`
+drift apart. `gh issue list -R INTENTIUS/choudoufu --label phase-4-silent-hazards`
 is the front of the queue. Work outside the ladder is labelled `standing`.
 
 **1. `phase-1-messages` — stop misreporting what ships (#101). Done.**
@@ -204,13 +225,21 @@ See "The scoreboard" above. Phases 3-5 are ordered by it rather than by
 judgement, which is the whole reason this ladder can be trusted now and could
 not before.
 
-**3. `phase-3-documentable` — make the top blockers documentable (#110).**
-One issue, and it is the front of the queue. The three largest blockers (66, 57
-and 30 configurations) are static-evaluator diagnostics in neither
-`lint.Rules()` nor `identity.Refusals()`, so `LIMITATIONS.md` cannot describe
-the top of its own list at any priority. This was phase 5 work when the order
-was a guess. Criterion 2's generator needs three inputs, not two: the third is
-whatever accounts for pass-through refusals.
+**3. `phase-3-documentable` — make the top blockers documentable (#110).
+Done.**
+`live/LIMITATIONS.md` has a generated section holding all 159 refusals the
+live path can produce, from a registry per stage plus
+`internal/live/passthrough` for the diagnostics this fork does not write.
+Every one carries a resolvable reference to its own entry, and a scan per
+package fails when a refusal exists in code with none. `tools/limits-gen`
+writes it; `just limits` runs it.
+
+The estimate in the line above this one was wrong in a way worth keeping.
+Criterion 2's generator was said to need three inputs; it needed six. The
+two extra registries nobody had counted were `projection` (26 refusals) and
+the pass-through class turning out to be 53 rather than 3, and both were
+found by adversarial audits rather than by the work itself. A count of what
+a codebase refuses is not something to estimate.
 
 **4. `phase-4-silent-hazards` — correctness bugs with no diagnostic**
 (#103, #104, #115, #116).
