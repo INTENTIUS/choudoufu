@@ -57,6 +57,11 @@ corpus-fetch:
 corpus provider_version="6.58.0" init_bin="terraform":
     go run ./tools/corpus-gen -init-bin {{init_bin}} -provider-version {{provider_version}}
 
+# Where the sources describing each type's identity disagree (#106), into
+# live/identity-sources.json. No provider, no network.
+identity-sources:
+    go run ./tools/row-gen -sources
+
 # live/LIMITATIONS.md's per-refusal content (#110), from the three refusal
 # registries plus the corpus artifact above. No provider, no network.
 limits:

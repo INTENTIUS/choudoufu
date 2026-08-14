@@ -82,6 +82,7 @@ func main() {
 	service := flag.String("service", "", "restrict the report to one CFN service batch (e.g. Lambda); empty prints every batch")
 	convergence := flag.Bool("convergence", false, "measure row-gen's fresh proposals against internal/live/identity.DefaultTable's ratified entries and write live/rowgen-convergence.json, instead of printing the pastable-row report")
 	propose := flag.Bool("propose", false, "issue #65's PROPOSE stage: print only the rule classes with a 100% historical adoption record and their not-yet-admitted candidates, instead of the full pastable-row report (see propose.go)")
+	sources := flag.Bool("sources", false, "issue #106: compare the sources that describe each type's identity - the provider's schema, the scraped docs, and the ratified table - and write live/identity-sources.json")
 	emit := flag.Bool("emit", false, "issue #96: write generated Go source for internal/live/identity.DefaultTable and internal/live/lint's admittedTypesV0 (a generated + an override-ledger file per table), instead of printing anything to paste by hand (see emit.go)")
 	flag.Parse()
 
@@ -95,6 +96,14 @@ func main() {
 
 	if *propose {
 		if err := runPropose(os.Stdout, os.Stderr); err != nil {
+			fmt.Fprintf(os.Stderr, "row-gen: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if *sources {
+		if err := runSources(os.Stdout, os.Stderr); err != nil {
 			fmt.Fprintf(os.Stderr, "row-gen: %v\n", err)
 			os.Exit(1)
 		}
