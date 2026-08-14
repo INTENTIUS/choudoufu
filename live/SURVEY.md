@@ -4,9 +4,10 @@ Surveyed 2026-08-11 against the `hashicorp/aws` provider's current schema,
 read via `terraform providers schema -json` under Terraform 1.15.8.
 
 This file is the durable artifact for the survey the other docs cite:
-`live/FAQ.md`'s "65 of the top 68", `live/LIMITATIONS.md`'s
-`unadmitted-type` entry, and the comment on
-`internal/live/lint/admission.go`. The raw signals and the mechanical
+`live/LIMITATIONS.md`'s `unadmitted-type` entry and the comment on
+`internal/live/lint/admission.go`. (`live/FAQ.md` cited it too, as "65 of
+the top 68"; that file was absorbed into the docs site by issue #79 and its
+coverage claim, already stale, was not carried over.) The raw signals and the mechanical
 path classification behind the per-type table are regenerated from the
 provider's own schemas by `go run ./tools/survey-gen`, which writes
 `live/survey.json`.

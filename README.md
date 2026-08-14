@@ -20,9 +20,11 @@ is stock OpenTofu. The binary is `choudoufu`.
 If you already use OpenTofu, the short version is that `terraform.tfstate`
 stops existing. Adoption is a tag you write. A rename is a tag you rewrite.
 
-New here? Start with the [FAQ](live/FAQ.md). It answers the questions an
-OpenTofu user tends to ask in the first five minutes. The fork's docs also
-render as a site at [intentius.io/choudoufu](https://intentius.io/choudoufu/).
+New here? The docs site at
+[intentius.io/choudoufu](https://intentius.io/choudoufu/) has the two paths:
+migrating an estate you already have, or starting a new one. Read
+[Will my config work?](https://intentius.io/choudoufu/compatibility.html)
+first if you are evaluating.
 
 ## Where this stands
 

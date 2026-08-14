@@ -2017,8 +2017,8 @@ else
 fi
 
 # ── 13. drift-observation — drift matrix + observational git-branch snapshots ──
-# The claim live/FAQ.md's "Does it really keep no record at all?" and this
-# file's own header make about the optional P4.2 snapshot: an apply under a
+# The claim this file's own header makes about the optional P4.2 snapshot
+# (issue #109 removes the subsystem; this step goes with it): an apply under a
 # "live" block with snapshots = true can leave a scrubbed, metadata-only
 # JSON record behind, one commit per apply on an orphan
 # refs/heads/tofu-snapshots/<estate> branch (internal/live/projection/

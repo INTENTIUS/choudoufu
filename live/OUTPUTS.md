@@ -110,9 +110,8 @@ Three concrete problems follow from treating it as one anyway.
    has to remember to keep the mirror current, and every consumer plan now
    trusts a value that can go stale relative to the resource it mirrors,
    the risk profile removing the state file was meant to retire
-   (`live/FAQ.md`, "Why would I want this?": "Every plan re-reads the live
-   system, so a stale or missing record costs one re-read, never a wrong
-   plan"). A data source reading the producer's resource directly cannot go
+   (the docs site's "Does it really keep no record at all?": a stale or
+   missing projection "costs one re-read, never a wrong plan"). A data source reading the producer's resource directly cannot go
    stale this way, because there is nothing between the read and the
    value.
 3. **It does not buy the stability it is sold on.** The case for a
