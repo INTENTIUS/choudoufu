@@ -248,6 +248,22 @@ const (
 	// existing one that may depend on a variable the module call threads
 	// through from its own each.key. See [stamper.moduleKeyedResource].
 	SkipModuleKeyed SkipReason = "MODULE_KEYED"
+
+	// SkipModuleKeyedTrusted is the benign half of the case above: the
+	// resource is inside a for_each'd module AND already declares a tags
+	// argument, so its markers are the operator's own hand-written ones and
+	// this pass leaves them alone. Nothing is missing and nothing is wrong.
+	//
+	// It is a separate reason because a Skip carries no severity of its own
+	// and its consumer has to infer one. statelessStampGaps turns any
+	// unexempted skip on a needs-discovery resource into a hard error, so
+	// while both halves of moduleKeyedResource shared MODULE_KEYED, the
+	// hand-stamped idiom live/LIMITATIONS.md documents was indistinguishable
+	// from an unmarked resource about to be created unfindable. That went
+	// unnoticed only because a key-form bug (#111) kept statelessStampGaps
+	// inert inside keyed modules; fixing the key made it fire on the wrong
+	// half. Keep the two reasons distinct.
+	SkipModuleKeyedTrusted SkipReason = "MODULE_KEYED_TRUSTED"
 )
 
 // Skip is one resource this pass left alone, and why.
@@ -692,8 +708,10 @@ func (s *stamper) moduleKeyedResource(rc *configs.Resource, addr addrs.ConfigRes
 	)
 	if hasTags {
 		// Trusted as written; see the function doc for why this pass cannot
-		// safely check it.
-		s.skip(addr, SkipModuleKeyed, "Declared inside a for_each'd module; its markers are trusted as written, not verified.")
+		// safely check it. SkipModuleKeyedTrusted rather than
+		// SkipModuleKeyed: this outcome is benign and its consumer needs to
+		// tell it apart from the branch below, which is not.
+		s.skip(addr, SkipModuleKeyedTrusted, "Declared inside a for_each'd module; its markers are trusted as written, not verified.")
 		return nil, diags
 	}
 	s.skip(addr, SkipModuleKeyed, detail)

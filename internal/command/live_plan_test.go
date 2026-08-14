@@ -26,6 +26,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/stamp"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/terminal"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -1656,4 +1657,51 @@ func statelessTestLoadConfigWithModules(t *testing.T, dir string) *configs.Confi
 		t.Fatalf("building config for %s: %s", dir, cfgDiags.Error())
 	}
 	return cfg
+}
+
+// TestStatelessStampGaps_trustedKeyedModuleIsNotAGap is the regression guard
+// for the defect the #111 key fix introduced and this test's predecessor
+// missed.
+//
+// stamp.moduleKeyedResource files two very different outcomes: a resource
+// inside a for_each'd module that ALREADY declares tags is skipped as trusted
+// (its markers are the operator's own, written by hand per the idiom
+// live/LIMITATIONS.md documents), while one declaring none gets the must-stamp
+// error. Both used to carry SkipModuleKeyed, and statelessStampGaps exempts
+// only by Reason - so once #111 made needsDiscovery actually match inside a
+// keyed module, the benign half started producing a hard error telling the
+// operator their marker was missing while it sat in the file above.
+//
+// TestStatelessNeedsDiscovery_keyedModuleKeyForm did not catch it because it
+// asserts the key FORM and stops one layer short of the consumer. This test is
+// that layer.
+func TestStatelessStampGaps_trustedKeyedModuleIsNotAGap(t *testing.T) {
+	addr := addrs.ConfigResource{
+		Module:   addrs.Module{"wrapped"},
+		Resource: addrs.Resource{Mode: addrs.ManagedResourceMode, Type: "aws_eip", Name: "app"},
+	}
+	needsDiscovery := map[string]bool{addr.String(): true}
+
+	t.Run("trusted hand-stamped markers are not a gap", func(t *testing.T) {
+		res := &stamp.Result{Skipped: []stamp.Skip{{
+			Addr:   addr,
+			Reason: stamp.SkipModuleKeyedTrusted,
+			Detail: "Declared inside a for_each'd module; its markers are trusted as written, not verified.",
+		}}}
+		if diags := statelessStampGaps(res, needsDiscovery); diags.HasErrors() {
+			t.Errorf("a resource carrying its own hand-written markers was reported as an unstamped gap: %s", diags.Err())
+		}
+	})
+
+	t.Run("a keyed-module resource with no tags argument is still a gap", func(t *testing.T) {
+		res := &stamp.Result{Skipped: []stamp.Skip{{
+			Addr:   addr,
+			Reason: stamp.SkipModuleKeyed,
+			Detail: "declares no tags argument",
+		}}}
+		diags := statelessStampGaps(res, needsDiscovery)
+		if !diags.HasErrors() {
+			t.Error("a marker-discovered resource with no tags argument inside a keyed module was not reported; that is the guarantee #111 exists to restore")
+		}
+	})
 }

@@ -954,7 +954,14 @@ func statelessStampGaps(res *stamp.Result, needsDiscovery map[string]bool) tfdia
 		return diags
 	}
 	for _, skip := range res.Skipped {
-		if skip.Reason == stamp.SkipAlreadyStamped || !needsDiscovery[skip.Addr.String()] {
+		// SkipModuleKeyedTrusted is exempt for the same reason
+		// SkipAlreadyStamped is: the resource HAS its markers. It is inside a
+		// for_each'd module and declares its own tags argument, which is the
+		// hand-stamped idiom live/LIMITATIONS.md documents, and stamping
+		// deliberately leaves it alone rather than failing to write anything.
+		// Treating it as a gap tells an operator their marker is missing
+		// while it sits in the file above the error. See #111.
+		if skip.Reason == stamp.SkipAlreadyStamped || skip.Reason == stamp.SkipModuleKeyedTrusted || !needsDiscovery[skip.Addr.String()] {
 			continue
 		}
 		diags = diags.Append(tfdiags.Sourceless(
