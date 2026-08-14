@@ -27,35 +27,33 @@
 //
 // # What is in here, and how completeness is argued
 //
-// Two different arguments, because the two halves have different evidence.
+// One argument, applied three times. [TestConfigsRefusalsRegistered] scans
+// the sources of each origin and requires every summary it finds to appear
+// below, and every entry claiming that origin to be raised there. A new
+// diagnostic on any of the three paths fails it.
 //
-// The internal/configs half is complete by the same scan the other two
-// registries use: [TestConfigsRefusalsRegistered] parses
-// internal/configs/static_scope.go and static_evaluator.go and requires every
-// Summary literal there to appear below. A new static-evaluation diagnostic
-// cannot be added upstream without failing that test.
+// The first version of this file argued differently, and worse. It scanned
+// internal/configs and claimed HCL's diagnostic set was "not ours to
+// enumerate", resting those entries on a sweep of whatever configurations
+// happened to be in the tree. An adversarial audit wrote fourteen
+// three-line configurations reaching fourteen unregistered refusals -
+// `var.list[9]`, `jsondecode("{{{")`, `substr("abc","x",1)` - which is what
+// that argument was worth.
 //
-// The internal/addrs and HCL halves cannot be argued that way. HCL's
-// expression evaluation is a third-party surface whose diagnostic set is not
-// ours to enumerate - a scan of it would demand entries for parse errors
-// that can never reach here, which would be fiction rather than
-// documentation. What backs those entries instead is empirical, and it is a
-// test rather than a paragraph: internal/live/check's
+// The set is enumerable after all, once the enumeration is scoped to
+// evaluation rather than to the whole library. A parse error never reaches
+// here: a configuration that will not parse fails at load, long before
+// identity resolution runs. So the scan reads HCL's six expression-evaluation
+// files and nothing else, which is the same narrowing already applied to
+// internal/configs, where only the two static-evaluation files are read.
+//
+// Two instruments back it up rather than replace it. internal/live/check's
 // TestNoUnregisteredRefusalsInTheTree runs both configuration-only passes
-// over every configuration committed to this repository - live/, the whole
-// of internal/**/testdata, and .corpus/ when it has been fetched - and fails
-// on any refusal none of the five registries can name.
-//
-// internal/**/testdata is the interesting part of that set. It is upstream
-// OpenTofu's own test corpus, written to break a parser and an evaluator by
-// people with no interest in this fork's admission table.
-// live/corpus-refusals.json's totals.refusals_unregistered is the second
-// instrument, asserted at zero by TestCorpusArtifactHasNoUnregisteredRefusals.
-//
-// So: the configs half cannot silently grow, and the other two halves cannot
-// silently grow past what those two instruments cover. That is a weaker
-// claim than the first, and it is stated here rather than left for a reader
-// to discover.
+// over every configuration in the checkout, and live/corpus-refusals.json's
+// totals.refusals_unregistered is asserted at zero. Both would have caught
+// the omission above eventually; neither did, because neither corpus
+// contains a `jsondecode` over malformed JSON. That is the difference
+// between a scan and a sample, and it is why the scan is the argument.
 package passthrough
 
 import (
@@ -71,16 +69,18 @@ type Origin string
 const (
 	// OriginConfigs is internal/configs' static evaluator: the scope that
 	// answers var, local, path and terraform references, and the evaluator
-	// that rejects a sensitive or ephemeral result. Scan-enforced.
+	// that rejects a sensitive or ephemeral result. Scan-enforced over its
+	// two static-evaluation files.
 	OriginConfigs Origin = "internal/configs"
 
 	// OriginAddrs is internal/addrs' reference parser, reached through
-	// lang.References before any evaluation happens. Sweep-observed.
+	// lang.References before any evaluation happens. Scan-enforced over
+	// parse_ref.go.
 	OriginAddrs Origin = "internal/addrs"
 
-	// OriginHCL is HCL's own expression evaluation, reached when the
-	// assembled hcl.EvalContext does not answer a traversal.
-	// Sweep-observed.
+	// OriginHCL is HCL's own expression evaluation, reached when
+	// expr.Value runs against the assembled hcl.EvalContext.
+	// Scan-enforced over its six expression-evaluation files.
 	OriginHCL Origin = "hcl"
 )
 
@@ -121,9 +121,39 @@ func (r Refusal) DocsRef() string {
 // StaticValidateReferences is true and useless to them.
 var refusals = []Refusal{
 	{
+		Summary: "Ambiguous attribute key",
+		What:    "An object key in a statically evaluated expression is a bare name that could be either a variable reference or a literal string, so which was meant cannot be decided.",
+		Origin:  OriginHCL,
+	},
+	{
+		Summary: "Attempt to get attribute from null value",
+		What:    "An identity argument, a count or a for_each reads an attribute of something that evaluated to null.",
+		Origin:  OriginHCL,
+	},
+	{
+		Summary: "Attempt to index null value",
+		What:    "An identity argument, a count or a for_each indexes into something that evaluated to null.",
+		Origin:  OriginHCL,
+	},
+	{
+		Summary: "Call to unknown function",
+		What:    "A statically evaluated expression calls a function this run does not have. Static evaluation offers the pure standard library only; a provider-defined function needs a running provider.",
+		Origin:  OriginHCL,
+	},
+	{
 		Summary: "Circular reference",
 		What:    "A local or variable is defined, directly or transitively, in terms of itself.",
 		Origin:  OriginConfigs,
+	},
+	{
+		Summary: "Condition is null",
+		What:    "A conditional inside a statically evaluated expression has a null condition, so neither branch can be chosen.",
+		Origin:  OriginHCL,
+	},
+	{
+		Summary: "Duplicate object key",
+		What:    "An object constructor in a statically evaluated expression sets the same key twice.",
+		Origin:  OriginHCL,
 	},
 	{
 		Summary: "Dynamic value in static context",
@@ -136,29 +166,34 @@ var refusals = []Refusal{
 		Origin:  OriginConfigs,
 	},
 	{
+		Summary: "Error in function call",
+		What:    "A function inside a statically evaluated expression returned an error - jsondecode over text that is not JSON, for instance.",
+		Origin:  OriginHCL,
+	},
+	{
 		Summary: "Failed to get working directory",
 		What:    "path.cwd could not be resolved because the operating system refused the working directory. An environment failure, not a configuration one.",
 		Origin:  OriginConfigs,
 	},
 	{
-		Summary: "Invalid attribute in static context",
-		What:    "terraform.applying is read where only configuration is available; it has a value during plan and apply, and none here.",
-		Origin:  OriginConfigs,
+		Summary: "Function calls not allowed",
+		What:    "A function is called where the surrounding context permits none at all.",
+		Origin:  OriginHCL,
 	},
 	{
-		Summary: "Invalid default value for module argument",
-		What:    "A variable's default does not fit its own type constraint, so no value for it can be produced.",
-		Origin:  OriginConfigs,
+		Summary: "Inconsistent conditional result types",
+		What:    "A conditional's two branches produce types that cannot be reconciled into one.",
+		Origin:  OriginHCL,
 	},
 	{
-		Summary: "Invalid reference",
-		What:    "A reference is not a shape this fork's address parser recognises at all - an operator, an index, or a traversal into something that has no attributes.",
-		Origin:  OriginAddrs,
+		Summary: "Incorrect condition type",
+		What:    "A conditional's condition is not a boolean and cannot be converted to one - most often a string used where a bool was meant.",
+		Origin:  OriginHCL,
 	},
 	{
-		Summary: "Invalid value for input variable",
-		What:    "The value supplied for a variable does not convert to its declared type.",
-		Origin:  OriginConfigs,
+		Summary: "Incorrect key type",
+		What:    "A map or object is indexed with a key of the wrong type.",
+		Origin:  OriginHCL,
 	},
 	{
 		Summary: `Invalid "path" attribute`,
@@ -171,9 +206,114 @@ var refusals = []Refusal{
 		Origin:  OriginConfigs,
 	},
 	{
+		Summary: "Invalid 'for' condition",
+		What:    "A for expression's if clause does not evaluate to a boolean.",
+		Origin:  OriginHCL,
+	},
+	{
+		Summary: "Invalid attribute in static context",
+		What:    "terraform.applying is read where only configuration is available; it has a value during plan and apply, and none here.",
+		Origin:  OriginConfigs,
+	},
+	{
+		Summary: "Invalid default value for module argument",
+		What:    "A variable's default does not fit its own type constraint, so no value for it can be produced.",
+		Origin:  OriginConfigs,
+	},
+	{
+		Summary: "Invalid expanding argument value",
+		What:    "A function call expands an argument with ... over something that is not a list or tuple.",
+		Origin:  OriginHCL,
+	},
+	{
+		Summary: "Invalid function argument",
+		What:    "A function inside a statically evaluated expression was given an argument of the wrong type or an unacceptable value.",
+		Origin:  OriginHCL,
+	},
+	{
+		Summary: "Invalid index",
+		What:    "A collection is indexed out of range, or with a key it does not have.",
+		Origin:  OriginHCL,
+	},
+	{
+		Summary: "Invalid index key",
+		What:    "A reference indexes a resource or module with a key this fork's address parser cannot read - one that is not a literal string or whole number.",
+		Origin:  OriginAddrs,
+	},
+	{
+		Summary: "Invalid nested splat expressions",
+		What:    "Two splat expressions are nested, which has no defined meaning.",
+		Origin:  OriginHCL,
+	},
+	{
+		Summary: "Invalid object key",
+		What:    "An object constructor's key does not evaluate to a string and cannot be converted to one.",
+		Origin:  OriginHCL,
+	},
+	{
+		Summary: "Invalid operand",
+		What:    "An operator inside a statically evaluated expression was given an operand of the wrong type - arithmetic on a string, for instance.",
+		Origin:  OriginHCL,
+	},
+	{
+		Summary: "Invalid path step",
+		What:    "A traversal steps into a value in a way its type does not support.",
+		Origin:  OriginHCL,
+	},
+	{
+		Summary: "Invalid reference",
+		What:    "A reference is not a shape this fork's address parser recognises at all - an operator, an index, or a traversal into something that has no attributes.",
+		Origin:  OriginAddrs,
+	},
+	{
+		Summary: "Invalid template interpolation value",
+		What:    "A ${...} interpolation produces a value with no string form, such as a list or an object.",
+		Origin:  OriginHCL,
+	},
+	{
+		Summary: "Invalid value for input variable",
+		What:    "The value supplied for a variable does not convert to its declared type.",
+		Origin:  OriginConfigs,
+	},
+	{
+		Summary: "Iteration over non-iterable value",
+		What:    "A for expression iterates over something that is not a collection.",
+		Origin:  OriginHCL,
+	},
+	{
+		Summary: "Iteration over null value",
+		What:    "A for expression iterates over null.",
+		Origin:  OriginHCL,
+	},
+	{
+		Summary: "Missing map element",
+		What:    "A map is indexed with a key it does not contain.",
+		Origin:  OriginHCL,
+	},
+	{
 		Summary: "Module output not supported in static context",
 		What:    "An identity argument, a count or a for_each reads a child module's output. Module outputs are produced by evaluating the module, which has not happened yet.",
 		Origin:  OriginConfigs,
+	},
+	{
+		Summary: "Not enough function arguments",
+		What:    "A function inside a statically evaluated expression was called with too few arguments.",
+		Origin:  OriginHCL,
+	},
+	{
+		Summary: "Null condition",
+		What:    "A for expression's if clause evaluates to null.",
+		Origin:  OriginHCL,
+	},
+	{
+		Summary: "Null value as key",
+		What:    "A null is used as an object or map key.",
+		Origin:  OriginHCL,
+	},
+	{
+		Summary: "Operation failed",
+		What:    "An arithmetic or comparison operator inside a statically evaluated expression failed - division by zero, for instance.",
+		Origin:  OriginHCL,
 	},
 	{
 		Summary: "Provider function in static context",
@@ -186,14 +326,34 @@ var refusals = []Refusal{
 		Origin:  OriginConfigs,
 	},
 	{
+		Summary: "Reserved symbol name",
+		What:    "A reference uses a name this fork reserves for future use, so it cannot be read as a reference to anything that exists.",
+		Origin:  OriginAddrs,
+	},
+	{
 		Summary: "Sensitive value not allowed",
 		What:    "A statically evaluated expression resolves to a sensitive value in a position that would write it somewhere readable.",
 		Origin:  OriginConfigs,
 	},
 	{
+		Summary: "Splat of null value",
+		What:    "A splat expression is applied to null.",
+		Origin:  OriginHCL,
+	},
+	{
+		Summary: "Too many function arguments",
+		What:    "A function inside a statically evaluated expression was called with too many arguments.",
+		Origin:  OriginHCL,
+	},
+	{
 		Summary: "Unable to compute static value",
 		What:    "Something an identity argument, a count or a for_each depends on could not be computed. It is the trailing half of another refusal: the diagnostic before it names what actually failed, and this one names the chain that led there.",
 		Origin:  OriginConfigs,
+	},
+	{
+		Summary: "Unable to parse provider function",
+		What:    "A provider:: function reference is not in the form the address parser accepts.",
+		Origin:  OriginAddrs,
 	},
 	{
 		Summary: "Unable to use variable in static context",
@@ -213,6 +373,16 @@ var refusals = []Refusal{
 	{
 		Summary: "Unknown variable",
 		What:    "A reference names a symbol that reached evaluation with nothing bound to it - most often each or count read where this run does not supply repetition data.",
+		Origin:  OriginHCL,
+	},
+	{
+		Summary: "Unsupported attribute",
+		What:    "A statically evaluated expression reads an attribute the value does not have.",
+		Origin:  OriginHCL,
+	},
+	{
+		Summary: "Variables not allowed",
+		What:    "A reference appears where the surrounding context permits no variables at all.",
 		Origin:  OriginHCL,
 	},
 }

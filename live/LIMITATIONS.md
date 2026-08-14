@@ -674,48 +674,103 @@ step that failed varies, not because the rules differ.
 | 2 | 10 | lint | moved-block | `internal/live/lint` | "moved-block" |
 | 2 | 3 | identity | Non-static for_each expression | `internal/live/identity` | "Non-static for_each expression" |
 | - | - | discovery | Address too long to carry an ownership marker | `internal/live/discovery` | "overlong-address" |
+| - | - | discovery | Cloud Control identifier could not be composed | `internal/live/discovery` | "Cloud Control identifier could not be composed" |
+| - | - | discovery | Failed to list a resource type | `internal/live/discovery` | "Failed to list a resource type" |
+| - | - | discovery | Incomplete sweep for undeclared resources | `internal/live/discovery` | "Incomplete sweep for undeclared resources" |
+| - | - | discovery | Indistinguishable instances without per-instance markers | `internal/live/discovery` | "Indistinguishable instances without per-instance markers" |
+| - | - | discovery | Invalid estate name | `internal/live/discovery` | "Invalid estate name" |
+| - | - | discovery | Listed resource with no identity | `internal/live/discovery` | "Listed resource with no identity" |
+| - | - | discovery | Listed resource with no tags | `internal/live/discovery` | "Listed resource with no tags" |
+| - | - | discovery | Malformed ownership marker | `internal/live/discovery` | "Malformed ownership marker" |
+| - | - | discovery | Malformed slot marker | `internal/live/discovery` | "Malformed slot marker" |
+| - | - | discovery | No AWS account ID from the provider | `internal/live/discovery` | "No AWS account ID from the provider" |
+| - | - | discovery | No configuration to discover against | `internal/live/discovery` | "No configuration to discover against" |
+| - | - | discovery | No provider access | `internal/live/discovery` | "No provider access" |
+| - | - | discovery | No slot left to mint | `internal/live/discovery` | "No slot left to mint" |
 | - | - | discovery | One marker value for two declared addresses | `internal/live/discovery` | "One marker value for two declared addresses" |
+| - | - | discovery | Partial slot markers on a count set | `internal/live/discovery` | "Partial slot markers on a count set" |
+| - | - | discovery | Resolved resource missing from the configuration | `internal/live/discovery` | "Resolved resource missing from the configuration" |
+| - | - | discovery | Tagged resource's ARN could not be joined to a resource type | `internal/live/discovery` | "Tagged resource's ARN could not be joined to a resource type" |
+| - | - | discovery | Two live resources claiming one address | `internal/live/discovery` | "Two live resources claiming one address" |
+| - | - | discovery | Two live resources claiming one slot | `internal/live/discovery` | "Two live resources claiming one slot" |
+| - | - | discovery | Unclassified discovery problem | `internal/live/discovery` | "Unclassified discovery problem" |
+| - | - | discovery | Unlistable marker-discovered type | `internal/live/discovery` | "Unlistable marker-discovered type" |
+| - | - | discovery | Unscoped account reconciliation refused | `internal/live/discovery` | "policy-scope" |
+| - | - | identity | Ambiguous attribute key | `hcl` | "Ambiguous attribute key" |
+| - | - | identity | Attempt to get attribute from null value | `hcl` | "Attempt to get attribute from null value" |
+| - | - | identity | Attempt to index null value | `hcl` | "Attempt to index null value" |
+| - | - | identity | Call to unknown function | `hcl` | "Call to unknown function" |
 | 0 | 0 | identity | Circular for_each reference | `internal/live/identity` | "Circular for_each reference" |
 | 0 | 0 | identity | Circular identity reference | `internal/live/identity` | "Circular identity reference" |
 | 0 | 0 | identity | Circular reference | `internal/configs` | "Circular reference" |
+| - | - | identity | Condition is null | `hcl` | "Condition is null" |
 | 0 | 0 | identity | Configuration loaded without a static evaluator | `internal/live/identity` | "Configuration loaded without a static evaluator" |
+| - | - | identity | Duplicate object key | `hcl` | "Duplicate object key" |
 | 0 | 0 | identity | Ephemeral value not allowed | `internal/configs` | "Ephemeral value not allowed" |
+| - | - | identity | Error in function call | `hcl` | "Error in function call" |
 | 0 | 0 | identity | Expression not evaluable here | `internal/live/identity` | "Expression not evaluable here" |
 | 0 | 0 | identity | Failed to get working directory | `internal/configs` | "Failed to get working directory" |
+| - | - | identity | Function calls not allowed | `hcl` | "Function calls not allowed" |
 | 0 | 0 | identity | Identity derived from a sensitive value | `internal/live/identity` | "Identity derived from a sensitive value" |
 | 0 | 0 | identity | Identity derived from an impure function | `internal/live/identity` | "Identity derived from an impure function" |
 | 0 | 0 | identity | Identity table and provider schema disagree | `internal/live/identity` | "Identity table and provider schema disagree" |
+| - | - | identity | Inconsistent conditional result types | `hcl` | "Inconsistent conditional result types" |
+| - | - | identity | Incorrect condition type | `hcl` | "Incorrect condition type" |
+| - | - | identity | Incorrect key type | `hcl` | "Incorrect key type" |
 | 0 | 0 | identity | Invalid "path" attribute | `internal/configs` | "Invalid "path" attribute" |
 | 0 | 0 | identity | Invalid "terraform" attribute | `internal/configs` | "Invalid "terraform" attribute" |
+| - | - | identity | Invalid 'for' condition | `hcl` | "Invalid 'for' condition" |
 | 0 | 0 | identity | Invalid attribute in static context | `internal/configs` | "Invalid attribute in static context" |
 | 0 | 0 | identity | Invalid count | `internal/live/identity` | "Invalid count" |
 | 0 | 0 | identity | Invalid default value for module argument | `internal/configs` | "Invalid default value for module argument" |
+| - | - | identity | Invalid expanding argument value | `hcl` | "Invalid expanding argument value" |
 | 0 | 0 | identity | Invalid for_each value | `internal/live/identity` | "Invalid for_each value" |
+| - | - | identity | Invalid function argument | `hcl` | "Invalid function argument" |
+| - | - | identity | Invalid index | `hcl` | "Invalid index" |
+| - | - | identity | Invalid index key | `internal/addrs` | "Invalid index key" |
+| - | - | identity | Invalid nested splat expressions | `hcl` | "Invalid nested splat expressions" |
+| - | - | identity | Invalid object key | `hcl` | "Invalid object key" |
+| - | - | identity | Invalid operand | `hcl` | "Invalid operand" |
+| - | - | identity | Invalid path step | `hcl` | "Invalid path step" |
 | 0 | 0 | identity | Invalid reference | `internal/addrs` | "Invalid reference" |
+| - | - | identity | Invalid template interpolation value | `hcl` | "Invalid template interpolation value" |
 | 0 | 0 | identity | Invalid value for input variable | `internal/configs` | "Invalid value for input variable" |
+| - | - | identity | Iteration over non-iterable value | `hcl` | "Iteration over non-iterable value" |
+| - | - | identity | Iteration over null value | `hcl` | "Iteration over null value" |
+| - | - | identity | Missing map element | `hcl` | "Missing map element" |
 | 0 | 0 | identity | No configuration to resolve | `internal/live/identity` | "No configuration to resolve" |
 | 0 | 0 | identity | No configuration to scan | `internal/live/identity` | "No configuration to scan" |
 | 0 | 0 | identity | Non-static count expression | `internal/live/identity` | "Non-static count expression" |
 | 0 | 0 | identity | Non-static identity argument | `internal/live/identity` | "Non-static identity argument" |
 | 0 | 0 | identity | Non-static lifecycle.enabled expression | `internal/live/identity` | "Non-static lifecycle.enabled expression" |
 | 0 | 0 | identity | Non-string identity argument | `internal/live/identity` | "Non-string identity argument" |
+| - | - | identity | Not enough function arguments | `hcl` | "Not enough function arguments" |
+| - | - | identity | Null condition | `hcl` | "Null condition" |
+| - | - | identity | Null value as key | `hcl` | "Null value as key" |
+| - | - | identity | Operation failed | `hcl` | "Operation failed" |
 | 0 | 0 | identity | Provider function in static context | `internal/configs` | "Provider function in static context" |
 | 0 | 0 | identity | Reference to a module instance that does not exist | `internal/live/identity` | "Reference to a module instance that does not exist" |
 | 0 | 0 | identity | Reference to a resource instance that does not exist | `internal/live/identity` | "Reference to a resource instance that does not exist" |
 | 0 | 0 | identity | Reference to undeclared resource | `internal/live/identity` | "Reference to undeclared resource" |
 | 0 | 0 | identity | Required variable not set | `internal/configs` | "Required variable not set" |
+| - | - | identity | Reserved symbol name | `internal/addrs` | "Reserved symbol name" |
 | 0 | 0 | identity | Resource type outside the live-markers subset | `internal/live/identity` | "unadmitted-type" |
 | 0 | 0 | identity | Sensitive count expression | `internal/live/identity` | "Sensitive count expression" |
 | 0 | 0 | identity | Sensitive for_each expression | `internal/live/identity` | "Sensitive for_each expression" |
 | 0 | 0 | identity | Sensitive lifecycle.enabled expression | `internal/live/identity` | "Sensitive lifecycle.enabled expression" |
 | 0 | 0 | identity | Sensitive value not allowed | `internal/configs` | "Sensitive value not allowed" |
+| - | - | identity | Splat of null value | `hcl` | "Splat of null value" |
 | 0 | 0 | identity | The identity table names something the provider does not have | `internal/live/identity` | "The identity table names something the provider does not have" |
+| - | - | identity | Too many function arguments | `hcl` | "Too many function arguments" |
 | 0 | 0 | identity | Two resources with the same identity | `internal/live/identity` | "duplicate-identity" |
+| - | - | identity | Unable to parse provider function | `internal/addrs` | "Unable to parse provider function" |
 | 0 | 0 | identity | Unable to use variable in static context | `internal/configs` | "Unable to use variable in static context" |
 | 0 | 0 | identity | Undefined local | `internal/configs` | "Undefined local" |
 | 0 | 0 | identity | Undefined variable | `internal/configs` | "Undefined variable" |
 | 0 | 0 | identity | Unknown variable | `hcl` | "Unknown variable" |
+| - | - | identity | Unsupported attribute | `hcl` | "Unsupported attribute" |
 | 0 | 0 | identity | Unsupported each.value reference | `internal/live/identity` | "Unsupported each.value reference" |
+| - | - | identity | Variables not allowed | `hcl` | "Variables not allowed" |
 | 0 | 0 | identity | for_each key cannot be recorded as a marker | `internal/live/identity` | live/MARKERS.md, "Ownership semantics" |
 | 0 | 0 | identity | for_each over a resource that is not keyed | `internal/live/identity` | "for_each over a resource that is not keyed" |
 | 0 | 0 | lint | for-each-key | `internal/live/lint` | "foreach-dotted-key" |
@@ -728,12 +783,15 @@ step that failed varies, not because the rules differ.
 | 0 | 0 | lint | receipt-value | `internal/live/lint` | live/RECEIPTS.md, "Guard 2. Hash-only values, and never SecureString" |
 | 0 | 0 | lint | remote-state | `internal/live/lint` | "remote-state" |
 | 0 | 0 | lint | state-backend | `internal/live/lint` | "backend-block" / "cloud-block" |
+| - | - | stamp | No configuration to stamp | `internal/live/stamp` | "No configuration to stamp" |
+| - | - | stamp | No estate name to stamp with | `internal/live/stamp` | "No estate name to stamp with" |
+| - | - | stamp | No provider schemas for marker stamping | `internal/live/stamp` | "No provider schemas for marker stamping" |
 | - | - | stamp | Ownership marker conflict | `internal/live/stamp` | "Ownership marker conflict" |
 | - | - | stamp | Ownership marker could not be checked | `internal/live/stamp` | "Ownership marker could not be checked" |
 | - | - | stamp | Ownership markers not stamped | `internal/live/stamp` | "Ownership markers not stamped" |
 | - | - | stamp | Unmarked apply of a marker-only resource | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 
-**75 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
+**133 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -830,11 +888,203 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 2 configurations in the measured corpus, at 3 sites.
 
+#### Cloud Control identifier could not be composed
+
+**What.** A live resource was listed, but the primary identifier Cloud Control needs to describe it could not be assembled from what the list returned.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Failed to list a resource type
+
+**What.** Listing one resource type failed - most often a permission the run does not have, or a service not available in the region. Discovery continues with the types it could list, so an estate spanning that type is only partly seen.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Incomplete sweep for undeclared resources
+
+**What.** The estate-wide sweep could not cover every admitted type, so an owned-but-undeclared resource may exist that this run did not find. A removal plan built on it is not a complete reconciliation.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Indistinguishable instances without per-instance markers
+
+**What.** Several live resources carry one address marker for a count-expanded or for_each-expanded block, with no tofu-slot marker to tell them apart, so which instance is which cannot be decided.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Invalid estate name
+
+**What.** The estate name does not match the tofu-estate marker grammar (a lowercase letter, then letters, digits or hyphens, at most 128 characters).
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Listed resource with no identity
+
+**What.** A live resource carries this estate's markers but the listing returned nothing that identifies it, so it cannot be bound to a configuration address.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Listed resource with no tags
+
+**What.** A live resource was listed with no tags at all where markers were expected, so ownership cannot be read from it.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Malformed ownership marker
+
+**What.** A live resource carries a tofu-address or tofu-estate tag whose value is not in the marker grammar - hand-edited, truncated, or written by something other than this tool.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Malformed slot marker
+
+**What.** A live resource's tofu-slot tag is not a slot value this run can read.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### No AWS account ID from the provider
+
+**What.** The account this run is against could not be resolved, so identities embedding the account cannot be computed and marker discovery has to stand in for them.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### No configuration to discover against
+
+**What.** Discovery was given no configuration to match markers against. A caller error, not a configuration one.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### No provider access
+
+**What.** Discovery was given no configured provider handle to list live resources with. A caller error, not a configuration one.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### No slot left to mint
+
+**What.** Every slot value for a fungible set is taken, so a new instance has nothing to be marked with.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### One marker value for two declared addresses
 
 **What.** Two declared instances escape to the same tofu-address value, so a marker cannot say which of them a live object belongs to. Binding either would be a guess.
 
-**Where.** The discovery pass, raised by `internal/live/discovery`. This is a diagnostic the live path shows without having written it; see the section preamble.
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Partial slot markers on a count set
+
+**What.** Some instances of a count-expanded resource carry tofu-slot markers and some do not, so the set cannot be read either as slotted or as positional.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Resolved resource missing from the configuration
+
+**What.** Discovery was asked to find a resource the configuration it was given does not declare. The resolutions and the configuration came from different runs; a bug in whatever assembled them, not in the configuration.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Tagged resource's ARN could not be joined to a resource type
+
+**What.** A resource carrying this estate's markers was found by tag, but its ARN does not map to a resource type this run knows, so nothing further can be read about it.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Two live resources claiming one address
+
+**What.** Two live resources carry the same tofu-address marker, so both claim one configuration address. Binding either would be a guess.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Two live resources claiming one slot
+
+**What.** Two live resources carry the same tofu-slot marker within one fungible set.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Unclassified discovery problem
+
+**What.** Discovery reported a problem whose kind this package has no summary for. A gap in this package rather than anything the configuration did; the kind is named in the detail.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Unlistable marker-discovered type
+
+**What.** A type that can only be found by its ownership marker has no listing this run can perform, so resources of that type cannot be discovered at all.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Ambiguous attribute key
+
+**What.** An object key in a statically evaluated expression is a bare name that could be either a variable reference or a literal string, so which was meant cannot be decided.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Attempt to get attribute from null value
+
+**What.** An identity argument, a count or a for_each reads an attribute of something that evaluated to null.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Attempt to index null value
+
+**What.** An identity argument, a count or a for_each indexes into something that evaluated to null.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Call to unknown function
+
+**What.** A statically evaluated expression calls a function this run does not have. Static evaluation offers the pure standard library only; a provider-defined function needs a running provider.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
@@ -862,6 +1112,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
+#### Condition is null
+
+**What.** A conditional inside a statically evaluated expression has a null condition, so neither branch can be chosen.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Configuration loaded without a static evaluator
 
 **What.** The configuration was not loaded through configs.Parser.LoadConfigDir or the configload package. A caller error, not a configuration one.
@@ -870,6 +1128,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
+#### Duplicate object key
+
+**What.** An object constructor in a statically evaluated expression sets the same key twice.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Ephemeral value not allowed
 
 **What.** A statically evaluated expression resolves to an ephemeral value, which by definition is not written down anywhere this run can read back.
@@ -877,6 +1143,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/configs`. This is a diagnostic the live path shows without having written it; see the section preamble.
 
 **How often.** Blocked no configuration in the measured corpus.
+
+#### Error in function call
+
+**What.** A function inside a statically evaluated expression returned an error - jsondecode over text that is not JSON, for instance.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
 
 #### Expression not evaluable here
 
@@ -894,9 +1168,17 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
+#### Function calls not allowed
+
+**What.** A function is called where the surrounding context permits none at all.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Identity derived from a sensitive value
 
-**What.** An identity argument reads a sensitive variable. Import identities are written to logs and plan output.
+**What.** An identity argument reads a sensitive or ephemeral value. Import identities are written to logs and plan output, so neither can be part of one.
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
@@ -918,6 +1200,30 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
+#### Inconsistent conditional result types
+
+**What.** A conditional's two branches produce types that cannot be reconciled into one.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Incorrect condition type
+
+**What.** A conditional's condition is not a boolean and cannot be converted to one - most often a string used where a bool was meant.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Incorrect key type
+
+**What.** A map or object is indexed with a key of the wrong type.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Invalid "path" attribute
 
 **What.** path is read with an attribute other than cwd, module or root.
@@ -933,6 +1239,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/configs`. This is a diagnostic the live path shows without having written it; see the section preamble.
 
 **How often.** Blocked no configuration in the measured corpus.
+
+#### Invalid 'for' condition
+
+**What.** A for expression's if clause does not evaluate to a boolean.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
 
 #### Invalid attribute in static context
 
@@ -958,6 +1272,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
+#### Invalid expanding argument value
+
+**What.** A function call expands an argument with ... over something that is not a list or tuple.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Invalid for_each value
 
 **What.** A for_each value is neither a map nor a set of strings.
@@ -965,6 +1287,62 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked no configuration in the measured corpus.
+
+#### Invalid function argument
+
+**What.** A function inside a statically evaluated expression was given an argument of the wrong type or an unacceptable value.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Invalid index
+
+**What.** A collection is indexed out of range, or with a key it does not have.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Invalid index key
+
+**What.** A reference indexes a resource or module with a key this fork's address parser cannot read - one that is not a literal string or whole number.
+
+**Where.** The identity pass, raised by `internal/addrs`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Invalid nested splat expressions
+
+**What.** Two splat expressions are nested, which has no defined meaning.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Invalid object key
+
+**What.** An object constructor's key does not evaluate to a string and cannot be converted to one.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Invalid operand
+
+**What.** An operator inside a statically evaluated expression was given an operand of the wrong type - arithmetic on a string, for instance.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Invalid path step
+
+**What.** A traversal steps into a value in a way its type does not support.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
 
 #### Invalid reference
 
@@ -974,6 +1352,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
+#### Invalid template interpolation value
+
+**What.** A ${...} interpolation produces a value with no string form, such as a list or an object.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Invalid value for input variable
 
 **What.** The value supplied for a variable does not convert to its declared type.
@@ -981,6 +1367,30 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/configs`. This is a diagnostic the live path shows without having written it; see the section preamble.
 
 **How often.** Blocked no configuration in the measured corpus.
+
+#### Iteration over non-iterable value
+
+**What.** A for expression iterates over something that is not a collection.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Iteration over null value
+
+**What.** A for expression iterates over null.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Missing map element
+
+**What.** A map is indexed with a key it does not contain.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
 
 #### No configuration to resolve
 
@@ -1030,6 +1440,38 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
+#### Not enough function arguments
+
+**What.** A function inside a statically evaluated expression was called with too few arguments.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Null condition
+
+**What.** A for expression's if clause evaluates to null.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Null value as key
+
+**What.** A null is used as an object or map key.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Operation failed
+
+**What.** An arithmetic or comparison operator inside a statically evaluated expression failed - division by zero, for instance.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Provider function in static context
 
 **What.** A statically evaluated expression calls a provider-defined function, which needs a configured provider this run has not started.
@@ -1070,6 +1512,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
+#### Reserved symbol name
+
+**What.** A reference uses a name this fork reserves for future use, so it cannot be read as a reference to anything that exists.
+
+**Where.** The identity pass, raised by `internal/addrs`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Sensitive count expression
 
 **What.** A count expression reads a sensitive or ephemeral value; the instance keys it produces become marker values.
@@ -1080,7 +1530,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Sensitive for_each expression
 
-**What.** A for_each expression reads a sensitive value; instance keys become marker values.
+**What.** A for_each expression reads a sensitive or ephemeral value; instance keys become marker values, which are written to the cloud.
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
@@ -1102,6 +1552,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
+#### Splat of null value
+
+**What.** A splat expression is applied to null.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### The identity table names something the provider does not have
 
 **What.** The identity table builds a type's identity from an argument the installed provider's schema has no such name for; usually provider-version skew.
@@ -1109,6 +1567,22 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked no configuration in the measured corpus.
+
+#### Too many function arguments
+
+**What.** A function inside a statically evaluated expression was called with too many arguments.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Unable to parse provider function
+
+**What.** A provider:: function reference is not in the form the address parser accepts.
+
+**Where.** The identity pass, raised by `internal/addrs`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
 
 #### Unable to use variable in static context
 
@@ -1142,6 +1616,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
+#### Unsupported attribute
+
+**What.** A statically evaluated expression reads an attribute the value does not have.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Unsupported each.value reference
 
 **What.** each.value is used as other than each.value.<attr> when for_each iterates over a resource.
@@ -1149,6 +1631,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked no configuration in the measured corpus.
+
+#### Variables not allowed
+
+**What.** A reference appears where the surrounding context permits no variables at all.
+
+**Where.** The identity pass, raised by `hcl`. This is a diagnostic the live path shows without having written it; see the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
 
 #### for_each over a resource that is not keyed
 
@@ -1158,11 +1648,35 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
+#### No configuration to stamp
+
+**What.** Stamping was given no configuration to rewrite. A caller error, not a configuration one.
+
+**Where.** The stamp pass, raised by `internal/live/stamp`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### No estate name to stamp with
+
+**What.** Stamping was given no estate name, or one outside the tofu-estate marker grammar, so there is no value to write into the markers.
+
+**Where.** The stamp pass, raised by `internal/live/stamp`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### No provider schemas for marker stamping
+
+**What.** Stamping was given no provider schemas, so which types can carry a marker cannot be read. A caller error, not a configuration one.
+
+**Where.** The stamp pass, raised by `internal/live/stamp`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Ownership marker conflict
 
 **What.** The configuration already sets an ownership tag by hand, to a value other than the one this estate's markers require. Overwriting it would move ownership of a live resource without anyone saying so, so the run stops instead.
 
-**Where.** The stamp pass, raised by `internal/live/stamp`. This is a diagnostic the live path shows without having written it; see the section preamble.
+**Where.** The stamp pass, raised by `internal/live/stamp`.
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
@@ -1170,7 +1684,7 @@ reserved for the limits wing's fixture directories, and
 
 **What.** An ownership tag is already set in the configuration to an expression this run cannot evaluate, so whether it agrees with this estate's markers is unknown. A warning for a resource that can be found another way; an error for one that can only be found by its marker.
 
-**Where.** The stamp pass, raised by `internal/live/stamp`. This is a diagnostic the live path shows without having written it; see the section preamble.
+**Where.** The stamp pass, raised by `internal/live/stamp`.
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
@@ -1178,7 +1692,7 @@ reserved for the limits wing's fixture directories, and
 
 **What.** A resource's tags could not be given this estate's ownership markers - most often an untaggable type, or a tags argument this pass cannot append to. Reported as a warning, because the resource is still identifiable from its configuration.
 
-**Where.** The stamp pass, raised by `internal/live/stamp`. This is a diagnostic the live path shows without having written it; see the section preamble.
+**Where.** The stamp pass, raised by `internal/live/stamp`.
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
@@ -1186,7 +1700,7 @@ reserved for the limits wing's fixture directories, and
 
 **What.** The same failure as the entries above, on a resource whose instances can only ever be found by their ownership marker. Applying it unmarked would create a live object no later run could recognise as this estate's, so this one is an error rather than a warning.
 
-**Where.** The stamp pass, raised by `internal/live/stamp`. This is a diagnostic the live path shows without having written it; see the section preamble.
+**Where.** The stamp pass, raised by `internal/live/stamp`.
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 

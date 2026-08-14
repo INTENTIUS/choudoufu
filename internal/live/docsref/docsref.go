@@ -66,6 +66,15 @@ func Parse(s string) (Ref, error) {
 	if !strings.HasSuffix(doc, ".md") {
 		return Ref{}, fmt.Errorf("%q does not name a markdown document", s)
 	}
+	// A refusal is documented in live/ or it is not documented. Criterion 4
+	// of #110 was implemented as "the reference does not begin with GitHub
+	// issue", and an audit pointed a rule at CHANGELOG.md and watched every
+	// test pass. The rule a user needs is not "some markdown file in the
+	// repository mentions this heading"; it is that the live-markers
+	// documentation explains it.
+	if !strings.HasPrefix(doc, "live/") || strings.Contains(doc, "..") {
+		return Ref{}, fmt.Errorf("%q documents a refusal outside live/; a refusal is explained in the live-markers documentation or it is not explained", s)
+	}
 	ref := Ref{Doc: doc}
 	if !hasHeadings {
 		return ref, nil
@@ -140,23 +149,62 @@ func (r Ref) Resolve(root string) error {
 // Headings returns every markdown heading in a document, as a set of the
 // text following the "#" run.
 //
-// Fenced code blocks are skipped: a shell transcript containing a comment
-// line is not a heading, and counting one would let a reference resolve
-// against a code sample.
+// Four things that look like headings are not, and an audit found this
+// counting all four - so a refusal could cite a "heading" no reader would
+// ever see, and the test that resolves references would pass:
+//
+//   - lines inside a fenced code block, ``` or ~~~. A shell transcript full
+//     of comment lines is not a table of contents.
+//   - lines inside an HTML comment. This document has generated regions
+//     delimited by them, and a commented-out section is deliberately not
+//     part of the page.
+//   - indented code blocks, four spaces or a tab.
+//   - a "#" run with no space after it, or longer than six, neither of
+//     which markdown renders as a heading at all.
 func Headings(md string) map[string]bool {
 	out := map[string]bool{}
-	inFence := false
+	var fence string
+	inComment := false
+
 	for _, line := range strings.Split(md, "\n") {
+		// An indented code block is decided before trimming, since that is
+		// the only thing distinguishing it.
+		indented := strings.HasPrefix(line, "    ") || strings.HasPrefix(line, "\t")
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "```") {
-			inFence = !inFence
+
+		if inComment {
+			if strings.Contains(trimmed, "-->") {
+				inComment = false
+			}
 			continue
 		}
-		if inFence || !strings.HasPrefix(trimmed, "#") {
+		if strings.HasPrefix(trimmed, "<!--") && !strings.Contains(trimmed, "-->") {
+			inComment = true
 			continue
 		}
-		text := strings.TrimSpace(strings.TrimLeft(trimmed, "#"))
-		if text != "" {
+
+		switch {
+		case fence != "":
+			if strings.HasPrefix(trimmed, fence) {
+				fence = ""
+			}
+			continue
+		case strings.HasPrefix(trimmed, "```"):
+			fence = "```"
+			continue
+		case strings.HasPrefix(trimmed, "~~~"):
+			fence = "~~~"
+			continue
+		}
+
+		if indented || !strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		hashes := len(trimmed) - len(strings.TrimLeft(trimmed, "#"))
+		if hashes > 6 || len(trimmed) == hashes || trimmed[hashes] != ' ' {
+			continue
+		}
+		if text := strings.TrimSpace(trimmed[hashes:]); text != "" {
 			out[text] = true
 		}
 	}

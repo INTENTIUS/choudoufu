@@ -27,5 +27,12 @@ func TestRefusalsRegistered(t *testing.T) {
 		SkipFile:   "refusals.go",
 		Registered: summaries,
 		What:       whats,
+		// Fourteen of this package's diagnostics choose their summary out
+		// of problemSummaries by ProblemKind. Naming the map is what makes
+		// those values visible to the scan; problemDiag is the one function
+		// that reads it and passes the result on, and every value it can
+		// read is registered by the map scan already.
+		SummaryMaps:  []string{"problemSummaries"},
+		DynamicSites: []string{"problemDiag"},
 	})
 }

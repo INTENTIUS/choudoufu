@@ -307,19 +307,19 @@ func Stamp(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	case !discovery.ValidEstateName(req.Estate):
 		return res, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
-			"No estate name to stamp with",
+			SummaryNoEstateName,
 			fmt.Sprintf("Stamping ownership markers needs the estate's name, matching the tofu-estate grammar in live/MARKERS.md (a lowercase letter followed by letters, digits or hyphens, at most 128 characters). Got %q.", req.Estate),
 		))
 	case req.Config == nil || req.Config.Module == nil:
 		return res, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
-			"No configuration to stamp",
+			SummaryNoConfig,
 			"Stamping ownership markers needs the configuration this run planned from, and none was given.",
 		))
 	case req.Schemas == nil:
 		return res, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
-			"No provider schemas for marker stamping",
+			SummaryNoSchemas,
 			"Which resource types can carry a marker is read from the provider schemas, and none were given. This is a bug.",
 		))
 	}

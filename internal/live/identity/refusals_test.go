@@ -36,6 +36,11 @@ func TestRefusalsRegistered(t *testing.T) {
 		SkipFile:   "refusals.go",
 		Registered: summaries,
 		What:       whats,
+		// Two functions take their summary as a variable. resolver.errorf
+		// is this package's own diagnostic helper, whose callers pass the
+		// literal the scan records; Finding.Diagnostic chooses between the
+		// two Summary-prefixed constants in schema_verify.go.
+		DynamicSites: []string{"errorf", "Diagnostic"},
 	})
 }
 

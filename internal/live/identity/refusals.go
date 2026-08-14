@@ -15,12 +15,17 @@ import (
 //
 // internal/live/lint has most of this - a Rule constant per refusal, a
 // summary and docs anchor per Rule, and tests tying fixture directories to
-// live/LIMITATIONS.md headings. Note it does NOT close the loop an earlier
-// version of this comment claimed: nothing there asserts every Rule has a
-// ruleInfo entry or a resolvable docsRef, and an audit added a Rule with
-// neither and watched the package pass. Six of its sixteen rules have no
-// fixture, and three point their docsRef at a GitHub issue. That gap is
-// tracked on #110.
+// live/LIMITATIONS.md headings. It closes its own loop now, which two earlier
+// versions of this comment were wrong about in opposite directions: it once
+// claimed the loop was closed when nothing asserted it, and then claimed it
+// was open after TestEveryRuleConstantIsRegistered and
+// TestEveryRuleDocsRefIsResolvable had landed. Both now hold - every Rule
+// constant has a ruleInfo entry, and every docsRef resolves to a heading in
+// a shipped file under live/.
+//
+// Three of its nineteen rules still have no fixture directory: the
+// receipt-shape rules, which are specified in live/RECEIPTS.md alongside the
+// pattern they guard rather than in the limits wing.
 //
 // This package had none of it. Its refusals are hcl.Diagnostic values built
 // inline, so nothing could ask "what can this package refuse?" - which is
@@ -95,7 +100,7 @@ var refusals = []Refusal{
 	{"Configuration loaded without a static evaluator", "The configuration was not loaded through configs.Parser.LoadConfigDir or the configload package. A caller error, not a configuration one.", ""},
 	{"Expression not evaluable here", "Static evaluation of an identity argument panicked and was recovered; most often an expression inside a keyed module resolving, several layers down, back to the module call's own each.key or each.value.", ""},
 	{"Identity argument not set", "The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.", ""},
-	{"Identity derived from a sensitive value", "An identity argument reads a sensitive variable. Import identities are written to logs and plan output.", ""},
+	{"Identity derived from a sensitive value", "An identity argument reads a sensitive or ephemeral value. Import identities are written to logs and plan output, so neither can be part of one.", ""},
 	{"Identity derived from an impure function", "An identity argument calls uuid(), timestamp() or bcrypt(), which return a different value on every evaluation.", ""},
 	{"Identity not resolvable from configuration", "An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.", ""},
 	{"Invalid count", "A count expression is not a whole non-negative number.", ""},
@@ -117,7 +122,7 @@ var refusals = []Refusal{
 	{"Identity table and provider schema disagree", "The identity table and the installed provider's schema differ about a type in a way that is not fatal; reported as a warning.", ""},
 	{"Sensitive count expression", "A count expression reads a sensitive or ephemeral value; the instance keys it produces become marker values.", ""},
 	{"Sensitive lifecycle.enabled expression", "A lifecycle.enabled expression reads a sensitive or ephemeral value, so whether the resource exists is decided by something this run may not record.", ""},
-	{"Sensitive for_each expression", "A for_each expression reads a sensitive value; instance keys become marker values.", ""},
+	{"Sensitive for_each expression", "A for_each expression reads a sensitive or ephemeral value; instance keys become marker values, which are written to the cloud.", ""},
 	{"The identity table names something the provider does not have", "The identity table builds a type's identity from an argument the installed provider's schema has no such name for; usually provider-version skew.", ""},
 	{"Two resources with the same identity", "Two resource blocks resolve to one identity, so one live object would have two owners.", `live/LIMITATIONS.md, "duplicate-identity"`},
 	{"Unresolvable identity", "An identity could not be built because a reference it depends on failed; the reference's own error explains why.", ""},

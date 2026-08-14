@@ -27,12 +27,32 @@ import (
 // from where the user stands, from citing nothing.
 //
 // So this resolves instead of counting. Every refusal in the catalog names a
-// document that exists and a heading inside it that exists. It is the test
-// that fails when tools/limits-gen has not been run after a registry change,
-// and it is why adding a refusal to any of the three tables cannot ship
-// undocumented.
+// document under live/ that exists and a heading inside it that exists.
+//
+// What it does NOT do is worth stating, because an audit read more into it
+// than it says. For the refusals whose entry tools/limits-gen writes, the
+// reference and the heading are derived from the same Summary, so this
+// cannot fail once the generator has run - and TestSpansAreCurrent forces
+// that. Its teeth are on the hand-written references: lint's rule table and
+// the three identity overrides, where a human chose the target and can
+// choose a wrong one. The check that a generated entry says anything is
+// tools/limits-gen's TestEveryGeneratedEntryHasContent, and the check that a
+// refusal exists at all is each package's own refusalscan test.
+//
+// The chain is what makes the criterion hold, not this test alone.
 func TestEveryRefusalDocsRefIsResolvable(t *testing.T) {
 	root := flocitest.RepoRoot(t)
+
+	// A Summary registered in two packages would give one heading two
+	// entries, and every check downstream would pass on the duplicate.
+	seen := map[string]string{}
+	for _, refusal := range AllRefusals() {
+		key := string(refusal.Layer) + "/" + refusal.ID
+		if where, dup := seen[key]; dup {
+			t.Errorf("%s is catalogued twice, from %s and %s. One heading would be written for both, and the reader would not learn there were two.", key, where, refusal.RaisedBy)
+		}
+		seen[key] = refusal.RaisedBy
+	}
 
 	// AllRefusals, not Catalog: the criterion is every hard refusal in the
 	// live path, and stamping and discovery are the two passes this

@@ -31,5 +31,9 @@ func TestRefusalsRegistered(t *testing.T) {
 		SkipFile:   "refusals.go",
 		Registered: summaries,
 		What:       whats,
+		// unstampableAt takes its summary as a parameter; every caller
+		// passes one of the constants above, and those are what the scan
+		// records.
+		DynamicSites: []string{"unstampableAt"},
 	})
 }

@@ -16,11 +16,12 @@ import "sort"
 // watching output can never contain one.
 //
 // The set is [ruleInfo]'s keys, which is the same table [Rule.Summary] and
-// [Rule.DocsRef] answer from. One consequence is worth stating rather than
-// discovering: a Rule constant declared with no ruleInfo entry is absent
-// here, and nothing in this package asserts there is no such constant.
-// Closing that is GitHub issue #110's half of the work; until it is closed,
-// this returns the documented rules rather than provably all of them.
+// [Rule.DocsRef] answer from. That used to make this "the documented rules
+// rather than provably all of them", because a Rule constant with no
+// ruleInfo entry was absent here and nothing said so. TestEveryRuleConstantIsRegistered
+// closes it: it parses this package's own declarations - const and var,
+// typed and via a Rule(...) conversion - and fails if any of them is missing
+// from ruleInfo, or if ruleInfo names one that no longer exists.
 func Rules() []Rule {
 	out := make([]Rule, 0, len(ruleInfo))
 	for rule := range ruleInfo {

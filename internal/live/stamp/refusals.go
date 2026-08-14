@@ -17,9 +17,14 @@ import "sort"
 // A refusal an instrument can measure gets found eventually. One it cannot
 // is only ever met by a user in the middle of a migration.
 //
-// The registry is small - four summaries - and its value is not the size.
+// The registry is small - seven summaries - and its value is not the size.
 // It is that live/LIMITATIONS.md's generated section can no longer describe
 // only the refusals that happen to be cheap to measure.
+//
+// Three of the seven were added after an audit: they reach the user through
+// tfdiags.Sourceless, which the first version of internal/live/refusalscan
+// could not see, so the test guarding this registry passed over them in
+// silence.
 
 // Refusal is one thing this package can refuse, keyed by the Summary its
 // diagnostic carries. Same three fields internal/live/identity's registry
@@ -66,6 +71,18 @@ var refusals = []Refusal{
 	{
 		Summary: SummaryNotStamped,
 		What:    "A resource's tags could not be given this estate's ownership markers - most often an untaggable type, or a tags argument this pass cannot append to. Reported as a warning, because the resource is still identifiable from its configuration.",
+	},
+	{
+		Summary: SummaryNoConfig,
+		What:    "Stamping was given no configuration to rewrite. A caller error, not a configuration one.",
+	},
+	{
+		Summary: SummaryNoEstateName,
+		What:    "Stamping was given no estate name, or one outside the tofu-estate marker grammar, so there is no value to write into the markers.",
+	},
+	{
+		Summary: SummaryNoSchemas,
+		What:    "Stamping was given no provider schemas, so which types can carry a marker cannot be read. A caller error, not a configuration one.",
 	},
 	{
 		Summary: SummaryUnmarkedApply,

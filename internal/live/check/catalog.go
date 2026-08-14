@@ -112,24 +112,39 @@ type Refusal struct {
 	RaisedBy string
 }
 
-// The two live registries' RaisedBy values. They are import paths rather
-// than layer names because the third registry's values are import paths -
+// The live registries' RaisedBy values. They are import paths rather than
+// layer names because the pass-through registry's values are import paths -
 // internal/configs, internal/addrs, hcl - and a column mixing "identity"
 // with "internal/configs" reads as two different kinds of fact.
 const (
-	RaisedByLint     = "internal/live/lint"
-	RaisedByIdentity = "internal/live/identity"
+	RaisedByLint      = "internal/live/lint"
+	RaisedByIdentity  = "internal/live/identity"
+	RaisedByStamp     = "internal/live/stamp"
+	RaisedByDiscovery = "internal/live/discovery"
 )
+
+// livePackages is every RaisedBy value belonging to this fork. Anything else
+// is a diagnostic the live path passes through from upstream.
+//
+// It is a set rather than the negation of two constants. The first version
+// of [Refusal.Passthrough] tested "not lint and not identity", and when
+// stamp and discovery were added with their import paths written out at the
+// call site rather than as constants, both classified as pass-through - so
+// five entries in the generated live/LIMITATIONS.md told the reader that
+// internal/live/stamp shows a diagnostic it did not write, which is the
+// opposite of the fact and the exact premise of the commit that added them.
+// Found by an adversarial audit.
+var livePackages = map[string]bool{
+	RaisedByLint:      true,
+	RaisedByIdentity:  true,
+	RaisedByStamp:     true,
+	RaisedByDiscovery: true,
+}
 
 // Passthrough reports whether this refusal is one the live path shows a user
 // without having written it. See internal/live/passthrough.
 func (r Refusal) Passthrough() bool {
-	switch r.RaisedBy {
-	case RaisedByLint, RaisedByIdentity, "":
-		return false
-	default:
-		return true
-	}
+	return r.RaisedBy != "" && !livePackages[r.RaisedBy]
 }
 
 // Documented reports whether any shipped document explains this refusal.
@@ -217,7 +232,7 @@ func AllRefusals() []Refusal {
 			Title:    refusal.Summary,
 			What:     refusal.What,
 			DocsRef:  refusal.DocsRef(),
-			RaisedBy: "internal/live/stamp",
+			RaisedBy: RaisedByStamp,
 		})
 	}
 
@@ -228,7 +243,7 @@ func AllRefusals() []Refusal {
 			Title:    refusal.Summary,
 			What:     refusal.What,
 			DocsRef:  refusal.DocsRef(),
-			RaisedBy: "internal/live/discovery",
+			RaisedBy: RaisedByDiscovery,
 		})
 	}
 

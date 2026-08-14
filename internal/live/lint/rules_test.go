@@ -119,8 +119,11 @@ func ruleConstantsInPackage(t *testing.T) []ruleConstant {
 	for _, pkg := range pkgs {
 		for _, file := range pkg.Files {
 			ast.Inspect(file, func(n ast.Node) bool {
+				// var as well as const. A `var RuleX Rule = "x"` is a
+				// perfectly good rule declaration and was invisible to the
+				// first version of this scan, which tested for token.CONST.
 				decl, ok := n.(*ast.GenDecl)
-				if !ok || decl.Tok != token.CONST {
+				if !ok || (decl.Tok != token.CONST && decl.Tok != token.VAR) {
 					return true
 				}
 				// A const block carries its type on the first spec that
@@ -135,17 +138,28 @@ func ruleConstantsInPackage(t *testing.T) []ruleConstant {
 					if ident, ok := vs.Type.(*ast.Ident); ok {
 						lastType = ident.Name
 					}
-					if lastType != "Rule" {
-						continue
-					}
 					for i, name := range vs.Names {
 						if i >= len(vs.Values) {
 							continue
 						}
-						if s, ok := constStringLit(vs.Values[i]); ok {
+						// Two ways to be a Rule declaration: the spec
+						// carries (or inherits) the Rule type, or the value
+						// is a Rule(...) conversion. An audit added
+						// `const RuleAuditConv = Rule("audit-conv")`, which
+						// has no type ident at all, and watched this scan
+						// pass over it.
+						conv, isConv := ruleConversion(vs.Values[i])
+						if lastType != "Rule" && !isConv {
+							continue
+						}
+						value := vs.Values[i]
+						if isConv {
+							value = conv
+						}
+						if s, ok := constStringLit(value); ok {
 							out = append(out, ruleConstant{constName: name.Name, value: s})
 						} else {
-							t.Errorf("%s: the Rule constant %s is not a string literal, so this scanner cannot see its value",
+							t.Errorf("%s: the Rule declaration %s is not a string literal, so this scanner cannot see its value. Declare it as a literal, or the rule can fire with no ruleInfo entry and nothing will notice.",
 								fset.Position(vs.Values[i].Pos()), name.Name)
 						}
 					}
@@ -156,6 +170,20 @@ func ruleConstantsInPackage(t *testing.T) []ruleConstant {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].constName < out[j].constName })
 	return out
+}
+
+// ruleConversion unwraps a `Rule("x")` conversion, returning the converted
+// expression.
+func ruleConversion(e ast.Expr) (ast.Expr, bool) {
+	call, ok := e.(*ast.CallExpr)
+	if !ok || len(call.Args) != 1 {
+		return nil, false
+	}
+	ident, ok := call.Fun.(*ast.Ident)
+	if !ok || ident.Name != "Rule" {
+		return nil, false
+	}
+	return call.Args[0], true
 }
 
 func constStringLit(e ast.Expr) (string, bool) {

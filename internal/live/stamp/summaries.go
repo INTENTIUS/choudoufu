@@ -25,4 +25,11 @@ const (
 	SummaryMarkerUncheckable = "Ownership marker could not be checked"
 	SummaryNotStamped        = "Ownership markers not stamped"
 	SummaryUnmarkedApply     = "Unmarked apply of a marker-only resource"
+
+	// The three caller errors, raised through tfdiags.Sourceless. They were
+	// invisible to the first version of the scanner, which read diagnostic
+	// literals only; an audit counted them.
+	SummaryNoEstateName = "No estate name to stamp with"
+	SummaryNoConfig     = "No configuration to stamp"
+	SummaryNoSchemas    = "No provider schemas for marker stamping"
 )

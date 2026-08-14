@@ -1671,19 +1671,28 @@ func problemDiag(res *Result, p Problem) tfdiags.Diagnostic {
 	}
 
 	// Every kind in problemSummaries has a summary of its own, and
-	// TestProblemSummariesCoverKinds keeps it that way. The fallback names
-	// the kind rather than saying "Discovery problem", because a summary an
-	// operator cannot act on should at least be one they can report: the kind
-	// is what identifies the code path that produced it.
+	// TestProblemSummariesCoverKinds keeps it that way.
+	//
+	// The fallback used to interpolate the kind into the summary, which
+	// reads better and cannot be registered: a summary assembled at runtime
+	// is not a string any table can hold, so the one diagnostic here that
+	// means "nobody has classified this yet" was also the one refusal
+	// live/LIMITATIONS.md could not describe. The kind moves into the
+	// detail, where it is just as findable by an operator reporting it and
+	// where it does not put a hole in the registry. See #110.
 	summary := problemSummaries[p.Kind]
-	if summary == "" {
-		summary = fmt.Sprintf("Unclassified discovery problem (%s)", p.Kind)
+	unclassified := summary == ""
+	if unclassified {
+		summary = SummaryUnclassifiedProblem
 	}
 
 	// The live IDs are appended as their own sentence, so the detail has to
 	// end as one. Every Problem.Detail in this package does; a later one that
 	// forgets gets the period here rather than a run-on line in the output.
 	detail := strings.TrimRight(p.Detail, " ")
+	if unclassified {
+		detail = fmt.Sprintf("Discovery problem kind %q has no summary of its own, which is a gap in this package rather than something the configuration did. %s", p.Kind, detail)
+	}
 	if len(p.LiveIDs) > 0 && !strings.Contains(detail, p.LiveIDs[0]) {
 		if detail != "" && !strings.HasSuffix(detail, ".") && !strings.HasSuffix(detail, ":") {
 			detail += "."
