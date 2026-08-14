@@ -65,9 +65,9 @@ import (
 // already does. Refusing it would refuse a configuration that works, which
 // is the cost this project's own goal weighs heaviest.
 //
-// This is distinct from [CheckModuleProviders], which warns about provider
-// *blocks* declared inside a child module (#70). Both come from the same
-// gap and neither subsumes the other: a module can declare no provider
+// This is distinct from [checkModuleProviderBlocks], which refuses provider
+// *blocks* declared inside a child module (#70's ruling). Both come from the
+// same gap and neither subsumes the other: a module can declare no provider
 // block of its own and still be called with a mapping.
 func checkModuleProviderMapping(mod *configs.Module, path addrs.Module, issues *[]Issue) {
 	names := make([]string, 0, len(mod.ModuleCalls))

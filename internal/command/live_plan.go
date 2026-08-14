@@ -273,10 +273,6 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		diags = diags.Append(provs.close(ctx))
 		return 1, false, diags
 	}
-	// GitHub issue #70's interim half: never fatal, so it rides alongside the
-	// subset check rather than gating on it. See [lint.CheckModuleProviders].
-	diags = diags.Append(lint.CheckModuleProviders(config))
-
 	// Resolution runs ahead of the providers being configured, as it always
 	// has, and is handed their schemas: a resource type the hand table has
 	// never heard of resolves anyway when the provider's own identity schema

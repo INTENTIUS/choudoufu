@@ -288,12 +288,11 @@ inside a static module binds by its module-qualified address
 (`module.a.module.b.aws_x.y`) exactly as soundly as a root resource binds by
 its own. `RuleChildModule` reports nothing for a module call that sets
 neither `count` nor `for_each`. A `provider` block declared inside that
-static module is a separate, still-open question (per-module provider
-resolution, issue #70): it is neither supported nor refused today - the
-module's resources are silently served by the root configuration's own
-provider config instead - and `lint.CheckModuleProviders`
-(`internal/live/lint/module_provider.go`) only warns about it by name, once
-per run, rather than failing the run.
+static module is refused in its own right: issue #70's ruling made it a
+lint refusal (`RuleModuleProviderBlock`, see the `module-provider-block`
+entry below), because live mode never consults it and the module's
+resources would silently be served by the root configuration's own provider
+config instead.
 
 **A statically-keyed `for_each` module call is admitted.** As of issue #59,
 phase 3 ("59c"), a module call's `for_each` is evaluated the same way a
@@ -608,10 +607,64 @@ admitted. So is `{ myaws = aws }`, where only the child's local name differs.
 default mapping is pinned by `TestModuleProvidersAdmitsTheDefaultMapping`,
 since `TestLimitsEnforced` would pass just as happily if every call were
 refused.
-This is distinct from the warning `CheckModuleProviders` raises about
+This is distinct from `module-provider-block` (next entry), which refuses
 provider *blocks* declared inside a child module (GitHub issue #70): a
 module can declare no provider block of its own and still be called with a
 mapping.
+
+### module-provider-block
+
+**Construct.** A `provider` block declared inside a child module:
+
+```hcl
+# inside modules/vpc/main.tf
+provider "aws" {
+  region = "us-east-1"
+}
+```
+
+**Why banned.** Live mode reads provider configurations from the root module
+only. A provider block declared inside a child module is never consulted -
+the module's resources are read, written and swept against whatever the
+root configuration's own provider config names instead, which may be a
+different account or region than the block asks for, with nothing said
+about it. That silent misattribution is what GitHub issue #70 was filed to
+guard against; an interim once-per-run warning held the gap while the
+design question (honour the block, or refuse it) stayed open.
+
+The ruling was measured before it was made, by the maintainer's stated
+decision rule (if it's common, support it; if it's rare and OpenTofu
+already says don't, side with that). Across the ten most-installed
+terraform-aws-modules repositories - the same repos the third-party corpus
+pins, 740 module-source `.tf` files - not one declares a provider block
+inside module source, and none uses `configuration_aliases`; every provider
+block found sits at an example's *root*, the shape live mode already
+supports. Upstream's own documentation points the same way: provider
+configurations belong in the root module, and a child module declaring its
+own is legacy practice - it cannot be used with `count`, `for_each` or
+`depends_on`, and removing the module call orphans its resources. Rare,
+and already discouraged, so this fork refuses it. Full per-module provider
+resolution remains a design the corpus can reopen if in-module blocks ever
+stop being rare.
+
+**Forwarding address.** Move the provider configuration to the root module
+and let the module receive it implicitly. A `providers` mapping on the
+module call remains subject to the `module-providers` rule's admitted
+shapes: an unaliased mapping such as `providers = { aws = aws }` is
+admitted, an aliased one is refused.
+
+**What is not refused.** Provider blocks in the root module, aliased or
+not - those are exactly what live mode consults. And a child module that
+declares no provider block, which is every module in the measured
+ecosystem.
+
+**Enforcement.** `RuleModuleProviderBlock`,
+`internal/live/lint/module_provider_block.go`
+(`checkModuleProviderBlocks`). Fixture at
+`live/e2e/limits/module-provider-block/`; the admitted twin - the same
+provider block declared at root - is pinned by `TestCheck`'s
+`module-provider-root` case. This refusal replaces the interim
+`CheckModuleProviders` warning, which is retired.
 
 ### undeclared-provider-alias
 
@@ -931,6 +984,7 @@ one - and each says so in its own entry.
 | 0 | 0 | identity | for_each over a resource that is not keyed | `internal/live/identity` | "for_each over a resource that is not keyed" |
 | 0 | 0 | lint | for-each-key | `internal/live/lint` | "foreach-dotted-key" |
 | 0 | 0 | lint | ignore-changes | `internal/live/lint` | "ignore-changes" |
+| 0 | 0 | lint | module-provider-block | `internal/live/lint` | "module-provider-block" |
 | 0 | 0 | lint | overlong-address | `internal/live/lint` | "overlong-address" |
 | 0 | 0 | lint | policy-scope | `internal/live/lint` | "policy-scope" |
 | 0 | 0 | lint | policy-threshold | `internal/live/lint` | "policy-threshold" |
@@ -975,7 +1029,7 @@ one - and each says so in its own entry.
 | - | - | stamp | Ownership markers not stamped | `internal/live/stamp` | "Ownership markers not stamped" |
 | - | - | stamp | Unmarked apply of a marker-only resource | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 
-**164 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
+**165 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->

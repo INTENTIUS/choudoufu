@@ -1,5 +1,5 @@
-# Fixture for CheckModuleProviders (GitHub issue #70's interim half): the
-# root module is clean and the child module declares a default (unaliased)
+# Fixture for RuleModuleProviderBlock (GitHub issue #70's ruling): the root
+# module is clean and the child module declares a default (unaliased)
 # provider block, which live mode never consults.
 
 resource "aws_vpc" "main" {
