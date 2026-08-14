@@ -25,6 +25,7 @@ import (
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/parser"
 )
 
 //go:embed templates/*.html.tmpl
@@ -89,6 +90,20 @@ var docPages = []docPage{
 		Title:       "Start a new estate",
 		Section:     "Start Here",
 		ContentFile: "start.md",
+	},
+	{
+		Slug:        "compatibility",
+		NavLabel:    "Will my config work?",
+		Title:       "Will my config work?",
+		Section:     "Start Here",
+		ContentFile: "compatibility.md",
+	},
+	{
+		Slug:        "day2",
+		NavLabel:    "Day-2 operations",
+		Title:       "Day-2 operations",
+		Section:     "Start Here",
+		ContentFile: "day2.md",
 	},
 	{
 		Slug:       "faq",
@@ -208,8 +223,12 @@ func upstreamVersion(root string) (string, error) {
 	return strings.TrimSuffix(strings.TrimSpace(string(data)), "-dev"), nil
 }
 
+// Heading IDs are on so pages can deep-link to each other's sections, and
+// so a reader can link someone else straight to the paragraph that answers
+// them. Without this, every in-page anchor silently resolves to nowhere.
 var md = goldmark.New(
 	goldmark.WithExtensions(extension.GFM),
+	goldmark.WithParserOptions(parser.WithAutoHeadingID()),
 )
 
 // frontmatterRE strips a leading YAML frontmatter block ("---\n...\n---\n").
