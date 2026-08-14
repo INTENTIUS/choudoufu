@@ -652,6 +652,32 @@ func TestLogicalResourceDetailsRenderByClass(t *testing.T) {
 		}
 	})
 
+	t.Run("RECORD_ADMITTED names record_store as the remedy, not a future release", func(t *testing.T) {
+		// GitHub issue #101. This Detail told operators "that support does
+		// not exist yet" for as long as the support has been shipping:
+		// checkManagedResources admits a RECORD_ADMITTED type the moment a
+		// live block declares a record_store (#73 phase (d)), so reaching
+		// this wording at all means the store is merely absent. Reading it
+		// as "unsupported type" instead of "one block missing" is the
+		// difference between abandoning live markers and adding four lines.
+		lt, ok := ClassifyLogicalType("null_resource")
+		if !ok || lt.Class != ClassRecordAdmitted {
+			t.Fatalf("null_resource classified %+v, ok=%v; want ClassRecordAdmitted", lt, ok)
+		}
+		detail := logicalResourceDetail("null_resource", lt)
+
+		for _, want := range []string{"record_store", "live block"} {
+			if !strings.Contains(detail, want) {
+				t.Errorf("RECORD_ADMITTED Detail must name the remedy: want it to contain %q, got %q", want, detail)
+			}
+		}
+		for _, banned := range []string{"does not exist yet", "not yet", "once the projection", "work lands"} {
+			if strings.Contains(detail, banned) {
+				t.Errorf("RECORD_ADMITTED Detail claims the support is unbuilt (%q), but lint.go admits the type when a record_store is configured; got %q", banned, detail)
+			}
+		}
+	})
+
 	t.Run("SECRET_REFUSED names the class and the no-secrets rule", func(t *testing.T) {
 		lt, ok := ClassifyLogicalType("random_password")
 		if !ok || lt.Class != ClassSecretRefused {

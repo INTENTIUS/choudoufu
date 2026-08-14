@@ -273,26 +273,38 @@ func ClassifyLogicalType(resourceType string) (LogicalType, bool) {
 // ClassOtherRefused reuses the original, single, class-agnostic wording
 // byte for byte - the "(prefix*)" wording every logical type carried before
 // this file's table existed - because nothing has been individually
-// verified about that type to say more. ClassRecordAdmitted and
-// ClassSecretRefused get new wording: today's refusal is unchanged (still
-// RuleLogicalResource, still fatal to a stateless run), but the Detail now
-// names the class and, for RECORD_ADMITTED, the #73 forwarding address that
-// does not exist yet - which is why the type still says no today rather
-// than pointing anywhere real.
+// verified about that type to say more.
+//
+// ClassRecordAdmitted names a remedy rather than a wait. Reaching this
+// function with that class means checkManagedResources did NOT take its
+// recordStoreConfigured branch (lint.go), so the store is absent - the
+// support itself landed with #73 phase (d). The wording said "that support
+// does not exist yet" for long enough that operators read a one-block fix as
+// an unsupported type; that was the defect #101 exists for. Do not
+// reintroduce a "not yet" here without checking lint.go's guard first.
 func logicalResourceDetail(resourceType string, lt LogicalType) string {
 	switch lt.Class {
 	case ClassRecordAdmitted:
 		return fmt.Sprintf(
 			"%q is a logical resource, classified RECORD_ADMITTED: its outputs carry "+
-				"no secret material (%s). That makes it a candidate for GitHub issue "+
-				"#73's record-backed identity - one backed by a persisted micro-state "+
-				"record instead of a cloud observation - once the projection and store "+
-				"work lands. That support does not exist yet, so this type is refused "+
-				"today the same as every other logical resource: nothing can recover "+
-				"its value from the live system, because there is no live system "+
-				"holding it. Pass the value in as a variable or a local, or read it "+
-				"from a resource that really exists",
-			resourceType, lt.Evidence,
+				"no secret material (%s), so a persisted micro-state record can hold "+
+				"its value where no cloud observation could. That support exists - "+
+				"GitHub issue #73's record-backed identity - and this configuration "+
+				"has simply not turned it on, which is the only reason %s is refused "+
+				"here. Declare a record_store in the live block and it is admitted, "+
+				"running through the stock provider lifecycle against a record "+
+				"hydrated from and written back to that store:\n\n"+
+				"  terraform {\n"+
+				"    live {\n"+
+				"      estate = \"my-estate\"\n"+
+				"      record_store \"ssm\" {}\n"+
+				"    }\n"+
+				"  }\n\n"+
+				"The label picks the backend: \"ssm\", \"s3\" (which needs a bucket "+
+				"argument), or \"local\" (a directory beside the module). If you would "+
+				"rather keep no record at all, pass the value in as a variable or a "+
+				"local, or read it from a resource that really exists",
+			resourceType, lt.Evidence, resourceType,
 		)
 	case ClassSecretRefused:
 		return fmt.Sprintf(
