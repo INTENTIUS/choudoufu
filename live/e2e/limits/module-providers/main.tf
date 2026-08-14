@@ -30,3 +30,16 @@ module "west" {
     aws = aws
   }
 }
+
+# The configuration_aliases shape: the alias is on the CHILD side, and the
+# root declares no aws.primary for the module's resources to resolve
+# against. Admitted by the first version of this rule, and the worse of the
+# two failures - the provider ends up configured from the environment with
+# nothing from the configuration at all.
+module "aliased" {
+  source = "./aliased"
+
+  providers = {
+    aws.primary = aws
+  }
+}

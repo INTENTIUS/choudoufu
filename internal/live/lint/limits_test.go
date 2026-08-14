@@ -400,4 +400,66 @@ func TestModuleProvidersAdmitsTheDefaultMapping(t *testing.T) {
 		t.Error(`module "east" maps aws to an aliased configuration and was not refused`)
 	}
 	_ = west
+
+	// The configuration_aliases shape, which the first version of this rule
+	// admitted. An adversarial audit reproduced the provider-key computation
+	// and found the module's resources resolving aws.primary against a root
+	// that does not declare it, so the provider is configured from the
+	// environment with nothing from the configuration reaching it.
+	var aliased bool
+	for _, issue := range issues {
+		if strings.Contains(issue.Construct, `module "aliased"`) {
+			aliased = true
+			if !strings.Contains(issue.Detail, "from the environment") {
+				t.Errorf("the refusal does not name what actually happens: %s", issue.Detail)
+			}
+		}
+	}
+	if !aliased {
+		t.Error(`module "aliased" maps a child-side alias the root does not declare, and was not refused`)
+	}
+}
+
+// TestIgnoreChangesSkipsResourcesWithNoMarkers covers the two populations an
+// adversarial audit found the first version of #103's rule refusing, each
+// with a reason that was untrue of it.
+//
+// A record-backed logical type keeps its state in a record rather than a
+// marker, and under a record_store it is admitted - so this rule was its only
+// refusal, explained as losing tags it does not have. An untaggable type
+// carries no marker either, and aws_autoscaling_group's tag blocks are not
+// the tags map the stamp pass writes into.
+func TestIgnoreChangesSkipsResourcesWithNoMarkers(t *testing.T) {
+	const src = `
+terraform {
+  live {
+    estate = "limits"
+    record_store "local" {
+      path = "./records"
+    }
+  }
+}
+
+resource "null_resource" "effect" {
+  lifecycle {
+    ignore_changes = all
+  }
+}
+
+resource "terraform_data" "effect" {
+  lifecycle {
+    ignore_changes = all
+  }
+}
+`
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
+		t.Fatalf("writing the fixture: %s", err)
+	}
+	cfg := loadConfigDir(t, dir)
+	for _, issue := range CheckContext(t.Context(), cfg) {
+		if issue.Rule == RuleIgnoreChanges {
+			t.Errorf("a record-backed logical type was refused: %s\nIts identity is a persisted record, not a marker.", issue)
+		}
+	}
 }

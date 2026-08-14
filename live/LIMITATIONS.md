@@ -586,16 +586,25 @@ run them separately. Aliases themselves work - a resource's own `provider =`
 argument is honoured, and `live-plan` carries the alias correctly. It is the
 module-call mapping that is not read.
 
+**The other shape, and the worse one.** `providers = { aws.primary = aws }`
+is the standard `configuration_aliases` form: the alias is on the child side,
+and the module's resources write `provider = aws.primary`. Live mode resolves
+that address against the *root* module, which declares no `aws.primary`, so
+the provider is configured from the environment alone and none of the root
+`aws` block's settings reach it. That is refused too, unless the root does
+declare a matching aliased block for it to resolve against.
+
 **What is not refused.** `providers = { aws = aws }`, mapping to the default
 configuration, describes exactly what live mode already does, so it is
-admitted. Only an aliased parent configuration asks for something the run
-will not do.
+admitted. So is `{ myaws = aws }`, where only the child's local name differs.
 
 **Enforcement.** `RuleModuleProviders`,
 `internal/live/lint/module_providers_mapping.go`
 (`checkModuleProviderMapping`). Fixture at
-`live/e2e/limits/module-providers/`, whose second call is the admitted
-default mapping, pinned by `TestModuleProvidersAdmitsTheDefaultMapping`.
+`live/e2e/limits/module-providers/`, carrying all three shapes; the admitted
+default mapping is pinned by `TestModuleProvidersAdmitsTheDefaultMapping`,
+since `TestLimitsEnforced` would pass just as happily if every call were
+refused.
 This is distinct from the warning `CheckModuleProviders` raises about
 provider *blocks* declared inside a child module (GitHub issue #70): a
 module can declare no provider block of its own and still be called with a
@@ -766,6 +775,7 @@ one - and each says so in its own entry.
 | 13 | 25 | identity | Not an identity attribute | `internal/live/identity` | "Not an identity attribute" |
 | 11 | 20 | identity | Invalid for_each set | `internal/live/identity` | "Invalid for_each set" |
 | 6 | 16 | identity | Identity not resolvable from configuration | `internal/live/identity` | "Identity not resolvable from configuration" |
+| 6 | 11 | lint | module-providers | `internal/live/lint` | "module-providers" |
 | 4 | 6 | lint | child-module | `internal/live/lint` | "child-module" |
 | 2 | 10 | lint | moved-block | `internal/live/lint` | "moved-block" |
 | 2 | 3 | identity | Non-static for_each expression | `internal/live/identity` | "Non-static for_each expression" |
@@ -792,86 +802,85 @@ one - and each says so in its own entry.
 | - | - | discovery | Unclassified discovery problem | `internal/live/discovery` | "Unclassified discovery problem" |
 | - | - | discovery | Unlistable marker-discovered type | `internal/live/discovery` | "Unlistable marker-discovered type" |
 | - | - | discovery | Unscoped account reconciliation refused | `internal/live/discovery` | "policy-scope" |
-| - | - | identity | Ambiguous attribute key | `hcl` | "Ambiguous attribute key" |
-| - | - | identity | Attempt to get attribute from null value | `hcl` | "Attempt to get attribute from null value" |
-| - | - | identity | Attempt to index null value | `hcl` | "Attempt to index null value" |
-| - | - | identity | Call to unknown function | `hcl` | "Call to unknown function" |
+| 0 | 0 | identity | Ambiguous attribute key | `hcl` | "Ambiguous attribute key" |
+| 0 | 0 | identity | Attempt to get attribute from null value | `hcl` | "Attempt to get attribute from null value" |
+| 0 | 0 | identity | Attempt to index null value | `hcl` | "Attempt to index null value" |
+| 0 | 0 | identity | Call to unknown function | `hcl` | "Call to unknown function" |
 | 0 | 0 | identity | Circular for_each reference | `internal/live/identity` | "Circular for_each reference" |
 | 0 | 0 | identity | Circular identity reference | `internal/live/identity` | "Circular identity reference" |
 | 0 | 0 | identity | Circular reference | `internal/configs` | "Circular reference" |
-| - | - | identity | Condition is null | `hcl` | "Condition is null" |
+| 0 | 0 | identity | Condition is null | `hcl` | "Condition is null" |
 | 0 | 0 | identity | Configuration loaded without a static evaluator | `internal/live/identity` | "Configuration loaded without a static evaluator" |
-| - | - | identity | Duplicate object key | `hcl` | "Duplicate object key" |
+| 0 | 0 | identity | Duplicate object key | `hcl` | "Duplicate object key" |
 | 0 | 0 | identity | Ephemeral value not allowed | `internal/configs` | "Ephemeral value not allowed" |
-| - | - | identity | Error in function call | `hcl` | "Error in function call" |
+| 0 | 0 | identity | Error in function call | `hcl` | "Error in function call" |
 | 0 | 0 | identity | Expression not evaluable here | `internal/live/identity` | "Expression not evaluable here" |
 | 0 | 0 | identity | Failed to get working directory | `internal/configs` | "Failed to get working directory" |
-| - | - | identity | Function calls not allowed | `hcl` | "Function calls not allowed" |
+| 0 | 0 | identity | Function calls not allowed | `hcl` | "Function calls not allowed" |
 | 0 | 0 | identity | Identity derived from a sensitive value | `internal/live/identity` | "Identity derived from a sensitive value" |
 | 0 | 0 | identity | Identity derived from an impure function | `internal/live/identity` | "Identity derived from an impure function" |
 | 0 | 0 | identity | Identity table and provider schema disagree | `internal/live/identity` | "Identity table and provider schema disagree" |
-| - | - | identity | Inconsistent conditional result types | `hcl` | "Inconsistent conditional result types" |
-| - | - | identity | Incorrect condition type | `hcl` | "Incorrect condition type" |
-| - | - | identity | Incorrect key type | `hcl` | "Incorrect key type" |
+| 0 | 0 | identity | Inconsistent conditional result types | `hcl` | "Inconsistent conditional result types" |
+| 0 | 0 | identity | Incorrect condition type | `hcl` | "Incorrect condition type" |
+| 0 | 0 | identity | Incorrect key type | `hcl` | "Incorrect key type" |
 | 0 | 0 | identity | Invalid "path" attribute | `internal/configs` | "Invalid "path" attribute" |
 | 0 | 0 | identity | Invalid "terraform" attribute | `internal/configs` | "Invalid "terraform" attribute" |
-| - | - | identity | Invalid 'for' condition | `hcl` | "Invalid 'for' condition" |
+| 0 | 0 | identity | Invalid 'for' condition | `hcl` | "Invalid 'for' condition" |
 | 0 | 0 | identity | Invalid attribute in static context | `internal/configs` | "Invalid attribute in static context" |
 | 0 | 0 | identity | Invalid count | `internal/live/identity` | "Invalid count" |
 | 0 | 0 | identity | Invalid default value for module argument | `internal/configs` | "Invalid default value for module argument" |
-| - | - | identity | Invalid expanding argument value | `hcl` | "Invalid expanding argument value" |
+| 0 | 0 | identity | Invalid expanding argument value | `hcl` | "Invalid expanding argument value" |
 | 0 | 0 | identity | Invalid for_each value | `internal/live/identity` | "Invalid for_each value" |
-| - | - | identity | Invalid function argument | `hcl` | "Invalid function argument" |
-| - | - | identity | Invalid index | `hcl` | "Invalid index" |
-| - | - | identity | Invalid index key | `internal/addrs` | "Invalid index key" |
-| - | - | identity | Invalid nested splat expressions | `hcl` | "Invalid nested splat expressions" |
-| - | - | identity | Invalid object key | `hcl` | "Invalid object key" |
-| - | - | identity | Invalid operand | `hcl` | "Invalid operand" |
-| - | - | identity | Invalid path step | `hcl` | "Invalid path step" |
+| 0 | 0 | identity | Invalid function argument | `hcl` | "Invalid function argument" |
+| 0 | 0 | identity | Invalid index | `hcl` | "Invalid index" |
+| 0 | 0 | identity | Invalid index key | `internal/addrs` | "Invalid index key" |
+| 0 | 0 | identity | Invalid nested splat expressions | `hcl` | "Invalid nested splat expressions" |
+| 0 | 0 | identity | Invalid object key | `hcl` | "Invalid object key" |
+| 0 | 0 | identity | Invalid operand | `hcl` | "Invalid operand" |
+| 0 | 0 | identity | Invalid path step | `hcl` | "Invalid path step" |
 | 0 | 0 | identity | Invalid reference | `internal/addrs` | "Invalid reference" |
-| - | - | identity | Invalid template interpolation value | `hcl` | "Invalid template interpolation value" |
+| 0 | 0 | identity | Invalid template interpolation value | `hcl` | "Invalid template interpolation value" |
 | 0 | 0 | identity | Invalid value for input variable | `internal/configs` | "Invalid value for input variable" |
-| - | - | identity | Iteration over non-iterable value | `hcl` | "Iteration over non-iterable value" |
-| - | - | identity | Iteration over null value | `hcl` | "Iteration over null value" |
-| - | - | identity | Missing map element | `hcl` | "Missing map element" |
+| 0 | 0 | identity | Iteration over non-iterable value | `hcl` | "Iteration over non-iterable value" |
+| 0 | 0 | identity | Iteration over null value | `hcl` | "Iteration over null value" |
+| 0 | 0 | identity | Missing map element | `hcl` | "Missing map element" |
 | 0 | 0 | identity | No configuration to resolve | `internal/live/identity` | "No configuration to resolve" |
 | 0 | 0 | identity | No configuration to scan | `internal/live/identity` | "No configuration to scan" |
 | 0 | 0 | identity | Non-static count expression | `internal/live/identity` | "Non-static count expression" |
 | 0 | 0 | identity | Non-static identity argument | `internal/live/identity` | "Non-static identity argument" |
 | 0 | 0 | identity | Non-static lifecycle.enabled expression | `internal/live/identity` | "Non-static lifecycle.enabled expression" |
 | 0 | 0 | identity | Non-string identity argument | `internal/live/identity` | "Non-string identity argument" |
-| - | - | identity | Not enough function arguments | `hcl` | "Not enough function arguments" |
-| - | - | identity | Null condition | `hcl` | "Null condition" |
-| - | - | identity | Null value as key | `hcl` | "Null value as key" |
-| - | - | identity | Operation failed | `hcl` | "Operation failed" |
+| 0 | 0 | identity | Not enough function arguments | `hcl` | "Not enough function arguments" |
+| 0 | 0 | identity | Null condition | `hcl` | "Null condition" |
+| 0 | 0 | identity | Null value as key | `hcl` | "Null value as key" |
+| 0 | 0 | identity | Operation failed | `hcl` | "Operation failed" |
 | 0 | 0 | identity | Provider function in static context | `internal/configs` | "Provider function in static context" |
 | 0 | 0 | identity | Reference to a module instance that does not exist | `internal/live/identity` | "Reference to a module instance that does not exist" |
 | 0 | 0 | identity | Reference to a resource instance that does not exist | `internal/live/identity` | "Reference to a resource instance that does not exist" |
 | 0 | 0 | identity | Reference to undeclared resource | `internal/live/identity` | "Reference to undeclared resource" |
 | 0 | 0 | identity | Required variable not set | `internal/configs` | "Required variable not set" |
-| - | - | identity | Reserved symbol name | `internal/addrs` | "Reserved symbol name" |
+| 0 | 0 | identity | Reserved symbol name | `internal/addrs` | "Reserved symbol name" |
 | 0 | 0 | identity | Resource type outside the live-markers subset | `internal/live/identity` | "unadmitted-type" |
 | 0 | 0 | identity | Sensitive count expression | `internal/live/identity` | "Sensitive count expression" |
 | 0 | 0 | identity | Sensitive for_each expression | `internal/live/identity` | "Sensitive for_each expression" |
 | 0 | 0 | identity | Sensitive lifecycle.enabled expression | `internal/live/identity` | "Sensitive lifecycle.enabled expression" |
 | 0 | 0 | identity | Sensitive value not allowed | `internal/configs` | "Sensitive value not allowed" |
-| - | - | identity | Splat of null value | `hcl` | "Splat of null value" |
+| 0 | 0 | identity | Splat of null value | `hcl` | "Splat of null value" |
 | 0 | 0 | identity | The identity table names something the provider does not have | `internal/live/identity` | "The identity table names something the provider does not have" |
-| - | - | identity | Too many function arguments | `hcl` | "Too many function arguments" |
+| 0 | 0 | identity | Too many function arguments | `hcl` | "Too many function arguments" |
 | 0 | 0 | identity | Two resources with the same identity | `internal/live/identity` | "duplicate-identity" |
-| - | - | identity | Unable to parse provider function | `internal/addrs` | "Unable to parse provider function" |
+| 0 | 0 | identity | Unable to parse provider function | `internal/addrs` | "Unable to parse provider function" |
 | 0 | 0 | identity | Unable to use variable in static context | `internal/configs` | "Unable to use variable in static context" |
 | 0 | 0 | identity | Undefined local | `internal/configs` | "Undefined local" |
 | 0 | 0 | identity | Undefined variable | `internal/configs` | "Undefined variable" |
 | 0 | 0 | identity | Unknown variable | `hcl` | "Unknown variable" |
-| - | - | identity | Unsupported attribute | `hcl` | "Unsupported attribute" |
+| 0 | 0 | identity | Unsupported attribute | `hcl` | "Unsupported attribute" |
 | 0 | 0 | identity | Unsupported each.value reference | `internal/live/identity` | "Unsupported each.value reference" |
-| - | - | identity | Variables not allowed | `hcl` | "Variables not allowed" |
+| 0 | 0 | identity | Variables not allowed | `hcl` | "Variables not allowed" |
 | 0 | 0 | identity | for_each key cannot be recorded as a marker | `internal/live/identity` | live/MARKERS.md, "Ownership semantics" |
 | 0 | 0 | identity | for_each over a resource that is not keyed | `internal/live/identity` | "for_each over a resource that is not keyed" |
 | 0 | 0 | lint | for-each-key | `internal/live/lint` | "foreach-dotted-key" |
-| - | - | lint | ignore-changes | `internal/live/lint` | "ignore-changes" |
-| - | - | lint | module-providers | `internal/live/lint` | "module-providers" |
+| 0 | 0 | lint | ignore-changes | `internal/live/lint` | "ignore-changes" |
 | 0 | 0 | lint | overlong-address | `internal/live/lint` | "overlong-address" |
 | 0 | 0 | lint | policy-scope | `internal/live/lint` | "policy-scope" |
 | 0 | 0 | lint | policy-threshold | `internal/live/lint` | "policy-threshold" |
@@ -1193,7 +1202,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Attempt to get attribute from null value
 
@@ -1201,7 +1210,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Attempt to index null value
 
@@ -1209,7 +1218,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Call to unknown function
 
@@ -1217,7 +1226,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Circular for_each reference
 
@@ -1249,7 +1258,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Configuration loaded without a static evaluator
 
@@ -1265,7 +1274,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Ephemeral value not allowed
 
@@ -1281,7 +1290,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Expression not evaluable here
 
@@ -1305,7 +1314,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Identity derived from a sensitive value
 
@@ -1337,7 +1346,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Incorrect condition type
 
@@ -1345,7 +1354,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Incorrect key type
 
@@ -1353,7 +1362,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Invalid "path" attribute
 
@@ -1377,7 +1386,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Invalid attribute in static context
 
@@ -1409,7 +1418,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Invalid for_each value
 
@@ -1425,7 +1434,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Invalid index
 
@@ -1433,7 +1442,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Invalid index key
 
@@ -1441,7 +1450,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/addrs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Invalid nested splat expressions
 
@@ -1449,7 +1458,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Invalid object key
 
@@ -1457,7 +1466,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Invalid operand
 
@@ -1465,7 +1474,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Invalid path step
 
@@ -1473,7 +1482,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Invalid reference
 
@@ -1489,7 +1498,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Invalid value for input variable
 
@@ -1505,7 +1514,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Iteration over null value
 
@@ -1513,7 +1522,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Missing map element
 
@@ -1521,7 +1530,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### No configuration to resolve
 
@@ -1577,7 +1586,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Null condition
 
@@ -1585,7 +1594,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Null value as key
 
@@ -1593,7 +1602,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Operation failed
 
@@ -1601,7 +1610,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Provider function in static context
 
@@ -1649,7 +1658,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/addrs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Sensitive count expression
 
@@ -1689,7 +1698,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### The identity table names something the provider does not have
 
@@ -1705,7 +1714,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Unable to parse provider function
 
@@ -1713,7 +1722,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/addrs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Unable to use variable in static context
 
@@ -1753,7 +1762,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Unsupported each.value reference
 
@@ -1769,7 +1778,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### for_each over a resource that is not keyed
 

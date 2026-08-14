@@ -70,8 +70,16 @@ import (
 // run cannot check the tag, and says so.
 func (s *stamper) perInstanceVerdict(ctx context.Context, rc *configs.Resource, m marker, cur hclsyntax.Expression) (v verdict, detail string, ok bool) {
 	keys, ok := s.instanceKeys(ctx, rc)
-	if !ok || len(keys) == 0 {
+	if !ok {
 		return 0, "", false
+	}
+	if len(keys) == 0 {
+		// count = 0, or an empty for_each. There is nothing to stamp and
+		// nothing to disagree with, so the tag as written is not this run's
+		// business either way. Verifying is right; declining would send the
+		// caller to a message saying the expression could not be read, which
+		// is untrue - there were simply no instances to read it for.
+		return verifyOK, "", true
 	}
 
 	base, ok := s.repetitionContext(ctx, rc, cur, m.expr)
@@ -143,6 +151,12 @@ type instanceKey struct {
 	index int    // count.index, when counted
 	key   string // each.key, otherwise
 	count bool
+
+	// value is each.value, as the for_each expression actually produced it.
+	// cty.NilVal when this pass could not determine it, which makes an
+	// expression referring to each.value fail to evaluate and the whole
+	// comparison decline - see [instanceKey.vars].
+	value cty.Value
 }
 
 func (k instanceKey) vars() map[string]cty.Value {
@@ -153,18 +167,25 @@ func (k instanceKey) vars() map[string]cty.Value {
 			}),
 		}
 	}
-	// each.value is bound to the key as well. A for_each over a set of
-	// strings is exactly that, and it is the shape a marker expression would
-	// plausibly reach for; over a map the value is something this pass has
-	// no business putting in an address anyway, and an expression using it
-	// will disagree on the comparison and be refused, which is the right
-	// answer for an address built out of a map's values.
-	return map[string]cty.Value{
-		"each": cty.ObjectVal(map[string]cty.Value{
-			"key":   cty.StringVal(k.key),
-			"value": cty.StringVal(k.key),
-		}),
+
+	each := map[string]cty.Value{"key": cty.StringVal(k.key)}
+	if k.value != cty.NilVal {
+		each["value"] = k.value
 	}
+	// When value is unknown, each.value is simply absent from the object, so
+	// an expression using it fails to evaluate and [perInstanceVerdict]
+	// declines rather than comparing.
+	//
+	// The first version of this bound each.value to the KEY unconditionally,
+	// with a comment claiming that an expression built from a map's values
+	// "will disagree on the comparison and be refused". It does the
+	// opposite. The substitution is applied to both sides, so
+	// "aws_eip.pool:${each.value}" over `{ a = "zzz" }` evaluates to
+	// "aws_eip.pool:a" here, matches, and verifies - while the plan writes
+	// "aws_eip.pool:zzz" and discovery never finds it. An adversarial audit
+	// caught it: the change had turned a warning into silence, which is the
+	// one outcome this phase exists to remove.
+	return map[string]cty.Value{"each": cty.ObjectVal(each)}
 }
 
 func (k instanceKey) describe(rc *configs.Resource) string {
@@ -191,17 +212,51 @@ func (s *stamper) instanceKeys(ctx context.Context, rc *configs.Resource) ([]ins
 		}
 		return out, true
 	case rc.ForEach != nil:
-		keys, ok := s.staticForEachKeys(ctx, rc)
-		if !ok {
-			return nil, false
-		}
-		out := make([]instanceKey, 0, len(keys))
-		for _, k := range keys {
-			out = append(out, instanceKey{key: k})
-		}
-		return out, true
+		return s.forEachInstanceKeys(ctx, rc)
 	}
 	return nil, false
+}
+
+// forEachInstanceKeys reads a for_each block's instances, binding each.value
+// to what the expression actually produced rather than to the key.
+//
+// A set of strings has value == key by definition, and that is the shape a
+// marker expression would plausibly reach for. A map does not, and pretending
+// otherwise is what made a wrong marker verify (see [instanceKey.vars]). An
+// element this pass cannot represent leaves value at cty.NilVal, which makes
+// any expression using each.value decline the comparison.
+func (s *stamper) forEachInstanceKeys(ctx context.Context, rc *configs.Resource) ([]instanceKey, bool) {
+	keys, ok := s.staticForEachKeys(ctx, rc)
+	if !ok {
+		return nil, false
+	}
+
+	values := map[string]cty.Value{}
+	if val, ok := s.evalStatic(ctx, rc.ForEach, "for_each"); ok && val != cty.NilVal && !val.IsNull() && val.IsWhollyKnown() && !val.IsMarked() {
+		ty := val.Type()
+		switch {
+		case ty.IsMapType(), ty.IsObjectType():
+			for it := val.ElementIterator(); it.Next(); {
+				k, v := it.Element()
+				if k.Type() == cty.String && !k.IsNull() {
+					values[k.AsString()] = v
+				}
+			}
+		case ty.IsSetType(), ty.IsListType(), ty.IsTupleType():
+			for it := val.ElementIterator(); it.Next(); {
+				_, v := it.Element()
+				if v.Type() == cty.String && !v.IsNull() {
+					values[v.AsString()] = v
+				}
+			}
+		}
+	}
+
+	out := make([]instanceKey, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, instanceKey{key: k, value: values[k]})
+	}
+	return out, true
 }
 
 // repetitionContext builds the evaluation context the two expressions share:

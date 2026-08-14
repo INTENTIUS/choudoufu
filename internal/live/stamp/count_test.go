@@ -497,3 +497,73 @@ resource "aws_eip" "`+longName+`" {
 		}
 	})
 }
+
+// TestStamp_forEachValueIsBoundTruthfully is the regression an adversarial
+// audit found in the first version of #115's per-instance comparison.
+//
+// each.value was bound to the KEY for every instance, on both sides of the
+// comparison, so an address built from a map's values matched itself and
+// verified - while the plan would write the real value and discovery would
+// never find it. That turned a warning into silence, which is the one
+// outcome this whole phase exists to remove.
+func TestStamp_forEachValueIsBoundTruthfully(t *testing.T) {
+	t.Run("a map's values are not its keys", func(t *testing.T) {
+		cfg := loadSource(t, `
+resource "aws_eip" "pool" {
+  for_each = { a = "zzz", b = "yyy" }
+
+  tags = {
+    tofu-estate  = "stamp-unit"
+    tofu-address = "aws_eip.pool:${each.value}"
+  }
+}
+`)
+		_, diags := Stamp(t.Context(), Request{
+			Estate:  "stamp-unit",
+			Config:  cfg,
+			Schemas: testSchemas(),
+		})
+		if !diags.HasErrors() {
+			t.Fatal(`an address built from a map's values was accepted; the plan writes "aws_eip.pool:zzz" where discovery expects "aws_eip.pool:a"`)
+		}
+		assertDiagContains(t, diags, "Ownership marker conflict", `produces "aws_eip.pool:zzz"`)
+	})
+
+	t.Run("a set's values are its keys, and still verify", func(t *testing.T) {
+		cfg := loadSource(t, `
+resource "aws_eip" "pool" {
+  for_each = toset(["a", "b"])
+
+  tags = {
+    tofu-estate  = "stamp-unit"
+    tofu-address = "aws_eip.pool:${each.value}"
+  }
+}
+`)
+		_, diags := Stamp(t.Context(), Request{
+			Estate:  "stamp-unit",
+			Config:  cfg,
+			Schemas: testSchemas(),
+		})
+		assertNoErrors(t, diags)
+	})
+
+	t.Run("a map keyed correctly still verifies", func(t *testing.T) {
+		cfg := loadSource(t, `
+resource "aws_eip" "pool" {
+  for_each = { a = "zzz", b = "yyy" }
+
+  tags = {
+    tofu-estate  = "stamp-unit"
+    tofu-address = "aws_eip.pool:${each.key}"
+  }
+}
+`)
+		_, diags := Stamp(t.Context(), Request{
+			Estate:  "stamp-unit",
+			Config:  cfg,
+			Schemas: testSchemas(),
+		})
+		assertNoErrors(t, diags)
+	})
+}

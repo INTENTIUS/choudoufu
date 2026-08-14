@@ -22,6 +22,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -969,32 +970,11 @@ func instanceRefKeyword(rc *configs.Resource) string {
 // Reading and building tag expressions
 // ---------------------------------------------------------------------------
 
-// taggable reports whether a resource type can carry a marker: a top-level
-// "tags" attribute of a map type that configuration is allowed to set.
-//
-// Read from the schema, never from a list of type names. A list would be
-// wrong the day a provider adds tags to a type, and it would be wrong in the
-// other direction for every provider nobody thought about. The tags-as-nested-
-// blocks shape some types use (an aws_autoscaling_group's tag blocks) is not
-// this, and is deliberately not stamped: those blocks are not the tag map the
-// marker spec describes.
-func taggable(block *configschema.Block) bool {
-	attr, ok := block.Attributes["tags"]
-	if !ok || attr == nil {
-		return false
-	}
-	if !attr.Optional && !attr.Required {
-		// Computed-only: the provider owns the value and configuration
-		// cannot set it.
-		return false
-	}
-	ty := attr.Type
-	if !ty.IsMapType() {
-		return false
-	}
-	et := ty.ElementType()
-	return et == cty.String || et == cty.DynamicPseudoType
-}
+// taggable is [markers.Taggable], which this package used to own. It moved
+// when internal/live/lint needed the same answer for #103's rule: a second
+// copy of the predicate would be a second answer waiting to happen, and the
+// marker vocabulary is the package both can import.
+func taggable(block *configschema.Block) bool { return markers.Taggable(block) }
 
 // tagsWrite works out where a resource's markers can be written and what its
 // tags argument already says.

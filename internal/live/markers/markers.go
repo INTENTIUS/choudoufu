@@ -26,6 +26,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+
+	"github.com/intentius/choudoufu/internal/configs/configschema"
 )
 
 // The three marker tag keys, from live/MARKERS.md. They are the entire
@@ -365,4 +367,41 @@ func TagsOf(obj cty.Value) (map[string]string, bool) {
 		return nil, false
 	}
 	return tags, true
+}
+
+// Taggable reports whether a resource type can carry an ownership marker: a
+// top-level "tags" attribute of a map type that configuration is allowed to
+// set.
+//
+// Read from the schema, never from a list of type names. A list would be
+// wrong the day a provider adds tags to a type, and it would be wrong in the
+// other direction for every provider nobody thought about. The
+// tags-as-nested-blocks shape some types use (an aws_autoscaling_group's tag
+// blocks) is not this, and is deliberately not stamped: those blocks are not
+// the tag map this package's spec describes.
+//
+// It lives here rather than in internal/live/stamp, where it was written,
+// because internal/live/lint needs the same answer and a second copy of a
+// fifteen-line predicate is a second answer waiting to happen. This package
+// is the one both can import: it is the marker vocabulary, and "which types
+// can carry a marker" is part of it.
+func Taggable(block *configschema.Block) bool {
+	if block == nil {
+		return false
+	}
+	attr, ok := block.Attributes["tags"]
+	if !ok || attr == nil {
+		return false
+	}
+	if !attr.Optional && !attr.Required {
+		// Computed-only: the provider owns the value and configuration
+		// cannot set it.
+		return false
+	}
+	ty := attr.Type
+	if !ty.IsMapType() {
+		return false
+	}
+	et := ty.ElementType()
+	return et == cty.String || et == cty.DynamicPseudoType
 }

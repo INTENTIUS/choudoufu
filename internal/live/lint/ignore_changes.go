@@ -11,10 +11,12 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/convert"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // checkIgnoreChanges rejects a lifecycle block that tells the run to discard
@@ -43,10 +45,44 @@ import (
 //
 // tags_all is not refused either. It is the provider's computed union of
 // tags and the provider-level default_tags, so ignoring it does not stop the
-// markers being written into tags, and the update still happens.
-func checkIgnoreChanges(resource *configs.Resource, addr string, path addrs.Module, issues *[]Issue) {
+// markers being written into tags, and the update still happens. That was
+// checked rather than assumed: with ignore_changes = [tags_all] the markers
+// survive in tags untouched, and with [tags] they are stripped.
+//
+// # Only where markers actually live
+//
+// An adversarial audit found the first version refusing three populations
+// this rule has nothing to say about, so it now declines twice before it
+// fires.
+//
+// A logical type is skipped outright. null_resource and terraform_data are
+// admitted once a live block declares a record_store (#73's supported path),
+// which silences RuleLogicalResource - and this rule then became their only
+// refusal, explained as losing tags they do not have. Their identity is a
+// persisted record, not a marker, and ignoring their tags costs nothing.
+//
+// An untaggable type is skipped when the provider schemas are available to
+// say so: aws_route and aws_iam_role_policy_attachment carry no tags at all,
+// and aws_autoscaling_group's tags are nested blocks rather than the map
+// [markers.Taggable] describes, which the stamp pass never writes into
+// either.
+//
+// Without schemas the second check cannot run, and the rule fires on any
+// non-logical managed type. That is the same asymmetry admitted() already
+// has - a caller with no schemas gets a stricter answer, not a different
+// one - and every command that actually stamps reads them first
+// (internal/command/live_plan.go), so the residue is confined to a
+// schema-less "choudoufu live-check", whose output already says which
+// verdicts depend on them.
+func checkIgnoreChanges(resource *configs.Resource, addr string, path addrs.Module, schemas map[string]providers.Schema, issues *[]Issue) {
 	managed := resource.Managed
 	if managed == nil {
+		return
+	}
+	if _, logical := ClassifyLogicalType(resource.Type); logical {
+		return
+	}
+	if schema, ok := schemas[resource.Type]; ok && !markers.Taggable(schema.Block) {
 		return
 	}
 
@@ -57,8 +93,9 @@ func checkIgnoreChanges(resource *configs.Resource, addr string, path addrs.Modu
 			Module:    path,
 			Detail: fmt.Sprintf(
 				"%s ignores every change, which includes the %s and %s tags this mode writes to record ownership. "+
-					"They would be planned and then discarded, so the resource would be applied with no markers on it: "+
-					"the next run could not discover it, and would propose creating a second copy. "+
+					"An existing resource would keep whatever markers it has, or none: the update that writes them is "+
+					"planned and then discarded, so adopting a resource this configuration does not yet own can never "+
+					"succeed, and a marker that drifts can never be repaired. "+
 					"Narrow ignore_changes to the arguments you actually mean, leaving tags out of it.",
 				addr, markers.TagEstate, markers.TagAddress,
 			),
@@ -79,8 +116,9 @@ func checkIgnoreChanges(resource *configs.Resource, addr string, path addrs.Modu
 		construct := fmt.Sprintf("lifecycle { ignore_changes = [tags] } on %s", addr)
 		detail := fmt.Sprintf(
 			"%s ignores changes to its whole tags argument, and the %s and %s tags this mode writes to record ownership live there. "+
-				"They would be planned and then discarded, so the resource would be applied with no markers on it: "+
-				"the next run could not discover it, and would propose creating a second copy. "+
+				"An existing resource would keep whatever markers it has, or none: the update that writes them is planned "+
+				"and then discarded, so adopting a resource this configuration does not yet own can never succeed, and a "+
+				"marker that drifts can never be repaired. "+
 				"Ignore the individual tag keys something outside this configuration writes - ignore_changes = [tags[\"Owner\"]] - "+
 				"rather than the whole argument.",
 			addr, markers.TagEstate, markers.TagAddress,
@@ -89,9 +127,9 @@ func checkIgnoreChanges(resource *configs.Resource, addr string, path addrs.Modu
 			construct = fmt.Sprintf("lifecycle { ignore_changes = [tags[%q]] } on %s", key, addr)
 			detail = fmt.Sprintf(
 				"%s ignores changes to the %q tag, which is one of the ownership markers this mode writes. "+
-					"It would be planned and then discarded, so the resource would be applied without it and the next "+
-					"run could not discover it. Ownership markers are not an argument a configuration manages; "+
-					"remove this entry.",
+					"The update that writes it is planned and then discarded, so an existing resource can never be "+
+					"adopted and a marker that drifts can never be repaired. Ownership markers are not an argument a "+
+					"configuration manages; remove this entry.",
 				addr, key,
 			)
 		}
@@ -127,18 +165,26 @@ func ignoredTagKey(traversal hcl.Traversal) (key string, whole, ok bool) {
 
 	switch step := traversal[1].(type) {
 	case hcl.TraverseIndex:
-		if step.Key.Type() == cty.String && !step.Key.IsNull() {
-			return step.Key.AsString(), false, true
+		// A constant of any type: hcl.RelTraversalForExpr refuses a
+		// non-constant index while decoding ignore_changes
+		// (internal/configs/resource.go), so a variable key never reaches
+		// here and the "unreadable key" case this branch was first written
+		// for does not exist. What does reach it is a non-string constant
+		// such as tags[0], which names the tag key "0" - not a marker, and
+		// not the whole argument either.
+		str, err := convert.Convert(step.Key, cty.String)
+		if err != nil || str.IsNull() {
+			return "", false, false
 		}
-		// An index this pass cannot read as a string. Treat it as the
-		// whole argument rather than as nothing: a key it cannot evaluate
-		// may well be a marker key, and the quiet answer is the one this
-		// rule exists to prevent.
-		return "", true, true
+		return str.AsString(), false, true
 	case hcl.TraverseAttr:
 		return step.Name, false, true
 	default:
-		return "", true, true
+		// A traversal into tags this pass does not recognise. It is not the
+		// whole argument, so treating it as one would refuse something with
+		// no reason given; leaving it alone is the same answer the rule
+		// gives every other non-marker key.
+		return "", false, false
 	}
 }
 
