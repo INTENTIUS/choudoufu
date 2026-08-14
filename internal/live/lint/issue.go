@@ -245,6 +245,18 @@ type Issue struct {
 	// `provisioner "local-exec" on aws_s3_bucket.data`, `backend "s3"`.
 	Construct string
 
+	// Type is the managed resource type name, set only by the rules whose
+	// verdict is about the type rather than about the construct:
+	// [RuleUnadmittedType] and [RuleLogicalResource]. Every other rule
+	// leaves it empty.
+	//
+	// It exists so that a report can group these two rules by type without
+	// picking the name back out of Construct or Detail. Both are prose a
+	// campaign has already rewritten once (#101) and #110 will rewrite
+	// again, and an instrument that measures which refusals fire must not
+	// be reading either. See internal/live/check.
+	Type string
+
 	// Module is the path of the module the construct was found in. Empty for
 	// the root module.
 	Module addrs.Module

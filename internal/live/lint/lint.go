@@ -280,6 +280,7 @@ func checkManagedResources(mod *configs.Module, path addrs.Module, schemas map[s
 			*issues = append(*issues, Issue{
 				Rule:      RuleLogicalResource,
 				Construct: addr,
+				Type:      resource.Type,
 				Module:    path,
 				Detail:    logicalResourceDetail(resource.Type, lt),
 				Subject:   resource.DeclRange,
@@ -355,6 +356,7 @@ func checkManagedResources(mod *configs.Module, path addrs.Module, schemas map[s
 			*issues = append(*issues, Issue{
 				Rule:      RuleUnadmittedType,
 				Construct: addr,
+				Type:      resource.Type,
 				Module:    path,
 				Detail:    detail,
 				Subject:   resource.DeclRange,
