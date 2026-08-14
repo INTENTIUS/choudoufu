@@ -111,6 +111,86 @@ that name has the same static requirement.
 The registry of these refusals, with a one-line description of each shape, is
 `internal/live/identity/refusals.go`. It is the same list the code enforces.
 
+## Your modules
+
+A marker binds to a configuration address, and it stays correct for exactly as
+long as that address stays stable. That one test decides which module shapes
+work.
+
+**A plain `module "app" {}` call** with neither `count` nor `for_each` is
+traversed the same way the root module is. A resource inside it binds by its
+module-qualified address, `module.app.aws_x.y` or
+`module.a.module.b.aws_x.y` at any depth. Nothing extra is needed.
+
+**`for_each` on a module call** works when every key is evaluable from
+configuration alone. A key you chose does not move when a sibling is added or
+removed: `module.app["prod"]` stays `module.app["prod"]` whatever happens to
+`module.app["staging"]`. Keys are held to the same marker-safe character and
+length rules as a resource's own `for_each` key, because the key becomes part
+of every address inside the module.
+
+**`count` on a module call is refused permanently.** Expansion by `count`
+renumbers every address inside the module on any insertion or removal above the
+changed index. Removing element zero turns `module.app[1]` into
+`module.app[0]`, silently pointing every marker beneath it at the wrong live
+resource. A marker records an address, not a position, so no future work closes
+this. Rewrite it as a keyed `for_each` over your own stable names, move the
+resources to the root module, or give the module its own estate.
+
+### Resources inside a keyed module need hand-written markers
+
+Auto-stamping cannot reach a resource declared inside a `for_each`'d module,
+because the module's instances share one HCL body for the `tags` argument and
+no single literal address is correct for all of them. Rather than guess,
+choudoufu leaves such a resource alone when it already declares `tags`, and
+raises a must-stamp error when it declares none and its type needs discovery to
+be found again.
+
+Thread the module's own `each.key` through and build the address from it:
+
+```hcl
+# root module: the call passes its own each.key through
+module "wrapped" {
+  source   = "./wrapped"
+  for_each = toset(["a", "b"])
+  key      = each.key
+}
+```
+
+```hcl
+# wrapped module: receives it as a variable
+variable "key" {
+  type = string
+}
+```
+
+```hcl
+# wrapped module: builds its own address from the variable
+resource "aws_eip" "app" {
+  tags = {
+    tofu-estate  = local.estate_tag
+    tofu-address = "module.wrapped[\"${var.key}\"].aws_eip.app"
+  }
+}
+```
+
+`live/e2e/estate-module-keyed/` is the two-instance fixture this is drawn from,
+proven against a live emulator.
+
+### Crossing a module boundary
+
+A marker carries the full module-qualified address, escaped into a tag value
+per `live/MARKERS.md` (`[` becomes `:`; `]` and `"` are dropped). `choudoufu
+live-mv` reads and writes those the same way it does a root address, so
+flattening a module into the root, moving a resource into a module, or renaming
+across two module instances are all ordinary renames. Only a step carrying a
+`count` key stays refused.
+
+`choudoufu live-import` is narrower: it ratifies root-module state entries only
+and reports the count of non-root module instances it saw and skipped. A
+module-tree estate adopts by planning with a `live` block added, the ordinary
+path on [Migrate an existing estate](migrate.html).
+
 ## How you run it
 
 A configuration can be entirely acceptable and still be refused by how it is
@@ -190,6 +270,13 @@ diagnostic. Tracked as
 [#104](https://github.com/INTENTIUS/choudoufu/issues/104).
 
 Provider aliases at the root work correctly. It is only the module-call mapping.
+
+A `provider` block declared *inside* a child module has the same shape: the
+module's resources are served by the root configuration's provider config
+instead, and lint warns by name once per run rather than failing.
+[#70](https://github.com/INTENTIUS/choudoufu/issues/70) is the open design.
+Configure providers at the root and let modules receive them implicitly, which
+is the only proven pattern.
 :::
 
 ## Editors and linters

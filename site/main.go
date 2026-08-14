@@ -106,61 +106,18 @@ var docPages = []docPage{
 		ContentFile: "day2.md",
 	},
 	{
-		Slug:       "faq",
-		NavLabel:   "FAQ",
-		Title:      "FAQ",
-		Section:    "Start Here",
-		SourcePath: "live/FAQ.md",
+		Slug:        "faq",
+		NavLabel:    "Questions",
+		Title:       "Questions",
+		Section:     "Start Here",
+		ContentFile: "faq.md",
 	},
 	{
-		Slug:       "live-markers",
-		NavLabel:   "Live Markers",
-		Title:      "Live Resource Markers",
-		Section:    "Guides",
-		SourcePath: "website/docs/language/live-markers.mdx",
-		IsMDX:      true,
-	},
-	{
-		Slug:       "aws",
-		NavLabel:   "AWS",
-		Title:      "AWS Provider Coverage",
-		Section:    "Providers",
-		SourcePath: "live/COVERAGE.md",
-	},
-	{
-		Slug:       "markers",
-		NavLabel:   "Marker Spec",
-		Title:      "Marker Spec",
-		Section:    "Reference",
-		SourcePath: "live/MARKERS.md",
-	},
-	{
-		Slug:       "limitations",
-		NavLabel:   "Limitations",
-		Title:      "Limitations",
-		Section:    "Reference",
-		SourcePath: "live/LIMITATIONS.md",
-	},
-	{
-		Slug:       "survey",
-		NavLabel:   "AWS Admission Survey",
-		Title:      "AWS Admission Survey",
-		Section:    "Operations",
-		SourcePath: "live/SURVEY.md",
-	},
-	{
-		Slug:       "receipts",
-		NavLabel:   "Receipts",
-		Title:      "Receipts",
-		Section:    "Operations",
-		SourcePath: "live/RECEIPTS.md",
-	},
-	{
-		Slug:       "e2e",
-		NavLabel:   "E2E Harness",
-		Title:      "The e2e harness",
-		Section:    "Operations",
-		SourcePath: "live/e2e/README.md",
+		Slug:        "reference",
+		NavLabel:    "Reference",
+		Title:       "Reference",
+		Section:     "Reference",
+		ContentFile: "reference.md",
 	},
 }
 
@@ -335,13 +292,46 @@ func run(root, out string) error {
 		}
 	}
 
-	// The live-markers page was first published at stateless-mode.html;
-	// keep a redirect stub at the old URL so existing links still land.
-	redirect := []byte(`<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=live-markers.html"><link rel="canonical" href="live-markers.html"><title>Live Resource Markers</title><p>Moved to <a href="live-markers.html">live-markers.html</a>.</p>` + "\n")
-	if err := os.WriteFile(filepath.Join(out, "stateless-mode.html"), redirect, 0o644); err != nil {
-		return fmt.Errorf("writing stateless-mode.html redirect: %w", err)
+	for from, to := range legacyRedirects {
+		if err := writeRedirect(out, from, to); err != nil {
+			return err
+		}
 	}
 
+	return nil
+}
+
+// legacyRedirects maps a previously published URL to the page that
+// succeeded it. Every one of these was live at some point, so dropping them
+// would break inbound links and search results rather than merely tidying
+// the output directory.
+//
+// The repo-doc pages (aws, markers, limitations, survey, receipts, e2e) are
+// no longer rendered here at all: they are contributor material, and issue
+// #79 moved them back to the repository with the Reference page as the
+// index into them.
+var legacyRedirects = map[string]string{
+	"stateless-mode.html": "index.html",
+	"live-markers.html":   "index.html",
+	"aws.html":            "reference.html",
+	"markers.html":        "reference.html",
+	"limitations.html":    "reference.html",
+	"survey.html":         "reference.html",
+	"receipts.html":       "reference.html",
+	"e2e.html":            "reference.html",
+}
+
+// writeRedirect emits a meta-refresh stub at from pointing at to.
+func writeRedirect(out, from, to string) error {
+	body := fmt.Sprintf(
+		`<!doctype html><meta charset="utf-8">`+
+			`<meta http-equiv="refresh" content="0; url=%[1]s">`+
+			`<link rel="canonical" href="%[1]s">`+
+			`<title>Moved</title>`+
+			`<p>This page moved to <a href="%[1]s">%[1]s</a>.</p>`+"\n", to)
+	if err := os.WriteFile(filepath.Join(out, from), []byte(body), 0o644); err != nil {
+		return fmt.Errorf("writing %s redirect: %w", from, err)
+	}
 	return nil
 }
 

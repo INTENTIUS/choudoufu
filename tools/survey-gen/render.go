@@ -72,7 +72,7 @@ var summaryOverrides = map[string]struct {
 // scope, plus its wired-count span, issue #54), live/LIMITATIONS.md's
 // residue-roster spans and untaggable-admitted span (issue #49 and #54,
 // renderLimitationsMD in residue_render.go and untaggable_render.go), and
-// website/docs/language/live-markers.mdx's Contract spans (issue #54,
+// live/COVERAGE.md's admitted-set spans (issue #54,
 // renderContractMDX in contract_render.go). All from committed JSON and the
 // compiled admission table, with no provider and no network.
 func runRender() error {

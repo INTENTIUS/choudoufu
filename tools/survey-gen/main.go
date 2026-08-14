@@ -41,7 +41,7 @@
 // raw-signal counts sentence, Summary path-count table and wired-count
 // cell; live/LIMITATIONS.md's five residue-roster spans and its
 // untaggable-admitted entry (issue #54); and
-// website/docs/language/live-markers.mdx's Contract count and type
+// live/COVERAGE.md's admitted-set count and type
 // enumeration (issue #54):
 //
 //	go run ./tools/survey-gen -render

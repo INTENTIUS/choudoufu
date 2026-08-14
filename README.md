@@ -84,7 +84,7 @@ Applying at step 2 rather than reading is how you get duplicates: an
 unmarked resource is not yours yet, so the plan proposes creating a second
 one beside it. Which types can be offered automatically, which need a
 hand-written tag, and which have no adoption path at all are covered in
-["Migrating an Existing Estate"](website/docs/language/live-markers.mdx).
+["Migrate an existing estate"](https://intentius.io/choudoufu/migrate.html).
 
 ## See it prove itself
 
@@ -128,11 +128,10 @@ The integration tier needs Docker and `TF_FLOCI_TEST=1`.
 
 The docs unique to this fork, in reading order.
 
-- [`live/FAQ.md`](live/FAQ.md) covers the questions a first-time
-  reader asks, including what happens to an existing state file.
-- [`website/docs/language/live-markers.mdx`](website/docs/language/live-markers.mdx)
-  is the concept page. What live resource markers are, the quickstart, the
-  concurrency story, and the full contract.
+The two user paths, plus the compatibility answer, live on the docs site at
+https://intentius.io/choudoufu/. The repository carries the normative specs
+and the contributor material.
+
 - [`live/MARKERS.md`](live/MARKERS.md) is the marker tag spec, the
   one integration surface external tooling relies on.
 - [`live/LIMITATIONS.md`](live/LIMITATIONS.md) lists every

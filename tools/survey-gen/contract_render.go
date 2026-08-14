@@ -3,15 +3,18 @@
 // Copyright (c) 2023 HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-// The Contract render (issue #54): website/docs/language/live-markers.mdx's
-// "The Contract" section is the one place outside this repository that both
-// counts and enumerates the admitted types, so it is the doc a reader
-// reaches for from the docs site rather than the source tree. Its count and
+// The Contract render (issue #54): live/COVERAGE.md's "The admitted set"
+// section both counts and enumerates the admitted types. Its count and
 // roster used to be hand-updated every wiring batch (37 -> 42 in the Lambda
 // pilot); this file renders both from identity.AdmittedTypes, the same
 // compiled admission table TestContractMDXRenderedSpans holds them to, no
 // provider and no network - the same render/drift pattern SURVEY.md's and
 // LIMITATIONS.md's spans already use.
+//
+// The spans lived in website/docs/language/live-markers.mdx until issue #79
+// moved the docs site to hand-written pages under site/content/ and #112
+// deleted that file. An 846-entry enumeration is reference material, so it
+// moved to the coverage ledger rather than onto a user-facing page.
 package main
 
 import (
@@ -22,9 +25,9 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
-// contractMDXRel is the docs-site concept page whose Contract section this
+// contractMDXRel is the coverage ledger whose admitted-set section this
 // file renders spans into.
-const contractMDXRel = "website/docs/language/live-markers.mdx"
+const contractMDXRel = "live/COVERAGE.md"
 
 // The two rendered spans in "The Contract" section, on the same marker
 // convention every other survey-gen span uses (see render.go's
@@ -41,7 +44,7 @@ const (
 	spanContractTypes = "contract-types"
 )
 
-// renderContractMDX rewrites live-markers.mdx's two Contract spans in
+// renderContractMDX rewrites COVERAGE.md's two admitted-set spans in
 // place, from the compiled admission table.
 func renderContractMDX(root string) error {
 	mdPath := filepath.Join(root, contractMDXRel)
@@ -65,12 +68,10 @@ func renderContractMDX(root string) error {
 	return nil
 }
 
-// renderContractSpans returns the doc with both Contract spans replaced by
-// their rendered bodies. The rest of the file, including every other
-// enumeration on the page (the classifier's seven content-matchable types,
-// the two named orphan cases, the adoption loop), passes through
-// byte-for-byte: this render mode is scoped to the Contract's own count and
-// roster, the two facts issue #54 names as hand-updated every batch.
+// renderContractSpans returns the doc with both spans replaced by their
+// rendered bodies. The rest of the file passes through byte-for-byte: this
+// render mode is scoped to the admitted set's own count and roster, the two
+// facts issue #54 names as hand-updated every batch.
 func renderContractSpans(md string) (string, error) {
 	md, err := replaceSpan(contractMDXRel, md, spanContractCount, renderContractCount())
 	if err != nil {

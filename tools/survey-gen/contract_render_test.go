@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-// TestContractMDXRenderedSpans holds live-markers.mdx's two Contract spans
+// TestContractMDXRenderedSpans holds COVERAGE.md's two admitted-set spans
 // - the resource-type count and the type enumeration - byte-for-byte to
 // what the renderer produces from the compiled admission table (issue
 // #54). This replaces TestContractEnumerationMatchesAdmissionTable's

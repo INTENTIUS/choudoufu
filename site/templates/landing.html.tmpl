@@ -10,55 +10,75 @@
 
 <section class="lead">
   <p>choudoufu is OpenTofu with live resource markers. There is no state
-  file, no backend and no lock. Ownership of a resource lives on the
-  resource itself, as tags, and every plan rebuilds prior state from the
-  live system instead of trusting a file. It is experimental and AWS only
-  at the moment.</p>
-  <p>Choudoufu state is allowed to be stale. OpenTofu state is not. A
-  record here is rebuilt from the live system on demand, so a stale or
-  missing record costs one re-read, never a wrong plan, and there is
-  nothing to store, lock, back up, or repair.</p>
-  <p>Everything else in this fork is stock OpenTofu, unmodified. New here?
-  Start with the <a href="faq.html">FAQ</a>.</p>
+  file, no backend and no lock. Each resource carries its own ownership
+  record as ordinary cloud tags, and every plan rebuilds prior state by
+  reading those markers off the live system.</p>
+
+  <p>Your configuration says what should exist and the cloud says what does.
+  No file gets a vote. Adoption is a tag you write, a rename is a tag you
+  rewrite, and there is nothing to store, lock, back up, or repair.</p>
+
+  <p>Everything else in this fork is stock OpenTofu, unmodified. The name is
+  stinky tofu, which is off-putting on first encounter and grows on
+  people.</p>
 </section>
 
-<section class="migration">
-  <h2>Moving an existing estate over</h2>
-  <p>A greenfield estate is two steps: declare a <code>live</code> block and
-  apply. An estate that already has live resources is not, and the
-  difference is the one thing to get right before trying this on anything
-  you care about. Adoption is a deliberate tag write. Nothing binds a live
-  resource to your configuration until its markers are on it.</p>
-  <ol>
-    <li>Add <code>live { estate = "..." }</code> to your <code>terraform</code>
-    block, remove any <code>backend</code> or <code>cloud</code> block, and
-    delete the state file.</li>
-    <li>Run <code>choudoufu plan</code> and <strong>read it</strong>. Live
-    resources with no markers show up in the <code>Adoptable</code> and
-    <code>Unowned</code> sections, each naming the tags that claim it.</li>
-    <li>Write those tags, with the command the plan prints or your own
-    tooling. There is no <code>adopt</code> command: two tags is the whole
-    contract.</li>
-    <li>Plan again. Adopted resources now read back their own markers and
-    report no changes.</li>
-    <li>Apply once the plan is what you expect.</li>
-  </ol>
-  <p>Applying at step 2 instead of reading is how you get duplicates:
-  an unmarked resource is not yours yet, so the plan proposes creating a
-  second one beside it. Types the plan cannot offer automatically, and the
-  ones with no adoption path at all, are covered in
-  <a href="live-markers.html">Migrating an Existing Estate</a>.</p>
+<section class="status">
+  <h2>Where this stands</h2>
+  <p><strong>Experimental, and AWS only.</strong> Of the thirty-six most
+  commonly used AWS resource types, all but one are admitted. The gap that
+  hurts is the connective tissue between them, such as
+  <code>aws_ecs_service</code> and <code>aws_lambda_permission</code>.</p>
+  <p>Type coverage is rarely what stops a configuration, though. A
+  <code>for_each</code> over a data source, a <code>count.index</code> in a
+  resource name, a <code>backend "s3"</code> block, or a CI pipeline that
+  saves a plan file will each stop one first.
+  <a href="compatibility.html">Will my config work?</a> is the honest list,
+  and it is worth ten minutes before you try a migration.</p>
+</section>
+
+<section class="paths">
+  <h2>Two paths</h2>
+  <div class="path-cards">
+    <div class="path-card">
+      <h3><a href="migrate.html">Migrate an existing estate</a></h3>
+      <p>You have an OpenTofu configuration managing live AWS resources and a
+      state file you would like to stop having. Deleting the file is the easy
+      half; binding the live resources is the half that needs attention.</p>
+    </div>
+    <div class="path-card">
+      <h3><a href="start.html">Start a new estate</a></h3>
+      <p>Nothing exists yet and choudoufu will create all of it. Install,
+      declare a <code>live</code> block, apply, then confirm no state file
+      was written.</p>
+    </div>
+  </div>
 </section>
 
 <section class="demo">
-  <h2>See it work</h2>
-  <p>One command runs the full demo against a local AWS emulator. It needs
-  Docker. The exit code is the verdict.</p>
+  <h2>See it prove itself</h2>
+  <p>The demo is also the test suite. It stands up a real estate against a
+  local AWS emulator, deletes the state file partway through, and shows the
+  plans stay exact anyway. It needs Docker and takes about two minutes on a
+  warm Go build cache. The exit code is the verdict.</p>
   <pre><code>bash live/e2e/run.sh --expect 5</code></pre>
+  <p>Or hand this to a coding agent and let it run the whole thing.</p>
+  <pre><code>Clone https://github.com/INTENTIUS/choudoufu, then do the following.
+
+1. Confirm Docker is running (`docker info` must succeed).
+2. If Go is installed, skip this step. Otherwise download the latest
+   release tarball for this platform from
+   https://github.com/INTENTIUS/choudoufu/releases, extract it, and
+   export TOFU_BIN=&lt;absolute path to the extracted choudoufu binary&gt;.
+3. From the repo root, run: bash live/e2e/run.sh --expect 5
+4. Report each step's result as the script prints it, and the final exit code.
+
+Exit code 0 means every claim the script makes about live resource markers
+held. Non-zero means one of them did not. Report which step failed.</code></pre>
 </section>
 
 <section class="docs-nav">
-  <h2>Fork-unique docs</h2>
+  <h2>Documentation</h2>
   <div class="docs-menu">
     {{range .Sections}}<div class="docs-menu-group">
       <h3>{{.Title}}</h3>
