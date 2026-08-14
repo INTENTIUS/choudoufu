@@ -22,11 +22,16 @@ import (
 // scope block, so an unscoped account-wide purge is a lint refusal rather
 // than a default.
 //
-// Live blocks only ever decode on the root module (RuleChildModule already
-// refuses child modules under live resource markers before this rule would
-// matter), so mod.Live is nil for every module this reaches except the
-// root - the same shape checkStateBackends and the other whole-module
-// checks already assume.
+// A live block DOES decode in a child module - configs.Module.Live is set
+// per-module (internal/configs/module.go) and child modules are admitted
+// since issue #59, so the old claim that RuleChildModule refuses them first
+// is false. What is true is that nothing outside the root's block is acted
+// on: statelessSettings reads the root module's Live only, and
+// recordStoreConfiguredIn is documented as read once from the root and
+// threaded. So this rule still fires on whatever it finds, which is the
+// conservative direction, but a policy block in a child module is enforced
+// while its record_store is ignored. The silent half is tracked with the
+// other child-module silent-ignores on issue #104.
 func checkLivePolicy(mod *configs.Module, path addrs.Module, issues *[]Issue) {
 	if mod.Live == nil || mod.Live.Policy == nil {
 		return

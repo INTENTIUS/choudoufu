@@ -34,12 +34,13 @@ type TypeIdentity struct {
 	// arguments say, the same way ServerAssigned instances always classify
 	// ClassNeedsDiscovery above.
 	//
-	// Staged and currently inert: no entry in [DefaultTable] sets this
-	// field yet, because a RECORD_ADMITTED type is refused by lint before
-	// it ever reaches this table, and [SynthesizeTypeIdentity] never
-	// produces it either. It exists so the projection work #73 stages next
-	// - hydrating a record-backed instance without a cloud read - is an
-	// additive change to this struct's callers rather than a breaking one.
+	// Live since #73 phase (d): ten rows of [DefaultTable] set it
+	// (null_resource, terraform_data, the random_* and time_* families),
+	// and internal/live/projection consumes ClassRecordBacked to hydrate
+	// such an instance from the record store without a cloud read. Lint
+	// still refuses these types when no record_store is configured, which
+	// is why a configuration without one never reaches a row that sets
+	// this. [SynthesizeTypeIdentity] never produces it.
 	RecordBacked bool
 
 	// Components build the import identity by concatenation, in order.

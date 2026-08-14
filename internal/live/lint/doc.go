@@ -19,8 +19,11 @@
 // terraform_remote_state data source, moved blocks, logical resources whose
 // existence is the store (random_, tls_, time_, null_, local_), and backend
 // or cloud blocks. The "The admission rule" section covers resource types:
-// a type participates only if its identity is recoverable with no memory, and
-// v0 hardcodes the set of types that qualify (see admission.go).
+// a type participates only if its identity is recoverable with no memory. The
+// set that qualifies is generated into admission_generated.go by
+// tools/row-gen -emit; admission.go holds only admitted(), which reads that
+// set and then falls back to the provider's own resource identity schema
+// plus the configuration's naming signal (issue #22).
 //
 // # Why an Issue slice and not tfdiags
 //

@@ -57,15 +57,15 @@ type Context struct {
 	// resolution, applied here too so that a lint refusal and a resolution
 	// refusal never disagree about the same type. See [admitted].
 	//
-	// Nil is the default and means the v0 hand table is the whole of what
+	// Nil is the default and means the generated table is the whole of what
 	// lint knows, which is what [CheckContext] always passes and what
 	// every caller running before a provider has started passes.
 	Schemas map[string]providers.Schema
 }
 
 // CheckWith is [CheckContext] told the provider schemas the caller already
-// has, so that a resource type with no hand-written row in the v0 admission
-// table can still pass when the schemas describe it completely enough.
+// has, so that a resource type with no row in the generated admission table
+// can still pass when the schemas describe it completely enough.
 //
 // Admission only ever grows when schemas are present, never shrinks: a
 // caller with none gets exactly [CheckContext]'s answer, over the same
@@ -272,7 +272,7 @@ func checkManagedResources(mod *configs.Module, path addrs.Module, schemas map[s
 				// ClassRecordBacked); nothing more to say here, and no
 				// RuleLogicalResource issue for it. Falling through to the
 				// admission-table check below would be wrong too - this
-				// type never goes through admitted()'s v0 hand table, so
+				// type never goes through admitted()'s generated table, so
 				// it is skipped entirely, the same way a refused logical
 				// type always has been.
 				continue

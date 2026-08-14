@@ -11,7 +11,7 @@ import (
 )
 
 // admitted reports whether the given provider-local resource type may appear
-// in a stateless configuration: first by the v0 hand table, and - only when
+// in a stateless configuration: first by the generated table, and - only when
 // the caller supplied provider schemas - by whatever
 // [identity.SynthesizeTypeIdentity] can derive from those schemas and the
 // configuration's own naming signal.
