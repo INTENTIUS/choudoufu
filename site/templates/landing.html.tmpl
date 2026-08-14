@@ -9,10 +9,13 @@
 </section>
 
 <section class="lead">
-  <p>choudoufu is OpenTofu with live resource markers. Each resource carries
-  its own ownership record as ordinary cloud tags, and every plan rebuilds
-  prior state by reading those markers back off the live system. Your
-  configuration says what should exist and the cloud says what does.</p>
+  <!-- The canonical description paragraph (#113): identical wording in
+       README.md's opening, this lead, and the GitHub repo description.
+       Change all three together or none. -->
+  <p>choudoufu is OpenTofu with live resource markers: no state file, no
+  backend, no lock. Each resource carries its own ownership record as
+  ordinary cloud tags, and every plan rebuilds prior state by reading those
+  markers back off the live system. Experimental, AWS only.</p>
 
   <p><strong>Choudoufu state is allowed to be stale. OpenTofu state is
   not.</strong> A record here is rebuilt from

@@ -4,89 +4,54 @@
 
 **Ownership on the resource.** <img src="docs/images/choudoufu-inline-64.png" width="32" height="32" alt="">
 
+choudoufu is OpenTofu with live resource markers: no state file, no backend,
+no lock. Each resource carries its own ownership record as ordinary cloud
+tags, and every plan rebuilds prior state by reading those markers back off
+the live system. Experimental, AWS only.
+
+The name is stinky tofu: fermented, famously an acquired taste, and a fit
+for an OpenTofu counterpart whose state is allowed to be stale. (The
+[FAQ](https://intentius.io/choudoufu/faq.html) has the longer answer.)
+
+The state model splits into three jobs, each serviced by ordinary IAM
+governance: ownership and estate markers, tagged on the resource; a micro
+state backend (`record_store`) holding the values of logical resources; and
+receipts, which track the staleness of effects. Together they make estates
+easy to carve into smaller domains and shrink the blast radius, with no
+locks to manage.
+
+If you already use OpenTofu, the short version is that `terraform.tfstate`
+stops existing. Adoption is a tag you write. A rename is a tag you rewrite.
+
 Built on OpenTofu (fork point
 [`03743ce6e8`](https://github.com/opentofu/opentofu/commit/03743ce6e8)). The
 exact upstream version this tree is built on lives in
 [`version/VERSION`](version/VERSION), and each
 [release](https://github.com/INTENTIUS/choudoufu/releases)'s notes name both
-versions.
-
-Choudoufu is OpenTofu with live resource markers. There is no state file, no
-backend and no lock. Each resource carries its own ownership record as plain
-tags, and every plan rebuilds prior state by reading those markers off the
-live system. It is experimental and AWS only at the moment. Everything else
-is stock OpenTofu. The binary is `choudoufu`.
-
-If you already use OpenTofu, the short version is that `terraform.tfstate`
-stops existing. Adoption is a tag you write. A rename is a tag you rewrite.
-
-New here? The docs site at
-[intentius.io/choudoufu](https://intentius.io/choudoufu/) has the two paths:
-migrating an estate you already have, or starting a new one. Read
-[Will my config work?](https://intentius.io/choudoufu/compatibility.html)
-first if you are evaluating.
+versions. The binary is `choudoufu`; everything outside live markers is stock
+OpenTofu.
 
 ## Where this stands
 
-Live markers are experimental, and the scope is deliberately narrow. The mode
-covers AWS only and a fixed subset of resource types. Static module trees and
-statically-keyed `for_each` modules are covered too; a `count`-expanded
-module block is refused permanently. Configs outside that subset are refused
-up front by a lint pass rather than half supported. The full boundary, with
-the reasoning for each limit, is in
+Experimental, and AWS only. Most of the commonly used AWS resource types are
+admitted; the gap that hurts is the connective tissue between them, such as
+`aws_ecs_service` and `aws_lambda_permission`.
+
+Type coverage is rarely what stops a configuration, though. A
+`backend "s3"` block, a CI pipeline that saves a plan file (`-out` plus
+`apply <planfile>`), a non-default workspace, a `count.index` in a resource
+name, a `for_each` keyed by CIDRs, or an identity argument read from a data
+source will each stop one first. Run
+
+```
+choudoufu live-check
+```
+
+in your configuration directory for a verdict on your own code with no cloud
+credentials, or read
+[Will my config work?](https://intentius.io/choudoufu/compatibility.html)
+The full boundary, each limit with its reasoning, is
 [`live/LIMITATIONS.md`](live/LIMITATIONS.md).
-
-## Install
-
-Every tagged release publishes prebuilt binaries for macOS, Linux and
-Windows (amd64 and arm64), with a `SHA256SUMS` file, on the
-[releases page](https://github.com/INTENTIUS/choudoufu/releases). macOS and
-Linux ship as `.tar.gz`; Windows ships as `.zip`, since that is what
-Windows' built-in Explorer opens without extra tooling. To fetch the latest
-for macOS or Linux:
-
-```
-os=$(uname -s | tr '[:upper:]' '[:lower:]')
-arch=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
-gh release download -R INTENTIUS/choudoufu --pattern "*_${os}_${arch}.tar.gz"
-tar xzf choudoufu_*_"${os}"_"${arch}".tar.gz   # unpacks ./choudoufu
-```
-
-On Windows, in PowerShell:
-
-```powershell
-gh release download -R INTENTIUS/choudoufu --pattern "*_windows_amd64.zip"
-Expand-Archive choudoufu_*_windows_amd64.zip .   # unpacks .\choudoufu.exe
-```
-
-(use `*_windows_arm64.zip` on ARM64 Windows). Building from source stays one
-command (below).
-
-## Moving an existing estate over
-
-A greenfield estate is two steps: declare a `live` block and apply. An
-estate that already has live resources is not, and the difference matters
-before you try this on anything you care about. Adoption is a deliberate
-tag write, and nothing binds a live resource to your configuration until
-its markers are on it.
-
-1. Add `live { estate = "..." }` to your `terraform` block, remove any
-   `backend` or `cloud` block, and delete the state file.
-2. Run `choudoufu plan` and read it. Live resources carrying no markers
-   appear in the plan's `Adoptable` and `Unowned` sections, each naming the
-   exact tags that claim it.
-3. Write those tags, using the command the plan prints or your own tooling.
-   There is no `adopt` command; two tags is the whole contract
-   ([`live/MARKERS.md`](live/MARKERS.md)).
-4. Plan again. Adopted resources read back their own markers and report no
-   changes.
-5. Apply once the plan is what you expect.
-
-Applying at step 2 rather than reading is how you get duplicates: an
-unmarked resource is not yours yet, so the plan proposes creating a second
-one beside it. Which types can be offered automatically, which need a
-hand-written tag, and which have no adoption path at all are covered in
-["Migrate an existing estate"](https://intentius.io/choudoufu/migrate.html).
 
 ## See it prove itself
 
@@ -117,6 +82,45 @@ Exit code 0 means every claim the script makes about live resource markers
 held. Non-zero means one of them did not. Report which step failed.
 ```
 
+## Install
+
+Every tagged release publishes prebuilt binaries for macOS, Linux and
+Windows (amd64 and arm64), with a `SHA256SUMS` file, on the
+[releases page](https://github.com/INTENTIUS/choudoufu/releases). macOS and
+Linux ship as `.tar.gz`; Windows ships as `.zip`, since that is what
+Windows' built-in Explorer opens without extra tooling. To fetch the latest
+for macOS or Linux:
+
+```
+os=$(uname -s | tr '[:upper:]' '[:lower:]')
+arch=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
+gh release download -R INTENTIUS/choudoufu --pattern "*_${os}_${arch}.tar.gz"
+tar xzf choudoufu_*_"${os}"_"${arch}".tar.gz   # unpacks ./choudoufu
+```
+
+On Windows, in PowerShell:
+
+```powershell
+gh release download -R INTENTIUS/choudoufu --pattern "*_windows_amd64.zip"
+Expand-Archive choudoufu_*_windows_amd64.zip .   # unpacks .\choudoufu.exe
+```
+
+(use `*_windows_arm64.zip` on ARM64 Windows). Building from source is one
+command (below).
+
+## Which path is yours
+
+**You have an estate already.** An estate with live resources needs care
+before anything binds to it: adoption is a deliberate tag write, and until a
+resource's markers are on it, it is not yours — applying too early is how
+you get a duplicate created beside the real thing. The steps, which types
+adopt automatically, and which need a hand-written tag are on
+[Migrate an existing estate](https://intentius.io/choudoufu/migrate.html).
+
+**You are starting fresh.** A greenfield estate is a `live` block and an
+apply. [Start a new estate](https://intentius.io/choudoufu/start.html) walks
+it end to end.
+
 ## Building and testing
 
 ```
@@ -128,9 +132,7 @@ The integration tier needs Docker and `TF_FLOCI_TEST=1`.
 
 ## Docs
 
-The docs unique to this fork, in reading order.
-
-The two user paths, plus the compatibility answer, live on the docs site at
+The two user paths and the compatibility answer live on the docs site at
 https://intentius.io/choudoufu/. The repository carries the normative specs
 and the contributor material.
 
@@ -138,13 +140,13 @@ and the contributor material.
   one integration surface external tooling relies on.
 - [`live/LIMITATIONS.md`](live/LIMITATIONS.md) lists every
   construct the mode bounds or rejects, each with its lint rule and fixture.
-- [`live/RECEIPTS.md`](live/RECEIPTS.md) shows how to record an
-  effect that leaves nothing in the live system to read back.
+- [`live/RECEIPTS.md`](live/RECEIPTS.md) covers receipts: how an
+  effect that leaves nothing in the live system to read back gets a
+  record that tracks its staleness.
 - [`live/e2e/README.md`](live/e2e/README.md) documents the
   demo/test harness and how to read its output.
 
-These also render as a small docs site at
-https://intentius.io/choudoufu/. All stock OpenTofu documentation lives at
+All stock OpenTofu documentation lives at
 [opentofu.org](https://opentofu.org/docs/).
 
 <p align="center">
