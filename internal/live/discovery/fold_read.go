@@ -279,7 +279,7 @@ func recordFoldReadFinding(typeName, parentType string, parentAddr addrs.AbsReso
 		})
 	} else {
 		finding.Withheld = fmt.Sprintf(
-			"%s is reachable through %s's own identity but not yet wired for removal by this pass; see live/LIMITATIONS.md, \"Some untaggable types are swept via a parent read instead\"",
+			"%s is reachable through %s's own identity but not yet wired for removal by this pass; see live/LIMITATIONS.md, \"Some are swept via a parent read instead (issue #60)\"",
 			typeName, parentType)
 	}
 	res.ParentReads = append(res.ParentReads, finding)

@@ -681,7 +681,18 @@ resource "aws_eip" "pool" {
 	if !diags.HasErrors() {
 		t.Fatal("a constant address on a count resource was accepted")
 	}
-	assertDiagContains(t, diags, "Ownership marker conflict", "count", "aws_eip.pool:count.index")
+	// The remedy has to name the interpolation, not addressExpr's display
+	// string. This used to assert "aws_eip.pool:count.index", which is what
+	// the message told the user to write - and writing it literally sets the
+	// same constant on all three instances, reproducing this very error.
+	// See #101.
+	assertDiagContains(t, diags, "Ownership marker conflict", "count", "${count.index}")
+
+	for _, d := range diags {
+		if strings.Contains(d.Description().Detail, `Write it as "aws_eip.pool:count.index"`) {
+			t.Errorf("the remedy quotes addressExpr's display string, which has no interpolation in it: %s", d.Description().Detail)
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------

@@ -526,7 +526,7 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 			return nil, diags
 		}
 		return nil, diags.Append(s.unstampable(rc, fmt.Sprintf(
-			"%s is a %s, which has no tags argument in the provider's schema and so has nowhere to carry an ownership marker.",
+			"%s is a %s, whose schema has no tags map this configuration can set, so there is nowhere to carry an ownership marker.",
 			addr, rc.Type)))
 	}
 	if keyedAncestor {
@@ -825,9 +825,15 @@ func (s *stamper) verifyValue(rc *configs.Resource, m marker, got string) (verdi
 				"%s has %s, so its instances are a fungible set, but its %s tag is the constant %q and every instance would claim the same slot. Remove the tag and let this run stamp the assignment it worked out from the live set (%s).",
 				addr, instanceKeyword(rc), TagSlot, got, m.want)
 		}
+		// Not "Write it as %q" with m.want: m.want is addressExpr's DISPLAY
+		// string, which omits the interpolation - "aws_eip.pool:count.index"
+		// rather than "aws_eip.pool:${count.index}", and for a continuation
+		// chunk it carries a " (chunk 1 of 2)" suffix that is not HCL at
+		// all. A user following that literally writes a constant on every
+		// instance, which is the error being reported. See #101.
 		return verifyConflict, fmt.Sprintf(
-			"%s has %s, so each instance owns a different address, but its %s tag is the constant %q. Write it as %q, or remove the tag and let this run stamp it.",
-			addr, instanceKeyword(rc), m.key, got, m.want)
+			"%s has %s, so each instance owns a different address, but its %s tag is the constant %q. Remove the tag and let this run stamp the per-instance value, or write it as an expression that interpolates %s.",
+			addr, instanceKeyword(rc), m.key, got, instanceRefKeyword(rc))
 	}
 
 	if got == m.want {
@@ -837,7 +843,7 @@ func (s *stamper) verifyValue(rc *configs.Resource, m marker, got string) (verdi
 	switch m.key {
 	case TagEstate:
 		return verifyConflict, fmt.Sprintf(
-			"%s declares %s = %q and this run is stamping the estate %q. A plan never overwrites a marker naming another estate: pass -estate=%s if that is the estate this run is for, or drop the flag and let the configuration's own value stand.",
+			"%s declares %s = %q and this run is stamping the estate %q. A plan never overwrites a marker naming another estate: name %s in the live block (or with -estate, if this configuration has no live block) if that is the estate this run is for, or correct the tag.",
 			addr, TagEstate, got, m.want, got)
 	case TagAddress:
 		return verifyConflict, fmt.Sprintf(
@@ -911,6 +917,18 @@ func instanceKeyword(rc *configs.Resource) string {
 		return "count"
 	}
 	return "for_each"
+}
+
+// instanceRefKeyword is the expression a per-instance marker has to
+// interpolate, written the way a user would type it. It exists because the
+// obvious thing to quote at them - addressExpr's m.want - is a DISPLAY
+// string with the "${...}" stripped out, so quoting it hands back a constant
+// and reproduces the error being reported (#101).
+func instanceRefKeyword(rc *configs.Resource) string {
+	if rc.Count != nil {
+		return "${count.index}"
+	}
+	return "${each.key}"
 }
 
 // ---------------------------------------------------------------------------

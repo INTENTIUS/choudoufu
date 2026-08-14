@@ -235,7 +235,7 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 			typeName, importID)
 	case estate == "":
 		detail = fmt.Sprintf(
-			"A live %s already exists with identity %q and carries no %s marker, so this estate does not own it and the plan proposes creating the resource this configuration declares - which the cloud will refuse while the unowned one holds the name. Adopt it by writing %s=%q and %s=%q onto it, then re-run; or point this resource at a name nobody is using.",
+			"A live %s already exists with identity %q and carries no %s marker, so this estate does not own it and the plan proposes creating the resource this configuration declares - which, for a type whose name must be unique, the cloud will refuse while the unowned one holds it. Adopt it by writing %s=%q and %s=%q onto it, then re-run; or set policy { declared_untagged = \"adopt\" } in the live block to have this run adopt it for you; or point this resource at a name nobody is using.",
 			typeName, importID, markers.TagEstate,
 			markers.TagEstate, own.Estate,
 			markers.TagAddress, markers.EscapeAddress(addr.String()))

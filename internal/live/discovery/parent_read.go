@@ -294,7 +294,7 @@ func recordParentReadFinding(typeName string, link identity.ParentLink, parentAd
 		})
 	} else {
 		finding.Withheld = fmt.Sprintf(
-			"%s is parent-readable via %s but not yet wired for removal by this pass; see live/LIMITATIONS.md, \"Some untaggable types are swept via a parent read instead\"",
+			"%s is parent-readable via %s but not yet wired for removal by this pass; see live/LIMITATIONS.md, \"Some are swept via a parent read instead (issue #60)\"",
 			typeName, link.Parent)
 	}
 	res.ParentReads = append(res.ParentReads, finding)

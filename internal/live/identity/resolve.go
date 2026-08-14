@@ -756,13 +756,13 @@ func (r *resolver) resolveTraversal(trav hcl.Traversal, scope instScope, ident c
 		instAddr = subject
 	default:
 		r.errorf(rng, "Identity not resolvable from configuration",
-			"%s refers to %s, which is not a managed resource. An identity can only be composed from configuration values and other managed resources' identities.",
+			"%s refers to %s, which identity resolution cannot read. An identity can be composed from constants, variables, locals, path and terraform/tofu values, and other managed resources' identity attributes.",
 			ident.Subject, ref.Subject.String())
 		return nil, false
 	}
 	if instAddr.Resource.Mode != addrs.ManagedResourceMode {
 		r.errorf(rng, "Identity not resolvable from configuration",
-			"%s refers to %s. Data sources are read at plan time and are not part of the live-markers identity model.",
+			"%s refers to %s, an ephemeral resource. An ephemeral value exists only for the duration of one run, so it cannot name a cloud object that has to be findable on the next one.",
 			ident.Subject, instAddr.String())
 		return nil, false
 	}
@@ -824,7 +824,7 @@ func (r *resolver) isSymbolic(expr hcl.Expression, scope instScope) bool {
 			if scope.eachParent != nil && len(trav) >= 2 && isAttrStep(trav[1], "value") {
 				return true
 			}
-		case "count", "var", "local", "path", "terraform", "module", "data", "self":
+		case "count", "var", "local", "path", "terraform", "tofu", "module", "data", "self":
 			// Not symbolic: either statically evaluable or a case
 			// evalStatic will reject with its own message.
 		default:
@@ -944,7 +944,7 @@ func (r *resolver) stringValue(val cty.Value, expr hcl.Expression, ident configs
 	}
 	if !val.IsWhollyKnown() {
 		r.errorf(expr.Range(), "Non-static identity argument",
-			"%s cannot be evaluated from configuration alone. Every part of an identity must be a constant, or derived from variables, locals and functions, or a reference to another resource's identity attribute.", ident.Subject)
+			"%s cannot be evaluated from configuration alone. Every part of an identity must be a constant, or derived from variables, locals and pure functions, or a reference to another resource's identity attribute. A function that returns a different value on each call - uuid(), timestamp(), bcrypt() - evaluates to an unknown value here, including when it is reached through a local or written in .tf.json.", ident.Subject)
 		return "", false
 	}
 	str, err := convert.Convert(val, cty.String)
@@ -1100,7 +1100,7 @@ func (r *resolver) buildExpansion(rc *configs.Resource) (*expansion, bool) {
 		}
 		if !val.IsKnown() || val.IsNull() {
 			r.errorf(rc.Count.Range(), "Non-static count expression",
-				"The count for %s cannot be determined from configuration alone. A count that depends on a resource attribute cannot be expanded before the cloud is read, and guessing a cardinality would silently drop or invent instances.", addr.String())
+				"The count for %s evaluated to null, or to a value not knowable from configuration alone. Instance keys are the addresses a projection binds against, so a count has to be a whole number this run can compute before anything is read from the cloud; guessing a cardinality would silently drop or invent instances.", addr.String())
 			return nil, false
 		}
 		num, err := convert.Convert(val, cty.Number)
