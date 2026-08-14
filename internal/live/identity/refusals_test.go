@@ -75,19 +75,51 @@ func TestRefusalsRegistered(t *testing.T) {
 // (generating live/LIMITATIONS.md from this registry plus lint's), and the
 // useful property in the meantime is that it cannot silently grow.
 func TestUndocumentedRefusalsAreCounted(t *testing.T) {
-	const ceiling = 27
-
-	undocumented := UndocumentedRefusals()
-	if len(undocumented) > ceiling {
-		names := make([]string, 0, len(undocumented))
-		for _, r := range undocumented {
-			names = append(names, r.Summary)
-		}
-		t.Errorf("%d refusals have no DocsRef, over the ratchet of %d. A new refusal needs a live/ entry, or the ratchet needs raising deliberately.\n%s",
-			len(undocumented), ceiling, strings.Join(names, "\n"))
+	// A SET, not a count. An audit defeated the count version by blanking
+	// duplicate-identity's DocsRef and moving it onto an unrelated refusal:
+	// documentation removed from a real refusal, parked somewhere it did not
+	// belong, total unchanged, test green. Pinning the membership makes both
+	// directions of that move visible.
+	undocumented := map[string]bool{
+		"Circular for_each reference":                                   true,
+		"Circular identity reference":                                   true,
+		"Configuration loaded without a static evaluator":               true,
+		"Expression not evaluable here":                                 true,
+		"Identity argument not set":                                     true,
+		"Identity derived from a sensitive value":                       true,
+		"Identity derived from an impure function":                      true,
+		"Identity not resolvable from configuration":                    true,
+		"Identity table and provider schema disagree":                   true,
+		"Invalid count":                                                 true,
+		"Invalid for_each set":                                          true,
+		"Invalid for_each value":                                        true,
+		"No configuration to resolve":                                   true,
+		"No configuration to scan":                                      true,
+		"Non-static count expression":                                   true,
+		"Non-static for_each expression":                                true,
+		"Non-static identity argument":                                  true,
+		"Non-static lifecycle.enabled expression":                       true,
+		"Non-string identity argument":                                  true,
+		"Not an identity attribute":                                     true,
+		"Null identity argument":                                        true,
+		"Reference to a module instance that does not exist":            true,
+		"Reference to a resource instance that does not exist":          true,
+		"Reference to undeclared resource":                              true,
+		"Sensitive for_each expression":                                 true,
+		"The identity table names something the provider does not have": true,
+		"Unresolvable identity":                                         true,
+		"Unsupported each.value reference":                              true,
+		"for_each over a resource that is not keyed":                    true,
 	}
-	if len(undocumented) < ceiling {
-		t.Errorf("only %d refusals are undocumented, under the ratchet of %d - lower the ratchet in this test to lock the improvement in", len(undocumented), ceiling)
+
+	for _, r := range UndocumentedRefusals() {
+		if !undocumented[r.Summary] {
+			t.Errorf("%q lost its DocsRef. Documentation is not removed from a refusal by accident - if this is deliberate, take it out of this test's set.", r.Summary)
+		}
+		delete(undocumented, r.Summary)
+	}
+	for s := range undocumented {
+		t.Errorf("%q is documented now - remove it from this test's set to lock the improvement in", s)
 	}
 }
 
@@ -105,6 +137,7 @@ func summariesInPackage(t *testing.T) []string {
 	}
 
 	seen := map[string]bool{}
+	var nonLiteral []string
 	for _, pkg := range pkgs {
 		for name, file := range pkg.Files {
 			if filepath.Base(name) == "refusals.go" {
@@ -113,6 +146,30 @@ func summariesInPackage(t *testing.T) []string {
 			}
 			ast.Inspect(file, func(n ast.Node) bool {
 				switch node := n.(type) {
+				case *ast.GenDecl:
+					// Package-level `const SummaryX = "..."`. A summary that
+					// reaches tfdiags.Sourceless through a variable is
+					// invisible to the two literal cases below - which is how
+					// schema_verify.go's two escaped this registry when it was
+					// first written. The Summary-prefixed name is the
+					// convention that makes them findable; keep it.
+					if node.Tok != token.CONST {
+						return true
+					}
+					for _, spec := range node.Specs {
+						vs, ok := spec.(*ast.ValueSpec)
+						if !ok {
+							continue
+						}
+						for i, name := range vs.Names {
+							if !strings.HasPrefix(name.Name, "Summary") || i >= len(vs.Values) {
+								continue
+							}
+							if s, ok := stringLit(vs.Values[i]); ok {
+								seen[s] = true
+							}
+						}
+					}
 				case *ast.CallExpr:
 					// r.errorf(rng, "Summary", "detail", ...)
 					sel, ok := node.Fun.(*ast.SelectorExpr)
@@ -121,6 +178,11 @@ func summariesInPackage(t *testing.T) []string {
 					}
 					if s, ok := stringLit(node.Args[1]); ok {
 						seen[s] = true
+					} else {
+						// Loud, not skipped. A non-literal summary is exactly
+						// the shape that evades this scanner, so it fails here
+						// rather than passing silently.
+						nonLiteral = append(nonLiteral, fset.Position(node.Args[1].Pos()).String())
 					}
 				case *ast.KeyValueExpr:
 					// hcl.Diagnostic{ Summary: "..." }
@@ -135,6 +197,10 @@ func summariesInPackage(t *testing.T) []string {
 				return true
 			})
 		}
+	}
+
+	for _, pos := range nonLiteral {
+		t.Errorf("%s: errorf's summary is not a string literal, so this scanner cannot see it and the registry cannot cover it. Use a Summary-prefixed package constant instead.", pos)
 	}
 
 	out := make([]string, 0, len(seen))

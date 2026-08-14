@@ -679,15 +679,24 @@ func TestLogicalResourceDetailsRenderByClass(t *testing.T) {
 		}
 		detail := logicalResourceDetail("null_resource", lt)
 
-		for _, want := range []string{"record_store", "live block"} {
+		for _, want := range []string{"record_store", "live block", `record_store "ssm" {}`} {
 			if !strings.Contains(detail, want) {
 				t.Errorf("RECORD_ADMITTED Detail must name the remedy: want it to contain %q, got %q", want, detail)
 			}
 		}
-		for _, banned := range []string{"does not exist yet", "not yet", "once the projection", "work lands"} {
-			if strings.Contains(detail, banned) {
-				t.Errorf("RECORD_ADMITTED Detail claims the support is unbuilt (%q), but lint.go admits the type when a record_store is configured; got %q", banned, detail)
-			}
+
+		// Positively, not as a ban-list. An audit defeated the ban-list
+		// version in one attempt by writing "has not shipped" instead of
+		// "does not exist yet": there are unbounded ways to spell a false
+		// promise and only one claim worth pinning, which is that the
+		// message says the support is here NOW. Asserting the constant's
+		// own value too means rewording it is a deliberate edit of this
+		// test rather than something that slips past a substring list.
+		if recordStoreSupportExists != "That support exists" {
+			t.Errorf("recordStoreSupportExists = %q; if you are rewording it, make sure the new wording still asserts the support is present rather than coming", recordStoreSupportExists)
+		}
+		if !strings.Contains(detail, recordStoreSupportExists) {
+			t.Errorf("RECORD_ADMITTED Detail no longer carries the claim-of-existence sentence; got %q", detail)
 		}
 	})
 
