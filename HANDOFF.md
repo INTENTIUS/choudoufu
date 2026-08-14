@@ -15,6 +15,42 @@ markers instead of a state file.
 narrow exceptions.** Onboarding them from regular OpenTofu to live markers is
 the product. Every piece of work is judged against that.
 
+## Before you act on this document, test it
+
+This file is a set of claims, not a briefing to absorb. The version it replaced
+was absorbed whole by three sessions, and four of its load-bearing statements
+were false. Nothing about this rewrite makes that less likely; it only points
+somewhere better. So start by checking it.
+
+The numbers below are mixed-confidence and the prose does not distinguish them.
+Some were verified to a file and line, some are a single agent's count that was
+never recomputed. Run these three first. They take under a minute and each one
+tests a different claim this document depends on.
+
+```sh
+# 1. Effects are admitted behind record_store (the message says otherwise).
+grep -n 'ClassRecordAdmitted && recordStoreConfigured' internal/live/lint/lint.go
+# expect a hit at internal/live/lint/lint.go:267
+
+# 2. The tier-2 connective-tissue types are genuinely not admitted.
+for t in aws_ecs_service aws_lambda_permission aws_cloudwatch_event_target; do
+  printf "%-32s %s\n" "$t" "$(grep -c "^	\"$t\":" internal/live/identity/table_generated.go)"
+done
+# expect 0 for all three
+
+# 3. The cohort corpus size, which two agents disagreed on (657 vs 649).
+grep -rhoE '^resource "aws_[a-z0-9_]+"' live/e2e/estates --include="*.tf" | sort -u | wc -l
+# expect 649; if you get something else, this document's corpus numbers are wrong
+```
+
+If any of them disagrees with what is written here, trust the code and fix this
+file before doing anything else.
+
+Two other things in here are weaker than they read. The phase order after phase
+2 is a prediction about what an instrument that does not exist yet will say;
+`-out` plus `apply <planfile>` being the top refusal is a guess, not a finding.
+And the count of 77 hard refusals came from one audit and was not recomputed.
+
 ## The invariant: no state ops (#73)
 
 The user never configures a backend, manages a lock, or performs state
