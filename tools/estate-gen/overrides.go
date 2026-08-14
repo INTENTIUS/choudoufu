@@ -66,6 +66,11 @@ type typeOverride struct {
 // until #108 criterion 4 folded the hand cohorts into the generator.
 var supportingRolePrincipals = map[string]string{
 	"messaging": "streams.metrics.cloudwatch.amazonaws.com",
+	// The role exists for aws_iam_instance_profile, and instance-profile
+	// roles are assumed by EC2 - the hand-written iam.tf's principal, which
+	// the fold's first pass replaced with the cohort-name rule's
+	// nonexistent iam-ecr.amazonaws.com.
+	"iam-ecr": "ec2.amazonaws.com",
 }
 
 // typeOverrides is keyed by provider-local type name. Empty for every type
