@@ -38,9 +38,7 @@ func TestClassifyMapped_ClientNamed(t *testing.T) {
 	e.Handlers.List = true
 
 	survey := map[string]surveyEntry{
-		"aws_dynamodb_table": {Type: "aws_dynamodb_table", Identity: &struct {
-			RequiredForImport []string `json:"required_for_import"`
-		}{RequiredForImport: []string{"name"}}},
+		"aws_dynamodb_table": {Type: "aws_dynamodb_table", Identity: &surveyIdentity{RequiredForImport: []string{"name"}}},
 	}
 
 	p := classifyMapped("aws_dynamodb_table", "AWS::DynamoDB::Table", e, survey, nil, nil)

@@ -9,7 +9,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 
@@ -34,34 +36,53 @@ import (
 // Shrinking both tables to empty is the criterion's finish line; this test
 // keeps them exact along the way.
 
-// knownDrift: cohort -> why the recorded command's output differs from the
-// committed tree today. Measured 2026-08-14 by running this test; every
-// reason states what the measurement showed, not what an issue predicted.
-// Twelve of the thirteen differ in README.md alone - readmeMD's format
-// changed after those cohorts were committed - so a single regeneration
-// commit clears them.
-var knownDrift = map[string]string{
+// knownDrift: cohort -> the exact drift lines the recorded command's output
+// shows against the committed tree today, plus why. Measured 2026-08-14 by
+// running this test; every reason states what the measurement showed, not
+// what an issue predicted. Twelve of the thirteen differ in README.md alone
+// - readmeMD's format changed after those cohorts were committed - so a
+// single regeneration commit clears them.
+//
+// The files list is exact, not a mask: a listed cohort whose drift GROWS -
+// a .tf file joining a README-only entry - fails the same as an unlisted
+// cohort would. The first version keyed on the cohort name alone, and an
+// audit pointed out that made every listed cohort a hole through which any
+// new drift passed silently.
+type driftEntry struct {
+	files  []string
+	reason string
+}
+
+var readmeOnlyDrift = driftEntry{
+	files:  []string{"README.md: content differs"},
+	reason: "readmeMD's format changed after the cohort was committed",
+}
+
+var knownDrift = map[string]driftEntry{
 	// The one content drift: a type admitted since the last regen maps
 	// into the cohort, so regeneration emits one more resource than the
 	// tree holds (issue #108's own finding, confirmed).
-	"s3": "s3.tf and README.md differ: a type admitted since the last regen maps into the cohort",
+	"s3": {
+		files:  []string{"README.md: content differs", "s3.tf: content differs"},
+		reason: "a type admitted since the last regen maps into the cohort",
+	},
 
-	"apigateway":    "README.md alone differs: readmeMD's format changed after the cohort was committed",
-	"aps":           "README.md alone differs: readmeMD's format changed after the cohort was committed",
-	"data-movement": "README.md alone differs: readmeMD's format changed after the cohort was committed",
-	"databases":     "README.md alone differs: readmeMD's format changed after the cohort was committed",
-	"devtools":      "README.md alone differs: readmeMD's format changed after the cohort was committed",
-	"iot":           "README.md alone differs: readmeMD's format changed after the cohort was committed",
-	"media":         "README.md alone differs: readmeMD's format changed after the cohort was committed",
+	"apigateway":    readmeOnlyDrift,
+	"aps":           readmeOnlyDrift,
+	"data-movement": readmeOnlyDrift,
+	"databases":     readmeOnlyDrift,
+	"devtools":      readmeOnlyDrift,
+	"iot":           readmeOnlyDrift,
+	"media":         readmeOnlyDrift,
 	// Issue #89 recorded this cohort as "no longer regenerable" after a
 	// merge lost 38 override entries. Measured: its .tf surface
 	// regenerates byte-identical; only the README differs. The overrides
 	// were evidently restored, and #89's claim is stale.
-	"networking-advanced": "README.md alone differs: readmeMD's format changed after the cohort was committed",
-	"observability":       "README.md alone differs: readmeMD's format changed after the cohort was committed",
-	"sagemaker":           "README.md alone differs: readmeMD's format changed after the cohort was committed",
-	"security":            "README.md alone differs: readmeMD's format changed after the cohort was committed",
-	"stragglers":          "README.md alone differs: readmeMD's format changed after the cohort was committed",
+	"networking-advanced": readmeOnlyDrift,
+	"observability":       readmeOnlyDrift,
+	"sagemaker":           readmeOnlyDrift,
+	"security":            readmeOnlyDrift,
+	"stragglers":          readmeOnlyDrift,
 }
 
 // regenGaps: cohort -> why no working one-command regeneration exists yet.
@@ -125,6 +146,10 @@ func recordedRegenTypes(t *testing.T, cohortDir string) ([]string, bool) {
 	if close := strings.Index(rest, "```"); close >= 0 {
 		rest = rest[:close]
 	}
+	// A shell continuation would otherwise cut the command at the
+	// backslash and silently substitute the default roster for a recorded
+	// -types on the next line.
+	rest = strings.ReplaceAll(rest, "\\\n", " ")
 	cmd := regenCommandLine.FindString(rest)
 	if cmd == "" || strings.Contains(cmd, "-count") {
 		return nil, false
@@ -171,6 +196,22 @@ func TestCommittedCohortsMatchGenerator(t *testing.T) {
 		seen[cohort] = true
 
 		if reason, gap := regenGaps[cohort]; gap {
+			// A gap can close two ways this loop can see: a README that
+			// records no command gains one, or a hand-written tree loses
+			// its foreign files. Either way the entry is stale and the
+			// cohort must graduate into the regeneration diff - a gap that
+			// closes silently would stay skipped forever, which an audit
+			// called out of the first version's "both tables are ratchets"
+			// claim.
+			_, hasCommand := recordedRegenTypes(t, committed)
+			if strings.Contains(reason, "README records no regeneration command") && hasCommand {
+				t.Errorf("%s: regenGaps says its README records no command, but it records one now - stale entry, move the cohort into the diff", cohort)
+				continue
+			}
+			if strings.Contains(reason, "hand-written") && hasCommand && checkForeignTF(committed, cohort) == nil {
+				t.Errorf("%s: regenGaps says it carries hand-written files, but none remain and a command is recorded - stale entry", cohort)
+				continue
+			}
 			t.Logf("%s: regeneration gap, skipped (%s)", cohort, reason)
 			continue
 		}
@@ -202,14 +243,20 @@ func TestCommittedCohortsMatchGenerator(t *testing.T) {
 			}
 
 			drift := diffDirs(t, committed, out)
-			reason, listed := knownDrift[cohort]
+			sort.Strings(drift)
+			entry, listed := knownDrift[cohort]
+			expected := append([]string{}, entry.files...)
+			sort.Strings(expected)
 			switch {
 			case len(drift) > 0 && !listed:
 				t.Errorf("%s drifted from its recorded regeneration and is not in knownDrift:\n  %s", cohort, strings.Join(drift, "\n  "))
 			case len(drift) == 0 && listed:
-				t.Errorf("%s regenerates byte-identical but is still listed in knownDrift (%q) - stale entry", cohort, reason)
+				t.Errorf("%s regenerates byte-identical but is still listed in knownDrift (%q) - stale entry", cohort, entry.reason)
+			case listed && !reflect.DeepEqual(drift, expected):
+				t.Errorf("%s: the drift is not the drift knownDrift records (%q).\n  recorded: %s\n  measured: %s",
+					cohort, entry.reason, strings.Join(expected, ", "), strings.Join(drift, ", "))
 			case len(drift) > 0:
-				t.Logf("%s: known drift (%s):\n  %s", cohort, reason, strings.Join(drift, "\n  "))
+				t.Logf("%s: known drift (%s):\n  %s", cohort, entry.reason, strings.Join(drift, "\n  "))
 			}
 		})
 	}
@@ -226,27 +273,45 @@ func TestCommittedCohortsMatchGenerator(t *testing.T) {
 	}
 }
 
-// diffDirs compares the .tf and README.md surface of two cohort trees and
-// returns one line per difference.
+// diffDirs compares the configuration and README.md surface of two cohort
+// trees, recursively, and returns one line per difference. Recursive and
+// extension-complete on purpose: the first version read the top level's
+// *.tf only, which would have hidden both a -module-wrap cohort's wrapped/
+// tree and a resource-declaring iam.tf.json (audit findings, both).
 func diffDirs(t *testing.T, committed, generated string) []string {
 	t.Helper()
 
-	var drift []string
-	files := map[string]bool{}
-	for _, dir := range []string{committed, generated} {
-		names, err := dirFiles(dir)
+	collect := func(root string) map[string]bool {
+		out := map[string]bool{}
+		err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
+			}
+			if !isConfigFile(d.Name()) && d.Name() != "README.md" {
+				return nil
+			}
+			rel, err := filepath.Rel(root, path)
+			if err != nil {
+				return err
+			}
+			out[filepath.ToSlash(rel)] = true
+			return nil
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, n := range names {
-			if strings.HasSuffix(n, ".tf") || n == "README.md" {
-				files[n] = true
-			}
-		}
+		return out
 	}
+
+	files := collect(committed)
+	for name := range collect(generated) {
+		files[name] = true
+	}
+
+	var drift []string
 	for name := range files {
-		a, errA := os.ReadFile(filepath.Join(committed, name)) //nolint:gosec // fixture paths
-		b, errB := os.ReadFile(filepath.Join(generated, name)) //nolint:gosec // fixture paths
+		a, errA := os.ReadFile(filepath.Join(committed, filepath.FromSlash(name))) //nolint:gosec // fixture paths
+		b, errB := os.ReadFile(filepath.Join(generated, filepath.FromSlash(name))) //nolint:gosec // fixture paths
 		switch {
 		case errA != nil:
 			drift = append(drift, name+": only in the regeneration")

@@ -13,12 +13,40 @@ import (
 
 // TestExplicitComponentIdentityAttrsAreDerivedOrEvidenced is #106 criterion
 // 3's ratchet: every explicit Component.IdentityAttr in the ratified table
-// either follows deriveAssembledIdentityAttr's rule or sits in
-// identityAttrEvidence with the raw evidence written down - and the ledger
-// holds nothing else. A new ratified row that hand-writes an IdentityAttr
-// the rule does not produce fails here until its evidence is recorded; a
-// ledger entry whose row was corrected or dropped fails as stale.
+// either follows deriveAssembledIdentityAttr's rule AND agrees with the
+// provider's own identity schema, or sits in identityAttrEvidence with the
+// raw evidence written down - and the ledger holds nothing else.
+//
+// The wire check is not decoration. This test's first version treated
+// rule-agreement as correctness, and an adversarial audit defeated it two
+// ways with one mutation: aws_sagemaker_user_profile's "arn" was counted a
+// success of the rule while the 6.59.0 schema requires [domain_id,
+// user_profile_name] with no arn attribute at all, and setting the two
+// codeartifact policy rows to the "arn" their own evidence calls wrong,
+// ledger entries deleted, passed clean. Now a named attribute the schema
+// does not carry needs a ledger entry regardless of what the rule says.
 func TestExplicitComponentIdentityAttrsAreDerivedOrEvidenced(t *testing.T) {
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	survey, err := loadSurvey(root + "/live/survey-full.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wireHas := func(typeName, attr string) (conflicts bool) {
+		attrs := survey[typeName].identityAttrs()
+		if attrs == nil {
+			return false // no identity schema: nothing to contradict
+		}
+		for _, a := range attrs {
+			if a == attr {
+				return false
+			}
+		}
+		return true
+	}
+
 	derived, evidenced := 0, map[string]bool{}
 
 	for name, row := range identity.DefaultTable {
@@ -33,9 +61,9 @@ func TestExplicitComponentIdentityAttrsAreDerivedOrEvidenced(t *testing.T) {
 			explicit = c.IdentityAttr
 		}
 		if explicit != "" {
-			// The convention the 17 explicit rows all follow: every
-			// component, literals and cloud values included, carries the
-			// name, because their rendered strings concatenate to form it.
+			// The convention the explicit rows all follow: every component,
+			// literals and cloud values included, carries the name, because
+			// their rendered strings concatenate to form it.
 			for i, c := range row.Components {
 				if c.IdentityAttr != explicit {
 					t.Errorf("%s: component %d carries IdentityAttr %q where the row's other components carry %q", name, i, c.IdentityAttr, explicit)
@@ -43,21 +71,26 @@ func TestExplicitComponentIdentityAttrsAreDerivedOrEvidenced(t *testing.T) {
 			}
 		}
 
-		want, ok := deriveAssembledIdentityAttr(row.Components)
+		want, ruleFired := deriveAssembledIdentityAttr(row.Components)
+		wireConflict := explicit != "" && wireHas(name, explicit)
+		clean := !wireConflict && ((explicit == "" && !ruleFired) || (ruleFired && explicit == want))
 		entry, inLedger := identityAttrEvidence[name]
 
 		switch {
-		case ok && explicit == want:
+		case clean && explicit != "":
 			derived++
 			if inLedger {
-				t.Errorf("%s: the rule derives %q and the row agrees; its ledger entry is stale", name, want)
+				t.Errorf("%s: the rule derives %q, the row agrees and the identity schema carries it; the ledger entry is stale", name, want)
 			}
-		case ok || explicit != "":
-			// The rule and the row disagree - the rule derives something
-			// the row does not carry, or the row carries something the rule
-			// cannot produce. Either way the evidence must be on file.
+		case clean:
+			if inLedger {
+				t.Errorf("%s: in the ledger but carries no explicit IdentityAttr and the rule does not fire; stale entry", name)
+			}
+		default:
+			// Some disagreement: rule-vs-row, wire-vs-row, or an explicit
+			// attr the rule cannot produce. The evidence must be on file.
 			if !inLedger {
-				t.Errorf("%s: explicit IdentityAttr %q, rule derives %q (fired: %t) - not derivable and not in identityAttrEvidence", name, explicit, want, ok)
+				t.Errorf("%s: explicit IdentityAttr %q, rule derives %q (fired: %t), schema conflict: %t - not in identityAttrEvidence", name, explicit, want, ruleFired, wireConflict)
 				continue
 			}
 			evidenced[name] = true
@@ -66,10 +99,6 @@ func TestExplicitComponentIdentityAttrsAreDerivedOrEvidenced(t *testing.T) {
 			}
 			if entry.evidence == "" {
 				t.Errorf("%s: ledger entry has no evidence", name)
-			}
-		default:
-			if inLedger {
-				t.Errorf("%s: in the ledger but carries no explicit IdentityAttr and the rule does not fire; stale entry", name)
 			}
 		}
 	}
@@ -80,11 +109,12 @@ func TestExplicitComponentIdentityAttrsAreDerivedOrEvidenced(t *testing.T) {
 		}
 	}
 
-	// The measured split when this landed: 12 rows derived, 7 evidenced (5
-	// carrying an attr the rule cannot reach, 2 where the rule would derive
-	// a value the identity schema contradicts). Logged, not pinned - the
-	// exactness of the ledger is the invariant, not the counts.
-	t.Logf("derived: %d rows; evidenced: %d rows", derived, len(evidenced))
+	// The measured split after the audit: 11 rows derived clean, 8
+	// evidenced (4 glue + securityhub the rule cannot reach, 2 codeartifact
+	// rows where the rule would derive what the schema contradicts, and
+	// sagemaker_user_profile where rule and row agree against the schema).
+	// Logged, not pinned - the ledger's exactness is the invariant.
+	t.Logf("derived clean: %d rows; evidenced: %d rows", derived, len(evidenced))
 }
 
 // TestApplyDerivedIdentityAttrs covers the proposal side: the shapes the

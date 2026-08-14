@@ -432,6 +432,15 @@ func TestCheck(t *testing.T) {
 			dir:  "testdata/undeclared-provider-alias-declared",
 			want: nil,
 		},
+		{
+			// One provider FQN under two local names, block and reference
+			// using different ones. Stock OpenTofu resolves both to the same
+			// configuration; the rule's first literal-name comparison
+			// refused it (adversarial audit of #123).
+			name: "provider alias declared under a sibling local name",
+			dir:  "testdata/undeclared-provider-alias-two-names",
+			want: nil,
+		},
 	}
 
 	for _, test := range tests {

@@ -14,10 +14,14 @@ import (
 // This file is GitHub issue #106's third criterion: the explicit
 // [identity.Component.IdentityAttr] values in the ratified table are derived
 // by a rule, not listed as per-row judgments. The issue counted "76 arn
-// mappings" - those are component sites; per row it is 17 explicit values,
-// and 12 of them follow one rule this file states. The other five, plus two
-// rows the rule must deliberately NOT fire on, are in
-// [identityAttrEvidence] with the raw evidence each ruling rests on.
+// mappings" - those are component sites; per row it is 17 explicit values.
+// Eleven follow the rule this file states and agree with the provider's own
+// identity schema; the other six, plus two rows the rule must deliberately
+// NOT fire on, are in [identityAttrEvidence] with the raw evidence each
+// ruling rests on. Agreement with the rule alone is not enough - the
+// ratchet also checks the wire schema, because one row
+// (aws_sagemaker_user_profile) satisfies the rule while naming an attribute
+// the schema does not have.
 //
 // The rule: a row whose components assemble one string with a leading
 // literal that names its own scheme - "arn:" for an Amazon Resource Name,
@@ -61,10 +65,12 @@ func deriveAssembledIdentityAttr(components []identity.Component) (string, bool)
 // applyDerivedIdentityAttrs is the proposal side of the rule: any proposal
 // whose components the rule covers gets the derived name on every component.
 // No current proposal shape produces a leading literal - bucketComposite
-// joins plain arguments with a separator - so today this fires only in its
-// own tests; it exists so that the first rule that DOES propose an
-// ARN-template row cannot ship without the join, and so the ratchet test
-// and the proposal path share one implementation.
+// joins plain arguments with a separator - so today this call is inert, and
+// deleting the convergence wiring would not fail any test (an audit proved
+// it by commenting the call out). The enforcement lives in the ratchet
+// test over the ratified table, not here; the wiring exists only so the
+// rule's two consumers - a future ARN-template proposal shape and the
+// ratchet - share one implementation instead of drifting apart.
 func applyDerivedIdentityAttrs(components []identity.Component) []identity.Component {
 	attr, ok := deriveAssembledIdentityAttr(components)
 	if !ok {
@@ -119,5 +125,9 @@ var identityAttrEvidence = map[string]struct {
 	"aws_codeartifact_repository_permissions_policy": {
 		attr: "",
 		evidence: "Same as aws_codeartifact_domain_permissions_policy: the wire's identity schema requires [resource_arn], so the leading-literal derivation of \"arn\" would be wrong, and the ratified row carries no component IdentityAttr at all.",
+	},
+	"aws_sagemaker_user_profile": {
+		attr: "arn",
+		evidence: "The rule and the row agree on \"arn\" (leading `arn:aws:sagemaker:` literal), but live/survey-full.json's 6.59.0 identity schema requires [domain_id, user_profile_name] with optional [account_id, region] - no arn attribute at all. Found by the phase-5 adversarial audit; the first ratchet blessed the row because rule-agreement was its whole test. The row predates the schema and still works through the joined-string import (identityFromValues cannot build a {arn: ...} object against that schema, so the run falls back to the assembled ARN, which is the documented import ID). Correcting the components to name domain_id/user_profile_name per piece is a ratification change with runtime effect, recorded here rather than smuggled into a criterion about derivation.",
 	},
 }

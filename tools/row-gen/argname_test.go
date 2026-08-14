@@ -28,9 +28,7 @@ func TestResolveArgName_PreferenceOrder(t *testing.T) {
 	falseVal := false
 
 	survey := map[string]surveyEntry{
-		"aws_has_schema": {Type: "aws_has_schema", Identity: &struct {
-			RequiredForImport []string `json:"required_for_import"`
-		}{RequiredForImport: []string{"schema_name"}}},
+		"aws_has_schema": {Type: "aws_has_schema", Identity: &surveyIdentity{RequiredForImport: []string{"schema_name"}}},
 	}
 	importGrammar := map[string]importGrammarRow{
 		// Present alongside a schema row too, to pin that the schema still

@@ -58,7 +58,7 @@ func checkUndeclaredProviderAlias(mod *configs.Module, path addrs.Module, issues
 			continue
 		}
 		key := ref.Name + "." + ref.Alias
-		if mod.ProviderConfigs[key] != nil {
+		if resolvesToDeclaredProvider(mod, ref.Name, ref.Alias) {
 			continue
 		}
 
@@ -83,4 +83,24 @@ func checkUndeclaredProviderAlias(mod *configs.Module, path addrs.Module, issues
 			Subject: subject,
 		})
 	}
+}
+
+// resolvesToDeclaredProvider reports whether some root provider block
+// satisfies a reference to localName.alias. The comparison goes through the
+// provider FQN each local name maps to, not the literal name: when
+// required_providers gives one provider two local names, a block declared
+// under one name satisfies a reference written under the other - stock
+// OpenTofu's ProviderTransformer keys on the FQN, so that configuration
+// works, and the literal-name comparison this function replaced refused it.
+func resolvesToDeclaredProvider(mod *configs.Module, localName, alias string) bool {
+	want := mod.ProviderForLocalConfig(addrs.LocalProviderConfig{LocalName: localName})
+	for _, pc := range mod.ProviderConfigs {
+		if pc.Alias != alias {
+			continue
+		}
+		if mod.ProviderForLocalConfig(addrs.LocalProviderConfig{LocalName: pc.Name}) == want {
+			return true
+		}
+	}
+	return false
 }

@@ -29,9 +29,10 @@ const (
 	PhaseApply Phase = "apply"
 	// PhaseReplan: live-plan errored after the state was deleted.
 	PhaseReplan Phase = "replan"
-	// PhaseEmpty: live-plan ran but proposed changes, so the markers did
-	// not round-trip cleanly. FailedResources carries the changed
-	// addresses.
+	// PhaseEmpty: live-plan exited cleanly but the run could not confirm
+	// an empty plan - it proposed changes (FailedResources carries the
+	// addresses), or printed output this harness does not recognize, which
+	// is recorded as a failure to assert rather than presumed empty.
 	PhaseEmpty Phase = "empty"
 	// PhasePass: applied, state deleted, replanned empty.
 	PhasePass Phase = "pass"

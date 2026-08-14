@@ -1,0 +1,606 @@
+{
+  "generated_by": "TF_FLOCI_TEST=1 TF_FLOCI_ACCEPTANCE_ARTIFACT=1 go test ./internal/live/acceptance -run TestCohortAcceptance",
+  "image": "ghcr.io/lex00/floci@sha256:4753246c0260a22af1056c65993f4d73b0a907729a9580b9baba5d628b6dad34",
+  "provider": "hashicorp/aws 6.58.0",
+  "totals": {
+    "cohorts": 31,
+    "pass": 1,
+    "fail": 30
+  },
+  "cohorts": [
+    {
+      "name": "ai-location",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 36,
+      "failed_resources": [
+        "aws_bedrockagentcore_api_key_credential_provider.app",
+        "aws_bedrock_guardrail.app",
+        "aws_bedrock_inference_profile.app",
+        "aws_bedrockagent_agent.app",
+        "aws_bedrockagent_agent_alias.app",
+        "aws_bedrockagent_flow.app",
+        "aws_bedrockagent_knowledge_base.app",
+        "aws_bedrockagent_prompt.app",
+        "aws_bedrockagentcore_agent_runtime.app",
+        "aws_bedrockagentcore_agent_runtime_endpoint.app",
+        "aws_bedrockagentcore_browser.app",
+        "aws_bedrockagentcore_browser_profile.app",
+        "aws_bedrockagentcore_code_interpreter.app",
+        "aws_bedrockagentcore_evaluator.app",
+        "aws_bedrockagentcore_gateway.app",
+        "aws_bedrockagentcore_harness.app",
+        "aws_bedrockagentcore_memory.app",
+        "aws_bedrockagentcore_oauth2_credential_provider.app",
+        "aws_bedrockagentcore_online_evaluation_config.app",
+        "aws_bedrockagentcore_policy_engine.app",
+        "aws_bedrockagentcore_resource_policy.app",
+        "aws_comprehend_document_classifier.app",
+        "aws_kendra_index.app",
+        "aws_lexv2models_bot.app",
+        "aws_lexv2models_bot_locale.app",
+        "aws_location_geofence_collection.app",
+        "aws_location_map.app",
+        "aws_location_place_index.app",
+        "aws_location_route_calculator.app",
+        "aws_location_tracker.app",
+        "aws_qbusiness_application.app",
+        "aws_rekognition_collection.app",
+        "aws_rekognition_project.app",
+        "aws_rekognition_stream_processor.app"
+      ],
+      "detail": "Error: Request cancelled"
+    },
+    {
+      "name": "apigateway",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 25,
+      "failed_resources": [
+        "aws_api_gateway_api_key.app",
+        "aws_api_gateway_client_certificate.app",
+        "aws_api_gateway_domain_name.app",
+        "aws_api_gateway_domain_name_access_association.app",
+        "aws_api_gateway_rest_api.app",
+        "aws_api_gateway_usage_plan.app",
+        "aws_api_gateway_vpc_link.app",
+        "aws_apigatewayv2_domain_name.app",
+        "aws_apigatewayv2_stage.app",
+        "aws_apigatewayv2_vpc_link.app"
+      ],
+      "detail": "Error: Plugin did not respond"
+    },
+    {
+      "name": "aps",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 5,
+      "failed_resources": [
+        "aws_prometheus_workspace.app"
+      ],
+      "detail": "Error: creating Prometheus Workspace: operation error amp: CreateWorkspace, https response error StatusCode: 400, RequestID: 91bc6e53-3106-473f-acef-0f21b20176c2, deserialization failed, failed to decode response body, invalid character '\u003c' looking for beginning of value"
+    },
+    {
+      "name": "compute-platforms",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 28,
+      "failed_resources": [
+        "aws_amplify_branch.app",
+        "aws_apprunner_auto_scaling_configuration_version.app",
+        "aws_apprunner_observability_configuration.app",
+        "aws_apprunner_service.app",
+        "aws_apprunner_vpc_connector.app",
+        "aws_elastic_beanstalk_application.app",
+        "aws_lightsail_bucket.app",
+        "aws_lightsail_certificate.app",
+        "aws_lightsail_container_service.app",
+        "aws_lightsail_database.app",
+        "aws_lightsail_distribution.app",
+        "aws_lightsail_lb.app"
+      ],
+      "detail": "Error: creating Amplify Branch (placeholder/tofu-compute-platforms-cohort-amplify-branch): operation error Amplify: CreateBranch, https response error StatusCode: 400, RequestID: 8ec2e2b3-46f1-45d4-8ad9-f242083770ef, deserialization failed, failed to decode response body, invalid character '\u003c' looking for beginning of value"
+    },
+    {
+      "name": "connect-euc",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 34,
+      "failed_resources": [
+        "aws_connect_instance.app",
+        "aws_connect_user_hierarchy_structure.app",
+        "aws_workspaces_connection_alias.app",
+        "aws_workspaces_ip_group.app",
+        "aws_workspaces_pool.app",
+        "aws_workspaces_workspace.app",
+        "aws_workspacesweb_browser_settings.app",
+        "aws_workspacesweb_data_protection_settings.app",
+        "aws_workspacesweb_ip_access_settings.app",
+        "aws_workspacesweb_network_settings.app",
+        "aws_workspacesweb_portal.app",
+        "aws_workspacesweb_session_logger.app",
+        "aws_workspacesweb_trust_store.app",
+        "aws_workspacesweb_user_access_logging_settings.app",
+        "aws_workspacesweb_user_settings.app"
+      ],
+      "detail": "Error: waiting for Connect Instance () create: operation error Connect: DescribeInstance, serialization failed: serialization failed: input member InstanceId must not be empty"
+    },
+    {
+      "name": "data",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 16,
+      "failed_resources": [
+        "aws_athena_data_catalog.app",
+        "aws_athena_workgroup.app",
+        "aws_glue_catalog_database.app",
+        "aws_glue_classifier.app",
+        "aws_glue_connection.app",
+        "aws_glue_crawler.app",
+        "aws_glue_data_catalog_encryption_settings.app",
+        "aws_glue_job.app",
+        "aws_kinesis_stream_consumer.app"
+      ],
+      "detail": "Error: creating Athena Data Catalog (tofu-data-cohort-athena-data-catalog): operation error Athena: CreateDataCatalog, https response error StatusCode: 400, RequestID: 9042d849-e133-4df4-8e44-5c833b55ad22, api error InvalidAction: Action CreateDataCatalog is not supported"
+    },
+    {
+      "name": "data-movement",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 28,
+      "failed_resources": [
+        "aws_appintegrations_event_integration.app",
+        "aws_datasync_agent.app",
+        "aws_datasync_location_azure_blob.app",
+        "aws_datasync_location_efs.app",
+        "aws_datasync_location_fsx_lustre_file_system.app",
+        "aws_datasync_location_fsx_ontap_file_system.app",
+        "aws_datasync_location_fsx_openzfs_file_system.app",
+        "aws_datasync_location_fsx_windows_file_system.app",
+        "aws_datasync_location_hdfs.app",
+        "aws_datasync_location_nfs.app",
+        "aws_datasync_location_object_storage.app",
+        "aws_datasync_location_s3.app",
+        "aws_datasync_location_smb.app",
+        "aws_dms_certificate.app",
+        "aws_dms_endpoint.app",
+        "aws_dms_event_subscription.app",
+        "aws_dms_replication_instance.app",
+        "aws_dms_replication_subnet_group.app",
+        "aws_dms_s3_endpoint.app",
+        "aws_transfer_connector.app",
+        "aws_transfer_workflow.app"
+      ],
+      "detail": "Error: creating AppIntegrations Event Integration (tofu-data-movement-cohort-appintegrations-event-integration): operation error AppIntegrations: CreateEventIntegration, https response error StatusCode: 400, RequestID: 1e3701c4-339e-4f7b-be4f-2409b20d12c4, deserialization failed, failed to decode response body, invalid character '\u003c' looking for beginning of value"
+    },
+    {
+      "name": "databases",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 33,
+      "detail": "signal: killed",
+      "timed_out": true
+    },
+    {
+      "name": "devtools",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 21,
+      "failed_resources": [
+        "aws_codeartifact_domain.app",
+        "aws_codeartifact_domain_permissions_policy.app",
+        "aws_codeartifact_repository.app",
+        "aws_codeartifact_repository_permissions_policy.app",
+        "aws_codebuild_fleet.app",
+        "aws_codebuild_project.app",
+        "aws_codebuild_webhook.app",
+        "aws_codecommit_repository.app",
+        "aws_codeconnections_connection.app",
+        "aws_codepipeline_custom_action_type.app",
+        "aws_codestarconnections_connection.app",
+        "aws_ecrpublic_repository.app"
+      ],
+      "detail": "Error: creating CodeArtifact Domain (placeholder): operation error codeartifact: CreateDomain, https response error StatusCode: 400, RequestID: 190882b4-35f7-41b4-bb0f-da74f38dee46, deserialization failed, failed to decode response body, invalid character '\u003c' looking for beginning of value"
+    },
+    {
+      "name": "dynamodb-elasticache",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 9,
+      "detail": "signal: killed",
+      "timed_out": true
+    },
+    {
+      "name": "ec2-core",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 13,
+      "failed_resources": [
+        "aws_ebs_snapshot_block_public_access.app",
+        "aws_ec2_capacity_reservation.app",
+        "aws_ec2_fleet.app",
+        "aws_ec2_host.app",
+        "aws_eip_association.app",
+        "aws_network_interface.app",
+        "aws_placement_group.app",
+        "aws_spot_fleet_request.app",
+        "aws_volume_attachment.app"
+      ],
+      "detail": "Error: enabling EBS Snapshot Block Public Access (block-new-sharing): operation error EC2: EnableSnapshotBlockPublicAccess, https response error StatusCode: 400, RequestID: f7756731-7d87-46a0-8ebd-65ed8dbbd35e, api error UnsupportedOperation: Operation EnableSnapshotBlockPublicAccess is not supported."
+    },
+    {
+      "name": "ec2-networking",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 42,
+      "failed_resources": [
+        "aws_customer_gateway.app",
+        "aws_ec2_client_vpn_endpoint.app",
+        "aws_ec2_client_vpn_route.app",
+        "aws_ec2_managed_prefix_list.app",
+        "aws_ec2_managed_prefix_list_entry.app",
+        "aws_ec2_transit_gateway.app",
+        "aws_ec2_transit_gateway_connect.app",
+        "aws_ec2_transit_gateway_connect_peer.app",
+        "aws_ec2_transit_gateway_metering_policy.app",
+        "aws_ec2_transit_gateway_metering_policy_entry.app",
+        "aws_ec2_transit_gateway_multicast_domain.app",
+        "aws_ec2_transit_gateway_peering_attachment.app",
+        "aws_ec2_transit_gateway_policy_table.app",
+        "aws_ec2_transit_gateway_policy_table_association.app",
+        "aws_ec2_transit_gateway_route.app",
+        "aws_ec2_transit_gateway_route_table.app",
+        "aws_ec2_transit_gateway_route_table_association.app",
+        "aws_ec2_transit_gateway_route_table_propagation.app",
+        "aws_nat_gateway.app",
+        "aws_nat_gateway_eip_association.app",
+        "aws_network_acl_rule.app",
+        "aws_vpc_dhcp_options.app",
+        "aws_vpc_dhcp_options_association.app",
+        "aws_vpc_endpoint_policy.app",
+        "aws_vpc_endpoint_private_dns.app",
+        "aws_vpc_endpoint_service.app",
+        "aws_vpc_ipam.app",
+        "aws_vpc_ipam_pool.app",
+        "aws_vpc_ipam_pool_cidr.app",
+        "aws_vpc_ipam_resource_discovery.app",
+        "aws_vpc_ipam_resource_discovery_association.app",
+        "aws_vpc_ipam_scope.app",
+        "aws_vpn_connection.app",
+        "aws_vpn_gateway.app"
+      ],
+      "detail": "Error: creating EC2 Customer Gateway: operation error EC2: CreateCustomerGateway, https response error StatusCode: 400, RequestID: 656481a7-aa6c-4b2b-9626-4ec959e7f25f, api error UnsupportedOperation: Operation CreateCustomerGateway is not supported."
+    },
+    {
+      "name": "ecs-eks",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 11,
+      "failed_resources": [
+        "aws_ecs_daemon.app",
+        "aws_eks_access_entry.app",
+        "aws_eks_access_policy_association.app",
+        "aws_eks_addon.app",
+        "aws_eks_capability.app"
+      ],
+      "detail": "Error: creating ECS Daemon (tofu-ecs-eks-cohort-ecs-daemon)"
+    },
+    {
+      "name": "governance",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 24,
+      "failed_resources": [
+        "aws_auditmanager_assessment.app",
+        "aws_auditmanager_framework.app",
+        "aws_config_configuration_aggregator.app",
+        "aws_config_conformance_pack.app",
+        "aws_config_organization_conformance_pack.app",
+        "aws_config_remediation_configuration.app",
+        "aws_controltower_baseline.app",
+        "aws_controltower_control.app",
+        "aws_controltower_landing_zone.app",
+        "aws_organizations_account.app",
+        "aws_organizations_organizational_unit.app",
+        "aws_organizations_policy.app",
+        "aws_organizations_resource_policy.app",
+        "aws_resourceexplorer2_index.app",
+        "aws_resourceexplorer2_view.app",
+        "aws_resourcegroups_group.app",
+        "aws_servicecatalog_portfolio.app",
+        "aws_servicecatalog_portfolio_share.app",
+        "aws_servicecatalog_product.app",
+        "aws_servicecatalogappregistry_application.app",
+        "aws_servicecatalogappregistry_attribute_group.app"
+      ],
+      "detail": "Error: creating Audit Manager Assessment (tofu-governance-cohort-config-config-rule)"
+    },
+    {
+      "name": "iam-ecr",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 9,
+      "failed_resources": [
+        "aws_ecr_registry_policy.app",
+        "aws_ecr_registry_scanning_configuration.app",
+        "aws_ecr_replication_configuration.app",
+        "aws_iam_service_linked_role.app"
+      ],
+      "detail": "Error: creating ECR Registry Policy: operation error ECR: PutRegistryPolicy, https response error StatusCode: 400, RequestID: 6fa7962c-52af-436b-afa3-f0f8a53e8efa, api error UnsupportedOperation: Operation PutRegistryPolicy is not supported."
+    },
+    {
+      "name": "identity",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 24,
+      "failed_resources": [
+        "aws_cognito_identity_pool.app",
+        "aws_cognito_identity_pool_roles_attachment.app",
+        "aws_cognito_identity_provider.app",
+        "aws_cognito_user_pool_domain.app",
+        "aws_iam_openid_connect_provider.app",
+        "aws_iam_server_certificate.app",
+        "aws_ssoadmin_instance_access_control_attributes.app"
+      ],
+      "detail": "Error: creating Cognito Identity Pool: operation error Cognito Identity: CreateIdentityPool, https response error StatusCode: 404, RequestID: 0a2825d4-b4db-414d-a3a5-49aa387946d7, api error UnknownOperationException: Unknown operation: AWSCognitoIdentityService.CreateIdentityPool"
+    },
+    {
+      "name": "iot",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 12,
+      "failed_resources": [
+        "aws_iot_authorizer.app",
+        "aws_iot_billing_group.app",
+        "aws_iot_domain_configuration.app",
+        "aws_iot_provisioning_template.app",
+        "aws_iot_role_alias.app",
+        "aws_iot_thing_group.app",
+        "aws_iot_thing_type.app",
+        "aws_iot_topic_rule_destination.app"
+      ],
+      "detail": "Error: creating IoT Authorizer (tofu-iot-cohort-authorizer): operation error IoT: CreateAuthorizer, https response error StatusCode: 400, RequestID: 7262ad61-1fb3-48a5-9deb-688358e9c52b, deserialization failed, failed to decode response body, invalid character '\u003c' looking for beginning of value"
+    },
+    {
+      "name": "lambda",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 6,
+      "failed_resources": [
+        "aws_lambda_capacity_provider.app",
+        "aws_lambda_code_signing_config.app",
+        "aws_lambda_layer_version.app"
+      ],
+      "detail": "Error: creating Lambda Capacity Provider"
+    },
+    {
+      "name": "media",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 9,
+      "failed_resources": [
+        "aws_ivs_channel.app",
+        "aws_ivs_playback_key_pair.app",
+        "aws_ivs_recording_configuration.app",
+        "aws_ivschat_logging_configuration.app",
+        "aws_ivschat_room.app",
+        "aws_media_package_channel.app",
+        "aws_media_packagev2_channel_group.app",
+        "aws_medialive_multiplex.app"
+      ],
+      "detail": "Error: creating AWS IVS (Interactive Video) Channel: operation error ivs: CreateChannel, https response error StatusCode: 400, RequestID: 86d62fae-9b2e-40fa-a637-b014d793c230, deserialization failed, failed to decode response body, invalid character '\u003c' looking for beginning of value"
+    },
+    {
+      "name": "messaging",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 8,
+      "failed_resources": [
+        "aws_cloudwatch_composite_alarm.app",
+        "aws_cloudwatch_dashboard.app",
+        "aws_cloudwatch_metric_stream.app"
+      ],
+      "detail": "Error: creating CloudWatch Composite Alarm"
+    },
+    {
+      "name": "networking-advanced",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 44,
+      "failed_resources": [
+        "aws_globalaccelerator_accelerator.app",
+        "aws_globalaccelerator_cross_account_attachment.app",
+        "aws_networkfirewall_firewall_policy.app",
+        "aws_networkfirewall_rule_group.app",
+        "aws_networkfirewall_tls_inspection_configuration.app",
+        "aws_networkmanager_global_network.app",
+        "aws_route53recoveryreadiness_cell.app",
+        "aws_route53recoveryreadiness_recovery_group.app",
+        "aws_route53recoveryreadiness_resource_set.app",
+        "aws_vpclattice_domain_verification.app",
+        "aws_vpclattice_resource_gateway.app",
+        "aws_vpclattice_service.app",
+        "aws_vpclattice_service_network.app",
+        "aws_vpclattice_target_group.app"
+      ],
+      "detail": "Error: creating Global Accelerator Accelerator (tofu-networking-advanced-cohort-globalaccelerator-accelerator): operation error Global Accelerator: CreateAccelerator, https response error StatusCode: 404, RequestID: 0cca785f-3fc6-4b35-a1b0-be8ba2934ee8, api error UnknownOperationException: Unknown operation: GlobalAccelerator_V20180706.CreateAccelerator"
+    },
+    {
+      "name": "observability",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 30,
+      "failed_resources": [
+        "aws_cloudwatch_alarm_mute_rule.app",
+        "aws_cloudwatch_contributor_insight_rule.app",
+        "aws_cloudwatch_event_connection.app",
+        "aws_cloudwatch_event_endpoint.app",
+        "aws_cloudwatch_log_anomaly_detector.app",
+        "aws_cloudwatch_log_delivery_destination.app",
+        "aws_cloudwatch_log_delivery_source.app",
+        "aws_cloudwatch_log_destination.app",
+        "aws_cloudwatch_log_resource_policy.app",
+        "aws_cloudwatch_log_transformer.app",
+        "aws_cloudwatch_otel_enrichment.app",
+        "aws_grafana_workspace.app",
+        "aws_rum_app_monitor.app",
+        "aws_synthetics_canary.app",
+        "aws_synthetics_group.app",
+        "aws_xray_group.app",
+        "aws_xray_resource_policy.app",
+        "aws_xray_sampling_rule.app"
+      ],
+      "detail": "Error: creating CloudWatch Alarm Mute Rule"
+    },
+    {
+      "name": "rds",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 17,
+      "failed_resources": [
+        "aws_db_event_subscription.app",
+        "aws_db_instance_role_association.app",
+        "aws_db_option_group.app",
+        "aws_db_proxy.app",
+        "aws_db_subnet_group.app",
+        "aws_rds_cluster_role_association.app",
+        "aws_rds_custom_db_engine_version.app",
+        "aws_rds_global_cluster.app",
+        "aws_rds_integration.app",
+        "aws_rds_shard_group.app"
+      ],
+      "detail": "Error: Provider produced inconsistent final plan"
+    },
+    {
+      "name": "remainder",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 25,
+      "failed_resources": [
+        "aws_evidently_project.app",
+        "aws_codegurureviewer_repository_association.app",
+        "aws_detective_graph.app",
+        "aws_dsql_cluster.app",
+        "aws_ec2_instance_connect_endpoint.app",
+        "aws_efs_mount_target.app",
+        "aws_glue_workflow.app",
+        "aws_iam_access_key.app",
+        "aws_macie2_account.app",
+        "aws_paymentcryptography_key.app",
+        "aws_securityhub_account.app"
+      ],
+      "detail": "Error: creating CodeGuru Repository Association: operation error CodeGuru Reviewer: AssociateRepository, 1 validation error(s) found."
+    },
+    {
+      "name": "route53-cloudfront",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 30,
+      "failed_resources": [
+        "aws_cloudfront_function.app",
+        "aws_cloudfront_key_value_store.app",
+        "aws_cloudfront_monitoring_subscription.app",
+        "aws_cloudfront_vpc_origin.app",
+        "aws_route53_hosted_zone_dnssec.app",
+        "aws_route53_resolver_endpoint.app",
+        "aws_route53_resolver_rule.app",
+        "aws_route53_resolver_rule_association.app",
+        "aws_route53_zone_association.app"
+      ],
+      "detail": "Error: Provider produced inconsistent result after apply"
+    },
+    {
+      "name": "s3",
+      "status": "pass",
+      "phase": "pass",
+      "resources": 6
+    },
+    {
+      "name": "sagemaker",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 28,
+      "failed_resources": [
+        "aws_sagemaker_app_image_config.app"
+      ],
+      "detail": "Error: exactly one `code_editor_app_image_config`, `jupyter_lab_image_config`, or `kernel_gateway_image_config` block must be configured"
+    },
+    {
+      "name": "security",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 47,
+      "failed_resources": [
+        "aws_acmpca_certificate_authority.app",
+        "aws_guardduty_detector.app",
+        "aws_guardduty_organization_admin_account.app",
+        "aws_inspector2_delegated_admin_account.app",
+        "aws_inspector2_member_association.app",
+        "aws_kms_external_key.app",
+        "aws_kms_replica_key.app",
+        "aws_macie2_classification_job.app",
+        "aws_macie2_custom_data_identifier.app",
+        "aws_macie2_findings_filter.app",
+        "aws_macie2_member.app",
+        "aws_macie2_organization_admin_account.app",
+        "aws_secretsmanager_secret.app",
+        "aws_securityhub_account_v2.app",
+        "aws_securityhub_aggregator_v2.app",
+        "aws_securityhub_automation_rule.app",
+        "aws_securityhub_automation_rule_v2.app",
+        "aws_securityhub_configuration_policy_association.app",
+        "aws_securityhub_member.app",
+        "aws_securityhub_organization_admin_account.app",
+        "aws_securityhub_standards_control.app",
+        "aws_securityhub_standards_control_association.app",
+        "aws_ssm_resource_data_sync.app",
+        "aws_ssm_service_setting.app",
+        "aws_wafv2_ip_set.app",
+        "aws_wafv2_regex_pattern_set.app",
+        "aws_wafv2_rule_group.app",
+        "aws_wafv2_web_acl.app",
+        "aws_iam_role.security"
+      ],
+      "detail": "Error: Plugin did not respond"
+    },
+    {
+      "name": "storage",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 18,
+      "failed_resources": [
+        "aws_fsx_openzfs_file_system.app"
+      ],
+      "detail": "Error: 0 is not a valid value for `throughput_capacity` when `deployment_type` is \"SINGLE_AZ_1\". Valid values: [64 128 256 512 1024 2048 3072 4096]"
+    },
+    {
+      "name": "stragglers",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 12,
+      "failed_resources": [
+        "aws_ecr_lifecycle_policy.app",
+        "aws_ecr_pull_through_cache_rule.app",
+        "aws_ecr_pull_time_update_exclusion.app",
+        "aws_ecr_repository_creation_template.app",
+        "aws_ecr_repository_policy.app",
+        "aws_networkmanager_core_network_policy_attachment.app",
+        "aws_storagegateway_tape_pool.app",
+        "aws_transfer_agreement.app",
+        "aws_transfer_certificate.app",
+        "aws_transfer_profile.app",
+        "aws_transfer_web_app.app",
+        "aws_transfer_web_app_customization.app"
+      ],
+      "detail": "Error: creating ECR Lifecycle Policy (tofu-stragglers-cohort-ecr-lifecycle-policy): operation error ECR: PutLifecyclePolicy, https response error StatusCode: 400, RequestID: f99e8586-6efd-46b2-9158-a63705ca9a2b, RepositoryNotFoundException: The repository with name 'tofu-stragglers-cohort-ecr-lifecycle-policy' does not exist in the registry with id '000000000000'"
+    },
+    {
+      "name": "streaming",
+      "status": "fail",
+      "phase": "apply",
+      "resources": 14,
+      "detail": "signal: killed",
+      "timed_out": true
+    }
+  ]
+}

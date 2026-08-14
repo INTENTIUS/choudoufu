@@ -1773,20 +1773,55 @@ func (p *statelessProviders) providerConfigValue(ctx context.Context, addr addrs
 	var diags tfdiags.Diagnostics
 
 	mod := p.config.Module
-	key := mod.LocalNameForProvider(addr.Provider)
+
+	// Find the root provider block for this address by resolving each
+	// block's own local name to a provider FQN, not by round-tripping the
+	// FQN through LocalNameForProvider: when required_providers gives one
+	// provider two local names, ProviderLocalNames holds one winner chosen
+	// by Go map order, and the first version of this lookup refused a
+	// configuration stock terraform accepts - at random, one parse in a
+	// few - claiming a block that exists under the other name was not
+	// declared. Keys are scanned in sorted order so two blocks that both
+	// resolve here pick the same one every run.
+	keys := make([]string, 0, len(mod.ProviderConfigs))
+	for k := range mod.ProviderConfigs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var found *configs.Provider
+	for _, k := range keys {
+		pc := mod.ProviderConfigs[k]
+		if pc.Alias != addr.Alias {
+			continue
+		}
+		if mod.ProviderForLocalConfig(addrs.LocalProviderConfig{LocalName: pc.Name}) != addr.Provider {
+			continue
+		}
+		found = pc
+		break
+	}
+
+	displayName := mod.LocalNameForProvider(addr.Provider)
 	if addr.Alias != "" {
-		key = key + "." + addr.Alias
+		displayName = displayName + "." + addr.Alias
 	}
 
 	body := hcl.EmptyBody()
 	ident := configs.StaticIdentifier{
 		Module:  addrs.RootModule,
-		Subject: fmt.Sprintf("provider.%s", key),
+		Subject: fmt.Sprintf("provider.%s", displayName),
 	}
-	if pc, ok := mod.ProviderConfigs[key]; ok {
-		body = pc.Config
-		ident.DeclRange = pc.DeclRange
-	} else if addr.Alias != "" {
+	switch {
+	case found != nil:
+		body = found.Config
+		ident.DeclRange = found.DeclRange
+		subject := found.Name
+		if found.Alias != "" {
+			subject = subject + "." + found.Alias
+		}
+		ident.Subject = fmt.Sprintf("provider.%s", subject)
+	case addr.Alias != "":
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Provider configuration is not declared",
@@ -1795,7 +1830,7 @@ func (p *statelessProviders) providerConfigValue(ctx context.Context, addr addrs
 					"Configuring it from the environment instead would read and write the live system against whatever "+
 					"account and region the environment names, which is not what the configuration says. Declare "+
 					"provider %q with that alias, or remove the reference to it.",
-				key, mod.LocalNameForProvider(addr.Provider),
+				displayName, mod.LocalNameForProvider(addr.Provider),
 			),
 		))
 		return cty.NilVal, diags

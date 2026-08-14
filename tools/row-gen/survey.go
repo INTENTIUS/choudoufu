@@ -18,10 +18,25 @@ import (
 // guess - it is the TF provider's own answer, not an inference this tool
 // makes.
 type surveyEntry struct {
-	Type     string `json:"type"`
-	Identity *struct {
-		RequiredForImport []string `json:"required_for_import"`
-	} `json:"identity"`
+	Type     string          `json:"type"`
+	Identity *surveyIdentity `json:"identity"`
+}
+
+// surveyIdentity is the identity half of a survey entry: the provider's own
+// resource identity schema for the type.
+type surveyIdentity struct {
+	RequiredForImport []string `json:"required_for_import"`
+	OptionalForImport []string `json:"optional_for_import"`
+}
+
+// identityAttrs is every attribute name the provider's identity schema
+// carries for this type, required and optional together, or nil when the
+// provider serves no identity schema for it.
+func (e surveyEntry) identityAttrs() []string {
+	if e.Identity == nil {
+		return nil
+	}
+	return append(append([]string{}, e.Identity.RequiredForImport...), e.Identity.OptionalForImport...)
 }
 
 type surveyArtifact struct {

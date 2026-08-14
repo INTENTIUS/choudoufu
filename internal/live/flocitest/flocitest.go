@@ -531,6 +531,15 @@ func lockPluginCache(t *testing.T) (unlock func()) {
 // which is minutes at the worst; ten of them is a crash.
 const lockStaleAfter = 10 * time.Minute
 
+// InitLock takes the shared plugin cache's cross-process lock, for a caller
+// that runs an init through its own exec plumbing (a context deadline, a
+// captured pipe) rather than through Run. The cache is not safe for
+// concurrent writers; an init outside the lock races every init inside it.
+func InitLock(t *testing.T) (unlock func()) {
+	t.Helper()
+	return lockPluginCache(t)
+}
+
 // Run runs a command in dir and fails the test if it does not succeed.
 //
 // An init is run under the shared plugin cache's cross-process lock, because

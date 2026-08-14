@@ -285,10 +285,23 @@ func ownedFiles(cohort string) map[string]bool {
 	}
 }
 
-// checkForeignTF errors when the output directory holds a *.tf file the
-// generator does not own. Non-.tf files (a README a human annotated is
-// still owned; anything else is not policed) and a directory that does not
-// exist yet are fine.
+// isConfigFile reports whether a file name is loadable OpenTofu
+// configuration - every form the loader accepts, not only *.tf. The first
+// version of checkForeignTF filtered on ".tf" alone, and an audit walked a
+// resource-declaring iam.tf.json straight past it.
+func isConfigFile(name string) bool {
+	for _, suffix := range []string{".tf", ".tf.json", ".tofu", ".tofu.json"} {
+		if strings.HasSuffix(name, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+// checkForeignTF errors when the output directory holds a configuration
+// file the generator does not own. Non-configuration files (a README a
+// human annotated is still owned; anything else is not policed) and a
+// directory that does not exist yet are fine.
 func checkForeignTF(out, cohort string) error {
 	owned := ownedFiles(cohort)
 	var foreign []string
@@ -298,7 +311,7 @@ func checkForeignTF(out, cohort string) error {
 			continue // not existing yet is the ordinary first run
 		}
 		for _, e := range entries {
-			if e.IsDir() || !strings.HasSuffix(e.Name(), ".tf") {
+			if e.IsDir() || !isConfigFile(e.Name()) {
 				continue
 			}
 			rel := e.Name()
@@ -313,7 +326,7 @@ func checkForeignTF(out, cohort string) error {
 	if len(foreign) > 0 {
 		sort.Strings(foreign)
 		return fmt.Errorf(
-			"%s holds .tf files this generator does not emit: %s. Regenerating around them would "+
+			"%s holds configuration files this generator does not emit: %s. Regenerating around them would "+
 				"duplicate any resource both declare, silently. Fold their content into the generator "+
 				"(a typeOverride, a per-cohort override file, or the supporting-resource pass) or delete "+
 				"them, then rerun",

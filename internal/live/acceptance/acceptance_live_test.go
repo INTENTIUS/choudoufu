@@ -68,12 +68,10 @@ func TestCohortAcceptance(t *testing.T) {
 	tofuBin := flocitest.BuildTofu(t)
 
 	var results []CohortResult
-	ran := 0
 	cohorts := cohortFixtures(t)
 	for _, dir := range cohorts {
 		name := filepath.Base(dir)
 		t.Run(name, func(t *testing.T) {
-			ran++
 			res := runCohort(t, dir, tofuBin)
 			results = append(results, res)
 			t.Logf("%s: %s (phase %s)%s", name, res.Status, res.Phase, timedOutSuffix(res))
@@ -81,14 +79,19 @@ func TestCohortAcceptance(t *testing.T) {
 	}
 
 	artifactPath := filepath.Join(flocitest.RepoRoot(t), filepath.FromSlash(artifactRel))
-	enforceRatchet(t, artifactPath, results)
+	enforceRatchet(t, artifactPath, results, len(results) == len(cohorts))
 
 	if os.Getenv("TF_FLOCI_ACCEPTANCE_ARTIFACT") == "" {
 		t.Logf("TF_FLOCI_ACCEPTANCE_ARTIFACT not set; %s left untouched", artifactRel)
 		return
 	}
-	if ran != len(cohorts) {
-		t.Fatalf("only %d of %d cohorts ran (a -run filter?); refusing to write a partial %s", ran, len(cohorts), artifactRel)
+	// len(results), not a counter bumped at subtest entry: a verdict lands
+	// in results only when runCohort returned one, so a -run filter AND a
+	// harness t.Fatalf mid-cohort both leave the count short and refuse the
+	// write. The counter this replaced was incremented before runCohort and
+	// would have recorded a shrunk artifact as complete.
+	if len(results) != len(cohorts) {
+		t.Fatalf("only %d of %d cohorts produced a verdict (a -run filter, or a cohort aborted mid-run); refusing to write a partial %s", len(results), len(cohorts), artifactRel)
 	}
 	art := buildArtifact(flocitest.Image(), providerPin, results)
 	if err := writeArtifact(artifactPath, art); err != nil {
@@ -125,7 +128,7 @@ func runCohort(t *testing.T, src, tofuBin string) CohortResult {
 	dir := flocitest.CopyFixtureDir(t, src)
 	tag := estateTag(t, src)
 
-	if out, err, timedOut := runTimed(t, dir, initTimeout, terraformBin, "init", "-input=false", "-no-color"); err != nil {
+	if out, err, timedOut := runInit(t, dir, terraformBin); err != nil {
 		res.Phase, res.Detail, res.TimedOut = PhaseInit, firstErrorLine(out, err), timedOut
 		t.Logf("%s init:\n%s", name, out)
 		return res
@@ -136,7 +139,7 @@ func runCohort(t *testing.T, src, tofuBin string) CohortResult {
 		t.Logf("%s apply:\n%s", name, out)
 		return res
 	}
-	if out, err, timedOut := runTimed(t, dir, initTimeout, tofuBin, "init", "-input=false", "-no-color"); err != nil {
+	if out, err, timedOut := runInit(t, dir, tofuBin); err != nil {
 		res.Phase, res.Detail, res.TimedOut = PhaseInit, firstErrorLine(out, err), timedOut
 		t.Logf("%s tofu init:\n%s", name, out)
 		return res
@@ -175,8 +178,10 @@ func runCohort(t *testing.T, src, tofuBin string) CohortResult {
 }
 
 // enforceRatchet fails the test for any cohort the committed artifact
-// records as passing that did not pass this run.
-func enforceRatchet(t *testing.T, artifactPath string, results []CohortResult) {
+// records as passing that did not pass this run. complete says every cohort
+// produced a verdict; only then is a recorded-pass cohort with no verdict
+// an error, since under a -run filter absence just means filtered out.
+func enforceRatchet(t *testing.T, artifactPath string, results []CohortResult, complete bool) {
 	t.Helper()
 
 	committed, ok, err := readArtifact(artifactPath)
@@ -187,17 +192,40 @@ func enforceRatchet(t *testing.T, artifactPath string, results []CohortResult) {
 		t.Logf("no committed %s yet; every verdict is new", artifactRel)
 		return
 	}
-	passing := map[string]bool{}
-	for _, c := range committed.Cohorts {
-		if c.Status == "pass" {
-			passing[c.Name] = true
-		}
-	}
+	current := map[string]CohortResult{}
 	for _, r := range results {
-		if passing[r.Name] && r.Status != "pass" {
-			t.Errorf("%s: recorded as passing in %s and now fails at phase %s: %s", r.Name, artifactRel, r.Phase, r.Detail)
+		current[r.Name] = r
+	}
+	// Iterate the COMMITTED passing set, not the current results: a
+	// recorded-pass cohort whose fixture was deleted or renamed produces no
+	// current result at all, and the first version of this loop - which
+	// walked results - would have said nothing about the easiest way for a
+	// pass to stop happening.
+	for _, c := range committed.Cohorts {
+		if c.Status != "pass" {
+			continue
+		}
+		r, ok := current[c.Name]
+		switch {
+		case !ok && complete:
+			t.Errorf("%s: recorded as passing in %s and produced no verdict this run - fixture deleted or renamed", c.Name, artifactRel)
+		case !ok:
+			// A -run filter left it out; nothing to say.
+		case r.Status != "pass":
+			t.Errorf("%s: recorded as passing in %s and now fails at phase %s: %s", c.Name, artifactRel, r.Phase, r.Detail)
 		}
 	}
+}
+
+// runInit runs an init under the shared plugin cache's cross-process lock,
+// the same discipline flocitest.Run applies: the cache is not safe for
+// concurrent writers, and this tier's inits run through runTimed's own exec
+// plumbing rather than through Run.
+func runInit(t *testing.T, dir, bin string) (string, error, bool) {
+	t.Helper()
+
+	defer flocitest.InitLock(t)()
+	return runTimed(t, dir, initTimeout, bin, "init", "-input=false", "-no-color")
 }
 
 // runTimed runs one command under a deadline, returning its combined output.
@@ -259,8 +287,11 @@ func countResources(t *testing.T, dir string) int {
 // failedAddresses pulls the resource addresses out of terraform's error
 // blocks: the "  with aws_x.y," line each carries. -no-color drops the
 // ANSI colors but keeps the box-drawing gutter (│), so the pattern admits
-// it.
-var withAddressLine = regexp.MustCompile(`(?m)^[│\s]*with ([A-Za-z0-9_.\[\]"-]+),\s*$`)
+// it. The address is captured as everything up to the trailing comma
+// rather than a hand-listed character class, because an instance key can
+// legally hold "/", ":" or a space (an SSM path, a CIDR), and the first
+// class silently dropped those addresses.
+var withAddressLine = regexp.MustCompile(`(?m)^[│\s]*with (\S.*?),\s*$`)
 
 func failedAddresses(out string) []string {
 	seen := map[string]bool{}
