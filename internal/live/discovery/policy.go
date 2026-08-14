@@ -38,18 +38,37 @@ func applyOrphanPolicy(req Request, res *Result) {
 		if !o.Removal {
 			continue
 		}
+		// An orphan is undeclared by construction - classifyOrphans found it
+		// because nothing declares it - so the quadrant turns entirely on
+		// whether it carries this policy's tag. Both halves are derived from
+		// that one answer.
+		//
+		// They used to disagree. The verb came from Verb(false, tagged),
+		// which is undeclared_untagged when tagged is false, and the message
+		// named "undeclared_tagged" unconditionally. A policy with a custom
+		// tag_key reaches that: an orphan carrying the estate marker but not
+		// the policy's chosen tag lands in undeclared_untagged and was
+		// explained to the operator under the other quadrant's name. See
+		// GitHub issue #116.
 		tagged := req.Policy.TagMatches(o.Tags)
+		quadrant := policy.QuadrantOf(false, tagged)
 		verb := req.Policy.Verb(false, tagged)
-		if verb == policy.DefaultVerb[policy.UndeclaredTagged] {
-			// Delete, undeclared_tagged's own default: leave PolicyVerb at
-			// its zero value too, so that a policy block naming only
-			// default verbs is indistinguishable from no policy block at
-			// all - see [TestPolicyOmittedIsByteIdenticalToDefaultVerb].
+		if verb == policy.Delete {
+			// The sweep proceeds exactly as classifyOrphans decided. Leave
+			// PolicyVerb at its zero value too, so that a policy block
+			// naming only default verbs is indistinguishable from no policy
+			// block at all - see [TestPolicyOmittedIsByteIdenticalToDefaultVerb].
+			//
+			// This was written as a comparison against
+			// DefaultVerb[UndeclaredTagged], which is Delete and so picked
+			// the same rows, but said something it did not mean: the
+			// question is whether this verb deletes, not whether it matches
+			// one particular quadrant's default.
 			continue
 		}
 		o.Removal = false
 		o.PolicyVerb = verb
-		o.Withheld = policyWithheldMessage(req.Policy, verb, "undeclared_tagged", o.TypeName, o.Normalized)
+		o.Withheld = policyWithheldMessage(req.Policy, verb, quadrant.Attribute(), o.TypeName, o.Normalized)
 		kept[o.Addr.String()] = true
 	}
 

@@ -13,10 +13,19 @@ import (
 )
 
 // Scope narrows a delete-quadrant verb's reach: the resource types, provider
-// service namespaces, or regions it may consider. A Policy that carries a
-// Delete verb always has a non-nil Scope with at least one non-empty field -
-// internal/live/lint refuses a delete quadrant with no scope block before a
-// [Policy] is ever built from it.
+// service namespaces, or regions it may consider.
+//
+// The invariant to rely on is narrower than the one this comment used to
+// state, and the difference matters. A Policy whose **UndeclaredUntagged**
+// verb is Delete has a non-nil Scope with at least one non-empty field,
+// because internal/live/lint refuses that combination before a [Policy] is
+// built and internal/live/discovery's reconcile refuses it again defensively.
+//
+// A Policy carrying a Delete verb *anywhere* has no such guarantee.
+// [DefaultVerb] assigns Delete to UndeclaredTagged, so `Build(nil, "e")` -
+// the preset every estate with no policy block gets - returns Delete with a
+// nil Scope. That is the common case, not an edge one. The old wording said
+// otherwise in three files, and a reader was entitled to rely on it (#116).
 type Scope struct {
 	Services []string
 	Types    []string
@@ -116,8 +125,18 @@ func (p *Policy) Verb(declared, tagged bool) Verb {
 	}
 }
 
-// quadrantOf maps (declared, tagged) to the [Quadrant] the ownership matrix
+// QuadrantOf maps (declared, tagged) to the [Quadrant] the ownership matrix
 // names it, the same pairing [Quadrant]'s own doc comment table draws.
+//
+// Exported because a caller that asks [Policy.Verb] for a verb almost always
+// needs to name the quadrant it came from too - in a message to the
+// operator, or to compare against that quadrant's [DefaultVerb].
+// internal/live/discovery did both by hand and got it wrong: it passed
+// declared=false to Verb, compared the result against
+// DefaultVerb[UndeclaredTagged] whichever quadrant it was, and reported it
+// under that quadrant's name. See GitHub issue #116.
+func QuadrantOf(declared, tagged bool) Quadrant { return quadrantOf(declared, tagged) }
+
 func quadrantOf(declared, tagged bool) Quadrant {
 	switch {
 	case declared && tagged:

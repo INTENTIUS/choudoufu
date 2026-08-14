@@ -30,9 +30,15 @@ import (
 // with no policy block); both resolve to [policy.Build]'s default preset,
 // which is today's fixed behavior. Every call site calls this only after
 // [lint.CheckWith] has returned no issues, so by the time this runs, any
-// verb here is already known valid for its quadrant, and a delete quadrant,
-// if any, is already known to carry a scope block - see
-// internal/live/lint's checkLivePolicy.
+// verb here is already known valid for its quadrant.
+//
+// "and a delete quadrant, if any, is already known to carry a scope block"
+// used to follow, and it was too broad in the way GitHub issue #116 names.
+// checkLivePolicy requires a scope block for the undeclared_untagged
+// quadrant only; undeclared_tagged's delete is the ordinary orphan sweep,
+// scoped by the estate's own marker, and [policy.DefaultVerb] assigns it
+// there - so the preset returned two lines above carries a Delete verb and
+// a nil Scope, which is the common case rather than an edge one.
 func statelessPolicy(live *configs.Live, estate string) *policy.Policy {
 	if live == nil || live.Policy == nil {
 		return policy.Build(nil, estate)

@@ -205,6 +205,57 @@ func TestOrphanPolicyUntagCustomTagStatesNoManagementConsequence(t *testing.T) {
 	}
 }
 
+// TestOrphanPolicyReadsTheQuadrantItReports is GitHub issue #116's first
+// finding, and the fixture the issue said would settle it.
+//
+// An orphan is undeclared by construction, so its quadrant turns on whether
+// it carries the policy's tag. With a custom tag_key, an orphan can carry
+// the estate's ownership marker - which is why discovery found it at all -
+// and not carry the policy's chosen tag, which puts it in
+// undeclared_untagged.
+//
+// applyOrphanPolicy computed the verb from that answer and then named
+// "undeclared_tagged" in the message unconditionally, so the operator was
+// told the wrong quadrant had withheld their resource. The issue notes the
+// finding was read rather than run; this runs it.
+func TestOrphanPolicyReadsTheQuadrantItReports(t *testing.T) {
+	cloud := newFakeCloud()
+	ownWholeEstate(cloud)
+	cloud.listable("aws_cloudwatch_log_group")
+	// Carries the estate marker (own) and nothing else. The policy below
+	// keys on "team-owns", which this object does not have.
+	cloud.own("aws_cloudwatch_log_group", "/estate/deleted", `aws_cloudwatch_log_group.deleted`)
+
+	pol := policy.Build(&policy.Raw{
+		UndeclaredTagged: "delete", UndeclaredTaggedSet: true,
+		UndeclaredUntagged: "report", UndeclaredUntaggedSet: true,
+		TagKey: "team-owns", TagKeySet: true,
+		TagValue: "platform", TagValueSet: true,
+	}, estateName)
+
+	res, diags := discoverFixture(t, cloud, Request{Sweep: true, Policy: pol})
+	assertNoErrors(t, diags)
+
+	var got *OwnedResource
+	for i := range res.Orphans {
+		if res.Orphans[i].Normalized == `aws_cloudwatch_log_group.deleted` {
+			got = &res.Orphans[i]
+		}
+	}
+	if got == nil {
+		t.Fatal("the orphan is missing")
+	}
+	if got.PolicyVerb != policy.Report {
+		t.Fatalf("PolicyVerb = %q, want %q: the untagged quadrant's verb is what applies here", got.PolicyVerb, policy.Report)
+	}
+	if !strings.Contains(got.Withheld, "policy.undeclared_untagged") {
+		t.Errorf("Withheld names the wrong quadrant: %q\nThe orphan does not carry tag_key=tag_value, so undeclared_untagged is the quadrant whose verb was applied.", got.Withheld)
+	}
+	if strings.Contains(got.Withheld, "policy.undeclared_tagged") {
+		t.Errorf("Withheld names undeclared_tagged, whose verb (delete) was not the one applied: %q", got.Withheld)
+	}
+}
+
 // TestOrphanPolicyDeleteIsUnaffected: the default verb, explicit or
 // omitted, changes nothing about which orphans are removals.
 func TestOrphanPolicyDeleteIsUnaffected(t *testing.T) {
