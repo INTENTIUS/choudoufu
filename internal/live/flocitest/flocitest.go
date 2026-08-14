@@ -69,6 +69,13 @@ func image() string {
 	return defaultImage
 }
 
+// Image is the emulator image a StartFloci call in this process would run,
+// digest included, for callers that record which emulator produced a
+// result - internal/live/acceptance's artifact names it.
+func Image() string {
+	return image()
+}
+
 // Gate skips t unless the floci integration tier is enabled.
 //
 // Either TF_ACC (the acceptance-test switch the whole repo shares) or
