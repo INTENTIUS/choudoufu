@@ -83,13 +83,14 @@ segment this grammar allows but no build ever produces is a `count`
 instance key on a `module.` segment: a module block expanded with `count`
 is refused outright before anything reads the live system, permanently,
 because the position-based renumbering it causes is exactly the ambiguity
-a `tofu-address` marker exists to remove (`RuleChildModule`,
-`internal/live/lint/child_module.go`; `live/LIMITATIONS.md`,
-"child-module"). A resource inside a `for_each`-keyed module's
+a `tofu-address` marker exists to remove (`RuleChildModule` in
+`internal/live/lint/child_module.go`, and `live/LIMITATIONS.md`'s
+"child-module" entry). A resource inside a `for_each`-keyed module's
 instances is not auto-written even though its address is supported: stamping
 cannot inject a marker into a shared configuration body, so that address is
-built by hand instead (`live/LIMITATIONS.md`'s "keyed module" behavioral
-limit; the concept page's "Modules" section has the idiom).
+built by hand instead. `live/LIMITATIONS.md` records this as the "keyed
+module" behavioral limit, and the concept page's "Modules" section has the
+idiom.
 
 The unescaped grammar, in informal EBNF matching OpenTofu's address
 syntax.
@@ -108,7 +109,7 @@ see above: a `count` key on a `module.` segment, refused permanently.
 - `aws_subnet.this["a"]`
 - `aws_eip.this[2]`
 - `module.subnets["a"].aws_subnet.this`
-- `module.subnets[2].aws_subnet.this` (spec-only; a count-expanded module
+- `module.subnets[2].aws_subnet.this` (spec-only: a count-expanded module
   is refused permanently, see above)
 
 ### Escaping rule
@@ -151,11 +152,11 @@ up to three more tags (`tofu-address-2`, `tofu-address-3`,
 reader concatenates `tofu-address`, then `tofu-address-2` if present, then
 `tofu-address-3`, then `tofu-address-4`, and the result is the one escaped
 address that would not fit in a single tag. This is the only sanctioned way
-to read a split address; the continuation tags are never meaningful on
+to read a split address. The continuation tags are never meaningful on
 their own, individually or out of order.
 
-This raises the effective limit to 1024 characters (four tags of 256); the
-limit remains bounded. An address that does not fit in four tags is still a
+This raises the effective limit to 1024 characters (four tags of 256), and
+the limit remains bounded. An address that does not fit in four tags is still a
 lint-time error (RuleOverlongAddress, `internal/live/lint/overlong_address.go`)
 for the same reason the original 256-character refusal existed:
 truncating an ownership key is worse than refusing to admit the resource,
@@ -171,7 +172,7 @@ case, and every marker written before this addition existed) carries only
 about a short address changes.
 
 **Reading a corrupt chain.** A continuation tag can only exist because
-something wrote the whole set together; the three tags below `tofu-address`
+something wrote the whole set together. The three tags below `tofu-address`
 are never independently meaningful. A tag map where `tofu-address-3` is
 present but `tofu-address-2` is not (the middle of the chain deleted by a
 hand edit, a tag policy misfire, or two racing writes) cannot be
@@ -271,7 +272,7 @@ change in the number of live instances assigns or retires slots.
   gap in it (a `tofu-address-3` present while `tofu-address-2` is not) is
   the same malformed case: it cannot be concatenated into anything, so it
   is reported, never read as the address up to the gap.
-- **How markers are read back has a timing property worth stating.** Two
+- **How markers are read back has a timing property.** Two
   reads find them, and only one of the two is eventually consistent. Binding
   a declared resource to its live object goes through a per-type listing
   against the service's own API, so nothing about a marker written moments
@@ -301,7 +302,7 @@ change in the number of live instances assigns or retires slots.
 Renaming a resource in config, whether changing its address, moving it into
 or out of a module, or changing a `for_each` key, is done by rewriting the
 `tofu-address` tag on the live resource to the new escaped address. That
-tag write is the move operation; there is no state to edit, no `moved`
+tag write is the move operation: there is no state to edit, no `moved`
 block to author, and no two-step migration. The old
 address is simply gone from the tag the instant the new one is written,
 because a single tag value cannot hold both.
@@ -344,7 +345,7 @@ characters as the whole address instead of erroring. That is a real gap for
 anything that has not been updated to read continuation tags, and it is
 accepted without a version bump, because the
 definition above is about old data under new code, not new data under old
-code; the versioning number cannot help with the latter no matter which way
+code. The versioning number cannot help with the latter no matter which way
 it is called.
 
 A change is breaking (version bump required) if it invalidates that
@@ -418,7 +419,7 @@ condition never matches. What the creating principal supplies is
 `aws:RequestTag`, and conditioning on it is what makes the second statement a
 grant to create *into this estate* rather than a grant to create anything.
 
-The actions above are illustrative of the shape, not of the scope: a real
+The actions above are illustrative, not the full scope: a real
 grant names the actions the estate's own types need, which
 [`site/content/reference.md`](https://intentius.io/choudoufu/reference.html)
 lists per stage, and the resource types the configuration declares.
@@ -433,8 +434,8 @@ get-resources --tag-filters Key=tofu-estate,Values=prod-networking` and no
 
 **Splitting an estate is a tag rewrite, then two policies.** Rewrite
 `tofu-estate` on the resources that are leaving, and the same statement with
-the new estate name governs them. The split is a tag write and a policy copy;
-neither half moves.
+the new estate name governs them. The split is a tag write and a policy
+copy, and neither half moves.
 
 ### Which services this actually reaches
 
@@ -580,7 +581,7 @@ the same ownership record as stripping `tofu-address` itself, since a
 reader that cannot gather every chunk cannot reconstruct the address at
 all. See "`tofu-address` continuation tags," above.
 
-The eight actions in that statement are illustrative of the shape. The
+The eight actions in that statement are illustrative. The
 exhaustive list is generated, because each service's tag-removal verb is
 resolvable from botocore's service models the same way its tagging verb
 already was, and whether AWS evaluates `aws:TagKeys` on it is resolvable
