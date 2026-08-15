@@ -152,6 +152,12 @@ type Entry struct {
 
 	Tagging  Tagging  `json:"tagging"`
 	Handlers Handlers `json:"handlers"`
+
+	// Relationships are the schema's own relationshipRef annotations: each
+	// a declared foreign key from one of this type's properties to another
+	// type's. Thin coverage by design of the upstream data, not of this
+	// parser - see relationships.go.
+	Relationships []Relationship `json:"relationships,omitempty"`
 }
 
 // parseType parses one raw schema (as extractSchemas keys it, by typeName)
@@ -195,6 +201,13 @@ func parseType(raw []byte) (Entry, error) {
 			e.Handlers.ListRequiredInput = append([]string(nil), h.List.HandlerSchema.Required...)
 		}
 	}
+
+	rels, err := extractRelationships(raw)
+	if err != nil {
+		return Entry{}, fmt.Errorf("%s: reading relationshipRef annotations: %w", schema.TypeName, err)
+	}
+	e.Relationships = rels
+
 	return e, nil
 }
 

@@ -54,6 +54,16 @@ var referenceCounts = RegistryCounts{
 	NoListHandler:          240,
 	NoHandlersAtAll:        161,
 	WithRead:               1516,
+
+	// Issue #151 added these three. relationshipRef coverage is thin in the
+	// pinned bundle (26 types, 85 annotations) and grows as AWS populates
+	// it, so a pin bump is expected to move the first two. The third is the
+	// one to watch: a non-zero unattributed count means the walk met a
+	// nesting shape it cannot tie to a property, which is a
+	// relationships.go gap rather than an upstream change.
+	WithRelationships:         26,
+	Relationships:             85,
+	RelationshipsUnattributed: 0,
 }
 
 // realZipOrSkip returns the cached real CloudFormation Registry bundle, or

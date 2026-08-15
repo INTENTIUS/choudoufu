@@ -56,6 +56,21 @@ type RegistryCounts struct {
 
 	// WithRead is how many types implement the read handler.
 	WithRead int `json:"with_read"`
+
+	// WithRelationships is how many types carry at least one
+	// relationshipRef annotation, and Relationships the total number of
+	// annotations across the roster. Both are reported because the second
+	// is what a consumer joins on and the first is what says how thin the
+	// coverage is (issue #151).
+	WithRelationships int `json:"with_relationships"`
+	Relationships     int `json:"relationships"`
+
+	// RelationshipsUnattributed is the subset of Relationships the walk
+	// could not tie to an enclosing schema property. Counted rather than
+	// dropped: a zero here is the claim that every annotation found has a
+	// property name, and a non-zero one is a shape relationships.go has
+	// not learned to attribute yet.
+	RelationshipsUnattributed int `json:"relationships_unattributed"`
 }
 
 // PrimaryIdentifierArity buckets primaryIdentifier key arity: a single
@@ -124,6 +139,16 @@ func tallyEntry(c *RegistryCounts, e Entry) {
 
 	if e.Handlers.Read {
 		c.WithRead++
+	}
+
+	if len(e.Relationships) > 0 {
+		c.WithRelationships++
+		c.Relationships += len(e.Relationships)
+		for _, r := range e.Relationships {
+			if r.Property == "" {
+				c.RelationshipsUnattributed++
+			}
+		}
 	}
 }
 
