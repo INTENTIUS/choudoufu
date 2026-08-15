@@ -818,7 +818,13 @@ func applyIdentitySchemaAttrsCorrection(p *proposal, g importGrammarRow) {
 // opaque.
 func looksOpaque(example string) bool {
 	if strings.HasPrefix(example, "arn:") {
-		return true
+		// An ARN's own grammar has "/" and ":" inside it, but never "," or
+		// "|" - an arn:-prefixed example carrying either is a JOINED value
+		// (aws_controltower_control's "OU-ARN,CONTROL-ARN",
+		// aws_ssoadmin_application_assignment's "APP-ARN,id,USER"), and
+		// claiming it as one opaque arn attribute would assert an identity
+		// the type does not have.
+		return !strings.ContainsAny(example, ",|")
 	}
 	return !strings.ContainsAny(example, ",|_/:")
 }

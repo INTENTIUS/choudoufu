@@ -48,6 +48,29 @@ func TestValueNamesRequiredArgument(t *testing.T) {
 	}
 }
 
+// TestLooksOpaque_JoinedARNsAreNotOpaque pins the aws_controltower_control
+// and aws_ssoadmin_application_assignment shape: an ARN's own grammar has
+// "/" and ":" inside it, but never "," or "|", so an arn:-prefixed example
+// carrying either is a joined value and must not be claimed as one opaque
+// arn attribute.
+func TestLooksOpaque_JoinedARNsAreNotOpaque(t *testing.T) {
+	cases := []struct {
+		example string
+		want    bool
+	}{
+		{"arn:aws:networkmanager::123456789012:device/global-network-01/device-07f6", true},
+		{"arn:aws:organizations::123456789101:ou/o-x/ou-y,arn:aws:controltower:us-east-1::control/WTDSMKDKDNLE", false},
+		{"arn:aws:sso::123456789012:application/id-12345678,abcd1234,USER", false},
+		{"d-1234567890", true},
+		{"aabbccddee/example-stage", false},
+	}
+	for _, tc := range cases {
+		if got := looksOpaque(tc.example); got != tc.want {
+			t.Errorf("looksOpaque(%q) = %v, want %v", tc.example, got, tc.want)
+		}
+	}
+}
+
 // TestIdentitySchemaOrder is issue #134's guard: the third fallback in
 // tryGrammarComposite, which takes the provider's own Identity Schema as the
 // segment order when the value-token bijection is ambiguous.
