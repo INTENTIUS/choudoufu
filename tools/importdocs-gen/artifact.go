@@ -43,6 +43,14 @@ type Row struct {
 	// EvidenceExcerpt is the doc's raw "## Import" section, verbatim.
 	EvidenceExcerpt string `json:"evidence_excerpt"`
 
+	// ExampleArguments are the arguments the doc's own "## Example Usage"
+	// sets on a resource of this type to a self-contained literal, with
+	// every cross-resource reference dropped. Issue #136: this is the
+	// provenance that replaces tools/estate-gen's hand overrides for the
+	// enum-member and policy-document cases - "the provider's own
+	// documented example sets this", rechecked on every regeneration.
+	ExampleArguments []ExampleArgument `json:"example_arguments,omitempty"`
+
 	// ArgumentReference is the resource's top-level Argument Reference
 	// bullets - name, Required/Optional and ForceNew where the doc marks
 	// it - scraped from the same doc page's own "## Argument Reference"
@@ -159,6 +167,7 @@ func buildRow(tfType, doc string) (Row, bool) {
 		Arguments:              cr.Arguments,
 		EvidenceExcerpt:        section,
 		ArgumentReference:      argumentReferenceEntries(doc),
+		ExampleArguments:       exampleArguments(doc, tfType),
 		ArgumentsInOrder:       cr.ArgumentsInOrder,
 		IdentitySchemaRequired: idReq,
 		IdentitySchemaOptional: idOpt,
