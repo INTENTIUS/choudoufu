@@ -57,6 +57,12 @@ type generator struct {
 	cohort  string
 	schemas providers.GetProviderSchemaResponse
 
+	// seed is the literal arguments each type's own documentation page
+	// sets, from live/import-grammar.json (issue #136). Empty when the
+	// artifact is absent, which makes the seeding pass a no-op and this
+	// generator produce exactly what it produced before it existed.
+	seed exampleSeed
+
 	// order is every resource this run renders, coverage rows first
 	// (sorted by type), then supporting resources (sorted by type) - the
 	// file layout and the README table walk this order.
@@ -172,6 +178,18 @@ func planCohort(cohort string, schemas providers.GetProviderSchemaResponse, requ
 		cohort:  cohort,
 		schemas: schemas,
 		byType:  map[string]resourceAddr{},
+	}
+
+	// Loaded here rather than by the caller so that main and both test
+	// entry points cannot disagree about whether the seed is present. A
+	// generator that renders one way under test and another in the sweep is
+	// how a drift check comes to certify the wrong thing.
+	if root, err := repoRoot(); err == nil {
+		seed, err := loadExampleSeed(root)
+		if err != nil {
+			return nil, err
+		}
+		g.seed = seed
 	}
 
 	sortedRequested := append([]string(nil), requested...)
@@ -292,10 +310,16 @@ func (g *generator) render(p planned) (string, []string) {
 	block := g.schemas.ResourceTypes[p.Addr.Type].Block
 	g.fillBlock(rBody, block, p.Addr, true)
 
+	// Schema-required pass, then the documented example, then the hand
+	// override - which still runs last and still wins, so this is additive
+	// (issue #136).
 	var overrides []string
+	if seeded := g.seedFromExample(rBody, block, p.Addr.Type); len(seeded) > 0 {
+		overrides = append(overrides, "doc example: "+strings.Join(seeded, ", "))
+	}
 	if ov, ok := typeOverrides[p.Addr.Type]; ok {
 		ov.Apply(g, rBody, p.Addr)
-		overrides = ov.Reasons
+		overrides = append(overrides, ov.Reasons...)
 	}
 
 	if taggable(block) {

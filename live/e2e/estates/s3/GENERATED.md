@@ -20,7 +20,7 @@ go run ./tools/estate-gen -cohort s3 -types aws_s3_bucket,aws_s3_bucket_lifecycl
 | `aws_s3_bucket_policy.app` | coverage | schema requires "policy" as a plain string, but the provider validates it is well-formed JSON (validate: "\"policy\" contains an invalid JSON"); the generic string placeholder is not JSON |
 | `aws_s3_bucket_public_access_block.app` | coverage | none |
 | `aws_s3_bucket_server_side_encryption_configuration.app` | coverage | rule is a required block, but its nested apply_server_side_encryption_by_default block is itself optional in the schema while the provider requires it in practice (validate: "Missing required argument") along with its required sse_algorithm enum member |
-| `aws_s3_bucket_versioning.app` | coverage | versioning_configuration is a required block, but its "status" argument has no default the generic pass can infer - set to the provider's documented enum member "Enabled" |
+| `aws_s3_bucket_versioning.app` | coverage | none |
 
 ## Requested types
 

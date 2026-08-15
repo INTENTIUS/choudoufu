@@ -128,18 +128,6 @@ var typeOverrides = map[string]typeOverride{
   })`, resourceExpr)))
 		},
 	},
-	"aws_s3_bucket_versioning": {
-		Reasons: []string{
-			`versioning_configuration is a required block, but its "status" argument has no default the generic pass can infer - set to the provider's documented enum member "Enabled"`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			for _, blk := range body.Blocks() {
-				if blk.Type() == "versioning_configuration" {
-					blk.Body().SetAttributeRaw("status", exprTokens(`"Enabled"`))
-				}
-			}
-		},
-	},
 	"aws_s3_bucket_server_side_encryption_configuration": {
 		Reasons: []string{
 			`rule is a required block, but its nested apply_server_side_encryption_by_default block is itself optional in the schema while the provider requires it in practice (validate: "Missing required argument") along with its required sse_algorithm enum member`,
