@@ -64,6 +64,17 @@ simply cannot list or tag are reported by count, since that is true of every
 run. Pass `-verbose` to itemise them. A list call that actually failed during
 this run is itemised every time.
 
+### The sweep can be a run behind
+
+Finding resources you own but no longer declare may go through AWS's Resource
+Groups Tagging API, which is eventually consistent. A resource whose tags have
+not propagated yet is not returned, so an orphan can be reported one run late.
+
+That is the only direction this bites. Binding the resources you *do* declare
+reads each type through its own service API rather than the tag index, so a
+freshly tagged resource is never mistaken for a missing one, and a plan never
+proposes a duplicate because of it.
+
 ## Choosing what happens to each kind of resource
 
 Every resource choudoufu sees falls into one of four situations, decided by

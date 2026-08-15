@@ -271,6 +271,19 @@ change in the number of live instances assigns or retires slots.
   gap in it (a `tofu-address-3` present while `tofu-address-2` is not) is
   the same malformed case: it cannot be concatenated into anything, so it
   is reported, never read as the address up to the gap.
+- **How markers are read back has a timing property worth stating.** Two
+  reads find them, and only one of the two is eventually consistent. Binding
+  a declared resource to its live object goes through a per-type listing
+  against the service's own API, so nothing about a marker written moments
+  ago can be missed there. The estate-wide sweep for resources this estate
+  owns but no longer declares may instead go through the Resource Groups
+  Tagging API's `GetResources`, filtered on `tofu-estate`, and that index is
+  eventually consistent: a resource whose tags have not yet propagated is
+  simply not returned. The consequence is bounded and is in the safe
+  direction - a sweep can be a run behind, so an orphan may be reported one
+  run late. It cannot cause a marker to be lost, and it cannot make a
+  declared resource look absent, because that question is never asked of the
+  tag index.
 - Two resources carrying the same `tofu-estate` and the same
   `tofu-address` at once is also a named error. The marker admission path
   assumes at most one live resource per address per estate, and a
