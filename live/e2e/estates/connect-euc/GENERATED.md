@@ -36,7 +36,7 @@ go run ./tools/estate-gen -cohort connect-euc -types aws_connect_contact_flow,aw
 | `aws_workspacesweb_data_protection_settings.app` | coverage | none |
 | `aws_workspacesweb_data_protection_settings_association.app` | coverage | none |
 | `aws_workspacesweb_identity_provider.app` | coverage | identity_provider_type is Required and validated against a closed enum (validate: "expected identity_provider_type to be one of [SAML Facebook Google LoginWithAmazon SignInWithApple OIDC]"); portal_arn is Required and validated as a well-formed ARN (validate: "cannot be parsed as an ARN"), wired to this cohort's own aws_workspacesweb_portal for a real one; identity_provider_details is a required map the generic pass leaves empty, which the schema alone does not reject but the provider needs SAML metadata in practice for a SAML provider |
-| `aws_workspacesweb_ip_access_settings.app` | coverage | ip_rule is optional-shaped in the schema (MinItems 0) but the provider requires at least one in practice (validate: "Block ip_rule must have a configuration value as the provider has marked it as required"), and each rule needs a well-formed CIDR ip_range |
+| `aws_workspacesweb_ip_access_settings.app` | coverage | none |
 | `aws_workspacesweb_ip_access_settings_association.app` | coverage | none |
 | `aws_workspacesweb_network_settings.app` | coverage | subnet_ids is Required and the provider validates it has between 2 and 5 elements (validate: "set must contain at least 2 elements and at most 5 elements, got: 1"); the generic pass's single-element placeholder list is one short |
 | `aws_workspacesweb_network_settings_association.app` | coverage | none |

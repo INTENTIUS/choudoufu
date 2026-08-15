@@ -36,25 +36,6 @@ var typeOverridesNetworkingAdvanced = map[string]typeOverride{
 	// get literal, plausibly-shaped placeholder ARNs/IDs instead of a
 	// cross-resource reference, the same choice aws_volume_attachment's
 	// own comment in that file makes for aws_ebs_volume.
-	"aws_globalaccelerator_listener": {
-		Reasons: []string{
-			`accelerator_arn is Required but a generic-string placeholder is not a valid ARN (validate: "is an invalid ARN") - overridden to this cohort's own aws_globalaccelerator_accelerator.app.arn; protocol is Required and validated against a closed enum (validate: "expected protocol to be one of [\"TCP\" \"UDP\"]"); port_range is a Required (min_items 1) block the generic pass emits empty, but the provider requires from_port and to_port once the block exists`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if accel, ok := g.byType["aws_globalaccelerator_accelerator"]; ok {
-				body.SetAttributeRaw("accelerator_arn", exprTokens(fmt.Sprintf("%s.arn", accel)))
-			} else {
-				body.SetAttributeRaw("accelerator_arn", exprTokens(`"arn:aws:globalaccelerator::123456789012:accelerator/0123abcd-1234-abcd-1234-0123456789ab"`))
-			}
-			body.SetAttributeRaw("protocol", exprTokens(`"TCP"`))
-			for _, blk := range body.Blocks() {
-				if blk.Type() == "port_range" {
-					blk.Body().SetAttributeRaw("from_port", exprTokens(`80`))
-					blk.Body().SetAttributeRaw("to_port", exprTokens(`80`))
-				}
-			}
-		},
-	},
 	"aws_networkfirewall_firewall": {
 		Reasons: []string{
 			`the schema marks transit_gateway_id and vpc_id both Optional, but the provider requires exactly one (validate: "Invalid combination of arguments" x2); firewall_policy_arn is Required but a generic-string placeholder is not a valid ARN (validate: "is an invalid ARN") - overridden to this cohort's own aws_networkfirewall_firewall_policy.app.arn. subnet_mapping carries no schema-level minimum, but a VPC-scoped firewall needs at least one subnet in practice, so one is added for behavioral realism even though validate does not require it.`,

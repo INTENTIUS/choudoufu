@@ -137,15 +137,6 @@ var typeOverridesConnectEuc = map[string]typeOverride{
   }`, g.cohort)))
 		},
 	},
-	"aws_workspacesweb_ip_access_settings": {
-		Reasons: []string{
-			`ip_rule is optional-shaped in the schema (MinItems 0) but the provider requires at least one in practice (validate: "Block ip_rule must have a configuration value as the provider has marked it as required"), and each rule needs a well-formed CIDR ip_range`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			rule := body.AppendNewBlock("ip_rule", nil)
-			rule.Body().SetAttributeRaw("ip_range", exprTokens(`"10.0.0.0/16"`))
-		},
-	},
 	"aws_workspacesweb_network_settings": {
 		Reasons: []string{
 			`subnet_ids is Required and the provider validates it has between 2 and 5 elements (validate: "set must contain at least 2 elements and at most 5 elements, got: 1"); the generic pass's single-element placeholder list is one short`,
