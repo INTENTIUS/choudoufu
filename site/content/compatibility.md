@@ -198,6 +198,49 @@ and reports the count of non-root module instances it saw and skipped. A
 module-tree estate adopts by planning with a `live` block added, the ordinary
 path on [Migrate an existing estate](migrate.html).
 
+## Your accounts and regions
+
+An estate can span more than one provider configuration. One `provider "aws"`
+block per account or region, each with its own `assume_role`, resources
+pinned to one with the `provider` meta-argument. That is admitted, and it is
+proven end to end against the emulator.
+
+One thing is bounded. The resources that need marker discovery must all use a
+single provider configuration. The line runs through how a resource's
+identity is recovered, not through which account it sits in.
+
+**Client-named types span freely.** An S3 bucket named in your configuration,
+an IAM role, a CloudWatch log group. Their identity is already in your code,
+so nothing has to go looking for them, and any provider configuration can
+manage them.
+
+**Server-assigned types have to share one.** A VPC, a subnet, a security
+group, a KMS key. AWS assigns their identity and choudoufu recovers it by
+reading markers back, so a list issued against the wrong account or region
+would report the estate as missing rather than as unreachable. Spanning
+configurations with these is refused, with an error naming the
+configurations involved.
+
+Split the configuration so the discovery-needing resources share one
+provider configuration, and run them separately. `-target` does not help,
+because the check runs over the whole configuration during discovery, before
+any target filter applies.
+
+This is where the mode stands today rather than a permanent boundary. The
+multi-pass machinery already exists.
+
+Two consequences follow.
+
+A `providers = { aws = aws.other }` mapping on a module call is refused, and
+that one is permanent. Live mode does not read a module call's providers
+mapping, so the resources would be read, written and swept somewhere other
+than where you asked, with nothing in the plan to show it.
+
+In an estate spanning provider configurations, an adoption hint's `--region`
+and `--endpoint-url` can name the wrong region for a resource found under a
+different configuration. What is wrong is the printed command, not the plan.
+Check the region before pasting it.
+
 ## How you run it
 
 A configuration can be entirely acceptable and still be refused by how it is

@@ -2306,6 +2306,40 @@ this is a standing property of what the stamping pass can and cannot
 inject into a shared configuration body. (`internal/live/stamp/stamp.go`,
 `SkipModuleKeyed` and `moduleKeyedResource`.)
 
+**Marker discovery goes through one provider configuration per run.** An
+estate's managed resources may span several provider configurations, and the
+sweep handles that. `statelessDiscover` runs one discovery pass per
+configuration and `discovery.Merge` combines them, with
+`discovery.Request.ScopeProvider` keeping a pass from binding a live object
+through the wrong account (issue #69). What is bounded is narrower. The
+resources *waiting on marker discovery* must all use one provider
+configuration, because a list issued against the wrong account or region
+would report an estate as missing rather than as unreachable. A client-named
+resource, whose identity is already in the configuration, needs no discovery
+and spans provider configurations freely. A server-assigned one does not.
+The forwarding address is to split the configuration so the
+discovery-needing resources share one provider configuration, and `-target`
+does not help, because the check runs over the whole configuration during
+discovery before any target filter applies. This is a v0 bound rather than a
+permanent one. The multi-pass machinery exists and `ScopeProvider` is
+alias-aware, so lifting it is work rather than redesign.
+(`internal/command/live_plan.go`, `statelessDiscoveryProvider`. Proven
+multi-configuration behavior in `internal/live/discovery`'s
+`TestAliasedProvidersAgainstFloci`, fixture at
+`internal/live/discovery/testdata/alias-e2e/`.)
+
+**A multi-configuration estate's adoption hint may name the wrong region.**
+The hint's `--region` and `--endpoint-url` flags come from the provider
+configuration that ran the needs-discovery scan, or from the first of the
+sweep's providers in sorted order when nothing needed discovery. For a
+foreign resource found under a different provider configuration, that can be
+the wrong region. What is wrong is the printed command rather than the plan,
+and splitting the hint by provider needs a larger change to
+`internal/live/foreign`. Materializing undeclared instances does not go
+through the hint: callers use the per-address provider map instead, so an
+undeclared instance is created through whichever configuration found it.
+(`internal/command/live_plan.go`, `statelessDiscover`'s third return value.)
+
 **Untaggable types carry no ownership marker of their own.** <!-- survey-gen:begin untaggable-admitted -->
 `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
 `aws_api_gateway_account`, `aws_api_gateway_base_path_mapping`,
