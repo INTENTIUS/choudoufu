@@ -6877,10 +6877,10 @@
     {
       "name": "live/e2e/estates/networking-advanced",
       "origin": "in-repo fixture",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
-      "instances": 41,
-      "sites": 3,
+      "instances": 44,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -6976,10 +6976,10 @@
     {
       "name": "live/e2e/estates/stragglers",
       "origin": "in-repo fixture",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
-      "instances": 12,
-      "sites": 1,
+      "instances": 13,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -8246,8 +8246,8 @@
       "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
       "docs_ref": "live/LIMITATIONS.md, \"Not an identity attribute\"",
       "raised_by": "internal/live/identity",
-      "configs": 18,
-      "sites": 48,
+      "configs": 16,
+      "sites": 44,
       "examples": [
         ".corpus/cyhy-amis/terraform/bod_bastion_route53.tf:17",
         ".corpus/cyhy-amis/terraform/bod_docker_route53.tf:4",
@@ -9307,8 +9307,8 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 2570,
-    "sites": 15273,
+    "instances": 2574,
+    "sites": 15269,
     "refusals_fired": 28,
     "refusals_in_set": 109,
     "configs_without_schemas": 0,
@@ -9319,10 +9319,10 @@
       "origin": "in-repo fixture",
       "configs": 31,
       "loaded": 31,
-      "blocked": 10,
-      "clean": 21,
-      "instances": 637,
-      "sites": 27,
+      "blocked": 8,
+      "clean": 23,
+      "instances": 641,
+      "sites": 23,
       "reads_as": "ranking"
     },
     {
