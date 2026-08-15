@@ -7,8 +7,8 @@
     "adopted_unchanged": 708,
     "adopted_unchanged_pct": 86.13,
     "genuine_mismatches": 114,
-    "annotated": 0,
-    "unannotated_mismatches": 114,
+    "annotated": 114,
+    "unannotated_mismatches": 0,
     "scrape_gap_mismatches": 28
   },
   "by_service": {
@@ -988,7 +988,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_api_gateway_client_certificate",
@@ -1102,7 +1103,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example's segments (12345abcde/example/test/GET) are opaque placeholders carrying no argument name token. The ratified row is the ratifiers' reading of the same page."
     },
     {
       "tf_type": "aws_api_gateway_model",
@@ -1227,7 +1229,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_apigatewayv2_vpc_link",
@@ -1388,7 +1391,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_appsync_api_cache",
@@ -1440,7 +1444,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "An account/region singleton whose import ID is the region name itself; the ratified row is a single Cloud region component with a deliberately empty IdentityAttrs. The registry reads it server-assigned, but nothing is minted - the identity is the cloud context. A Cloud component is outside every proposal bucket's vocabulary."
     },
     {
       "tf_type": "aws_arczonalshift_zonal_autoshift_configuration",
@@ -1539,7 +1544,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The fresh proposal guessed the right shape (client-named) but filed evidence-only for lack of confidence, and its guessed argument is the CFN property's name (backup_vault_name) where the provider argument is name. The ratified row also pairs IdentityAttrs [id, name], a verification only the ratifiers made."
     },
     {
       "tf_type": "aws_backup_plan",
@@ -1595,7 +1601,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The derivation already lands the Identity Schema's arn; the ratified entry additionally pairs the exported id attribute as an alias for the same value. Asserting that an exported id equals the import identity is issue #44's stated non-goal for the derivation - a human verification, recorded here."
     },
     {
       "tf_type": "aws_batch_job_definition",
@@ -1611,7 +1618,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Ratified server-assigned: AWS Batch mints a new ARN, embedding a revision number, on every job-definition revision, so no argument reconstructs the identity. The fresh proposal client-names by 'arn', the Identity Schema's required attribute taken as an argument name; the schema alone cannot state that the ARN's revision tail is server-minted."
     },
     {
       "tf_type": "aws_batch_job_queue",
@@ -1670,7 +1678,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Ratified server-assigned: Bedrock mints the inference profile's identifier at create time, and the documented import example is that server string, distinct from the client-chosen name argument the fresh proposal client-names by. The ratified Reason records this as a correction of row-gen's own argument-composed reading."
     },
     {
       "tf_type": "aws_bedrockagent_agent",
@@ -1744,7 +1753,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Ratified server-assigned: the endpoint's own identifier is minted at create time, scoped under its parent runtime; the documented agent_runtime_id,name composite the fresh proposal derives is the import path, not the identity, and the ratifiers ruled the row needs discovery (the type is taggable, so the marker path recovers it)."
     },
     {
       "tf_type": "aws_bedrockagentcore_api_key_credential_provider",
@@ -1760,7 +1770,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Ratified server-assigned: the import identity is the credential_provider_arn the service mints at create time; the name argument configures but does not identify. The fresh proposal client-names by name from the argument-composed flag."
     },
     {
       "tf_type": "aws_bedrockagentcore_browser",
@@ -1798,7 +1809,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['evaluator_id'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_bedrockagentcore_gateway",
@@ -1820,7 +1832,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['harness_id'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_bedrockagentcore_memory",
@@ -1847,7 +1860,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Ratified server-assigned: same judgment as the api-key credential provider - the service mints credential_provider_arn, the name argument only configures. The fresh proposal client-names by name."
     },
     {
       "tf_type": "aws_bedrockagentcore_online_evaluation_config",
@@ -1861,7 +1875,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['online_evaluation_config_id'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_bedrockagentcore_policy_engine",
@@ -1875,7 +1890,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['policy_engine_id'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_bedrockagentcore_resource_policy",
@@ -1908,7 +1924,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['arn'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_ce_anomaly_subscription",
@@ -1922,7 +1939,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['arn'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_ce_cost_category",
@@ -1933,7 +1951,8 @@
         "identity-attrs"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['arn'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_chatbot_slack_channel_configuration",
@@ -2149,7 +2168,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The ratified components assemble the config ARN, decomposed into arn:aws:cloudfront:: + account + :realtime-log-config/ + the name argument (CloudFront ARNs carry no region). The registry reads the identity as wholly read-only, which is true of the assembled string but not of its parts: the tail is configuration and the middle is the cloud the run points at. No proposal bucket can express a Cloud component or a mid-string literal, so no rule change reaches this row - it needs a new proposal vocabulary."
     },
     {
       "tf_type": "aws_cloudfront_response_headers_policy",
@@ -2192,7 +2212,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Ratified server-assigned: the trail's import identity is its ARN, ruled minted at create time rather than assembled from the (optional) name argument. The fresh proposal client-names by 'arn', which is not an argument; the registry's create-only TrailName does not decide the question either way."
     },
     {
       "tf_type": "aws_cloudtrail_event_data_store",
@@ -2314,7 +2335,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry's composite (event bus + statement id) is not what the provider imports by: the Identity Schema and the ratified row both say statement_id alone. The ratifiers followed the schema over the registry; row-gen's needs-hand-separator proposal claims nothing rather than either."
     },
     {
       "tf_type": "aws_cloudwatch_log_account_policy",
@@ -2411,7 +2433,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The provider imports by policy name or by resource ARN (exactly one), so the ratified row's single component is a preference list over [policy_name, resource_arn]. The fresh proposal client-names by policy_name alone; no proposal bucket has a preference-list component to state the either-or."
     },
     {
       "tf_type": "aws_cloudwatch_log_stream",
@@ -2500,7 +2523,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The ratified components assemble the domain ARN, decomposed into arn:aws:codeartifact: + region + account + :domain/ + the domain argument. The registry reads the identity as wholly read-only, which is true of the assembled string but not of its parts: the tail is configuration and the middle is the cloud the run points at. No proposal bucket can express a Cloud component or a mid-string literal, so no rule change reaches this row - it needs a new proposal vocabulary."
     },
     {
       "tf_type": "aws_codeartifact_domain_permissions_policy",
@@ -2514,7 +2538,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "A fold-child (property-child of AWS::CodeArtifact::Domain) whose own import ID is the parent domain's full ARN; the ratified components decompose it into arn:aws:codeartifact: + region + account + :domain/ + the domain argument. A fold-child proposal claims no components, and no bucket could express the Cloud slots this row needs even if it did."
     },
     {
       "tf_type": "aws_codeartifact_repository",
@@ -2531,7 +2556,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The ratified components assemble the repository ARN, decomposed into arn:aws:codeartifact: + region + account + :repository/ + domain + / + repository. The registry reads the identity as wholly read-only, which is true of the assembled string but not of its parts: the tail is configuration and the middle is the cloud the run points at. No proposal bucket can express a Cloud component or a mid-string literal, so no rule change reaches this row - it needs a new proposal vocabulary."
     },
     {
       "tf_type": "aws_codeartifact_repository_permissions_policy",
@@ -2545,7 +2571,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "A fold-child (property-child of AWS::CodeArtifact::Repository) whose own import ID is the repository ARN; the ratified components decompose it into arn:aws:codeartifact: + region + account + :repository/ + domain + / + repository. Same shape as the domain permissions policy row."
     },
     {
       "tf_type": "aws_codebuild_fleet",
@@ -2584,7 +2611,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The ratified components assemble the report-group ARN, decomposed into arn:aws:codebuild: + region + account + :report-group/ + the name argument. The registry reads the identity as wholly read-only, which is true of the assembled string but not of its parts: the tail is configuration and the middle is the cloud the run points at. No proposal bucket can express a Cloud component or a mid-string literal, so no rule change reaches this row - it needs a new proposal vocabulary."
     },
     {
       "tf_type": "aws_codebuild_webhook",
@@ -2657,7 +2685,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_codegurureviewer_repository_association",
@@ -2691,7 +2720,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_codepipeline_webhook",
@@ -2708,7 +2738,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The ratified components assemble the webhook ARN, decomposed into arn:aws:codepipeline: + region + account + :webhook: + the name argument. The registry reads the identity as wholly read-only, which is true of the assembled string but not of its parts: the tail is configuration and the middle is the cloud the run points at. No proposal bucket can express a Cloud component or a mid-string literal, so no rule change reaches this row - it needs a new proposal vocabulary."
     },
     {
       "tf_type": "aws_codestarconnections_connection",
@@ -2758,7 +2789,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_cognito_identity_pool_roles_attachment",
@@ -2783,7 +2815,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_cognito_resource_server",
@@ -2797,7 +2830,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_cognito_user",
@@ -2811,7 +2845,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_cognito_user_group",
@@ -2825,7 +2860,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_cognito_user_in_group",
@@ -2839,7 +2875,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_cognito_user_pool",
@@ -3086,7 +3123,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The documented import ID is two full ARNs joined with a comma (the OU target and the control identifier). Rule 6 used to claim the pair as one opaque ARN identity; issue #132's last derivation commit taught looksOpaque that an ARN's grammar never contains a comma, so the proposal now claims nothing rather than claiming wrongly. Attributing each ARN segment to target_identifier and control_identifier is the ratifiers' reading; the ARNs' own colons and slashes defeat fail-closed segmentation."
     },
     {
       "tf_type": "aws_controltower_landing_zone",
@@ -3330,7 +3368,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example pairs a db identifier with a full IAM role ARN whose own separators defeat segmentation. The ratified row is the ratifiers' reading of the same page."
     },
     {
       "tf_type": "aws_db_option_group",
@@ -3425,7 +3464,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry reads the identity wholly read-only, but the documented import ID (AWS_CLOUD_FORMATION) is a VALUE of the type argument's enum, and the ratified row client-names by that argument. No name-token match can connect an enum value to its argument; the ratifiers read the argument's documented value list."
     },
     {
       "tf_type": "aws_dlm_lifecycle_policy",
@@ -3570,7 +3610,8 @@
         "identity-attrs"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_dx_gateway",
@@ -3581,7 +3622,8 @@
         "identity-attrs"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['id'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_dx_lag",
@@ -3592,7 +3634,8 @@
         "identity-attrs"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_dx_private_virtual_interface",
@@ -3603,7 +3646,8 @@
         "identity-attrs"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_dx_public_virtual_interface",
@@ -3614,7 +3658,8 @@
         "identity-attrs"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_dx_transit_virtual_interface",
@@ -3625,7 +3670,8 @@
         "identity-attrs"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_dynamodb_global_table",
@@ -3675,7 +3721,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "An account-level singleton whose documented import ID is the fixed sentinel string 'default'; the ratified row is a single Literal component. The registry reads it server-assigned, but nothing is assigned - the ID is a constant. No proposal bucket can express a literal-only row; it is the degenerate case of issue #172's template vocabulary (a template with no slots)."
     },
     {
       "tf_type": "aws_ebs_volume",
@@ -3726,7 +3773,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry reads the identity wholly read-only, but the provider imports by an endpoint,subnet,cidr argument composite and the ratified row states it. The fresh composite derivation cannot attribute the example's segments fail-closed (the subnet segment's value prefix matches no candidate's name tokens), so the proposal stays with the registry's wrong server-assigned reading."
     },
     {
       "tf_type": "aws_ec2_fleet",
@@ -3913,7 +3961,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_ec2_transit_gateway_multicast_domain",
@@ -3963,7 +4012,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_ec2_transit_gateway_route",
@@ -3977,7 +4027,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_ec2_transit_gateway_route_table",
@@ -4003,7 +4054,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_ec2_transit_gateway_route_table_propagation",
@@ -4017,7 +4069,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_ec2_transit_gateway_vpc_attachment",
@@ -4281,7 +4334,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The scraped Identity Schema names [cluster_name, principal_arn] - exactly the ratified components in order - but the fail-closed composite derivation cannot confirm the pairing from the example string (the principal segment is itself a full ARN containing the separator), so the proposal claims nothing and the ratifiers wrote the pairing down."
     },
     {
       "tf_type": "aws_eks_access_policy_association",
@@ -4295,7 +4349,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example joins a cluster name with two full ARNs on '#', and the ARN segments defeat the fail-closed segmentation. The ratified row is the ratifiers' reading of the same page."
     },
     {
       "tf_type": "aws_eks_addon",
@@ -4380,7 +4435,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Ratified server-assigned: Elastic Beanstalk mints the environment's opaque id (e-...) at create time and the provider imports by it; the registry's schema does not even carry an EnvironmentId, and the client-chosen environment_name is not the import identity. The fresh proposal is evidence-only with environment_name as its guessed argument."
     },
     {
       "tf_type": "aws_elasticache_cluster",
@@ -4785,7 +4841,8 @@
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The Glue catalog family imports by CATALOG_ID:NAME, and the ratifiers ruled the CATALOG-ID segment a Cloud account-id slot: catalog_id is an optional argument that defaults to the caller's AWS account, so the row reads the account from the run's cloud context rather than from configuration. A Cloud component is not in any proposal bucket's vocabulary, so the ruling is the same missing shape as issue #172's ARN templates, over a bare account slot instead of a full ARN."
     },
     {
       "tf_type": "aws_glue_catalog_table",
@@ -4802,7 +4859,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The Glue catalog family imports by CATALOG_ID:DATABASE_NAME:TABLE_NAME, and the ratifiers ruled the CATALOG-ID segment a Cloud account-id slot: catalog_id is an optional argument that defaults to the caller's AWS account, so the row reads the account from the run's cloud context rather than from configuration. A Cloud component is not in any proposal bucket's vocabulary, so the ruling is the same missing shape as issue #172's ARN templates, over a bare account slot instead of a full ARN."
     },
     {
       "tf_type": "aws_glue_classifier",
@@ -4829,7 +4887,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The Glue catalog family imports by CATALOG-ID:NAME, and the ratifiers ruled the CATALOG-ID segment a Cloud account-id slot: catalog_id is an optional argument that defaults to the caller's AWS account, so the row reads the account from the run's cloud context rather than from configuration. A Cloud component is not in any proposal bucket's vocabulary, so the ruling is the same missing shape as issue #172's ARN templates, over a bare account slot instead of a full ARN."
     },
     {
       "tf_type": "aws_glue_crawler",
@@ -4855,7 +4914,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The Glue catalog family imports by CATALOG_ID, and the ratifiers ruled the CATALOG-ID segment a Cloud account-id slot: catalog_id is an optional argument that defaults to the caller's AWS account, so the row reads the account from the run's cloud context rather than from configuration. A Cloud component is not in any proposal bucket's vocabulary, so the ruling is the same missing shape as issue #172's ARN templates, over a bare account slot instead of a full ARN."
     },
     {
       "tf_type": "aws_glue_data_quality_ruleset",
@@ -4906,7 +4966,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The ratified components assemble the registry ARN, decomposed into arn:aws:glue: + region + account + :registry/ + the registry_name argument. The registry reads the identity as wholly read-only, which is true of the assembled string but not of its parts: the tail is configuration and the middle is the cloud the run points at. No proposal bucket can express a Cloud component or a mid-string literal, so no rule change reaches this row - it needs a new proposal vocabulary."
     },
     {
       "tf_type": "aws_glue_schema",
@@ -4981,7 +5042,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_guardduty_ipset",
@@ -5018,7 +5080,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_guardduty_publishing_destination",
@@ -5069,7 +5132,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_iam_group_policy_attachment",
@@ -5083,7 +5147,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example pairs a group name with a full policy ARN; the scraped Identity Schema names [group, policy_arn] but the ARN segment defeats the arity check. The ratified row is the ratifiers' reading of the same page."
     },
     {
       "tf_type": "aws_iam_instance_profile",
@@ -5155,7 +5220,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example pairs a role name with a full policy ARN; the scraped Identity Schema names [role, policy_arn] but the ARN segment defeats the arity check. The ratified row is the ratifiers' reading of the same page."
     },
     {
       "tf_type": "aws_iam_saml_provider",
@@ -5212,7 +5278,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_iam_user_policy_attachment",
@@ -5226,7 +5293,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example pairs a user name with a full policy ARN; the scraped Identity Schema names [user, policy_arn] but the ARN segment defeats the arity check. The ratified row is the ratifiers' reading of the same page."
     },
     {
       "tf_type": "aws_iam_virtual_mfa_device",
@@ -5605,7 +5673,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The ratified components assemble the delivery-stream ARN from arn:aws:firehose: + region + account + :deliverystream/ + the name argument. The fresh proposal client-names by 'arn', which is not a configuration argument at all - the Identity Schema's required attribute taken as if it were one. The row is the same ARN-template shape as the issue #172 ten, reached from a different wrong bucket."
     },
     {
       "tf_type": "aws_kinesis_resource_policy",
@@ -5818,7 +5887,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example joins a target-group ARN, an instance id and a port; the ARN segment and the numeric port both defeat name-token attribution. The ratified row is the ratifiers' reading of the same page."
     },
     {
       "tf_type": "aws_lb_trust_store",
@@ -5851,7 +5921,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example's segments (en_US,abcd-12345678,1) are a locale code, an opaque id and a bare version number - none carries an argument's name token. The ratified row is the ratifiers' reading of the same page."
     },
     {
       "tf_type": "aws_lightsail_bucket",
@@ -5954,7 +6025,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_lightsail_static_ip",
@@ -6042,7 +6114,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_m2_environment",
@@ -6056,7 +6129,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_macie2_account",
@@ -6334,7 +6408,8 @@
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The fresh proposal client-names by 'Name' - the CFN primaryIdentifier property carried through unmapped - where the ratified row names the provider argument name. The judgment (client-named by name) is already row-gen's own; the residue is a property-to-argument mapping miss, stated here so the gap is named rather than hidden."
     },
     {
       "tf_type": "aws_nat_gateway",
@@ -6779,7 +6854,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_odb_cloud_exadata_infrastructure",
@@ -6793,7 +6869,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_odb_cloud_vm_cluster",
@@ -6807,7 +6884,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_odb_network",
@@ -6821,7 +6899,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_odb_network_peering_connection",
@@ -6835,7 +6914,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_opensearch_domain",
@@ -7022,7 +7102,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example is the parent workspace's opaque id (ws-...), whose value prefix matches no token of workspace_id. The ratified row is the ratifiers' reading of the same page."
     },
     {
       "tf_type": "aws_prometheus_query_logging_configuration",
@@ -7120,7 +7201,8 @@
         "identity-attrs"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_rds_cluster",
@@ -7168,7 +7250,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example pairs a cluster identifier with a full IAM role ARN whose own separators defeat segmentation. The ratified row is the ratifiers' reading of the same page."
     },
     {
       "tf_type": "aws_rds_custom_db_engine_version",
@@ -7389,7 +7472,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The canonical arity trap: the documented example is ROUTETABLEID_DESTINATION where the destination segment is an either-or of three mutually-exclusive arguments (cidr, ipv6 cidr, prefix list), so the ratified row's second component is a preference list. The fail-closed derivation refuses exactly this shape by design (deriveCompositeWithSeparator's arity check exists because of this row), and no proposal bucket has a preference-list component."
     },
     {
       "tf_type": "aws_route53_cidr_collection",
@@ -7434,7 +7518,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_route53_record",
@@ -7490,7 +7575,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example's two segments are both opaque rslvr- identifiers carrying no argument name token. The ratified row is the ratifiers' reading of the same page."
     },
     {
       "tf_type": "aws_route53_resolver_firewall_rule_group",
@@ -7581,7 +7667,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example's segments (Z123456ABCDEFG:vpc-12345678) are opaque identifiers; vpc-'s prefix rule deliberately refuses near-miss tokens. The ratified row is the ratifiers' reading of the same page."
     },
     {
       "tf_type": "aws_route53profiles_association",
@@ -7727,7 +7814,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry reads the identity wholly read-only, but the provider imports by SUBNETID/ROUTETABLEID where the first segment is an either-or of subnet_id and gateway_id - the ratified row's preference-list component. tools/row-gen/identityattr.go already records this row as one the schema-derived rule must not fire on; no proposal bucket has a preference-list component to offer."
     },
     {
       "tf_type": "aws_rum_app_monitor",
@@ -7765,7 +7853,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the doc documents two import forms (the bucket alone, or bucket and expected_bucket_owner comma-joined); the ratified row takes the single-argument form, which the scraped one-separator grammar row cannot express. The ratified row is the ratifiers' reading of the same page."
     },
     {
       "tf_type": "aws_s3_bucket_policy",
@@ -7804,7 +7893,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the doc documents two import forms (the bucket alone, or bucket and expected_bucket_owner comma-joined); the ratified row takes the single-argument form, which the scraped one-separator grammar row cannot express. The ratified row is the ratifiers' reading of the same page."
     },
     {
       "tf_type": "aws_s3_bucket_versioning",
@@ -7819,7 +7909,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the doc documents two import forms (the bucket alone, or bucket and expected_bucket_owner comma-joined); the ratified row takes the single-argument form, which the scraped one-separator grammar row cannot express. The ratified row is the ratifiers' reading of the same page."
     },
     {
       "tf_type": "aws_s3_directory_bucket",
@@ -7871,7 +7962,8 @@
         "identity-attrs"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['id'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_s3files_file_system_policy",
@@ -7967,7 +8059,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The ratified components assemble the app ARN, decomposed into arn:aws:sagemaker: + region + account + :app/ + the domain_id, user_profile_name, app_type and app_name arguments joined with /. The registry reads the identity as wholly read-only, which is true of the assembled string but not of its parts: the tail is configuration and the middle is the cloud the run points at. No proposal bucket can express a Cloud component or a mid-string literal, so no rule change reaches this row - it needs a new proposal vocabulary."
     },
     {
       "tf_type": "aws_sagemaker_app_image_config",
@@ -8221,7 +8314,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The ratified components assemble the space ARN, decomposed into arn:aws:sagemaker: + region + account + :space/ + the domain_id and space_name arguments joined with /. The registry reads the identity as wholly read-only, which is true of the assembled string but not of its parts: the tail is configuration and the middle is the cloud the run points at. No proposal bucket can express a Cloud component or a mid-string literal, so no rule change reaches this row - it needs a new proposal vocabulary."
     },
     {
       "tf_type": "aws_sagemaker_studio_lifecycle_config",
@@ -8247,7 +8341,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The ratified components assemble the user-profile ARN from arn:aws:sagemaker: + region + account + :user-profile/ + the domain_id and user_profile_name arguments. The registry's composite primaryIdentifier cannot reconstruct the documented ARN under any separator, so the proposal claims nothing; the row needs issue #172's template vocabulary, not a separator."
     },
     {
       "tf_type": "aws_sagemaker_workteam",
@@ -8283,7 +8378,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_secretsmanager_secret",
@@ -8345,7 +8441,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_securityhub_account_v2",
@@ -8404,7 +8501,8 @@
         "identity-attrs"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['id'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_securityhub_configuration_policy_association",
@@ -8431,7 +8529,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The derivation already lands the Identity Schema's connector_id; the ratified entry additionally pairs the exported id attribute as an alias for the same value. The id-alias equivalence is asserted by the ratifiers, not stated in any structured source - issue #44's stated derivation non-goal."
     },
     {
       "tf_type": "aws_securityhub_finding_aggregator",
@@ -8497,7 +8596,8 @@
         "identity-attrs"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_service_discovery_http_namespace",
@@ -8546,7 +8646,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_servicecatalog_product",
@@ -8704,7 +8805,8 @@
         "identity-attrs"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_sns_topic",
@@ -8721,7 +8823,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The ratified components assemble the topic ARN, decomposed into arn:aws:sns: + region + account + the name argument. The registry reads the identity as wholly read-only, which is true of the assembled string but not of its parts: the tail is configuration and the middle is the cloud the run points at. No proposal bucket can express a Cloud component or a mid-string literal, so no rule change reaches this row - it needs a new proposal vocabulary."
     },
     {
       "tf_type": "aws_sns_topic_policy",
@@ -8769,7 +8872,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The ratified components assemble the queue URL, decomposed into https://sqs. + region + .amazonaws.com/ + account + the name argument (the ratifiers also normalised the doc's legacy region-less host https://queue.amazonaws.com/ to the modern regional form). The registry reads the identity as wholly read-only, which is true of the assembled string but not of its parts: the tail is configuration and the middle is the cloud the run points at. No proposal bucket can express a Cloud component or a mid-string literal, so no rule change reaches this row - it needs a new proposal vocabulary."
     },
     {
       "tf_type": "aws_sqs_queue_policy",
@@ -8872,7 +8976,8 @@
         "identity-attrs"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['arn'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_ssmcontacts_contact_channel",
@@ -8894,7 +8999,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_ssmcontacts_rotation",
@@ -8916,7 +9022,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_ssmincidents_response_plan",
@@ -8930,7 +9037,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_ssmquicksetup_configuration_manager",
@@ -8971,7 +9079,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The documented import ID joins a full application ARN with a principal id and a principal-type enum on commas. The same issue #132 commit that fixed aws_controltower_control stopped rule 6 claiming this as one opaque ARN; the proposal now claims nothing. The ARN segment's own separators and the bare enum value (USER) both defeat fail-closed attribution, so the ratified three-argument pairing is the ratifiers' reading of the page."
     },
     {
       "tf_type": "aws_ssoadmin_instance_access_control_attributes",
@@ -9176,7 +9285,8 @@
       ],
       "scrape_gap": true,
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The derivation lands id from the documented import example's shape; the ratified entry pairs both id and arn as identity sources. The arn-alias half is a ratifier verification no structured source states - issue #44's stated derivation non-goal."
     },
     {
       "tf_type": "aws_transfer_web_app_customization",
@@ -9318,7 +9428,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example (vpce-3ecf2a57) is opaque and its alphabetic prefix vpce equals no candidate argument's token - the exact near-miss the shape-match rule refuses by design. The ratified row is the ratifiers' reading of the same page."
     },
     {
       "tf_type": "aws_vpc_endpoint_private_dns",
@@ -9354,7 +9465,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example's segments are both opaque prefixed ids (vpce-, sg-) carrying no argument name token. The ratified row is the ratifiers' reading of the same page."
     },
     {
       "tf_type": "aws_vpc_endpoint_service",
@@ -9380,7 +9492,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example's segments are both opaque prefixed ids (vpce-, subnet-) carrying no argument name token. The ratified row is the ratifiers' reading of the same page."
     },
     {
       "tf_type": "aws_vpc_ipam",
@@ -9418,7 +9531,8 @@
         "import-syntax-wording"
       ],
       "matched": false,
-      "annotated": false
+      "annotated": true,
+      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
       "tf_type": "aws_vpc_ipam_resource_discovery",
