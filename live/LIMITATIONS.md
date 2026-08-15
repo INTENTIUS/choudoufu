@@ -970,7 +970,7 @@ refused, and each says so in its own entry.
 | 19 | 215 | lint | for-each-key | `internal/live/lint` | "foreach-dotted-key" |
 | 19 | 36 | identity | Identity argument not set | `internal/live/identity` | "Identity argument not set" |
 | 18 | 73 | identity | Non-static count expression | `internal/live/identity` | "Non-static count expression" |
-| 17 | 47 | identity | Not an identity attribute | `internal/live/identity` | "Not an identity attribute" |
+| 16 | 44 | identity | Not an identity attribute | `internal/live/identity` | "Not an identity attribute" |
 | 13 | 30 | lint | child-module | `internal/live/lint` | "child-module" |
 | 12 | 21 | identity | Invalid for_each set | `internal/live/identity` | "Invalid for_each set" |
 | 10 | 56 | identity | Identity not resolvable from configuration | `internal/live/identity` | "Identity not resolvable from configuration" |
@@ -1222,7 +1222,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 17 configurations in the measured corpus, at 47 sites.
+**How often.** Blocked 16 configurations in the measured corpus, at 44 sites.
 
 #### Invalid for_each set
 
