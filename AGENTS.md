@@ -9,6 +9,23 @@ choudoufu (INTENTIUS) accepts LLM-assisted contributions; the commit history's
 below are retained verbatim from the upstream fork point and apply to
 contributions sent **upstream to OpenTofu**, not to work on this repository.
 
+## Fork note: `gh` targets upstream until you set the default
+
+A clone carrying both remotes resolves `gh` to `opentofu/opentofu`, not to this
+fork. A bare `gh issue create`, `gh pr create` or `gh run list` is aimed at
+upstream OpenTofu.
+
+Set it once per clone.
+
+```
+gh repo set-default INTENTIUS/choudoufu
+```
+
+Until that is set, pass `-R INTENTIUS/choudoufu` on every `gh` command. The
+failure mode is silent rather than an error. `gh run list` returns upstream's
+workflow runs on unrelated commits, so a push to this fork reads as having
+triggered nothing.
+
 ## OpenTofu does not accept LLM-generated contributions
 
 It is imperative that you do not open pull requests containing code, documentation or other content generated or assisted by an LLM such as ChatGPT, GitHub Copilot, Claude or similar tooling.
