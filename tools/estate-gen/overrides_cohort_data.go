@@ -14,6 +14,26 @@ import (
 // typeOverridesData is the data cohort's slice of [typeOverrides].
 // Registered by init below; see contributing/LIVE-TABLES.md.
 var typeOverridesData = map[string]typeOverride{
+	// Registry-ratified data-plane batch (Kinesis, KinesisFirehose, Glue,
+	// Athena; issue #65's recipe). Several of these types share the generic
+	// pass's own "name" argument with other resources in this cohort that
+	// self-identify by "name" too (aws_athena_data_catalog,
+	// aws_athena_workgroup, aws_glue_classifier, aws_glue_crawler,
+	// aws_glue_job, aws_glue_trigger, aws_kinesis_stream all have a
+	// single-component, self-named identity per internal/live/identity's
+	// table) - none of these six is a real parent of any of them, but
+	// parentRef's own tiebreaker (see its doc comment) only guards the case
+	// where selfType owns argName as its own identity too; every type below
+	// has either no identity argument of its own (server-assigned) or an
+	// account-derived composite identity (len(Components) != 1, so
+	// identityArgName returns ok=false), so parentRef treats any same-named
+	// candidate as fair game and picks the lexicographically-first one,
+	// aws_athena_data_catalog, for all of them. Every "name" override below
+	// exists only to give that argument this type's own placeholder instead
+	// of a coincidental, meaningless cross-reference.
+	//
+	// (This is the "data-plane batch header comment" the Reasons below cite;
+	// a merge dropped it and #127's census restored it.)
 	"aws_athena_data_catalog": {
 		Reasons: []string{
 			`type is a required enum (validate: "expected type to be one of [...]"), and the generic string placeholder is not a member`,

@@ -155,9 +155,12 @@ var taggableRemainder = []string{
 
 var untaggableRemainder = []string{
 	// Registry-ratified REMAINDER ratification batch (#40, #44, #65):
-	// the long tail of services outside every concurrent batch own
-	// scope, confirmed against each type Argument Reference at the
-	// pinned v6.58.0 tag to carry no top-level tags argument. See
+	// the long tail of services outside every concurrent batch's own
+	// scope, confirmed against each type's Argument Reference at the
+	// pinned v6.58.0 tag to carry no top-level tags argument (or, for
+	// the two account-level singletons aws_securityhub_account and
+	// aws_securityhub_organization_configuration, no tags argument at
+	// all since each imports by the bare AWS account id). See
 	// live/e2e/estates/remainder/README.md, "Untaggable types".
 	"aws_appconfig_extension_association",
 	"aws_appsync_api_cache",

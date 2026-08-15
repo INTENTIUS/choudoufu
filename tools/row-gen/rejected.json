@@ -1,6 +1,31 @@
 {
-  "note": "Types a ratification batch considered and did not admit. PROPOSE reads this as a veto set so it never re-proposes a type already ruled out by name. Recovered at commit 5d1666e3a from the 'Rejected' prose comments in the per-cohort identity and admission fragments, which issue #96 deleted; recovered_from names the fragment each type was mentioned in, for tracing back through git history. Over-inclusion here is safe by design - it only makes PROPOSE more conservative.",
+  "note": "Types a ratification batch considered and did not admit. PROPOSE reads this as a veto set so it never re-proposes a type already ruled out by name. Recovered at commit 5d1666e3a from the 'Rejected' prose comments in the per-cohort identity and admission fragments, which issue #96 deleted; recovered_from names the fragment each type was mentioned in, for tracing back through git history. Over-inclusion here is safe by design - it only makes PROPOSE more conservative. A second recovery (#127): the remainder batch's own rejections were carried only in prose banners the ratify-remainder merges dropped before #96's scrape ran, so they never reached this ledger; those types were recovered from live/e2e/estates/remainder/README.md's 'Rejected on identity grounds' and 'Excluded despite verifying clean' sections. The four aws_datasync_location_fsx_* types that README rejects are deliberately absent here: a concurrent batch admitted them with their own coverage rows, and an admitted type must not be vetoed.",
   "rejected": {
+    "aws_alb": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_alb_listener": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_alb_listener_certificate": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_alb_listener_rule": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_alb_target_group": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
     "aws_amplify_branch": {
       "recovered_from": [
         "internal/live/identity/table_cohort_compute_platforms.go"
@@ -79,6 +104,16 @@
     "aws_apigatewayv2_route_response": {
       "recovered_from": [
         "internal/live/identity/table_cohort_apigateway.go"
+      ]
+    },
+    "aws_appstream_fleet": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_appstream_image_builder": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
       ]
     },
     "aws_appsync_api": {
@@ -219,6 +254,16 @@
         "internal/live/identity/table_cohort_identity.go"
       ]
     },
+    "aws_datazone_environment_profile": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_datazone_project": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
     "aws_db_cluster_snapshot": {
       "recovered_from": [
         "internal/live/identity/table_cohort_rds.go"
@@ -240,6 +285,26 @@
         "internal/live/identity/table_cohort_rds.go"
       ]
     },
+    "aws_devopsguru_notification_channel": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_dx_hosted_private_virtual_interface": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_dx_hosted_public_virtual_interface": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_dx_hosted_transit_virtual_interface": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
     "aws_dynamodb_contributor_insights": {
       "recovered_from": [
         "internal/live/identity/table_cohort_dynamodb_elasticache.go"
@@ -258,6 +323,11 @@
     "aws_dynamodb_table": {
       "recovered_from": [
         "internal/live/identity/table_cohort_dynamodb_elasticache.go"
+      ]
+    },
+    "aws_ec2_carrier_gateway": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
       ]
     },
     "aws_ec2_client_vpn_authorization_rule": {
@@ -431,6 +501,16 @@
         "internal/live/identity/table_cohort_compute_platforms.go"
       ]
     },
+    "aws_fms_policy": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_gamelift_game_server_group": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
     "aws_glue_catalog": {
       "recovered_from": [
         "internal/live/identity/table_cohort_data.go"
@@ -546,6 +626,11 @@
         "internal/live/identity/table_cohort_identity.go"
       ]
     },
+    "aws_inspector_resource_group": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
     "aws_iot_ca_certificate": {
       "recovered_from": [
         "internal/live/identity/table_cohort_iot.go"
@@ -591,6 +676,26 @@
         "internal/live/identity/table_cohort_data.go"
       ]
     },
+    "aws_lakeformation_data_lake_settings": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_lakeformation_permissions": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_lakeformation_resource": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_lakeformation_resource_lf_tag": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
     "aws_lambda_alias": {
       "recovered_from": [
         "internal/live/identity/table_cohort_iam_ecr.go",
@@ -608,6 +713,11 @@
     "aws_lambda_layer_version_permission": {
       "recovered_from": [
         "internal/live/identity/table_cohort_lambda.go"
+      ]
+    },
+    "aws_lb_listener_certificate": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
       ]
     },
     "aws_lexv2models_bot_locale": {
@@ -635,6 +745,21 @@
         "internal/live/identity/table_cohort_stragglers.go"
       ]
     },
+    "aws_m2_deployment": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_mailmanager_ingress_point": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_msk_single_scram_secret_association": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
     "aws_nat_gateway": {
       "recovered_from": [
         "internal/live/identity/table_cohort_ec2_core.go"
@@ -660,9 +785,34 @@
         "internal/live/identity/table_cohort_ec2_core.go"
       ]
     },
+    "aws_networkflowmonitor_monitor": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_osis_pipeline": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_pinpoint_app": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_pinpointsmsvoicev2_resource_policy": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
     "aws_placement_group": {
       "recovered_from": [
         "internal/live/identity/table_cohort_ec2_core.go"
+      ]
+    },
+    "aws_prometheus_anomaly_detector": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
       ]
     },
     "aws_qldb_stream": {
@@ -674,6 +824,16 @@
     "aws_rds_cluster_endpoint": {
       "recovered_from": [
         "internal/live/identity/table_cohort_rds.go"
+      ]
+    },
+    "aws_resiliencehubv2_service": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_resiliencehubv2_system": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
       ]
     },
     "aws_route53_cidr_collection": {
@@ -707,6 +867,21 @@
         "internal/live/identity/table_cohort_route53_cloudfront.go"
       ]
     },
+    "aws_s3control_multi_region_access_point_policy": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_s3outposts_endpoint": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_s3tables_table_policy": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
     "aws_scheduler_schedule": {
       "recovered_from": [
         "internal/live/identity/table_cohort_streaming.go"
@@ -717,6 +892,46 @@
         "internal/live/identity/table_cohort_iot.go"
       ]
     },
+    "aws_service_discovery_instance": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_service_discovery_private_dns_namespace": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_ses_receipt_filter": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_ses_receipt_rule": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_ses_receipt_rule_set": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_ses_template": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_sesv2_configuration_set_event_destination": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_shield_protection_group": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
     "aws_sns_topic": {
       "recovered_from": [
         "internal/live/identity/table_cohort_iam_ecr.go"
@@ -725,6 +940,11 @@
     "aws_sns_topic_subscription": {
       "recovered_from": [
         "internal/live/identity/table_cohort_messaging.go"
+      ]
+    },
+    "aws_ssm_document": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
       ]
     },
     "aws_ssoadmin_permission_set": {
@@ -742,6 +962,16 @@
         "internal/live/identity/table_cohort_remainder.go"
       ]
     },
+    "aws_verifiedaccess_group": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_vpc_block_public_access_options": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
     "aws_vpc_endpoint_connection_notification": {
       "recovered_from": [
         "internal/live/identity/table_cohort_ec2_networking.go"
@@ -756,6 +986,101 @@
       "recovered_from": [
         "internal/live/identity/table_cohort_ec2_networking.go",
         "internal/live/identity/table_cohort_stragglers.go"
+      ]
+    },
+    "aws_vpn_gateway_route_propagation": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_waf_byte_match_set": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_waf_ipset": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_waf_rule": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_waf_size_constraint_set": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_waf_sql_injection_match_set": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_waf_web_acl": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_waf_xss_match_set": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_wafregional_byte_match_set": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_wafregional_geo_match_set": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_wafregional_ipset": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_wafregional_rate_based_rule": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_wafregional_regex_pattern_set": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_wafregional_rule": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_wafregional_size_constraint_set": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_wafregional_sql_injection_match_set": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_wafregional_web_acl": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_wafregional_web_acl_association": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
+      ]
+    },
+    "aws_wafregional_xss_match_set": {
+      "recovered_from": [
+        "live/e2e/estates/remainder/README.md"
       ]
     }
   }

@@ -164,10 +164,20 @@ func TestLoadRejectedTypes_LedgerIsIntact(t *testing.T) {
 			t.Errorf("loadRejectedTypes did not find %q, the identity table's own worked Rejected example", want)
 		}
 	}
-	// The ledger was recovered wholesale from the deleted fragments' prose;
-	// a drop well below that count means rows were lost, not curated.
-	if len(rejected) < 140 {
-		t.Errorf("rejected.json carries %d types, want at least the 147 recovered from the pre-#96 fragments", len(rejected))
+	// Sentinels for the second recovery (#127): the remainder batch's
+	// rejections lived only in prose banners a merge dropped before #96's
+	// scrape ran, and were recovered separately from the remainder estate's
+	// README. One from each of that README's two rejection sections.
+	for _, want := range []string{"aws_fms_policy", "aws_waf_web_acl"} {
+		if !rejected[want] {
+			t.Errorf("loadRejectedTypes did not find %q, recovered from the remainder README in #127", want)
+		}
+	}
+	// The ledger was recovered wholesale from deleted prose - 147 types from
+	// the pre-#96 fragments, 65 more from the remainder README (#127); a
+	// drop well below that count means rows were lost, not curated.
+	if len(rejected) < 205 {
+		t.Errorf("rejected.json carries %d types, want at least the 212 recovered from the pre-#96 fragments and the remainder README", len(rejected))
 	}
 }
 

@@ -726,6 +726,10 @@ func (d *declared) walkCountBlocks(ctx context.Context, cfg *configs.Config, mod
 		if rc.Count == nil {
 			continue
 		}
+		// A block outside this scope belongs to another pass (#69): it must
+		// not get a count-set entry here either, or a marker naming one of
+		// its slots would be parked on a block this pass never declared
+		// anything into.
 		if !inScope(scope, rc, cfg.Path) {
 			continue
 		}
