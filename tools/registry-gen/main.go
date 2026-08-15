@@ -121,5 +121,24 @@ func run(zipOverride string) error {
 		"registry-gen: wrote %s (%d types: %d taggable, %d list-free, %d list-with-required-input, %d no-list-handler [%d with no handlers at all], %d with read)\n",
 		registryJSONRel, art.Counts.Types, art.Counts.Taggable, art.Counts.ListFree, art.Counts.ListWithRequiredInput,
 		art.Counts.NoListHandler, art.Counts.NoHandlersAtAll, art.Counts.WithRead)
+
+	// The sibling artifact (issue #155): generator-facing schema facts the
+	// runtime never reads, kept out of the embedded copy for that reason.
+	facts, err := buildSchemaFacts(PinnedSpec, schemas)
+	if err != nil {
+		return fmt.Errorf("extracting schema facts: %w", err)
+	}
+	factsData, err := facts.marshal()
+	if err != nil {
+		return err
+	}
+	factsOut := filepath.Join(root, schemaFactsRel)
+	if err := os.WriteFile(factsOut, factsData, 0o644); err != nil { //nolint:gosec // a committed artifact
+		return err
+	}
+	fmt.Fprintf(os.Stderr,
+		"registry-gen: wrote %s (%d types: %d with handler permissions [%d actions], %d with required, %d with enums [%d members, %d unattributed])\n",
+		schemaFactsRel, facts.Counts.Types, facts.Counts.WithHandlerPermissions, facts.Counts.HandlerPermissionActs,
+		facts.Counts.WithRequired, facts.Counts.WithEnums, facts.Counts.EnumMembers, facts.Counts.EnumsUnattributed)
 	return nil
 }
