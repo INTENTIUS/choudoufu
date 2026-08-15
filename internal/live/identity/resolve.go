@@ -776,15 +776,34 @@ func (r *resolver) soleElementExpr(expr hcl.Expression, attr *hcl.Attribute, ide
 
 func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) ([]Part, bool) {
 	if !r.isSymbolic(expr, scope) {
+		mark := len(r.diags)
 		val, ok := r.evalStatic(expr, scope, ident)
-		if !ok {
-			return nil, false
+		if ok {
+			s, ok := r.stringValue(val, expr, ident)
+			if !ok {
+				return nil, false
+			}
+			return []Part{{Literal: s}}, true
 		}
-		s, ok := r.stringValue(val, expr, ident)
-		if !ok {
-			return nil, false
+
+		// evalStatic just failed to evaluate the WHOLE expression, which,
+		// for a reference into a local or a module variable, means it tried
+		// to evaluate that local's or that variable's entire definition,
+		// not only the part this expression actually selects. #178's
+		// local-values fix: retry by decomposing that definition
+		// structurally instead, the same way a direct resource reference
+		// already resolves (resolveTraversal/parentPart), so a
+		// resource-attribute reference reached only through a local's own
+		// value resolves rather than refusing the whole block. See
+		// localvalue.go. It changes nothing when the shape is not one this
+		// package understands: the diagnostic evalStatic already recorded
+		// stands, unreplaced.
+		markAfterEval := len(r.diags)
+		if parts, leafOK, applicable := r.namedLeaf(expr, scope, ident); applicable {
+			r.diags = append(r.diags[:mark:mark], r.diags[markAfterEval:]...)
+			return parts, leafOK
 		}
-		return []Part{{Literal: s}}, true
+		return nil, false
 	}
 
 	switch e := expr.(type) {
@@ -1110,6 +1129,21 @@ type expansion struct {
 	// resource: each.value is then that resource's instance with the same
 	// key, which is a symbolic reference rather than a value.
 	eachParent *addrs.Resource
+
+	// keyOnly marks an expansion built by #178's key-set fix
+	// (staticForEachKeys in localvalue.go): the for_each source is an
+	// object constructor whose keys are statically known but whose values
+	// are not - typically a managed resource's attribute reached through
+	// one of them - so eachValues is deliberately left nil rather than
+	// populated with a guess. each.key resolves normally; each.value, if a
+	// resource argument reads it, falls through to the same
+	// "not available in a static context" refusal any other out-of-scope
+	// repetition reference gets (see [resolver.evalPure]'s recover).
+	// Resolving each.value symbolically in this position - the for_each
+	// half of the local-values fix, as opposed to the plain-reference half
+	// [resolver.namedLeaf] builds - is a further extension this fix does
+	// not make.
+	keyOnly bool
 }
 
 func (e *expansion) hasKey(key addrs.InstanceKey) bool {
@@ -1157,6 +1191,15 @@ func (e *expansion) scope(key addrs.InstanceKey) instScope {
 	case e.eachParent != nil:
 		// each.value is symbolic here, so only each.key has a value; a
 		// reference to each.value is handled structurally instead.
+		sc.vars = map[string]cty.Value{
+			"each": cty.ObjectVal(map[string]cty.Value{
+				"key": keyValue(key),
+			}),
+		}
+	case e.keyOnly:
+		// Same shape as the eachParent case above, for the same reason:
+		// only the key was ever knowable without evaluating a value this
+		// package refuses to evaluate.
 		sc.vars = map[string]cty.Value{
 			"each": cty.ObjectVal(map[string]cty.Value{
 				"key": keyValue(key),
@@ -1454,8 +1497,28 @@ func (r *resolver) forEachExpansion(rc *configs.Resource) (*expansion, bool) {
 	}
 
 	ident := r.moduleIdentifier(addr.String()+" for_each", expr.Range())
+	mark := len(r.diags)
 	val, ok := r.evalStatic(expr, instScope{}, ident)
 	if !ok {
+		// #178's key-set fix: an object constructor's key set is knowable
+		// whatever its values are, and the key set is all a for_each
+		// expansion needs to enumerate instances - a resource reference
+		// buried in one of the VALUES must not refuse the whole block the
+		// way evaluating the object as a single value just did. Tried only
+		// after the whole-value evaluation above has already failed, so a
+		// for_each that already worked keeps going through the unchanged
+		// path below, with eachValues populated the way every consumer of
+		// it already expects. See localvalue.go.
+		if keys, structOK := r.staticForEachKeys(expr, ident, 0); structOK {
+			r.diags = r.diags[:mark]
+			sorted := append([]string(nil), keys...)
+			sort.Strings(sorted)
+			exp := &expansion{keyOnly: true}
+			for _, name := range sorted {
+				exp.keys = append(exp.keys, addrs.StringKey(name))
+			}
+			return r.checkedForEachKeys(rc, exp)
+		}
 		return nil, false
 	}
 	if !val.IsWhollyKnown() || val.IsNull() {
