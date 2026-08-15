@@ -43,23 +43,6 @@ var typeOverridesRoute53Cloudfront = map[string]typeOverride{
 			body.SetAttributeRaw("runtime", exprTokens(`"cloudfront-js-2.0"`))
 		},
 	},
-	"aws_cloudfront_monitoring_subscription": {
-		Reasons: []string{
-			`monitoring_subscription.realtime_metrics_subscription_config.realtime_metrics_subscription_status is a required string the schema does not constrain to an enum, but the provider validates it against a fixed set (validate: "expected ... to be one of [...]"); the generic placeholder string matches neither`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			for _, blk := range body.Blocks() {
-				if blk.Type() != "monitoring_subscription" {
-					continue
-				}
-				for _, inner := range blk.Body().Blocks() {
-					if inner.Type() == "realtime_metrics_subscription_config" {
-						inner.Body().SetAttributeRaw("realtime_metrics_subscription_status", exprTokens(`"Enabled"`))
-					}
-				}
-			}
-		},
-	},
 	"aws_cloudfront_anycast_ip_list": {
 		Reasons: []string{
 			`"ip_count" is a required number the schema does not constrain, but the provider validates it against a fixed set (validate: "Attribute ip_count value must be one of: [3 21]"); the generic placeholder 0 matches neither`,

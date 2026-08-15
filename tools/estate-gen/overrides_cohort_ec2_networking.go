@@ -53,15 +53,6 @@ var typeOverridesEc2Networking = map[string]typeOverride{
 			body.SetAttributeRaw("destination_cidr_block", exprTokens(`"10.1.0.0/24"`))
 		},
 	},
-	"aws_ec2_managed_prefix_list": {
-		Reasons: []string{
-			`address_family is Required and the provider validates it against a closed enum (validate: "expected address_family to be one of [\"IPv4\" \"IPv6\"]"); max_entries is Required and the provider validates it is at least 1 (validate: "expected max_entries to be at least (1), got 0"), the generic pass's zero-value number`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("address_family", exprTokens(`"IPv4"`))
-			body.SetAttributeRaw("max_entries", exprTokens(`5`))
-		},
-	},
 	"aws_ec2_managed_prefix_list_entry": {
 		Reasons: []string{
 			`cidr is Required and the provider validates it is a well-formed CIDR (validate: "to be a valid CIDR Value"); the generic placeholder string is not one`,

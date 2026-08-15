@@ -18,7 +18,7 @@ go run ./tools/estate-gen -cohort ec2-networking -types aws_customer_gateway,aws
 | `aws_customer_gateway.app` | coverage | type is Required and the provider validates it against a closed enum (validate: "expected type to be one of [\"ipsec.1\"]"); the generic placeholder string is not a member |
 | `aws_ec2_client_vpn_endpoint.app` | coverage | authentication_options is a required block whose "type" argument the provider validates against a closed enum (validate: "expected type to be one of [...]"); the certificate-authentication member also needs root_certificate_chain_arn in practice, which the schema leaves Optional; server_certificate_arn is Required and the provider validates it is a well-formed ARN (validate: "is an invalid ARN") |
 | `aws_ec2_client_vpn_route.app` | coverage | destination_cidr_block is Required and the provider validates it is a well-formed CIDR (validate: "is not a valid CIDR block"); the generic placeholder string is not one |
-| `aws_ec2_managed_prefix_list.app` | coverage | address_family is Required and the provider validates it against a closed enum (validate: "expected address_family to be one of [\"IPv4\" \"IPv6\"]"); max_entries is Required and the provider validates it is at least 1 (validate: "expected max_entries to be at least (1), got 0"), the generic pass's zero-value number |
+| `aws_ec2_managed_prefix_list.app` | coverage | none |
 | `aws_ec2_managed_prefix_list_entry.app` | coverage | cidr is Required and the provider validates it is a well-formed CIDR (validate: "to be a valid CIDR Value"); the generic placeholder string is not one |
 | `aws_ec2_transit_gateway.app` | coverage | none |
 | `aws_ec2_transit_gateway_connect.app` | coverage | none |

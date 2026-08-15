@@ -96,14 +96,6 @@ var typeOverridesStragglers = map[string]typeOverride{
   })`))
 		},
 	},
-	"aws_storagegateway_tape_pool": {
-		Reasons: []string{
-			`"storage_class" is a required string the provider validates against a fixed set (validate: "expected storage_class to be one of [\"DEEP_ARCHIVE\" \"GLACIER\"]"); the generic placeholder string matches neither`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("storage_class", exprTokens(`"GLACIER"`))
-		},
-	},
 	"aws_transfer_agreement": {
 		Reasons: []string{
 			`"access_role" is a required string the schema does not constrain, but the provider validates it is a well-formed ARN (validate: "\"access_role\" (placeholder) is an invalid ARN: arn: invalid prefix"); the generic placeholder string is not one`,

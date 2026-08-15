@@ -109,14 +109,6 @@ var typeOverridesEc2Core = map[string]typeOverride{
 			}
 		},
 	},
-	"aws_placement_group": {
-		Reasons: []string{
-			`strategy is Required and the provider validates it against a closed enum (validate: "expected strategy to be one of [...]"); the generic placeholder string is not a member`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("strategy", exprTokens(`"cluster"`))
-		},
-	},
 	"aws_spot_fleet_request": {
 		Reasons: []string{
 			`launch_specification and launch_template_config are both Optional in the schema, but the provider requires exactly one (validate: "Invalid combination of arguments"), and the generic pass sets neither; iam_fleet_role is Required and the provider validates it is a well-formed ARN (validate: "is an invalid ARN"), and the generic placeholder string is not one`,

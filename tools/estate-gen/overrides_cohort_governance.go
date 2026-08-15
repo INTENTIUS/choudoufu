@@ -14,19 +14,6 @@ import (
 // typeOverridesGovernance is the governance cohort's slice of [typeOverrides].
 // Registered by init below; see contributing/LIVE-TABLES.md.
 var typeOverridesGovernance = map[string]typeOverride{
-	"aws_config_config_rule": {
-		Reasons: []string{
-			`source.owner is Required and the provider validates it against a closed enum (validate: "expected owner to be one of [\"CUSTOM_LAMBDA\" \"AWS\" \"CUSTOM_POLICY\"]"); the generic placeholder string is not a member. Set to AWS, the managed-rule case, which also requires source_identifier (Optional in the schema, Required by the provider in practice when owner=AWS) - a real AWS managed rule identifier.`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			for _, blk := range body.Blocks() {
-				if blk.Type() == "source" {
-					blk.Body().SetAttributeRaw("owner", exprTokens(`"AWS"`))
-					blk.Body().SetAttributeRaw("source_identifier", exprTokens(`"S3_BUCKET_VERSIONING_ENABLED"`))
-				}
-			}
-		},
-	},
 	"aws_config_conformance_pack": {
 		Reasons: []string{
 			`schema requires neither template_body nor template_s3_uri, but the provider requires exactly one of them in practice (validate: "one of template_body,template_s3_uri must be specified"); the generic pass sets neither. template_body is set to a minimal, syntactically valid Config conformance pack template wrapping one managed rule.`,
@@ -99,14 +86,6 @@ var typeOverridesGovernance = map[string]typeOverride{
       Resource  = "*"
     }]
   })`))
-		},
-	},
-	"aws_resourceexplorer2_index": {
-		Reasons: []string{
-			`type is Required and the provider validates it against a closed enum (validate: "Invalid String Enum Value", valid values LOCAL/AGGREGATOR); the generic placeholder string is neither.`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("type", exprTokens(`"LOCAL"`))
 		},
 	},
 	"aws_servicecatalog_portfolio_share": {

@@ -17,7 +17,7 @@ go run ./tools/estate-gen -cohort governance -types aws_auditmanager_assessment,
 |---|---|---|
 | `aws_auditmanager_assessment.app` | coverage | roles is Optional-shaped in nothing else - the provider requires at least one roles block in practice (validate: "Block roles must have a configuration value as the provider has marked it as required"), with role_arn and role_type both Required inside it (schema doesn't surface either as top-level Required). |
 | `aws_auditmanager_framework.app` | coverage | none |
-| `aws_config_config_rule.app` | coverage | source.owner is Required and the provider validates it against a closed enum (validate: "expected owner to be one of [\"CUSTOM_LAMBDA\" \"AWS\" \"CUSTOM_POLICY\"]"); the generic placeholder string is not a member. Set to AWS, the managed-rule case, which also requires source_identifier (Optional in the schema, Required by the provider in practice when owner=AWS) - a real AWS managed rule identifier. |
+| `aws_config_config_rule.app` | coverage | none |
 | `aws_config_configuration_aggregator.app` | coverage | none |
 | `aws_config_conformance_pack.app` | coverage | schema requires neither template_body nor template_s3_uri, but the provider requires exactly one of them in practice (validate: "one of template_body,template_s3_uri must be specified"); the generic pass sets neither. template_body is set to a minimal, syntactically valid Config conformance pack template wrapping one managed rule. |
 | `aws_config_organization_conformance_pack.app` | coverage | none |
@@ -29,7 +29,7 @@ go run ./tools/estate-gen -cohort governance -types aws_auditmanager_assessment,
 | `aws_organizations_organizational_unit.app` | coverage | parent_id is Required and the provider validates it is a well-formed root or OU identifier (validate: "invalid value for parent_id"); the generic placeholder string is neither. Set to a syntactically valid organization root ID - no real root or parent OU is part of this cohort to reference. |
 | `aws_organizations_policy.app` | coverage | schema requires content as a plain string, but the provider validates it is well-formed JSON (validate: "\"content\" contains an invalid JSON"); the generic string placeholder is not JSON. |
 | `aws_organizations_resource_policy.app` | coverage | schema requires content as a plain string, but the provider validates it is well-formed JSON (validate: "\"content\" contains an invalid JSON"); the generic string placeholder is not JSON. |
-| `aws_resourceexplorer2_index.app` | coverage | type is Required and the provider validates it against a closed enum (validate: "Invalid String Enum Value", valid values LOCAL/AGGREGATOR); the generic placeholder string is neither. |
+| `aws_resourceexplorer2_index.app` | coverage | none |
 | `aws_resourceexplorer2_view.app` | coverage | none |
 | `aws_resourcegroups_group.app` | coverage | none |
 | `aws_servicecatalog_portfolio.app` | coverage | none |

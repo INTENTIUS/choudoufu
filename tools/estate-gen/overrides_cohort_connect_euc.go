@@ -178,18 +178,6 @@ var typeOverridesConnectEuc = map[string]typeOverride{
 				`"arn:aws:kinesis:us-east-1:000000000000:stream/tofu-%s-cohort-user-access-logs"`, g.cohort)))
 		},
 	},
-	"aws_workspacesweb_user_settings": {
-		Reasons: []string{
-			`copy_allowed, download_allowed, paste_allowed, print_allowed and upload_allowed are all Required and validated against the same closed enum (validate: "expected ... to be one of [Disabled Enabled]"); the generic placeholder string is a member of none of the five`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("copy_allowed", exprTokens(`"Enabled"`))
-			body.SetAttributeRaw("download_allowed", exprTokens(`"Enabled"`))
-			body.SetAttributeRaw("paste_allowed", exprTokens(`"Enabled"`))
-			body.SetAttributeRaw("print_allowed", exprTokens(`"Enabled"`))
-			body.SetAttributeRaw("upload_allowed", exprTokens(`"Enabled"`))
-		},
-	},
 	// WorkSpacesWeb's eight *_association fold-children (issue #68's
 	// fold-child admission path merged mid-batch; see the batch banner
 	// comment in internal/live/identity/table.go for why none of the

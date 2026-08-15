@@ -311,14 +311,6 @@ var typeOverridesSagemaker = map[string]typeOverride{
 			}
 		},
 	},
-	"aws_sagemaker_studio_lifecycle_config": {
-		Reasons: []string{
-			`studio_lifecycle_config_app_type is Required and the provider validates it against a closed enum (validate: "expected studio_lifecycle_config_app_type to be one of [...]")`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("studio_lifecycle_config_app_type", exprTokens(`"JupyterServer"`))
-		},
-	},
 	"aws_sagemaker_user_profile": {
 		Reasons: []string{
 			`domain_id is Required but a generic-string placeholder, not a reference - overridden to point at this cohort's own aws_sagemaker_domain.app.id for the same cross-resource-reference reason as aws_eip_association's entry above (validate does not require this: domain_id carries no format check of its own)`,
