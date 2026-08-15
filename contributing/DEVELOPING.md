@@ -1,3 +1,17 @@
+## Working on choudoufu specifically
+
+This page is OpenTofu's and applies here. Two fork-specific pages sit
+alongside it:
+
+- [`.claude/agents/live-markers.md`](../.claude/agents/live-markers.md) is
+  the operational brief: how to run the tests, which claims about this
+  repository have repeatedly turned out to be false, and the traps that have
+  cost real time. Read it before changing anything on the live-marker path.
+- [`LIVE-TABLES.md`](LIVE-TABLES.md) is where a hand ruling goes, and why
+  editing a generated artifact loses it silently.
+
+Run the fork's checks with `just ci`, which mirrors what CI runs.
+
 ## Writing code for OpenTofu
 
 Eager to get started on coding? Here's the short version:

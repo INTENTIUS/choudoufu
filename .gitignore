@@ -48,7 +48,23 @@ site/public/
 
 # choudoufu build artifact and local agent state
 /choudoufu
-/.claude/
+
+# .claude/ is local state - settings.local.json is per-machine, worktrees/
+# is scratch - with one exception. agents/ holds the operational brief for
+# working on this fork: the test invocation and its symlink trap, the doc
+# cache path, the cohort ownership split, and the adversarial-audit shapes.
+#
+# HANDOFF.md used to carry that material and was tracked. Retiring it
+# (099193d189) moved the work items to the tracker, which was right, and
+# moved the operational half here, which left the only written record of
+# how to work on this repository untracked on one machine - invisible to a
+# fresh clone (issue #165).
+#
+# The exclusion is written as /.claude/* rather than /.claude/, because git
+# does not descend into an excluded directory and a ! rule beneath one
+# never matches.
+/.claude/*
+!/.claude/agents/
 
 # tools/<name> binaries: `go build ./tools/<name>` (or `go build
 # ./tools/<name>/...`), run from the repo root with no -o, drops a
