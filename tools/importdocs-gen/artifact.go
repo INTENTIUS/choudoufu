@@ -84,6 +84,15 @@ type Row struct {
 	IdentitySchemaRequired []string `json:"identity_schema_required,omitempty"`
 	IdentitySchemaOptional []string `json:"identity_schema_optional,omitempty"`
 
+	// IDTemplate is the documented import ID decomposed as a template
+	// (issue #172): when the example is a full ARN or https:// URL, its
+	// per-segment structure - scheme/partition/service literals, the
+	// positional region and account slots, and the resource tail's
+	// segments, each attributed to a configuration argument or recorded
+	// Unattributed when no doc signal links them. Nil for the ordinary
+	// short-ID example. See idtemplate.go.
+	IDTemplate *IDTemplate `json:"import_id_template,omitempty"`
+
 	// IDParts is the documented import ID's per-segment source attribution
 	// (issue #132): each segment name the Import section's own prose gives,
 	// attributed to the doc section that defines it - an Argument Reference
@@ -242,6 +251,7 @@ func buildRow(tfType, doc string) (Row, bool) {
 		}
 	}
 	parts := idParts(section, tfType, cr.Separator, idExample, argEntries, attrNames)
+	exArgs := exampleArguments(doc, tfType)
 	return Row{
 		TFType:                 tfType,
 		ImportIDExample:        idExample,
@@ -250,11 +260,12 @@ func buildRow(tfType, doc string) (Row, bool) {
 		Arguments:              cr.Arguments,
 		EvidenceExcerpt:        section,
 		ArgumentReference:      argEntries,
-		ExampleArguments:       exampleArguments(doc, tfType),
+		ExampleArguments:       exArgs,
 		ArgumentsInOrder:       cr.ArgumentsInOrder,
 		IdentitySchemaRequired: idReq,
 		IdentitySchemaOptional: idOpt,
 		IDParts:                parts,
+		IDTemplate:             idTemplate(section, tfType, argEntries, exArgs),
 	}, true
 }
 
