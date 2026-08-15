@@ -74,23 +74,37 @@ var argHeadingRe = regexp.MustCompile(`(?m)^## Arguments? Reference\s*$`)
 // among them) use "-" instead, so both are accepted.
 var bulletNameRe = regexp.MustCompile("(?m)^[*-]\\s+`([A-Za-z0-9_]+)`")
 
+// subHeadingRe matches the first sub-heading of any depth ("### Alias",
+// "#### Cache Behavior Arguments", "##### Forwarded Values Arguments") -
+// the boundary that separates a section's own top-level bullets from a
+// nested block's. Depth matters: aws_cloudfront_distribution nests its
+// block arguments under #### and ##### with no ### at all, and a boundary
+// that only knew "### " leaked more than a hundred nested names (a fake
+// top-level `id` among them) into the pool every match here reads.
+var subHeadingRe = regexp.MustCompile(`(?m)^#{3,6} `)
+
+// topLevelSpan cuts rest down to the section's own top-level content: up
+// to the next "## " heading and before the first sub-heading of any depth.
+func topLevelSpan(rest string) string {
+	if end := strings.Index(rest, "\n## "); end != -1 {
+		rest = rest[:end]
+	}
+	if loc := subHeadingRe.FindStringIndex(rest); loc != nil {
+		rest = rest[:loc[0]]
+	}
+	return rest
+}
+
 // argumentReferenceNames returns the resource's top-level configuration
 // argument names: the bullets under "## Argument Reference", stopping at
-// the first "### " sub-heading (a nested block's own arguments, like
+// the first sub-heading (a nested block's own arguments, like
 // route53_record's "### Alias", are not top-level import-ID material).
 func argumentReferenceNames(doc string) []string {
 	loc := argHeadingRe.FindStringIndex(doc)
 	if loc == nil {
 		return nil
 	}
-	rest := doc[loc[1]:]
-	if end := strings.Index(rest, "\n## "); end != -1 {
-		rest = rest[:end]
-	}
-	if end := strings.Index(rest, "\n### "); end != -1 {
-		rest = rest[:end]
-	}
-	return dedupe(bulletNameRe.FindAllStringSubmatch(rest, -1), 1)
+	return dedupe(bulletNameRe.FindAllStringSubmatch(topLevelSpan(doc[loc[1]:]), -1), 1)
 }
 
 // identitySchemaRequired returns the provider's own "Identity Schema"
@@ -171,14 +185,7 @@ func attributeReferenceNames(doc string) []string {
 	if loc == nil {
 		return nil
 	}
-	rest := doc[loc[1]:]
-	if end := strings.Index(rest, "\n## "); end != -1 {
-		rest = rest[:end]
-	}
-	if end := strings.Index(rest, "\n### "); end != -1 {
-		rest = rest[:end]
-	}
-	return dedupe(bulletNameRe.FindAllStringSubmatch(rest, -1), 1)
+	return dedupe(bulletNameRe.FindAllStringSubmatch(topLevelSpan(doc[loc[1]:]), -1), 1)
 }
 
 // forceNewPhraseRe matches either spelling the provider's docs use for a
@@ -220,13 +227,7 @@ func argumentReferenceEntries(doc string) []ArgumentRefEntry {
 	if loc == nil {
 		return nil
 	}
-	rest := doc[loc[1]:]
-	if end := strings.Index(rest, "\n## "); end != -1 {
-		rest = rest[:end]
-	}
-	if end := strings.Index(rest, "\n### "); end != -1 {
-		rest = rest[:end]
-	}
+	rest := topLevelSpan(doc[loc[1]:])
 	seen := map[string]bool{}
 	var out []ArgumentRefEntry
 	for _, m := range argEntryRe.FindAllStringSubmatch(rest, -1) {

@@ -8,8 +8,8 @@
     "docs_missing": 6,
     "no_import_section": 93,
     "rows": 1600,
-    "composed_true": 690,
-    "composed_false": 227,
+    "composed_true": 689,
+    "composed_false": 228,
     "composed_unsure": 683,
     "separator_known": 435,
     "separator_unsure": 1165
@@ -17138,10 +17138,8 @@
       "tf_type": "aws_cloudfront_distribution",
       "import_id_example": "E74FTE3EXAMPLE",
       "separator": null,
-      "composed_of_arguments": true,
-      "arguments": [
-        "id"
-      ],
+      "composed_of_arguments": false,
+      "arguments": null,
       "evidence_excerpt": "## Import\n\nIn Terraform v1.12.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `identity` attribute. For example:\n\n```terraform\nimport {\n  to = aws_cloudfront_distribution.distribution\n  identity = {\n    id = \"E74FTE3EXAMPLE\"\n  }\n}\n\nresource \"aws_cloudfront_distribution\" \"distribution\" {\n  ### Configuration omitted for brevity ###\n}\n```\n\n### Identity Schema\n\n#### Required\n\n* `id` (String) CloudFront distribution ID.\n\n#### Optional\n\n* `account_id` (String) AWS Account where this resource is managed.\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import CloudFront Distributions using the `id`. For example:\n\n```terraform\nimport {\n  to = aws_cloudfront_distribution.distribution\n  id = \"E74FTE3EXAMPLE\"\n}\n```\n\nUsing `terraform import`, import CloudFront Distributions using the `id`. For example:\n\n```console\n% terraform import aws_cloudfront_distribution.distribution E74FTE3EXAMPLE\n```",
       "example_arguments": [
         {
@@ -17488,326 +17486,6 @@
         {
           "name": "wait_for_deployment",
           "required": false
-        },
-        {
-          "name": "allowed_methods",
-          "required": true
-        },
-        {
-          "name": "cached_methods",
-          "required": true
-        },
-        {
-          "name": "cache_policy_id",
-          "required": false
-        },
-        {
-          "name": "compress",
-          "required": false
-        },
-        {
-          "name": "default_ttl",
-          "required": false
-        },
-        {
-          "name": "field_level_encryption_id",
-          "required": false
-        },
-        {
-          "name": "forwarded_values",
-          "required": false
-        },
-        {
-          "name": "lambda_function_association",
-          "required": false
-        },
-        {
-          "name": "function_association",
-          "required": false
-        },
-        {
-          "name": "max_ttl",
-          "required": false
-        },
-        {
-          "name": "min_ttl",
-          "required": false
-        },
-        {
-          "name": "origin_request_policy_id",
-          "required": false
-        },
-        {
-          "name": "path_pattern",
-          "required": true
-        },
-        {
-          "name": "realtime_log_config_arn",
-          "required": false
-        },
-        {
-          "name": "response_headers_policy_id",
-          "required": false
-        },
-        {
-          "name": "smooth_streaming",
-          "required": false
-        },
-        {
-          "name": "target_origin_id",
-          "required": true
-        },
-        {
-          "name": "trusted_key_groups",
-          "required": false
-        },
-        {
-          "name": "trusted_signers",
-          "required": false
-        },
-        {
-          "name": "viewer_protocol_policy",
-          "required": true
-        },
-        {
-          "name": "grpc_config",
-          "required": false
-        },
-        {
-          "name": "cookies",
-          "required": true
-        },
-        {
-          "name": "headers",
-          "required": false
-        },
-        {
-          "name": "query_string",
-          "required": true
-        },
-        {
-          "name": "query_string_cache_keys",
-          "required": false
-        },
-        {
-          "name": "event_type",
-          "required": true
-        },
-        {
-          "name": "lambda_arn",
-          "required": true
-        },
-        {
-          "name": "include_body",
-          "required": false
-        },
-        {
-          "name": "function_arn",
-          "required": true
-        },
-        {
-          "name": "forward",
-          "required": true
-        },
-        {
-          "name": "whitelisted_names",
-          "required": false
-        },
-        {
-          "name": "error_caching_min_ttl",
-          "required": false
-        },
-        {
-          "name": "error_code",
-          "required": true
-        },
-        {
-          "name": "response_code",
-          "required": false
-        },
-        {
-          "name": "response_page_path",
-          "required": false
-        },
-        {
-          "name": "bucket",
-          "required": false
-        },
-        {
-          "name": "include_cookies",
-          "required": false
-        },
-        {
-          "name": "prefix",
-          "required": false
-        },
-        {
-          "name": "connection_attempts",
-          "required": false
-        },
-        {
-          "name": "connection_timeout",
-          "required": false
-        },
-        {
-          "name": "custom_origin_config",
-          "required": false
-        },
-        {
-          "name": "domain_name",
-          "required": true
-        },
-        {
-          "name": "custom_header",
-          "required": false
-        },
-        {
-          "name": "origin_access_control_id",
-          "required": false
-        },
-        {
-          "name": "origin_id",
-          "required": true
-        },
-        {
-          "name": "origin_path",
-          "required": false
-        },
-        {
-          "name": "origin_shield",
-          "required": false
-        },
-        {
-          "name": "response_completion_timeout",
-          "required": false
-        },
-        {
-          "name": "s3_origin_config",
-          "required": false
-        },
-        {
-          "name": "vpc_origin_config",
-          "required": false
-        },
-        {
-          "name": "http_port",
-          "required": true
-        },
-        {
-          "name": "https_port",
-          "required": true
-        },
-        {
-          "name": "ip_address_type",
-          "required": false
-        },
-        {
-          "name": "origin_protocol_policy",
-          "required": true
-        },
-        {
-          "name": "origin_ssl_protocols",
-          "required": true
-        },
-        {
-          "name": "origin_keepalive_timeout",
-          "required": false
-        },
-        {
-          "name": "origin_mtls_config",
-          "required": false
-        },
-        {
-          "name": "origin_read_timeout",
-          "required": false
-        },
-        {
-          "name": "client_certificate_arn",
-          "required": true
-        },
-        {
-          "name": "origin_shield_region",
-          "required": false
-        },
-        {
-          "name": "origin_access_identity",
-          "required": true
-        },
-        {
-          "name": "owner_account_id",
-          "required": false
-        },
-        {
-          "name": "vpc_origin_id",
-          "required": true
-        },
-        {
-          "name": "failover_criteria",
-          "required": true
-        },
-        {
-          "name": "member",
-          "required": true
-        },
-        {
-          "name": "status_codes",
-          "required": true
-        },
-        {
-          "name": "locations",
-          "required": true
-        },
-        {
-          "name": "restriction_type",
-          "required": true
-        },
-        {
-          "name": "acm_certificate_arn",
-          "required": false
-        },
-        {
-          "name": "cloudfront_default_certificate",
-          "required": false
-        },
-        {
-          "name": "iam_certificate_id",
-          "required": false
-        },
-        {
-          "name": "minimum_protocol_version",
-          "required": false
-        },
-        {
-          "name": "ssl_support_method",
-          "required": false
-        },
-        {
-          "name": "header_name",
-          "required": true
-        },
-        {
-          "name": "id",
-          "required": true
-        },
-        {
-          "name": "mode",
-          "required": true
-        },
-        {
-          "name": "trust_store_config",
-          "required": true
-        },
-        {
-          "name": "trust_store_id",
-          "required": true
-        },
-        {
-          "name": "advertise_trust_store_ca_names",
-          "required": false
-        },
-        {
-          "name": "ignore_certificate_expiry",
-          "required": false
         }
       ],
       "identity_schema_required": [
@@ -17889,50 +17567,6 @@
         {
           "name": "tags",
           "required": false
-        },
-        {
-          "name": "certificate",
-          "required": false
-        },
-        {
-          "name": "geo_restriction",
-          "required": false
-        },
-        {
-          "name": "web_acl",
-          "required": false
-        },
-        {
-          "name": "arn",
-          "required": false
-        },
-        {
-          "name": "restriction_type",
-          "required": false
-        },
-        {
-          "name": "locations",
-          "required": false
-        },
-        {
-          "name": "action",
-          "required": false
-        },
-        {
-          "name": "certificate_transparency_logging_preference",
-          "required": false
-        },
-        {
-          "name": "primary_domain_name",
-          "required": false
-        },
-        {
-          "name": "validation_token_host",
-          "required": false
-        },
-        {
-          "name": "value",
-          "required": true
         }
       ]
     },
@@ -21777,50 +21411,6 @@
         {
           "name": "tags",
           "required": false
-        },
-        {
-          "name": "id",
-          "required": true
-        },
-        {
-          "name": "account_id",
-          "required": false
-        },
-        {
-          "name": "expression",
-          "required": false
-        },
-        {
-          "name": "label",
-          "required": false
-        },
-        {
-          "name": "metric",
-          "required": false
-        },
-        {
-          "name": "return_data",
-          "required": false
-        },
-        {
-          "name": "promql_criteria",
-          "required": true
-        },
-        {
-          "name": "query",
-          "required": true
-        },
-        {
-          "name": "pending_period",
-          "required": false
-        },
-        {
-          "name": "recovery_period",
-          "required": false
-        },
-        {
-          "name": "stat",
-          "required": true
         }
       ],
       "identity_schema_required": [
@@ -21920,26 +21510,6 @@
         {
           "name": "include_linked_accounts_metrics",
           "required": false
-        },
-        {
-          "name": "namespace",
-          "required": true
-        },
-        {
-          "name": "metric_names",
-          "required": false
-        },
-        {
-          "name": "additional_statistics",
-          "required": true
-        },
-        {
-          "name": "include_metric",
-          "required": true
-        },
-        {
-          "name": "metric_name",
-          "required": true
         }
       ],
       "identity_schema_required": [
@@ -24433,18 +24003,6 @@
         {
           "name": "tags",
           "required": false
-        },
-        {
-          "name": "client_id",
-          "required": false
-        },
-        {
-          "name": "provider_name",
-          "required": false
-        },
-        {
-          "name": "server_side_token_check",
-          "required": false
         }
       ]
     },
@@ -24577,38 +24135,6 @@
         },
         {
           "name": "roles",
-          "required": true
-        },
-        {
-          "name": "identity_provider",
-          "required": true
-        },
-        {
-          "name": "ambiguous_role_resolution",
-          "required": false
-        },
-        {
-          "name": "mapping_rule",
-          "required": false
-        },
-        {
-          "name": "type",
-          "required": true
-        },
-        {
-          "name": "claim",
-          "required": true
-        },
-        {
-          "name": "match_type",
-          "required": true
-        },
-        {
-          "name": "role_arn",
-          "required": true
-        },
-        {
-          "name": "value",
           "required": true
         }
       ]
@@ -33875,246 +33401,6 @@
         {
           "name": "tags",
           "required": false
-        },
-        {
-          "name": "action",
-          "required": false
-        },
-        {
-          "name": "copy_tags",
-          "required": false
-        },
-        {
-          "name": "create_interval",
-          "required": false
-        },
-        {
-          "name": "exclusions",
-          "required": false
-        },
-        {
-          "name": "extend_deletion",
-          "required": false
-        },
-        {
-          "name": "retain_interval",
-          "required": false
-        },
-        {
-          "name": "event_source",
-          "required": false
-        },
-        {
-          "name": "resource_type",
-          "required": false
-        },
-        {
-          "name": "resource_types",
-          "required": false
-        },
-        {
-          "name": "resource_locations",
-          "required": false
-        },
-        {
-          "name": "policy_language",
-          "required": false
-        },
-        {
-          "name": "policy_type",
-          "required": false
-        },
-        {
-          "name": "parameters",
-          "required": false
-        },
-        {
-          "name": "schedule",
-          "required": false
-        },
-        {
-          "name": "target_tags",
-          "required": false
-        },
-        {
-          "name": "cross_region_copy",
-          "required": false
-        },
-        {
-          "name": "name",
-          "required": false
-        },
-        {
-          "name": "encryption_configuration",
-          "required": true
-        },
-        {
-          "name": "retain_rule",
-          "required": true
-        },
-        {
-          "name": "target",
-          "required": true
-        },
-        {
-          "name": "cmk_arn",
-          "required": false
-        },
-        {
-          "name": "encrypted",
-          "required": true
-        },
-        {
-          "name": "type",
-          "required": true
-        },
-        {
-          "name": "description_regex",
-          "required": true
-        },
-        {
-          "name": "event_type",
-          "required": true
-        },
-        {
-          "name": "snapshot_owner",
-          "required": true
-        },
-        {
-          "name": "exclude_boot_volumes",
-          "required": false
-        },
-        {
-          "name": "exclude_tags",
-          "required": false
-        },
-        {
-          "name": "exclude_volume_types",
-          "required": false
-        },
-        {
-          "name": "exclude_boot_volume",
-          "required": false
-        },
-        {
-          "name": "exclude_data_volume_tags",
-          "required": false
-        },
-        {
-          "name": "no_reboot",
-          "required": false
-        },
-        {
-          "name": "archive_rule",
-          "required": false
-        },
-        {
-          "name": "create_rule",
-          "required": true
-        },
-        {
-          "name": "cross_region_copy_rule",
-          "required": false
-        },
-        {
-          "name": "deprecate_rule",
-          "required": true
-        },
-        {
-          "name": "fast_restore_rule",
-          "required": true
-        },
-        {
-          "name": "share_rule",
-          "required": true
-        },
-        {
-          "name": "tags_to_add",
-          "required": false
-        },
-        {
-          "name": "variable_tags",
-          "required": false
-        },
-        {
-          "name": "archive_retain_rule",
-          "required": true
-        },
-        {
-          "name": "retention_archive_tier",
-          "required": true
-        },
-        {
-          "name": "cron_expression",
-          "required": false
-        },
-        {
-          "name": "interval",
-          "required": false
-        },
-        {
-          "name": "interval_unit",
-          "required": false
-        },
-        {
-          "name": "location",
-          "required": false
-        },
-        {
-          "name": "scripts",
-          "required": false
-        },
-        {
-          "name": "times",
-          "required": false
-        },
-        {
-          "name": "count",
-          "required": false
-        },
-        {
-          "name": "availability_zones",
-          "required": true
-        },
-        {
-          "name": "target_accounts",
-          "required": true
-        },
-        {
-          "name": "unshare_interval",
-          "required": false
-        },
-        {
-          "name": "unshare_interval_unit",
-          "required": false
-        },
-        {
-          "name": "target_region",
-          "required": false
-        },
-        {
-          "name": "execute_operation_on_script_failure",
-          "required": false
-        },
-        {
-          "name": "execution_handler",
-          "required": true
-        },
-        {
-          "name": "execution_handler_service",
-          "required": false
-        },
-        {
-          "name": "execution_timeout",
-          "required": false
-        },
-        {
-          "name": "maximum_retry_count",
-          "required": false
-        },
-        {
-          "name": "stages",
-          "required": false
         }
       ]
     },
@@ -37317,10 +36603,6 @@
         },
         {
           "name": "replica",
-          "required": true
-        },
-        {
-          "name": "region_name",
           "required": true
         }
       ]
@@ -49158,18 +48440,6 @@
         {
           "name": "tags",
           "required": false
-        },
-        {
-          "name": "fleet_id",
-          "required": false
-        },
-        {
-          "name": "message",
-          "required": false
-        },
-        {
-          "name": "type",
-          "required": true
         }
       ]
     },
@@ -49219,22 +48489,6 @@
         },
         {
           "name": "tags",
-          "required": false
-        },
-        {
-          "name": "bucket",
-          "required": true
-        },
-        {
-          "name": "key",
-          "required": true
-        },
-        {
-          "name": "role_arn",
-          "required": true
-        },
-        {
-          "name": "object_version",
           "required": false
         }
       ]
@@ -49348,58 +48602,6 @@
         },
         {
           "name": "tags",
-          "required": false
-        },
-        {
-          "name": "certificate_type",
-          "required": false
-        },
-        {
-          "name": "from_port",
-          "required": true
-        },
-        {
-          "name": "ip_range",
-          "required": true
-        },
-        {
-          "name": "protocol",
-          "required": true
-        },
-        {
-          "name": "to_port",
-          "required": true
-        },
-        {
-          "name": "new_game_sessions_per_creator",
-          "required": false
-        },
-        {
-          "name": "policy_period_in_minutes",
-          "required": false
-        },
-        {
-          "name": "game_session_activation_timeout_seconds",
-          "required": false
-        },
-        {
-          "name": "max_concurrent_game_session_activations",
-          "required": false
-        },
-        {
-          "name": "server_process",
-          "required": false
-        },
-        {
-          "name": "concurrent_executions",
-          "required": true
-        },
-        {
-          "name": "launch_path",
-          "required": true
-        },
-        {
-          "name": "parameters",
           "required": false
         }
       ]
@@ -49571,14 +48773,6 @@
         {
           "name": "tags",
           "required": false
-        },
-        {
-          "name": "maximum_individual_player_latency_milliseconds",
-          "required": true
-        },
-        {
-          "name": "policy_duration_seconds",
-          "required": false
         }
       ]
     },
@@ -49621,22 +48815,6 @@
         },
         {
           "name": "zip_file",
-          "required": false
-        },
-        {
-          "name": "bucket",
-          "required": true
-        },
-        {
-          "name": "key",
-          "required": true
-        },
-        {
-          "name": "role_arn",
-          "required": true
-        },
-        {
-          "name": "object_version",
           "required": false
         }
       ]
@@ -51431,90 +50609,6 @@
         {
           "name": "parameters",
           "required": false
-        },
-        {
-          "name": "additional_locations",
-          "required": false
-        },
-        {
-          "name": "columns",
-          "required": false
-        },
-        {
-          "name": "location",
-          "required": false
-        },
-        {
-          "name": "input_format",
-          "required": false
-        },
-        {
-          "name": "output_format",
-          "required": false
-        },
-        {
-          "name": "compressed",
-          "required": false
-        },
-        {
-          "name": "number_of_buckets",
-          "required": false
-        },
-        {
-          "name": "ser_de_info",
-          "required": false
-        },
-        {
-          "name": "bucket_columns",
-          "required": false
-        },
-        {
-          "name": "sort_columns",
-          "required": false
-        },
-        {
-          "name": "skewed_info",
-          "required": false
-        },
-        {
-          "name": "stored_as_sub_directories",
-          "required": false
-        },
-        {
-          "name": "name",
-          "required": true
-        },
-        {
-          "name": "type",
-          "required": false
-        },
-        {
-          "name": "comment",
-          "required": false
-        },
-        {
-          "name": "serialization_library",
-          "required": false
-        },
-        {
-          "name": "column",
-          "required": true
-        },
-        {
-          "name": "sort_order",
-          "required": true
-        },
-        {
-          "name": "skewed_column_names",
-          "required": false
-        },
-        {
-          "name": "skewed_column_value_location_maps",
-          "required": false
-        },
-        {
-          "name": "skewed_column_values",
-          "required": false
         }
       ],
       "id_parts": [
@@ -51528,7 +50622,7 @@
         },
         {
           "token": "table name",
-          "source": "argument"
+          "source": "unknown"
         },
         {
           "token": "partition values",
@@ -65726,18 +64820,6 @@
         {
           "name": "tags",
           "required": false
-        },
-        {
-          "name": "commitment",
-          "required": true
-        },
-        {
-          "name": "renewal_type",
-          "required": true
-        },
-        {
-          "name": "reserved_slots",
-          "required": true
         }
       ]
     },
@@ -80708,18 +79790,6 @@
         {
           "name": "target_action",
           "required": true
-        },
-        {
-          "name": "pause_cluster",
-          "required": false
-        },
-        {
-          "name": "resize_cluster",
-          "required": false
-        },
-        {
-          "name": "resume_cluster",
-          "required": false
         }
       ]
     },
@@ -82237,22 +81307,6 @@
         },
         {
           "name": "tags",
-          "required": false
-        },
-        {
-          "name": "source_data",
-          "required": true
-        },
-        {
-          "name": "source_type",
-          "required": true
-        },
-        {
-          "name": "acm_pca_arn",
-          "required": false
-        },
-        {
-          "name": "x509_certificate_data",
           "required": false
         }
       ]
@@ -101026,26 +100080,6 @@
         {
           "name": "username",
           "required": false
-        },
-        {
-          "name": "s3_configuration",
-          "required": true
-        },
-        {
-          "name": "preferred_maintenance_window",
-          "required": true
-        },
-        {
-          "name": "timezone",
-          "required": true
-        },
-        {
-          "name": "bucket_name",
-          "required": true
-        },
-        {
-          "name": "enabled",
-          "required": true
         }
       ],
       "identity_schema_required": [
@@ -101203,26 +100237,6 @@
         {
           "name": "tags",
           "required": false
-        },
-        {
-          "name": "s3_configuration",
-          "required": true
-        },
-        {
-          "name": "preferred_maintenance_window",
-          "required": true
-        },
-        {
-          "name": "timezone",
-          "required": true
-        },
-        {
-          "name": "bucket_name",
-          "required": true
-        },
-        {
-          "name": "enabled",
-          "required": true
         }
       ],
       "identity_schema_required": [
@@ -104515,10 +103529,6 @@
         {
           "name": "tags",
           "required": false
-        },
-        {
-          "name": "allow_remote_vpc_dns_resolution",
-          "required": false
         }
       ]
     },
@@ -104588,10 +103598,6 @@
         },
         {
           "name": "requester",
-          "required": false
-        },
-        {
-          "name": "allow_remote_vpc_dns_resolution",
           "required": false
         }
       ]
@@ -107637,22 +106643,6 @@
         {
           "name": "xss_match_tuple",
           "required": false
-        },
-        {
-          "name": "field_to_match",
-          "required": true
-        },
-        {
-          "name": "text_transformation",
-          "required": true
-        },
-        {
-          "name": "data",
-          "required": false
-        },
-        {
-          "name": "type",
-          "required": true
         }
       ]
     },
@@ -110377,14 +109367,6 @@
         },
         {
           "name": "tags",
-          "required": false
-        },
-        {
-          "name": "insights_enabled",
-          "required": true
-        },
-        {
-          "name": "notifications_enabled",
           "required": false
         }
       ],

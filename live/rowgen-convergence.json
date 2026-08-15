@@ -4,12 +4,12 @@
     "admitted_total": 843,
     "compared": 822,
     "not_in_mapped_set": 21,
-    "adopted_unchanged": 707,
-    "adopted_unchanged_pct": 86.01,
-    "genuine_mismatches": 115,
+    "adopted_unchanged": 708,
+    "adopted_unchanged_pct": 86.13,
+    "genuine_mismatches": 114,
     "annotated": 0,
-    "unannotated_mismatches": 115,
-    "scrape_gap_mismatches": 31
+    "unannotated_mismatches": 114,
+    "scrape_gap_mismatches": 30
   },
   "by_service": {
     "ACMPCA": {
@@ -159,8 +159,8 @@
     },
     "CloudFront": {
       "compared": 20,
-      "adopted_unchanged": 18,
-      "adopted_unchanged_pct": 90
+      "adopted_unchanged": 19,
+      "adopted_unchanged_pct": 95
     },
     "CloudTrail": {
       "compared": 2,
@@ -2027,17 +2027,12 @@
     {
       "tf_type": "aws_cloudfront_distribution",
       "service": "CloudFront",
-      "proposed_bucket": "client-named",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
-      "mismatch_classes": [
-        "server-assigned",
-        "components"
-      ],
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {

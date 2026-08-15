@@ -37,6 +37,21 @@ func TestArgumentReferenceNames_StopsAtSubHeading(t *testing.T) {
 	}
 }
 
+// TestArgumentReferenceNames_StopsAtDeeperSubHeading is the
+// aws_cloudfront_distribution shape: the doc nests its block arguments
+// under "####"/"#####" headings with no "###" at all, so a boundary that
+// only knew "### " read more than a hundred nested names - including a
+// fake top-level `id` (Viewer mTLS Config's) that the Identity Schema then
+// matched as if it were a configuration argument.
+func TestArgumentReferenceNames_StopsAtDeeperSubHeading(t *testing.T) {
+	doc := "## Argument Reference\n\n* `aliases` (Optional) - CNAMEs.\n* `enabled` (Required) - Whether enabled.\n\n#### Viewer mTLS Config Arguments\n\n* `id` - nested, must not count.\n\n##### Trust Store Config Arguments\n\n* `mode` - nested, must not count.\n\n## Attribute Reference\n"
+	got := argumentReferenceNames(doc)
+	want := []string{"aliases", "enabled"}
+	if !equalStrings(got, want) {
+		t.Errorf("argumentReferenceNames = %v, want %v", got, want)
+	}
+}
+
 func TestIdentitySchemaRequired(t *testing.T) {
 	section := "## Import\n\nprose\n\n### Identity Schema\n\n#### Required\n\n* `role` (String) Name of the IAM role.\n* `policy_arn` (String) ARN of the IAM policy.\n\n#### Optional\n\n* `account_id` (String) AWS Account.\n\nmore prose\n"
 	got, ok := identitySchemaRequired(section)
