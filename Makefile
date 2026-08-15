@@ -251,7 +251,13 @@ test-kubernetes-clean: ## Cleans environment after `test-kubernetes`.
 # The pinned emulator image; live/floci-image is the single source (#98).
 # This had drifted to upstream floci/floci:latest, so test-floci-clean was
 # cleaning containers of an image nothing here runs.
-FLOCI_IMAGE := $(shell cat live/floci-image)
+#
+# ?= rather than := so an exported FLOCI_IMAGE wins, which is what
+# internal/live/flocitest and live/e2e/run.sh both already do. With :=, a run
+# under an overridden image started containers this target could not see, and
+# test-floci-clean went back to cleaning nothing - the same silent no-op the
+# drifted literal caused, reached a different way (issue #145).
+FLOCI_IMAGE ?= $(shell cat live/floci-image)
 
 define infoTestFloci
  Test requires:
