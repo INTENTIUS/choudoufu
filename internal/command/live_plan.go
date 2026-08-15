@@ -683,6 +683,16 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 				Endpoint: ep,
 				Region:   provs.region(providerAddr),
 			})
+			// The tagging sweep (issue #51) rides the same gate (#128): one
+			// estate-filtered GetResources call replaces the sweep's
+			// per-type listing. Absence of either client falls back to the
+			// pre-#51 per-type sweep, so the gate's off state is unchanged
+			// behavior, same as the Cloud Control fallback above.
+			req.Tagging = cloudcontrol.NewTagging(cloudcontrol.Config{
+				Endpoint: ep,
+				Region:   provs.region(providerAddr),
+			})
+			req.TaggingSweep = true
 		}
 	}
 

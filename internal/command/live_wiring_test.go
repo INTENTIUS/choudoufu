@@ -48,4 +48,12 @@ func TestCloudControlFallbackWiredIntoDiscovery(t *testing.T) {
 			t.Errorf("live_plan.go no longer contains %q - the Cloud Control fallback (#47) is unwired and every type without a native list resource refuses again", want)
 		}
 	}
+	// The tagging sweep (#51, wired by #128) rides the same gate; losing
+	// either line silently reverts to the per-type sweep, which no
+	// behavioral test without a live emulator can tell apart.
+	for _, want := range []string{"req.Tagging = cloudcontrol.NewTagging(", "req.TaggingSweep = true"} {
+		if !strings.Contains(string(src), want) {
+			t.Errorf("live_plan.go no longer contains %q - the #51 tagging sweep is unwired (see #128)", want)
+		}
+	}
 }
