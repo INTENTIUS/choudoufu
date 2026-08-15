@@ -11,6 +11,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -157,6 +158,56 @@ func TestEmitPartitionsDisjointAndComplete(t *testing.T) {
 	}
 	for tf := range lintSeen {
 		t.Errorf("%s: in a lint partition but not in either identity partition at all", tf)
+	}
+}
+
+// TestEmitGateRefusesUnruledMismatch pins issue #132's gate from the
+// failure side: an admitted type that the fresh classifier does not
+// reproduce and that carries no ruling in tools/row-gen/annotations.json
+// must make buildEmitFiles refuse outright, naming the type - never
+// silently render a table row that is indistinguishable from a row nobody
+// has looked at. The test takes the real proposals and the real ledger,
+// deletes one unreproduced type's ruling, and requires the error to name
+// exactly that type. (Written before the gate existed and verified to fail
+// against that state: buildEmitFiles then returned files and a nil error.)
+func TestEmitGateRefusesUnruledMismatch(t *testing.T) {
+	proposals := loadAllForTest(t)
+	annotations := loadAnnotationsForTest(t)
+
+	// Find an unreproduced admitted type from the same comparison the gate
+	// itself runs. Every one of them must be ruled for -emit to work at
+	// all, so the first is as good as any.
+	art := buildConvergence(proposals, annotations)
+	matched := make(map[string]bool, len(art.Types))
+	for _, row := range art.Types {
+		matched[row.TFType] = row.Matched
+	}
+	victim := ""
+	for _, tf := range identity.AdmittedTypes() {
+		if !matched[tf] {
+			victim = tf
+			break
+		}
+	}
+	if victim == "" {
+		t.Skip("every admitted type is reproduced by the classifier; the gate has nothing left to guard")
+	}
+
+	broken := make(map[string]annotation, len(annotations))
+	for tf, a := range annotations {
+		broken[tf] = a
+	}
+	delete(broken, victim)
+
+	files, _, _, err := buildEmitFiles(proposals, broken)
+	if err == nil {
+		t.Fatalf("buildEmitFiles accepted an unreproduced, unruled type (%s): the gate is not firing", victim)
+	}
+	if files != nil {
+		t.Errorf("buildEmitFiles returned files alongside the gate error; a refused emit must not hand back content to write")
+	}
+	if !strings.Contains(err.Error(), victim) {
+		t.Errorf("gate error does not name the unruled type %s: %v", victim, err)
 	}
 }
 

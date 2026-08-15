@@ -76,7 +76,54 @@ import (
 // entry), 21 now resolve through those same two rules, with zero rows that
 // previously matched now mismatching (verified by a full before/after diff
 // over the compared set, not just the fold-child rows). 215 down to 194.
-const unannotatedMismatchRatchetMax = 194
+//
+// Issue #132's derivation phase then took 194 to 114 through seven
+// extractor commits (89bae9fb27..c9632d8b23), and the gate-and-annotations
+// step closed the rest: every remaining mismatch carries a ruling in
+// tools/row-gen/annotations.json, -emit refuses an unruled one, and this
+// constant reaches its floor. It stays 0 from here - a regeneration that
+// produces a new unannotated mismatch is either a real regression or a new
+// admission that has not been ruled, and both should fail the build. The
+// count that still travels downward is the ledger's own size,
+// annotationCountRatchetMax below.
+const unannotatedMismatchRatchetMax = 0
+
+// annotationCountRatchetMax is the other half of issue #132's ratchet pair:
+// the number of rulings tools/row-gen/annotations.json may carry. The
+// unannotated ratchet above going to 0 means every unreproduced row is
+// ruled; without this second ceiling the ledger would only ever grow,
+// because adding a ruling is always easier than fixing an extractor. The
+// count only travels downward: an extractor fix that reproduces a ruled row
+// makes its annotation stale (TestAnnotationsAgreeWithMismatches demands
+// its deletion), and this constant is then lowered to match. Raising it
+// needs its own reviewed reason - a newly admitted type the classifier
+// cannot reproduce - not a silent increase.
+//
+// The committed 135 is 114 genuine mismatches (live/rowgen-convergence.json's
+// summary) plus the 21 not_in_mapped_set types, which never appear in the
+// artifact's rows at all (no proposal exists to compare) but are held to
+// the same bar by the -emit gate. Every ruling carries an exit naming what
+// a fuller extraction would have to capture; the ledger is a list of named
+// extractor gaps, not accepted losses.
+const annotationCountRatchetMax = 135
+
+// TestAnnotationCountRatchet reads the committed ledger directly and fails
+// when it has grown past annotationCountRatchetMax - never when it shrinks:
+// a genuine drop means the constant is stale and should be lowered.
+func TestAnnotationCountRatchet(t *testing.T) {
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	annotations, err := loadAnnotations(filepath.Join(root, annotationsJSONRel))
+	if err != nil {
+		t.Fatalf("loadAnnotations: %v", err)
+	}
+	if len(annotations) > annotationCountRatchetMax {
+		t.Errorf("%s carries %d rulings, above the ratchet ceiling of %d (annotationCountRatchetMax); the ledger only shrinks as extractors improve - fix the extractor or do a reviewed bump of this constant, not a silent increase",
+			annotationsJSONRel, len(annotations), annotationCountRatchetMax)
+	}
+}
 
 // TestUnannotatedMismatchRatchet reads the committed live/rowgen-
 // convergence.json directly (not a fresh regeneration - see

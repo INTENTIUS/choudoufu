@@ -121,6 +121,29 @@ func buildEmitFiles(proposals []proposal, annotations map[string]annotation) (fi
 		matched[row.TFType] = row.Matched
 	}
 
+	// Issue #132's gate: a row the fresh classifier does not reproduce is
+	// only emittable when annotations.json records why - otherwise a row
+	// diverging from the classifier is indistinguishable from a row nobody
+	// has looked at. Types with no proposal at all (not_in_mapped_set)
+	// are held to the same bar: no evidence path reaching a type is itself
+	// a fact that needs a ruling. -convergence stays ungated on purpose:
+	// it is the measurement, and it must keep running over an unannotated
+	// table so the debt stays visible.
+	var unruled []string
+	for _, t := range identity.AdmittedTypes() {
+		if matched[t] {
+			continue
+		}
+		if _, ok := annotations[t]; !ok {
+			unruled = append(unruled, t)
+		}
+	}
+	if len(unruled) > 0 {
+		return nil, emitPartition{}, emitPartition{}, fmt.Errorf(
+			"row-gen -emit: %d admitted type(s) are neither reproduced by the fresh classifier nor ruled in %s - every unreproduced row needs a recorded reason before it can ship:\n  %s",
+			len(unruled), annotationsJSONRel, strings.Join(unruled, "\n  "))
+	}
+
 	identityPart = partitionAdmitted(matched)
 	lintGenerated, lintOverride := splitNonRecordBacked(identityPart)
 	lintPart = emitPartition{Generated: lintGenerated, Override: lintOverride}

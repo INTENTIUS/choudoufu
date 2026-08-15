@@ -60,8 +60,10 @@ type convergenceRow struct {
 	// of the provider's doc page (Argument Reference, an Identity Schema
 	// block) would have supplied - the class the SageMaker batch's report
 	// named: import-grammar.json was consulted and came up short, not a
-	// human ruling. See convergence_test.go's own doc comment for why this
-	// is surfaced rather than folded into annotations.
+	// human ruling. Since issue #132's gate every mismatched row carries an
+	// annotation regardless, so this flag no longer decides whether a row
+	// is ruled - it stays the measure of WHICH rulings are extractor debt
+	// rather than ratification judgments.
 	ScrapeGap bool `json:"scrape_gap,omitempty"`
 
 	Matched    bool   `json:"matched"`
