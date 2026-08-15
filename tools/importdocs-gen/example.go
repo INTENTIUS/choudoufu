@@ -8,6 +8,7 @@ package main
 import (
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
@@ -69,6 +70,11 @@ type ExampleArgument struct {
 	// IsString is whether Value needs quoting when written back out.
 	IsString bool `json:"is_string,omitempty"`
 
+	// IsList marks a Value that is a whole HCL list literal of primitives
+	// ("[\"example\"]", issue #177) rather than a scalar; a consumer
+	// writes it raw, exactly like a number or bool.
+	IsList bool `json:"is_list,omitempty"`
+
 	// Incomplete marks an argument whose own block had a sibling that was
 	// dropped because it REFERENCED something else - another resource, a
 	// variable, a data source.
@@ -99,6 +105,25 @@ type ExampleArgument struct {
 	// A consumer should treat an incomplete block as evidence about what
 	// the arguments are, not as a configuration to paste.
 	Incomplete bool `json:"incomplete,omitempty"`
+
+	// Reference records a dropped cross-resource wiring instead of
+	// discarding it (issue #177): the example set this path to an
+	// expression reading something else, and RefType/RefAttr say what -
+	// "aws_kms_key"/"arn" for `kms_master_key_id = aws_kms_key.mykey.arn`,
+	// "var"/"name" for a variable. A reference entry carries no Value; it
+	// is evidence about how the example wires this argument, which is
+	// exactly what a consumer needs to decide whether an incomplete block
+	// could be completed from its own rendered siblings.
+	Reference bool   `json:"reference,omitempty"`
+	RefType   string `json:"ref_type,omitempty"`
+	RefAttr   string `json:"ref_attr,omitempty"`
+
+	// Element is which repeated unlabelled block element of its type this
+	// argument came from, counting from zero (issue #177): without it, two
+	// `rule { }` blocks setting disjoint keys flatten into one path set
+	// indistinguishable from a single element. Zero - the only element, or
+	// the first - is omitted from the artifact.
+	Element int `json:"element,omitempty"`
 }
 
 // exampleFenceRe matches a fenced code block whose language is one the
@@ -135,17 +160,24 @@ func exampleSection(doc string) (string, bool) {
 // exampleArguments extracts the literal arguments the doc's own Example
 // Usage sets on a resource of tfType.
 //
-// The first block declaring the type wins. Pages often show several
-// variants - "With Versioning Enabled", "With Versioning Disabled",
-// "Object Lock" - and the first is the ordinary case the page leads with,
-// which is the one a generated fixture wants. Taking a union across
-// variants would merge mutually exclusive settings, which is how a seed
-// starts producing configurations the provider rejects.
+// One fence's block wins - taking a union across variants would merge
+// mutually exclusive settings, which is how a seed starts producing
+// configurations the provider rejects. WHICH fence (issue #177): the first
+// whose extraction is fully literal (no dropped reference, no incomplete
+// block); failing that, the fence with the MOST complete literals - a page
+// may lead with a wired-up variant and keep the self-contained one second,
+// which is exactly aws_sagemaker_workteam's shape: its "Cognito Usage"
+// members are all references while its "Oidc Usage" carries the literal
+// oidc_member_definition the seed wants, and both variants reference the
+// shared workforce, so neither is clean. Failing every literal, the first
+// fence with any entry - a reference-only extraction is still evidence.
 func exampleArguments(doc, tfType string) []ExampleArgument {
 	section, ok := exampleSection(doc)
 	if !ok {
 		return nil
 	}
+	var best, firstAny []ExampleArgument
+	bestComplete := 0
 	for _, m := range exampleFenceRe.FindAllStringSubmatch(section, -1) {
 		body, diags := hclsyntax.ParseConfig([]byte(m[1]), "example.tf", hcl.InitialPos)
 		if diags.HasErrors() || body == nil {
@@ -163,12 +195,34 @@ func exampleArguments(doc, tfType string) []ExampleArgument {
 			if blk.Type != "resource" || len(blk.Labels) != 2 || blk.Labels[0] != tfType {
 				continue
 			}
-			if args := literalArguments(blk.Body, nil); len(args) > 0 {
+			args := literalArguments(blk.Body, nil)
+			if len(args) == 0 {
+				continue
+			}
+			clean, complete := true, 0
+			for _, a := range args {
+				if a.Reference || a.Incomplete {
+					clean = false
+				}
+				if !a.Reference && !a.Incomplete {
+					complete++
+				}
+			}
+			if clean && complete > 0 {
 				return args
+			}
+			if complete > bestComplete {
+				best, bestComplete = args, complete
+			}
+			if firstAny == nil {
+				firstAny = args
 			}
 		}
 	}
-	return nil
+	if best != nil {
+		return best
+	}
+	return firstAny
 }
 
 // literalArguments walks one block for arguments that are self-contained
@@ -189,7 +243,17 @@ func literalArguments(body *hclsyntax.Body, prefix []string) []ExampleArgument {
 		// A value that reads anything - another resource, a variable, a
 		// local, a data source - is exactly what must not be seeded. Zero
 		// variables is the test, and it is the whole cross-resource filter.
-		if len(attr.Expr.Variables()) > 0 {
+		// The wiring is recorded rather than discarded (issue #177): what
+		// the example reads is the fact a consumer needs to judge whether
+		// the block could be completed from its own siblings.
+		if vars := attr.Expr.Variables(); len(vars) > 0 {
+			refType, refAttr := referenceParts(vars[0])
+			out = append(out, ExampleArgument{
+				Path:      append(append([]string{}, prefix...), name),
+				Reference: true,
+				RefType:   refType,
+				RefAttr:   refAttr,
+			})
 			dropped++
 			continue
 		}
@@ -205,10 +269,13 @@ func literalArguments(body *hclsyntax.Body, prefix []string) []ExampleArgument {
 	}
 	if dropped > 0 {
 		for i := range out {
-			out[i].Incomplete = true
+			if !out[i].Reference {
+				out[i].Incomplete = true
+			}
 		}
 	}
 
+	elementOf := map[string]int{}
 	for _, blk := range body.Blocks {
 		if len(blk.Labels) > 0 {
 			// A labelled nested block is a repeated structure whose label
@@ -216,9 +283,50 @@ func literalArguments(body *hclsyntax.Body, prefix []string) []ExampleArgument {
 			// the label means is guessing.
 			continue
 		}
-		out = append(out, literalArguments(blk.Body, append(append([]string{}, prefix...), blk.Type))...)
+		element := elementOf[blk.Type]
+		elementOf[blk.Type]++
+		nested := literalArguments(blk.Body, append(append([]string{}, prefix...), blk.Type))
+		if element > 0 {
+			// A repeated unlabelled block's later elements carry their
+			// index (issue #177), so two elements setting disjoint keys
+			// stop flattening into something indistinguishable from one.
+			for i := range nested {
+				if nested[i].Element == 0 {
+					nested[i].Element = element
+				}
+			}
+		}
+		out = append(out, nested...)
 	}
 	return out
+}
+
+// referenceParts names what a dropped expression reads: the traversal's
+// root and, past a resource's own label, the attribute it takes.
+// aws_kms_key.mykey.arn -> ("aws_kms_key", "arn"); var.name ->
+// ("var", "name"); a bare root -> (root, "").
+func referenceParts(t hcl.Traversal) (refType, refAttr string) {
+	refType = t.RootName()
+	for _, step := range t {
+		if a, ok := step.(hcl.TraverseAttr); ok {
+			refAttr = a.Name
+		}
+	}
+	if strings.HasPrefix(refType, "aws_") {
+		// The first attribute step is the resource's local name
+		// ("mykey"), not an attribute; when it is the ONLY step, the
+		// example referenced the resource object itself.
+		steps := 0
+		for _, step := range t {
+			if _, ok := step.(hcl.TraverseAttr); ok {
+				steps++
+			}
+		}
+		if steps < 2 {
+			refAttr = ""
+		}
+	}
+	return refType, refAttr
 }
 
 // exampleEvalContext is the evaluation context a documented example is read
@@ -260,6 +368,25 @@ func renderLiteral(path []string, val cty.Value) (ExampleArgument, bool) {
 	case val.Type() == cty.Number:
 		bf := val.AsBigFloat()
 		return ExampleArgument{Path: path, Value: bf.Text('f', -1)}, true
+	case val.Type().IsTupleType() || val.Type().IsListType() || val.Type().IsSetType():
+		// A list of primitives is spelled back as the HCL list literal
+		// (issue #177: aws_sagemaker_workteam's groups = ["example"]).
+		// Value holds the whole expression, so IsString stays false - a
+		// consumer writes it raw - and IsList says which case this is.
+		var elems []string
+		for it := val.ElementIterator(); it.Next(); {
+			_, ev := it.Element()
+			inner, ok := renderLiteral(nil, ev)
+			if !ok || inner.IsList {
+				return ExampleArgument{}, false
+			}
+			if inner.IsString {
+				elems = append(elems, strconv.Quote(inner.Value))
+			} else {
+				elems = append(elems, inner.Value)
+			}
+		}
+		return ExampleArgument{Path: path, Value: "[" + strings.Join(elems, ", ") + "]", IsList: true}, true
 	}
 	return ExampleArgument{}, false
 }

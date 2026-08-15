@@ -48,9 +48,14 @@ resource "aws_s3_bucket_versioning" "versioning_example" {
 		t.Error("marked incomplete, but nothing in its own block was dropped; the reference that " +
 			"was dropped (bucket) is in the outer block")
 	}
-	if a := argFor(args, "bucket"); a != nil {
-		t.Errorf("the cross-resource reference `bucket` was seeded as %q; estate-gen renders its own "+
-			"siblings, so a seeded reference dangles", a.Value)
+	// The cross-resource reference is recorded, never seeded (issue #177):
+	// the entry carries what the example reads and no value at all.
+	a := argFor(args, "bucket")
+	if a == nil {
+		t.Fatal("the dropped reference `bucket` was not recorded")
+	}
+	if !a.Reference || a.Value != "" || a.RefType != "aws_s3_bucket" || a.RefAttr != "id" {
+		t.Errorf("bucket recorded as %+v, want a valueless reference entry naming aws_s3_bucket.id", a)
 	}
 }
 

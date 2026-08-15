@@ -21,7 +21,7 @@ package pins
 // (live/corpus-refusals.json).
 //
 // tools/estate-gen carries its own, deliberately separate fixture pin
-// (currently 6.58.0): the cohort estates are applied artifacts whose
+// (currently 6.59.0): the cohort estates are applied artifacts whose
 // verdicts live/cohort-acceptance.json records, so bumping THAT pin is a
 // mass fixture regeneration plus an acceptance-tier re-run - a deliberate
 // event, not something a shared constant should trigger as a side effect.

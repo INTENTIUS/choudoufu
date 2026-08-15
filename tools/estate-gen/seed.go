@@ -112,6 +112,16 @@ type seedArgument struct {
 	Value      string   `json:"value"`
 	IsString   bool     `json:"is_string"`
 	Incomplete bool     `json:"incomplete"`
+
+	// Reference and Element are issue #177's extraction fields. A
+	// reference entry carries no value at all - it records what the
+	// example wired the argument to - and a non-zero element is a repeated
+	// block's later instance. Neither is anything this seed writes today:
+	// references are the complementary sibling-wiring move #174 names
+	// (not yet built), and the generic pass renders exactly one instance
+	// of any block, so only element zero has a place to land.
+	Reference bool `json:"reference"`
+	Element   int  `json:"element"`
 }
 
 // loadExampleSeed reads the artifact. A missing file is not fatal: the seed
@@ -157,8 +167,22 @@ func (g *generator) seedFromExample(body *hclwrite.Body, block *configschema.Blo
 
 	identityArg, _ := identityArgName(tfType)
 
+	// Reference entries and later block elements are evidence, not values
+	// to write - see seedArgument. They are dropped before any counting so
+	// a reference twin cannot make its literal sibling look duplicated.
+	writable := args[:0:0]
+	for _, arg := range args {
+		if arg.Reference || arg.Element > 0 {
+			continue
+		}
+		writable = append(writable, arg)
+	}
+	args = writable
+
 	// A path the example set twice is two repeated block elements merged
 	// flat by the extraction; which one wins is a guess, so neither does.
+	// (Element-carrying duplicates were already dropped above; what this
+	// still catches is a page setting one path twice inside one element.)
 	pathCount := map[string]int{}
 	for _, arg := range args {
 		pathCount[joinPath(arg.Path)]++

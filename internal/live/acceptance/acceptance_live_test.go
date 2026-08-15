@@ -27,7 +27,7 @@ const terraformBin = "terraform"
 // providerPin is what every cohort's versions.tf pins; recorded in the
 // artifact so a future provider bump cannot silently describe a different
 // run.
-const providerPin = "hashicorp/aws 6.58.0"
+const providerPin = "hashicorp/aws 6.59.0"
 
 // Per-command deadlines. The apply deadline is generous because a cohort
 // creates up to ~40 resources; the known pathological shape is a provider

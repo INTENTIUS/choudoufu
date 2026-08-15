@@ -132,9 +132,11 @@ type Counts struct {
 	// under their canonical name).
 	DocsFound   int `json:"docs_found"`
 	DocsMissing int `json:"docs_missing"`
-	// NoImportSection is DocsFound minus the docs that carry a parseable
-	// "## Import" section with a literal ID example (e.g. a waiter
-	// resource with nothing to import).
+	// NoImportSection is DocsFound minus the docs that produced a row.
+	// Since issue #177 a page without a parseable "## Import" section
+	// still rows when its Example Usage or Argument Reference said
+	// anything (the row's grammar fields stay empty), so this counts only
+	// the pages that stated nothing this tool extracts.
 	NoImportSection int `json:"no_import_section"`
 	// Rows is how many types produced a row - DocsFound minus
 	// NoImportSection.
@@ -185,11 +187,21 @@ type Artifact struct {
 func buildRow(tfType, doc string) (Row, bool) {
 	section, ok := importSection(doc)
 	if !ok {
-		return Row{}, false
+		// A page with no Import section still gets a row when its Example
+		// Usage extraction found anything (issue #177): the example is a
+		// statement about the type's arguments, and it was being discarded
+		// with the whole row for the accident that the page ends before an
+		// Import heading (aws_codegurureviewer_repository_association's
+		// ends at Timeouts). Every import-grammar field stays empty - the
+		// row claims nothing about a grammar the doc does not state.
+		return exampleOnlyRow(tfType, doc)
 	}
 	idExample, ok := importIDExample(section)
 	if !ok {
-		return Row{}, false
+		// Same as above: an Import section this parser cannot pull an
+		// example ID from settles no grammar, but it does not unsay the
+		// page's Example Usage.
+		return exampleOnlyRow(tfType, doc)
 	}
 	argNames := argumentReferenceNames(doc)
 	argEntries := argumentReferenceEntries(doc)
@@ -280,6 +292,25 @@ func buildRow(tfType, doc string) (Row, bool) {
 		OmittedFallbacks:       omittedFallbacks(section, cr.Arguments),
 		IDParts:                parts,
 		IDTemplate:             idTemplate(section, tfType, argEntries, exArgs),
+	}, true
+}
+
+// exampleOnlyRow is buildRow's no-Import-grammar path (issue #177): the
+// row exists to carry the Example Usage extraction and the Argument
+// Reference scrape, both statements the page makes regardless of whether
+// it documents an import at all. ok is false only when neither found
+// anything, which keeps every page that used to produce no row and states
+// nothing new producing no row.
+func exampleOnlyRow(tfType, doc string) (Row, bool) {
+	exArgs := exampleArguments(doc, tfType)
+	argEntries := argumentReferenceEntries(doc)
+	if len(exArgs) == 0 && len(argEntries) == 0 {
+		return Row{}, false
+	}
+	return Row{
+		TFType:            tfType,
+		ArgumentReference: argEntries,
+		ExampleArguments:  exArgs,
 	}, true
 }
 

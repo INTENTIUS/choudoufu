@@ -51,7 +51,8 @@ var flociImageFields = map[string]string{
 // decision that says what re-measuring would cost; empty is the intended
 // state.
 var staleFlociMeasurements = map[string]string{
-	"plan-budget.json": "measured against sha256:4753246c before the pin moved to sha256:488f4d6d; " +
+	"cohort-acceptance.json": "measured against sha256:488f4d6d; the pin moved to sha256:da6298c1 (the 2026-08-15 fork merge fixing the five daemonless waiter hangs and the CreateApiKey crash) and the re-measure - a full acceptance-tier run - was started and then wound down before completing; run it with TF_FLOCI_ACCEPTANCE_ARTIFACT=1 and delete this entry when the artifact lands",
+	"plan-budget.json": "measured against sha256:4753246c, two pin moves back (sha256:488f4d6d, then sha256:da6298c1); " +
 		"re-measuring means re-running issue #64's estate benchmark against the current emulator, " +
 		"which is an acceptance-tier run rather than a regeneration",
 }
