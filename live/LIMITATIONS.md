@@ -950,9 +950,9 @@ refused, and each says so in its own entry.
 | Configs | Sites | Layer | Refusal | Raised by | Documented at |
 |---|---|---|---|---|---|
 | 142 | 142 | lint | state-backend | `internal/live/lint` | "backend-block" / "cloud-block" |
-| 131 | 2336 | identity | Dynamic value in static context | `internal/configs` | "Dynamic value in static context" |
-| 114 | 1646 | lint | unadmitted-type | `internal/live/lint` | "unadmitted-type" |
-| 89 | 3674 | identity | Unable to compute static value | `internal/configs` | "Unable to compute static value" |
+| 131 | 2399 | identity | Dynamic value in static context | `internal/configs` | "Dynamic value in static context" |
+| 113 | 1404 | lint | unadmitted-type | `internal/live/lint` | "unadmitted-type" |
+| 89 | 3720 | identity | Unable to compute static value | `internal/configs` | "Unable to compute static value" |
 | 74 | 589 | identity | Unresolvable identity | `internal/live/identity` | "Unresolvable identity" |
 | 66 | 482 | lint | logical-resource | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
 | 52 | 4587 | lint | count-index | `internal/live/lint` | "count-index-in-tag" |
@@ -962,12 +962,12 @@ refused, and each says so in its own entry.
 | 30 | 131 | identity | Non-static identity argument | `internal/live/identity` | "Non-static identity argument" |
 | 24 | 106 | identity | Non-static for_each expression | `internal/live/identity` | "Non-static for_each expression" |
 | 24 | 77 | identity | Null identity argument | `internal/live/identity` | "Null identity argument" |
+| 22 | 39 | identity | Identity argument not set | `internal/live/identity` | "Identity argument not set" |
 | 21 | 110 | lint | module-providers | `internal/live/lint` | "module-providers" |
-| 20 | 35 | identity | Identity argument not set | `internal/live/identity` | "Identity argument not set" |
 | 19 | 215 | lint | for-each-key | `internal/live/lint` | "foreach-dotted-key" |
 | 18 | 73 | identity | Non-static count expression | `internal/live/identity` | "Non-static count expression" |
+| 13 | 49 | identity | Not an identity attribute | `internal/live/identity` | "Not an identity attribute" |
 | 13 | 30 | lint | child-module | `internal/live/lint` | "child-module" |
-| 12 | 36 | identity | Not an identity attribute | `internal/live/identity` | "Not an identity attribute" |
 | 12 | 21 | identity | Invalid for_each set | `internal/live/identity` | "Invalid for_each set" |
 | 11 | 58 | identity | Identity not resolvable from configuration | `internal/live/identity` | "Identity not resolvable from configuration" |
 | 6 | 63 | lint | moved-block | `internal/live/lint` | "moved-block" |
@@ -976,6 +976,8 @@ refused, and each says so in its own entry.
 | 2 | 3 | identity | Two resources with the same identity | `internal/live/identity` | "duplicate-identity" |
 | 1 | 4 | identity | Invalid operand | `hcl` | "Invalid operand" |
 | 1 | 2 | identity | Invalid function argument | `hcl` | "Invalid function argument" |
+| 1 | 2 | identity | Non-string identity argument | `internal/live/identity` | "Non-string identity argument" |
+| 1 | 1 | identity | Ambiguous list-valued identity argument | `internal/live/identity` | "Ambiguous list-valued identity argument" |
 | 1 | 1 | identity | Resource type outside the live-markers subset | `internal/live/identity` | "unadmitted-type" |
 | - | - | discovery | Address too long to carry an ownership marker | `internal/live/discovery` | "overlong-address" |
 | - | - | discovery | Cloud Control identifier could not be composed | `internal/live/discovery` | "Cloud Control identifier could not be composed" |
@@ -1043,7 +1045,6 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | No configuration to resolve | `internal/live/identity` | "No configuration to resolve" |
 | 0 | 0 | identity | No configuration to scan | `internal/live/identity` | "No configuration to scan" |
 | 0 | 0 | identity | Non-static lifecycle.enabled expression | `internal/live/identity` | "Non-static lifecycle.enabled expression" |
-| 0 | 0 | identity | Non-string identity argument | `internal/live/identity` | "Non-string identity argument" |
 | 0 | 0 | identity | Not enough function arguments | `hcl` | "Not enough function arguments" |
 | 0 | 0 | identity | Null condition | `hcl` | "Null condition" |
 | 0 | 0 | identity | Null value as key | `hcl` | "Null value as key" |
@@ -1116,7 +1117,7 @@ refused, and each says so in its own entry.
 | - | - | stamp | Ownership markers not stamped | `internal/live/stamp` | "Ownership markers not stamped" |
 | - | - | stamp | Unmarked apply of a marker-only resource | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 
-**166 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
+**167 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -1146,7 +1147,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 131 configurations in the measured corpus, at 2336 sites.
+**How often.** Blocked 131 configurations in the measured corpus, at 2399 sites.
 
 #### Unable to compute static value
 
@@ -1154,7 +1155,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 89 configurations in the measured corpus, at 3674 sites.
+**How often.** Blocked 89 configurations in the measured corpus, at 3720 sites.
 
 #### Unresolvable identity
 
@@ -1202,7 +1203,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 20 configurations in the measured corpus, at 35 sites.
+**How often.** Blocked 22 configurations in the measured corpus, at 39 sites.
 
 #### Non-static count expression
 
@@ -1218,7 +1219,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 12 configurations in the measured corpus, at 36 sites.
+**How often.** Blocked 13 configurations in the measured corpus, at 49 sites.
 
 #### Invalid for_each set
 
@@ -1259,6 +1260,22 @@ reserved for the limits wing's fixture directories, and
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
 **How often.** Blocked 1 configuration in the measured corpus, at 2 sites.
+
+#### Non-string identity argument
+
+**What.** An identity argument evaluates to a value that is not a string.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 1 configuration in the measured corpus, at 2 sites.
+
+#### Ambiguous list-valued identity argument
+
+**What.** A Component.SoleElement identity argument is a statically-written list or set construct with zero elements or more than one; the AWS API, not the configuration's own list order, decides how more than one value composes, so this package will not guess which one to use.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 1 configuration in the measured corpus, at 1 site.
 
 #### Cloud Control identifier could not be composed
 
@@ -1767,14 +1784,6 @@ reserved for the limits wing's fixture directories, and
 #### Non-static lifecycle.enabled expression
 
 **What.** A lifecycle.enabled expression cannot be resolved from configuration alone.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
-
-**How often.** Blocked no configuration in the measured corpus.
-
-#### Non-string identity argument
-
-**What.** An identity argument evaluates to a value that is not a string.
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
@@ -2454,7 +2463,8 @@ undeclared instance is created through whichever configuration found it.
 `aws_s3vectors_vector_bucket_policy`,
 `aws_sagemaker_model_package_group_policy`,
 `aws_secretsmanager_secret_policy`, `aws_secretsmanager_secret_rotation`,
-`aws_securityhub_account`, `aws_securityhub_configuration_policy`,
+`aws_security_group_rule`, `aws_securityhub_account`,
+`aws_securityhub_configuration_policy`,
 `aws_securityhub_configuration_policy_association`,
 `aws_securityhub_finding_aggregator`, `aws_securityhub_insight`,
 `aws_securityhub_member`, `aws_securityhub_organization_admin_account`,
@@ -2596,6 +2606,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_sagemaker_model_package_group_policy` | `aws_sagemaker_model_package_group` | no (report-only) |
 | `aws_secretsmanager_secret_policy` | `aws_secretsmanager_secret` | no (report-only) |
 | `aws_secretsmanager_secret_rotation` | `aws_secretsmanager_secret` | no (report-only) |
+| `aws_security_group_rule` | `aws_security_group` | no (report-only) |
 | `aws_servicecatalog_portfolio_share` | `aws_servicecatalog_portfolio` | no (report-only) |
 | `aws_servicecatalogappregistry_attribute_group_association` | `aws_servicecatalogappregistry_attribute_group` | no (report-only) |
 | `aws_sns_topic_policy` | `aws_sns_topic` | no (report-only) |
@@ -2625,7 +2636,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_workspacesweb_user_access_logging_settings_association` | `aws_workspacesweb_user_access_logging_settings` | no (report-only) |
 | `aws_workspacesweb_user_settings_association` | `aws_workspacesweb_user_settings` | no (report-only) |
 
-**Total.** 107 types swept via a parent read.
+**Total.** 108 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child. Whether it
