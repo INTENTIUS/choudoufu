@@ -38,7 +38,7 @@ go run ./tools/estate-gen -cohort governance -types aws_auditmanager_assessment,
 | `aws_servicecatalog_provisioned_product.app` | coverage | schema requires none of product_id/product_name or provisioning_artifact_id/provisioning_artifact_name; the provider requires exactly one of each pair in practice (validate: "one of ... must be specified" ×4), and the generic pass sets none of the four. product_id is wired to this cohort's own aws_servicecatalog_product; provisioning_artifact_name stays a literal, since no admitted type in this cohort represents a specific provisioning artifact. |
 | `aws_servicecatalogappregistry_application.app` | coverage | none |
 | `aws_servicecatalogappregistry_attribute_group.app` | coverage | schema requires attributes as a plain string, but the provider validates it is well-formed JSON (validate: "Invalid JSON String Value"); the generic string placeholder is not JSON. |
-| `aws_servicecatalogappregistry_attribute_group_association.app` | coverage | application_id and attribute_group_id both validate fine as generic placeholder strings (no ARN/enum/JSON constraint), so this override exists only to wire them to this cohort's own aws_servicecatalogappregistry_application and aws_servicecatalogappregistry_attribute_group instead - the two markers internal/live/identity/table.go's own entry for this type documents the composite identity as running through. |
+| `aws_servicecatalogappregistry_attribute_group_association.app` | coverage | none |
 
 ## Requested types
 

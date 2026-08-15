@@ -14,16 +14,6 @@ import (
 // typeOverridesApigateway is the apigateway cohort's slice of [typeOverrides].
 // Registered by init below; see contributing/LIVE-TABLES.md.
 var typeOverridesApigateway = map[string]typeOverride{
-	"aws_api_gateway_base_path_mapping": {
-		Reasons: []string{
-			`api_id has no identity-table candidate to auto-wire from (aws_api_gateway_rest_api is server-assigned, so parentRef never proposes it); wired to the REST API this cohort renders`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if restAPI, ok := g.byType["aws_api_gateway_rest_api"]; ok {
-				body.SetAttributeRaw("api_id", exprTokens(fmt.Sprintf("%s.id", restAPI)))
-			}
-		},
-	},
 	"aws_api_gateway_documentation_version": {
 		Reasons: []string{
 			`rest_api_id was mis-wired to aws_api_gateway_rest_api_policy.app (parentRef's only candidate whose identity self-names "rest_api_id" - the real parent, aws_api_gateway_rest_api, is server-assigned and never a parentRef candidate); corrected to the REST API this cohort renders`,
@@ -142,20 +132,6 @@ var typeOverridesApigateway = map[string]typeOverride{
 			if restAPI, ok := g.byType["aws_api_gateway_rest_api"]; ok {
 				body.SetAttributeRaw("rest_api_id", exprTokens(fmt.Sprintf("%s.id", restAPI)))
 			}
-		},
-	},
-	"aws_api_gateway_usage_plan_key": {
-		Reasons: []string{
-			`usage_plan_id and key_id have no identity-table candidates because aws_api_gateway_usage_plan and aws_api_gateway_api_key are both server-assigned (parentRef never proposes a server-assigned sibling, the same gap as the REST API children above); wired to the two sibling coverage rows this cohort renders, and key_type set to its one documented value`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if plan, ok := g.byType["aws_api_gateway_usage_plan"]; ok {
-				body.SetAttributeRaw("usage_plan_id", exprTokens(fmt.Sprintf("%s.id", plan)))
-			}
-			if key, ok := g.byType["aws_api_gateway_api_key"]; ok {
-				body.SetAttributeRaw("key_id", exprTokens(fmt.Sprintf("%s.id", key)))
-			}
-			body.SetAttributeRaw("key_type", exprTokens(`"API_KEY"`))
 		},
 	},
 	"aws_api_gateway_rest_api_policy": {
@@ -317,16 +293,6 @@ var typeOverridesApigateway = map[string]typeOverride{
 			condition := body.AppendNewBlock("condition", nil)
 			mbp := condition.Body().AppendNewBlock("match_base_paths", nil)
 			mbp.Body().SetAttributeRaw("any_of", exprTokens(`["/"]`))
-		},
-	},
-	"aws_apigatewayv2_stage": {
-		Reasons: []string{
-			`api_id has no identity-table candidate to auto-wire from (aws_apigatewayv2_api is server-assigned, the same gap as the REST API children above); wired to the v2 API this cohort renders`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if v2api, ok := g.byType["aws_apigatewayv2_api"]; ok {
-				body.SetAttributeRaw("api_id", exprTokens(fmt.Sprintf("%s.id", v2api)))
-			}
 		},
 	},
 }

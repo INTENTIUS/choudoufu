@@ -16,7 +16,7 @@ go run ./tools/estate-gen -cohort security -types aws_acmpca_certificate_authori
 | Resource | Kind | Overrides |
 |---|---|---|
 | `aws_acmpca_certificate_authority.app` | coverage | certificate_authority_configuration.key_algorithm and .signing_algorithm are plain strings in the schema but the provider validates both against fixed enums (validate: "expected key_algorithm/signing_algorithm to be one of [...]") |
-| `aws_acmpca_certificate_authority_certificate.app` | coverage | certificate_authority_arn is a plain string in the schema but the provider validates it is a well-formed ARN (validate: "is an invalid ARN"), which the generic pass's placeholder name is not - a real cross-reference to aws_acmpca_certificate_authority.app's own arn is both the fix and the point of this coverage row (the parent-derived composite this batch ratified) |
+| `aws_acmpca_certificate_authority_certificate.app` | coverage | none |
 | `aws_acmpca_policy.app` | coverage | resource_arn is not wired to any resource by the generic pass (aws_acmpca_certificate_authority is server-assigned, so parentRef's identity-argument match never fires - see this file's batch header comment); policy is a plain string in the schema but the provider validates it is well-formed JSON (validate: "contains an invalid JSON") |
 | `aws_guardduty_detector.app` | coverage | none |
 | `aws_guardduty_filter.app` | coverage | detector_id collides with aws_guardduty_organization_configuration's own identity argument name (see this file's batch header comment), so the generic pass wires it to that unrelated resource's own detector_id echo instead of the real aws_guardduty_detector.app.id; action is a plain string in the schema but the provider validates it against a fixed enum (validate: "expected action to be one of [NOOP ARCHIVE]") |
@@ -39,7 +39,7 @@ go run ./tools/estate-gen -cohort security -types aws_acmpca_certificate_authori
 | `aws_macie2_organization_admin_account.app` | coverage | none |
 | `aws_secretsmanager_secret.app` | coverage | none |
 | `aws_secretsmanager_secret_policy.app` | coverage | secret_arn is a plain string in the schema but the provider validates it is a well-formed ARN (validate: "is an invalid ARN"), which the generic pass's placeholder name is not - a real cross-reference to aws_secretsmanager_secret.app's own arn is both the fix and the point of this coverage row (the parent-derived composite this batch ratified); policy is a plain string in the schema but the provider validates it is well-formed JSON (validate: "contains an invalid JSON") |
-| `aws_secretsmanager_secret_rotation.app` | coverage | secret_id is not wired to any resource by the generic pass (aws_secretsmanager_secret is a marker type with no Components, so parentRef's identity-argument match never fires); rotation_rules is present but empty, and the provider requires one of automatically_after_days/schedule_expression set (validate: "one of ... must be specified") |
+| `aws_secretsmanager_secret_rotation.app` | coverage | none |
 | `aws_securityhub_account_v2.app` | coverage | none |
 | `aws_securityhub_aggregator_v2.app` | coverage | none |
 | `aws_securityhub_automation_rule.app` | coverage | actions and criteria are both required blocks the schema does not mark Required at the wire level in a way the generic pass fills (validate: "Block actions/criteria must have a configuration value"); every field inside both is itself optional, so empty blocks are enough |

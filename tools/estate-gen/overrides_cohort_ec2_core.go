@@ -84,31 +84,6 @@ var typeOverridesEc2Core = map[string]typeOverride{
 			body.SetAttributeRaw("instance_type", exprTokens(`"t3.micro"`))
 		},
 	},
-	"aws_network_interface_attachment": {
-		Reasons: []string{
-			`instance_id and network_interface_id are both Required but generic-string placeholders, not references - overridden to point at this cohort's own aws_instance.app and aws_network_interface.app for the same cross-resource-reference reason as aws_eip_association above (validate does not require this; it is a fixture-quality improvement, not a constraint fix)`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if instance, ok := g.byType["aws_instance"]; ok {
-				body.SetAttributeRaw("instance_id", exprTokens(fmt.Sprintf("%s.id", instance)))
-			}
-			if eni, ok := g.byType["aws_network_interface"]; ok {
-				body.SetAttributeRaw("network_interface_id", exprTokens(fmt.Sprintf("%s.id", eni)))
-			}
-		},
-	},
-	"aws_network_interface_permission": {
-		Reasons: []string{
-			`aws_account_id is Required and the provider validates it is a well-formed 12-digit account ID (validate: "must be a valid AWS account ID"); permission is Required and validated against a closed enum (INSTANCE-ATTACH, EIP-ASSOCIATE); network_interface_id is overridden to reference this cohort's own aws_network_interface.app for the same reason as aws_network_interface_attachment above`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("aws_account_id", exprTokens(`"123456789012"`))
-			body.SetAttributeRaw("permission", exprTokens(`"INSTANCE-ATTACH"`))
-			if eni, ok := g.byType["aws_network_interface"]; ok {
-				body.SetAttributeRaw("network_interface_id", exprTokens(fmt.Sprintf("%s.id", eni)))
-			}
-		},
-	},
 	"aws_spot_fleet_request": {
 		Reasons: []string{
 			`launch_specification and launch_template_config are both Optional in the schema, but the provider requires exactly one (validate: "Invalid combination of arguments"), and the generic pass sets neither; iam_fleet_role is Required and the provider validates it is a well-formed ARN (validate: "is an invalid ARN"), and the generic placeholder string is not one`,
@@ -119,16 +94,6 @@ var typeOverridesEc2Core = map[string]typeOverride{
 			spec := body.AppendNewBlock("launch_specification", nil)
 			spec.Body().SetAttributeRaw("ami", exprTokens(`"ami-0123456789abcdef0"`))
 			spec.Body().SetAttributeRaw("instance_type", exprTokens(`"t3.micro"`))
-		},
-	},
-	"aws_volume_attachment": {
-		Reasons: []string{
-			`instance_id is Required but a generic-string placeholder, not a reference - overridden to point at this cohort's own aws_instance.app for the same cross-resource-reference reason as aws_eip_association above. volume_id stays a literal placeholder: aws_ebs_volume is already admitted and covered by live/e2e/estate, not part of this cohort's own coverage, so there is no sibling aws_ebs_volume resource in this run to point at (validate does not require this either; it is a fixture-quality note, not a constraint fix).`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if instance, ok := g.byType["aws_instance"]; ok {
-				body.SetAttributeRaw("instance_id", exprTokens(fmt.Sprintf("%s.id", instance)))
-			}
 		},
 	},
 }

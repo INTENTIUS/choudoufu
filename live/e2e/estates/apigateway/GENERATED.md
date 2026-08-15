@@ -17,7 +17,7 @@ go run ./tools/estate-gen -cohort apigateway -types aws_api_gateway_account,aws_
 |---|---|---|
 | `aws_api_gateway_account.app` | coverage | none |
 | `aws_api_gateway_api_key.app` | coverage | none |
-| `aws_api_gateway_base_path_mapping.app` | coverage | api_id has no identity-table candidate to auto-wire from (aws_api_gateway_rest_api is server-assigned, so parentRef never proposes it); wired to the REST API this cohort renders |
+| `aws_api_gateway_base_path_mapping.app` | coverage | none |
 | `aws_api_gateway_client_certificate.app` | coverage | none |
 | `aws_api_gateway_documentation_version.app` | coverage | rest_api_id was mis-wired to aws_api_gateway_rest_api_policy.app (parentRef's only candidate whose identity self-names "rest_api_id" - the real parent, aws_api_gateway_rest_api, is server-assigned and never a parentRef candidate); corrected to the REST API this cohort renders |
 | `aws_api_gateway_domain_name.app` | coverage | none |
@@ -33,12 +33,12 @@ go run ./tools/estate-gen -cohort apigateway -types aws_api_gateway_account,aws_
 | `aws_api_gateway_rest_api_policy.app` | coverage | schema requires "policy" as a plain string, but the provider validates it is well-formed JSON (validate: "\"policy\" contains an invalid JSON"), the same shape as aws_s3_bucket_policy above |
 | `aws_api_gateway_stage.app` | coverage | rest_api_id mis-wired the same way as aws_api_gateway_documentation_version above; deployment_id has no identity-table candidate because aws_api_gateway_deployment is not admitted this batch (rejected), so it is left as the generic placeholder string - a stage is its own coverage row and the deployment it names existing is not this type's identity concern |
 | `aws_api_gateway_usage_plan.app` | coverage | none |
-| `aws_api_gateway_usage_plan_key.app` | coverage | usage_plan_id and key_id have no identity-table candidates because aws_api_gateway_usage_plan and aws_api_gateway_api_key are both server-assigned (parentRef never proposes a server-assigned sibling, the same gap as the REST API children above); wired to the two sibling coverage rows this cohort renders, and key_type set to its one documented value |
+| `aws_api_gateway_usage_plan_key.app` | coverage | none |
 | `aws_api_gateway_vpc_link.app` | coverage | none |
 | `aws_apigatewayv2_api.app` | coverage | protocol_type is a fixed enum (validate: "expected protocol_type to be one of [WEBSOCKET HTTP]"), not the generic placeholder |
 | `aws_apigatewayv2_domain_name.app` | coverage | domain_name_configuration's three required arguments are each validated: certificate_arn as a well-formed ARN (validate: "invalid ARN: arn: invalid prefix"), endpoint_type and security_policy as fixed enums (validate: "expected ... to be one of [...]") |
 | `aws_apigatewayv2_routing_rule.app` | coverage | domain_name was mis-wired to aws_api_gateway_domain_name.app (the v1 type) - both v1 and v2 domain name types self-identify by the same argument name, and parentRef's alphabetic tiebreak prefers "aws_api_gateway_domain_name" over "aws_apigatewayv2_domain_name" with no way to tell they are different API generations; corrected to the v2 domain name this type actually needs. action and condition are both required blocks the schema marks optional-in-shape but the provider requires present (validate: "Block action/condition must have a configuration value"), and priority must be 1-1000000 (validate: "must be between 1 and 1000000, got: 0") |
-| `aws_apigatewayv2_stage.app` | coverage | api_id has no identity-table candidate to auto-wire from (aws_apigatewayv2_api is server-assigned, the same gap as the REST API children above); wired to the v2 API this cohort renders |
+| `aws_apigatewayv2_stage.app` | coverage | none |
 | `aws_apigatewayv2_vpc_link.app` | coverage | none |
 
 ## Requested types

@@ -289,26 +289,6 @@ var typeOverridesSagemaker = map[string]typeOverride{
   })`))
 		},
 	},
-	"aws_sagemaker_space": {
-		Reasons: []string{
-			`domain_id is Required but a generic-string placeholder, not a reference - overridden to point at this cohort's own aws_sagemaker_domain.app.id for the same cross-resource-reference reason as aws_eip_association's entry above (validate does not require this: domain_id carries no format check of its own)`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if domain, ok := g.byType["aws_sagemaker_domain"]; ok {
-				body.SetAttributeRaw("domain_id", exprTokens(fmt.Sprintf("%s.id", domain)))
-			}
-		},
-	},
-	"aws_sagemaker_user_profile": {
-		Reasons: []string{
-			`domain_id is Required but a generic-string placeholder, not a reference - overridden to point at this cohort's own aws_sagemaker_domain.app.id for the same cross-resource-reference reason as aws_eip_association's entry above (validate does not require this: domain_id carries no format check of its own)`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if domain, ok := g.byType["aws_sagemaker_domain"]; ok {
-				body.SetAttributeRaw("domain_id", exprTokens(fmt.Sprintf("%s.id", domain)))
-			}
-		},
-	},
 }
 
 func init() { registerCohortOverrides(typeOverridesSagemaker) }

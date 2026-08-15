@@ -179,23 +179,6 @@ var typeOverridesGovernance = map[string]typeOverride{
   })`))
 		},
 	},
-	"aws_servicecatalogappregistry_attribute_group_association": {
-		Reasons: []string{
-			`application_id and attribute_group_id both validate fine as generic placeholder strings (no ARN/enum/JSON constraint), so this override exists only to wire them to this cohort's own aws_servicecatalogappregistry_application and aws_servicecatalogappregistry_attribute_group instead - the two markers internal/live/identity/table.go's own entry for this type documents the composite identity as running through.`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			appExpr := `"placeholder"`
-			if app, ok := g.byType["aws_servicecatalogappregistry_application"]; ok {
-				appExpr = app.String() + ".id"
-			}
-			agExpr := `"placeholder"`
-			if ag, ok := g.byType["aws_servicecatalogappregistry_attribute_group"]; ok {
-				agExpr = ag.String() + ".id"
-			}
-			body.SetAttributeRaw("application_id", exprTokens(appExpr))
-			body.SetAttributeRaw("attribute_group_id", exprTokens(agExpr))
-		},
-	},
 }
 
 func init() { registerCohortOverrides(typeOverridesGovernance) }

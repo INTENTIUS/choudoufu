@@ -38,9 +38,9 @@ go run ./tools/estate-gen -cohort sagemaker -types aws_sagemaker_algorithm,aws_s
 | `aws_sagemaker_notebook_instance_lifecycle_configuration.app` | coverage | the generic pass's same-name parent search matches this type's own "name" argument against aws_sagemaker_notebook_instance (an unrelated sibling type that also self-identifies by a plain "name" argument), the same collision class as aws_sagemaker_endpoint_configuration above; overridden back to a real placeholder name of its own |
 | `aws_sagemaker_pipeline.app` | coverage | schema marks both pipeline_definition and pipeline_definition_s3_location Optional, but the provider requires exactly one (validate: "one of `pipeline_definition,pipeline_definition_s3_location` must be specified"); pipeline_definition is filled with a minimal well-formed pipeline document (a single no-op Fail step, the provider docs' own worked example) |
 | `aws_sagemaker_project.app` | coverage | none |
-| `aws_sagemaker_space.app` | coverage | domain_id is Required but a generic-string placeholder, not a reference - overridden to point at this cohort's own aws_sagemaker_domain.app.id for the same cross-resource-reference reason as aws_eip_association's entry above (validate does not require this: domain_id carries no format check of its own) |
+| `aws_sagemaker_space.app` | coverage | none |
 | `aws_sagemaker_studio_lifecycle_config.app` | coverage | none |
-| `aws_sagemaker_user_profile.app` | coverage | domain_id is Required but a generic-string placeholder, not a reference - overridden to point at this cohort's own aws_sagemaker_domain.app.id for the same cross-resource-reference reason as aws_eip_association's entry above (validate does not require this: domain_id carries no format check of its own) |
+| `aws_sagemaker_user_profile.app` | coverage | none |
 | `aws_sagemaker_workteam.app` | coverage | none |
 | `aws_iam_role.sagemaker` | supporting, not coverage | schema requires "assume_role_policy" as a plain string, but the provider validates it is well-formed JSON (validate: "\"assume_role_policy\" contains an invalid JSON"); the generic string placeholder is not JSON |
 

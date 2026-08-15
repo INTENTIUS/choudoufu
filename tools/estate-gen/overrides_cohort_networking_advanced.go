@@ -55,18 +55,6 @@ var typeOverridesNetworkingAdvanced = map[string]typeOverride{
 			}
 		},
 	},
-	"aws_globalaccelerator_endpoint_group": {
-		Reasons: []string{
-			`listener_arn is Required but a generic-string placeholder is not a valid ARN (validate: "is an invalid ARN") - overridden to this cohort's own aws_globalaccelerator_listener.app.arn`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if listener, ok := g.byType["aws_globalaccelerator_listener"]; ok {
-				body.SetAttributeRaw("listener_arn", exprTokens(fmt.Sprintf("%s.arn", listener)))
-			} else {
-				body.SetAttributeRaw("listener_arn", exprTokens(`"arn:aws:globalaccelerator::123456789012:accelerator/0123abcd-1234-abcd-1234-0123456789ab/listener/abcd1234"`))
-			}
-		},
-	},
 	"aws_networkfirewall_firewall": {
 		Reasons: []string{
 			`the schema marks transit_gateway_id and vpc_id both Optional, but the provider requires exactly one (validate: "Invalid combination of arguments" x2); firewall_policy_arn is Required but a generic-string placeholder is not a valid ARN (validate: "is an invalid ARN") - overridden to this cohort's own aws_networkfirewall_firewall_policy.app.arn. subnet_mapping carries no schema-level minimum, but a VPC-scoped firewall needs at least one subnet in practice, so one is added for behavioral realism even though validate does not require it.`,
@@ -209,18 +197,6 @@ var typeOverridesNetworkingAdvanced = map[string]typeOverride{
 			body.SetAttributeRaw("peer_address", exprTokens(`"10.0.0.1"`))
 		},
 	},
-	"aws_networkmanager_core_network": {
-		Reasons: []string{
-			`global_network_id is Required but a generic-string placeholder, not a reference - global_network is server-assigned so identityArgName never wires this automatically (issue #56's own note on the mechanism); overridden to this cohort's own aws_networkmanager_global_network.app.id`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if gn, ok := g.byType["aws_networkmanager_global_network"]; ok {
-				body.SetAttributeRaw("global_network_id", exprTokens(fmt.Sprintf("%s.id", gn)))
-			} else {
-				body.SetAttributeRaw("global_network_id", exprTokens(`"global-network-0123456789abcdef0"`))
-			}
-		},
-	},
 	"aws_networkmanager_customer_gateway_association": {
 		Reasons: []string{
 			`global_network_id and device_id are both Required but generic-string placeholders, not references - overridden to this cohort's own aws_networkmanager_global_network.app.id and aws_networkmanager_device.app.id. customer_gateway_arn is Required but a generic-string placeholder is not a valid ARN (validate: "is an invalid ARN"); the real target is an EC2 customer gateway, outside this batch's own scope (aws_customer_gateway is explicitly not this agent's to touch), so it stays a literal placeholder ARN`,
@@ -237,18 +213,6 @@ var typeOverridesNetworkingAdvanced = map[string]typeOverride{
 				body.SetAttributeRaw("device_id", exprTokens(`"device-0123456789abcdef0"`))
 			}
 			body.SetAttributeRaw("customer_gateway_arn", exprTokens(`"arn:aws:ec2:us-east-1:123456789012:customer-gateway/cgw-0123456789abcdef0"`))
-		},
-	},
-	"aws_networkmanager_device": {
-		Reasons: []string{
-			`global_network_id is Required but a generic-string placeholder, not a reference - overridden to this cohort's own aws_networkmanager_global_network.app.id`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if gn, ok := g.byType["aws_networkmanager_global_network"]; ok {
-				body.SetAttributeRaw("global_network_id", exprTokens(fmt.Sprintf("%s.id", gn)))
-			} else {
-				body.SetAttributeRaw("global_network_id", exprTokens(`"global-network-0123456789abcdef0"`))
-			}
 		},
 	},
 	"aws_networkmanager_dx_gateway_attachment": {
@@ -287,28 +251,6 @@ var typeOverridesNetworkingAdvanced = map[string]typeOverride{
 			}
 		},
 	},
-	"aws_networkmanager_link_association": {
-		Reasons: []string{
-			`global_network_id, link_id and device_id are all Required but generic-string placeholders, not references - overridden to this cohort's own aws_networkmanager_global_network.app.id, aws_networkmanager_link.app.id and aws_networkmanager_device.app.id`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if gn, ok := g.byType["aws_networkmanager_global_network"]; ok {
-				body.SetAttributeRaw("global_network_id", exprTokens(fmt.Sprintf("%s.id", gn)))
-			} else {
-				body.SetAttributeRaw("global_network_id", exprTokens(`"global-network-0123456789abcdef0"`))
-			}
-			if link, ok := g.byType["aws_networkmanager_link"]; ok {
-				body.SetAttributeRaw("link_id", exprTokens(fmt.Sprintf("%s.id", link)))
-			} else {
-				body.SetAttributeRaw("link_id", exprTokens(`"link-0123456789abcdef0"`))
-			}
-			if device, ok := g.byType["aws_networkmanager_device"]; ok {
-				body.SetAttributeRaw("device_id", exprTokens(fmt.Sprintf("%s.id", device)))
-			} else {
-				body.SetAttributeRaw("device_id", exprTokens(`"device-0123456789abcdef0"`))
-			}
-		},
-	},
 	"aws_networkmanager_prefix_list_association": {
 		Reasons: []string{
 			`core_network_id is Required but a generic-string placeholder, not a reference - overridden to this cohort's own aws_networkmanager_core_network.app.id. prefix_list_arn is Required and the provider validates it is a well-formed ARN (validate: "The provided value cannot be parsed as an ARN"); the real target is an EC2 managed prefix list, outside this batch's own scope, so it stays a literal placeholder ARN`,
@@ -320,18 +262,6 @@ var typeOverridesNetworkingAdvanced = map[string]typeOverride{
 				body.SetAttributeRaw("core_network_id", exprTokens(`"core-network-0123456789abcdef0"`))
 			}
 			body.SetAttributeRaw("prefix_list_arn", exprTokens(`"arn:aws:ec2:us-east-1:123456789012:prefix-list/pl-0123456789abcdef0"`))
-		},
-	},
-	"aws_networkmanager_site": {
-		Reasons: []string{
-			`global_network_id is Required but a generic-string placeholder, not a reference - overridden to this cohort's own aws_networkmanager_global_network.app.id`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if gn, ok := g.byType["aws_networkmanager_global_network"]; ok {
-				body.SetAttributeRaw("global_network_id", exprTokens(fmt.Sprintf("%s.id", gn)))
-			} else {
-				body.SetAttributeRaw("global_network_id", exprTokens(`"global-network-0123456789abcdef0"`))
-			}
 		},
 	},
 	"aws_networkmanager_site_to_site_vpn_attachment": {

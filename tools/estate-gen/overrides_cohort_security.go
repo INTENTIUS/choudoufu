@@ -40,16 +40,6 @@ var typeOverridesSecurity = map[string]typeOverride{
 			}
 		},
 	},
-	"aws_acmpca_certificate_authority_certificate": {
-		Reasons: []string{
-			`certificate_authority_arn is a plain string in the schema but the provider validates it is a well-formed ARN (validate: "is an invalid ARN"), which the generic pass's placeholder name is not - a real cross-reference to aws_acmpca_certificate_authority.app's own arn is both the fix and the point of this coverage row (the parent-derived composite this batch ratified)`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if ca, ok := g.byType["aws_acmpca_certificate_authority"]; ok {
-				body.SetAttributeRaw("certificate_authority_arn", exprTokens(fmt.Sprintf("%s.arn", ca)))
-			}
-		},
-	},
 	"aws_acmpca_policy": {
 		Reasons: []string{
 			`resource_arn is not wired to any resource by the generic pass (aws_acmpca_certificate_authority is server-assigned, so parentRef's identity-argument match never fires - see this file's batch header comment); policy is a plain string in the schema but the provider validates it is well-formed JSON (validate: "contains an invalid JSON")`,
@@ -210,21 +200,6 @@ var typeOverridesSecurity = map[string]typeOverride{
       Resource  = "*"
     }]
   })`))
-		},
-	},
-	"aws_secretsmanager_secret_rotation": {
-		Reasons: []string{
-			`secret_id is not wired to any resource by the generic pass (aws_secretsmanager_secret is a marker type with no Components, so parentRef's identity-argument match never fires); rotation_rules is present but empty, and the provider requires one of automatically_after_days/schedule_expression set (validate: "one of ... must be specified")`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if secret, ok := g.byType["aws_secretsmanager_secret"]; ok {
-				body.SetAttributeRaw("secret_id", exprTokens(fmt.Sprintf("%s.id", secret)))
-			}
-			for _, blk := range body.Blocks() {
-				if blk.Type() == "rotation_rules" {
-					blk.Body().SetAttributeRaw("automatically_after_days", exprTokens(`30`))
-				}
-			}
 		},
 	},
 	"aws_securityhub_automation_rule": {

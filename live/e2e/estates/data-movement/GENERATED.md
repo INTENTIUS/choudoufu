@@ -40,7 +40,7 @@ go run ./tools/estate-gen -cohort data-movement -types aws_appintegrations_data_
 | `aws_dms_s3_endpoint.app` | coverage | endpoint_type is a required string the schema does not constrain to an enum, but the provider validates it against a fixed set (validate: "expected endpoint_type to be one of [...]") - set to "target", pairing with aws_dms_endpoint.app's own "source" so aws_dms_replication_config and aws_dms_replication_task above have one endpoint of each type to reference |
 | `aws_transfer_connector.app` | coverage | none |
 | `aws_transfer_server.app` | coverage | none |
-| `aws_transfer_user.app` | coverage | server_id is a required string the provider validates is a well-formed Transfer server id, lowercase alphanumeric only (validate: "isn't a valid transfer server id") - the generic placeholder string is not one; overridden to this cohort's own aws_transfer_server.app.id, the cross-resource reference issue #56 asks for and exactly the composite this type's own internal/live/identity/table.go entry (server_id/user_name) is ratified on |
+| `aws_transfer_user.app` | coverage | none |
 | `aws_transfer_workflow.app` | coverage | steps.type is a required string the schema does not constrain to an enum, but the provider validates it against a fixed set (validate: "expected type to be one of [...]"); DELETE needs no further delete_step_details block, the smaller of the five shapes |
 | `aws_iam_role.data-movement` | supporting, not coverage | schema requires "assume_role_policy" as a plain string, but the provider validates it is well-formed JSON (validate: "\"assume_role_policy\" contains an invalid JSON"); the generic string placeholder is not JSON |
 

@@ -288,16 +288,6 @@ var typeOverridesDataMovement = map[string]typeOverride{
 			body.SetAttributeRaw("endpoint_type", exprTokens(`"target"`))
 		},
 	},
-	"aws_transfer_user": {
-		Reasons: []string{
-			`server_id is a required string the provider validates is a well-formed Transfer server id, lowercase alphanumeric only (validate: "isn't a valid transfer server id") - the generic placeholder string is not one; overridden to this cohort's own aws_transfer_server.app.id, the cross-resource reference issue #56 asks for and exactly the composite this type's own internal/live/identity/table.go entry (server_id/user_name) is ratified on`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if srv, ok := g.byType["aws_transfer_server"]; ok {
-				body.SetAttributeRaw("server_id", exprTokens(fmt.Sprintf("%s.id", srv)))
-			}
-		},
-	},
 	"aws_transfer_workflow": {
 		Reasons: []string{
 			`steps.type is a required string the schema does not constrain to an enum, but the provider validates it against a fixed set (validate: "expected type to be one of [...]"); DELETE needs no further delete_step_details block, the smaller of the five shapes`,

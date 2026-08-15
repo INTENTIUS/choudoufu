@@ -23,11 +23,11 @@ go run ./tools/estate-gen -cohort ec2-core -types aws_ebs_snapshot_block_public_
 | `aws_instance.app` | coverage | ami and instance_type are both Optional in the schema (a launch_template can supply either instead), but the provider requires ami and instance_type when no launch_template is set (validate: "Missing required argument" x3), and the generic required-only pass sets neither since the schema alone does not say so |
 | `aws_key_pair.app` | coverage | none |
 | `aws_network_interface.app` | coverage | none |
-| `aws_network_interface_attachment.app` | coverage | instance_id and network_interface_id are both Required but generic-string placeholders, not references - overridden to point at this cohort's own aws_instance.app and aws_network_interface.app for the same cross-resource-reference reason as aws_eip_association above (validate does not require this; it is a fixture-quality improvement, not a constraint fix) |
-| `aws_network_interface_permission.app` | coverage | aws_account_id is Required and the provider validates it is a well-formed 12-digit account ID (validate: "must be a valid AWS account ID"); permission is Required and validated against a closed enum (INSTANCE-ATTACH, EIP-ASSOCIATE); network_interface_id is overridden to reference this cohort's own aws_network_interface.app for the same reason as aws_network_interface_attachment above |
+| `aws_network_interface_attachment.app` | coverage | none |
+| `aws_network_interface_permission.app` | coverage | none |
 | `aws_placement_group.app` | coverage | none |
 | `aws_spot_fleet_request.app` | coverage | launch_specification and launch_template_config are both Optional in the schema, but the provider requires exactly one (validate: "Invalid combination of arguments"), and the generic pass sets neither; iam_fleet_role is Required and the provider validates it is a well-formed ARN (validate: "is an invalid ARN"), and the generic placeholder string is not one |
-| `aws_volume_attachment.app` | coverage | instance_id is Required but a generic-string placeholder, not a reference - overridden to point at this cohort's own aws_instance.app for the same cross-resource-reference reason as aws_eip_association above. volume_id stays a literal placeholder: aws_ebs_volume is already admitted and covered by live/e2e/estate, not part of this cohort's own coverage, so there is no sibling aws_ebs_volume resource in this run to point at (validate does not require this either; it is a fixture-quality note, not a constraint fix). |
+| `aws_volume_attachment.app` | coverage | none |
 
 ## Requested types
 

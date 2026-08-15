@@ -16,7 +16,7 @@ go run ./tools/estate-gen -cohort compute-platforms -types aws_amplify_app,aws_a
 | Resource | Kind | Overrides |
 |---|---|---|
 | `aws_amplify_app.app` | coverage | none |
-| `aws_amplify_branch.app` | coverage | app_id names an Amplify app, and this cohort generates aws_amplify_app.app in the same run; the generic pass cannot wire the reference because parentRef matches on identity ARGUMENT names and a server-assigned parent has none - its identity is the exported id attribute. The literal "placeholder" the pass emitted referenced nothing (#108 criterion 1's unresolvable-cross-reference shape) |
+| `aws_amplify_branch.app` | coverage | none |
 | `aws_apprunner_auto_scaling_configuration_version.app` | coverage | none |
 | `aws_apprunner_observability_configuration.app` | coverage | none |
 | `aws_apprunner_service.app` | coverage | source_configuration is a required block with no required attributes the schema itself names inside it, but the provider requires exactly one of source_configuration.code_repository or source_configuration.image_repository set (validate: "one of ... must be specified"); the generic pass emits the outer block empty |
