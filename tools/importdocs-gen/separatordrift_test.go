@@ -23,7 +23,12 @@ var separatorExpectations = struct {
 	withSeparator   int
 	notInOwnExample int
 }{
-	withSeparator:   436,
+	// 436 at issue #135; 435 since issue #132's plain-prose resolver:
+	// aws_cognito_identity_pool_roles_attachment's ":" came from
+	// separatorFromExample splitting "us-west-2:b64805ad-…", but the page's
+	// own sentence says the whole string is one Identity Pool ID, so the
+	// colon is internal to the value and the separator claim was wrong.
+	withSeparator:   435,
 	notInOwnExample: 16,
 }
 

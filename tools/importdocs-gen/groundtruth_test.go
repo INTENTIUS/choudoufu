@@ -192,15 +192,19 @@ func TestGroundTruth_ACMCertificate(t *testing.T) {
 	}
 }
 
-// TestGroundTruth_ECSCluster: composed nil (unsure). No Identity Schema in
-// v6.58.0, and the legacy prose ("using the cluster name") names its
-// argument in plain English with no backticks and no format token - this
-// tool has no source to resolve it from, so it must say so rather than
-// guess. Documents the honest gap, not a claim from the issue.
+// TestGroundTruth_ECSCluster: composed true, arguments ["name"]. This row
+// was pinned composed-nil when the tool had no source for plain-English
+// prose; issue #132's plain-prose resolver reads the page's own "using the
+// cluster name" sentence and lands it on the Required `name` argument by
+// word-suffix match, so the former honest gap is now a resolved claim
+// graded against the same real page.
 func TestGroundTruth_ECSCluster(t *testing.T) {
 	row := mustRow(t, "aws_ecs_cluster", "ecs_cluster")
-	if row.ComposedOfArguments != nil {
-		t.Errorf("ComposedOfArguments = %v, want nil (no resolvable signal in this doc)", *row.ComposedOfArguments)
+	if row.ComposedOfArguments == nil || !*row.ComposedOfArguments {
+		t.Errorf("ComposedOfArguments = %v, want true (the page says \"using the cluster name\")", row.ComposedOfArguments)
+	}
+	if len(row.Arguments) != 1 || row.Arguments[0] != "name" {
+		t.Errorf("Arguments = %v, want [name]", row.Arguments)
 	}
 	if row.Separator != nil {
 		t.Errorf("Separator = %v, want nil", *row.Separator)

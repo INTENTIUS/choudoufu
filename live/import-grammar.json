@@ -8,11 +8,11 @@
     "docs_missing": 6,
     "no_import_section": 93,
     "rows": 1600,
-    "composed_true": 596,
+    "composed_true": 690,
     "composed_false": 227,
-    "composed_unsure": 777,
-    "separator_known": 436,
-    "separator_unsure": 1164
+    "composed_unsure": 683,
+    "separator_known": 435,
+    "separator_unsure": 1165
   },
   "rows": [
     {
@@ -2673,8 +2673,10 @@
       "tf_type": "aws_api_gateway_rest_api_policy",
       "import_id_example": "12345abcde",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "rest_api_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_api_gateway_rest_api_policy` using the REST API ID. For example:\n\n```terraform\nimport {\n  to = aws_api_gateway_rest_api_policy.example\n  id = \"12345abcde\"\n}\n```\n\nUsing `terraform import`, import `aws_api_gateway_rest_api_policy` using the REST API ID. For example:\n\n```console\n% terraform import aws_api_gateway_rest_api_policy.example 12345abcde\n```",
       "argument_reference": [
         {
@@ -3288,8 +3290,10 @@
       "tf_type": "aws_apigatewayv2_domain_name",
       "import_id_example": "ws-api.example.com",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "domain_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_apigatewayv2_domain_name` using the domain name. For example:\n\n```terraform\nimport {\n  to = aws_apigatewayv2_domain_name.example\n  id = \"ws-api.example.com\"\n}\n```\n\nUsing `terraform import`, import `aws_apigatewayv2_domain_name` using the domain name. For example:\n\n```console\n% terraform import aws_apigatewayv2_domain_name.example ws-api.example.com\n```",
       "example_arguments": [
         {
@@ -6867,8 +6871,10 @@
       "tf_type": "aws_appsync_api_cache",
       "import_id_example": "xxxxx",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "api_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_appsync_api_cache` using the AppSync API ID. For example:\n\n```terraform\nimport {\n  to = aws_appsync_api_cache.example\n  id = \"xxxxx\"\n}\n```\n\nUsing `terraform import`, import `aws_appsync_api_cache` using the AppSync API ID. For example:\n\n```console\n% terraform import aws_appsync_api_cache.example xxxxx\n```",
       "example_arguments": [
         {
@@ -7149,8 +7155,10 @@
       "tf_type": "aws_appsync_domain_name_api_association",
       "import_id_example": "example.com",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "domain_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_appsync_domain_name_api_association` using the AppSync domain name. For example:\n\n```terraform\nimport {\n  to = aws_appsync_domain_name_api_association.example\n  id = \"example.com\"\n}\n```\n\nUsing `terraform import`, import `aws_appsync_domain_name_api_association` using the AppSync domain name. For example:\n\n```console\n% terraform import aws_appsync_domain_name_api_association.example example.com\n```",
       "argument_reference": [
         {
@@ -7898,8 +7906,10 @@
       "tf_type": "aws_athena_data_catalog",
       "import_id_example": "example-data-catalog",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import data catalogs using their `name`. For example:\n\n```terraform\nimport {\n  to = aws_athena_data_catalog.example\n  id = \"example-data-catalog\"\n}\n```\n\nUsing `terraform import`, import data catalogs using their `name`. For example:\n\n```console\n% terraform import aws_athena_data_catalog.example example-data-catalog\n```",
       "example_arguments": [
         {
@@ -7955,8 +7965,10 @@
       "tf_type": "aws_athena_database",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Athena Databases using their name. For example:\n\n```terraform\nimport {\n  to = aws_athena_database.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import Athena Databases using their name. For example:\n\n```console\n% terraform import aws_athena_database.example example\n```\n\nCertain resource arguments, like `encryption_configuration` and `bucket`, do not have an API method for reading the information after creation. If the argument is set in the Terraform configuration on an imported resource, Terraform will always show a difference. To workaround this behavior, either omit the argument from the Terraform configuration or use [`ignore_changes`](https://www.terraform.io/docs/configuration/meta-arguments/lifecycle.html#ignore_changes) to hide the difference. For example:\n\n```terraform\nresource \"aws_athena_database\" \"example\" {\n  name   = \"database_name\"\n  bucket = aws_s3_bucket.example.id\n\n  # There is no API for reading bucket\n  lifecycle {\n    ignore_changes = [bucket]\n  }\n}\n```",
       "example_arguments": [
         {
@@ -8111,8 +8123,10 @@
       "tf_type": "aws_athena_workgroup",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Athena Workgroups using their name. For example:\n\n```terraform\nimport {\n  to = aws_athena_workgroup.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import Athena Workgroups using their name. For example:\n\n```console\n% terraform import aws_athena_workgroup.example example\n```",
       "example_arguments": [
         {
@@ -9715,8 +9729,10 @@
       "tf_type": "aws_backup_framework",
       "import_id_example": "<id>",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Backup Framework using the `id` which corresponds to the name of the Backup Framework. For example:\n\n```terraform\nimport {\n  to = aws_backup_framework.test\n  id = \"<id>\"\n}\n```\n\nUsing `terraform import`, import Backup Framework using the `id` which corresponds to the name of the Backup Framework. For example:\n\n```console\n% terraform import aws_backup_framework.test <id>\n```",
       "example_arguments": [
         {
@@ -10142,8 +10158,10 @@
       "tf_type": "aws_backup_report_plan",
       "import_id_example": "<id>",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Backup Report Plan using the `id` which corresponds to the name of the Backup Report Plan. For example:\n\n```terraform\nimport {\n  to = aws_backup_report_plan.test\n  id = \"<id>\"\n}\n```\n\nUsing `terraform import`, import Backup Report Plan using the `id` which corresponds to the name of the Backup Report Plan. For example:\n\n```console\n% terraform import aws_backup_report_plan.test <id>\n```",
       "example_arguments": [
         {
@@ -10502,8 +10520,10 @@
       "tf_type": "aws_backup_vault_lock_configuration",
       "import_id_example": "TestVault",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "backup_vault_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Backup vault lock configuration using the `name`. For example:\n\n```terraform\nimport {\n  to = aws_backup_vault_lock_configuration.test\n  id = \"TestVault\"\n}\n```\n\nUsing `terraform import`, import Backup vault lock configuration using the `name`. For example:\n\n```console\n% terraform import aws_backup_vault_lock_configuration.test TestVault\n```",
       "example_arguments": [
         {
@@ -10559,8 +10579,10 @@
       "tf_type": "aws_backup_vault_notifications",
       "import_id_example": "TestVault",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "backup_vault_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Backup vault notifications using the `name`. For example:\n\n```terraform\nimport {\n  to = aws_backup_vault_notifications.test\n  id = \"TestVault\"\n}\n```\n\nUsing `terraform import`, import Backup vault notifications using the `name`. For example:\n\n```console\n% terraform import aws_backup_vault_notifications.test TestVault\n```",
       "example_arguments": [
         {
@@ -10595,8 +10617,10 @@
       "tf_type": "aws_backup_vault_policy",
       "import_id_example": "TestVault",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "backup_vault_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Backup vault policy using the `name`. For example:\n\n```terraform\nimport {\n  to = aws_backup_vault_policy.test\n  id = \"TestVault\"\n}\n```\n\nUsing `terraform import`, import Backup vault policy using the `name`. For example:\n\n```console\n% terraform import aws_backup_vault_policy.test TestVault\n```",
       "argument_reference": [
         {
@@ -12670,8 +12694,10 @@
       "tf_type": "aws_bedrockagentcore_api_key_credential_provider",
       "import_id_example": "example-api-key-provider",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Bedrock AgentCore API Key Credential Provider using the provider name. For example:\n\n```terraform\nimport {\n  to = aws_bedrockagentcore_api_key_credential_provider.example\n  id = \"example-api-key-provider\"\n}\n```\n\nUsing `terraform import`, import Bedrock AgentCore API Key Credential Provider using the provider name. For example:\n\n```console\n% terraform import aws_bedrockagentcore_api_key_credential_provider.example example-api-key-provider\n```",
       "example_arguments": [
         {
@@ -13874,8 +13900,10 @@
       "tf_type": "aws_bedrockagentcore_oauth2_credential_provider",
       "import_id_example": "oauth2-provider-name",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Bedrock AgentCore OAuth2 Credential Provider using the provider name. For example:\n\n```terraform\nimport {\n  to = aws_bedrockagentcore_oauth2_credential_provider.example\n  id = \"oauth2-provider-name\"\n}\n```\n\nUsing `terraform import`, import Bedrock AgentCore OAuth2 Credential Provider using the provider name. For example:\n\n```console\n% terraform import aws_bedrockagentcore_oauth2_credential_provider.example oauth2-provider-name\n```",
       "example_arguments": [
         {
@@ -14275,8 +14303,10 @@
       "tf_type": "aws_bedrockagentcore_workload_identity",
       "import_id_example": "example-workload-identity",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Bedrock AgentCore Workload Identity using the workload identity name. For example:\n\n```terraform\nimport {\n  to = aws_bedrockagentcore_workload_identity.example\n  id = \"example-workload-identity\"\n}\n```\n\nUsing `terraform import`, import Bedrock AgentCore Workload Identity using the workload identity name. For example:\n\n```console\n% terraform import aws_bedrockagentcore_workload_identity.example example-workload-identity\n```",
       "example_arguments": [
         {
@@ -15119,8 +15149,10 @@
       "tf_type": "aws_chime_voice_connector",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Configuration Recorder using the name. For example:\n\n```terraform\nimport {\n  to = aws_chime_voice_connector.test\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import Configuration Recorder using the name. For example:\n\n```console\n% terraform import aws_chime_voice_connector.test example\n```",
       "example_arguments": [
         {
@@ -15171,8 +15203,10 @@
       "tf_type": "aws_chime_voice_connector_group",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Configuration Recorder using the name. For example:\n\n```terraform\nimport {\n  to = aws_chime_voice_connector_group.default\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import Configuration Recorder using the name. For example:\n\n```console\n% terraform import aws_chime_voice_connector_group.default example\n```",
       "example_arguments": [
         {
@@ -18865,8 +18899,10 @@
       "tf_type": "aws_cloudsearch_domain_service_access_policy",
       "import_id_example": "example-domain",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "domain_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import CloudSearch domain service access policies using the domain name. For example:\n\n```terraform\nimport {\n  to = aws_cloudsearch_domain_service_access_policy.example\n  id = \"example-domain\"\n}\n```\n\nUsing `terraform import`, import CloudSearch domain service access policies using the domain name. For example:\n\n```console\n% terraform import aws_cloudsearch_domain_service_access_policy.example example-domain\n```",
       "argument_reference": [
         {
@@ -22409,8 +22445,10 @@
       "tf_type": "aws_codebuild_webhook",
       "import_id_example": "MyProjectName",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "project_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import CodeBuild Webhooks using the CodeBuild Project name. For example:\n\n```terraform\nimport {\n  to = aws_codebuild_webhook.example\n  id = \"MyProjectName\"\n}\n```\n\nUsing `terraform import`, import CodeBuild Webhooks using the CodeBuild Project name. For example:\n\n```console\n% terraform import aws_codebuild_webhook.example MyProjectName\n```",
       "example_arguments": [
         {
@@ -22685,8 +22723,10 @@
       "tf_type": "aws_codecommit_repository",
       "import_id_example": "ExistingRepo",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "repository_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import CodeCommit repository using repository name. For example:\n\n```terraform\nimport {\n  to = aws_codecommit_repository.imported\n  id = \"ExistingRepo\"\n}\n```\n\nUsing `terraform import`, import CodeCommit repository using repository name. For example:\n\n```console\n% terraform import aws_codecommit_repository.imported ExistingRepo\n```",
       "example_arguments": [
         {
@@ -24098,9 +24138,11 @@
     {
       "tf_type": "aws_cognito_identity_pool_roles_attachment",
       "import_id_example": "us-west-2:b64805ad-cb56-40ba-9ffc-f5d8207e6d42",
-      "separator": ":",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "separator": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "identity_pool_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Cognito Identity Pool Roles Attachment using the Identity Pool ID. For example:\n\n```terraform\nimport {\n  to = aws_cognito_identity_pool_roles_attachment.example\n  id = \"us-west-2:b64805ad-cb56-40ba-9ffc-f5d8207e6d42\"\n}\n```\n\nUsing `terraform import`, import Cognito Identity Pool Roles Attachment using the Identity Pool ID. For example:\n\n```console\n% terraform import aws_cognito_identity_pool_roles_attachment.example us-west-2:b64805ad-cb56-40ba-9ffc-f5d8207e6d42\n```",
       "example_arguments": [
         {
@@ -32192,8 +32234,10 @@
       "tf_type": "aws_detective_invitation_accepter",
       "import_id_example": "arn:aws:detective:us-east-1:123456789101:graph:231684d34gh74g4bae1dbc7bd807d02d",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "graph_arn"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_detective_invitation_accepter` using the graph ARN. For example:\n\n```terraform\nimport {\n  to = aws_detective_invitation_accepter.example\n  id = \"arn:aws:detective:us-east-1:123456789101:graph:231684d34gh74g4bae1dbc7bd807d02d\"\n}\n```\n\nUsing `terraform import`, import `aws_detective_invitation_accepter` using the graph ARN. For example:\n\n```console\n% terraform import aws_detective_invitation_accepter.example arn:aws:detective:us-east-1:123456789101:graph:231684d34gh74g4bae1dbc7bd807d02d\n```",
       "example_arguments": [
         {
@@ -32957,8 +33001,10 @@
       "tf_type": "aws_directory_service_log_subscription",
       "import_id_example": "d-1234567890",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "directory_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Directory Service Log Subscriptions using the directory id. For example:\n\n```terraform\nimport {\n  to = aws_directory_service_log_subscription.msad\n  id = \"d-1234567890\"\n}\n```\n\nUsing `terraform import`, import Directory Service Log Subscriptions using the directory id. For example:\n\n```console\n% terraform import aws_directory_service_log_subscription.msad d-1234567890\n```",
       "argument_reference": [
         {
@@ -32979,8 +33025,10 @@
       "tf_type": "aws_directory_service_radius_settings",
       "import_id_example": "d-926724cf57",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "directory_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import RADIUS settings using the directory ID. For example:\n\n```terraform\nimport {\n  to = aws_directory_service_radius_settings.example\n  id = \"d-926724cf57\"\n}\n```\n\nUsing `terraform import`, import RADIUS settings using the directory ID. For example:\n\n```console\n% terraform import aws_directory_service_radius_settings.example d-926724cf57\n```",
       "example_arguments": [
         {
@@ -33150,8 +33198,10 @@
       "tf_type": "aws_directory_service_shared_directory_accepter",
       "import_id_example": "d-9267633ece",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "shared_directory_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Directory Service Shared Directories using the shared directory ID. For example:\n\n```terraform\nimport {\n  to = aws_directory_service_shared_directory_accepter.example\n  id = \"d-9267633ece\"\n}\n```\n\nUsing `terraform import`, import Directory Service Shared Directories using the shared directory ID. For example:\n\n```console\n% terraform import aws_directory_service_shared_directory_accepter.example d-9267633ece\n```",
       "example_arguments": [
         {
@@ -35118,8 +35168,10 @@
       "tf_type": "aws_docdb_global_cluster",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "global_cluster_identifier"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_docdb_global_cluster` using the Global Cluster identifier. For example:\n\n```terraform\nimport {\n  to = aws_docdb_global_cluster.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import `aws_docdb_global_cluster` using the Global Cluster identifier. For example:\n\n```console\n% terraform import aws_docdb_global_cluster.example example\n```\n\nCertain resource arguments, like `source_db_cluster_identifier`, do not have an API method for reading the information after creation. If the argument is set in the Terraform configuration on an imported resource, Terraform will always show a difference. To workaround this behavior, either omit the argument from the Terraform configuration or use [`ignore_changes`](https://www.terraform.io/docs/configuration/meta-arguments/lifecycle.html#ignore_changes) to hide the difference. For example:\n\n```terraform\nresource \"aws_docdb_global_cluster\" \"example\" {\n  # ... other configuration ...\n\n  # There is no API for reading source_db_cluster_identifier\n  lifecycle {\n    ignore_changes = [source_db_cluster_identifier]\n  }\n}\n```",
       "example_arguments": [
         {
@@ -36720,8 +36772,10 @@
       "tf_type": "aws_dynamodb_global_table",
       "import_id_example": "MyTable",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import DynamoDB Global Tables using the global table name. For example:\n\n```terraform\nimport {\n  to = aws_dynamodb_global_table.MyTable\n  id = \"MyTable\"\n}\n```\n\nUsing `terraform import`, import DynamoDB Global Tables using the global table name. For example:\n\n```console\n% terraform import aws_dynamodb_global_table.MyTable MyTable\n```",
       "example_arguments": [
         {
@@ -37354,8 +37408,10 @@
       "tf_type": "aws_ebs_default_kms_key",
       "import_id_example": "arn:aws:kms:us-east-1:123456789012:key/abcd-1234",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "key_arn"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import the EBS default KMS CMK using the KMS key ARN. For example:\n\n```terraform\nimport {\n  to = aws_ebs_default_kms_key.example\n  id = \"arn:aws:kms:us-east-1:123456789012:key/abcd-1234\"\n}\n```\n\nUsing `terraform import`, import the EBS default KMS CMK using the KMS key ARN. For example:\n\n```console\n% terraform import aws_ebs_default_kms_key.example arn:aws:kms:us-east-1:123456789012:key/abcd-1234\n```",
       "argument_reference": [
         {
@@ -37712,8 +37768,10 @@
       "tf_type": "aws_ec2_availability_zone_group",
       "import_id_example": "us-west-2-lax-1",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "group_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import EC2 Availability Zone Groups using the group name. For example:\n\n```terraform\nimport {\n  to = aws_ec2_availability_zone_group.example\n  id = \"us-west-2-lax-1\"\n}\n```\n\nUsing `terraform import`, import EC2 Availability Zone Groups using the group name. For example:\n\n```console\n% terraform import aws_ec2_availability_zone_group.example us-west-2-lax-1\n```",
       "example_arguments": [
         {
@@ -40478,8 +40536,10 @@
       "tf_type": "aws_ecrpublic_repository_policy",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "repository_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import ECR Public Repository Policy using the repository name. For example:\n\n```terraform\nimport {\n  to = aws_ecrpublic_repository_policy.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import ECR Public Repository Policy using the repository name. For example:\n\n```console\n% terraform import aws_ecrpublic_repository_policy.example example\n```",
       "argument_reference": [
         {
@@ -40628,8 +40688,10 @@
       "tf_type": "aws_ecs_cluster",
       "import_id_example": "stateless-app",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import ECS clusters using the cluster name. For example:\n\n```terraform\nimport {\n  to = aws_ecs_cluster.stateless\n  id = \"stateless-app\"\n}\n```\n\nUsing `terraform import`, import ECS clusters using the cluster name. For example:\n\n```console\n% terraform import aws_ecs_cluster.stateless stateless-app\n```",
       "example_arguments": [
         {
@@ -48734,8 +48796,10 @@
       "tf_type": "aws_gamelift_game_server_group",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "game_server_group_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import GameLift Game Server Group using the `name`. For example:\n\n```terraform\nimport {\n  to = aws_gamelift_game_server_group.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import GameLift Game Server Group using the `name`. For example:\n\n```console\n% terraform import aws_gamelift_game_server_group.example example\n```",
       "example_arguments": [
         {
@@ -48820,8 +48884,10 @@
       "tf_type": "aws_gamelift_game_session_queue",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import GameLift Game Session Queues using their `name`. For example:\n\n```terraform\nimport {\n  to = aws_gamelift_game_session_queue.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import GameLift Game Session Queues using their `name`. For example:\n\n```console\n% terraform import aws_gamelift_game_session_queue.example example\n```",
       "example_arguments": [
         {
@@ -49017,8 +49083,10 @@
       "tf_type": "aws_glacier_vault_lock",
       "import_id_example": "example-vault",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "vault_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Glacier Vault Locks using the Glacier Vault name. For example:\n\n```terraform\nimport {\n  to = aws_glacier_vault_lock.example\n  id = \"example-vault\"\n}\n```\n\nUsing `terraform import`, import Glacier Vault Locks using the Glacier Vault name. For example:\n\n```console\n% terraform import aws_glacier_vault_lock.example example-vault\n```",
       "example_arguments": [
         {
@@ -49934,8 +50002,10 @@
       "tf_type": "aws_glue_classifier",
       "import_id_example": "MyClassifier",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Glue Classifiers using their name. For example:\n\n```terraform\nimport {\n  to = aws_glue_classifier.MyClassifier\n  id = \"MyClassifier\"\n}\n```\n\nUsing `terraform import`, import Glue Classifiers using their name. For example:\n\n```console\n% terraform import aws_glue_classifier.MyClassifier MyClassifier\n```",
       "example_arguments": [
         {
@@ -51763,8 +51833,10 @@
       "tf_type": "aws_guardduty_invite_accepter",
       "import_id_example": "00b00fd5aecc0ab60a708659477e9617",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "detector_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_guardduty_invite_accepter` using the member GuardDuty detector ID. For example:\n\n```terraform\nimport {\n  to = aws_guardduty_invite_accepter.member\n  id = \"00b00fd5aecc0ab60a708659477e9617\"\n}\n```\n\nUsing `terraform import`, import `aws_guardduty_invite_accepter` using the member GuardDuty detector ID. For example:\n\n```console\n% terraform import aws_guardduty_invite_accepter.member 00b00fd5aecc0ab60a708659477e9617\n```",
       "argument_reference": [
         {
@@ -51980,8 +52052,10 @@
       "tf_type": "aws_guardduty_organization_configuration",
       "import_id_example": "00b00fd5aecc0ab60a708659477e9617",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "detector_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import GuardDuty Organization Configurations using the GuardDuty Detector ID. For example:\n\n```terraform\nimport {\n  to = aws_guardduty_organization_configuration.example\n  id = \"00b00fd5aecc0ab60a708659477e9617\"\n}\n```\n\nUsing `terraform import`, import GuardDuty Organization Configurations using the GuardDuty Detector ID. For example:\n\n```console\n% terraform import aws_guardduty_organization_configuration.example 00b00fd5aecc0ab60a708659477e9617\n```",
       "example_arguments": [
         {
@@ -55141,8 +55215,10 @@
       "tf_type": "aws_iot_authorizer",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import IOT Authorizers using the name. For example:\n\n```terraform\nimport {\n  to = aws_iot_authorizer.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import IOT Authorizers using the name. For example:\n\n```console\n% terraform import aws_iot_authorizer.example example\n```",
       "example_arguments": [
         {
@@ -55220,8 +55296,10 @@
       "tf_type": "aws_iot_billing_group",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import IoT Billing Groups using the name. For example:\n\n```terraform\nimport {\n  to = aws_iot_billing_group.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import IoT Billing Groups using the name. For example:\n\n```console\n% terraform import aws_iot_billing_group.example example\n```",
       "example_arguments": [
         {
@@ -55263,8 +55341,10 @@
       "tf_type": "aws_iot_domain_configuration",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import IOT domain configurations using the name. For example:\n\n```terraform\nimport {\n  to = aws_iot_domain_configuration.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import domain configurations using the name. For example:\n\n```console\n% terraform import aws_iot_domain_configuration.example example\n```",
       "example_arguments": [
         {
@@ -55486,8 +55566,10 @@
       "tf_type": "aws_iot_role_alias",
       "import_id_example": "myalias",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "alias"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import IOT Role Alias using the alias. For example:\n\n```terraform\nimport {\n  to = aws_iot_role_alias.example\n  id = \"myalias\"\n}\n```\n\nUsing `terraform import`, import IOT Role Alias using the alias. For example:\n\n```console\n% terraform import aws_iot_role_alias.example myalias\n```",
       "example_arguments": [
         {
@@ -55526,8 +55608,10 @@
       "tf_type": "aws_iot_thing",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import IOT Things using the name. For example:\n\n```terraform\nimport {\n  to = aws_iot_thing.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import IOT Things using the name. For example:\n\n```console\n% terraform import aws_iot_thing.example example\n```",
       "example_arguments": [
         {
@@ -55561,8 +55645,10 @@
       "tf_type": "aws_iot_thing_group",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import IoT Things Groups using the name. For example:\n\n```terraform\nimport {\n  to = aws_iot_thing_group.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import IoT Things Groups using the name. For example:\n\n```console\n% terraform import aws_iot_thing_group.example example\n```",
       "example_arguments": [
         {
@@ -55648,8 +55734,10 @@
       "tf_type": "aws_iot_thing_type",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import IOT Thing Types using the name. For example:\n\n```terraform\nimport {\n  to = aws_iot_thing_type.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import IOT Thing Types using the name. For example:\n\n```console\n% terraform import aws_iot_thing_type.example example\n```",
       "example_arguments": [
         {
@@ -61120,8 +61208,10 @@
       "tf_type": "aws_lex_bot",
       "import_id_example": "OrderFlowers",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import bots using their name. For example:\n\n```terraform\nimport {\n  to = aws_lex_bot.order_flowers_bot\n  id = \"OrderFlowers\"\n}\n```\n\nUsing `terraform import`, import bots using their name. For example:\n\n```console\n% terraform import aws_lex_bot.order_flowers_bot OrderFlowers\n```",
       "example_arguments": [
         {
@@ -61368,8 +61458,10 @@
       "tf_type": "aws_lex_intent",
       "import_id_example": "OrderFlowers",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import intents using their name. For example:\n\n```terraform\nimport {\n  to = aws_lex_intent.order_flowers_intent\n  id = \"OrderFlowers\"\n}\n```\n\nUsing `terraform import`, import intents using their name. For example:\n\n```console\n% terraform import aws_lex_intent.order_flowers_intent OrderFlowers\n```",
       "example_arguments": [
         {
@@ -61728,8 +61820,10 @@
       "tf_type": "aws_lex_slot_type",
       "import_id_example": "FlowerTypes",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import slot types using their name. For example:\n\n```terraform\nimport {\n  to = aws_lex_slot_type.flower_types\n  id = \"FlowerTypes\"\n}\n```\n\nUsing `terraform import`, import slot types using their name. For example:\n\n```console\n% terraform import aws_lex_slot_type.flower_types FlowerTypes\n```",
       "example_arguments": [
         {
@@ -62339,8 +62433,10 @@
       "tf_type": "aws_licensemanager_grant_accepter",
       "import_id_example": "arn:aws:license-manager::123456789012:grant:g-1cf9fba4ba2f42dcab11c686c4b4d329",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "grant_arn"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_licensemanager_grant_accepter` using the grant arn. For example:\n\n```terraform\nimport {\n  to = aws_licensemanager_grant_accepter.test\n  id = \"arn:aws:license-manager::123456789012:grant:g-1cf9fba4ba2f42dcab11c686c4b4d329\"\n}\n```\n\nUsing `terraform import`, import `aws_licensemanager_grant_accepter` using the grant arn. For example:\n\n```console\n% terraform import aws_licensemanager_grant_accepter.test arn:aws:license-manager::123456789012:grant:g-1cf9fba4ba2f42dcab11c686c4b4d329\n```",
       "example_arguments": [
         {
@@ -62531,8 +62627,10 @@
       "tf_type": "aws_lightsail_certificate",
       "import_id_example": "example-certificate",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_lightsail_certificate` using the certificate name. For example:\n\n```terraform\nimport {\n  to = aws_lightsail_certificate.example\n  id = \"example-certificate\"\n}\n```\n\nUsing `terraform import`, import `aws_lightsail_certificate` using the certificate name. For example:\n\n```console\n% terraform import aws_lightsail_certificate.example example-certificate\n```",
       "example_arguments": [
         {
@@ -62895,8 +62993,10 @@
       "tf_type": "aws_lightsail_disk",
       "import_id_example": "example-disk",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_lightsail_disk` using the name attribute. For example:\n\n```terraform\nimport {\n  to = aws_lightsail_disk.example\n  id = \"example-disk\"\n}\n```\n\nUsing `terraform import`, import `aws_lightsail_disk` using the name attribute. For example:\n\n```console\n% terraform import aws_lightsail_disk.example example-disk\n```",
       "example_arguments": [
         {
@@ -63181,8 +63281,10 @@
       "tf_type": "aws_lightsail_instance",
       "import_id_example": "'example'",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Lightsail Instances using their name. For example:\n\n```terraform\nimport {\n  to = aws_lightsail_instance.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import Lightsail Instances using their name. For example:\n\n```console\n% terraform import aws_lightsail_instance.example 'example'\n```",
       "example_arguments": [
         {
@@ -63268,8 +63370,10 @@
       "tf_type": "aws_lightsail_lb",
       "import_id_example": "example-load-balancer",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_lightsail_lb` using the name attribute. For example:\n\n```terraform\nimport {\n  to = aws_lightsail_lb.example\n  id = \"example-load-balancer\"\n}\n```\n\nUsing `terraform import`, import `aws_lightsail_lb` using the name attribute. For example:\n\n```console\n% terraform import aws_lightsail_lb.example example-load-balancer\n```",
       "example_arguments": [
         {
@@ -63493,8 +63597,10 @@
       "tf_type": "aws_lightsail_static_ip",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_lightsail_static_ip` using the name attribute. For example:\n\n```terraform\nimport {\n  to = aws_lightsail_static_ip.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import `aws_lightsail_static_ip` using the name attribute. For example:\n\n```console\n% terraform import aws_lightsail_static_ip.example example\n```",
       "example_arguments": [
         {
@@ -63520,8 +63626,10 @@
       "tf_type": "aws_lightsail_static_ip_attachment",
       "import_id_example": "example-static-ip",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "static_ip_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_lightsail_static_ip_attachment` using the static IP name. For example:\n\n```terraform\nimport {\n  to = aws_lightsail_static_ip_attachment.example\n  id = \"example-static-ip\"\n}\n```\n\nUsing `terraform import`, import `aws_lightsail_static_ip_attachment` using the static IP name. For example:\n\n```console\n% terraform import aws_lightsail_static_ip_attachment.example example-static-ip\n```",
       "argument_reference": [
         {
@@ -63583,8 +63691,10 @@
       "tf_type": "aws_location_map",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "map_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_location_map` resources using the map name. For example:\n\n```terraform\nimport {\n  to = aws_location_map.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import `aws_location_map` resources using the map name. For example:\n\n```console\n% terraform import aws_location_map.example example\n```",
       "example_arguments": [
         {
@@ -63630,8 +63740,10 @@
       "tf_type": "aws_location_place_index",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "index_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_location_place_index` resources using the place index name. For example:\n\n```terraform\nimport {\n  to = aws_location_place_index.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import `aws_location_place_index` resources using the place index name. For example:\n\n```console\n% terraform import aws_location_place_index.example example\n```",
       "example_arguments": [
         {
@@ -63680,8 +63792,10 @@
       "tf_type": "aws_location_route_calculator",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "calculator_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_location_route_calculator` using the route calculator name. For example:\n\n```terraform\nimport {\n  to = aws_location_route_calculator.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import `aws_location_route_calculator` using the route calculator name. For example:\n\n```console\n% terraform import aws_location_route_calculator.example example\n```",
       "example_arguments": [
         {
@@ -63726,8 +63840,10 @@
       "tf_type": "aws_location_tracker",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "tracker_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_location_tracker` resources using the tracker name. For example:\n\n```terraform\nimport {\n  to = aws_location_tracker.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import `aws_location_tracker` resources using the tracker name. For example:\n\n```console\n% terraform import aws_location_tracker.example example\n```",
       "example_arguments": [
         {
@@ -64425,8 +64541,10 @@
       "tf_type": "aws_macie2_member",
       "import_id_example": "123456789012",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "account_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_macie2_member` using the account ID of the member account. For example:\n\n```terraform\nimport {\n  to = aws_macie2_member.example\n  id = \"123456789012\"\n}\n```\n\nUsing `terraform import`, import `aws_macie2_member` using the account ID of the member account. For example:\n\n```console\n% terraform import aws_macie2_member.example 123456789012\n```",
       "example_arguments": [
         {
@@ -64762,8 +64880,10 @@
       "tf_type": "aws_media_convert_queue",
       "import_id_example": "tf-test-queue",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Media Convert Queue using the queue name. For example:\n\n```terraform\nimport {\n  to = aws_media_convert_queue.test\n  id = \"tf-test-queue\"\n}\n```\n\nUsing `terraform import`, import Media Convert Queue using the queue name. For example:\n\n```console\n% terraform import aws_media_convert_queue.test tf-test-queue\n```",
       "example_arguments": [
         {
@@ -64825,8 +64945,10 @@
       "tf_type": "aws_media_package_channel",
       "import_id_example": "kittens-channel",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "channel_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Media Package Channels using the channel ID. For example:\n\n```terraform\nimport {\n  to = aws_media_package_channel.kittens\n  id = \"kittens-channel\"\n}\n```\n\nUsing `terraform import`, import Media Package Channels using the channel ID. For example:\n\n```console\n% terraform import aws_media_package_channel.kittens kittens-channel\n```",
       "example_arguments": [
         {
@@ -64867,8 +64989,10 @@
       "tf_type": "aws_media_packagev2_channel_group",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import an Elemental MediaPackage Version 2 Channel Group using the channel group's name. For example:\n\n```terraform\nimport {\n  to = aws_media_packagev2_channel_group.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import Elemental MediaPackage Version 2 Channel Group using the channel group's `name`. For example:\n\n```console\n% terraform import aws_media_packagev2_channel_group.example example\n```",
       "example_arguments": [
         {
@@ -64909,8 +65033,10 @@
       "tf_type": "aws_media_store_container",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import MediaStore Container using the MediaStore Container Name. For example:\n\n```terraform\nimport {\n  to = aws_media_store_container.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import MediaStore Container using the MediaStore Container Name. For example:\n\n```console\n% terraform import aws_media_store_container.example example\n```",
       "example_arguments": [
         {
@@ -64940,8 +65066,10 @@
       "tf_type": "aws_media_store_container_policy",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "container_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import MediaStore Container Policy using the MediaStore Container Name. For example:\n\n```terraform\nimport {\n  to = aws_media_store_container_policy.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import MediaStore Container Policy using the MediaStore Container Name. For example:\n\n```console\n% terraform import aws_media_store_container_policy.example example\n```",
       "argument_reference": [
         {
@@ -65894,8 +66022,10 @@
       "tf_type": "aws_memorydb_subnet_group",
       "import_id_example": "my-subnet-group",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import a subnet group using its `name`. For example:\n\n```terraform\nimport {\n  to = aws_memorydb_subnet_group.example\n  id = \"my-subnet-group\"\n}\n```\n\nUsing `terraform import`, import a subnet group using its `name`. For example:\n\n```console\n% terraform import aws_memorydb_subnet_group.example my-subnet-group\n```",
       "example_arguments": [
         {
@@ -67850,8 +67980,10 @@
       "tf_type": "aws_neptune_global_cluster",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "global_cluster_identifier"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_neptune_global_cluster` using the Global Cluster identifier. For example:\n\n```terraform\nimport {\n  to = aws_neptune_global_cluster.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import `aws_neptune_global_cluster` using the Global Cluster identifier. For example:\n\n```console\n% terraform import aws_neptune_global_cluster.example example\n```\n\nCertain resource arguments, like `source_db_cluster_identifier`, do not have an API method for reading the information after creation. If the argument is set in the Terraform configuration on an imported resource, Terraform will always show a difference. To workaround this behavior, either omit the argument from the Terraform configuration or use [`ignore_changes`](https://www.terraform.io/docs/configuration/meta-arguments/lifecycle.html#ignore_changes) to hide the difference. For example:\n\n```terraform\nresource \"aws_neptune_global_cluster\" \"example\" {\n  # ... other configuration ...\n\n  # There is no API for reading source_db_cluster_identifier\n  lifecycle {\n    ignore_changes = [source_db_cluster_identifier]\n  }\n}\n```",
       "example_arguments": [
         {
@@ -69288,8 +69420,10 @@
       "tf_type": "aws_networkflowmonitor_monitor",
       "import_id_example": "example-monitor",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "monitor_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Network Flow Monitor Monitor using the monitor name. For example:\n\n```terraform\nimport {\n  to = aws_networkflowmonitor_monitor.example\n  id = \"example-monitor\"\n}\n```\n\nUsing `terraform import`, import Network Flow Monitor Monitor using the monitor name. For example:\n\n```console\n% terraform import aws_networkflowmonitor_monitor.example example-monitor\n```",
       "example_arguments": [
         {
@@ -69607,8 +69741,10 @@
       "tf_type": "aws_networkmanager_core_network_policy_attachment",
       "import_id_example": "core-network-0d47f6t230mz46dy4",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "core_network_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_networkmanager_core_network_policy_attachment` using the core network ID. For example:\n\n```terraform\nimport {\n  to = aws_networkmanager_core_network_policy_attachment.example\n  id = \"core-network-0d47f6t230mz46dy4\"\n}\n```\n\nUsing `terraform import`, import `aws_networkmanager_core_network_policy_attachment` using the core network ID. For example:\n\n```console\n% terraform import aws_networkmanager_core_network_policy_attachment.example core-network-0d47f6t230mz46dy4\n```",
       "argument_reference": [
         {
@@ -70115,8 +70251,10 @@
       "tf_type": "aws_networkmonitor_monitor",
       "import_id_example": "monitor-7786087912324693644",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "monitor_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_networkmonitor_monitor` using the monitor name. For example:\n\n```terraform\nimport {\n  to = aws_networkmonitor_monitor.example\n  id = \"monitor-7786087912324693644\"\n}\n```\n\nUsing `terraform import`, import `aws_networkmonitor_monitor` using the monitor name. For example:\n\n```console\n% terraform import aws_networkmonitor_monitor.example monitor-7786087912324693644\n```",
       "example_arguments": [
         {
@@ -71974,8 +72112,10 @@
       "tf_type": "aws_opensearch_inbound_connection_accepter",
       "import_id_example": "connection-id",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "connection_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import AWS Opensearch Inbound Connection Accepters using the Inbound Connection ID. For example:\n\n```terraform\nimport {\n  to = aws_opensearch_inbound_connection_accepter.foo\n  id = \"connection-id\"\n}\n```\n\nUsing `terraform import`, import AWS Opensearch Inbound Connection Accepters using the Inbound Connection ID. For example:\n\n```console\n% terraform import aws_opensearch_inbound_connection_accepter.foo connection-id\n```",
       "argument_reference": [
         {
@@ -74680,8 +74820,10 @@
       "tf_type": "aws_prometheus_query_logging_configuration",
       "import_id_example": "ws-12345678-90ab-cdef-1234-567890abcdef",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "workspace_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import the Query Logging Configuration using the workspace ID. For example:\n\n```terraform\nimport {\n  to = aws_prometheus_query_logging_configuration.example\n  id = \"ws-12345678-90ab-cdef-1234-567890abcdef\"\n}\n```",
       "example_arguments": [
         {
@@ -74712,8 +74854,10 @@
       "tf_type": "aws_prometheus_resource_policy",
       "import_id_example": "ws-12345678-90ab-cdef-1234-567890abcdef",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "workspace_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import the Resource Policy using the workspace ID. For example:\n\n```terraform\nimport {\n  to = aws_prometheus_resource_policy.example\n  id = \"ws-12345678-90ab-cdef-1234-567890abcdef\"\n}\n```\n\nUsing `terraform import`, import AMP Resource Policies using the workspace ID. For example:\n\n```console\n% terraform import aws_prometheus_resource_policy.example ws-12345678-90ab-cdef-1234-567890abcdef\n```",
       "argument_reference": [
         {
@@ -76743,8 +76887,10 @@
       "tf_type": "aws_ram_resource_share_accepter",
       "import_id_example": "arn:aws:ram:us-east-1:123456789012:resource-share/c4b56393-e8d9-89d9-6dc9-883752de4767",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "share_arn"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import resource share accepters using the resource share ARN. For example:\n\n```terraform\nimport {\n  to = aws_ram_resource_share_accepter.example\n  id = \"arn:aws:ram:us-east-1:123456789012:resource-share/c4b56393-e8d9-89d9-6dc9-883752de4767\"\n}\n```\n\nUsing `terraform import`, import resource share accepters using the resource share ARN. For example:\n\n```console\n% terraform import aws_ram_resource_share_accepter.example arn:aws:ram:us-east-1:123456789012:resource-share/c4b56393-e8d9-89d9-6dc9-883752de4767\n```",
       "argument_reference": [
         {
@@ -77870,8 +78016,10 @@
       "tf_type": "aws_rds_global_cluster",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "global_cluster_identifier"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_rds_global_cluster` using the RDS Global Cluster identifier. For example:\n\n```terraform\nimport {\n  to = aws_rds_global_cluster.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import `aws_rds_global_cluster` using the RDS Global Cluster identifier. For example:\n\n```console\n% terraform import aws_rds_global_cluster.example example\n```\n\nCertain resource arguments, like `force_destroy`, only exist within Terraform. If the argument is set in the Terraform configuration on an imported resource, Terraform will show a difference on the first plan after import to update the state value. This change is safe to apply immediately so the state matches the desired configuration.\n\nCertain resource arguments, like `source_db_cluster_identifier`, do not have an API method for reading the information after creation. If the argument is set in the Terraform configuration on an imported resource, Terraform will always show a difference. To workaround this behavior, either omit the argument from the Terraform configuration or use [`ignore_changes`](https://www.terraform.io/docs/configuration/meta-arguments/lifecycle.html#ignore_changes) to hide the difference. For example:\n\n```terraform\nresource \"aws_rds_global_cluster\" \"example\" {\n  # ... other configuration ...\n\n  # There is no API for reading source_db_cluster_identifier\n  lifecycle {\n    ignore_changes = [source_db_cluster_identifier]\n  }\n}\n```",
       "example_arguments": [
         {
@@ -82688,8 +82836,10 @@
       "tf_type": "aws_route53domains_registered_domain",
       "import_id_example": "example.com",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "domain_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import domains using the domain_name. For example:\n\n```terraform\nimport {\n  to = aws_route53domains_registered_domain.example\n  id = \"example.com\"\n}\n```\n\nUsing `terraform import`, import domains using the domain name. For example:\n\n```console\n% terraform import aws_route53domains_registered_domain.example example.com\n```",
       "example_arguments": [
         {
@@ -83082,8 +83232,10 @@
       "tf_type": "aws_route53recoveryreadiness_cell",
       "import_id_example": "us-west-2-failover-cell",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "cell_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Route53 Recovery Readiness cells using the cell name. For example:\n\n```terraform\nimport {\n  to = aws_route53recoveryreadiness_cell.us-west-2-failover-cell\n  id = \"us-west-2-failover-cell\"\n}\n```\n\nUsing `terraform import`, import Route53 Recovery Readiness cells using the cell name. For example:\n\n```console\n% terraform import aws_route53recoveryreadiness_cell.us-west-2-failover-cell us-west-2-failover-cell\n```",
       "example_arguments": [
         {
@@ -83113,8 +83265,10 @@
       "tf_type": "aws_route53recoveryreadiness_readiness_check",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "readiness_check_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Route53 Recovery Readiness readiness checks using the readiness check name. For example:\n\n```terraform\nimport {\n  to = aws_route53recoveryreadiness_readiness_check.my-cw-alarm-check\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import Route53 Recovery Readiness readiness checks using the readiness check name. For example:\n\n```console\n% terraform import aws_route53recoveryreadiness_readiness_check.my-cw-alarm-check example\n```",
       "argument_reference": [
         {
@@ -83135,8 +83289,10 @@
       "tf_type": "aws_route53recoveryreadiness_recovery_group",
       "import_id_example": "my-high-availability-app",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "recovery_group_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Route53 Recovery Readiness recovery groups using the recovery group name. For example:\n\n```terraform\nimport {\n  to = aws_route53recoveryreadiness_recovery_group.my-high-availability-app\n  id = \"my-high-availability-app\"\n}\n```\n\nUsing `terraform import`, import Route53 Recovery Readiness recovery groups using the recovery group name. For example:\n\n```console\n% terraform import aws_route53recoveryreadiness_recovery_group.my-high-availability-app my-high-availability-app\n```",
       "example_arguments": [
         {
@@ -83166,8 +83322,10 @@
       "tf_type": "aws_route53recoveryreadiness_resource_set",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "resource_set_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Route53 Recovery Readiness resource set name using the resource set name. For example:\n\n```terraform\nimport {\n  to = aws_route53recoveryreadiness_resource_set.my-cw-alarm-set\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import Route53 Recovery Readiness resource set name using the resource set name. For example:\n\n```console\n% terraform import aws_route53recoveryreadiness_resource_set.my-cw-alarm-set example\n```",
       "example_arguments": [
         {
@@ -86792,8 +86950,10 @@
       "tf_type": "aws_sagemaker_app_image_config",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "app_image_config_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import SageMaker AI App Image Configs using the `name`. For example:\n\n```terraform\nimport {\n  to = aws_sagemaker_app_image_config.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import SageMaker AI App Image Configs using the `name`. For example:\n\n```console\n% terraform import aws_sagemaker_app_image_config.example example\n```",
       "example_arguments": [
         {
@@ -86844,8 +87004,10 @@
       "tf_type": "aws_sagemaker_code_repository",
       "import_id_example": "my-code-repo",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "code_repository_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import SageMaker AI Code Repositories using the `name`. For example:\n\n```terraform\nimport {\n  to = aws_sagemaker_code_repository.test_code_repository\n  id = \"my-code-repo\"\n}\n```\n\nUsing `terraform import`, import SageMaker AI Code Repositories using the `name`. For example:\n\n```console\n% terraform import aws_sagemaker_code_repository.test_code_repository my-code-repo\n```",
       "example_arguments": [
         {
@@ -87023,8 +87185,10 @@
       "tf_type": "aws_sagemaker_device_fleet",
       "import_id_example": "my-fleet",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "device_fleet_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import SageMaker AI Device Fleets using the `name`. For example:\n\n```terraform\nimport {\n  to = aws_sagemaker_device_fleet.example\n  id = \"my-fleet\"\n}\n```\n\nUsing `terraform import`, import SageMaker AI Device Fleets using the `name`. For example:\n\n```console\n% terraform import aws_sagemaker_device_fleet.example my-fleet\n```",
       "example_arguments": [
         {
@@ -87485,8 +87649,10 @@
       "tf_type": "aws_sagemaker_hub",
       "import_id_example": "my-code-repo",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "hub_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import SageMaker AI Hubs using the `name`. For example:\n\n```terraform\nimport {\n  to = aws_sagemaker_hub.test_hub\n  id = \"my-code-repo\"\n}\n```\n\nUsing `terraform import`, import SageMaker AI Hubs using the `name`. For example:\n\n```console\n% terraform import aws_sagemaker_hub.test_hub my-code-repo\n```",
       "example_arguments": [
         {
@@ -88051,8 +88217,10 @@
       "tf_type": "aws_sagemaker_image",
       "import_id_example": "my-code-repo",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "image_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import SageMaker AI Code Images using the `name`. For example:\n\n```terraform\nimport {\n  to = aws_sagemaker_image.test_image\n  id = \"my-code-repo\"\n}\n```\n\nUsing `terraform import`, import SageMaker AI Code Images using the `name`. For example:\n\n```console\n% terraform import aws_sagemaker_image.test_image my-code-repo\n```",
       "example_arguments": [
         {
@@ -88610,8 +88778,10 @@
       "tf_type": "aws_sagemaker_model_package_group",
       "import_id_example": "my-code-repo",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "model_package_group_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import SageMaker AI Model Package Groups using the `name`. For example:\n\n```terraform\nimport {\n  to = aws_sagemaker_model_package_group.test_model_package_group\n  id = \"my-code-repo\"\n}\n```\n\nUsing `terraform import`, import SageMaker AI Model Package Groups using the `name`. For example:\n\n```console\n% terraform import aws_sagemaker_model_package_group.test_model_package_group my-code-repo\n```",
       "example_arguments": [
         {
@@ -88645,8 +88815,10 @@
       "tf_type": "aws_sagemaker_model_package_group_policy",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "model_package_group_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import SageMaker AI Model Package Groups using the `name`. For example:\n\n```terraform\nimport {\n  to = aws_sagemaker_model_package_group_policy.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import SageMaker AI Model Package Groups using the `name`. For example:\n\n```console\n% terraform import aws_sagemaker_model_package_group_policy.example example\n```",
       "argument_reference": [
         {
@@ -91317,8 +91489,10 @@
       "tf_type": "aws_securitylake_aws_log_source",
       "import_id_example": "ROUTE53",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "source_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import AWS log sources using the source name. For example:\n\n```terraform\nimport {\n  to = aws_securitylake_aws_log_source.example\n  id = \"ROUTE53\"\n}\n```\n\nUsing `terraform import`, import AWS log sources using the source name. For example:\n\n```console\n% terraform import aws_securitylake_aws_log_source.example ROUTE53\n```",
       "example_arguments": [
         {
@@ -91361,8 +91535,10 @@
       "tf_type": "aws_securitylake_custom_log_source",
       "import_id_example": "example-name",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "source_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import AWS log sources using the source name. For example:\n\n```terraform\nimport {\n  to = aws_securitylake_custom_log_source.example\n  id = \"example-name\"\n}\n```\n\nUsing `terraform import`, import Custom log sources using the source name. For example:\n\n```console\n% terraform import aws_securitylake_custom_log_source.example example-name\n```",
       "example_arguments": [
         {
@@ -92986,8 +93162,10 @@
       "tf_type": "aws_ses_active_receipt_rule_set",
       "import_id_example": "my_rule_set_name",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "rule_set_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import active SES receipt rule sets using the rule set name. For example:\n\n```terraform\nimport {\n  to = aws_ses_active_receipt_rule_set.my_rule_set\n  id = \"my_rule_set_name\"\n}\n```\n\nUsing `terraform import`, import active SES receipt rule sets using the rule set name. For example:\n\n```console\n% terraform import aws_ses_active_receipt_rule_set.my_rule_set my_rule_set_name\n```",
       "example_arguments": [
         {
@@ -93013,8 +93191,10 @@
       "tf_type": "aws_ses_configuration_set",
       "import_id_example": "some-configuration-set-test",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import SES Configuration Sets using their `name`. For example:\n\n```terraform\nimport {\n  to = aws_ses_configuration_set.test\n  id = \"some-configuration-set-test\"\n}\n```\n\nUsing `terraform import`, import SES Configuration Sets using their `name`. For example:\n\n```console\n% terraform import aws_ses_configuration_set.test some-configuration-set-test\n```",
       "example_arguments": [
         {
@@ -93336,8 +93516,10 @@
       "tf_type": "aws_ses_receipt_filter",
       "import_id_example": "some-filter",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import SES Receipt Filter using their `name`. For example:\n\n```terraform\nimport {\n  to = aws_ses_receipt_filter.test\n  id = \"some-filter\"\n}\n```\n\nUsing `terraform import`, import SES Receipt Filter using their `name`. For example:\n\n```console\n% terraform import aws_ses_receipt_filter.test some-filter\n```",
       "example_arguments": [
         {
@@ -93589,8 +93771,10 @@
       "tf_type": "aws_ses_receipt_rule_set",
       "import_id_example": "my_rule_set_name",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "rule_set_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import SES receipt rule sets using the rule set name. For example:\n\n```terraform\nimport {\n  to = aws_ses_receipt_rule_set.my_rule_set\n  id = \"my_rule_set_name\"\n}\n```\n\nUsing `terraform import`, import SES receipt rule sets using the rule set name. For example:\n\n```console\n% terraform import aws_ses_receipt_rule_set.my_rule_set my_rule_set_name\n```",
       "example_arguments": [
         {
@@ -93616,8 +93800,10 @@
       "tf_type": "aws_ses_template",
       "import_id_example": "MyTemplate",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import SES templates using the template name. For example:\n\n```terraform\nimport {\n  to = aws_ses_template.MyTemplate\n  id = \"MyTemplate\"\n}\n```\n\nUsing `terraform import`, import SES templates using the template name. For example:\n\n```console\n% terraform import aws_ses_template.MyTemplate MyTemplate\n```",
       "example_arguments": [
         {
@@ -94579,8 +94765,10 @@
       "tf_type": "aws_shield_protection_group",
       "import_id_example": "example",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "protection_group_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Shield protection group resources using their protection group id. For example:\n\n```terraform\nimport {\n  to = aws_shield_protection_group.example\n  id = \"example\"\n}\n```\n\nUsing `terraform import`, import Shield protection group resources using their protection group id. For example:\n\n```console\n% terraform import aws_shield_protection_group.example example\n```",
       "example_arguments": [
         {

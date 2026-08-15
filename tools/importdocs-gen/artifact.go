@@ -170,23 +170,48 @@ func buildRow(tfType, doc string) (Row, bool) {
 		return Row{}, false
 	}
 	argNames := argumentReferenceNames(doc)
+	argEntries := argumentReferenceEntries(doc)
+	attrNames := attributeReferenceNames(doc)
 	cr := classifyGrammar(section, argNames)
 	idReq, _ := identitySchemaRequired(section)
 	idOpt := identitySchemaOptional(section)
+
+	// The plain-prose family (issue #132): docs whose sentence names the
+	// one argument the ID is without the backticked spelling every signal
+	// in classifyGrammar keys on ("using repository name", "using the
+	// AppSync API ID", "using the `name`" against image_name). Only ever
+	// fills a gap the structured signals left - Composed still unresolved -
+	// and only lands on names the Argument Reference confirms.
+	proseArg := false
+	if cr.Composed == nil {
+		if arg, ok := proseNamedArgument(section, argEntries, attrNames); ok {
+			t := true
+			cr.Composed = &t
+			cr.Arguments = []string{arg}
+			proseArg = true
+		}
+	}
 
 	// Last: the row's own documented example, when the prose settled
 	// nothing (issue #135). Only ever fills a gap - a separator the doc
 	// stated, or one classifyGrammar inferred from a format token, wins,
 	// because both are statements about the ID's grammar while this is an
-	// observation of one value.
+	// observation of one value. When the prose named the whole ID as one
+	// argument (proseArg), the example-derived separator guess is skipped
+	// entirely: the doc just said the ID is a single value, so punctuation
+	// inside the example is internal to that value
+	// (aws_cognito_identity_pool_roles_attachment's "us-west-2:b64805ad-…"
+	// is one identity_pool_id, not two colon-joined parts) - a statement
+	// about the grammar outranks an observation of one value, the same
+	// hierarchy issue #135 established.
 	if cr.Separator == nil {
 		if sep, ok := separatorFromProse(section); ok {
 			cr.Separator = &sep
-		} else if sep, ok := separatorFromExample(idExample); ok {
+		} else if sep, ok := separatorFromExample(idExample); ok && !proseArg {
 			cr.Separator = &sep
 		}
 	}
-	parts := idParts(section, cr.Separator, idExample, argNames, attributeReferenceNames(doc))
+	parts := idParts(section, cr.Separator, idExample, argNames, attrNames)
 	return Row{
 		TFType:                 tfType,
 		ImportIDExample:        idExample,
@@ -194,7 +219,7 @@ func buildRow(tfType, doc string) (Row, bool) {
 		ComposedOfArguments:    cr.Composed,
 		Arguments:              cr.Arguments,
 		EvidenceExcerpt:        section,
-		ArgumentReference:      argumentReferenceEntries(doc),
+		ArgumentReference:      argEntries,
 		ExampleArguments:       exampleArguments(doc, tfType),
 		ArgumentsInOrder:       cr.ArgumentsInOrder,
 		IdentitySchemaRequired: idReq,
