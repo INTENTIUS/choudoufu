@@ -2463,7 +2463,8 @@ undeclared instance is created through whichever configuration found it.
 `aws_s3vectors_vector_bucket_policy`,
 `aws_sagemaker_model_package_group_policy`,
 `aws_secretsmanager_secret_policy`, `aws_secretsmanager_secret_rotation`,
-`aws_securityhub_account`, `aws_securityhub_configuration_policy`,
+`aws_security_group_rule`, `aws_securityhub_account`,
+`aws_securityhub_configuration_policy`,
 `aws_securityhub_configuration_policy_association`,
 `aws_securityhub_finding_aggregator`, `aws_securityhub_insight`,
 `aws_securityhub_member`, `aws_securityhub_organization_admin_account`,
@@ -2605,6 +2606,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_sagemaker_model_package_group_policy` | `aws_sagemaker_model_package_group` | no (report-only) |
 | `aws_secretsmanager_secret_policy` | `aws_secretsmanager_secret` | no (report-only) |
 | `aws_secretsmanager_secret_rotation` | `aws_secretsmanager_secret` | no (report-only) |
+| `aws_security_group_rule` | `aws_security_group` | no (report-only) |
 | `aws_servicecatalog_portfolio_share` | `aws_servicecatalog_portfolio` | no (report-only) |
 | `aws_servicecatalogappregistry_attribute_group_association` | `aws_servicecatalogappregistry_attribute_group` | no (report-only) |
 | `aws_sns_topic_policy` | `aws_sns_topic` | no (report-only) |
@@ -2634,7 +2636,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_workspacesweb_user_access_logging_settings_association` | `aws_workspacesweb_user_access_logging_settings` | no (report-only) |
 | `aws_workspacesweb_user_settings_association` | `aws_workspacesweb_user_settings` | no (report-only) |
 
-**Total.** 107 types swept via a parent read.
+**Total.** 108 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child. Whether it
