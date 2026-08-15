@@ -640,20 +640,215 @@ func requiredArgumentReferenceNames(g importGrammarRow) []string {
 // aws_athena_workgroup, aws_athena_data_catalog, aws_glue_classifier and
 // aws_db_proxy's shape: row-gen already guessed the right TF argument name
 // from the CFN property, but had no source willing to confirm it until now.
+//
+// Issue #176's corroboration clause: existing-and-Required is true of many
+// arguments that are not the import identity, so the promotion additionally
+// requires the row's own Import evidence to be CONSISTENT with the claimed
+// argument (importEvidenceContradiction) - the two measured counterexamples
+// are aws_route53_resolver_config, whose Import prose names the documented
+// ID as "the Route 53 Resolver config ID" (the resource's own server-minted
+// identifier, not the Required vpc-reference argument resource_id), and
+// aws_opensearch_application, whose documented example is the read-only id
+// "app-1234567890abcdef0" while the doc's own Example Usage sets the claimed
+// `name` to the word-placeholder "my-opensearch-app". A contradicted row
+// stays evidence-only - the honest GUESSED bucket it came from - with a note
+// recording what contradicted it.
 func tryArgumentReferenceConfirmedGuess(p *proposal, g importGrammarRow) bool {
 	if p.ArgSource != argSourceGuessed || p.ArgName == "" {
 		return false
 	}
 	for _, name := range requiredArgumentReferenceNames(g) {
-		if name == p.ArgName {
-			p.Bucket = bucketClientNamed
-			p.ArgSource = argSourceArgumentReference
-			p.Rule = "import-grammar precedence: the guessed argument name is confirmed as a Required top-level argument in the provider's own Argument Reference"
-			p.Notes = append(p.Notes, fmt.Sprintf("Argument Reference documents %q as Required, confirming the CFN-property-derived guess", p.ArgName))
-			return true
+		if name != p.ArgName {
+			continue
 		}
+		if reason := importEvidenceContradiction(p.ArgName, p.TFType, g); reason != "" {
+			p.Notes = append(p.Notes, fmt.Sprintf("the guessed argument %q is a Required top-level argument, but the row's own Import evidence contradicts it as the import identity: %s; staying evidence-only (issue #176)", p.ArgName, reason))
+			return false
+		}
+		p.Bucket = bucketClientNamed
+		p.ArgSource = argSourceArgumentReference
+		p.Rule = "import-grammar precedence: the guessed argument name is confirmed as a Required top-level argument in the provider's own Argument Reference"
+		p.Notes = append(p.Notes, fmt.Sprintf("Argument Reference documents %q as Required, confirming the CFN-property-derived guess", p.ArgName))
+		return true
 	}
 	return false
+}
+
+// importEvidenceContradiction is issue #176's R3 corroboration clause: it
+// answers whether the row's own pinned Import evidence is consistent with
+// arg being the type's import identity, returning "" when it is and the
+// contradiction's own statement when it is not.
+//
+// The bar is deliberately consistency, not positive attribution, and that
+// was measured rather than assumed: of the rule's seven ratified instances
+// (its 7/7 PROPOSE ledger record), five - aws_api_gateway_domain_name
+// ("dev.example.com"), aws_cloudfront_monitoring_subscription
+// ("E3QYSUHO4VYRGB"), aws_route53_hosted_zone_dnssec ("Z1D633PJN98FT9"),
+// aws_sagemaker_feature_group ("feature_group-foo") and
+// aws_vpclattice_auth_policy ("abcd-12345678") - have Import sections whose
+// example no extracted signal attributes to the ratified argument at all
+// (the attribution the ratifiers used lives in prose the scrape does not
+// carry, e.g. cloudfront's Attribute Reference sentence "which corresponds
+// to the `distribution_id`"). A positive-attribution bar would demote those
+// five ratified rows to evidence-only, which the convergence ratchet rightly
+// forbids. What the clause therefore checks is that no pinned signal
+// attributes the documented ID to something OTHER than the claimed
+// argument, with the positive signals short-circuiting first:
+//
+//   - the provider's own Identity Schema, when present, must name arg among
+//     its required attributes (naming only others is a direct contradiction);
+//   - the documented ID template's per-segment attribution (issue #172),
+//     when it attributes any segment, must attribute one to arg;
+//   - the doc's own Example Usage literal for arg: equality with the
+//     documented import ID is consistency proven (aws_sesv2_contact_list's
+//     "example"); a word-placeholder literal against an opaque documented ID
+//     is a shape contradiction (aws_opensearch_application);
+//   - the Import prose's own "using ..." sentence, when it names the ID in
+//     plain words as the resource's own identifier - the type's own noun
+//     tail plus "ID", tools/importdocs-gen/prosename.go's own-id rule - is
+//     the doc saying the ID is server-minted (aws_route53_resolver_config).
+func importEvidenceContradiction(arg, tfType string, g importGrammarRow) string {
+	if len(g.IdentitySchemaRequired) > 0 {
+		for _, a := range g.IdentitySchemaRequired {
+			if a == arg {
+				return ""
+			}
+		}
+		return fmt.Sprintf("the provider's own Identity Schema requires %s", quoteList(g.IdentitySchemaRequired))
+	}
+
+	if t := g.IDTemplate; t != nil {
+		attributed := 0
+		for _, s := range t.Segments {
+			if s.Argument == arg {
+				return "" // the template's own attribution names the claimed argument
+			}
+			if s.Argument != "" {
+				attributed++
+			}
+		}
+		if attributed > 0 {
+			return "the documented ID template attributes its segments to other arguments"
+		}
+	}
+
+	literals := 0
+	allWordShaped := true
+	for _, ea := range g.ExampleArguments {
+		if len(ea.Path) != 1 || ea.Path[0] != arg || !ea.IsString {
+			continue
+		}
+		if ea.Value == g.ImportIDExample {
+			return "" // the doc configures the argument with the very value it imports by
+		}
+		literals++
+		if !wordPlaceholderValue(ea.Value) {
+			allWordShaped = false
+		}
+	}
+	if literals > 0 && allWordShaped && g.ImportIDExample != "" && !wordPlaceholderValue(g.ImportIDExample) {
+		return fmt.Sprintf("the doc's own Example Usage sets %q to a word-placeholder value, while the documented import ID %q is an opaque identifier", arg, g.ImportIDExample)
+	}
+
+	if phrase, ok := importProseOwnIDPhrase(g.EvidenceExcerpt, tfType); ok {
+		return fmt.Sprintf("the Import prose names the documented ID as the resource's own identifier (%q)", phrase)
+	}
+	return ""
+}
+
+// wordPlaceholderValue reports whether a doc value is a word-placeholder (a
+// phrase of purely alphabetic words - "my-opensearch-app", "NAME OF
+// DIRECTORY", "directoryNameExample") as opposed to an opaque identifier
+// carrying digits or punctuation ("app-1234567890abcdef0") - the shape
+// distinction tools/importdocs-gen/idtemplate.go's placeholderWords draws.
+func wordPlaceholderValue(v string) bool {
+	words := strings.FieldsFunc(strings.ToLower(v), func(r rune) bool {
+		return r == ' ' || r == '-' || r == '_' || r == '.'
+	})
+	if len(words) == 0 {
+		return false
+	}
+	for _, w := range words {
+		if !isAlphaWord(w) {
+			return false
+		}
+	}
+	return true
+}
+
+// importForExampleAnchor and importUsingPhrases mirror tools/importdocs-gen/
+// prosename.go's usingPhrases for this package: the prose between the last
+// "using" and each "For example" anchor is where the Import section states
+// what the documented ID is.
+const importForExampleAnchor = "for example"
+
+func importUsingPhrases(section string) []string {
+	var out []string
+	lower := strings.ToLower(section)
+	idx := 0
+	for {
+		i := strings.Index(lower[idx:], importForExampleAnchor)
+		if i == -1 {
+			return out
+		}
+		anchor := idx + i
+		winStart := anchor - 250
+		if winStart < 0 {
+			winStart = 0
+		}
+		window := section[winStart:anchor]
+		if u := strings.LastIndex(strings.ToLower(window), "using "); u != -1 {
+			phrase := strings.TrimSpace(window[u+len("using "):])
+			phrase = strings.TrimRight(phrase, " .:,")
+			if phrase != "" {
+				out = append(out, phrase)
+			}
+		}
+		idx = anchor + len(importForExampleAnchor)
+	}
+}
+
+// importProseOwnIDPhrase reports whether any single-part, plain-prose
+// "using ..." sentence in the Import section names the documented ID as the
+// resource's OWN identifier: its article-stripped words are the type's own
+// noun tail plus a trailing id-word ("the Route 53 Resolver config ID" on
+// aws_route53_resolver_config's page) - the plain-prose own-id rule
+// tools/importdocs-gen/prosename.go's attributePlainPart applies to
+// multi-part enumerations, read here for the single-part sentence idParts
+// never covers. Backticked, enumerated or separated-by phrases are other
+// signals' business and contribute nothing; so does a phrase whose noun
+// words are not the type's own tail (aws_route53_hosted_zone_dnssec's "the
+// Route 53 Hosted Zone identifier" names the PARENT zone - the argument's
+// referent - not the dnssec resource itself, because "hosted zone" is not
+// the type's noun tail "...dnssec").
+func importProseOwnIDPhrase(section, tfType string) (string, bool) {
+	for _, phrase := range importUsingPhrases(section) {
+		lower := strings.ToLower(phrase)
+		if strings.Contains(phrase, "`") || strings.Contains(phrase, ",") ||
+			strings.Contains(lower, " and ") || strings.Contains(lower, "separated by") {
+			continue
+		}
+		words := strings.Fields(docPartParenRe.ReplaceAllString(phrase, " "))
+		for len(words) > 0 && docPartArticles[strings.ToLower(words[0])] {
+			words = words[1:]
+		}
+		if len(words) < 2 {
+			continue // a bare "the id" claims nothing about whose id it is
+		}
+		switch strings.ToLower(words[len(words)-1]) {
+		case "id", "ids", "identifier":
+		default:
+			continue
+		}
+		nounWords := make([]string, 0, len(words)-1)
+		for _, w := range words[:len(words)-1] {
+			nounWords = append(nounWords, alnum(w))
+		}
+		if namesOwnType(nounWords, tfType) {
+			return phrase, true
+		}
+	}
+	return "", false
 }
 
 // tryArgumentReferenceValueMatch is rule 3: the documented example is a

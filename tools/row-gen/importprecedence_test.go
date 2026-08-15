@@ -102,6 +102,138 @@ func TestDeriveDocImportSyntax_Refusals(t *testing.T) {
 	}
 }
 
+// TestImportEvidenceContradiction pins issue #176's R3 corroboration clause
+// against the real shapes it was measured on: the two counterexamples must
+// be contradicted, and every ratified instance's evidence shape must stay
+// uncontradicted.
+func TestImportEvidenceContradiction(t *testing.T) {
+	// aws_route53_resolver_config: the Import prose names the documented ID
+	// as the resource's own identifier.
+	resolver := importGrammarRow{
+		ImportIDExample: "rslvr-rc-715aa20c73a23da7",
+		EvidenceExcerpt: "## Import\n\nimport Route 53 Resolver configs using the Route 53 Resolver config ID. For example:\n\n```console\n% terraform import aws_route53_resolver_config.example rslvr-rc-715aa20c73a23da7\n```",
+	}
+	if r := importEvidenceContradiction("resource_id", "aws_route53_resolver_config", resolver); r == "" {
+		t.Error("resolver config: want a contradiction (the prose names the resource's own ID), got none")
+	}
+
+	// aws_route53_hosted_zone_dnssec: near-identical prose, but "Hosted Zone
+	// identifier" names the PARENT zone (the argument's referent), not the
+	// dnssec resource's own noun tail - ratified client-named by
+	// hosted_zone_id, and the clause must not contradict it.
+	dnssec := importGrammarRow{
+		ImportIDExample: "Z1D633PJN98FT9",
+		EvidenceExcerpt: "## Import\n\nimport `aws_route53_hosted_zone_dnssec` resources using the Route 53 Hosted Zone identifier. For example:\n\n```console\n% terraform import aws_route53_hosted_zone_dnssec.example Z1D633PJN98FT9\n```",
+	}
+	if r := importEvidenceContradiction("hosted_zone_id", "aws_route53_hosted_zone_dnssec", dnssec); r != "" {
+		t.Errorf("hosted zone dnssec: want no contradiction, got %q", r)
+	}
+
+	// aws_opensearch_application: the doc's own Example Usage sets the
+	// claimed `name` to a word-placeholder while the documented ID is an
+	// opaque identifier.
+	opensearch := importGrammarRow{
+		ImportIDExample:  "app-1234567890abcdef0",
+		EvidenceExcerpt:  "## Import\n\nimport OpenSearch applications using the `id`. For example:",
+		ExampleArguments: []exampleArgument{{Path: []string{"name"}, Value: "my-opensearch-app", IsString: true}},
+	}
+	if r := importEvidenceContradiction("name", "aws_opensearch_application", opensearch); r == "" {
+		t.Error("opensearch application: want a contradiction (usage word-placeholder vs opaque ID), got none")
+	}
+
+	// aws_sesv2_contact_list: the doc configures the argument with the very
+	// value it imports by - consistency proven.
+	sesv2 := importGrammarRow{
+		ImportIDExample:  "example",
+		ExampleArguments: []exampleArgument{{Path: []string{"contact_list_name"}, Value: "example", IsString: true}},
+	}
+	if r := importEvidenceContradiction("contact_list_name", "aws_sesv2_contact_list", sesv2); r != "" {
+		t.Errorf("sesv2 contact list: want no contradiction, got %q", r)
+	}
+
+	// aws_api_gateway_domain_name: usage literal and documented ID are both
+	// word-placeholder-shaped domain values - no shape clash.
+	apigw := importGrammarRow{
+		ImportIDExample:  "dev.example.com",
+		ExampleArguments: []exampleArgument{{Path: []string{"domain_name"}, Value: "api.example.com", IsString: true}},
+	}
+	if r := importEvidenceContradiction("domain_name", "aws_api_gateway_domain_name", apigw); r != "" {
+		t.Errorf("api gateway domain name: want no contradiction, got %q", r)
+	}
+
+	// aws_msk_scram_secret_association: the documented ID template's own
+	// per-segment attribution names the claimed argument; a claim the
+	// template attributes to another argument is contradicted.
+	msk := importGrammarRow{
+		ImportIDExample: "arn:aws:kafka:us-west-2:123456789012:cluster/example/279c0212-3",
+		IDTemplate: &idTemplate{Kind: "arn", Segments: []idTemplateSegment{
+			{Literal: "arn:aws:kafka:"}, {Cloud: "region"}, {Literal: ":"}, {Cloud: "account-id"},
+			{Literal: ":"}, {Argument: "cluster_arn", AttributedBy: attrByPlaceholderName},
+			{Literal: "/"}, {Unattributed: "example"},
+		}},
+	}
+	if r := importEvidenceContradiction("cluster_arn", "aws_msk_scram_secret_association", msk); r != "" {
+		t.Errorf("msk scram: want no contradiction (template attributes the argument), got %q", r)
+	}
+	if r := importEvidenceContradiction("secret_arn_list", "aws_msk_scram_secret_association", msk); r == "" {
+		t.Error("msk scram with a different claimed argument: want a contradiction (template attributes another argument), got none")
+	}
+
+	// An Identity Schema that names only other attributes is a direct
+	// contradiction; one naming the argument is consistency.
+	schema := importGrammarRow{IdentitySchemaRequired: []string{"arn"}}
+	if r := importEvidenceContradiction("name", "aws_x", schema); r == "" {
+		t.Error("identity schema naming only arn: want a contradiction for claimed name, got none")
+	}
+	if r := importEvidenceContradiction("arn", "aws_x", schema); r != "" {
+		t.Errorf("identity schema naming the claimed argument: want no contradiction, got %q", r)
+	}
+}
+
+// TestTryArgumentReferenceConfirmedGuess_Corroboration: the full R3 path.
+// A contradicted row stays evidence-only with the contradiction on record;
+// an uncontradicted row promotes exactly as before issue #176.
+func TestTryArgumentReferenceConfirmedGuess_Corroboration(t *testing.T) {
+	contradicted := proposal{
+		TFType:    "aws_route53_resolver_config",
+		Bucket:    bucketEvidenceOnly,
+		ArgName:   "resource_id",
+		ArgSource: argSourceGuessed,
+	}
+	g := importGrammarRow{
+		ImportIDExample:   "rslvr-rc-715aa20c73a23da7",
+		EvidenceExcerpt:   "import Route 53 Resolver configs using the Route 53 Resolver config ID. For example:",
+		ArgumentReference: []argumentRefEntry{{Name: "resource_id", Required: true}},
+	}
+	if tryArgumentReferenceConfirmedGuess(&contradicted, g) {
+		t.Fatal("contradicted row promoted; want refusal")
+	}
+	if contradicted.Bucket != bucketEvidenceOnly {
+		t.Errorf("bucket = %s, want evidence-only kept", contradicted.Bucket)
+	}
+	if len(contradicted.Notes) == 0 {
+		t.Error("want the contradiction recorded as a note")
+	}
+
+	clean := proposal{
+		TFType:    "aws_sesv2_contact_list",
+		Bucket:    bucketEvidenceOnly,
+		ArgName:   "contact_list_name",
+		ArgSource: argSourceGuessed,
+	}
+	gClean := importGrammarRow{
+		ImportIDExample:   "example",
+		ArgumentReference: []argumentRefEntry{{Name: "contact_list_name", Required: true}},
+		ExampleArguments:  []exampleArgument{{Path: []string{"contact_list_name"}, Value: "example", IsString: true}},
+	}
+	if !tryArgumentReferenceConfirmedGuess(&clean, gClean) {
+		t.Fatal("uncontradicted row refused; want promotion")
+	}
+	if clean.Bucket != bucketClientNamed || clean.ArgName != "contact_list_name" {
+		t.Errorf("promoted row = %s/%s, want client-named/contact_list_name", clean.Bucket, clean.ArgName)
+	}
+}
+
 // TestValueNamesRequiredArgument pins the shapes that rewrote rule 3's
 // matching (issue #132). Every case is a real page: the three the old
 // substring containment got right must keep resolving, and the five it got

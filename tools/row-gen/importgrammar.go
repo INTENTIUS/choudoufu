@@ -53,6 +53,28 @@ type importGrammarRow struct {
 	// account for every segment of the documented example - see
 	// tools/importdocs-gen/parse.go's idParts.
 	IDParts []idPart `json:"id_parts"`
+
+	// EvidenceExcerpt is the Import section's own text, pinned verbatim at
+	// scrape time (tools/importdocs-gen/artifact.go's Evidence). Issue #176's
+	// R3 corroboration reads its "using ..." sentences the same way
+	// tools/importdocs-gen/prosename.go does, to catch a doc whose own prose
+	// names the documented ID as the resource's own server-minted identifier.
+	EvidenceExcerpt string `json:"evidence_excerpt"`
+
+	// ExampleArguments are the Example Usage section's own top-level literal
+	// values (tools/importdocs-gen/example.go), pinned so a consumer can test
+	// a documented import ID against the value the doc itself configures an
+	// argument with - issue #176's R3 corroboration.
+	ExampleArguments []exampleArgument `json:"example_arguments"`
+}
+
+// exampleArgument mirrors tools/importdocs-gen/example.go's ExampleArgument:
+// one Example Usage argument's path and literal value. Only top-level string
+// values (len(Path)==1, IsString) are ever consulted here.
+type exampleArgument struct {
+	Path     []string `json:"path"`
+	Value    string   `json:"value"`
+	IsString bool     `json:"is_string"`
 }
 
 // idTemplate and idTemplateSegment mirror tools/importdocs-gen/
