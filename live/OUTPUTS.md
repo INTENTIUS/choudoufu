@@ -2,24 +2,25 @@
 
 This file answers issue #62. "Split into independent estates" is the
 forwarding advice both for an estate that has grown too large (#52) and for
-a module that has to leave. As of issue #59's phases 1-2, that is no
-longer most modules - a static module tree or a statically-keyed `for_each`
-module binds in place, same as the root - but a `count`-expanded module
-block is refused permanently and still has to leave, and a genuinely
-independent module may still be split out by choice rather than necessity
-(#59 phase 3). Once that split happens, the two estates need a way to
-share values: a network estate's VPC ID, an IAM estate's role ARN.
-`terraform_remote_state` is banned because a live-markers run has no
-state file for it to read
+a module that has to leave. As of issue #59's phases 1-2 that is no longer
+most modules. A static module tree or a statically-keyed `for_each` module
+binds in place, same as the root, while a `count`-expanded module block is
+refused permanently and still has to leave. A genuinely independent module
+may also be split out by choice rather than necessity (#59 phase 3). Once
+that split happens, the two estates need a way to share values: a network
+estate's VPC ID, an IAM estate's role ARN.
+
+`terraform_remote_state` is banned because it reads a state file, and prior
+state here is a projection rebuilt from the live system on every run
 (`internal/live/lint/lint.go`'s `checkDataResources`, `live/LIMITATIONS.md`'s
-"remote-state" entry). This file is the answer to what replaces the
-output-passing it used to provide.
+"remote-state" entry). This file is what replaces the output-passing it used
+to provide.
 
 ## The decision
 
 Read the producer's live resource with a data source of its own type,
 with no new construct, namespace, or lint rule. This was already the lint
-refusal's forwarding advice in prose; this file makes it the normative
+refusal's forwarding advice in prose. This file makes it the normative
 spec, the way `live/RECEIPTS.md` did for receipts.
 
 A dedicated "estate output" surface was considered and declined: outputs
@@ -68,14 +69,14 @@ channel this mode maintains on the producer's behalf.
 
 This is the "read the live resource with a data source of its own
 type" half of `checkDataResources`'s refusal message
-(`internal/live/lint/lint.go`); this file is the spec that half now
+(`internal/live/lint/lint.go`). This file is the spec that half now
 points to by name.
 
 ## Why not outputs-as-receipts
 
 The receipts pattern (`live/RECEIPTS.md`) exists for one specific case: "an
 effect that has no queryable live state of its own." A migration changes
-rows, not a resource an API can list; a cache purge changes what a CDN
+rows, not a resource an API can list. A cache purge changes what a CDN
 serves, not a record OpenTofu can read back. A receipt is memory
 manufactured for a fact the live system cannot answer.
 
@@ -95,7 +96,7 @@ Three concrete problems follow from treating it as one anyway.
    RECEIPTS.md`'s Guard 4) keeps a receipt something nothing depends on, so
    that losing it costs one idempotent re-run and never a wrong plan
    elsewhere. An "output" is only useful if other estates *do* depend on
-   it; that is the entire ask in issue #62. Pointing the receipts machinery
+   it, which is the entire ask in issue #62. Pointing the receipts machinery
    at outputs means either breaking the leaf rule for this one flavor of
    parameter, which unravels the property that makes every other receipt
    safe to lose, or building a second, parallel set of rules that looks
@@ -108,12 +109,12 @@ Three concrete problems follow from treating it as one anyway.
    data that now has to be kept in sync with the first." An SSM parameter
    mirroring a VPC ID is that second copy. Every producer apply
    has to remember to keep the mirror current, and every consumer plan now
-   trusts a value that can go stale relative to the resource it mirrors,
-   the risk profile removing the state file was meant to retire
-   (the docs site's "Does it really keep no record at all?": a stale or
-   missing projection "costs one re-read, never a wrong plan"). A data source reading the producer's resource directly cannot go
-   stale this way, because there is nothing between the read and the
-   value.
+   trusts a value that can go stale relative to the resource it mirrors.
+   That is the risk a projection rebuilt every run avoids, per the docs
+   site's "Where does the state live?", where a stale or missing projection
+   "costs a re-read, never a wrong plan". A data source reading the
+   producer's resource directly cannot go stale this way, because there is
+   nothing between the read and the value.
 3. **It does not buy the stability it is sold on.** The case for a
    first-class output surface is that it "makes the producer's contract
    explicit and stable across producer refactors." But a producer refactor
@@ -125,13 +126,12 @@ Three concrete problems follow from treating it as one anyway.
    there is a silent, consumer-visible staleness bug that reading the
    resource directly cannot produce.
 
-Weighed against the cost of a dedicated output surface, a
-namespace convention, a naming spec, and (per the issue) lint support to
-keep it statically recognizable, plain data sources cost nothing to build,
-cannot drift from what the producer actually holds, and are already the
-ordinary way Terraform practitioners read another workspace's resources
-when they are not using a backend at all. The cheaper option also
-delivers the stability the expensive option promises.
+A dedicated output surface costs a namespace convention, a naming spec, and
+(per the issue) lint support to keep it statically recognizable. Plain data
+sources cost nothing to build, cannot drift from what the producer holds,
+and are already how Terraform practitioners read another workspace's
+resources without a backend. The cheaper option also delivers the stability
+the expensive one promises.
 
 ## Demonstrated
 

@@ -34,8 +34,8 @@ Guard 1 above. A record-backed resource's prior state comes from
 `internal/live/staterecord.Store.Get` instead of a cloud read, but its
 *plan diff* is exactly as visible either way - what moves is where the
 resource's *value* is read from, not whether a plan shows a change to it.
-The reason receipts stay off the record store is not that a record-backed
-diff is invisible; it is that a receipt is deliberately AWS-shaped
+Receipts stay off the record store because a receipt is deliberately
+AWS-shaped
 (`aws_ssm_parameter`, `/tofu-receipts/<estate>/<effect>`) so its value stays
 readable with a plain `aws ssm get-parameter` by anyone with read-only IAM
 access and no `choudoufu` binary at all - a person, a script, an incident
@@ -61,8 +61,9 @@ existence flavor, no hash flavor, and no `/tofu-receipts/<estate>/<effect>`
 naming convention for the lint rules to recognize it by. `terraform_data`
 is for graph-internal plumbing - ordering an apply's create/update/delete
 sequence, feeding `replace_triggered_by`, standing in for a resource that
-does nothing itself - never for recording an external effect. Receipts are
-for external effects; `terraform_data` is for the graph. Keep them apart.
+does nothing itself, and never for recording an external effect. Receipts
+are for external effects. `terraform_data` is for the graph. Keep them
+apart.
 
 ## The problem a receipt answers
 
@@ -202,7 +203,7 @@ nothing points out of it.
 The reasoning is the same authority argument behind every other banned
 construct in this fork. Once another resource's plan depends on a
 receipt's value, the receipt is no longer a record of what already
-happened; it is an input other things need to be correct, which is the
+happened. It becomes an input other things need to be correct, which is the
 definition of authoritative state. "A stored claim about what exists that
 the tool believes over the world itself... if the record being wrong makes
 the tool do wrong things to the world, it is authoritative." A receipt
@@ -326,7 +327,7 @@ out-of-band value overwrite instead of a delete.
 Effect inputs MUST reference secrets by pointer, meaning the secret's ARN
 and version identifier, never by value. A hash over low-entropy secret
 material (a password) is offline-guessable by anyone holding the receipt
-and knowing the input shape. A hash over the secret's version-id leaks
+and knowing how the input was built. A hash over the secret's version-id leaks
 nothing and answers the actual question ("did it rotate?") from metadata.
 Lint enforces the directly visible case. `RuleReceiptSecret` in
 `internal/live/lint` flags a receipt whose value expression contains
@@ -356,8 +357,8 @@ by no estate, required by every operation, coordinating writers through
 conditional writes. Receipts are declared resources inside the estate,
 planned and destroyed by the normal lifecycle, gating one effect each,
 with no coordination protocol and no reader beyond declared-vs-live
-diffing. The lock existed to protect an authoritative record; with no
-such record to protect, a receipt is only a memo.
+diffing. The lock existed to protect an authoritative record. A receipt
+records an effect that already happened, which makes it a memo.
 
 ## Cross-cloud boundary
 

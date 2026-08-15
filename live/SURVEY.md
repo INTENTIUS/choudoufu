@@ -6,7 +6,7 @@ read via `terraform providers schema -json` under Terraform 1.15.8.
 This file is the durable artifact for the survey the other docs cite:
 `live/LIMITATIONS.md`'s `unadmitted-type` entry and the comment on
 `internal/live/lint/admission.go`. (`live/FAQ.md` cited it too, as "65 of
-the top 68"; that file was absorbed into the docs site by issue #79 and its
+the top 68". That file was absorbed into the docs site by issue #79 and its
 coverage claim, already stale, was not carried over.) The raw signals and the mechanical
 path classification behind the per-type table are regenerated from the
 provider schemas by `go run ./tools/survey-gen`, which writes
@@ -34,7 +34,7 @@ Stated so the table can be re-derived against any future provider release.
    and whether the provider publishes a resource identity schema for it.
 
 The admission rule itself is documented in the `internal/live` package
-documentation; `live/LIMITATIONS.md`'s `unadmitted-type` entry is the
+documentation. `live/LIMITATIONS.md`'s `unadmitted-type` entry is the
 operator-facing statement of it.
 
 ### Re-run of 2026-08-12
@@ -103,7 +103,7 @@ with their forwarding addresses.
 The sentence between the markers is rendered by `go run ./tools/survey-gen
 -render` from `live/survey.json`'s counts, so these figures are the
 committed roster's, read off the provider's schemas in process. The
-original pass hand-recorded 49 taggable and 64 with identity schemas; the
+original pass hand-recorded 49 taggable and 64 with identity schemas. The
 reconstruction footnote below keeps that record and the delta.
 
 <!-- survey-gen:begin raw-signals -->
@@ -128,7 +128,7 @@ upstream.
 
 Three columns carry fixed vocabularies so the table can be machine-parsed.
 Issue #25 proposes generating this table from the provider's
-schemas; until that lands, these are the tokens a generator or a wiring
+schemas. Until that lands, these are the tokens a generator or a wiring
 lane should match on, and nothing outside them appears in those columns.
 Prose lives in the identity column only.
 
@@ -165,7 +165,7 @@ The `wired` count above is the admission table's global size
 (`identity.AdmittedTypes`, rendered from the table itself), so it covers
 more than the rows below. Most of it is rows below,
 classified and wired the way every batch before #40 was, or later
-reclassified from `blocked-emulator` by a registry-ratified batch; the
+reclassified from `blocked-emulator` by a registry-ratified batch. The
 rest comes from the registry-ratified batches (#40, #44, #65). The
 first (Lambda) contributed `aws_lambda_capacity_provider`,
 `aws_lambda_code_signing_config`, `aws_lambda_event_source_mapping` and
@@ -183,7 +183,7 @@ third (messaging: SQS, SNS beyond `aws_sns_topic`, CloudWatch) contributed
 (`blocked-emulator`) and reclassified `wired` in that batch despite the
 emulator gap that row's note still names (see
 `live/e2e/estates/messaging/README.md`). The fourth (EC2 core: instances,
-EBS, ENI; issue #65) contributed `aws_placement_group`, `aws_ec2_fleet`,
+EBS, ENI, issue #65) contributed `aws_placement_group`, `aws_ec2_fleet`,
 `aws_ec2_capacity_reservation`, `aws_ec2_host`, `aws_network_interface`,
 `aws_network_interface_attachment`, `aws_network_interface_permission`,
 `aws_eip_association`, `aws_volume_attachment`, `aws_spot_fleet_request`
@@ -198,17 +198,17 @@ proposed `aws_sns_topic_subscription`, whose row below stays `ready`: it
 classifies cleanly but is deferred for a `live/LIMITATIONS.md` reason
 unrelated to its identity (see the same README). Extending this
 roster and `live/survey.json` to the full registry-backed universe was
-#54's follow-on work; a future batch's roster growth
+#54's follow-on work. A future batch's roster growth
 shows up only in the rendered count above and in
 `internal/live/lint/admission.go`, never as a hand edit here.
 
 The fifth (Route53 remainder and CloudFront, #65) reclassified two rows
 already below from `blocked-emulator` to `wired`: `aws_cloudfront_distribution`
-(the pinned floci image now creates and reads a distribution back cleanly;
-lex00/floci#29's fix landed in it, closing the gap the earlier
+(the pinned floci image now creates and reads a distribution back cleanly,
+since lex00/floci#29's fix landed in it, closing the gap the earlier
 `blocked-emulator` note named) and `aws_cloudfront_origin_access_control`
-(floci creates and lists origin access controls cleanly; the row was never
-blocked on identity, only on the emulator). Unlike the messaging batch's
+(floci creates and lists origin access controls cleanly, and the row was
+never blocked on identity, only on the emulator). Unlike the messaging batch's
 `aws_sns_topic_subscription`, this batch's untaggable curated-68 type,
 `aws_cloudfront_origin_access_control` itself, did not need a deferral:
 issue #54 landed between the two batches, and `live/LIMITATIONS.md`'s
@@ -220,9 +220,9 @@ only the same mechanical doc fixup as any other untaggable type. See
 
 The `blocked-emulator` rows were found by the #19 and #20 wiring lanes, by
 probing each candidate end to end through the provider against the harness's
-`floci/floci:latest` image before wiring (CLI round-trips are not enough;
-`aws_instance`'s probe looked fine from the CLI and still died in the
-provider's create waiter). Each such row names what failed in its identity
+`floci/floci:latest` image before wiring. CLI round-trips are not enough,
+since `aws_instance`'s probe looked fine from the CLI and still died in the
+provider's create waiter. Each such row names what failed in its identity
 column, with the issue tracking the gap. Issue choudoufu#26 is the
 collection point: when the harness adopts an image carrying the floci fixes,
 these rows rejoin their wiring lanes.
@@ -230,8 +230,8 @@ these rows rejoin their wiring lanes.
 the mechanism it was waiting for: `internal/live/identity`'s
 `CloudContext` substitutes an account and a region into an identity
 template, and a run with neither classifies the instance as needing
-discovery instead of failing. F1 and F2 are wired on it; F3 is blocked by
-the emulator alone; and F4 turned out not to be an
+discovery instead of failing. F1 and F2 are wired on it, F3 is blocked by
+the emulator alone, and F4 turned out not to be an
 account-derivation problem at all. The token stays in the vocabulary
 because the next provider survey may find rows that need it again.
 
@@ -240,7 +240,7 @@ because the next provider survey may find rows that need it again.
 the 2026-08-14 status reconciliation,
 all of them found by wiring lanes probing each candidate against floci.
 Each names its gap and its tracking issue in
-the identity column; choudoufu#26 is the umbrella. Six of the gaps
+the identity column, and choudoufu#26 is the umbrella. Six of the gaps
 (Lambda, EKS, RDS, EC2 run-instances, SQS queue URLs, the CloudFront
 lifecycle) were fixed upstream on 2026-08-12 (lex00/floci#26, #27, #28,
 #29, #32 and #34 all closed that evening), but no pullable harness image
@@ -333,11 +333,11 @@ identity argument were derived like every other row's.
 | aws_efs_file_system | marker | wired | server-assigned file system ID (fs-...); no identity schema in v6.58.0, `creation_token` is client-chosen but is not the import ID; v6.58.0 also has no list resource for it, so the marker path cannot enumerate it until the provider adds one (the aws_db_instance situation again, found by the #20 third-slice lane) Row corrected 2026-08-14: the type is in the admission and identity tables (registry-ratified batches), so the status is wired regardless of what the emulator note describes - found by TestRosterStatusAgreesWithAdmission, the #91-class drift check (#100). | roster fit; docs |
 | aws_ebs_volume | marker | wired | server-assigned volume ID (vol-...) | roster fit; schema |
 
-Some classifications differ between the survey and the wired code; the
+Some classifications differ between the survey and the wired code. The
 differences are recorded here. The survey's five parent-derived types are
 enumerated in full above (route, route_table_association,
 lb_target_group_attachment, sns_topic_subscription, ecs_task_definition)
-and `aws_iam_role_policy_attachment` is not among them; both of its
+and `aws_iam_role_policy_attachment` is not among them. Both of its
 components are client-named strings, so the survey presumably counted it
 under client-named, while `admission.go` groups it structurally as
 parent-derived. Likewise `aws_eip` is taggable, so the survey's
@@ -359,8 +359,8 @@ where the survey put it, since moving it would break the summary counts,
 but a wiring batch that reaches RDS should expect to admit it by name. The
 generator later added a second reason to expect that: v6.58.0 has no list
 resource for the type either, so the marker path could not enumerate it at
-all. The row is `wired` today (the 2026-08-14 reconciliation); proving it
-live still waits on floci serving RDS (Docker socket, lex00/floci#28),
+all. The row is `wired` today (the 2026-08-14 reconciliation), and proving
+it live still waits on floci serving RDS (Docker socket, lex00/floci#28),
 which is now an emulator-proof gap rather than an admission one.
 
 A fourth is the `account-derived` token itself. `aws_sns_topic` and
@@ -372,8 +372,8 @@ account/region-template way as the topic's.
 
 ### How the roster was reconstructed
 
-The survey note kept per-path counts and per-path examples; it did not
-keep the 68-row roster. Thirty-six rows carry `survey note` provenance: the types the note
+The survey note kept per-path counts and per-path examples, but not the
+68-row roster. Thirty-six rows carry `survey note` provenance: the types the note
 named as examples, plus the fourteen that were wired from it before this
 pass. The other thirty-two are inference to fit the counts, sixteen of which
 have since been wired by the #19, #20 and #21 lanes. Of the sixty-one
@@ -382,7 +382,7 @@ from `roster fit` (seven of those also cite the registry). In survey
 terms the sourced rows are 15 client-named, 12 marker,
 and complete rosters for parent-derived (5), list-plus-content (1) and
 moves-to-Ops (3), which leaves exactly 21 client-named and 11 marker to
-find; the roster was then filled from the most-used types of the curated
+find. The roster was then filled from the most-used types of the curated
 services, preferring the collectives the note gestures at without naming
 (four S3 child types beyond the bucket, three further IAM types, the
 per-rule security group resources) and covering every curated service at
@@ -401,7 +401,7 @@ where the original roster can have held at most two such rows among its
 unnamed ones. Types that would close it, if a later pass wants them, are
 `aws_rds_cluster`, `aws_network_interface`, `aws_vpc_endpoint`,
 `aws_apigatewayv2_api` and `aws_lb_listener_rule`, all taggable with
-identity schemas; they were passed over only because the hinted collectives
+identity schemas. They were passed over only because the hinted collectives
 had the stronger claim on the slots.
 
 ### Strict client-named test
@@ -412,7 +412,7 @@ from config arguments alone, with no call to AWS and no knowledge of the
 account? Six rows fail it. They keep their survey path, because the summary
 counts are the survey's result and this file does not restate them, and
 they carried status `needs-account-derived` in the per-type table until
-the wiring lanes below picked them up; the Status table's zero for that
+the wiring lanes below picked them up. The Status table's zero for that
 row is the after-state.
 
 Which component each one needs is recorded on the wiring lanes that picked
@@ -421,8 +421,8 @@ rest. Five of the six are settled and the per-type rows above carry the
 outcome, so only a summary of the finding is repeated here. Two further
 rows fail the strict test on a parent component instead of the account:
 `aws_route53_record` (the zone's Z-ID) and `aws_sns_topic_subscription`
-(the topic ARN). Both need parent resolution, which the fork already has;
-the record is wired through the `aws_route53_zone` marker today.
+(the topic ARN). Both need parent resolution, which the fork already has,
+and the record is wired through the `aws_route53_zone` marker today.
 
 The account-derived mechanism `internal/live/identity`'s
 `CloudContext` provides is exact for the two rows whose identity is a
@@ -443,7 +443,7 @@ obstacle is the emulator: the template expresses
 an IAM ARN's empty region segment perfectly well, and floci's
 `iam:GetPolicy` omits `Tags` the way its `iam:GetRole` does. It was never
 going to close `aws_secretsmanager_secret`, whose ARN carries a suffix
-generated per secret; that row is deferred to the marker path it is already
+generated per secret. That row is deferred to the marker path it is already
 taggable for. The two parent-component rows are unchanged:
 `aws_route53_record` resolves through its zone, and
 `aws_sns_topic_subscription` needs more than parent resolution, since the
@@ -473,7 +473,7 @@ cohorts:
 provider adds the identity schemas opentofu#2854 tracks, and
 `TestExceptionCohortCounts` fails the moment `pathExceptions` moves without
 this table following it. The per-type detail (which attribute, which
-flag) stays in the test; each row there also carries a `choudoufu#NN`
+flag) stays in the test, and each row there also carries a `choudoufu#NN`
 tracking reference or an explicit `permanent` marker, so a reader can tell
 which exceptions should shrink the count and which are fork design that
 will not (`TestExceptionTracking`).
@@ -495,8 +495,8 @@ keys for a user are content-identical, but a third-party system holds one
 of them, so set semantics do not apply, and no marker, derivation, or list
 can say which is which. The forwarding address is the lifecycle layer: an
 Op creates the key pair or secret version and writes the secret to the
-secret store, with the key ID riding along in the same entry;
-configuration references it by ARN or pointer, never by value. The secret
+secret store, with the key ID riding along in the same entry.
+Configuration references it by ARN or pointer, never by value. The secret
 store was already in the architecture, so no new store appears. This is
 the same forwarding `random_password` already has in
 `live/LIMITATIONS.md`, and OpenTofu's ephemeral resources and
