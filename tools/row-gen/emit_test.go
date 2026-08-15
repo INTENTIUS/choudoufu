@@ -31,14 +31,37 @@ func loadAnnotationsForTest(t *testing.T) map[string]annotation {
 	return annotations
 }
 
-// TestEmitFilesMatchCommitted is -emit's own drift test, the same shape as
-// TestConvergenceArtifactMatchesCommitted (convergence_test.go): it
-// regenerates the four files from the checked-out sources and requires them
-// to match what is actually committed byte-for-byte, so a classify.go change
-// - or a hand-edit of one of the "DO NOT EDIT" generated files themselves -
-// fails the build instead of silently drifting. Regenerate with:
+// TestEmitFilesMatchCommitted regenerates the two files -emit owns and
+// requires them to match what is committed byte-for-byte. Regenerate with:
 //
 //	go run ./tools/row-gen -emit
+//
+// # What this catches, and what it does not (issue #138)
+//
+// It catches a rendering change: emit.go's own output shape, a field added
+// to identity.TypeIdentity that renderStruct now emits, an edit to a
+// generated file that does not survive the round trip (reordering,
+// formatting, a comment).
+//
+// It does NOT catch a semantic hand-edit of the generated tables, and an
+// earlier version of this comment claimed it did. buildEmitFiles renders its
+// expected value FROM identity.DefaultTable, which is compiled from
+// table_generated.go, which is the file under test - so a hand edit moves
+// both sides of the comparison identically. Measured: changing one row's
+// Components to name an argument no provider schema has left this test
+// green.
+//
+// The tests that do catch it, all of which failed on that same edit:
+//
+//   - TestNoRatifiedRowNamesAnUnknownArgument (sources_test.go) - checks
+//     every ratified row's arguments against the provider schema and the
+//     scraped docs, which are external to the table.
+//   - TestConvergenceArtifactMatchesCommitted (convergence_test.go)
+//   - TestSourcesArtifactMatchesCommitted (sources_test.go)
+//
+// The general question worth asking of any drift test here: what external
+// source does it consult? One whose expected value derives from the thing it
+// checks is measuring agreement with itself.
 func TestEmitFilesMatchCommitted(t *testing.T) {
 	root, err := repoRoot()
 	if err != nil {
@@ -138,7 +161,7 @@ func TestEmitPartitionsDisjointAndComplete(t *testing.T) {
 }
 
 // TestEmitRendersValidGo guards the renderer itself, independent of what is
-// currently committed: every one of the four files buildEmitFiles produces
+// currently committed: every one of the two files buildEmitFiles produces
 // must parse as a single, syntactically valid Go source file.
 func TestEmitRendersValidGo(t *testing.T) {
 	proposals := loadAllForTest(t)
