@@ -106,6 +106,18 @@ type Row struct {
 	// doc's statement rather than from a hand ruling per type.
 	OmittedFallbacks map[string]string `json:"omitted_fallbacks,omitempty"`
 
+	// ExclusiveGroups are the mutually exclusive argument groups the doc
+	// itself declares exactly one of must be supplied - aws_route's
+	// "~> Exactly one of `destination_cidr_block`,
+	// `destination_ipv6_cidr_block`, or `destination_prefix_list_id` is
+	// required" - each group sorted, the groups themselves sorted, nil when
+	// the page states none. This is the doc-stated source for the identity
+	// table's preference-list Component.Attrs shape ("whichever of these the
+	// configuration supplies"), which until now went into ratified rows by
+	// hand because nothing in the scrape carried it. See exclusive.go for
+	// the two spans read and the wider nets deliberately not cast.
+	ExclusiveGroups [][]string `json:"exclusive_groups,omitempty"`
+
 	// IDParts is the documented import ID's per-segment source attribution
 	// (issue #132): each segment name the Import section's own prose gives,
 	// attributed to the doc section that defines it - an Argument Reference
@@ -290,6 +302,7 @@ func buildRow(tfType, doc string) (Row, bool) {
 		IdentitySchemaRequired: idReq,
 		IdentitySchemaOptional: idOpt,
 		OmittedFallbacks:       omittedFallbacks(section, cr.Arguments),
+		ExclusiveGroups:        exclusiveGroups(section, argEntries, doc),
 		IDParts:                parts,
 		IDTemplate:             idTemplate(section, tfType, argEntries, exArgs),
 	}, true
