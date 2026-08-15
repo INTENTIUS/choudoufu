@@ -101,7 +101,8 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	for _, diag := range diags {
 		desc := diag.Description()
 		site := Site{
-			Detail: desc.Detail,
+			Detail:   desc.Detail,
+			Category: tfdiags.ExtraInfo[configs.ReferenceCategory](diag),
 		}
 		if src := diag.Source(); src.Subject != nil {
 			site.File = src.Subject.Filename
@@ -252,6 +253,13 @@ type Site struct {
 	// Detail is the per-site explanation, which is also the remedy text
 	// #101's audit put into these messages.
 	Detail string
+
+	// Category classifies the reference-subject shape behind this site -
+	// [configs.ReferenceCategory], read off the raising diagnostic's Extra
+	// field rather than parsed from Detail. Set only for
+	// [configs.StaticValidateReferences]'s refusals; every other rule
+	// leaves it empty rather than guessing. See #178.
+	Category configs.ReferenceCategory
 
 	// File, Line and Column locate it.
 	File   string

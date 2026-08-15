@@ -62,7 +62,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
           },
           {
             "layer": "lint",
@@ -123,7 +126,11 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 77
+            "sites": 77,
+            "categories": {
+              "cross_stack_data_source": 5,
+              "managed_resource": 72
+            }
           },
           {
             "layer": "identity",
@@ -216,7 +223,12 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 19
+            "sites": 19,
+            "categories": {
+              "cross_stack_data_source": 2,
+              "data_source": 1,
+              "managed_resource": 16
+            }
           },
           {
             "layer": "identity",
@@ -435,7 +447,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
           },
           {
             "layer": "identity",
@@ -536,7 +551,11 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 2
+            "sites": 2,
+            "categories": {
+              "cross_stack_data_source": 1,
+              "data_source": 1
+            }
           },
           {
             "layer": "identity",
@@ -633,7 +652,10 @@
           {
             "layer": "identity",
             "id": "Module output not supported in static context",
-            "sites": 3
+            "sites": 3,
+            "categories": {
+              "module_output": 3
+            }
           },
           {
             "layer": "identity",
@@ -699,7 +721,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 2
+            "sites": 2,
+            "categories": {
+              "data_source": 2
+            }
           },
           {
             "layer": "identity",
@@ -873,7 +898,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 2
+            "sites": 2,
+            "categories": {
+              "managed_resource": 2
+            }
           },
           {
             "layer": "lint",
@@ -980,7 +1008,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "cross_stack_data_source": 1
+            }
           },
           {
             "layer": "identity",
@@ -1269,7 +1300,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "managed_resource": 1
+            }
           },
           {
             "layer": "identity",
@@ -1369,7 +1403,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 2
+            "sites": 2,
+            "categories": {
+              "managed_resource": 2
+            }
           },
           {
             "layer": "identity",
@@ -1450,7 +1487,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
           },
           {
             "layer": "lint",
@@ -1524,7 +1564,11 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 3
+            "sites": 3,
+            "categories": {
+              "cross_stack_data_source": 1,
+              "managed_resource": 2
+            }
           },
           {
             "layer": "identity",
@@ -1630,7 +1674,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "cross_stack_data_source": 1
+            }
           },
           {
             "layer": "identity",
@@ -1708,7 +1755,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "cross_stack_data_source": 1
+            }
           },
           {
             "layer": "identity",
@@ -1792,7 +1842,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 16
+            "sites": 16,
+            "categories": {
+              "data_source": 16
+            }
           },
           {
             "layer": "identity",
@@ -1835,7 +1888,11 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 7
+            "sites": 7,
+            "categories": {
+              "cross_stack_data_source": 1,
+              "managed_resource": 6
+            }
           },
           {
             "layer": "identity",
@@ -1908,12 +1965,18 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 4
+            "sites": 4,
+            "categories": {
+              "cross_stack_data_source": 4
+            }
           },
           {
             "layer": "identity",
             "id": "Module output not supported in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "module_output": 1
+            }
           },
           {
             "layer": "identity",
@@ -1994,7 +2057,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "cross_stack_data_source": 1
+            }
           },
           {
             "layer": "identity",
@@ -2046,7 +2112,11 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 2
+            "sites": 2,
+            "categories": {
+              "cross_stack_data_source": 1,
+              "data_source": 1
+            }
           },
           {
             "layer": "identity",
@@ -2108,7 +2178,11 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 2
+            "sites": 2,
+            "categories": {
+              "cross_stack_data_source": 1,
+              "managed_resource": 1
+            }
           },
           {
             "layer": "identity",
@@ -2366,7 +2440,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
           },
           {
             "layer": "identity",
@@ -2422,12 +2499,20 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 17
+            "sites": 17,
+            "categories": {
+              "cross_stack_data_source": 12,
+              "data_source": 4,
+              "managed_resource": 1
+            }
           },
           {
             "layer": "identity",
             "id": "Module output not supported in static context",
-            "sites": 4
+            "sites": 4,
+            "categories": {
+              "module_output": 4
+            }
           },
           {
             "layer": "identity",
@@ -2543,7 +2628,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "managed_resource": 1
+            }
           },
           {
             "layer": "identity",
@@ -2738,7 +2826,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "cross_stack_data_source": 1
+            }
           },
           {
             "layer": "lint",
@@ -2857,7 +2948,11 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 20
+            "sites": 20,
+            "categories": {
+              "cross_stack_data_source": 18,
+              "managed_resource": 2
+            }
           },
           {
             "layer": "identity",
@@ -2995,7 +3090,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "cross_stack_data_source": 1
+            }
           },
           {
             "layer": "lint",
@@ -3133,7 +3231,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
           },
           {
             "layer": "identity",
@@ -3263,7 +3364,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 17
+            "sites": 17,
+            "categories": {
+              "data_source": 17
+            }
           },
           {
             "layer": "identity",
@@ -3330,7 +3434,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
           },
           {
             "layer": "identity",
@@ -3382,7 +3489,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "other": 1
+            }
           },
           {
             "layer": "identity",
@@ -3497,7 +3607,10 @@
           {
             "layer": "identity",
             "id": "Module output not supported in static context",
-            "sites": 6
+            "sites": 6,
+            "categories": {
+              "module_output": 6
+            }
           },
           {
             "layer": "lint",
@@ -3664,7 +3777,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 9
+            "sites": 9,
+            "categories": {
+              "data_source": 9
+            }
           },
           {
             "layer": "identity",
@@ -3700,7 +3816,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 17
+            "sites": 17,
+            "categories": {
+              "data_source": 17
+            }
           },
           {
             "layer": "identity",
@@ -3958,7 +4077,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 2
+            "sites": 2,
+            "categories": {
+              "data_source": 2
+            }
           },
           {
             "layer": "lint",
@@ -4005,7 +4127,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 2
+            "sites": 2,
+            "categories": {
+              "data_source": 2
+            }
           },
           {
             "layer": "lint",
@@ -4031,7 +4156,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 2
+            "sites": 2,
+            "categories": {
+              "data_source": 2
+            }
           },
           {
             "layer": "lint",
@@ -4078,7 +4206,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 3
+            "sites": 3,
+            "categories": {
+              "data_source": 3
+            }
           },
           {
             "layer": "lint",
@@ -4104,7 +4235,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 6
+            "sites": 6,
+            "categories": {
+              "data_source": 6
+            }
           },
           {
             "layer": "identity",
@@ -4135,7 +4269,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 3
+            "sites": 3,
+            "categories": {
+              "data_source": 3
+            }
           },
           {
             "layer": "identity",
@@ -4229,7 +4366,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
           },
           {
             "layer": "lint",
@@ -4276,7 +4416,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 3
+            "sites": 3,
+            "categories": {
+              "data_source": 3
+            }
           },
           {
             "layer": "lint",
@@ -4323,7 +4466,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 2
+            "sites": 2,
+            "categories": {
+              "data_source": 2
+            }
           },
           {
             "layer": "lint",
@@ -4349,7 +4495,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 3
+            "sites": 3,
+            "categories": {
+              "data_source": 3
+            }
           },
           {
             "layer": "lint",
@@ -4375,7 +4524,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
           },
           {
             "layer": "identity",
@@ -4406,7 +4558,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
           },
           {
             "layer": "identity",
@@ -4437,7 +4592,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 5
+            "sites": 5,
+            "categories": {
+              "data_source": 5
+            }
           },
           {
             "layer": "identity",
@@ -4494,7 +4652,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
           },
           {
             "layer": "lint",
@@ -4520,7 +4681,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 3
+            "sites": 3,
+            "categories": {
+              "data_source": 3
+            }
           },
           {
             "layer": "identity",
@@ -4551,7 +4715,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 3
+            "sites": 3,
+            "categories": {
+              "data_source": 3
+            }
           },
           {
             "layer": "identity",
@@ -4582,7 +4749,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
           },
           {
             "layer": "lint",
@@ -4608,7 +4778,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 3
+            "sites": 3,
+            "categories": {
+              "data_source": 3
+            }
           },
           {
             "layer": "identity",
@@ -4660,7 +4833,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
           },
           {
             "layer": "identity",
@@ -4691,7 +4867,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 2
+            "sites": 2,
+            "categories": {
+              "data_source": 2
+            }
           },
           {
             "layer": "lint",
@@ -4738,7 +4917,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 2
+            "sites": 2,
+            "categories": {
+              "data_source": 2
+            }
           },
           {
             "layer": "lint",
@@ -4764,7 +4946,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 2
+            "sites": 2,
+            "categories": {
+              "data_source": 2
+            }
           },
           {
             "layer": "lint",
@@ -4811,7 +4996,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 2
+            "sites": 2,
+            "categories": {
+              "data_source": 2
+            }
           },
           {
             "layer": "lint",
@@ -4879,7 +5067,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 2
+            "sites": 2,
+            "categories": {
+              "data_source": 2
+            }
           },
           {
             "layer": "lint",
@@ -5222,7 +5413,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
           },
           {
             "layer": "lint",
@@ -5253,7 +5447,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
           },
           {
             "layer": "lint",
@@ -5280,12 +5477,18 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
           },
           {
             "layer": "identity",
             "id": "Module output not supported in static context",
-            "sites": 4
+            "sites": 4,
+            "categories": {
+              "module_output": 4
+            }
           },
           {
             "layer": "identity",
@@ -5343,12 +5546,19 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 3
+            "sites": 3,
+            "categories": {
+              "cross_stack_data_source": 2,
+              "data_source": 1
+            }
           },
           {
             "layer": "identity",
             "id": "Module output not supported in static context",
-            "sites": 4
+            "sites": 4,
+            "categories": {
+              "module_output": 4
+            }
           },
           {
             "layer": "identity",
@@ -5410,7 +5620,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 10
+            "sites": 10,
+            "categories": {
+              "data_source": 10
+            }
           },
           {
             "layer": "identity",
@@ -5478,7 +5691,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 5
+            "sites": 5,
+            "categories": {
+              "data_source": 5
+            }
           },
           {
             "layer": "lint",
@@ -5510,7 +5726,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 3
+            "sites": 3,
+            "categories": {
+              "data_source": 3
+            }
           },
           {
             "layer": "identity",
@@ -5609,12 +5828,18 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "cross_stack_data_source": 1
+            }
           },
           {
             "layer": "identity",
             "id": "Module output not supported in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "module_output": 1
+            }
           },
           {
             "layer": "identity",
@@ -5731,12 +5956,19 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 3
+            "sites": 3,
+            "categories": {
+              "cross_stack_data_source": 2,
+              "data_source": 1
+            }
           },
           {
             "layer": "identity",
             "id": "Module output not supported in static context",
-            "sites": 4
+            "sites": 4,
+            "categories": {
+              "module_output": 4
+            }
           },
           {
             "layer": "identity",
@@ -5803,7 +6035,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
           },
           {
             "layer": "identity",
@@ -5887,7 +6122,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 2
+            "sites": 2,
+            "categories": {
+              "other": 2
+            }
           },
           {
             "layer": "identity",
@@ -5902,7 +6140,10 @@
           {
             "layer": "identity",
             "id": "Module output not supported in static context",
-            "sites": 2
+            "sites": 2,
+            "categories": {
+              "module_output": 2
+            }
           },
           {
             "layer": "identity",
@@ -5951,7 +6192,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
           },
           {
             "layer": "identity",
@@ -5987,7 +6231,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 2
+            "sites": 2,
+            "categories": {
+              "data_source": 2
+            }
           },
           {
             "layer": "identity",
@@ -6024,12 +6271,19 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 3
+            "sites": 3,
+            "categories": {
+              "cross_stack_data_source": 2,
+              "data_source": 1
+            }
           },
           {
             "layer": "identity",
             "id": "Module output not supported in static context",
-            "sites": 5
+            "sites": 5,
+            "categories": {
+              "module_output": 5
+            }
           },
           {
             "layer": "identity",
@@ -6092,12 +6346,19 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 5
+            "sites": 5,
+            "categories": {
+              "cross_stack_data_source": 1,
+              "data_source": 4
+            }
           },
           {
             "layer": "identity",
             "id": "Module output not supported in static context",
-            "sites": 3
+            "sites": 3,
+            "categories": {
+              "module_output": 3
+            }
           },
           {
             "layer": "identity",
@@ -6163,7 +6424,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 4
+            "sites": 4,
+            "categories": {
+              "data_source": 4
+            }
           },
           {
             "layer": "identity",
@@ -6173,7 +6437,10 @@
           {
             "layer": "identity",
             "id": "Module output not supported in static context",
-            "sites": 4
+            "sites": 4,
+            "categories": {
+              "module_output": 4
+            }
           },
           {
             "layer": "identity",
@@ -6229,7 +6496,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 36
+            "sites": 36,
+            "categories": {
+              "managed_resource": 36
+            }
           },
           {
             "layer": "identity",
@@ -6269,7 +6539,10 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 12
+            "sites": 12,
+            "categories": {
+              "managed_resource": 12
+            }
           },
           {
             "layer": "identity",

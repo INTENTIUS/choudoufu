@@ -8,6 +8,7 @@ package check
 import (
 	"sort"
 
+	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/lint"
 )
 
@@ -153,6 +154,13 @@ type EntryRefusal struct {
 	// [Report.AttributeUnsetVariables] before folding the report in; false
 	// otherwise, which understates rather than invents.
 	UnsetVarOnly bool `json:"unset_var_only,omitempty"`
+
+	// Categories breaks this refusal's sites down by reference-subject
+	// category (see [configs.ReferenceCategory]) - populated only for
+	// [configs.StaticValidateReferences]'s refusals, and omitted entirely
+	// when none of this refusal's sites carried one, so every other rule's
+	// row in the artifact stays exactly as small as it was before #178.
+	Categories map[configs.ReferenceCategory]int `json:"categories,omitempty"`
 }
 
 // LadderSummary is the artifact's roll-up over every profiled entry: #175's
@@ -197,12 +205,22 @@ func profileReport(report Report) *EntryProfile {
 
 	types := map[string]bool{}
 	for _, f := range report.Findings {
-		profile.Refusals = append(profile.Refusals, EntryRefusal{
+		er := EntryRefusal{
 			Layer:        f.Layer,
 			ID:           f.ID,
 			Sites:        len(f.Sites),
 			UnsetVarOnly: len(f.Sites) > 0 && f.UnsetVarSites == len(f.Sites),
-		})
+		}
+		for _, site := range f.Sites {
+			if site.Category == "" {
+				continue
+			}
+			if er.Categories == nil {
+				er.Categories = map[configs.ReferenceCategory]int{}
+			}
+			er.Categories[site.Category]++
+		}
+		profile.Refusals = append(profile.Refusals, er)
 		if f.Layer == LayerLint && f.ID == string(lint.RuleUnadmittedType) {
 			for _, tc := range f.Types() {
 				types[tc.Type] = true

@@ -100,6 +100,71 @@ func (s staticScopeData) enhanceDiagnostics(ident StaticIdentifier, diags tfdiag
 	return diags
 }
 
+// ReferenceCategory classifies the kind of object a reference site named,
+// derived structurally from ref.Subject's Go type at the point
+// StaticValidateReferences refused it - never by parsing a diagnostic's
+// rendered text. It rides in the diagnostic's Extra field (the same
+// mechanism tfdiags.ExtraInfo already exposes for other diagnostic
+// metadata), so a caller can recover it with
+// tfdiags.ExtraInfo[ReferenceCategory](diag) instead of re-deriving it.
+//
+// #178's scoping pass found the split between a same-stack data source and
+// a cross-stack one load-bearing for its design question: a same-stack
+// data source is an ordering problem this repo could plausibly solve with
+// a pre-resolution read phase against the live provider, while a
+// cross-stack one (terraform_remote_state, tfe_outputs) depends on a
+// second state backend this fork does not open, and needs its own design
+// call regardless of what the first gets.
+type ReferenceCategory string
+
+const (
+	CategoryManagedResource      ReferenceCategory = "managed_resource"
+	CategoryDataSource           ReferenceCategory = "data_source"
+	CategoryCrossStackDataSource ReferenceCategory = "cross_stack_data_source"
+	CategoryModuleOutput         ReferenceCategory = "module_output"
+	CategoryProviderFunction     ReferenceCategory = "provider_function"
+	CategoryOther                ReferenceCategory = "other"
+)
+
+// crossStackDataSources are the data source types that read another
+// stack's recorded outputs rather than a live cloud resource.
+var crossStackDataSources = map[string]bool{
+	"terraform_remote_state": true,
+	"tfe_outputs":            true,
+}
+
+// categorizeReference derives subject's [ReferenceCategory] from its Go
+// type and, for a data resource, its type name - structural signals
+// available at the raise site, with nothing read from rendered text.
+func categorizeReference(subject addrs.Referenceable) ReferenceCategory {
+	switch s := subject.(type) {
+	case addrs.Resource:
+		return categorizeResourceMode(s.Mode, s.Type)
+	case addrs.ResourceInstance:
+		return categorizeResourceMode(s.Resource.Mode, s.Resource.Type)
+	case addrs.ModuleCallInstanceOutput:
+		return CategoryModuleOutput
+	case addrs.ProviderFunction:
+		return CategoryProviderFunction
+	default:
+		return CategoryOther
+	}
+}
+
+func categorizeResourceMode(mode addrs.ResourceMode, typeName string) ReferenceCategory {
+	switch mode {
+	case addrs.ManagedResourceMode:
+		return CategoryManagedResource
+	case addrs.DataResourceMode:
+		if crossStackDataSources[typeName] {
+			return CategoryCrossStackDataSource
+		}
+		return CategoryDataSource
+	default:
+		return CategoryOther
+	}
+}
+
 // Early check to only allow references we expect in a static context
 func (s staticScopeData) StaticValidateReferences(_ context.Context, refs []*addrs.Reference, _ addrs.Referenceable, _ addrs.Referenceable) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
@@ -120,6 +185,7 @@ func (s staticScopeData) StaticValidateReferences(_ context.Context, refs []*add
 				Summary:  "Module output not supported in static context",
 				Detail:   fmt.Sprintf("Unable to use %s in static context, which is required by %s", subject.String(), top.String()),
 				Subject:  ref.SourceRange.ToHCL().Ptr(),
+				Extra:    categorizeReference(subject),
 			})
 		case addrs.ProviderFunction:
 			diags = diags.Append(&hcl.Diagnostic{
@@ -127,6 +193,7 @@ func (s staticScopeData) StaticValidateReferences(_ context.Context, refs []*add
 				Summary:  "Provider function in static context",
 				Detail:   fmt.Sprintf("Unable to use %s in static context, which is required by %s", subject.String(), top.String()),
 				Subject:  ref.SourceRange.ToHCL().Ptr(),
+				Extra:    categorizeReference(subject),
 			})
 		default:
 			diags = diags.Append(&hcl.Diagnostic{
@@ -134,6 +201,7 @@ func (s staticScopeData) StaticValidateReferences(_ context.Context, refs []*add
 				Summary:  "Dynamic value in static context",
 				Detail:   fmt.Sprintf("Unable to use %s in static context, which is required by %s", subject.String(), top.String()),
 				Subject:  ref.SourceRange.ToHCL().Ptr(),
+				Extra:    categorizeReference(subject),
 			})
 		}
 	}
