@@ -2,7 +2,6 @@
   "source": "github.com/boto/botocore",
   "source_version": "1.43.70",
   "generated_by": "tools/tagverbs-gen (go run ./tools/tagverbs-gen)",
-  "accepted": "2026-08-13",
   "counts": {
     "services": 205,
     "directory_found": 187,
@@ -17,6 +16,9 @@
       "service": "ACMPCA",
       "botocore_directory": "acm-pca",
       "botocore_version": "2017-08-22",
+      "iam_prefix_candidates": [
+        "acm-pca"
+      ],
       "directory_found": true,
       "operation": "TagCertificateAuthority",
       "ambiguous": false,
@@ -41,6 +43,9 @@
       "service": "ARCRegionSwitch",
       "botocore_directory": "arc-region-switch",
       "botocore_version": "2022-07-26",
+      "iam_prefix_candidates": [
+        "arc-region-switch"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -56,6 +61,9 @@
       "service": "ARCZonalShift",
       "botocore_directory": "arc-zonal-shift",
       "botocore_version": "2022-10-30",
+      "iam_prefix_candidates": [
+        "arc-zonal-shift"
+      ],
       "directory_found": true,
       "ambiguous": false,
       "composable": false,
@@ -65,6 +73,10 @@
       "service": "AccessAnalyzer",
       "botocore_directory": "accessanalyzer",
       "botocore_version": "2019-11-01",
+      "iam_prefix_candidates": [
+        "accessanalyzer",
+        "access-analyzer"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -87,6 +99,9 @@
       "service": "Amplify",
       "botocore_directory": "amplify",
       "botocore_version": "2017-07-25",
+      "iam_prefix_candidates": [
+        "amplify"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -102,6 +117,9 @@
       "service": "ApiGateway",
       "botocore_directory": "apigateway",
       "botocore_version": "2015-07-09",
+      "iam_prefix_candidates": [
+        "apigateway"
+      ],
       "directory_found": true,
       "ambiguous": true,
       "candidates": [
@@ -115,6 +133,10 @@
       "service": "ApiGatewayV2",
       "botocore_directory": "apigatewayv2",
       "botocore_version": "2018-11-29",
+      "iam_prefix_candidates": [
+        "apigatewayv2",
+        "apigateway"
+      ],
       "directory_found": true,
       "ambiguous": true,
       "candidates": [
@@ -128,6 +150,9 @@
       "service": "AppConfig",
       "botocore_directory": "appconfig",
       "botocore_version": "2019-10-09",
+      "iam_prefix_candidates": [
+        "appconfig"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -143,6 +168,9 @@
       "service": "AppFlow",
       "botocore_directory": "appflow",
       "botocore_version": "2020-08-23",
+      "iam_prefix_candidates": [
+        "appflow"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -158,6 +186,10 @@
       "service": "AppIntegrations",
       "botocore_directory": "appintegrations",
       "botocore_version": "2020-07-29",
+      "iam_prefix_candidates": [
+        "appintegrations",
+        "app-integrations"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -173,6 +205,9 @@
       "service": "AppMesh",
       "botocore_directory": "appmesh",
       "botocore_version": "2019-01-25",
+      "iam_prefix_candidates": [
+        "appmesh"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -190,6 +225,9 @@
       "service": "AppRunner",
       "botocore_directory": "apprunner",
       "botocore_version": "2020-05-15",
+      "iam_prefix_candidates": [
+        "apprunner"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -207,6 +245,10 @@
       "service": "AppStream",
       "botocore_directory": "appstream",
       "botocore_version": "2016-12-01",
+      "iam_prefix_candidates": [
+        "appstream",
+        "appstream2"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -222,6 +264,9 @@
       "service": "AppSync",
       "botocore_directory": "appsync",
       "botocore_version": "2017-07-25",
+      "iam_prefix_candidates": [
+        "appsync"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -237,6 +282,9 @@
       "service": "ApplicationAutoScaling",
       "botocore_directory": "application-autoscaling",
       "botocore_version": "2016-02-06",
+      "iam_prefix_candidates": [
+        "application-autoscaling"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -252,6 +300,10 @@
       "service": "ApplicationInsights",
       "botocore_directory": "application-insights",
       "botocore_version": "2018-11-25",
+      "iam_prefix_candidates": [
+        "application-insights",
+        "applicationinsights"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -269,6 +321,9 @@
       "service": "Athena",
       "botocore_directory": "athena",
       "botocore_version": "2017-05-18",
+      "iam_prefix_candidates": [
+        "athena"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -286,6 +341,9 @@
       "service": "AuditManager",
       "botocore_directory": "auditmanager",
       "botocore_version": "2017-07-25",
+      "iam_prefix_candidates": [
+        "auditmanager"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -301,6 +359,9 @@
       "service": "AutoScaling",
       "botocore_directory": "autoscaling",
       "botocore_version": "2011-01-01",
+      "iam_prefix_candidates": [
+        "autoscaling"
+      ],
       "directory_found": true,
       "ambiguous": false,
       "composable": false,
@@ -310,6 +371,9 @@
       "service": "AutoScalingPlans",
       "botocore_directory": "autoscaling-plans",
       "botocore_version": "2018-01-06",
+      "iam_prefix_candidates": [
+        "autoscaling-plans"
+      ],
       "directory_found": true,
       "ambiguous": false,
       "composable": false,
@@ -319,6 +383,9 @@
       "service": "BCMDataExports",
       "botocore_directory": "bcm-data-exports",
       "botocore_version": "2023-11-26",
+      "iam_prefix_candidates": [
+        "bcm-data-exports"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -336,6 +403,9 @@
       "service": "Backup",
       "botocore_directory": "backup",
       "botocore_version": "2018-11-15",
+      "iam_prefix_candidates": [
+        "backup"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -351,6 +421,9 @@
       "service": "Batch",
       "botocore_directory": "batch",
       "botocore_version": "2016-08-10",
+      "iam_prefix_candidates": [
+        "batch"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -366,6 +439,9 @@
       "service": "Bedrock",
       "botocore_directory": "bedrock",
       "botocore_version": "2023-04-20",
+      "iam_prefix_candidates": [
+        "bedrock"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -383,6 +459,9 @@
       "service": "BedrockAgentCore",
       "botocore_directory": "bedrock-agentcore",
       "botocore_version": "2024-02-28",
+      "iam_prefix_candidates": [
+        "bedrock-agentcore"
+      ],
       "directory_found": true,
       "ambiguous": false,
       "composable": false,
@@ -392,6 +471,9 @@
       "service": "Billing",
       "botocore_directory": "billing",
       "botocore_version": "2023-09-07",
+      "iam_prefix_candidates": [
+        "billing"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -409,6 +491,9 @@
       "service": "Budgets",
       "botocore_directory": "budgets",
       "botocore_version": "2016-10-20",
+      "iam_prefix_candidates": [
+        "budgets"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -426,6 +511,9 @@
       "service": "CE",
       "botocore_directory": "ce",
       "botocore_version": "2017-10-25",
+      "iam_prefix_candidates": [
+        "ce"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -443,6 +531,9 @@
       "service": "CUR",
       "botocore_directory": "cur",
       "botocore_version": "2017-01-06",
+      "iam_prefix_candidates": [
+        "cur"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -467,6 +558,9 @@
       "service": "CertificateManager",
       "botocore_directory": "acm",
       "botocore_version": "2015-12-08",
+      "iam_prefix_candidates": [
+        "acm"
+      ],
       "directory_found": true,
       "ambiguous": true,
       "candidates": [
@@ -480,6 +574,9 @@
       "service": "Chatbot",
       "botocore_directory": "chatbot",
       "botocore_version": "2017-10-11",
+      "iam_prefix_candidates": [
+        "chatbot"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -497,6 +594,9 @@
       "service": "CleanRooms",
       "botocore_directory": "cleanrooms",
       "botocore_version": "2022-02-17",
+      "iam_prefix_candidates": [
+        "cleanrooms"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -512,6 +612,9 @@
       "service": "Cloud9",
       "botocore_directory": "cloud9",
       "botocore_version": "2017-09-23",
+      "iam_prefix_candidates": [
+        "cloud9"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -529,6 +632,9 @@
       "service": "CloudFormation",
       "botocore_directory": "cloudformation",
       "botocore_version": "2010-05-15",
+      "iam_prefix_candidates": [
+        "cloudformation"
+      ],
       "directory_found": true,
       "ambiguous": false,
       "composable": false,
@@ -538,6 +644,9 @@
       "service": "CloudFront",
       "botocore_directory": "cloudfront",
       "botocore_version": "2020-05-31",
+      "iam_prefix_candidates": [
+        "cloudfront"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -553,6 +662,9 @@
       "service": "CloudTrail",
       "botocore_directory": "cloudtrail",
       "botocore_version": "2013-11-01",
+      "iam_prefix_candidates": [
+        "cloudtrail"
+      ],
       "directory_found": true,
       "ambiguous": false,
       "composable": false,
@@ -562,6 +674,10 @@
       "service": "CloudWatch",
       "botocore_directory": "cloudwatch",
       "botocore_version": "2010-08-01",
+      "iam_prefix_candidates": [
+        "cloudwatch",
+        "monitoring"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -579,6 +695,9 @@
       "service": "CodeArtifact",
       "botocore_directory": "codeartifact",
       "botocore_version": "2018-09-22",
+      "iam_prefix_candidates": [
+        "codeartifact"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -596,6 +715,9 @@
       "service": "CodeBuild",
       "botocore_directory": "codebuild",
       "botocore_version": "2016-10-06",
+      "iam_prefix_candidates": [
+        "codebuild"
+      ],
       "directory_found": true,
       "ambiguous": false,
       "composable": false,
@@ -605,6 +727,9 @@
       "service": "CodeCommit",
       "botocore_directory": "codecommit",
       "botocore_version": "2015-04-13",
+      "iam_prefix_candidates": [
+        "codecommit"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -620,6 +745,9 @@
       "service": "CodeConnections",
       "botocore_directory": "codeconnections",
       "botocore_version": "2023-12-01",
+      "iam_prefix_candidates": [
+        "codeconnections"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -637,6 +765,9 @@
       "service": "CodeDeploy",
       "botocore_directory": "codedeploy",
       "botocore_version": "2014-10-06",
+      "iam_prefix_candidates": [
+        "codedeploy"
+      ],
       "directory_found": true,
       "ambiguous": true,
       "candidates": [
@@ -650,6 +781,10 @@
       "service": "CodeGuruProfiler",
       "botocore_directory": "codeguruprofiler",
       "botocore_version": "2019-07-18",
+      "iam_prefix_candidates": [
+        "codeguruprofiler",
+        "codeguru-profiler"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -665,6 +800,9 @@
       "service": "CodeGuruReviewer",
       "botocore_directory": "codeguru-reviewer",
       "botocore_version": "2019-09-19",
+      "iam_prefix_candidates": [
+        "codeguru-reviewer"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -680,6 +818,9 @@
       "service": "CodePipeline",
       "botocore_directory": "codepipeline",
       "botocore_version": "2015-07-09",
+      "iam_prefix_candidates": [
+        "codepipeline"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -697,6 +838,9 @@
       "service": "CodeStarConnections",
       "botocore_directory": "codestar-connections",
       "botocore_version": "2019-12-01",
+      "iam_prefix_candidates": [
+        "codestar-connections"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -714,6 +858,9 @@
       "service": "CodeStarNotifications",
       "botocore_directory": "codestar-notifications",
       "botocore_version": "2019-10-15",
+      "iam_prefix_candidates": [
+        "codestar-notifications"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -736,6 +883,9 @@
       "service": "Comprehend",
       "botocore_directory": "comprehend",
       "botocore_version": "2017-11-27",
+      "iam_prefix_candidates": [
+        "comprehend"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -753,6 +903,9 @@
       "service": "Config",
       "botocore_directory": "config",
       "botocore_version": "2014-11-12",
+      "iam_prefix_candidates": [
+        "config"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -770,6 +923,9 @@
       "service": "Connect",
       "botocore_directory": "connect",
       "botocore_version": "2017-08-08",
+      "iam_prefix_candidates": [
+        "connect"
+      ],
       "directory_found": true,
       "ambiguous": true,
       "candidates": [
@@ -783,6 +939,9 @@
       "service": "ControlTower",
       "botocore_directory": "controltower",
       "botocore_version": "2018-05-10",
+      "iam_prefix_candidates": [
+        "controltower"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -798,6 +957,10 @@
       "service": "CustomerProfiles",
       "botocore_directory": "customer-profiles",
       "botocore_version": "2020-08-15",
+      "iam_prefix_candidates": [
+        "customer-profiles",
+        "profile"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -813,6 +976,9 @@
       "service": "DAX",
       "botocore_directory": "dax",
       "botocore_version": "2017-04-19",
+      "iam_prefix_candidates": [
+        "dax"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -830,6 +996,9 @@
       "service": "DLM",
       "botocore_directory": "dlm",
       "botocore_version": "2018-01-12",
+      "iam_prefix_candidates": [
+        "dlm"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -845,6 +1014,9 @@
       "service": "DMS",
       "botocore_directory": "dms",
       "botocore_version": "2016-01-01",
+      "iam_prefix_candidates": [
+        "dms"
+      ],
       "directory_found": true,
       "operation": "AddTagsToResource",
       "ambiguous": false,
@@ -860,6 +1032,9 @@
       "service": "DSQL",
       "botocore_directory": "dsql",
       "botocore_version": "2018-05-10",
+      "iam_prefix_candidates": [
+        "dsql"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -875,6 +1050,9 @@
       "service": "DataPipeline",
       "botocore_directory": "datapipeline",
       "botocore_version": "2012-10-29",
+      "iam_prefix_candidates": [
+        "datapipeline"
+      ],
       "directory_found": true,
       "operation": "AddTags",
       "ambiguous": false,
@@ -892,6 +1070,9 @@
       "service": "DataSync",
       "botocore_directory": "datasync",
       "botocore_version": "2018-11-09",
+      "iam_prefix_candidates": [
+        "datasync"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -909,6 +1090,9 @@
       "service": "DataZone",
       "botocore_directory": "datazone",
       "botocore_version": "2018-05-10",
+      "iam_prefix_candidates": [
+        "datazone"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -924,6 +1108,10 @@
       "service": "Detective",
       "botocore_directory": "detective",
       "botocore_version": "2018-10-26",
+      "iam_prefix_candidates": [
+        "detective",
+        "api.detective"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -939,6 +1127,9 @@
       "service": "DevOpsGuru",
       "botocore_directory": "devops-guru",
       "botocore_version": "2020-12-01",
+      "iam_prefix_candidates": [
+        "devops-guru"
+      ],
       "directory_found": true,
       "ambiguous": false,
       "composable": false,
@@ -948,6 +1139,9 @@
       "service": "DirectConnect",
       "botocore_directory": "directconnect",
       "botocore_version": "2012-10-25",
+      "iam_prefix_candidates": [
+        "directconnect"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -965,6 +1159,10 @@
       "service": "DocDB",
       "botocore_directory": "docdb",
       "botocore_version": "2014-10-31",
+      "iam_prefix_candidates": [
+        "docdb",
+        "rds"
+      ],
       "directory_found": true,
       "operation": "AddTagsToResource",
       "ambiguous": false,
@@ -982,6 +1180,9 @@
       "service": "DocDBElastic",
       "botocore_directory": "docdb-elastic",
       "botocore_version": "2022-11-28",
+      "iam_prefix_candidates": [
+        "docdb-elastic"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -997,6 +1198,9 @@
       "service": "DynamoDB",
       "botocore_directory": "dynamodb",
       "botocore_version": "2012-08-10",
+      "iam_prefix_candidates": [
+        "dynamodb"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1014,6 +1218,9 @@
       "service": "EC2",
       "botocore_directory": "ec2",
       "botocore_version": "2016-11-15",
+      "iam_prefix_candidates": [
+        "ec2"
+      ],
       "directory_found": true,
       "operation": "CreateTags",
       "ambiguous": false,
@@ -1032,6 +1239,10 @@
       "service": "ECR",
       "botocore_directory": "ecr",
       "botocore_version": "2015-09-21",
+      "iam_prefix_candidates": [
+        "ecr",
+        "api.ecr"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1049,6 +1260,9 @@
       "service": "ECS",
       "botocore_directory": "ecs",
       "botocore_version": "2014-11-13",
+      "iam_prefix_candidates": [
+        "ecs"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1066,6 +1280,10 @@
       "service": "EFS",
       "botocore_directory": "efs",
       "botocore_version": "2015-02-01",
+      "iam_prefix_candidates": [
+        "efs",
+        "elasticfilesystem"
+      ],
       "directory_found": true,
       "ambiguous": true,
       "candidates": [
@@ -1079,6 +1297,9 @@
       "service": "EKS",
       "botocore_directory": "eks",
       "botocore_version": "2017-11-01",
+      "iam_prefix_candidates": [
+        "eks"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1094,6 +1315,10 @@
       "service": "EMR",
       "botocore_directory": "emr",
       "botocore_version": "2009-03-31",
+      "iam_prefix_candidates": [
+        "emr",
+        "elasticmapreduce"
+      ],
       "directory_found": true,
       "operation": "AddTags",
       "ambiguous": false,
@@ -1111,6 +1336,9 @@
       "service": "EMRContainers",
       "botocore_directory": "emr-containers",
       "botocore_version": "2020-10-01",
+      "iam_prefix_candidates": [
+        "emr-containers"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1126,6 +1354,9 @@
       "service": "EMRServerless",
       "botocore_directory": "emr-serverless",
       "botocore_version": "2021-07-13",
+      "iam_prefix_candidates": [
+        "emr-serverless"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1141,6 +1372,9 @@
       "service": "ElastiCache",
       "botocore_directory": "elasticache",
       "botocore_version": "2015-02-02",
+      "iam_prefix_candidates": [
+        "elasticache"
+      ],
       "directory_found": true,
       "operation": "AddTagsToResource",
       "ambiguous": false,
@@ -1158,6 +1392,9 @@
       "service": "ElasticBeanstalk",
       "botocore_directory": "elasticbeanstalk",
       "botocore_version": "2010-12-01",
+      "iam_prefix_candidates": [
+        "elasticbeanstalk"
+      ],
       "directory_found": true,
       "ambiguous": false,
       "composable": false,
@@ -1167,6 +1404,10 @@
       "service": "ElasticLoadBalancing",
       "botocore_directory": "elb",
       "botocore_version": "2012-06-01",
+      "iam_prefix_candidates": [
+        "elb",
+        "elasticloadbalancing"
+      ],
       "directory_found": true,
       "operation": "AddTags",
       "ambiguous": false,
@@ -1185,6 +1426,10 @@
       "service": "ElasticLoadBalancingV2",
       "botocore_directory": "elbv2",
       "botocore_version": "2015-12-01",
+      "iam_prefix_candidates": [
+        "elbv2",
+        "elasticloadbalancing"
+      ],
       "directory_found": true,
       "operation": "AddTags",
       "ambiguous": false,
@@ -1217,6 +1462,9 @@
       "service": "Events",
       "botocore_directory": "events",
       "botocore_version": "2015-10-07",
+      "iam_prefix_candidates": [
+        "events"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1241,6 +1489,9 @@
       "service": "FIS",
       "botocore_directory": "fis",
       "botocore_version": "2020-12-01",
+      "iam_prefix_candidates": [
+        "fis"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1256,6 +1507,9 @@
       "service": "FMS",
       "botocore_directory": "fms",
       "botocore_version": "2018-01-01",
+      "iam_prefix_candidates": [
+        "fms"
+      ],
       "directory_found": true,
       "ambiguous": false,
       "composable": false,
@@ -1265,6 +1519,9 @@
       "service": "FSx",
       "botocore_directory": "fsx",
       "botocore_version": "2018-03-01",
+      "iam_prefix_candidates": [
+        "fsx"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1282,6 +1539,9 @@
       "service": "GameLift",
       "botocore_directory": "gamelift",
       "botocore_version": "2015-10-01",
+      "iam_prefix_candidates": [
+        "gamelift"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1299,6 +1559,9 @@
       "service": "GlobalAccelerator",
       "botocore_directory": "globalaccelerator",
       "botocore_version": "2018-08-08",
+      "iam_prefix_candidates": [
+        "globalaccelerator"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1316,6 +1579,9 @@
       "service": "Glue",
       "botocore_directory": "glue",
       "botocore_version": "2017-03-31",
+      "iam_prefix_candidates": [
+        "glue"
+      ],
       "directory_found": true,
       "ambiguous": false,
       "composable": false,
@@ -1325,6 +1591,9 @@
       "service": "Grafana",
       "botocore_directory": "grafana",
       "botocore_version": "2020-08-18",
+      "iam_prefix_candidates": [
+        "grafana"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1340,6 +1609,9 @@
       "service": "GuardDuty",
       "botocore_directory": "guardduty",
       "botocore_version": "2017-11-28",
+      "iam_prefix_candidates": [
+        "guardduty"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1355,6 +1627,9 @@
       "service": "IAM",
       "botocore_directory": "iam",
       "botocore_version": "2010-05-08",
+      "iam_prefix_candidates": [
+        "iam"
+      ],
       "directory_found": true,
       "ambiguous": true,
       "candidates": [
@@ -1374,6 +1649,9 @@
       "service": "IVS",
       "botocore_directory": "ivs",
       "botocore_version": "2020-07-14",
+      "iam_prefix_candidates": [
+        "ivs"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1389,6 +1667,9 @@
       "service": "IVSChat",
       "botocore_directory": "ivschat",
       "botocore_version": "2020-07-14",
+      "iam_prefix_candidates": [
+        "ivschat"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1404,6 +1685,9 @@
       "service": "IdentityStore",
       "botocore_directory": "identitystore",
       "botocore_version": "2020-06-15",
+      "iam_prefix_candidates": [
+        "identitystore"
+      ],
       "directory_found": true,
       "ambiguous": false,
       "composable": false,
@@ -1413,6 +1697,9 @@
       "service": "ImageBuilder",
       "botocore_directory": "imagebuilder",
       "botocore_version": "2019-12-02",
+      "iam_prefix_candidates": [
+        "imagebuilder"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1428,6 +1715,9 @@
       "service": "Inspector",
       "botocore_directory": "inspector",
       "botocore_version": "2016-02-16",
+      "iam_prefix_candidates": [
+        "inspector"
+      ],
       "directory_found": true,
       "operation": "SetTagsForResource",
       "ambiguous": false,
@@ -1452,6 +1742,9 @@
       "service": "InternetMonitor",
       "botocore_directory": "internetmonitor",
       "botocore_version": "2021-06-03",
+      "iam_prefix_candidates": [
+        "internetmonitor"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1467,6 +1760,9 @@
       "service": "Invoicing",
       "botocore_directory": "invoicing",
       "botocore_version": "2024-12-01",
+      "iam_prefix_candidates": [
+        "invoicing"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1484,6 +1780,9 @@
       "service": "IoT",
       "botocore_directory": "iot",
       "botocore_version": "2015-05-28",
+      "iam_prefix_candidates": [
+        "iot"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1501,6 +1800,9 @@
       "service": "KMS",
       "botocore_directory": "kms",
       "botocore_version": "2014-11-01",
+      "iam_prefix_candidates": [
+        "kms"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1518,6 +1820,9 @@
       "service": "KafkaConnect",
       "botocore_directory": "kafkaconnect",
       "botocore_version": "2021-09-14",
+      "iam_prefix_candidates": [
+        "kafkaconnect"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1533,6 +1838,9 @@
       "service": "Kendra",
       "botocore_directory": "kendra",
       "botocore_version": "2019-02-03",
+      "iam_prefix_candidates": [
+        "kendra"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1550,6 +1858,9 @@
       "service": "Kinesis",
       "botocore_directory": "kinesis",
       "botocore_version": "2013-12-02",
+      "iam_prefix_candidates": [
+        "kinesis"
+      ],
       "directory_found": true,
       "ambiguous": true,
       "candidates": [
@@ -1563,6 +1874,9 @@
       "service": "KinesisAnalytics",
       "botocore_directory": "kinesisanalytics",
       "botocore_version": "2015-08-14",
+      "iam_prefix_candidates": [
+        "kinesisanalytics"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1580,6 +1894,10 @@
       "service": "KinesisAnalyticsV2",
       "botocore_directory": "kinesisanalyticsv2",
       "botocore_version": "2018-05-23",
+      "iam_prefix_candidates": [
+        "kinesisanalyticsv2",
+        "kinesisanalytics"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1604,6 +1922,9 @@
       "service": "KinesisVideo",
       "botocore_directory": "kinesisvideo",
       "botocore_version": "2017-09-30",
+      "iam_prefix_candidates": [
+        "kinesisvideo"
+      ],
       "directory_found": true,
       "ambiguous": true,
       "candidates": [
@@ -1617,6 +1938,9 @@
       "service": "LakeFormation",
       "botocore_directory": "lakeformation",
       "botocore_version": "2017-03-31",
+      "iam_prefix_candidates": [
+        "lakeformation"
+      ],
       "directory_found": true,
       "operation": "AddLFTagsToResource",
       "ambiguous": false,
@@ -1631,6 +1955,9 @@
       "service": "Lambda",
       "botocore_directory": "lambda",
       "botocore_version": "2015-03-31",
+      "iam_prefix_candidates": [
+        "lambda"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1653,6 +1980,9 @@
       "service": "LicenseManager",
       "botocore_directory": "license-manager",
       "botocore_version": "2018-08-01",
+      "iam_prefix_candidates": [
+        "license-manager"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1670,6 +2000,9 @@
       "service": "Lightsail",
       "botocore_directory": "lightsail",
       "botocore_version": "2016-11-28",
+      "iam_prefix_candidates": [
+        "lightsail"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1687,6 +2020,10 @@
       "service": "Location",
       "botocore_directory": "location",
       "botocore_version": "2020-11-19",
+      "iam_prefix_candidates": [
+        "location",
+        "geo"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1702,6 +2039,9 @@
       "service": "Logs",
       "botocore_directory": "logs",
       "botocore_version": "2014-03-28",
+      "iam_prefix_candidates": [
+        "logs"
+      ],
       "directory_found": true,
       "ambiguous": true,
       "candidates": [
@@ -1715,6 +2055,9 @@
       "service": "M2",
       "botocore_directory": "m2",
       "botocore_version": "2021-04-28",
+      "iam_prefix_candidates": [
+        "m2"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1737,6 +2080,10 @@
       "service": "MWAA",
       "botocore_directory": "mwaa",
       "botocore_version": "2020-07-01",
+      "iam_prefix_candidates": [
+        "mwaa",
+        "airflow"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1759,6 +2106,9 @@
       "service": "MediaConvert",
       "botocore_directory": "mediaconvert",
       "botocore_version": "2017-08-29",
+      "iam_prefix_candidates": [
+        "mediaconvert"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1774,6 +2124,9 @@
       "service": "MediaLive",
       "botocore_directory": "medialive",
       "botocore_version": "2017-10-14",
+      "iam_prefix_candidates": [
+        "medialive"
+      ],
       "directory_found": true,
       "operation": "CreateTags",
       "ambiguous": false,
@@ -1789,6 +2142,9 @@
       "service": "MediaPackage",
       "botocore_directory": "mediapackage",
       "botocore_version": "2017-10-12",
+      "iam_prefix_candidates": [
+        "mediapackage"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1804,6 +2160,9 @@
       "service": "MediaPackageV2",
       "botocore_directory": "mediapackagev2",
       "botocore_version": "2022-12-25",
+      "iam_prefix_candidates": [
+        "mediapackagev2"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1819,6 +2178,9 @@
       "service": "MediaStore",
       "botocore_directory": "mediastore",
       "botocore_version": "2017-09-01",
+      "iam_prefix_candidates": [
+        "mediastore"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1836,6 +2198,10 @@
       "service": "MemoryDB",
       "botocore_directory": "memorydb",
       "botocore_version": "2021-01-01",
+      "iam_prefix_candidates": [
+        "memorydb",
+        "memory-db"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1853,6 +2219,10 @@
       "service": "Neptune",
       "botocore_directory": "neptune",
       "botocore_version": "2014-10-31",
+      "iam_prefix_candidates": [
+        "neptune",
+        "rds"
+      ],
       "directory_found": true,
       "operation": "AddTagsToResource",
       "ambiguous": false,
@@ -1870,6 +2240,9 @@
       "service": "NeptuneGraph",
       "botocore_directory": "neptune-graph",
       "botocore_version": "2023-11-29",
+      "iam_prefix_candidates": [
+        "neptune-graph"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1885,6 +2258,9 @@
       "service": "NetworkFirewall",
       "botocore_directory": "network-firewall",
       "botocore_version": "2020-11-12",
+      "iam_prefix_candidates": [
+        "network-firewall"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1902,6 +2278,9 @@
       "service": "NetworkFlowMonitor",
       "botocore_directory": "networkflowmonitor",
       "botocore_version": "2023-04-19",
+      "iam_prefix_candidates": [
+        "networkflowmonitor"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1917,6 +2296,9 @@
       "service": "NetworkManager",
       "botocore_directory": "networkmanager",
       "botocore_version": "2019-07-05",
+      "iam_prefix_candidates": [
+        "networkmanager"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1934,6 +2316,9 @@
       "service": "Notifications",
       "botocore_directory": "notifications",
       "botocore_version": "2018-05-10",
+      "iam_prefix_candidates": [
+        "notifications"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1949,6 +2334,10 @@
       "service": "NotificationsContacts",
       "botocore_directory": "notificationscontacts",
       "botocore_version": "2018-05-10",
+      "iam_prefix_candidates": [
+        "notificationscontacts",
+        "notifications-contacts"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1964,6 +2353,9 @@
       "service": "ODB",
       "botocore_directory": "odb",
       "botocore_version": "2024-08-20",
+      "iam_prefix_candidates": [
+        "odb"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1979,6 +2371,9 @@
       "service": "OSIS",
       "botocore_directory": "osis",
       "botocore_version": "2022-01-01",
+      "iam_prefix_candidates": [
+        "osis"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -1996,6 +2391,9 @@
       "service": "Oam",
       "botocore_directory": "oam",
       "botocore_version": "2022-06-10",
+      "iam_prefix_candidates": [
+        "oam"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2011,6 +2409,9 @@
       "service": "ObservabilityAdmin",
       "botocore_directory": "observabilityadmin",
       "botocore_version": "2018-05-10",
+      "iam_prefix_candidates": [
+        "observabilityadmin"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2026,6 +2427,10 @@
       "service": "OpenSearchServerless",
       "botocore_directory": "opensearchserverless",
       "botocore_version": "2021-11-01",
+      "iam_prefix_candidates": [
+        "opensearchserverless",
+        "aoss"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2050,6 +2455,9 @@
       "service": "Organizations",
       "botocore_directory": "organizations",
       "botocore_version": "2016-11-28",
+      "iam_prefix_candidates": [
+        "organizations"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2067,6 +2475,10 @@
       "service": "PaymentCryptography",
       "botocore_directory": "payment-cryptography",
       "botocore_version": "2021-09-14",
+      "iam_prefix_candidates": [
+        "payment-cryptography",
+        "controlplane.payment-cryptography"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2084,6 +2496,10 @@
       "service": "Pinpoint",
       "botocore_directory": "pinpoint",
       "botocore_version": "2016-12-01",
+      "iam_prefix_candidates": [
+        "pinpoint",
+        "mobiletargeting"
+      ],
       "directory_found": true,
       "ambiguous": false,
       "composable": false,
@@ -2093,6 +2509,9 @@
       "service": "Pipes",
       "botocore_directory": "pipes",
       "botocore_version": "2015-10-07",
+      "iam_prefix_candidates": [
+        "pipes"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2108,6 +2527,9 @@
       "service": "QBusiness",
       "botocore_directory": "qbusiness",
       "botocore_version": "2023-11-27",
+      "iam_prefix_candidates": [
+        "qbusiness"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2132,6 +2554,9 @@
       "service": "QuickSight",
       "botocore_directory": "quicksight",
       "botocore_version": "2018-04-01",
+      "iam_prefix_candidates": [
+        "quicksight"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2149,6 +2574,9 @@
       "service": "RAM",
       "botocore_directory": "ram",
       "botocore_version": "2018-01-04",
+      "iam_prefix_candidates": [
+        "ram"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2166,6 +2594,9 @@
       "service": "RDS",
       "botocore_directory": "rds",
       "botocore_version": "2014-10-31",
+      "iam_prefix_candidates": [
+        "rds"
+      ],
       "directory_found": true,
       "operation": "AddTagsToResource",
       "ambiguous": false,
@@ -2183,6 +2614,9 @@
       "service": "RUM",
       "botocore_directory": "rum",
       "botocore_version": "2018-05-10",
+      "iam_prefix_candidates": [
+        "rum"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2198,6 +2632,9 @@
       "service": "Rbin",
       "botocore_directory": "rbin",
       "botocore_version": "2021-06-15",
+      "iam_prefix_candidates": [
+        "rbin"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2215,6 +2652,9 @@
       "service": "Redshift",
       "botocore_directory": "redshift",
       "botocore_version": "2012-12-01",
+      "iam_prefix_candidates": [
+        "redshift"
+      ],
       "directory_found": true,
       "operation": "CreateTags",
       "ambiguous": false,
@@ -2232,6 +2672,9 @@
       "service": "RedshiftServerless",
       "botocore_directory": "redshift-serverless",
       "botocore_version": "2021-04-21",
+      "iam_prefix_candidates": [
+        "redshift-serverless"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2249,6 +2692,9 @@
       "service": "Rekognition",
       "botocore_directory": "rekognition",
       "botocore_version": "2016-06-27",
+      "iam_prefix_candidates": [
+        "rekognition"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2264,6 +2710,9 @@
       "service": "ResilienceHub",
       "botocore_directory": "resiliencehub",
       "botocore_version": "2020-04-30",
+      "iam_prefix_candidates": [
+        "resiliencehub"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2279,6 +2728,10 @@
       "service": "ResilienceHubV2",
       "botocore_directory": "resiliencehubv2",
       "botocore_version": "2026-02-17",
+      "iam_prefix_candidates": [
+        "resiliencehubv2",
+        "resiliencehub"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2294,6 +2747,9 @@
       "service": "ResourceExplorer2",
       "botocore_directory": "resource-explorer-2",
       "botocore_version": "2022-07-28",
+      "iam_prefix_candidates": [
+        "resource-explorer-2"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2309,6 +2765,9 @@
       "service": "ResourceGroups",
       "botocore_directory": "resource-groups",
       "botocore_version": "2017-11-27",
+      "iam_prefix_candidates": [
+        "resource-groups"
+      ],
       "directory_found": true,
       "operation": "Tag",
       "ambiguous": false,
@@ -2324,6 +2783,9 @@
       "service": "RolesAnywhere",
       "botocore_directory": "rolesanywhere",
       "botocore_version": "2018-05-10",
+      "iam_prefix_candidates": [
+        "rolesanywhere"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2341,6 +2803,9 @@
       "service": "Route53",
       "botocore_directory": "route53",
       "botocore_version": "2013-04-01",
+      "iam_prefix_candidates": [
+        "route53"
+      ],
       "directory_found": true,
       "operation": "ChangeTagsForResource",
       "ambiguous": false,
@@ -2358,6 +2823,9 @@
       "service": "Route53Profiles",
       "botocore_directory": "route53profiles",
       "botocore_version": "2018-05-10",
+      "iam_prefix_candidates": [
+        "route53profiles"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2380,6 +2848,9 @@
       "service": "Route53RecoveryReadiness",
       "botocore_directory": "route53-recovery-readiness",
       "botocore_version": "2019-12-02",
+      "iam_prefix_candidates": [
+        "route53-recovery-readiness"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2395,6 +2866,9 @@
       "service": "Route53Resolver",
       "botocore_directory": "route53resolver",
       "botocore_version": "2018-04-01",
+      "iam_prefix_candidates": [
+        "route53resolver"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2412,6 +2886,9 @@
       "service": "S3",
       "botocore_directory": "s3",
       "botocore_version": "2006-03-01",
+      "iam_prefix_candidates": [
+        "s3"
+      ],
       "directory_found": true,
       "ambiguous": false,
       "composable": false,
@@ -2428,6 +2905,9 @@
       "service": "S3Files",
       "botocore_directory": "s3files",
       "botocore_version": "2025-05-05",
+      "iam_prefix_candidates": [
+        "s3files"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2452,6 +2932,10 @@
       "service": "S3Outposts",
       "botocore_directory": "s3outposts",
       "botocore_version": "2017-07-25",
+      "iam_prefix_candidates": [
+        "s3outposts",
+        "s3-outposts"
+      ],
       "directory_found": true,
       "ambiguous": false,
       "composable": false,
@@ -2461,6 +2945,9 @@
       "service": "S3Tables",
       "botocore_directory": "s3tables",
       "botocore_version": "2018-05-10",
+      "iam_prefix_candidates": [
+        "s3tables"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2476,6 +2963,9 @@
       "service": "S3Vectors",
       "botocore_directory": "s3vectors",
       "botocore_version": "2025-07-15",
+      "iam_prefix_candidates": [
+        "s3vectors"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2491,6 +2981,10 @@
       "service": "SES",
       "botocore_directory": "ses",
       "botocore_version": "2010-12-01",
+      "iam_prefix_candidates": [
+        "ses",
+        "email"
+      ],
       "directory_found": true,
       "ambiguous": false,
       "composable": false,
@@ -2500,6 +2994,10 @@
       "service": "SMSVOICE",
       "botocore_directory": "sms-voice",
       "botocore_version": "2018-09-05",
+      "iam_prefix_candidates": [
+        "sms-voice",
+        "sms-voice.pinpoint"
+      ],
       "directory_found": true,
       "ambiguous": false,
       "composable": false,
@@ -2509,6 +3007,9 @@
       "service": "SNS",
       "botocore_directory": "sns",
       "botocore_version": "2010-03-31",
+      "iam_prefix_candidates": [
+        "sns"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2526,6 +3027,9 @@
       "service": "SQS",
       "botocore_directory": "sqs",
       "botocore_version": "2012-11-05",
+      "iam_prefix_candidates": [
+        "sqs"
+      ],
       "directory_found": true,
       "operation": "TagQueue",
       "ambiguous": false,
@@ -2541,6 +3045,9 @@
       "service": "SSM",
       "botocore_directory": "ssm",
       "botocore_version": "2014-11-06",
+      "iam_prefix_candidates": [
+        "ssm"
+      ],
       "directory_found": true,
       "operation": "AddTagsToResource",
       "ambiguous": false,
@@ -2558,6 +3065,9 @@
       "service": "SSMContacts",
       "botocore_directory": "ssm-contacts",
       "botocore_version": "2021-05-03",
+      "iam_prefix_candidates": [
+        "ssm-contacts"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2575,6 +3085,9 @@
       "service": "SSMIncidents",
       "botocore_directory": "ssm-incidents",
       "botocore_version": "2018-05-10",
+      "iam_prefix_candidates": [
+        "ssm-incidents"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2590,6 +3103,9 @@
       "service": "SSMQuickSetup",
       "botocore_directory": "ssm-quicksetup",
       "botocore_version": "2018-05-10",
+      "iam_prefix_candidates": [
+        "ssm-quicksetup"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2605,6 +3121,11 @@
       "service": "SSO",
       "botocore_directory": "sso",
       "botocore_version": "2019-06-10",
+      "iam_prefix_candidates": [
+        "sso",
+        "awsssoportal",
+        "portal.sso"
+      ],
       "directory_found": true,
       "ambiguous": false,
       "composable": false,
@@ -2614,6 +3135,10 @@
       "service": "SageMaker",
       "botocore_directory": "sagemaker",
       "botocore_version": "2017-07-24",
+      "iam_prefix_candidates": [
+        "sagemaker",
+        "api.sagemaker"
+      ],
       "directory_found": true,
       "operation": "AddTags",
       "ambiguous": false,
@@ -2631,6 +3156,9 @@
       "service": "Scheduler",
       "botocore_directory": "scheduler",
       "botocore_version": "2021-06-30",
+      "iam_prefix_candidates": [
+        "scheduler"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2648,6 +3176,9 @@
       "service": "SecretsManager",
       "botocore_directory": "secretsmanager",
       "botocore_version": "2017-10-17",
+      "iam_prefix_candidates": [
+        "secretsmanager"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2665,6 +3196,9 @@
       "service": "SecurityHub",
       "botocore_directory": "securityhub",
       "botocore_version": "2018-10-26",
+      "iam_prefix_candidates": [
+        "securityhub"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2680,6 +3214,9 @@
       "service": "SecurityLake",
       "botocore_directory": "securitylake",
       "botocore_version": "2018-05-10",
+      "iam_prefix_candidates": [
+        "securitylake"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2697,6 +3234,9 @@
       "service": "ServiceCatalog",
       "botocore_directory": "servicecatalog",
       "botocore_version": "2015-12-10",
+      "iam_prefix_candidates": [
+        "servicecatalog"
+      ],
       "directory_found": true,
       "ambiguous": false,
       "composable": false,
@@ -2706,6 +3246,10 @@
       "service": "ServiceCatalogAppRegistry",
       "botocore_directory": "servicecatalog-appregistry",
       "botocore_version": "2020-06-24",
+      "iam_prefix_candidates": [
+        "servicecatalog-appregistry",
+        "servicecatalog"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2721,6 +3265,9 @@
       "service": "ServiceDiscovery",
       "botocore_directory": "servicediscovery",
       "botocore_version": "2017-03-14",
+      "iam_prefix_candidates": [
+        "servicediscovery"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2738,6 +3285,9 @@
       "service": "Shield",
       "botocore_directory": "shield",
       "botocore_version": "2016-06-02",
+      "iam_prefix_candidates": [
+        "shield"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2755,6 +3305,9 @@
       "service": "Signer",
       "botocore_directory": "signer",
       "botocore_version": "2017-08-25",
+      "iam_prefix_candidates": [
+        "signer"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2770,6 +3323,10 @@
       "service": "StepFunctions",
       "botocore_directory": "stepfunctions",
       "botocore_version": "2016-11-23",
+      "iam_prefix_candidates": [
+        "stepfunctions",
+        "states"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2787,6 +3344,9 @@
       "service": "StorageGateway",
       "botocore_directory": "storagegateway",
       "botocore_version": "2013-06-30",
+      "iam_prefix_candidates": [
+        "storagegateway"
+      ],
       "directory_found": true,
       "operation": "AddTagsToResource",
       "ambiguous": false,
@@ -2804,6 +3364,9 @@
       "service": "Synthetics",
       "botocore_directory": "synthetics",
       "botocore_version": "2017-10-11",
+      "iam_prefix_candidates": [
+        "synthetics"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2826,6 +3389,9 @@
       "service": "Transcribe",
       "botocore_directory": "transcribe",
       "botocore_version": "2017-10-26",
+      "iam_prefix_candidates": [
+        "transcribe"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2843,6 +3409,9 @@
       "service": "Transfer",
       "botocore_directory": "transfer",
       "botocore_version": "2018-11-05",
+      "iam_prefix_candidates": [
+        "transfer"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2860,6 +3429,9 @@
       "service": "VerifiedPermissions",
       "botocore_directory": "verifiedpermissions",
       "botocore_version": "2021-12-01",
+      "iam_prefix_candidates": [
+        "verifiedpermissions"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2875,6 +3447,9 @@
       "service": "VpcLattice",
       "botocore_directory": "vpc-lattice",
       "botocore_version": "2022-11-30",
+      "iam_prefix_candidates": [
+        "vpc-lattice"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2890,6 +3465,9 @@
       "service": "WAF",
       "botocore_directory": "waf",
       "botocore_version": "2015-08-24",
+      "iam_prefix_candidates": [
+        "waf"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2907,6 +3485,9 @@
       "service": "WAFRegional",
       "botocore_directory": "waf-regional",
       "botocore_version": "2016-11-28",
+      "iam_prefix_candidates": [
+        "waf-regional"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2924,6 +3505,9 @@
       "service": "WAFv2",
       "botocore_directory": "wafv2",
       "botocore_version": "2019-07-29",
+      "iam_prefix_candidates": [
+        "wafv2"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2941,6 +3525,9 @@
       "service": "WorkSpaces",
       "botocore_directory": "workspaces",
       "botocore_version": "2015-04-08",
+      "iam_prefix_candidates": [
+        "workspaces"
+      ],
       "directory_found": true,
       "operation": "CreateTags",
       "ambiguous": false,
@@ -2958,6 +3545,9 @@
       "service": "WorkSpacesWeb",
       "botocore_directory": "workspaces-web",
       "botocore_version": "2020-07-08",
+      "iam_prefix_candidates": [
+        "workspaces-web"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,
@@ -2975,6 +3565,9 @@
       "service": "XRay",
       "botocore_directory": "xray",
       "botocore_version": "2016-04-12",
+      "iam_prefix_candidates": [
+        "xray"
+      ],
       "directory_found": true,
       "operation": "TagResource",
       "ambiguous": false,

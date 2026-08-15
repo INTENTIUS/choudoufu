@@ -40,8 +40,52 @@ type operation struct {
 
 // serviceModel is the slice of one service-2.json this tool reads.
 type serviceModel struct {
+	Metadata   serviceMetadata      `json:"metadata"`
 	Operations map[string]operation `json:"operations"`
 	Shapes     map[string]shape     `json:"shapes"`
+}
+
+// serviceMetadata carries the two fields that name a service in IAM.
+type serviceMetadata struct {
+	// SigningName is the IAM service prefix where botocore states one
+	// ("access-analyzer" for the accessanalyzer directory).
+	SigningName string `json:"signingName"`
+
+	// EndpointPrefix is the fallback, and is the IAM prefix for the
+	// services that state no signingName: elbv2's is
+	// "elasticloadbalancing", efs's is "elasticfilesystem", emr's is
+	// "elasticmapreduce". Those three are exactly the shape a hand-written
+	// alias table would have had to carry.
+	EndpointPrefix string `json:"endpointPrefix"`
+}
+
+// iamPrefixCandidates is every name this service could be called in an IAM
+// action - the "ec2" in ec2:CreateTags - in the order a consumer should try
+// them, deduplicated.
+//
+// Candidates rather than one answer, because botocore does not state the IAM
+// prefix and no single field of it is reliably that. The directory name is
+// right for most services and wrong for 22 (elbv2's IAM prefix is
+// elasticloadbalancing). signingName fixes most of those and is wrong for
+// CloudWatch, whose signingName is "monitoring" while IAM says
+// cloudwatch:PutMetricAlarm. endpointPrefix has the same failure.
+//
+// So the resolution belongs to whoever holds an authoritative list of IAM
+// service names - the AWS Service Authorization Reference (issue #152) - and
+// this artifact's job is to offer every derived candidate rather than to
+// guess between them. A hand-written alias table would be the alternative,
+// and it is exactly what this phase is trying not to add.
+func (m *serviceModel) iamPrefixCandidates(directory string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, c := range []string{directory, m.Metadata.SigningName, m.Metadata.EndpointPrefix} {
+		if c == "" || seen[c] {
+			continue
+		}
+		seen[c] = true
+		out = append(out, c)
+	}
+	return out
 }
 
 // parseServiceModel decodes one fetched service-2.json.

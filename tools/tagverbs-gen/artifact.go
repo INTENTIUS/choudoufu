@@ -26,6 +26,23 @@ type Row struct {
 	BotocoreDirectory string `json:"botocore_directory,omitempty"`
 	BotocoreVersion   string `json:"botocore_version,omitempty"`
 
+	// IAMPrefixCandidates is every name this service could go by in an IAM
+	// action - the "ec2" in ec2:CreateTags - in the order to try them:
+	// the botocore directory, then signingName, then endpointPrefix,
+	// deduplicated.
+	//
+	// A list rather than one value because botocore states no IAM prefix and
+	// none of its fields is reliably that. The directory is wrong for 22 of
+	// 187 services (elbv2 is elasticloadbalancing in IAM); signingName fixes
+	// most of those and is wrong for CloudWatch, whose signingName is
+	// "monitoring" while IAM says cloudwatch:. Resolving between them needs
+	// an authoritative list of IAM service names, which is the AWS Service
+	// Authorization Reference's job (issue #152), not this artifact's.
+	//
+	// Measured against that reference: 185 of 187 services have exactly one
+	// candidate it recognises, and the other two have one each as well.
+	IAMPrefixCandidates []string `json:"iam_prefix_candidates,omitempty"`
+
 	// DirectoryFound is whether resolveDirectory joined Service to a real
 	// botocore directory at all - false means this row's Reason explains a
 	// join failure, not a tagging-operation verdict, and every field below
@@ -145,10 +162,11 @@ type Artifact struct {
 // parsed model.
 func classifyRow(cfnService, dir, version string, model *serviceModel) Row {
 	base := Row{
-		Service:           cfnService,
-		BotocoreDirectory: dir,
-		BotocoreVersion:   version,
-		DirectoryFound:    true,
+		Service:             cfnService,
+		BotocoreDirectory:   dir,
+		BotocoreVersion:     version,
+		IAMPrefixCandidates: model.iamPrefixCandidates(dir),
+		DirectoryFound:      true,
 	}
 
 	candidates := classifyTagOps(model)
