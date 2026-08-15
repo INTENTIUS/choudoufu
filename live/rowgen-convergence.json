@@ -1697,9 +1697,6 @@
       "service": "Bedrock",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
       "matched": true,
       "annotated": false
     },

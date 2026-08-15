@@ -156,6 +156,7 @@ func applyImportGrammarPrecedence(proposals []proposal, importGrammar map[string
 		case p.Bucket == bucketNeedsHandSeparator && tryOpaqueOverride(p, g):
 		case p.Bucket == bucketServerAssigned && tryArnVsIDOverride(p, g):
 		}
+		deriveDocImportSyntax(p, g)
 		tryCompoundArnImportSyntax(p, g)
 		applyIdentitySchemaAttrsCorrection(p, g)
 		// Last, so that whatever the rules above settled on is what gets
@@ -717,24 +718,14 @@ func tryArgumentReferenceValueMatch(p *proposal, g importGrammarRow) bool {
 // Claims no IdentityAttrs: which exported attribute (if any single one)
 // equals the whole joined ID is issue #44's declared non-goal, same as
 // every other server-assigned path here. The ImportSyntax placeholder is
-// the prose's own segment names, uppercased around the pinned separator -
-// documentation only, per TypeIdentity's doc comment.
+// derived afterwards by deriveDocImportSyntax (issue #176), from the same
+// prose segment names in their documented order around the pinned
+// separator - documentation only, per TypeIdentity's doc comment.
 func tryDocNamedServerSegment(p *proposal, g importGrammarRow) bool {
 	if !docNamesServerSegment(g) || g.Separator == nil {
 		return false
 	}
-	tokens := make([]string, len(g.IDParts))
-	phrasal := false
-	for i, part := range g.IDParts {
-		tokens[i] = strings.ToUpper(part.Token)
-		if strings.ContainsAny(part.Token, " \t") {
-			phrasal = true // a plain-prose part is a phrase, not a placeholder name
-		}
-	}
 	p.Bucket = bucketServerAssigned
-	if !phrasal {
-		p.DerivedImportSyntax = strings.Join(tokens, *g.Separator)
-	}
 	p.Rule = "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration"
 	p.Notes = append(p.Notes, fmt.Sprintf("import docs name the ID's segments and attribute %s to the Attribute Reference, not the Argument Reference; a server-provided segment makes the identity server-assigned despite the registry's composite primaryIdentifier %s", serverSegmentTokens(g), quoteList(p.PrimaryIdentifier)))
 	return true
@@ -884,6 +875,106 @@ func tryArgumentReferenceComposite(p *proposal, g importGrammarRow) bool {
 		return true
 	}
 	return false
+}
+
+// deriveDocImportSyntax is issue #176's first fix, cosmetic-only in the same
+// sense tryCompoundArnImportSyntax is (ImportSyntax never decides anything;
+// Components/ServerAssigned do): a server-assigned proposal whose
+// ImportSyntax would otherwise be templated from the registry's own
+// primaryIdentifier NAMES - joined with "-" in the registry's order - gets a
+// placeholder derived from the scraped evidence instead: the Import
+// section's own per-segment names (id_parts, which by the scrape's arity
+// gate cover every segment of the documented example), in the documented
+// order, around the scraped separator. The five measured misfires this
+// retires (issue #176's table) all had a pinned separator and pinned segment
+// order the renderer ignored: aws_appconfig_configuration_profile's doc
+// states "configuration profile ID and application ID separated by a colon"
+// while the template printed APPLICATIONID-CONFIGURATIONPROFILEID - wrong
+// order AND separator - and aws_datazone_form_type's doc states three
+// comma-separated segments while the registry's two-name primaryIdentifier
+// template printed two.
+//
+// Runs after every switch rule, ahead of tryCompoundArnImportSyntax (a
+// pinned per-segment order and separator beats the compound-ARN "#" idiom:
+// aws_ecs_task_set's three comma-joined segments embed two ARNs, and the
+// doc's own comma order is the truer placeholder), and never overrides an
+// ImportSyntax another rule already derived. A row with
+// no scraped segment evidence (no id_parts, no separator, or a segment
+// whose prose does not reduce to a placeholder) is left exactly as before:
+// the registry-name template, honestly flagged TEMPLATED by the renderer.
+func deriveDocImportSyntax(p *proposal, g importGrammarRow) {
+	if p.Bucket != bucketServerAssigned || p.DerivedImportSyntax != "" {
+		return
+	}
+	if g.Separator == nil || len(g.IDParts) < 2 {
+		return
+	}
+	parts := make([]string, len(g.IDParts))
+	for i, part := range g.IDParts {
+		placeholder, ok := docPartPlaceholder(part.Token)
+		if !ok {
+			return // this segment's prose is not a name; the templated fallback stands
+		}
+		parts[i] = placeholder
+	}
+	p.DerivedImportSyntax = strings.Join(parts, *g.Separator)
+	p.Notes = append(p.Notes, fmt.Sprintf("ImportSyntax placeholder derived from the Import section's own segment names, order and separator: %s", p.DerivedImportSyntax))
+}
+
+// docPartArticles are the leading grammar words a prose segment name drops -
+// the same set tools/importdocs-gen/prosename.go's proseArticles holds.
+var docPartArticles = map[string]bool{"the": true, "a": true, "an": true, "its": true, "their": true}
+
+// docPartParenRe matches a parenthesized aside inside a segment name ("the
+// catalog ID (usually AWS account ID)"), commentary rather than name - the
+// same rule prosename.go's parenRe applies.
+var docPartParenRe = regexp.MustCompile(`\([^)]*\)`)
+
+// docPartPlaceholder reduces one id_parts token - the Import section's own
+// spelling of a segment, which ranges from a literal placeholder name
+// ("instance_id", "ID") to a prose phrase ("the configuration profile ID",
+// "a comma separated value of DomainIdentifier") - to the uppercase
+// placeholder text an ImportSyntax string uses. Three rules, all of them
+// prose grammar rather than anything type-specific:
+//
+//   - a parenthesized aside is commentary, not name;
+//   - a format-metalanguage prefix ends at its last "of" ("a comma separated
+//     value of DomainIdentifier" names DomainIdentifier);
+//   - leading articles are grammar, not name.
+//
+// What remains must be word-shaped (letters, digits, "_", "-" - the same
+// alphabet importdocs-gen's segmentRe accepts); anything else ("it's") is
+// not a placeholder and fails closed, leaving the caller's templated
+// fallback in place. A token that already is a placeholder name passes
+// through as its plain uppercasing, byte-identical to the previous
+// derivation for every non-phrasal row.
+func docPartPlaceholder(token string) (string, bool) {
+	token = docPartParenRe.ReplaceAllString(token, " ")
+	words := strings.Fields(token)
+	for i := len(words) - 1; i >= 0; i-- {
+		if strings.EqualFold(words[i], "of") {
+			words = words[i+1:]
+			break
+		}
+	}
+	var out []string
+	for _, w := range words {
+		if docPartArticles[strings.ToLower(w)] {
+			continue
+		}
+		for _, r := range w {
+			switch {
+			case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '_', r == '-':
+			default:
+				return "", false
+			}
+		}
+		out = append(out, strings.ToUpper(w))
+	}
+	if len(out) == 0 {
+		return "", false
+	}
+	return strings.Join(out, ""), true
 }
 
 // applyIdentitySchemaAttrsCorrection is rule 9: see this file's own

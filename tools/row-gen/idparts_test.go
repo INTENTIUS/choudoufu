@@ -116,6 +116,7 @@ func TestTryDocNamedServerSegment_WAFv2Shape(t *testing.T) {
 	if p.Bucket != bucketServerAssigned {
 		t.Errorf("bucket = %s, want %s", p.Bucket, bucketServerAssigned)
 	}
+	deriveDocImportSyntax(&p, g) // the placeholder derivation runs as its own pass since issue #176
 	if p.DerivedImportSyntax != "ID/NAME/SCOPE" {
 		t.Errorf("DerivedImportSyntax = %q, want %q", p.DerivedImportSyntax, "ID/NAME/SCOPE")
 	}

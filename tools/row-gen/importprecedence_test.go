@@ -7,6 +7,101 @@ package main
 
 import "testing"
 
+// TestDocPartPlaceholder pins issue #176's placeholder normalization: the
+// Import section's own segment names, from literal placeholder tokens
+// (byte-identical to the pre-#176 derivation) through the prose phrases the
+// old derivation refused wholesale.
+func TestDocPartPlaceholder(t *testing.T) {
+	cases := []struct {
+		token string
+		want  string
+		ok    bool
+	}{
+		// Literal placeholder names pass through as plain uppercasing.
+		{"instance_id", "INSTANCE_ID", true},
+		{"ID", "ID", true},
+		{"PublishingDestinationID", "PUBLISHINGDESTINATIONID", true},
+		// Prose phrases: articles are grammar, not name.
+		{"the configuration profile ID", "CONFIGURATIONPROFILEID", true},
+		{"application ID", "APPLICATIONID", true},
+		{"deployment number", "DEPLOYMENTNUMBER", true},
+		// The format-metalanguage prefix ends at its "of".
+		{"a comma separated value of DomainIdentifier", "DOMAINIDENTIFIER", true},
+		// A parenthesized aside is commentary.
+		{"the catalog ID (usually AWS account ID)", "CATALOGID", true},
+		// Content words that merely look meta-ish stay content.
+		{"partition values", "PARTITIONVALUES", true},
+		// Not a name at all: fails closed, templated fallback stands.
+		{"the id of the project it's under", "", false},
+	}
+	for _, c := range cases {
+		got, ok := docPartPlaceholder(c.token)
+		if got != c.want || ok != c.ok {
+			t.Errorf("docPartPlaceholder(%q) = %q, %v; want %q, %v", c.token, got, ok, c.want, c.ok)
+		}
+	}
+}
+
+// TestDeriveDocImportSyntax_AppConfigShape is issue #176's first measured
+// misfire: the registry's primaryIdentifier names, "-"-joined in registry
+// order, contradicted the doc's own colon-joined reverse order. The
+// derivation must follow the scraped segment order and separator.
+func TestDeriveDocImportSyntax_AppConfigShape(t *testing.T) {
+	sep := ":"
+	g := importGrammarRow{
+		TFType:          "aws_appconfig_configuration_profile",
+		ImportIDExample: "71abcde:11xxxxx",
+		Separator:       &sep,
+		IDParts: []idPart{
+			{Token: "the configuration profile ID", Source: idPartSourceAttribute},
+			{Token: "application ID", Source: "argument"},
+		},
+	}
+	p := proposal{
+		TFType:            "aws_appconfig_configuration_profile",
+		Bucket:            bucketServerAssigned,
+		PrimaryIdentifier: []string{"ApplicationId", "ConfigurationProfileId"},
+	}
+	deriveDocImportSyntax(&p, g)
+	if p.DerivedImportSyntax != "CONFIGURATIONPROFILEID:APPLICATIONID" {
+		t.Errorf("DerivedImportSyntax = %q, want %q", p.DerivedImportSyntax, "CONFIGURATIONPROFILEID:APPLICATIONID")
+	}
+}
+
+// TestDeriveDocImportSyntax_Refusals: no scraped segment evidence, an
+// unresolvable segment, or a syntax another rule already derived all leave
+// the proposal untouched - the templated fallback (or the earlier rule's
+// answer) stands.
+func TestDeriveDocImportSyntax_Refusals(t *testing.T) {
+	sep := ":"
+	bare := proposal{TFType: "aws_x", Bucket: bucketServerAssigned}
+	deriveDocImportSyntax(&bare, importGrammarRow{})
+	if bare.DerivedImportSyntax != "" {
+		t.Errorf("no evidence: DerivedImportSyntax = %q, want empty", bare.DerivedImportSyntax)
+	}
+
+	unresolvable := proposal{TFType: "aws_x", Bucket: bucketServerAssigned}
+	deriveDocImportSyntax(&unresolvable, importGrammarRow{
+		Separator: &sep,
+		IDParts: []idPart{
+			{Token: "glossary id", Source: "argument"},
+			{Token: "the id of the project it's under", Source: "unknown"},
+		},
+	})
+	if unresolvable.DerivedImportSyntax != "" {
+		t.Errorf("unresolvable segment: DerivedImportSyntax = %q, want empty", unresolvable.DerivedImportSyntax)
+	}
+
+	derived := proposal{TFType: "aws_x", Bucket: bucketServerAssigned, DerivedImportSyntax: "ARN"}
+	deriveDocImportSyntax(&derived, importGrammarRow{
+		Separator: &sep,
+		IDParts:   []idPart{{Token: "a_id", Source: "argument"}, {Token: "b_id", Source: "argument"}},
+	})
+	if derived.DerivedImportSyntax != "ARN" {
+		t.Errorf("already derived: DerivedImportSyntax = %q, want ARN kept", derived.DerivedImportSyntax)
+	}
+}
+
 // TestValueNamesRequiredArgument pins the shapes that rewrote rule 3's
 // matching (issue #132). Every case is a real page: the three the old
 // substring containment got right must keep resolving, and the five it got
