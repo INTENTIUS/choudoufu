@@ -65,18 +65,26 @@ import (
 //     computed on purpose (a parent reference, an identity name, a role
 //     ref) is left alone, because that one carries meaning the page cannot
 //     know - the doc's own "example-bucket" would collide across cohorts.
-//   - The example marked it complete, OR it is replacing a placeholder the
-//     generic pass already wrote. An argument whose block had a
-//     cross-resource reference dropped is evidence, not a configuration -
-//     see ExampleArgument.Incomplete, and the SSE case that produced it -
-//     so an incomplete argument may never ADD anything: no new attribute,
-//     no new block. But where the generic pass has already admitted it had
+//   - Its block is complete, OR it is replacing a placeholder the generic
+//     pass already wrote. A block whose cross-resource reference was
+//     dropped is evidence, not a configuration - see
+//     ExampleArgument.Incomplete, and the SSE case that produced it - so
+//     an argument from one may never ADD anything: no new attribute, no
+//     new block. But where the generic pass has already admitted it had
 //     nothing to offer, the page's literal for that exact argument is
 //     still the best evidence available, and refusing it kept 72 override
 //     types hand-written whose documented literal was byte-identical to
-//     the override's (measured 2026-08-15). The SSE guard holds either
-//     way: sse_algorithm sits in an optional block the generic pass never
-//     creates, so there is no placeholder for it to replace.
+//     the override's (measured 2026-08-15).
+//
+//     "Its block is complete" is now a question about THIS run rather
+//     than about the page (issue #177's complementary move): a dropped
+//     reference whose target type this cohort renders is wired back up by
+//     seedRefExpr, and a block every reference of which is wired is a
+//     configuration again. The SSE guard becomes mechanical instead of
+//     incidental - the s3 cohort renders no aws_kms_key, so
+//     kms_master_key_id stays unanswered and sse_algorithm still may not
+//     create its block; a cohort that rendered the key would have a
+//     complete example and could.
 //   - The schema has an argument of that name at that path, and it is
 //     settable. A page can name an argument this provider version renamed
 //     or made computed, and writing it produces a configuration that fails
@@ -113,15 +121,19 @@ type seedArgument struct {
 	IsString   bool     `json:"is_string"`
 	Incomplete bool     `json:"incomplete"`
 
-	// Reference and Element are issue #177's extraction fields. A
-	// reference entry carries no value at all - it records what the
-	// example wired the argument to - and a non-zero element is a repeated
-	// block's later instance. Neither is anything this seed writes today:
-	// references are the complementary sibling-wiring move #174 names
-	// (not yet built), and the generic pass renders exactly one instance
-	// of any block, so only element zero has a place to land.
-	Reference bool `json:"reference"`
-	Element   int  `json:"element"`
+	// Reference, RefType and RefAttr are issue #177's extraction of what a
+	// dropped cross-resource wiring pointed at. A reference entry carries
+	// no value: it records that the example set this argument to some
+	// other resource's attribute, which is what seedRefExpr needs to
+	// decide whether this run can wire the same thing.
+	Reference bool   `json:"reference"`
+	RefType   string `json:"ref_type"`
+	RefAttr   string `json:"ref_attr"`
+
+	// Element is a repeated block's later instance. The generic pass
+	// renders exactly one instance of any block, so only element zero has
+	// a place to land.
+	Element int `json:"element"`
 }
 
 // loadExampleSeed reads the artifact. A missing file is not fatal: the seed
@@ -167,12 +179,13 @@ func (g *generator) seedFromExample(body *hclwrite.Body, block *configschema.Blo
 
 	identityArg, _ := identityArgName(tfType)
 
-	// Reference entries and later block elements are evidence, not values
-	// to write - see seedArgument. They are dropped before any counting so
-	// a reference twin cannot make its literal sibling look duplicated.
+	// A repeated block's later element has nowhere to land: the generic
+	// pass renders exactly one instance, so element zero is the only
+	// answer to "which element does this belong to". Dropped before any
+	// counting so a later element cannot make element zero look duplicated.
 	writable := args[:0:0]
 	for _, arg := range args {
-		if arg.Reference || arg.Element > 0 {
+		if arg.Element > 0 || len(arg.Path) == 0 {
 			continue
 		}
 		writable = append(writable, arg)
@@ -188,23 +201,64 @@ func (g *generator) seedFromExample(body *hclwrite.Body, block *configschema.Blo
 		pathCount[joinPath(arg.Path)]++
 	}
 
+	// The complementary move issue #174 named and #177's extraction made
+	// possible. A dropped cross-resource reference is only a hole while
+	// this run has nothing to wire it to; seedRefExpr asks the roster, and
+	// a block every reference of which resolves is WIRED - its literals
+	// stop being evidence-only and its own creation stops being a guess.
+	//
+	// The SSE guard survives untouched, and mechanically rather than by
+	// coincidence: the s3 cohort renders no aws_kms_key, so
+	// apply_server_side_encryption_by_default's kms_master_key_id resolves
+	// to nothing, the block stays unwired, and sse_algorithm may still not
+	// create it. The same walk with the key rendered would be a complete
+	// configuration, which is exactly the difference the flag was standing
+	// in for.
+	refExpr := map[string]string{}
+	hasRef := map[string]bool{}
+	unwired := map[string]bool{}
+	for _, arg := range args {
+		if !arg.Reference {
+			continue
+		}
+		prefix := blockPrefix(arg.Path)
+		hasRef[prefix] = true
+		expr, ok := g.seedRefExpr(tfType, arg)
+		if !ok || pathCount[joinPath(arg.Path)] > 1 {
+			unwired[prefix] = true
+			continue
+		}
+		refExpr[joinPath(arg.Path)] = expr
+	}
+	// complete reports whether an argument is a configuration rather than
+	// evidence: a literal whose block dropped no reference this run cannot
+	// answer, or a reference this run can.
+	complete := func(arg seedArgument) bool {
+		prefix := blockPrefix(arg.Path)
+		wired := hasRef[prefix] && !unwired[prefix]
+		if arg.Reference {
+			return wired
+		}
+		return !arg.Incomplete || wired
+	}
+
 	// completePaths is every path a complete, non-duplicated argument can
 	// write - the set the creation gate checks a new block's required
 	// members against.
 	completePaths := map[string]bool{}
 	// incompleteIn marks each block prefix that holds an incomplete
-	// argument: that block dropped a reference sibling, so no argument -
-	// not even a complete one nested deeper - may create it. This is the
-	// SSE guard extended to the block itself: creating the block plants
-	// the configuration with its reference half missing, whichever
-	// argument's path the walk arrived by.
+	// argument: that block dropped a reference nothing here answers, so no
+	// argument - not even a complete one nested deeper - may create it.
+	// This is the SSE guard extended to the block itself: creating the
+	// block plants the configuration with its reference half missing,
+	// whichever argument's path the walk arrived by.
 	incompleteIn := map[string]bool{}
 	for _, arg := range args {
-		if len(arg.Path) == 0 || pathCount[joinPath(arg.Path)] > 1 {
+		if pathCount[joinPath(arg.Path)] > 1 {
 			continue
 		}
-		if arg.Incomplete {
-			incompleteIn[joinPath(arg.Path[:len(arg.Path)-1])] = true
+		if !complete(arg) {
+			incompleteIn[blockPrefix(arg.Path)] = true
 		} else {
 			completePaths[joinPath(arg.Path)] = true
 		}
@@ -212,32 +266,49 @@ func (g *generator) seedFromExample(body *hclwrite.Body, block *configschema.Blo
 
 	var applied []string
 	for _, arg := range args {
-		if len(arg.Path) == 0 || pathCount[joinPath(arg.Path)] > 1 {
+		if pathCount[joinPath(arg.Path)] > 1 {
 			continue
 		}
-		// A TOP-LEVEL naming argument belongs to the generator, not to the
-		// page. A documented example names things "example" and
-		// "test_role", and every cohort rendering the same type would then
-		// ask AWS for the same name - which either collides or silently
-		// adopts somebody else's resource. valueExpr already treats this
-		// class specially, and looksLikeName is its own predicate for it,
-		// so the seed defers to the same rule rather than inventing a
-		// second one. (Found in review rather than by reasoning: the first
-		// version wrote name = "example" onto aws_secretsmanager_secret in
-		// the security cohort.)
-		//
-		// A NESTED member named "name" is a different thing: a selector or
-		// key the provider validates against a closed set - ecs setting's
-		// name = "containerInsights", a parameter block's name - with no
-		// collision to cause. Skipping those left created blocks missing
-		// the very member the provider requires (issue #174).
-		if len(arg.Path) == 1 {
-			if leaf := arg.Path[0]; leaf == identityArg || looksLikeName(leaf) {
-				continue
+		value := ""
+		if arg.Reference {
+			expr, ok := refExpr[joinPath(arg.Path)]
+			if !ok {
+				continue // nothing rendered here answers it
 			}
+			value = expr
+		} else {
+			// A TOP-LEVEL naming argument belongs to the generator, not to
+			// the page. A documented example names things "example" and
+			// "test_role", and every cohort rendering the same type would
+			// then ask AWS for the same name - which either collides or
+			// silently adopts somebody else's resource. valueExpr already
+			// treats this class specially, and looksLikeName is its own
+			// predicate for it, so the seed defers to the same rule rather
+			// than inventing a second one. (Found in review rather than by
+			// reasoning: the first version wrote name = "example" onto
+			// aws_secretsmanager_secret in the security cohort.)
+			//
+			// A NESTED member named "name" is a different thing: a selector
+			// or key the provider validates against a closed set - ecs
+			// setting's name = "containerInsights", a parameter block's
+			// name - with no collision to cause. Skipping those left
+			// created blocks missing the very member the provider requires
+			// (issue #174).
+			//
+			// A resolved REFERENCE is exempt from all of this: it invents
+			// no name at all, it points at a resource this run renders
+			// under this cohort's own label, and valueExpr already ranks
+			// every reference tier above both naming tiers.
+			if len(arg.Path) == 1 {
+				if leaf := arg.Path[0]; leaf == identityArg || looksLikeName(leaf) {
+					continue
+				}
+			}
+			value = seedLiteral(arg)
 		}
+		argComplete := complete(arg)
 		mayCreate := func(prefix []string, nb *configschema.NestedBlock) bool {
-			if arg.Incomplete || incompleteIn[joinPath(prefix)] {
+			if !argComplete || incompleteIn[joinPath(prefix)] {
 				return false
 			}
 			return requiredCovered(prefix, &nb.Block, completePaths)
@@ -251,7 +322,7 @@ func (g *generator) seedFromExample(body *hclwrite.Body, block *configschema.Blo
 		}
 		name := arg.Path[len(arg.Path)-1]
 		existing := target.GetAttribute(name)
-		if arg.Incomplete {
+		if !argComplete {
 			// Evidence, not a configuration: it may correct a placeholder
 			// the generic pass admitted it had nothing for, and only that.
 			if existing == nil || !isGenericPlaceholder(existing, attr.Type) {
@@ -260,11 +331,67 @@ func (g *generator) seedFromExample(body *hclwrite.Body, block *configschema.Blo
 		} else if existing != nil && !isGenericPlaceholder(existing, attr.Type) {
 			continue // valueExpr computed this on purpose; do not overwrite it
 		}
-		target.SetAttributeRaw(name, exprTokens(seedLiteral(arg)))
+		target.SetAttributeRaw(name, exprTokens(value))
 		applied = append(applied, joinPath(arg.Path))
 	}
 	return applied
 }
+
+// seedRefExpr resolves one documented reference argument against this run's
+// roster: importdocs-gen records what an example wired an argument to
+// (ref_type/ref_attr, issue #177) instead of discarding it, so when this run
+// already renders a resource of that type the same wiring is available here,
+// under this cohort's own label.
+//
+// Four gates, none of which names a type:
+//
+//   - The run renders the referenced type. A var, a local, a path, a data
+//     source or a type this cohort does not carry is never a key of byType,
+//     so this is also the whole filter against non-resource references, and
+//     it is what keeps the s3 cohort's dropped aws_kms_key dropped.
+//   - It is not this type itself. A page wiring one instance to another of
+//     the same type is describing two resources; this run renders one.
+//   - The referenced attribute exists in the sibling's schema for THIS
+//     provider version. A page can name an attribute since renamed or made
+//     internal, and wiring one writes a reference to something nothing
+//     exports.
+//   - refAttrAllowed, shared with refAttr rather than restated: an
+//     identity-bound slot may only read an attribute in the sibling's own
+//     IdentityAttrs, and only when that identity IS the value it wants.
+//     Identity resolution refuses anything else outright.
+func (g *generator) seedRefExpr(selfType string, arg seedArgument) (string, bool) {
+	if !arg.Reference || arg.RefType == "" || arg.RefAttr == "" || len(arg.Path) == 0 {
+		return "", false
+	}
+	if arg.RefType == selfType {
+		return "", false
+	}
+	addr, rendered := g.byType[arg.RefType]
+	if !rendered {
+		return "", false
+	}
+	res, ok := g.schemas.ResourceTypes[arg.RefType]
+	if !ok || res.Block == nil {
+		return "", false
+	}
+	if a, ok := res.Block.Attributes[arg.RefAttr]; !ok || a == nil {
+		return "", false
+	}
+	leaf := arg.Path[len(arg.Path)-1]
+	// Identity components are top-level argument names (no entry in
+	// internal/live/identity's table reads a nested path), so a nested slot
+	// is never identity-bound and keeps the like-named attribute, which is
+	// the right VALUE - refAttr's own reasoning for a non-identity argument.
+	identityBound := len(arg.Path) == 1 && identityComponentAttr(selfType, leaf)
+	if !refAttrAllowed(arg.RefType, leaf, arg.RefAttr, identityBound) {
+		return "", false
+	}
+	return addr.String() + "." + arg.RefAttr, true
+}
+
+// blockPrefix is the block an argument's leaf sits in - "" for a top-level
+// argument.
+func blockPrefix(path []string) string { return joinPath(path[:len(path)-1]) }
 
 // resolveSeedPath walks a path's leading block names, creating each block
 // the generic pass did not - when mayCreate allows it - and returns the

@@ -14,6 +14,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // seedGen builds a generator carrying one type's seed, with no provider
@@ -461,6 +462,184 @@ func TestSeedRefusesTwoRenderedInstances(t *testing.T) {
 
 	if applied := g.seedFromExample(body, schema, "aws_thing"); len(applied) != 0 {
 		t.Errorf("seeded %v into a block the body holds twice", applied)
+	}
+}
+
+// ref builds a documented reference argument: the example set this path to
+// refType's refAttr, and importdocs-gen recorded the wiring rather than
+// discarding it (issue #177).
+func ref(refType, refAttr string, path ...string) seedArgument {
+	return seedArgument{Path: path, Reference: true, RefType: refType, RefAttr: refAttr}
+}
+
+// seedGenWithRoster is seedGen plus a roster: the types this run renders and
+// their schemas, which is what the reference rule consults.
+func seedGenWithRoster(tfType string, roster map[string]*configschema.Block, args ...seedArgument) *generator {
+	g := &generator{
+		seed:    exampleSeed{tfType: args},
+		byType:  map[string]resourceAddr{},
+		schemas: providers.GetProviderSchemaResponse{ResourceTypes: map[string]providers.Schema{}},
+	}
+	for t, b := range roster {
+		g.byType[t] = resourceAddr{Type: t, Label: "app"}
+		g.schemas.ResourceTypes[t] = providers.Schema{Block: b}
+	}
+	return g
+}
+
+func exportsString(names ...string) *configschema.Block {
+	attrs := map[string]*configschema.Attribute{}
+	for _, n := range names {
+		attrs[n] = &configschema.Attribute{Type: cty.String, Computed: true}
+	}
+	return blockWith(attrs, nil)
+}
+
+// TestSeedWiresAReferenceToARenderedSibling is issue #177's complementary
+// move at its simplest: the example wired this argument to another type,
+// this run renders that type, so the same wiring is available here under
+// this cohort's own label.
+func TestSeedWiresAReferenceToARenderedSibling(t *testing.T) {
+	g := seedGenWithRoster("aws_thing",
+		map[string]*configschema.Block{"aws_other": exportsString("handle")},
+		ref("aws_other", "handle", "other_ref"))
+	body := hclwrite.NewEmptyFile().Body()
+
+	applied := g.seedFromExample(body, blockWith(map[string]*configschema.Attribute{"other_ref": optString()}, nil), "aws_thing")
+	if len(applied) != 1 || applied[0] != "other_ref" {
+		t.Fatalf("applied = %v, want [other_ref]", applied)
+	}
+	if got := strings.TrimSpace(string(body.GetAttribute("other_ref").Expr().BuildTokens(nil).Bytes())); got != "aws_other.app.handle" {
+		t.Errorf("other_ref = %s, want aws_other.app.handle", got)
+	}
+}
+
+// TestSeedLeavesAReferenceToAnUnrenderedTypeAlone is the SSE guard's own
+// half, now mechanical: nothing in this run answers the reference, so the
+// argument is not written and - see the next test - its block stays closed.
+func TestSeedLeavesAReferenceToAnUnrenderedTypeAlone(t *testing.T) {
+	g := seedGenWithRoster("aws_thing", nil, ref("aws_other", "handle", "other_ref"))
+	body := hclwrite.NewEmptyFile().Body()
+
+	if applied := g.seedFromExample(body, blockWith(map[string]*configschema.Attribute{"other_ref": optString()}, nil), "aws_thing"); len(applied) != 0 {
+		t.Errorf("applied = %v; this run renders nothing of the referenced type", applied)
+	}
+}
+
+// TestSeedWiredReferenceUnlocksItsBlock is the whole point of the move: the
+// literal beside a dropped reference was refused because the block would
+// arrive half-wired. With the reference answered the block is a complete
+// configuration, so the walk may create it.
+func TestSeedWiredReferenceUnlocksItsBlock(t *testing.T) {
+	lit := at(str("aws:kms"), "encryption", "algorithm")
+	lit.Incomplete = true // the extractor's block-level flag, from the dropped reference
+	schema := blockWith(nil, map[string]*configschema.NestedBlock{
+		"encryption": {
+			Nesting: configschema.NestingList, MinItems: 0, MaxItems: 1,
+			Block: *blockWith(map[string]*configschema.Attribute{
+				"algorithm": optString(),
+				"key_id":    optString(),
+			}, nil),
+		},
+	})
+
+	t.Run("unrendered", func(t *testing.T) {
+		g := seedGenWithRoster("aws_thing", nil, lit, ref("aws_key", "arn", "encryption", "key_id"))
+		body := hclwrite.NewEmptyFile().Body()
+		if applied := g.seedFromExample(body, schema, "aws_thing"); len(applied) != 0 {
+			t.Errorf("applied = %v; the key is not rendered, so the block would arrive half-wired", applied)
+		}
+		if body.FirstMatchingBlock("encryption", nil) != nil {
+			t.Error("the block was created with its reference half missing")
+		}
+	})
+
+	t.Run("rendered", func(t *testing.T) {
+		g := seedGenWithRoster("aws_thing",
+			map[string]*configschema.Block{"aws_key": exportsString("arn")},
+			lit, ref("aws_key", "arn", "encryption", "key_id"))
+		body := hclwrite.NewEmptyFile().Body()
+		applied := g.seedFromExample(body, schema, "aws_thing")
+		if len(applied) != 2 {
+			t.Fatalf("applied = %v, want both members of the now-wired block", applied)
+		}
+		blk := body.FirstMatchingBlock("encryption", nil)
+		if blk == nil {
+			t.Fatal("the block was not created for a fully wired example")
+		}
+		if got := strings.TrimSpace(string(blk.Body().GetAttribute("key_id").Expr().BuildTokens(nil).Bytes())); got != "aws_key.app.arn" {
+			t.Errorf("key_id = %s, want aws_key.app.arn", got)
+		}
+		if got := strings.TrimSpace(string(blk.Body().GetAttribute("algorithm").Expr().BuildTokens(nil).Bytes())); got != `"aws:kms"` {
+			t.Errorf("algorithm = %s", got)
+		}
+	})
+}
+
+// TestSeedRefusesAnAttributeTheSiblingDoesNotExport: a page can name an
+// attribute this provider version renamed, and wiring one writes a
+// reference to something nothing exports.
+func TestSeedRefusesAnAttributeTheSiblingDoesNotExport(t *testing.T) {
+	g := seedGenWithRoster("aws_thing",
+		map[string]*configschema.Block{"aws_other": exportsString("id")},
+		ref("aws_other", "renamed_last_release", "other_ref"))
+	body := hclwrite.NewEmptyFile().Body()
+
+	if applied := g.seedFromExample(body, blockWith(map[string]*configschema.Attribute{"other_ref": optString()}, nil), "aws_thing"); len(applied) != 0 {
+		t.Errorf("applied = %v; the sibling's schema has no such attribute", applied)
+	}
+}
+
+// TestSeedRefusesANonIdentityAttributeOnAnIdentityBoundSlot is commit
+// 55856b4473's rule, reached through the seed instead of through valueExpr.
+// aws_transfer_web_app_customization's web_app_id is one of its own identity
+// components, and identity resolution refuses any reference outside the
+// sibling's IdentityAttrs - which for aws_transfer_web_app are id and arn,
+// not the like-named web_app_id its page's example reads.
+func TestSeedRefusesANonIdentityAttributeOnAnIdentityBoundSlot(t *testing.T) {
+	const self, sibling = "aws_transfer_web_app_customization", "aws_transfer_web_app"
+	g := seedGenWithRoster(self,
+		map[string]*configschema.Block{sibling: exportsString("web_app_id", "id", "arn")},
+		ref(sibling, "web_app_id", "web_app_id"))
+	body := hclwrite.NewEmptyFile().Body()
+
+	if applied := g.seedFromExample(body, blockWith(map[string]*configschema.Attribute{"web_app_id": optString()}, nil), self); len(applied) != 0 {
+		t.Errorf("applied = %v; identity resolution refuses an attribute outside the sibling's IdentityAttrs", applied)
+	}
+
+	// The same slot on the same sibling, reading an attribute that IS in
+	// IdentityAttrs, is exactly what the rule permits.
+	g = seedGenWithRoster(self,
+		map[string]*configschema.Block{sibling: exportsString("web_app_id", "id", "arn")},
+		ref(sibling, "id", "web_app_id"))
+	body = hclwrite.NewEmptyFile().Body()
+	if applied := g.seedFromExample(body, blockWith(map[string]*configschema.Attribute{"web_app_id": optString()}, nil), self); len(applied) != 1 {
+		t.Errorf("applied = %v, want the IdentityAttrs-backed reference written", applied)
+	}
+}
+
+// TestSeedRefusesASelfReference: a page wiring one instance of a type to
+// another of the same type is describing two resources; this run renders one.
+func TestSeedRefusesASelfReference(t *testing.T) {
+	g := seedGenWithRoster("aws_thing",
+		map[string]*configschema.Block{"aws_thing": exportsString("id")},
+		ref("aws_thing", "id", "parent_ref"))
+	body := hclwrite.NewEmptyFile().Body()
+
+	if applied := g.seedFromExample(body, blockWith(map[string]*configschema.Attribute{"parent_ref": optString()}, nil), "aws_thing"); len(applied) != 0 {
+		t.Errorf("applied = %v; the example wired two instances of one type", applied)
+	}
+}
+
+// TestSeedReferenceIgnoresANonResourceRoot: a var, a local, a path or a data
+// source is never a key of byType, which is the whole filter - no list of
+// root names anywhere.
+func TestSeedReferenceIgnoresANonResourceRoot(t *testing.T) {
+	g := seedGenWithRoster("aws_thing", nil, ref("var", "name", "other_ref"))
+	body := hclwrite.NewEmptyFile().Body()
+
+	if applied := g.seedFromExample(body, blockWith(map[string]*configschema.Attribute{"other_ref": optString()}, nil), "aws_thing"); len(applied) != 0 {
+		t.Errorf("applied = %v; a variable is not a resource this run renders", applied)
 	}
 }
 

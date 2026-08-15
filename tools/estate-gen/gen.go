@@ -889,26 +889,7 @@ func (g *generator) refAttr(siblingType, argName, suffix string, identityBound b
 	// a wrong identity and a value the API rejects. Those pairs render
 	// matching literals instead (pairedSeedLiteral).
 	allowed := func(n string) bool {
-		if !identityBound {
-			return true
-		}
-		entry, found := identity.LookupType(siblingType)
-		if !found {
-			return true // schema-fallback sibling: no ledger to restrict against
-		}
-		if !strings.HasSuffix(argName, "_arn") {
-			for _, c := range entry.Components {
-				if c.Literal != "" || c.Cloud != "" {
-					return false
-				}
-			}
-		}
-		for _, a := range entry.IdentityAttrs {
-			if a == n {
-				return true
-			}
-		}
-		return false
+		return refAttrAllowed(siblingType, argName, n, identityBound)
 	}
 	if has(argName) && allowed(argName) {
 		return argName, true
@@ -926,6 +907,41 @@ func (g *generator) refAttr(siblingType, argName, suffix string, identityBound b
 		return "id", true
 	}
 	return "", false
+}
+
+// refAttrAllowed is the identity-boundness half of refAttr's choice, split
+// out so the documented-reference seed (seedRefExpr) asks the same question
+// rather than restating it. argName is the slot being wired on the CHILD,
+// attrName the sibling attribute a reference would read, and identityBound
+// whether argName is one of the child's own identity components.
+//
+// When the slot is identity-bound, identity resolution reads the reference
+// and refuses any attribute outside the sibling's own IdentityAttrs ("Not an
+// identity attribute"). An IdentityAttrs attribute's VALUE is the sibling's
+// import identity, so the reference is also only correct when that identity
+// IS the value the slot wants: a sibling whose identity is an assembled ARN
+// (any Literal or Cloud component) fails that for every non-_arn slot.
+func refAttrAllowed(siblingType, argName, attrName string, identityBound bool) bool {
+	if !identityBound {
+		return true
+	}
+	entry, found := identity.LookupType(siblingType)
+	if !found {
+		return true // schema-fallback sibling: no ledger to restrict against
+	}
+	if !strings.HasSuffix(argName, "_arn") {
+		for _, c := range entry.Components {
+			if c.Literal != "" || c.Cloud != "" {
+				return false
+			}
+		}
+	}
+	for _, a := range entry.IdentityAttrs {
+		if a == attrName {
+			return true
+		}
+	}
+	return false
 }
 
 // siblingRef is issue #173's rule-level fix for reference arguments
@@ -1009,8 +1025,11 @@ func (g *generator) pairedSeedLiteral(selfType, argName string) (string, bool) {
 			// Incomplete literals count: seedFromExample writes them onto
 			// the parent when they replace a placeholder, and the value is
 			// what pairs - the structural caution behind the flag is about
-			// creating arguments, which this never does.
-			if len(arg.Path) != 1 || arg.Path[0] != argName {
+			// creating arguments, which this never does. A REFERENCE entry
+			// carries no literal at all (issue #177), so there is nothing
+			// here to mirror; the parent renders whatever seedRefExpr wired
+			// it to, and this side cannot spell that.
+			if len(arg.Path) != 1 || arg.Path[0] != argName || arg.Reference {
 				continue
 			}
 			return seedLiteral(arg), true
