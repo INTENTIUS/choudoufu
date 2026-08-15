@@ -82,7 +82,7 @@ func TestGroundTruth_Route53Record(t *testing.T) {
 }
 
 // TestGroundTruth_LambdaAlias: composed true - the pilot's rejection
-// (internal/live/identity/table.go's "Rejected" comment), now automated.
+// (the ruling is in tools/row-gen/rejected.json), now automated.
 // aws_lambda_alias carries no Identity Schema in v6.58.0; the doc's only
 // signal is "using `function_name/alias`", a two-segment format token.
 func TestGroundTruth_LambdaAlias(t *testing.T) {

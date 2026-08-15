@@ -6,6 +6,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -55,5 +56,33 @@ func TestRejectedLedgerIsDisjointFromAdmitted(t *testing.T) {
 			"stale and goes; if the recovery swept it up from a rejection's prose rather than its subject, it was "+
 			"never a ruling.",
 			len(contradictions), rejectedTypesJSONRel, contradictions)
+	}
+}
+
+// TestProposeContractNamesTheLedgerItReads is issue #140's guard.
+//
+// The printed contract used to tell a reviewer to record a rejection "in
+// table.go's or admission.go's own comments, so the next run's Rejected scan
+// finds it". That scan stopped existing at #96, when both tables became
+// generated in full; rejectedTypesJSONRel's own doc comment says so 140
+// lines above the contract that contradicted it. A reviewer following the
+// printed instructions would have written a ruling into a DO NOT EDIT file,
+// watched -emit overwrite it, and had PROPOSE re-propose the type with a
+// clean record behind it.
+//
+// The path is a constant in the same file as the header, so the two cannot
+// drift apart if the header simply quotes it. This asserts that it does.
+func TestProposeContractNamesTheLedgerItReads(t *testing.T) {
+	if !strings.Contains(proposeContractHeader, rejectedTypesJSONRel) {
+		t.Errorf("the printed contract does not name %s, the ledger loadRejectedTypes actually reads;\n"+
+			"a reviewer following it would record a ruling somewhere nothing consults", rejectedTypesJSONRel)
+	}
+	// The two generated tables must not be named as places to record a
+	// ruling. They are overwritten in full by -emit, so an instruction to
+	// edit them is an instruction to lose the ruling.
+	for _, generated := range []string{"table.go's", "admission.go's"} {
+		if strings.Contains(proposeContractHeader, generated) {
+			t.Errorf("the printed contract still tells a reviewer to edit %s, which -emit overwrites", generated)
+		}
 	}
 }

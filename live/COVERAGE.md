@@ -515,19 +515,18 @@ hold:
   instances, enough that the streak is not two coincidences. `live/rowgen-
   convergence.json`'s `types[]` is where that comparison already lives;
   PROPOSE only regroups it by rule instead of by admitted type.
-- No member of that rule class is named in a "Rejected" note anywhere in
-  `table.go` or `admission.go`: a second, independent, deliberately
-  over-inclusive check, because a rejected type is invisible to the first
-  measurement (it was never admitted, so it never enters that comparison at
-  all).
+- The candidate is not recorded in `tools/row-gen/rejected.json`, the ledger
+  of types a batch looked at by name and declined: a second, independent,
+  deliberately over-inclusive check, because a rejected type is invisible to
+  the first measurement (it was never admitted, so it never enters that
+  comparison at all). The ledger and the admission table are disjoint by
+  test; a type cannot be both.
 
-As of this stage landing, no rule class clears that bar yet: the largest,
-best-behaved base rules run in the high 80s to high 90s percent, which
-means real correction rates that a hand batch has been absorbing
-invisibly. PROPOSE's printed report carries the full rule-class ledger
-every run, qualifying or not, so that state is never hidden; see the
-output of `go run ./tools/row-gen -propose`, or the `## PROPOSE` section
-of any admission-pipeline PR.
+PROPOSE's printed report carries the full rule-class ledger every run,
+qualifying or not, so that state is never hidden; see the output of `go run
+./tools/row-gen -propose`, or the `## PROPOSE` section of any
+admission-pipeline PR. That report's own summary line is the current figure,
+and it is the one to quote rather than any number written here.
 
 **The spot-check contract.** Approving a PROPOSE-emitted entry is not
 re-deriving the classification. It is, per proposed type:
@@ -538,7 +537,10 @@ re-deriving the classification. It is, per proposed type:
    documents.
 2. Confirming the type creates or exports no credential material (the
    standing exclusion `aws_iam_access_key` and `aws_iot_certificate` are
-   held to).
+   held to). If it does, record the rejection by name in
+   `tools/row-gen/rejected.json` with a `reason`, so PROPOSE never offers it
+   again. Not in `table.go` or `admission.go`: both are generated in full
+   (issue #96) and the next `-emit` run overwrites anything written there.
 3. Pasting the two printed blocks unedited.
 4. Building the cohort estate, running the suites, and getting a floci
    probe before merging, the same as any hand-ratified batch. PROPOSE

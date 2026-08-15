@@ -185,8 +185,7 @@ func TestEnumerationStory(t *testing.T) {
 }
 
 // TestApplyImportGrammarDemotions_LambdaAliasShape reproduces the Lambda
-// pilot's manual rejection (internal/live/identity/table.go's "Rejected"
-// comment): row-gen classifies aws_lambda_alias server-assigned from the
+// pilot's manual rejection (recorded in tools/row-gen/rejected.json): row-gen classifies aws_lambda_alias server-assigned from the
 // CFN registry's AliasArn (read-only there), but the provider's own Import
 // docs show "function_name/alias_name" - an argument-composed ID, not an
 // opaque one. Once live/import-grammar.json carries that evidence, the

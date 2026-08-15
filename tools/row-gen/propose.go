@@ -323,10 +323,10 @@ server-assigned, client-named or composite - plus the exact rule that fired)
 whose every historical instance, re-run against today's classifier,
 reproduced byte-for-byte what a human independently ratified into
 internal/live/identity.DefaultTable: a 100% match, over at least
-` + fmt.Sprint(proposeMinSample) + ` instances, with no member of that rule class ever named in a
-"Rejected" note anywhere in table.go or admission.go. Below that bar, the
-type prints in the ordinary report (go run ./tools/row-gen) like any other
-proposal and waits for an ordinary batch.
+` + fmt.Sprint(proposeMinSample) + ` instances, and with the candidate itself not recorded in
+` + rejectedTypesJSONRel + `. Below that bar, the type prints in the
+ordinary report (go run ./tools/row-gen) like any other proposal and waits
+for an ordinary batch.
 
 WHAT THIS DOES NOT CLAIM:
 
@@ -353,9 +353,11 @@ THE SPOT-CHECK CONTRACT - four things, per proposed type, nothing more:
      attribute the pasted entry names is what that section documents. This
      is reading one section, not re-deriving the classification.
   2. Confirm the type does not mint or return credential material. If it
-     does, do not paste it - reject it explicitly, by name, in table.go's
-     or admission.go's own comments, so the next run's Rejected scan finds
-     it and this stage never proposes it again.
+     does, do not paste it - record the rejection by name in
+     ` + rejectedTypesJSONRel + `, with a "reason", so this stage
+     never proposes it again. Do NOT write it into table.go or
+     admission.go: those files are generated in full (issue #96) and the
+     next -emit run would overwrite the ruling.
   3. Paste the two blocks exactly as printed, unedited, into
      admittedTypesV0 and DefaultTable. Editing the pasted text defeats the
      point of generating it: nothing about it should be hand-transcribed.
@@ -410,7 +412,7 @@ func renderProposeReport(stats map[ruleKey]ruleStats, qualifying map[ruleKey]rul
 	fmt.Fprintf(&b, "%d logical type(s) proposed, one rule class's block each:\n", len(candidates))
 	for _, c := range candidates {
 		b.WriteString("\n----------------------------------------------------------------\n")
-		fmt.Fprintf(&b, "rule class track record: %d/%d (100%%) admitted unchanged against internal/live/identity.DefaultTable; not named in any recorded Rejected note\n", c.Stats.Matched, c.Stats.Compared)
+		fmt.Fprintf(&b, "rule class track record: %d/%d (100%%) admitted unchanged against internal/live/identity.DefaultTable; not recorded in "+rejectedTypesJSONRel+"\n", c.Stats.Matched, c.Stats.Compared)
 		b.WriteString(renderProposal(c.Proposal))
 		b.WriteString(spotCheckReminder)
 	}

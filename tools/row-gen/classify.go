@@ -335,10 +335,11 @@ func resolveArgName(tf, cfnProperty string, survey map[string]surveyEntry, impor
 // is not server-assigned - CloudFormation and the provider model the same
 // AWS API independently, and a composite documented import ID is exactly
 // the shape the Lambda pilot found by hand for aws_lambda_alias and
-// aws_lambda_layer_version_permission (see
-// internal/live/identity/table.go's "Rejected" comment). Those two rows
-// were kept out of DefaultTable manually; this is that same check, run
-// over every proposal instead of by a human reading two docs.
+// aws_lambda_layer_version_permission (the ruling is in
+// tools/row-gen/rejected.json; it was prose in a per-cohort table
+// fragment until issue #96 generated those tables in full). Those two
+// rows were kept out of DefaultTable manually; this is that same check,
+// run over every proposal instead of by a human reading two docs.
 //
 // Only bucketServerAssigned rows are ever touched - a client-named or
 // needs-hand-separator proposal has no server-assigned claim to correct,
