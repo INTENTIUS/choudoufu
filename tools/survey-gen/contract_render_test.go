@@ -33,11 +33,16 @@ func TestContractMDXRenderedSpans(t *testing.T) {
 	}
 	md := string(mdBytes)
 
+	layers, err := renderCoverageLayers(root)
+	if err != nil {
+		t.Fatalf("rendering the layers table: %v", err)
+	}
 	for _, span := range []struct {
 		name, want string
 	}{
 		{spanContractCount, renderContractCount()},
 		{spanContractTypes, renderContractTypes()},
+		{spanCoverageLayers, layers},
 	} {
 		got, err := spanContent(contractMDXRel, md, span.name)
 		if err != nil {
@@ -52,7 +57,7 @@ func TestContractMDXRenderedSpans(t *testing.T) {
 
 	// The whole-file check catches what the per-span one cannot: a marker
 	// pair going missing or duplicated.
-	if out, err := renderContractSpans(md); err != nil {
+	if out, err := renderContractSpans(root, md); err != nil {
 		t.Errorf("rendering %s's Contract spans: %v", contractMDXRel, err)
 	} else if out != md {
 		t.Errorf("%s differs from its rendered form; run `go run ./tools/survey-gen -render` and commit the result", contractMDXRel)

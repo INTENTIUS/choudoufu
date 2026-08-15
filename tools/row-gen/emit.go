@@ -97,6 +97,10 @@ func runEmit(out, errOut *os.File) error {
 		}
 		fmt.Fprintf(out, "wrote %s\n", rel)
 	}
+	if err := writeBucketsArtifact(root, proposals); err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "wrote %s\n", bucketsJSONRel)
 
 	fmt.Fprintf(errOut, "row-gen -emit: identity: %d types (%d reproduced by classifier, %d still corrected); lint: %d types (%d reproduced, %d corrected)\n",
 		len(identityPart.Generated)+len(identityPart.Override), len(identityPart.Generated), len(identityPart.Override),

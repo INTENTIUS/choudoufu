@@ -9,21 +9,30 @@ entry with its reason.
 The usage-weighted summary comes first, because raw percentages
 undersell it. The services estates are actually made of (EC2/VPC, S3,
 IAM, Lambda, RDS, DynamoDB, SQS/SNS, EKS/ECS, ELB, Route53, KMS,
-CloudWatch) are all either live-proven, in the generated set awaiting
-ratification, or in an alias family being converted right now. The tail
+CloudWatch) are all admitted or in the pastable-proposal set. The tail
 that will never map is disproportionately dead or exotic services, and
 every type in it gets a named, one-sentence answer in
 `live/LIMITATIONS.md` and in the lint refusal itself.
 
 ## The layers at a glance
 
-| Layer                                  | Types | What stands between it and support            |
-| -------------------------------------- | ----- | --------------------------------------------- |
-| Live-proven on `main`                   | 37    | Nothing. Exercised end to end.                 |
-| Generated, ratifiable today             | 551   | A ratification batch: paste, fixture, test.    |
-| Behind small, known hand-work           | 240   | One one-line decision per type.                |
-| Alias families (conversion in flight)   | ~576  | A service-alias line per family.               |
-| Genuine residue                         | —     | Will not map; named reason per type.           |
+Every count below is rendered from a committed artifact (issue #139):
+`live/rowgen-buckets.json` for the classifier's buckets,
+`live/mapping.json` for the taxonomy, `live/cohort-acceptance.json` for
+the round trip. Run `go run ./tools/survey-gen -render` after any of
+them moves. The prose on this page quotes none of the numbers.
+
+<!-- survey-gen:begin coverage-layers -->
+| Layer | Count | What stands between it and support |
+| ----- | ----- | ---------------------------------- |
+| Round-trip proven against the emulator | 3 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
+| Admitted (the shipped table) | 843 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Pastable proposals (server-assigned 587, client-named 363, composite 106) | 1056 types | A ratification batch: paste, fixture, test. |
+| Needs a hand separator | 83 types | One one-character import-separator decision each. |
+| Evidence-only | 34 types | An identity-argument name no current evidence source states. |
+| Fold-children | 87 types | Nothing of their own; identity is the parent's. |
+| Mapped in total | 1260 of 1699 provider types | The layers above partition this set. |
+| Excluded, each with a generated reason | 303 cfn-unmodeled, 116 tf-only, 7 deprecated-service, 13 unclassified | See `live/LIMITATIONS.md`'s exclusion cohorts. |<!-- survey-gen:end coverage-layers -->
 
 ## The admitted set
 
@@ -481,20 +490,24 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `terraform_data`, `time_offset`, `time_rotating`, `time_sleep`, and
   `time_static`<!-- survey-gen:end contract-types -->
 
-## Live-proven: 37 types
+## Round-trip proven
 
-These are exercised end to end by the demo estate on `main`: VPC, subnet,
-and security-group networking, S3 and its children, the IAM role trio,
-DynamoDB, KMS, Route53, the ALB stack, SNS, ACM, and so on. The Lambda
-pilot batch in flight adds the first ratified cohort on top.
+The strongest layer is measured by `live/cohort-acceptance.json`: apply a
+generated cohort estate against the floci emulator with stock terraform,
+delete the state file, `live-plan` from markers, and require an empty
+plan. A cohort that passes has demonstrated the whole product claim for
+its types. The artifact is a ratchet, so a recorded pass that stops
+passing fails the tier. The table above quotes its totals, and the
+artifact carries the per-cohort verdicts with the phase each failure
+died in.
 
-## Generated and ratifiable today: 551 types
+## Pastable proposals
 
-The generation approach produced 551 further types: 501 with
-server-assigned identifiers and 50 client-named, each printed with its
-registry evidence. They wait only on ratification batches (paste,
-fixture, test). This is real generated coverage; it has not passed
-the human gate yet, by design. Nothing here lands without a
+The classifier puts most mapped types into a bucket with printed registry
+evidence: server-assigned identifiers, client-named types, and composites
+whose separator the documentation states. These wait only on ratification
+batches (paste, fixture, test). This is real generated coverage that has
+not passed the human gate yet, by design. Nothing here lands without a
 fixture and a test.
 
 ## PROPOSE: automatic high-confidence proposals (issue #65)
@@ -513,17 +526,17 @@ hold:
   `internal/live/identity.DefaultTable`, reproduces byte-for-byte what a
   human independently ratified (a 100% match), over at least five
   instances, enough that the streak is not two coincidences. `live/rowgen-
-  convergence.json`'s `types[]` is where that comparison already lives;
+  convergence.json`'s `types[]` is where that comparison already lives.
   PROPOSE only regroups it by rule instead of by admitted type.
 - The candidate is not recorded in `tools/row-gen/rejected.json`, the ledger
   of types a batch looked at by name and declined: a second, independent,
   deliberately over-inclusive check, because a rejected type is invisible to
   the first measurement (it was never admitted, so it never enters that
   comparison at all). The ledger and the admission table are disjoint by
-  test; a type cannot be both.
+  test, so a type cannot be both.
 
 PROPOSE's printed report carries the full rule-class ledger every run,
-qualifying or not, so that state is never hidden; see the output of `go run
+qualifying or not, so that state is never hidden. See the output of `go run
 ./tools/row-gen -propose`, or the `## PROPOSE` section of any
 admission-pipeline PR. That report's own summary line is the current figure,
 and it is the one to quote rather than any number written here.
@@ -544,58 +557,38 @@ re-deriving the classification. It is, per proposed type:
 3. Pasting the two printed blocks unedited.
 4. Building the cohort estate, running the suites, and getting a floci
    probe before merging, the same as any hand-ratified batch. PROPOSE
-   shortens the classification decision; the verification that follows
-   one is unchanged.
+   shortens the classification decision, and the verification that
+   follows one is unchanged.
 
 What is being trusted: that a classification rule with a spotless record
 over its past instances will also be right on the next one. That is an
 inductive claim about the rule, evidenced by a stated count, not a proof
-about the specific type; PROPOSE never claims floci or live-account
+about the specific type. PROPOSE never claims floci or live-account
 proof for anything it emits.
 
-## Behind small, known hand-work: 240 types
+## Behind small, known hand-work
 
-- 114 composite types each need a one-character import separator chosen.
-- 126 need an identity-argument name confirmed.
+Two buckets in the table need one bounded decision per type: a composite
+whose one-character import separator no evidence source states, and an
+identity argument whose name no current source confirms. Each decision
+is a line in a ratification batch. Every extractor improvement that
+recovers a class shrinks these buckets, and the ledger of what still
+resists extraction is `tools/row-gen/annotations.json`, where every
+entry names what a fuller extraction would have to capture to retire it.
 
-These are bounded, per-type, one-line decisions.
+## The unmapped tail is a taxonomy, not a backlog
 
-## The "unmapped" 900: mostly a naming problem
-
-Of the 900 types the v1 generator left unmapped, measured composition
-shows 576 sit in services CloudFormation absolutely covers. The join
-failed on naming, because Terraform files things under `vpc_`,
-`cloudwatch_`, and `db_` while CloudFormation files them under `EC2`,
-`Logs`, and `RDS`.
-
-The v1 generator carried exactly 31 aliases, the minimum the curated
-68 types needed, because the alternative, fuzzy cross-service matching,
-produces confidently wrong mappings. A prototype demonstrated it by
-mapping `aws_appsync_type` to `AWS::Cassandra::Type`. Wrong mappings here
-touch live infrastructure, so v1 chose "unmapped" over "wrong."
-
-Unmapped types are cheap to fix. One service-alias line
-("`vpc_` means `EC2`") converts an entire 38-type family at once. That
-work is in flight now: service-scoped matching with a service-alias table
-and a false-positive guard, expected to move the mapped count from 791
-toward roughly 1,200–1,350. That puts the generated-proposal set on track
-for about 70–80% of the provider.
-
-## The residue that will never map, and why that is fine
-
-After aliases, the genuine residue is:
-
-- 76 registry types in dead services (Pinpoint, Greengrass V1, WAF
-  classic, and similar).
-- Terraform-only property-children and waiters, which need no mapping of
-  their own because their identity is their parent's.
-- Types CloudFormation does not model, such as `aws_s3_object`.
-- 51 registry-laggard types, where the provider's schemas are the
-  fallback.
-
-Every one of these gets a named, one-sentence answer in
-`live/LIMITATIONS.md` and in the lint refusal itself, so a type that is
-not covered is always refused with a stated reason.
+Earlier versions of this page described a 900-type unmapped set that was
+mostly a naming problem (Terraform files types under `vpc_`,
+`cloudwatch_` and `db_` while CloudFormation files them under `EC2`,
+`Logs` and `RDS`). That work landed as service-scoped matching with
+alias families and a false-positive guard. What remains unmapped is
+classified and counted in the table above, and every type in it gets a
+generated, named entry in `live/LIMITATIONS.md`'s exclusion cohorts:
+types CloudFormation does not model (such as `aws_s3_object`),
+Terraform-only types whose identity is their parent's, deprecated
+services, and a small unclassified residue. A type that is not covered
+is always refused with a stated reason.
 
 ## Other providers
 
