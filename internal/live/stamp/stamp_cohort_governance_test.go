@@ -30,6 +30,10 @@ var taggableGovernance = []string{
 	"aws_servicecatalogappregistry_attribute_group",
 	"aws_auditmanager_assessment",
 	"aws_auditmanager_framework",
+	// #175 ratification batch (PROPOSE, issue #65), 2026-08-15:
+	// taggability per the provider schema survey (live/survey-full.json,
+	// v6.59.0 signals.taggable).
+	"aws_budgets_budget_action",
 }
 
 var untaggableGovernance = []string{
@@ -80,6 +84,8 @@ func init() {
 			"aws_servicecatalogappregistry_attribute_group_association": untaggedSchema("id", "application_id", "attribute_group_id"),
 			"aws_auditmanager_assessment":                               taggedSchema("id", "arn", "name", "framework_id"),
 			"aws_auditmanager_framework":                                taggedSchema("id", "arn", "name"),
+			// #175 ratification batch (PROPOSE, issue #65), 2026-08-15.
+			"aws_budgets_budget_action": taggedSchema("id", "arn", "action_id", "budget_name"),
 		})
 	})
 }

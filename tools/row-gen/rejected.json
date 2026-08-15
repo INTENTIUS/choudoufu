@@ -101,6 +101,9 @@
         "internal/live/identity/table_cohort_apigateway.go"
       ]
     },
+    "aws_appstream_directory_config": {
+      "reason": "credential material: service_account_credentials.account_password is a Required plaintext AD service-account password persisted in config and state (provider doc 6.59.0, Argument Reference); same class as aws_ivs_playback_key_pair's client-supplied write-only material. Ruled by the maintainer 2026-08-15 (#175); the one class where rejection is the end state."
+    },
     "aws_appstream_fleet": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"

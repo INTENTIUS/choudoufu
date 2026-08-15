@@ -58,6 +58,10 @@ var untaggableDatabases = []string{
 	"aws_opensearchserverless_access_policy",
 	"aws_opensearchserverless_lifecycle_policy",
 	"aws_opensearchserverless_security_policy",
+	// #175 ratification batch (PROPOSE, issue #65), 2026-08-15:
+	// taggability per the provider schema survey (live/survey-full.json,
+	// v6.59.0 signals.taggable).
+	"aws_redshift_endpoint_access",
 }
 
 func init() {
@@ -103,6 +107,8 @@ func init() {
 			"aws_memorydb_subnet_group":                 taggedSchema("id", "arn", "name"),
 			"aws_keyspaces_keyspace":                    taggedSchema("id", "arn", "name"),
 			"aws_keyspaces_table":                       taggedSchema("id", "arn", "keyspace_name", "table_name"),
+			// #175 ratification batch (PROPOSE, issue #65), 2026-08-15.
+			"aws_redshift_endpoint_access": untaggedSchema("id", "endpoint_name", "address"),
 		})
 	})
 }

@@ -18,6 +18,10 @@ var taggableEcsEks = []string{
 	"aws_eks_cluster",
 	"aws_eks_fargate_profile",
 	"aws_eks_node_group",
+	// #175 ratification batch (PROPOSE, issue #65), 2026-08-15:
+	// taggability per the provider schema survey (live/survey-full.json,
+	// v6.59.0 signals.taggable).
+	"aws_appautoscaling_target",
 }
 
 var untaggableEcsEks = []string{
@@ -37,6 +41,8 @@ func init() {
 			"aws_eks_cluster":                    taggedSchema("id", "arn", "name", "role_arn"),
 			"aws_eks_fargate_profile":            taggedSchema("id", "arn", "cluster_name", "fargate_profile_name"),
 			"aws_eks_node_group":                 taggedSchema("id", "arn", "cluster_name", "node_group_name"),
+			// #175 ratification batch (PROPOSE, issue #65), 2026-08-15.
+			"aws_appautoscaling_target": taggedSchema("id", "arn", "service_namespace", "resource_id", "scalable_dimension"),
 		})
 	})
 }

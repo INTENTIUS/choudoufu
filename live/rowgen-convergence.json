@@ -1,11 +1,11 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 843,
-    "compared": 822,
+    "admitted_total": 872,
+    "compared": 851,
     "not_in_mapped_set": 21,
-    "adopted_unchanged": 715,
-    "adopted_unchanged_pct": 86.98,
+    "adopted_unchanged": 744,
+    "adopted_unchanged_pct": 87.43,
     "genuine_mismatches": 107,
     "annotated": 107,
     "unannotated_mismatches": 0,
@@ -53,8 +53,8 @@
       "adopted_unchanged_pct": 80
     },
     "AppConfig": {
-      "compared": 4,
-      "adopted_unchanged": 4,
+      "compared": 8,
+      "adopted_unchanged": 8,
       "adopted_unchanged_pct": 100
     },
     "AppFlow": {
@@ -72,10 +72,20 @@
       "adopted_unchanged": 5,
       "adopted_unchanged_pct": 100
     },
-    "AppSync": {
-      "compared": 4,
+    "AppStream": {
+      "compared": 3,
       "adopted_unchanged": 3,
-      "adopted_unchanged_pct": 75
+      "adopted_unchanged_pct": 100
+    },
+    "AppSync": {
+      "compared": 6,
+      "adopted_unchanged": 5,
+      "adopted_unchanged_pct": 83.33
+    },
+    "ApplicationAutoScaling": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
     },
     "Athena": {
       "compared": 3,
@@ -113,11 +123,16 @@
       "adopted_unchanged_pct": 85.71
     },
     "BedrockAgentCore": {
-      "compared": 14,
-      "adopted_unchanged": 7,
-      "adopted_unchanged_pct": 50
+      "compared": 15,
+      "adopted_unchanged": 8,
+      "adopted_unchanged_pct": 53.33
     },
     "Billing": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
+    },
+    "Budgets": {
       "compared": 1,
       "adopted_unchanged": 1,
       "adopted_unchanged_pct": 100
@@ -233,8 +248,8 @@
       "adopted_unchanged_pct": 100
     },
     "Connect": {
-      "compared": 12,
-      "adopted_unchanged": 12,
+      "compared": 13,
+      "adopted_unchanged": 13,
       "adopted_unchanged_pct": 100
     },
     "ControlTower": {
@@ -268,8 +283,8 @@
       "adopted_unchanged_pct": 100
     },
     "DataZone": {
-      "compared": 1,
-      "adopted_unchanged": 1,
+      "compared": 3,
+      "adopted_unchanged": 3,
       "adopted_unchanged_pct": 100
     },
     "Detective": {
@@ -528,8 +543,8 @@
       "adopted_unchanged_pct": 0
     },
     "MSK": {
-      "compared": 6,
-      "adopted_unchanged": 6,
+      "compared": 8,
+      "adopted_unchanged": 8,
       "adopted_unchanged_pct": 100
     },
     "MWAA": {
@@ -618,8 +633,8 @@
       "adopted_unchanged_pct": 100
     },
     "PaymentCryptography": {
-      "compared": 1,
-      "adopted_unchanged": 1,
+      "compared": 2,
+      "adopted_unchanged": 2,
       "adopted_unchanged_pct": 100
     },
     "Pipes": {
@@ -658,8 +673,8 @@
       "adopted_unchanged_pct": 0
     },
     "Redshift": {
-      "compared": 4,
-      "adopted_unchanged": 4,
+      "compared": 5,
+      "adopted_unchanged": 5,
       "adopted_unchanged_pct": 100
     },
     "RedshiftServerless": {
@@ -738,8 +753,8 @@
       "adopted_unchanged_pct": 75
     },
     "S3Outposts": {
-      "compared": 1,
-      "adopted_unchanged": 1,
+      "compared": 2,
+      "adopted_unchanged": 2,
       "adopted_unchanged_pct": 100
     },
     "S3Tables": {
@@ -753,8 +768,8 @@
       "adopted_unchanged_pct": 100
     },
     "SES": {
-      "compared": 7,
-      "adopted_unchanged": 7,
+      "compared": 8,
+      "adopted_unchanged": 8,
       "adopted_unchanged_pct": 100
     },
     "SMSVOICE": {
@@ -773,8 +788,8 @@
       "adopted_unchanged_pct": 50
     },
     "SSM": {
-      "compared": 7,
-      "adopted_unchanged": 7,
+      "compared": 8,
+      "adopted_unchanged": 8,
       "adopted_unchanged_pct": 100
     },
     "SSMContacts": {
@@ -793,9 +808,9 @@
       "adopted_unchanged_pct": 100
     },
     "SSO": {
-      "compared": 5,
-      "adopted_unchanged": 4,
-      "adopted_unchanged_pct": 80
+      "compared": 9,
+      "adopted_unchanged": 8,
+      "adopted_unchanged_pct": 88.89
     },
     "SageMaker": {
       "compared": 27,
@@ -868,8 +883,8 @@
       "adopted_unchanged_pct": 88.89
     },
     "VerifiedPermissions": {
-      "compared": 1,
-      "adopted_unchanged": 1,
+      "compared": 3,
+      "adopted_unchanged": 3,
       "adopted_unchanged_pct": 100
     },
     "VpcLattice": {
@@ -878,8 +893,8 @@
       "adopted_unchanged_pct": 100
     },
     "WAFv2": {
-      "compared": 5,
-      "adopted_unchanged": 5,
+      "compared": 6,
+      "adopted_unchanged": 6,
       "adopted_unchanged_pct": 100
     },
     "WorkSpaces": {
@@ -1244,6 +1259,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_appautoscaling_target",
+      "service": "ApplicationAutoScaling",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_appconfig_application",
       "service": "AppConfig",
       "proposed_bucket": "server-assigned",
@@ -1252,10 +1275,34 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_appconfig_configuration_profile",
+      "service": "AppConfig",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appconfig_deployment",
+      "service": "AppConfig",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_appconfig_deployment_strategy",
       "service": "AppConfig",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appconfig_environment",
+      "service": "AppConfig",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
       "matched": true,
       "annotated": false
     },
@@ -1272,6 +1319,14 @@
       "service": "AppConfig",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appconfig_hosted_configuration_version",
+      "service": "AppConfig",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
       "matched": true,
       "annotated": false
     },
@@ -1380,6 +1435,33 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_appstream_fleet_stack_association",
+      "service": "AppStream",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appstream_stack",
+      "service": "AppStream",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: the guessed argument name is confirmed as a Required top-level argument in the provider's own Argument Reference",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appstream_user",
+      "service": "AppStream",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_appsync_api",
       "service": "AppSync",
       "proposed_bucket": "server-assigned",
@@ -1399,6 +1481,25 @@
       "service": "AppSync",
       "proposed_bucket": "client-named",
       "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appsync_channel_namespace",
+      "service": "AppSync",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appsync_domain_name",
+      "service": "AppSync",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: the guessed argument name is confirmed as a Required top-level argument in the provider's own Argument Reference",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -1818,6 +1919,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_bedrockagentcore_gateway_rule",
+      "service": "BedrockAgentCore",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_bedrockagentcore_harness",
       "service": "BedrockAgentCore",
       "proposed_bucket": "server-assigned",
@@ -1906,6 +2015,14 @@
       "service": "Billing",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_budgets_budget_action",
+      "service": "Budgets",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
       "matched": true,
       "annotated": false
     },
@@ -2987,6 +3104,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_connect_instance_storage_config",
+      "service": "Connect",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_connect_phone_number",
       "service": "Connect",
       "proposed_bucket": "server-assigned",
@@ -3309,6 +3434,22 @@
       "service": "DataZone",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_datazone_environment_blueprint_configuration",
+      "service": "DataZone",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_datazone_form_type",
+      "service": "DataZone",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
       "matched": true,
       "annotated": false
     },
@@ -6317,6 +6458,17 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_msk_scram_secret_association",
+      "service": "MSK",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: the guessed argument name is confirmed as a Required top-level argument in the provider's own Argument Reference",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_msk_serverless_cluster",
       "service": "MSK",
       "proposed_bucket": "server-assigned",
@@ -6324,6 +6476,14 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_msk_topic",
+      "service": "MSK",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
       "matched": true,
       "annotated": false
     },
@@ -7006,6 +7166,17 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_paymentcryptography_key_alias",
+      "service": "PaymentCryptography",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: the guessed argument name is confirmed as a Required top-level argument in the provider's own Argument Reference",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_pinpointsmsvoicev2_configuration_set",
       "service": "SMSVOICE",
       "proposed_bucket": "client-named",
@@ -7275,6 +7446,17 @@
       "service": "Redshift",
       "proposed_bucket": "client-named",
       "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_redshift_endpoint_access",
+      "service": "Redshift",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: the guessed argument name is confirmed as a Required top-level argument in the provider's own Argument Reference",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
@@ -7903,6 +8085,17 @@
       "service": "S3Outposts",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3control_bucket_policy",
+      "service": "S3Outposts",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: the guessed argument name is confirmed as a Required top-level argument in the provider's own Argument Reference",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -8687,6 +8880,17 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_sesv2_contact_list",
+      "service": "SES",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: the guessed argument name is confirmed as a Required top-level argument in the provider's own Argument Reference",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_sesv2_dedicated_ip_pool",
       "service": "SES",
       "proposed_bucket": "client-named",
@@ -8869,6 +9073,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_ssm_maintenance_window_task",
+      "service": "SSM",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_ssm_parameter",
       "service": "SSM",
       "proposed_bucket": "client-named",
@@ -9042,6 +9254,14 @@
       "annotation_reason": "The documented import ID joins a full application ARN with a principal id and a principal-type enum on commas. The same issue #132 commit that fixed aws_controltower_control stopped rule 6 claiming this as one opaque ARN; the proposal now claims nothing. The ARN segment's own separators and the bare enum value (USER) both defeat fail-closed attribution, so the ratified three-argument pairing is the ratifiers' reading of the page."
     },
     {
+      "tf_type": "aws_ssoadmin_customer_managed_policy_attachments_exclusive",
+      "service": "SSO",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_ssoadmin_instance_access_control_attributes",
       "service": "SSO",
       "proposed_bucket": "client-named",
@@ -9054,6 +9274,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_ssoadmin_managed_policy_attachments_exclusive",
+      "service": "SSO",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_ssoadmin_permission_set",
       "service": "SSO",
       "proposed_bucket": "server-assigned",
@@ -9061,6 +9289,22 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssoadmin_permission_set_inline_policy",
+      "service": "SSO",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssoadmin_permissions_boundary_attachment",
+      "service": "SSO",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
       "matched": true,
       "annotated": false
     },
@@ -9294,10 +9538,26 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_verifiedpermissions_policy",
+      "service": "VerifiedPermissions",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_verifiedpermissions_policy_store",
       "service": "VerifiedPermissions",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_verifiedpermissions_policy_template",
+      "service": "VerifiedPermissions",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
       "matched": true,
       "annotated": false
     },
@@ -9783,6 +10043,17 @@
       "service": "WAFv2",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafv2_web_acl_logging_configuration",
+      "service": "WAFv2",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: the guessed argument name is confirmed as a Required top-level argument in the provider's own Argument Reference",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],

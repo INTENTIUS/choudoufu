@@ -66,6 +66,14 @@ var untaggableSecurity = []string{
 	"aws_inspector2_delegated_admin_account",
 	"aws_inspector2_member_association",
 	"aws_wafv2_web_acl_rule",
+	// #175 ratification batch (PROPOSE, issue #65), 2026-08-15:
+	// taggability per the provider schema survey (live/survey-full.json,
+	// v6.59.0 signals.taggable).
+	"aws_paymentcryptography_key_alias",
+	"aws_ssm_maintenance_window_task",
+	"aws_verifiedpermissions_policy",
+	"aws_verifiedpermissions_policy_template",
+	"aws_wafv2_web_acl_logging_configuration",
 }
 
 func init() {
@@ -118,6 +126,12 @@ func init() {
 			"aws_wafv2_rule_group":                             taggedSchema("id", "arn", "name", "scope"),
 			"aws_wafv2_web_acl":                                taggedSchema("id", "arn", "name", "scope"),
 			"aws_wafv2_web_acl_rule":                           untaggedSchema("id", "web_acl_arn", "name"),
+			// #175 ratification batch (PROPOSE, issue #65), 2026-08-15.
+			"aws_paymentcryptography_key_alias":       untaggedSchema("id", "alias_name", "key_arn"),
+			"aws_ssm_maintenance_window_task":         untaggedSchema("id", "window_id", "window_task_id"),
+			"aws_verifiedpermissions_policy":          untaggedSchema("id", "policy_id", "policy_store_id"),
+			"aws_verifiedpermissions_policy_template": untaggedSchema("id", "policy_store_id", "policy_template_id"),
+			"aws_wafv2_web_acl_logging_configuration": untaggedSchema("id", "resource_arn"),
 		})
 	})
 }

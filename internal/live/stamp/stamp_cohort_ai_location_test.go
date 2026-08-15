@@ -60,6 +60,10 @@ var untaggableAiLocation = []string{
 	"aws_bedrockagentcore_resource_policy",
 	"aws_lexv2models_bot_locale",
 	"aws_location_tracker_association",
+	// #175 ratification batch (PROPOSE, issue #65), 2026-08-15:
+	// taggability per the provider schema survey (live/survey-full.json,
+	// v6.59.0 signals.taggable).
+	"aws_bedrockagentcore_gateway_rule",
 }
 
 func init() {
@@ -105,6 +109,8 @@ func init() {
 			"aws_rekognition_collection":                       taggedSchema("id", "collection_id"),
 			"aws_rekognition_project":                          taggedSchema("id", "name"),
 			"aws_rekognition_stream_processor":                 taggedSchema("id", "name", "role_arn"),
+			// #175 ratification batch (PROPOSE, issue #65), 2026-08-15.
+			"aws_bedrockagentcore_gateway_rule": untaggedSchema("id", "gateway_identifier", "rule_id"),
 		})
 	})
 }

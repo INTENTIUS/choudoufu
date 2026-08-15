@@ -25,6 +25,10 @@ var taggableStreaming = []string{
 	"aws_appsync_graphql_api",
 	"aws_pipes_pipe",
 	"aws_scheduler_schedule_group",
+	// #175 ratification batch (PROPOSE, issue #65), 2026-08-15:
+	// taggability per the provider schema survey (live/survey-full.json,
+	// v6.59.0 signals.taggable).
+	"aws_appsync_channel_namespace",
 }
 
 var untaggableStreaming = []string{
@@ -36,6 +40,12 @@ var untaggableStreaming = []string{
 	// "Untaggable types".
 	"aws_msk_configuration",
 	"aws_appflow_connector_profile",
+	// #175 ratification batch (PROPOSE, issue #65), 2026-08-15:
+	// taggability per the provider schema survey (live/survey-full.json,
+	// v6.59.0 signals.taggable).
+	"aws_appsync_domain_name",
+	"aws_msk_scram_secret_association",
+	"aws_msk_topic",
 }
 
 func init() {
@@ -58,6 +68,11 @@ func init() {
 			"aws_appsync_graphql_api":             taggedSchema("id", "arn", "name"),
 			"aws_pipes_pipe":                      taggedSchema("id", "arn", "name"),
 			"aws_scheduler_schedule_group":        taggedSchema("id", "arn", "name"),
+			// #175 ratification batch (PROPOSE, issue #65), 2026-08-15.
+			"aws_appsync_channel_namespace":    taggedSchema("id", "arn", "api_id", "name"),
+			"aws_appsync_domain_name":          untaggedSchema("id", "domain_name", "appsync_domain_name"),
+			"aws_msk_scram_secret_association": untaggedSchema("id", "cluster_arn"),
+			"aws_msk_topic":                    untaggedSchema("id", "cluster_arn", "name"),
 		})
 	})
 }

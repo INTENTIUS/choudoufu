@@ -151,6 +151,13 @@ var taggableRemainder = []string{
 	"aws_vpc_route_server_endpoint",
 	"aws_vpc_route_server_peer",
 	"aws_vpn_concentrator",
+	// #175 ratification batch (PROPOSE, issue #65), 2026-08-15:
+	// taggability per the provider schema survey (live/survey-full.json,
+	// v6.59.0 signals.taggable).
+	"aws_appconfig_configuration_profile",
+	"aws_appconfig_deployment",
+	"aws_appconfig_environment",
+	"aws_sesv2_contact_list",
 }
 
 var untaggableRemainder = []string{
@@ -208,6 +215,13 @@ var untaggableRemainder = []string{
 	"aws_sns_topic_subscription",
 	"aws_ssmcontacts_contact_channel",
 	"aws_ssmcontacts_plan",
+	// #175 ratification batch (PROPOSE, issue #65), 2026-08-15:
+	// taggability per the provider schema survey (live/survey-full.json,
+	// v6.59.0 signals.taggable).
+	"aws_appconfig_hosted_configuration_version",
+	"aws_datazone_environment_blueprint_configuration",
+	"aws_datazone_form_type",
+	"aws_s3control_bucket_policy",
 }
 
 func init() {
@@ -400,6 +414,15 @@ func init() {
 			"aws_sns_topic_subscription":                                            untaggedSchema("id"),
 			"aws_ssmcontacts_contact_channel":                                       untaggedSchema("id"),
 			"aws_ssmcontacts_plan":                                                  untaggedSchema("id"),
+			// #175 ratification batch (PROPOSE, issue #65), 2026-08-15.
+			"aws_appconfig_configuration_profile":              taggedSchema("id", "arn", "application_id", "configuration_profile_id"),
+			"aws_appconfig_deployment":                         taggedSchema("id", "arn", "application_id", "environment_id", "deployment_number"),
+			"aws_appconfig_environment":                        taggedSchema("id", "arn", "application_id", "environment_id"),
+			"aws_appconfig_hosted_configuration_version":       untaggedSchema("id", "arn", "application_id", "configuration_profile_id", "version_number"),
+			"aws_datazone_environment_blueprint_configuration": untaggedSchema("id", "domain_id", "environment_blueprint_id"),
+			"aws_datazone_form_type":                           untaggedSchema("id", "domain_identifier", "name", "revision"),
+			"aws_s3control_bucket_policy":                      untaggedSchema("id", "bucket"),
+			"aws_sesv2_contact_list":                           taggedSchema("id", "arn", "contact_list_name"),
 		})
 	})
 }

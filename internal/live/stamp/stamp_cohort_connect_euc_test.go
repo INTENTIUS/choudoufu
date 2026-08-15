@@ -44,6 +44,10 @@ var taggableConnectEuc = []string{
 	"aws_workspacesweb_trust_store",
 	"aws_workspacesweb_user_access_logging_settings",
 	"aws_workspacesweb_user_settings",
+	// #175 ratification batch (PROPOSE, issue #65), 2026-08-15:
+	// taggability per the provider schema survey (live/survey-full.json,
+	// v6.59.0 signals.taggable).
+	"aws_appstream_stack",
 }
 
 var untaggableConnectEuc = []string{
@@ -68,6 +72,12 @@ var untaggableConnectEuc = []string{
 	"aws_workspacesweb_trust_store_association",
 	"aws_workspacesweb_user_access_logging_settings_association",
 	"aws_workspacesweb_user_settings_association",
+	// #175 ratification batch (PROPOSE, issue #65), 2026-08-15:
+	// taggability per the provider schema survey (live/survey-full.json,
+	// v6.59.0 signals.taggable).
+	"aws_appstream_fleet_stack_association",
+	"aws_appstream_user",
+	"aws_connect_instance_storage_config",
 }
 
 func init() {
@@ -112,6 +122,11 @@ func init() {
 			"aws_workspacesweb_trust_store_association":                  untaggedSchema("trust_store_arn", "portal_arn"),
 			"aws_workspacesweb_user_access_logging_settings_association": untaggedSchema("user_access_logging_settings_arn", "portal_arn"),
 			"aws_workspacesweb_user_settings_association":                untaggedSchema("user_settings_arn", "portal_arn"),
+			// #175 ratification batch (PROPOSE, issue #65), 2026-08-15.
+			"aws_appstream_fleet_stack_association": untaggedSchema("id", "fleet_name", "stack_name"),
+			"aws_appstream_stack":                   taggedSchema("id", "arn", "name"),
+			"aws_appstream_user":                    untaggedSchema("id", "arn", "user_name", "authentication_type"),
+			"aws_connect_instance_storage_config":   untaggedSchema("id", "instance_id", "association_id", "resource_type"),
 		})
 	})
 }

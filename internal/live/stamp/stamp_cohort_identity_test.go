@@ -41,6 +41,13 @@ var untaggableIdentity = []string{
 	"aws_ssoadmin_account_assignment",
 	"aws_ssoadmin_application_assignment",
 	"aws_ssoadmin_instance_access_control_attributes",
+	// #175 ratification batch (PROPOSE, issue #65), 2026-08-15:
+	// taggability per the provider schema survey (live/survey-full.json,
+	// v6.59.0 signals.taggable).
+	"aws_ssoadmin_customer_managed_policy_attachments_exclusive",
+	"aws_ssoadmin_managed_policy_attachments_exclusive",
+	"aws_ssoadmin_permission_set_inline_policy",
+	"aws_ssoadmin_permissions_boundary_attachment",
 }
 
 func init() {
@@ -73,6 +80,11 @@ func init() {
 			"aws_ssoadmin_application_assignment":              untaggedSchema("id", "application_arn", "principal_id", "principal_type"),
 			"aws_ssoadmin_instance_access_control_attributes":  untaggedSchema("id", "instance_arn"),
 			"aws_ssoadmin_permission_set":                      taggedSchema("id", "arn", "name", "instance_arn"),
+			// #175 ratification batch (PROPOSE, issue #65), 2026-08-15.
+			"aws_ssoadmin_customer_managed_policy_attachments_exclusive": untaggedSchema("id", "instance_arn", "permission_set_arn"),
+			"aws_ssoadmin_managed_policy_attachments_exclusive":          untaggedSchema("id", "instance_arn", "permission_set_arn"),
+			"aws_ssoadmin_permission_set_inline_policy":                  untaggedSchema("id", "instance_arn", "permission_set_arn"),
+			"aws_ssoadmin_permissions_boundary_attachment":               untaggedSchema("id", "instance_arn", "permission_set_arn"),
 		})
 	})
 }
