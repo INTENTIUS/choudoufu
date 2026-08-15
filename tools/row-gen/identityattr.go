@@ -99,35 +99,35 @@ var identityAttrEvidence = map[string]struct {
 	evidence string
 }{
 	"aws_glue_catalog_database": {
-		attr: "id",
+		attr:     "id",
 		evidence: "Provider docs (6.59.0, cached page): import by `catalog_id:name`, example `123456789012:my_database`; the doc has no `### Identity Schema` section and live/survey-full.json carries no identity for the type, so the joined string is the resource's own `id` attribute and nothing narrower exists to name.",
 	},
 	"aws_glue_catalog_table": {
-		attr: "id",
+		attr:     "id",
 		evidence: "Provider docs (6.59.0): import by catalog ID, database name and table name joined with `:`; no Identity Schema section, no wire identity in live/survey-full.json. Same shape as aws_glue_catalog_database.",
 	},
 	"aws_glue_connection": {
-		attr: "id",
+		attr:     "id",
 		evidence: "Provider docs (6.59.0): import by `CATALOG-ID` and `NAME` joined with `:`; no Identity Schema section, no wire identity in live/survey-full.json. Same shape as aws_glue_catalog_database.",
 	},
 	"aws_glue_data_catalog_encryption_settings": {
-		attr: "id",
+		attr:     "id",
 		evidence: "Provider docs (6.59.0): import by `CATALOG-ID` alone; no Identity Schema section, no wire identity in live/survey-full.json. The single component is a cloud value (the account ID), so no leading literal exists for the rule to read.",
 	},
 	"aws_securityhub_member": {
-		attr: "member_account_id",
+		attr:     "member_account_id",
 		evidence: "Both remaining sources name it: live/survey-full.json's identity requires exactly [member_account_id], and the doc page's `### Identity Schema` section lists `member_account_id` as required. The row's single component reads the `account_id` argument - a rename the schemas state outright, not a judgment.",
 	},
 	"aws_codeartifact_domain_permissions_policy": {
-		attr: "",
+		attr:     "",
 		evidence: "The components assemble an `arn:aws:codeartifact:` string, but live/survey-full.json's identity for this type requires exactly [resource_arn], not [arn] - deriving \"arn\" from the leading literal would name an attribute the identity schema does not have. The ratified row leaves every component unnamed and imports by the joined string.",
 	},
 	"aws_codeartifact_repository_permissions_policy": {
-		attr: "",
+		attr:     "",
 		evidence: "Same as aws_codeartifact_domain_permissions_policy: the wire's identity schema requires [resource_arn], so the leading-literal derivation of \"arn\" would be wrong, and the ratified row carries no component IdentityAttr at all.",
 	},
 	"aws_sagemaker_user_profile": {
-		attr: "arn",
+		attr:     "arn",
 		evidence: "The rule and the row agree on \"arn\" (leading `arn:aws:sagemaker:` literal), but live/survey-full.json's 6.59.0 identity schema requires [domain_id, user_profile_name] with optional [account_id, region] - no arn attribute at all. Found by the phase-5 adversarial audit; the first ratchet blessed the row because rule-agreement was its whole test. The row predates the schema and still works through the joined-string import (identityFromValues cannot build a {arn: ...} object against that schema, so the run falls back to the assembled ARN, which is the documented import ID). Correcting the components to name domain_id/user_profile_name per piece is a ratification change with runtime effect, recorded here rather than smuggled into a criterion about derivation.",
 	},
 }

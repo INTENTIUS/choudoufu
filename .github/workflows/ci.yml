@@ -19,9 +19,15 @@ jobs:
       # gofmt is checked on the fork-owned packages only. A handful of
       # upstream OpenTofu files are gofmt-dirty as inherited, and
       # reformatting them would add permanent merge friction for no gain.
+      #
+      # The roots must match forkOwnedRoots in live/ci_coverage_test.go.
+      # They did not: tools/ and live/ were outside this check while being
+      # inside the fork, and two files under tools/ were dirty the whole
+      # time - the same narrower-than-the-fork gap #164 found in the test
+      # step, one step over.
       - name: gofmt (fork-owned packages)
         run: |
-          out="$(gofmt -l internal/live cmd site)"
+          out="$(gofmt -l internal/live cmd site tools live)"
           if [ -n "$out" ]; then
             echo "gofmt needed on:"
             echo "$out"

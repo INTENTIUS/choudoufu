@@ -18,7 +18,7 @@ ci:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "==> gofmt (fork-owned packages)"
-    out="$(gofmt -l internal/live cmd site)"
+    out="$(gofmt -l internal/live cmd site tools live)"
     if [ -n "$out" ]; then echo "gofmt needed on:"; echo "$out"; exit 1; fi
     echo "==> build"
     go build ./cmd/choudoufu

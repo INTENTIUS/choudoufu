@@ -184,7 +184,6 @@ func registerCohortOverrides(fragment map[string]typeOverride) {
 	}
 }
 
-
 // eksClusterNameRef is the sibling aws_eks_cluster's name attribute as HCL
 // source when this run renders one, or a literal placeholder (a cohort
 // that requests one of the six EKS composite children without

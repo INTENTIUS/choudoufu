@@ -186,3 +186,44 @@ func matchedByAny(pkg string, patterns []string) bool {
 	}
 	return false
 }
+
+// gofmtLine matches the workflow's gofmt invocation and captures its roots.
+var gofmtLine = regexp.MustCompile("gofmt -l ([^\"'`)\n]+)")
+
+// TestCIGofmtCoversTheSameRootsAsTheTestStep keeps the two halves of "what
+// this fork owns" from drifting apart.
+//
+// They had drifted. The test step reached ./internal/live/... and one tools
+// package (#164); the gofmt step reached internal/live, cmd and site. So
+// tools/ and live/ were inside the fork and outside both checks, and two
+// files under tools/ were gofmt-dirty for as long as anyone had been
+// looking - not caught, because nothing looked.
+//
+// One list, checked twice, is the point: forkOwnedRoots is what this file
+// walks for test packages, and it is what the gofmt step must name.
+func TestCIGofmtCoversTheSameRootsAsTheTestStep(t *testing.T) {
+	data, err := os.ReadFile(ciWorkflowRel)
+	if err != nil {
+		t.Fatalf("reading %s: %v", ciWorkflowRel, err)
+	}
+	m := gofmtLine.FindAllStringSubmatch(string(data), -1)
+	if len(m) != 1 {
+		t.Fatalf("found %d `gofmt -l` invocations in %s, want exactly 1", len(m), ciWorkflowRel)
+	}
+
+	got := make(map[string]bool)
+	for _, root := range strings.Fields(m[0][1]) {
+		got[root] = true
+	}
+	for _, want := range forkOwnedRoots {
+		if !got[want] {
+			t.Errorf("CI's gofmt step does not cover %s, which forkOwnedRoots calls fork-owned;\n"+
+				"add it to the gofmt -l line in %s, or drop it from forkOwnedRoots if this fork no longer owns it",
+				want, ciWorkflowRel)
+		}
+		delete(got, want)
+	}
+	for extra := range got {
+		t.Errorf("CI's gofmt step covers %s, which forkOwnedRoots does not list; add it there so the test step covers it too", extra)
+	}
+}
