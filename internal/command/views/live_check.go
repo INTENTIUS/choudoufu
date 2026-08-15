@@ -57,6 +57,15 @@ type LiveCheckReport struct {
 	// change. Issue #161.
 	VariableDependentFindings int
 	FullyVariableDependent    int
+
+	// OnlyBackendBlocks is true when every refusal is the state-backend
+	// rule: the configuration passes both checked passes the moment its
+	// backend or cloud block is removed, which is the documented onboarding
+	// edit. Measured over the published-deployment corpus (#175), that is
+	// the exact state of 11 of 145 real estates, and a headline that reads
+	// the same for them as for a forty-refusal configuration buries the
+	// answer the reader most needs.
+	OnlyBackendBlocks bool
 }
 
 // LiveCheckFinding is one refusal and where it fired.
@@ -153,6 +162,12 @@ func (v *LiveCheckHuman) Report(rep LiveCheckReport) {
 		// the ones who run with none of them set.
 		settled := len(rep.Findings) - rep.FullyVariableDependent
 		switch {
+		case rep.OnlyBackendBlocks && rep.FullyVariableDependent == 0:
+			fmt.Fprintf(&b, "\n%s is one edit from moving under live resource markers:\n", rep.Dir)
+			fmt.Fprintf(&b, "every refusal below is the state backend, and here the live system is the store.\n")
+			fmt.Fprintf(&b, "Remove the backend or cloud block at the site(s) below and run this again.\n")
+			fmt.Fprintf(&b, "%d refusal(s) across %d site(s); %d managed resource instance(s) resolved.\n",
+				len(rep.Findings), rep.Sites, rep.Instances)
 		case settled == 0 && rep.FullyVariableDependent > 0:
 			fmt.Fprintf(&b, "\n%s is inconclusive: every refusal below depends on an input variable that\n", rep.Dir)
 			fmt.Fprintf(&b, "had no value. Supply %s and run this again.\n", varPhrase(rep.UnsetVariables))

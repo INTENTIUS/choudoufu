@@ -13,6 +13,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/live/check"
+	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -157,6 +158,18 @@ func liveCheckReport(dir string, report check.Report) views.LiveCheckReport {
 			if finding.UnsetVarSites == len(finding.Sites) {
 				out.FullyVariableDependent++
 			}
+		}
+	}
+
+	// The one-edit case (#175): every refusal is the state-backend rule, so
+	// removing the backend/cloud block is the whole distance to a clean
+	// verdict. Computed here, where the finding IDs are, per this
+	// function's own rule that what is true is decided below the view.
+	out.OnlyBackendBlocks = report.Blocked()
+	for _, finding := range report.Findings {
+		if finding.ID != string(lint.RuleStateBackend) {
+			out.OnlyBackendBlocks = false
+			break
 		}
 	}
 

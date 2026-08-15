@@ -152,3 +152,63 @@ func TestTrailerSaysNoRefusalIsAffectedWhenNoneIs(t *testing.T) {
 		t.Errorf("the trailer still casts doubt on refusals that read no unset variable:\n%s", out)
 	}
 }
+
+// TestVerdictLeadsWithTheOneEditWhenOnlyTheBackendBlocks is #175's case:
+// 11 of 145 real published estates are in exactly this state, and the
+// headline is where their reader stops.
+func TestVerdictLeadsWithTheOneEditWhenOnlyTheBackendBlocks(t *testing.T) {
+	out := renderLiveCheck(t, LiveCheckReport{
+		Dir: ".", Blocked: true, Sites: 1, Instances: 4,
+		Findings:          []LiveCheckFinding{finding("State backends are not available under live resource markers", 1, 0)},
+		OnlyBackendBlocks: true,
+	})
+
+	if !strings.Contains(out, "one edit from moving") {
+		t.Errorf("the one-edit verdict is missing:\n%s", out)
+	}
+	if strings.Contains(out, "cannot move under live resource markers yet") {
+		t.Errorf("the generic blocked headline still leads a one-edit configuration:\n%s", out)
+	}
+}
+
+// TestVerdictDoesNotClaimOneEditWhenAnythingElseBlocks keeps the first
+// honest: a second refusal of any kind means the edit is not the whole
+// distance, and claiming otherwise is the inconclusive-verdict failure
+// mode with a different sentence.
+func TestVerdictDoesNotClaimOneEditWhenAnythingElseBlocks(t *testing.T) {
+	out := renderLiveCheck(t, LiveCheckReport{
+		Dir: ".", Blocked: true, Sites: 2, Instances: 1,
+		Findings: []LiveCheckFinding{
+			finding("State backends are not available under live resource markers", 1, 0),
+			finding("Non-static identity argument", 1, 0),
+		},
+	})
+
+	if strings.Contains(out, "one edit from moving") {
+		t.Errorf("a configuration with a non-backend refusal was reported one edit away:\n%s", out)
+	}
+	if !strings.Contains(out, "cannot move under live resource markers yet") {
+		t.Errorf("the blocked verdict is missing:\n%s", out)
+	}
+}
+
+// TestOneEditYieldsToTheVariableCaveat: a backend refusal never reads a
+// variable, but the flag is computed elsewhere - if both ever arrive set,
+// the variable caveat must win, because "one edit" would then be a claim
+// the evidence does not support.
+func TestOneEditYieldsToTheVariableCaveat(t *testing.T) {
+	out := renderLiveCheck(t, LiveCheckReport{
+		Dir: ".", Blocked: true, Sites: 2, Instances: 1,
+		Findings: []LiveCheckFinding{
+			finding("State backends are not available under live resource markers", 2, 2, "region"),
+		},
+		UnsetVariables:            []string{"region"},
+		VariableDependentFindings: 1,
+		FullyVariableDependent:    1,
+		OnlyBackendBlocks:         true,
+	})
+
+	if strings.Contains(out, "one edit from moving") {
+		t.Errorf("the one-edit claim overrode the unset-variable caveat:\n%s", out)
+	}
+}
