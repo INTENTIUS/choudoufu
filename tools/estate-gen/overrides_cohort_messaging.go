@@ -22,10 +22,29 @@ var typeOverridesMessaging = map[string]typeOverride{
 	},
 	"aws_cloudwatch_composite_alarm": {
 		Reasons: []string{
-			`alarm_rule passes validate as any string but must parse as a rule expression at apply; the hand-maintained cohort referenced a placeholder alarm name inside a well-formed ALARM(...) expression rather than a real aws_cloudwatch_metric_alarm (already covered by live/e2e/estate/), and the fold keeps that choice`,
+			`alarm_rule passes validate as any string but must parse as a rule expression at apply, and the alarm it names must exist - the hand-maintained cohort's placeholder alarm name inside a well-formed ALARM(...) expression named an alarm nothing creates, issue #173's reference-argument defect class; a supporting aws_cloudwatch_metric_alarm is generated (NeedsSupporting) and its alarm_name referenced inside the expression instead. The expression's ALARM(...) grammar is CloudWatch's own rule language, which no schema or identity-table rule can derive, so the wrapper stays an override`,
+		},
+		NeedsSupporting: []string{"aws_cloudwatch_metric_alarm"},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			expr := `"ALARM(\"tofu-` + g.cohort + `-cohort-placeholder\")"`
+			if alarm, ok := g.byType["aws_cloudwatch_metric_alarm"]; ok {
+				expr = `"ALARM(\"${` + alarm.String() + `.alarm_name}\")"`
+			}
+			body.SetAttributeRaw("alarm_rule", exprTokens(expr))
+		},
+	},
+	"aws_cloudwatch_metric_alarm": {
+		Reasons: []string{
+			`comparison_operator/evaluation_periods are the schema's only Required arguments, but the provider additionally requires one of evaluation_criteria, metric_name or metric_query (validate: "one of evaluation_criteria,metric_name,metric_query must be specified"), and metric_name is exactly the argument the doc-example seed must skip (looksLikeName treats "*_name" as generator-owned naming, but this one names the metric watched, not the resource) - so the seed alone leaves the block invalid and the whole documented example lives here instead, the same CPUUtilization shape live/e2e/estate/monitoring.tf already carries by hand`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("alarm_rule", exprTokens(`"ALARM(\"tofu-messaging-cohort-placeholder\")"`))
+			body.SetAttributeRaw("comparison_operator", exprTokens(`"GreaterThanOrEqualToThreshold"`))
+			body.SetAttributeRaw("evaluation_periods", exprTokens(`2`))
+			body.SetAttributeRaw("metric_name", exprTokens(`"CPUUtilization"`))
+			body.SetAttributeRaw("namespace", exprTokens(`"AWS/EC2"`))
+			body.SetAttributeRaw("period", exprTokens(`120`))
+			body.SetAttributeRaw("statistic", exprTokens(`"Average"`))
+			body.SetAttributeRaw("threshold", exprTokens(`80`))
 		},
 	},
 	"aws_sqs_queue": {
