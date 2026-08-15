@@ -14,10 +14,12 @@
 // property-child evidence and, when the parent is itself proposed, a
 // parent-derived admission note.
 //
-// The tool only prints. It never writes internal/live/lint/admission.go or
-// internal/live/identity/table.go: the maintainer stance from #37 is that a
-// wrong row touches live infrastructure, so a human pastes, edits and
-// ratifies every block this tool proposes.
+// Every mode but -emit only prints: the maintainer stance from #37 is that
+// a wrong row touches live infrastructure, so a human pastes, edits and
+// ratifies every block this tool proposes. -emit is the exception issue #96
+// added, and it writes the two generated tables outright - see emit.go for
+// why that is a fixed point over already-ratified rows rather than a fresh
+// derivation.
 //
 //	go run ./tools/row-gen              # every service batch, full report
 //	go run ./tools/row-gen -service Lambda
@@ -83,7 +85,7 @@ func main() {
 	convergence := flag.Bool("convergence", false, "measure row-gen's fresh proposals against internal/live/identity.DefaultTable's ratified entries and write live/rowgen-convergence.json, instead of printing the pastable-row report")
 	propose := flag.Bool("propose", false, "issue #65's PROPOSE stage: print only the rule classes with a 100% historical adoption record and their not-yet-admitted candidates, instead of the full pastable-row report (see propose.go)")
 	sources := flag.Bool("sources", false, "issue #106: compare the sources that describe each type's identity - the provider's schema, the scraped docs, and the ratified table - and write live/identity-sources.json")
-	emit := flag.Bool("emit", false, "issue #96: write generated Go source for internal/live/identity.DefaultTable and internal/live/lint's admittedTypesV0 (a generated + an override-ledger file per table), instead of printing anything to paste by hand (see emit.go)")
+	emit := flag.Bool("emit", false, "issue #96: write generated Go source for internal/live/identity.DefaultTable and internal/live/lint's admittedTypesV0 (one generated file per table; nothing hand-written participates), instead of printing anything to paste by hand (see emit.go)")
 	flag.Parse()
 
 	if *convergence {

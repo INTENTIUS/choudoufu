@@ -89,7 +89,8 @@ policy-grade classification, one of three:
   reinterpretation of what these types are. A `record_store` block backs
   the type's whole identity with a persisted record instead of a cloud
   observation (`internal/live/staterecord`, local/SSM/S3 backends); see
-  `website/docs/language/live-markers.mdx` for the config surface. Without
+  `site/content/reference.md`'s `record_store` block for the config
+  surface. Without
   a store, the refusal Detail names this class and cites #73 exactly as it
   always has.
 - **SECRET_REFUSED** - `random_password`, `random_bytes`, and the `tls_`
@@ -2297,7 +2298,8 @@ when it declares none and its type needs discovery to be found again. The
 operator writes the marker by hand instead, threading the module's own
 `each.key` through as a variable and interpolating it into the address -
 see "The keyed-module marker idiom" on the concept page
-(`website/docs/language/live-markers.mdx`) for the three-line pattern, and
+(`site/content/compatibility.md`, "Resources inside a keyed module need
+hand-written markers") for the three-line pattern, and
 `live/e2e/estate-module-keyed/` for the fixture it comes from. This is not
 a lint refusal; a keyed module is admitted (see "child-module" above), and
 this is a standing property of what the stamping pass can and cannot
@@ -2737,7 +2739,7 @@ CloudFormation-only construct, so that cohort is doc-only.
 
 #### Deprecated or EOL services
 
-Seven AWS services this fork holds out of scope by policy: retired,
+Eight AWS services this fork holds out of scope by policy: retired,
 end-of-life, or being wound down. The service list and its judgment are
 curated (`live/residue.go`'s `DeprecatedServices`); each service's
 registry-side footprint is computed against `live/registry.json`.

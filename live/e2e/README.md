@@ -2,7 +2,7 @@
 
 `live/e2e/run.sh` is both the end-to-end test for live resource
 markers and the feature's live demo
-(`website/docs/language/live-markers.mdx`, "Watch It Work"). This README
+(`site/content/start.md`, "See it prove itself"). This README
 covers running it in one command, reading its output as a human or a
 machine, and what the branch's claim means as a single exit code.
 
@@ -184,7 +184,7 @@ verdict.
 ## The harness is also the demo
 
 `live/e2e/run.sh` is the "Watch It Work" callout on
-`website/docs/language/live-markers.mdx`, the same command described
+`site/content/start.md`'s "See it prove itself", the same command described
 there in user-facing terms rather than test-harness terms. If you're
 changing what a step proves, check that page's claims still match this
 README's table above.
