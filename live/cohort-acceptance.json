@@ -1,7 +1,7 @@
 {
   "generated_by": "TF_FLOCI_TEST=1 TF_FLOCI_ACCEPTANCE_ARTIFACT=1 go test ./internal/live/acceptance -run TestCohortAcceptance",
-  "image": "ghcr.io/lex00/floci@sha256:488f4d6df414f75da3d150e8d697f99d55e435ea87642d813746fd8e560cce7c",
-  "provider": "hashicorp/aws 6.58.0",
+  "image": "ghcr.io/lex00/floci@sha256:da6298c1547e940e0b32e733351294cec382f801f332ba0205ca514a9f0841ba",
+  "provider": "hashicorp/aws 6.59.0",
   "totals": {
     "cohorts": 31,
     "pass": 3,
@@ -12,23 +12,22 @@
       "name": "ai-location",
       "status": "fail",
       "phase": "apply",
-      "resources": 36,
+      "resources": 37,
       "failed_resources": [
         "aws_bedrockagentcore_api_key_credential_provider.app",
         "aws_bedrock_guardrail.app",
         "aws_bedrock_inference_profile.app",
         "aws_bedrockagent_agent.app",
-        "aws_bedrockagent_agent_alias.app",
         "aws_bedrockagent_flow.app",
         "aws_bedrockagent_knowledge_base.app",
         "aws_bedrockagent_prompt.app",
         "aws_bedrockagentcore_agent_runtime.app",
-        "aws_bedrockagentcore_agent_runtime_endpoint.app",
         "aws_bedrockagentcore_browser.app",
         "aws_bedrockagentcore_browser_profile.app",
         "aws_bedrockagentcore_code_interpreter.app",
         "aws_bedrockagentcore_evaluator.app",
         "aws_bedrockagentcore_gateway.app",
+        "aws_bedrockagentcore_gateway_rule.app",
         "aws_bedrockagentcore_harness.app",
         "aws_bedrockagentcore_memory.app",
         "aws_bedrockagentcore_oauth2_credential_provider.app",
@@ -38,7 +37,6 @@
         "aws_comprehend_document_classifier.app",
         "aws_kendra_index.app",
         "aws_lexv2models_bot.app",
-        "aws_lexv2models_bot_locale.app",
         "aws_location_geofence_collection.app",
         "aws_location_map.app",
         "aws_location_place_index.app",
@@ -49,7 +47,7 @@
         "aws_rekognition_project.app",
         "aws_rekognition_stream_processor.app"
       ],
-      "detail": "Error: creating Amazon Bedrock Guardrail (\"tofu-ai-location-cohort-iam-role\"): operation error Bedrock: CreateGuardrail, https response error StatusCode: 404, RequestID: 65f1f4df-bd4d-4ae9-ab7b-7262d0fcd8ce, api error UnknownOperationException: Unknown operation: POST //guardrails"
+      "detail": "Error: creating Amazon Bedrock Guardrail (\"tofu-ai-location-cohort-iam-role\"): operation error Bedrock: CreateGuardrail, https response error StatusCode: 404, RequestID: 3b663767-db2f-4e99-8e4c-b6bb4b1bd8c9, api error UnknownOperationException: Unknown operation: POST //guardrails"
     },
     {
       "name": "apigateway",
@@ -57,19 +55,14 @@
       "phase": "apply",
       "resources": 25,
       "failed_resources": [
-        "aws_api_gateway_account.app",
-        "aws_api_gateway_api_key.app",
         "aws_api_gateway_client_certificate.app",
-        "aws_api_gateway_domain_name.app",
         "aws_api_gateway_domain_name_access_association.app",
         "aws_api_gateway_rest_api.app",
         "aws_api_gateway_usage_plan.app",
         "aws_api_gateway_vpc_link.app",
-        "aws_apigatewayv2_api.app",
-        "aws_apigatewayv2_domain_name.app",
-        "aws_apigatewayv2_vpc_link.app"
+        "aws_apigatewayv2_domain_name.app"
       ],
-      "detail": "Error: Plugin did not respond"
+      "detail": "Error: creating API Gateway Client Certificate: operation error API Gateway: GenerateClientCertificate, https response error StatusCode: 406, RequestID: f5eda782-68ad-4628-85fa-33aa88fd6af4, api error UnknownError: UnknownError"
     },
     {
       "name": "aps",
@@ -95,18 +88,20 @@
         "aws_lightsail_distribution.app",
         "aws_lightsail_lb.app"
       ],
-      "detail": "Error: creating App Runner AutoScaling Configuration Version (tofu-compute-platforms-cohort-apprunner-auto-scaling-configuration-version): operation error AppRunner: CreateAutoScalingConfiguration, https response error StatusCode: 404, RequestID: cbece1dd-1ad8-4fd2-9d51-ea6efe1f92cb, api error UnknownOperationException: Unknown operation: AppRunner.CreateAutoScalingConfiguration"
+      "detail": "Error: creating App Runner AutoScaling Configuration Version (tofu-compute-platforms-cohort-apprunner-auto-scaling-configuration-version): operation error AppRunner: CreateAutoScalingConfiguration, https response error StatusCode: 404, RequestID: 1a4eb924-2f37-476e-9340-01bf7a23c8a7, api error UnknownOperationException: Unknown operation: AppRunner.CreateAutoScalingConfiguration"
     },
     {
       "name": "connect-euc",
       "status": "fail",
       "phase": "apply",
-      "resources": 34,
+      "resources": 38,
       "failed_resources": [
+        "aws_appstream_fleet_stack_association.app",
+        "aws_appstream_stack.app",
+        "aws_appstream_user.app",
         "aws_connect_instance.app",
         "aws_connect_user_hierarchy_structure.app",
         "aws_workspaces_connection_alias.app",
-        "aws_workspaces_ip_group.app",
         "aws_workspaces_pool.app",
         "aws_workspaces_workspace.app",
         "aws_workspacesweb_browser_settings.app",
@@ -119,7 +114,7 @@
         "aws_workspacesweb_user_access_logging_settings.app",
         "aws_workspacesweb_user_settings.app"
       ],
-      "detail": "Error: creating Connect Instance: operation error Connect: CreateInstance, https response error StatusCode: 404, RequestID: 82d43beb-eded-48e8-9bd2-cda346b8ebfc, api error UnknownOperationException: Unknown operation: PUT /instance"
+      "detail": "Error: creating AppStream Fleet Stack Association (tofu-connect-euc-cohort-appstream-fleet-stack-association/tofu-connect-euc-cohort-appstream-fleet-stack-association): operation error AppStream: AssociateFleet, https response error StatusCode: 404, RequestID: d627ab4e-fa19-49ab-8145-7cb6773c5196, deserialization failed, unexpected smithy-protocol response header '' (HTTP status: 404 Not Found)"
     },
     {
       "name": "data",
@@ -137,7 +132,7 @@
         "aws_glue_job.app",
         "aws_kinesis_stream_consumer.app"
       ],
-      "detail": "Error: creating Athena Data Catalog (tofu-data-cohort-athena-data-catalog): operation error Athena: CreateDataCatalog, https response error StatusCode: 400, RequestID: 752e91bf-3ea7-43de-8f50-eb9c905de949, api error InvalidAction: Action CreateDataCatalog is not supported"
+      "detail": "Error: creating Athena Data Catalog (tofu-data-cohort-athena-data-catalog): operation error Athena: CreateDataCatalog, https response error StatusCode: 400, RequestID: 7cd366ce-8720-4477-bde8-67c740a03014, api error InvalidAction: Action CreateDataCatalog is not supported"
     },
     {
       "name": "data-movement",
@@ -167,14 +162,14 @@
         "aws_transfer_connector.app",
         "aws_transfer_workflow.app"
       ],
-      "detail": "Error: creating AppIntegrations Event Integration (tofu-data-movement-cohort-appintegrations-event-integration): operation error AppIntegrations: CreateEventIntegration, https response error StatusCode: 404, RequestID: 270fbfa3-1f8e-4dbd-b4b9-b4392b4c06f8, api error UnknownOperationException: Unknown operation: POST /eventIntegrations"
+      "detail": "Error: creating AppIntegrations Event Integration (tofu-data-movement-cohort-appintegrations-event-integration): operation error AppIntegrations: CreateEventIntegration, https response error StatusCode: 404, RequestID: 92346fff-3370-47c8-910a-5b7e0c1b6ef2, api error UnknownOperationException: Unknown operation: POST /eventIntegrations"
     },
     {
       "name": "databases",
       "status": "fail",
       "phase": "apply",
-      "resources": 33,
-      "detail": "signal: killed",
+      "resources": 34,
+      "detail": "deadline: still in flight: aws_opensearch_domain.app at 07m50s",
       "timed_out": true
     },
     {
@@ -196,15 +191,23 @@
         "aws_codestarconnections_connection.app",
         "aws_ecrpublic_repository.app"
       ],
-      "detail": "Error: creating CodeArtifact Domain (example): operation error codeartifact: CreateDomain, https response error StatusCode: 404, RequestID: a8912d45-ef23-4299-b4e4-eb5b25d04ebf, api error UnknownOperationException: Unknown operation: POST /v1/domain"
+      "detail": "Error: creating CodeArtifact Domain (example): operation error codeartifact: CreateDomain, https response error StatusCode: 404, RequestID: c7821e7d-e1f1-4b79-a16c-9179cc9a9b40, api error UnknownOperationException: Unknown operation: POST /v1/domain"
     },
     {
       "name": "dynamodb-elasticache",
       "status": "fail",
       "phase": "apply",
       "resources": 9,
-      "detail": "signal: killed",
-      "timed_out": true
+      "failed_resources": [
+        "aws_dynamodb_global_table.app",
+        "aws_dynamodb_resource_policy.app",
+        "aws_elasticache_parameter_group.app",
+        "aws_elasticache_serverless_cache.app",
+        "aws_elasticache_subnet_group.app",
+        "aws_elasticache_user.app",
+        "aws_elasticache_user_group.app"
+      ],
+      "detail": "Error: creating DynamoDB Global Table (tofu-dynamodb-elasticache-cohort-dynamodb-global-table): operation error DynamoDB: CreateGlobalTable, https response error StatusCode: 400, RequestID: e47c7d9e-12a9-4a21-9984-4e25ec2edde5, api error UnknownOperationException: Operation CreateGlobalTable is not supported."
     },
     {
       "name": "ec2-core",
@@ -216,62 +219,41 @@
         "aws_ec2_capacity_reservation.app",
         "aws_ec2_fleet.app",
         "aws_ec2_host.app",
-        "aws_instance.app",
+        "aws_eip_association.app",
         "aws_network_interface.app",
         "aws_placement_group.app",
-        "aws_spot_fleet_request.app"
+        "aws_spot_fleet_request.app",
+        "aws_volume_attachment.app"
       ],
-      "detail": "Error: enabling EBS Snapshot Block Public Access (block-new-sharing): operation error EC2: EnableSnapshotBlockPublicAccess, https response error StatusCode: 400, RequestID: 1e19b9b4-571c-4c8d-bcf2-d48c08ac90ed, api error UnsupportedOperation: Operation EnableSnapshotBlockPublicAccess is not supported."
+      "detail": "Error: enabling EBS Snapshot Block Public Access (block-new-sharing): operation error EC2: EnableSnapshotBlockPublicAccess, https response error StatusCode: 400, RequestID: bb59e603-f10c-4961-934a-0bba770d4532, api error UnsupportedOperation: Operation EnableSnapshotBlockPublicAccess is not supported."
     },
     {
       "name": "ec2-networking",
       "status": "fail",
       "phase": "apply",
-      "resources": 42,
+      "resources": 43,
       "failed_resources": [
         "aws_customer_gateway.app",
         "aws_ec2_client_vpn_endpoint.app",
-        "aws_ec2_client_vpn_route.app",
-        "aws_ec2_managed_prefix_list_entry.app",
         "aws_ec2_transit_gateway.app",
-        "aws_ec2_transit_gateway_connect.app",
         "aws_ec2_transit_gateway_connect_peer.app",
-        "aws_ec2_transit_gateway_metering_policy.app",
-        "aws_ec2_transit_gateway_metering_policy_entry.app",
-        "aws_ec2_transit_gateway_multicast_domain.app",
-        "aws_ec2_transit_gateway_peering_attachment.app",
-        "aws_ec2_transit_gateway_policy_table.app",
-        "aws_ec2_transit_gateway_policy_table_association.app",
-        "aws_ec2_transit_gateway_route.app",
-        "aws_ec2_transit_gateway_route_table.app",
-        "aws_ec2_transit_gateway_route_table_association.app",
-        "aws_ec2_transit_gateway_route_table_propagation.app",
         "aws_nat_gateway.app",
-        "aws_nat_gateway_eip_association.app",
-        "aws_network_acl_rule.app",
         "aws_vpc_dhcp_options.app",
-        "aws_vpc_dhcp_options_association.app",
-        "aws_vpc_endpoint_policy.app",
-        "aws_vpc_endpoint_private_dns.app",
         "aws_vpc_endpoint_service.app",
         "aws_vpc_ipam.app",
-        "aws_vpc_ipam_pool.app",
-        "aws_vpc_ipam_pool_cidr.app",
         "aws_vpc_ipam_resource_discovery.app",
-        "aws_vpc_ipam_resource_discovery_association.app",
-        "aws_vpc_ipam_scope.app",
-        "aws_vpn_connection.app",
         "aws_vpn_gateway.app"
       ],
-      "detail": "Error: creating EC2 Customer Gateway: operation error EC2: CreateCustomerGateway, https response error StatusCode: 400, RequestID: d7fc7655-eff5-43d4-b188-671256f28305, api error UnsupportedOperation: Operation CreateCustomerGateway is not supported."
+      "detail": "Error: creating EC2 Customer Gateway: operation error EC2: CreateCustomerGateway, https response error StatusCode: 400, RequestID: 49ea598f-0d92-4751-a455-235bebffc7bf, api error UnsupportedOperation: Operation CreateCustomerGateway is not supported."
     },
     {
       "name": "ecs-eks",
       "status": "fail",
       "phase": "apply",
-      "resources": 11,
+      "resources": 13,
       "failed_resources": [
         "aws_ecs_daemon.app",
+        "aws_ecs_service.app",
         "aws_eks_cluster.app"
       ],
       "detail": "Error: creating ECS Daemon (tofu-ecs-eks-cohort-ecs-daemon)"
@@ -280,10 +262,10 @@
       "name": "governance",
       "status": "fail",
       "phase": "apply",
-      "resources": 24,
+      "resources": 26,
       "failed_resources": [
-        "aws_auditmanager_assessment.app",
         "aws_auditmanager_framework.app",
+        "aws_budgets_budget_action.app",
         "aws_config_configuration_aggregator.app",
         "aws_config_conformance_pack.app",
         "aws_config_organization_conformance_pack.app",
@@ -299,20 +281,23 @@
         "aws_resourceexplorer2_view.app",
         "aws_resourcegroups_group.app",
         "aws_servicecatalog_portfolio.app",
-        "aws_servicecatalog_portfolio_share.app",
         "aws_servicecatalog_product.app",
         "aws_servicecatalogappregistry_application.app",
         "aws_servicecatalogappregistry_attribute_group.app"
       ],
-      "detail": "Error: creating Audit Manager Assessment (tofu-governance-cohort-config-config-rule)"
+      "detail": "Error: creating Audit Manager Framework (tofu-governance-cohort-config-config-rule)"
     },
     {
       "name": "iam-ecr",
       "status": "fail",
       "phase": "apply",
       "resources": 9,
-      "detail": "signal: killed",
-      "timed_out": true
+      "failed_resources": [
+        "aws_ecr_registry_policy.app",
+        "aws_ecr_registry_scanning_configuration.app",
+        "aws_ecr_replication_configuration.app"
+      ],
+      "detail": "Error: creating ECR Registry Policy: operation error ECR: PutRegistryPolicy, https response error StatusCode: 400, RequestID: 798eb255-2ab2-47b7-aed8-c6e6a4ae5606, api error UnsupportedOperation: Operation PutRegistryPolicy is not supported."
     },
     {
       "name": "identity",
@@ -327,7 +312,7 @@
         "aws_iam_server_certificate.app",
         "aws_ssoadmin_instance_access_control_attributes.app"
       ],
-      "detail": "Error: creating Cognito Identity Pool: operation error Cognito Identity: CreateIdentityPool, https response error StatusCode: 404, RequestID: 5c7af3fc-2513-4f85-867b-84fc66a881df, api error UnknownOperationException: Unknown operation: AWSCognitoIdentityService.CreateIdentityPool"
+      "detail": "Error: creating Cognito Identity Pool: operation error Cognito Identity: CreateIdentityPool, https response error StatusCode: 404, RequestID: e4d77b23-cb5e-44d4-9792-d3f7f87b4f2f, api error UnknownOperationException: Unknown operation: AWSCognitoIdentityService.CreateIdentityPool"
     },
     {
       "name": "iot",
@@ -344,13 +329,13 @@
         "aws_iot_thing_type.app",
         "aws_iot_topic_rule_destination.app"
       ],
-      "detail": "Error: creating IoT Authorizer (tofu-iot-cohort-authorizer): operation error IoT: CreateAuthorizer, https response error StatusCode: 404, RequestID: 51d3a2d8-53ee-461a-836d-efe8f4fae2a9, api error UnknownOperationException: Unknown operation: POST //authorizer/tofu-iot-cohort-authorizer"
+      "detail": "Error: creating IoT Authorizer (tofu-iot-cohort-authorizer): operation error IoT: CreateAuthorizer, https response error StatusCode: 404, RequestID: 6cd6f5e6-6271-43fc-83b3-3ef451905b4e, api error UnknownOperationException: Unknown operation: POST //authorizer/tofu-iot-cohort-authorizer"
     },
     {
       "name": "lambda",
       "status": "fail",
       "phase": "apply",
-      "resources": 6,
+      "resources": 7,
       "failed_resources": [
         "aws_lambda_capacity_provider.app",
         "aws_lambda_code_signing_config.app",
@@ -368,7 +353,7 @@
       "name": "messaging",
       "status": "fail",
       "phase": "apply",
-      "resources": 8,
+      "resources": 9,
       "failed_resources": [
         "aws_cloudwatch_composite_alarm.app",
         "aws_cloudwatch_dashboard.app",
@@ -391,19 +376,21 @@
         "aws_route53recoveryreadiness_cell.app",
         "aws_route53recoveryreadiness_recovery_group.app",
         "aws_route53recoveryreadiness_resource_set.app",
+        "aws_vpclattice_auth_policy.app",
         "aws_vpclattice_domain_verification.app",
         "aws_vpclattice_resource_gateway.app",
+        "aws_vpclattice_resource_policy.app",
         "aws_vpclattice_service.app",
         "aws_vpclattice_service_network.app",
         "aws_vpclattice_target_group.app"
       ],
-      "detail": "Error: creating Global Accelerator Accelerator (tofu-networking-advanced-cohort-globalaccelerator-accelerator): operation error Global Accelerator: CreateAccelerator, https response error StatusCode: 404, RequestID: 9056f0fb-efc1-4bce-a276-c15a4f28dc8e, api error UnknownOperationException: Unknown operation: GlobalAccelerator_V20180706.CreateAccelerator"
+      "detail": "Error: creating Global Accelerator Accelerator (tofu-networking-advanced-cohort-globalaccelerator-accelerator): operation error Global Accelerator: CreateAccelerator, https response error StatusCode: 404, RequestID: 933298da-c839-43c3-86dc-1bbdaad154ba, api error UnknownOperationException: Unknown operation: GlobalAccelerator_V20180706.CreateAccelerator"
     },
     {
       "name": "observability",
       "status": "fail",
       "phase": "apply",
-      "resources": 30,
+      "resources": 32,
       "failed_resources": [
         "aws_cloudwatch_alarm_mute_rule.app",
         "aws_cloudwatch_contributor_insight_rule.app",
@@ -430,17 +417,29 @@
       "status": "fail",
       "phase": "apply",
       "resources": 17,
-      "detail": "signal: killed",
-      "timed_out": true
+      "failed_resources": [
+        "aws_db_event_subscription.app",
+        "aws_db_instance_role_association.app",
+        "aws_db_option_group.app",
+        "aws_db_proxy.app",
+        "aws_db_subnet_group.app",
+        "aws_rds_cluster_role_association.app",
+        "aws_rds_custom_db_engine_version.app",
+        "aws_rds_global_cluster.app",
+        "aws_rds_integration.app",
+        "aws_rds_shard_group.app"
+      ],
+      "detail": "Error: Provider produced inconsistent final plan"
     },
     {
       "name": "remainder",
       "status": "fail",
       "phase": "apply",
-      "resources": 24,
+      "resources": 32,
       "failed_resources": [
         "aws_evidently_project.app",
         "aws_codegurureviewer_repository_association.app",
+        "aws_datazone_environment_blueprint_configuration.app",
         "aws_detective_graph.app",
         "aws_dsql_cluster.app",
         "aws_ec2_instance_connect_endpoint.app",
@@ -448,7 +447,9 @@
         "aws_glue_workflow.app",
         "aws_macie2_account.app",
         "aws_paymentcryptography_key.app",
-        "aws_securityhub_account.app"
+        "aws_paymentcryptography_key_alias.app",
+        "aws_securityhub_account.app",
+        "aws_sesv2_contact_list.app"
       ],
       "detail": "Error: creating CodeGuru Repository Association: operation error CodeGuru Reviewer: AssociateRepository, 1 validation error(s) found."
     },
@@ -458,19 +459,16 @@
       "phase": "apply",
       "resources": 30,
       "failed_resources": [
-        "aws_cloudfront_distribution.app",
         "aws_cloudfront_function.app",
         "aws_cloudfront_key_value_store.app",
         "aws_cloudfront_monitoring_subscription.app",
-        "aws_cloudfront_multitenant_distribution.app",
         "aws_cloudfront_vpc_origin.app",
         "aws_route53_hosted_zone_dnssec.app",
         "aws_route53_resolver_endpoint.app",
         "aws_route53_resolver_rule.app",
-        "aws_route53_resolver_rule_association.app",
         "aws_route53_zone_association.app"
       ],
-      "detail": "Error: Plugin did not respond"
+      "detail": "Error: Provider produced inconsistent result after apply"
     },
     {
       "name": "s3",
@@ -513,10 +511,10 @@
       "name": "security",
       "status": "fail",
       "phase": "apply",
-      "resources": 47,
+      "resources": 49,
       "failed_resources": [
-        "aws_acmpca_certificate_authority.app",
         "aws_guardduty_detector.app",
+        "aws_acmpca_certificate_authority.app",
         "aws_guardduty_malware_protection_plan.app",
         "aws_guardduty_organization_admin_account.app",
         "aws_inspector2_delegated_admin_account.app",
@@ -549,7 +547,7 @@
         "aws_wafv2_rule_group.app",
         "aws_wafv2_web_acl.app"
       ],
-      "detail": "Error: Request cancelled"
+      "detail": "Error: Plugin did not respond"
     },
     {
       "name": "storage",
@@ -561,7 +559,6 @@
         "aws_backup_logically_air_gapped_vault.app",
         "aws_backup_report_plan.app",
         "aws_backup_restore_testing_plan.app",
-        "aws_efs_access_point.app",
         "aws_efs_file_system.app",
         "aws_fsx_data_repository_association.app",
         "aws_fsx_lustre_file_system.app",
@@ -569,19 +566,17 @@
         "aws_fsx_openzfs_file_system.app",
         "aws_fsx_windows_file_system.app"
       ],
-      "detail": "Error: creating Backup Framework (tofu_storage_cohort_backup_framework): operation error Backup: CreateFramework, https response error StatusCode: 404, RequestID: b81aa5a3-3c66-40a4-ba21-1341225e1631, api error UnknownOperationException: Unknown operation: POST //audit/frameworks"
+      "detail": "Error: creating Backup Framework (tofu_storage_cohort_backup_framework): operation error Backup: CreateFramework, https response error StatusCode: 404, RequestID: 8a5ed435-9ec9-4856-ae62-00748c79c84b, api error UnknownOperationException: Unknown operation: POST //audit/frameworks"
     },
     {
       "name": "stragglers",
       "status": "fail",
       "phase": "apply",
-      "resources": 12,
+      "resources": 13,
       "failed_resources": [
-        "aws_ecr_lifecycle_policy.app",
         "aws_ecr_pull_through_cache_rule.app",
         "aws_ecr_pull_time_update_exclusion.app",
         "aws_ecr_repository_creation_template.app",
-        "aws_ecr_repository_policy.app",
         "aws_networkmanager_core_network_policy_attachment.app",
         "aws_storagegateway_tape_pool.app",
         "aws_transfer_agreement.app",
@@ -590,15 +585,25 @@
         "aws_transfer_web_app.app",
         "aws_transfer_web_app_customization.app"
       ],
-      "detail": "Error: creating ECR Lifecycle Policy (tofu-stragglers-cohort-ecr-lifecycle-policy): operation error ECR: PutLifecyclePolicy, https response error StatusCode: 400, RequestID: 63154e72-3f64-4a78-bf43-c1373530d9ec, RepositoryNotFoundException: The repository with name 'tofu-stragglers-cohort-ecr-lifecycle-policy' does not exist in the registry with id '000000000000'"
+      "detail": "Error: creating ECR Pull Through Cache Rule (tofu-stragglers): operation error ECR: CreatePullThroughCacheRule, https response error StatusCode: 400, RequestID: b9550144-9407-418e-9608-0237c0506097, api error UnsupportedOperation: Operation CreatePullThroughCacheRule is not supported."
     },
     {
       "name": "streaming",
       "status": "fail",
       "phase": "apply",
-      "resources": 14,
-      "detail": "signal: killed",
-      "timed_out": true
+      "resources": 18,
+      "failed_resources": [
+        "aws_appflow_connector_profile.app",
+        "aws_appflow_flow.app",
+        "aws_mq_broker.app",
+        "aws_mq_configuration.app",
+        "aws_msk_configuration.app",
+        "aws_msk_scram_secret_association.app",
+        "aws_msk_serverless_cluster.app",
+        "aws_mskconnect_custom_plugin.app",
+        "aws_mskconnect_worker_configuration.app"
+      ],
+      "detail": "Error: creating AppFlow Connector Profile (tofu-streaming-cohort-appflow-connector-profile): operation error Appflow: CreateConnectorProfile, https response error StatusCode: 404, RequestID: efe51b57-2bed-4354-aa27-ad4a898f2f92, api error UnknownOperationException: Unknown operation: POST /create-connector-profile"
     }
   ]
 }
