@@ -63,6 +63,14 @@ type generator struct {
 	// generator produce exactly what it produced before it existed.
 	seed exampleSeed
 
+	// cfnRequired is each TF type's root-required members per
+	// CloudFormation's registry schema, from
+	// live/registry-schema-facts.json joined through live/mapping.json
+	// (issues #155, #174) - the second, independent source for members the
+	// wire schema under-declares. Empty when either artifact is absent,
+	// which makes the pass a no-op.
+	cfnRequired map[string][]string
+
 	// order is every resource this run renders, coverage rows first
 	// (sorted by type), then supporting resources (sorted by type) - the
 	// file layout and the README table walk this order.
@@ -190,6 +198,11 @@ func planCohort(cohort string, schemas providers.GetProviderSchemaResponse, requ
 			return nil, err
 		}
 		g.seed = seed
+		cfnReq, err := loadCFNRequired(root)
+		if err != nil {
+			return nil, err
+		}
+		g.cfnRequired = cfnReq
 	}
 
 	sortedRequested := append([]string(nil), requested...)
@@ -361,12 +374,16 @@ func (g *generator) render(p planned) (string, []string) {
 	block := g.schemas.ResourceTypes[p.Addr.Type].Block
 	g.fillBlock(rBody, block, p.Addr, true)
 
-	// Schema-required pass, then the documented example, then the hand
+	// Schema-required pass, then the documented example, then CFN's root
+	// required (which only fills what is still unset), then the hand
 	// override - which still runs last and still wins, so this is additive
-	// (issue #136).
+	// (issues #136, #174).
 	var overrides []string
 	if seeded := g.seedFromExample(rBody, block, p.Addr.Type); len(seeded) > 0 {
 		overrides = append(overrides, "doc example: "+strings.Join(seeded, ", "))
+	}
+	if cfnApplied := g.applyCFNRequired(rBody, block, p.Addr); len(cfnApplied) > 0 {
+		overrides = append(overrides, "cfn-required (live/registry-schema-facts.json): "+strings.Join(cfnApplied, ", "))
 	}
 	if ov, ok := typeOverrides[p.Addr.Type]; ok {
 		ov.Apply(g, rBody, p.Addr)

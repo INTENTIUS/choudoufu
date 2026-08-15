@@ -464,23 +464,25 @@ func TestSeedRefusesTwoRenderedInstances(t *testing.T) {
 	}
 }
 
-// TestSeedNamesNoResourceType is issue #136's own measure of success. If
-// this pass has to know about a specific aws_* type, the override was moved
-// rather than retired.
+// TestSeedNamesNoResourceType is issue #136's own measure of success, and
+// #174's: if a machine-source pass has to know about a specific aws_* type,
+// the override was moved rather than retired.
 func TestSeedNamesNoResourceType(t *testing.T) {
-	raw, err := os.ReadFile("seed.go")
-	if err != nil {
-		t.Fatalf("reading seed.go: %v", err)
-	}
-	for _, line := range strings.Split(string(raw), "\n") {
-		code := line
-		if i := strings.Index(code, "//"); i >= 0 {
-			code = code[:i] // a comment may cite an example; control flow may not
+	for _, file := range []string{"seed.go", "cfnrequired.go"} {
+		raw, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("reading %s: %v", file, err)
 		}
-		if strings.Contains(code, `"aws_`) {
-			t.Errorf("seed.go names a resource type in code: %s\n"+
-				"Retiring an override by hardcoding its value here is the same override with a "+
-				"different address.", strings.TrimSpace(line))
+		for _, line := range strings.Split(string(raw), "\n") {
+			code := line
+			if i := strings.Index(code, "//"); i >= 0 {
+				code = code[:i] // a comment may cite an example; control flow may not
+			}
+			if strings.Contains(code, `"aws_`) {
+				t.Errorf("%s names a resource type in code: %s\n"+
+					"Retiring an override by hardcoding its value here is the same override with a "+
+					"different address.", file, strings.TrimSpace(line))
+			}
 		}
 	}
 }
