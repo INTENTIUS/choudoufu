@@ -1,7 +1,7 @@
 # Handoff
 
-Written 2026-08-15 evening, at `7ee71441ae` plus this file. Working tree
-clean, `just ci` green, everything pushed, nothing in flight.
+Written 2026-08-15 night, at `a837574ed9`. Working tree clean, `just ci`
+green, everything pushed, nothing in flight.
 
 This is a session handoff, not a second work queue. The work lives in the
 issue tracker; the operational brief is `.claude/agents/live-markers.md`.
@@ -9,15 +9,15 @@ If you find yourself copying issue content into here, stop.
 
 ## What landed this session
 
-Closed: #132 (extraction sweep 638→708 adopted, then the emit gate plus a
-135-ruling ledger with exits and two down-only ratchets), #139 (COVERAGE's
-layers table is a generated span; `live/rowgen-buckets.json` is new),
-#147 (the published-deployment corpus population; first honest rate: 144
-of 145 real deployment roots blocked), #149 (acceptance re-measured, split
-final at 26 emulator / 2 fixture), #162 (all six specs done).
-
-Filed: #172 (ARN/URL-template proposal shape), #173 (unwired sibling
-references in estate-gen), #174 (schema-optional API-required members).
+Two runs. The first closed #132, #139, #147, #149, #162 and filed
+#172-#175. The second closed #172, #173, #174, #176 and filed #177:
+six rule-level generator capabilities (sibling references with
+identity-bound discipline, assembled-template proposals, per-segment ID
+attribution, instance-count block seeding, the CFN required channel,
+doc-derived ImportSyntax), five override-retirement batches (427 -> 382,
+all at the byte bar), convergence 638 -> 715 with the ledger at 128
+rulings each carrying its exit, the onboarding ladder regenerating
+inside the corpus artifact, and live-check's one-edit verdict.
 
 Maintainer rulings, all recorded on the issues: #136's retirement bar
 stays byte-identical; #147 is option 1; #154 goes strictly last; #170
@@ -26,20 +26,15 @@ stays untouched; full-tree verification is batched to the push boundary
 
 ## Where #136 stands
 
-410 override entries remain (batches 2 and 3 retired 17, measured, plus
-the incomplete-may-replace-a-placeholder seed rule). The complete
-classification of the 410 by blocking cause is on the issue; the ceiling
-for the doc-example line is roughly 180 types, and 141 are cross-resource
-wiring that is permanently hand per the issue's own scope. The kept
-measured-retirable override (`aws_dms_s3_endpoint`) is a deliberate
-ruling - read its entry before retiring it.
-
-An untracked measurement harness sits at
-`tools/estate-gen/retire_measure_test.go` (env-gated:
-`ESTATE_RETIRE_MEASURE=1` measures all overrides in ~30s;
-`ESTATE_REGEN_ALL=1` bulk-regenerates every cohort through
-`recordedRegenTypes`). Deliberately not committed, per the temporary-
-harness convention; re-create or reuse it for the next batch.
+382 override entries remain. The classification of the residue by
+blocking cause is on the issue; the next levers are #177's three
+extraction gaps, each of which unblocks named deferred instances from
+#174. The kept measured-retirable override (`aws_dms_s3_endpoint`, kept
+three times now) is a deliberate ruling - read its entry before retiring
+it. The untracked harness at `tools/estate-gen/retire_measure_test.go`
+(ESTATE_RETIRE_MEASURE=1 / ESTATE_REGEN_ALL=1) is the batch loop;
+`tools/corpus-gen/blockers_scratch_test.go` is retired - the ladder now
+regenerates inside `live/corpus-refusals.json`.
 
 ## Things measured this session that contradict what was written down
 
@@ -68,12 +63,16 @@ quality measure.
 
 ## What I would pick up next
 
-1. **#173** - highest product value: every instance also fails on real
-   AWS, and the fix is the sibling-reference rule estate-gen almost has.
-2. **#174** - pairs with #173; note its stated interaction with #136's
-   Incomplete gate before designing.
-3. **#172** - the one genuine extraction class behind the #132 ledger.
-4. **#136 batches** - re-run the harness after any seed/extractor change;
-   retire what newly clears the byte bar.
+1. **#175's rulings** - the ratification evidence review is on the
+   issue: ~16 clean approvals, the seven held pastes are unblocked now
+   that #176 landed, one credential ruling, two rejected.json reversal
+   decisions. Every approval moves real estates.
+2. **#177** - the extraction gaps; each unblocks named #174 instances
+   and further #136 retirements.
+3. **lex00/floci#50** - 26 of 28 acceptance failures live there; route
+   normalization and five real-Docker waiter hangs are the cheap large
+   recoveries. The round-trip number is floci-bound until then.
+4. **The language wall** - 114 of 145 real estates; dynamic-value-in-
+   static-context alone hits 74. The biggest product number there is.
 
-#170 and #154 are the maintainer's, in that order, #154 strictly last.
+#154 strictly last, per the maintainer.
