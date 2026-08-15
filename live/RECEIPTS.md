@@ -32,14 +32,14 @@ OpenTofu manages directly. That diff exists because a receipt is a plain
 declared resource going through the ordinary plan/apply cycle described in
 Guard 1 above. A record-backed resource's prior state comes from
 `internal/live/staterecord.Store.Get` instead of a cloud read, but its
-*plan diff* is exactly as visible either way - what moves is where the
+*plan diff* is exactly as visible either way. What moves is where the
 resource's *value* is read from, not whether a plan shows a change to it.
 Receipts stay off the record store because a receipt is deliberately
 AWS-shaped
 (`aws_ssm_parameter`, `/tofu-receipts/<estate>/<effect>`) so its value stays
 readable with a plain `aws ssm get-parameter` by anyone with read-only IAM
-access and no `choudoufu` binary at all - a person, a script, an incident
-responder at 3am. A `staterecord` payload (internal/live/projection's
+access and no `choudoufu` binary at all, whether a person, a script, or an
+incident responder at 3am. A `staterecord` payload (internal/live/projection's
 `recordPayload`, a self-describing ctyjson envelope) is tool-internal by
 design: readable by this fork's own code, not meant as an operator-facing
 artifact the way an SSM parameter's plain string value is. Moving a
@@ -50,16 +50,16 @@ is being visible.
 
 Second, and more concretely: **using `terraform_data`'s `triggers_replace`
 as a pseudo-receipt is exactly the anti-pattern this boundary forbids.** It
-is tempting - `terraform_data` is record-backed now, so a
+is tempting, because `terraform_data` is record-backed now, so a
 `triggers_replace` fingerprint sitting on it looks like it might do a
-receipt's job - but it hides the fingerprint inside the tool's own record
+receipt's job. But it hides the fingerprint inside the tool's own record
 store rather than in an ordinary declared resource, which loses the same
 plain-AWS-CLI visibility the paragraph above describes, and it collapses
 Guard 4's leaf rule and Guard 3's plan/apply/failure semantics into
 `terraform_data`'s much narrower "did an input change" question, with no
 existence flavor, no hash flavor, and no `/tofu-receipts/<estate>/<effect>`
 naming convention for the lint rules to recognize it by. `terraform_data`
-is for graph-internal plumbing - ordering an apply's create/update/delete
+is for graph-internal plumbing, meaning ordering an apply's create/update/delete
 sequence, feeding `replace_triggered_by`, standing in for a resource that
 does nothing itself, and never for recording an external effect. Receipts
 are for external effects. `terraform_data` is for the graph. Keep them

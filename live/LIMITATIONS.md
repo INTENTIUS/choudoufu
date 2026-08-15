@@ -84,7 +84,7 @@ policy-grade classification, one of three:
   documentation (see `logical_type.go`'s `logicalTypes` table for the
   per-type citation). **Conditionally admitted as of #73's projection
   work:** refused exactly as before when the `live` block configures no
-  `record_store`, and admitted the moment one is - the record store's key
+  `record_store`, and admitted the moment one is. The record store's key
   namespace is the "no persisted micro-state" limit closing, not a
   reinterpretation of what these types are. A `record_store` block backs
   the type's whole identity with a persisted record instead of a cloud
@@ -122,7 +122,7 @@ Logical-resource family, per "Banned, and why".
 once the `live` block configures a `record_store`, `null_resource` runs
 through the stock provider lifecycle against prior state hydrated from and
 persisted to the store (`internal/live/projection`'s hydration and
-write-back). No new syntax at the resource block itself - the same
+write-back). No new syntax at the resource block itself, just the same
 `null_resource` block that used to be refused now plans and applies.
 
 **Forwarding address (no record store).** The receipts pattern. A
@@ -196,7 +196,7 @@ in a secret manager (outside OpenTofu's model entirely), and have
 configuration reference it by ARN/path, never by value. The same forwarding
 applies to `tls_*`, banned for the same reason. Classified `SECRET_REFUSED`
 (see above): refused permanently, with no record-store forwarding address,
-unlike this family's `RECORD_ADMITTED` neighbors - configuring a
+unlike this family's `RECORD_ADMITTED` neighbors, because configuring a
 `record_store` does nothing for this type, by design.
 
 **Enforcement.** `RuleLogicalResource`, classified `SECRET_REFUSED`
@@ -272,7 +272,7 @@ above the changed index, and a `tofu-address` marker records an address,
 not a position. A renumbering that moves addresses out from under their
 markers is not a gap this mode intends to close, so `count`-expanded
 modules are refused permanently. `for_each` on a module block does not
-renumber the way `count` does - a key is stable under insertion and
+renumber the way `count` does, because a key is stable under insertion and
 removal, the same reason `RuleForEachKey`-disciplined resource keys are
 admitted, which is the reason to admit it at all (issue #59, phase
 3 / "59c"). What is still refused is a `for_each` whose keys this pass
@@ -280,10 +280,10 @@ cannot compute before anything is read from the cloud: an instance key
 becomes part of every address inside the module, and an address that is
 not knowable yet cannot become part of a marker yet either, the same reason
 a resource's own non-static `for_each` is refused (by identity resolution,
-not lint - see below).
+not lint. See below.)
 
 **A static module call is admitted.** As of issue #59, phase 2 ("59b"), the
-five packages downstream of lint - `identity`, `discovery`, `stamp`,
+five packages downstream of lint (`identity`, `discovery`, `stamp`,
 `projection`, `mv` - traverse `cfg.Children` recursively, and a resource
 inside a static module binds by its module-qualified address
 (`module.a.module.b.aws_x.y`) exactly as soundly as a root resource binds by
@@ -308,8 +308,8 @@ that cannot survive the trip through a `tofu-address` marker (a `.` or a
 `:`, or anything outside the AWS tag-value character set), and
 `RuleOverlongAddress` rejects an expanded instance whose escaped address
 does not fit in a 256-character tag value. A `for_each` this pass cannot
-evaluate at all - a reference to a resource, a data source, or anything
-else outside the static scope - is refused by `RuleChildModule` itself,
+evaluate at all, meaning a reference to a resource, a data source, or
+anything else outside the static scope, is refused by `RuleChildModule` itself,
 worded like a resource's own non-static `for_each` refusal.
 
 **Forwarding address.** For a `count`-expanded module, or a `for_each`
@@ -317,7 +317,7 @@ module whose keys are not statically knowable: move the module's resources
 into the root module, or give the module an estate of its own, with its own
 directory, its own `live` block, and its own `estate` name. Two estates are
 two independent runs, which is the separation an expanded child module is
-standing in for. For `count` this is the only forwarding address - there is
+standing in for. For `count` this is the only forwarding address, because there is
 no future traversal to wait for. For a non-static `for_each`, rewriting the
 expression to a literal collection or a value derived from variables,
 locals, `path` or `terraform` is the other way out, the same as it is for a
@@ -334,10 +334,10 @@ Fixture at `live/e2e/limits/child-module/`, which is a tree rather than a
 single file and needs `choudoufu get` before the rule can be reached, since
 an uninstalled module block is refused while the configuration is still
 being loaded, earlier than any marker code runs. The fixture carries four
-module calls - a static call ("network", admitted), a statically-keyed
+module calls, a static call ("network", admitted), a statically-keyed
 `for_each` call ("keyed-static", admitted), a `count` call ("counted",
 refused permanently), and a `for_each` call whose keys reference another
-resource ("keyed", refused as non-static) - so one load proves both
+resource ("keyed", refused as non-static), so one load proves both
 admitted shapes pass clean while the other two still fail, each for its own
 named reason.
 
@@ -553,7 +553,7 @@ alone.
 
 **Enforcement.** `RuleIgnoreChanges`, `internal/live/lint/ignore_changes.go`
 (`checkIgnoreChanges`). Fixture at `live/e2e/limits/ignore-changes/`, whose
-fourth resource is the admitted single-key shape - pinned by
+fourth resource is the admitted single-key shape, pinned by
 `TestIgnoreChangesAdmitsAForeignTagKey`, since `TestLimitsEnforced` alone
 would pass just as happily if all four were refused.
 
@@ -585,7 +585,7 @@ answer until the mapping is honoured. Silence is not one of the options.
 
 **Forwarding address.** Configure the whole estate against one provider
 configuration, or split it into one configuration per account or region and
-run them separately. Aliases themselves work - a resource's own `provider =`
+run them separately. Aliases themselves work. A resource's own `provider =`
 argument is honoured, and `live-plan` carries the alias correctly. It is the
 module-call mapping that is not read.
 
@@ -636,13 +636,13 @@ design question (honour the block, or refuse it) stayed open.
 The ruling was measured before it was made, by the maintainer's stated
 decision rule (if it's common, support it, and if it's rare and OpenTofu
 already says don't, side with that). Across the ten most-installed
-terraform-aws-modules repositories - the same repos the third-party corpus
-pins, 740 module-source `.tf` files - not one declares a provider block
+terraform-aws-modules repositories, the same repos the third-party corpus
+pins, 740 module-source `.tf` files, and not one declares a provider block
 inside module source, and none uses `configuration_aliases`. Every provider
 block found sits at an example's *root*, the shape live mode already
 supports. Upstream's own documentation points the same way: provider
 configurations belong in the root module, and a child module declaring its
-own is legacy practice - it cannot be used with `count`, `for_each` or
+own is legacy practice, because it cannot be used with `count`, `for_each` or
 `depends_on`, and removing the module call orphans its resources. Rare,
 and already discouraged, so this fork refuses it. Full per-module provider
 resolution remains a design the corpus can reopen if in-module blocks ever
@@ -655,7 +655,7 @@ shapes: an unaliased mapping such as `providers = { aws = aws }` is
 admitted, an aliased one is refused.
 
 **What is not refused.** Provider blocks in the root module, aliased or
-not - those are exactly what live mode consults. And a child module that
+not. Those are exactly what live mode consults. And a child module that
 declares no provider block, which is every module in the measured
 ecosystem.
 
@@ -663,7 +663,7 @@ ecosystem.
 `internal/live/lint/module_provider_block.go`
 (`checkModuleProviderBlocks`). Fixture at
 `live/e2e/limits/module-provider-block/`. The admitted twin, the same
-provider block declared at root - is pinned by `TestCheck`'s
+provider block declared at root, is pinned by `TestCheck`'s
 `module-provider-root` case. This refusal replaces the interim
 `CheckModuleProviders` warning, which is retired.
 
@@ -685,7 +685,7 @@ earlier, during marker discovery, and the lookup miss used to fall through
 to an empty provider configuration: the provider was configured from the
 environment alone, with nothing from the configuration reaching it and no
 diagnostic saying so. The real AWS provider accepts an empty configuration
-and reads the environment, so the run simply proceeded - reading, writing
+and reads the environment, so the run simply proceeded, reading, writing
 and sweeping against whatever account and region the environment happened to
 name. Established by running it (GitHub issue #123): discovery had already
 scanned types through other providers before the stray address was even
@@ -706,7 +706,7 @@ configurations that work today.
 `internal/live/lint/undeclared_provider_alias.go`
 (`checkUndeclaredProviderAlias`). Fixture at
 `live/e2e/limits/undeclared-provider-alias/`. The admitted twin, an alias a
-root provider block does declare - is pinned by `TestCheck`'s
+root provider block does declare, is pinned by `TestCheck`'s
 `undeclared-provider-alias-declared` case. `providerConfigValue` in
 `internal/command/live_plan.go` backstops the same miss with a hard error
 rather than an empty body, for any provider address lint did not see. The
@@ -714,8 +714,8 @@ child-module routes into that fallback are `module-providers`' subject.
 
 ### child-live-config
 
-**Construct.** A live configuration - a `live` block or an
-`estate.chdf.hcl` sidecar file - declared inside a child module:
+**Construct.** A live configuration (a `live` block or an
+`estate.chdf.hcl` sidecar file) declared inside a child module:
 
 ```
 module "vendored" { source = "./mod" }   # ./mod carries estate.chdf.hcl
@@ -723,7 +723,7 @@ module "vendored" { source = "./mod" }   # ./mod carries estate.chdf.hcl
 
 **Why banned.** Live mode reads the root module's live configuration only.
 A child module's own was decoded and then read by nobody, so its resources
-were silently absorbed into the calling estate - the module's declared
+were silently absorbed into the calling estate, and the module's declared
 estate boundary reinterpreted with nothing said, the same misattribution
 class `module-providers` and `undeclared-provider-alias` refuse one level
 down. Found by the wave-3 adversarial audit of the sidecar work (#72): the
@@ -749,8 +749,8 @@ ownership quadrant that verb is not allowed in, such as `declared_tagged =
 "delete"`.
 
 **Why bounded.** The ownership matrix (GitHub issue #67) crosses two
-questions - does the configuration declare this resource, and does it carry
-this estate's marker - and each of the four answers admits a different set
+questions, does the configuration declare this resource and does it carry
+this estate's marker, and each of the four answers admits a different set
 of safe verbs. `internal/live/policy`'s `ValidVerbs` is that matrix.
 Declared and tagged is the ordinary converge path. A delete there would turn
 an edit to a resource block into a destroy of the live object it names.
@@ -760,7 +760,7 @@ success.
 
 **Forwarding address.** Pick a verb the quadrant allows. The refusal lists
 them. If the intent was to remove resources the configuration still declares,
-delete the blocks instead - that is the ordinary destroy path, and it leaves
+delete the blocks instead, which is the ordinary destroy path, and it leaves
 a plan to review.
 
 **Enforcement.** `RulePolicyVerb`, `internal/live/lint/policy.go`
@@ -846,7 +846,7 @@ the resolve-time error itself).
 
 This section is a policy entry, not a refusal: nothing here stops a run.
 It documents an accepted, permanent behavior and the warning that names it.
-(No `### <dir>` heading, deliberately - there is no lint rule and no limits
+(No `### <dir>` heading, deliberately, because there is no lint rule and no limits
 fixture, because there is nothing enforced. The tests live in
 `internal/live/lint/residue_attribute_test.go` instead.)
 
@@ -854,10 +854,10 @@ fixture, because there is nothing enforced. The tests live in
 round-trip a stateless replan. Two schema-visible classes, measured against
 hashicorp/aws 6.59.0 in GitHub issue #126 (the `tools/wo-sweep` probe): 10
 types / 21 attributes are write-only (`aws_ssm_parameter.value_wo`,
-`aws_db_instance.password_wo`, and the other `_wo` twins - the plugin
+`aws_db_instance.password_wo`, and the other `_wo` twins, the plugin
 protocol forbids the provider ever returning their values), and 53 types /
 132 attributes are sensitive and settable (`aws_db_instance.password`,
-`aws_glue_connection`'s credentials, and their kin - whatever the cloud
+`aws_glue_connection`'s credentials, and their kin, whatever the cloud
 would echo, the no-secrets rule keeps out of every ownership marker and
 record). Either way, no memory of the configured value survives a run, so
 every stateless plan proposes sending it again, forever. That is the same
@@ -870,18 +870,18 @@ attribute, by #126's ruling.
 (`internal/live/lint/residue_attribute.go`) warns once per resource block
 and attribute path when a configuration sets one of these arguments,
 deriving the verdict from the live provider schema's own WriteOnly and
-Sensitive flags at runtime - no generated table, so a new provider
+Sensitive flags at runtime, with no generated table, so a new provider
 release's new `_wo` twin is covered the day it ships. It is a `tfdiags`
 warning riding beside the subset check in every live entry point, not a
 lint `Issue`: lint issues are fatal by design, and a refusal was ruled out
-at both ends - it cannot see the schema-invisible members at all, and 7 of
+at both ends. It cannot see the schema-invisible members at all, and 7 of
 the sensitive attributes are unconditionally required, so refusing the
 argument would refuse the type and undo its admission
 (`aws_lightsail_database` without `master_password` is not a valid
 configuration).
 
 **What stays uncaught, by name.** `aws_s3_object.content` - the founding
-example - produces NO warning. Its schema reads
+example, produces NO warning. Its schema reads
 optional/not-sensitive/not-write-only, indistinguishable from any ordinary
 argument. That the provider's Read never fetches an object body is
 provider behavior the schema carries no trace of. The same holds for the
@@ -909,7 +909,7 @@ instead.
 The sections above are hand-written and answer a design question: is this
 construct usable at all, and what replaces it. This section answers an
 operational one: a run was refused, what does the refusal mean. The two are
-kept apart because they drift apart for different reasons - a construct's
+kept apart because they drift apart for different reasons. A construct's
 treatment changes when a decision changes, and this list changes whenever
 anybody adds a refusal anywhere.
 
@@ -919,8 +919,8 @@ fork does not author.
 - `internal/live/lint` decides whether a construct is inside the subset at
   all. Most of its rules have a hand-written entry above and the table links
   to it. The three receipt-shape rules are specified in `live/RECEIPTS.md`
-  instead. Two of its rules do evaluate expressions - the `for_each`-key and
-  overlong-address budgets both need the keys - so "before anything is
+  instead. Two of its rules do evaluate expressions, since the `for_each`-key
+  and overlong-address budgets both need the keys, so "before anything is
   evaluated" would be too strong.
 - `internal/live/identity` refuses a resource whose identity cannot be
   computed from the configuration alone. This is where most of a real
@@ -946,8 +946,8 @@ from `var`, `local`, `path` and `terraform` alone. That is the binding rule
 of this whole mode, and all three of the pass-through refusals that actually
 fire in the corpus are instances of it. The wording varies because the step
 that failed varies. A few in the list below are not about static
-evaluability at all - a working directory the operating system refused, for
-one - and each says so in its own entry.
+evaluability at all, such as a working directory the operating system
+refused, and each says so in its own entry.
 
 <!-- limits-gen:begin refusal-table -->
 | Configs | Sites | Layer | Refusal | Raised by | Documented at |
@@ -1131,7 +1131,7 @@ about: `internal/live/check`'s `TestEveryRefusalDocsRefIsResolvable` fails
 when one points at a heading nobody wrote.
 
 Two limits on that, stated rather than left to be discovered. The
-documentation for four refusals lives outside this file - three
+documentation for four refusals lives outside this file. Three
 receipt-shape rules in `live/RECEIPTS.md` and the marker character-set rule
 in `live/MARKERS.md` - and the table's "Documented at" column says so. And
 the guarantee is over the registries, not over the source: what keeps a new
@@ -2286,7 +2286,7 @@ builds the sweep universe from `identity.AdmittedTypes()`.)
 **A resource inside a keyed module is stamped by hand, not automatically.**
 Stamping cannot compute a per-instance marker for a resource declared
 inside a module call that sets `for_each` (directly, or through an
-ancestor module call, at any depth) - the module's several instances share
+ancestor module call, at any depth). The module's several instances share
 one HCL body for the resource's `tags` argument, and there is no single
 literal `tofu-address` that is correct for all of them, nor a safe way to
 evaluate an expression that depends on a variable threaded from the module
@@ -2487,9 +2487,9 @@ are applied.
 
 **Some are swept via a parent read instead (issue #60).** An untaggable
 type whose identity is composed from an admitted, taggable parent's own
-identity - a bucket policy's `bucket` is the same string as the bucket's
+identity, since a bucket policy's `bucket` is the same string as the bucket's
 own identity, and the same shape holds for a role, a topic, a queue, a
-route table or a hosted zone - does not need a marker of its own: reading
+route table or a hosted zone, does not need a marker of its own: reading
 the parent tells the sweep the child's identity too, so the child's live
 existence is one read away with no memory required. This is derived, not a
 second hand list: `internal/live/identity`'s `ParentOf` reads the same
@@ -2497,7 +2497,7 @@ second hand list: `internal/live/identity`'s `ParentOf` reads the same
 which admitted types are themselves taggable
 (`live/survey-full.json`'s signal here, the provider's own schema at run
 time), and `SingleParentComponent` narrows that to the shape where nothing
-besides the parent's value is needed - the "named-singleton child" the
+besides the parent's value is needed, the "named-singleton child" the
 identity table's own comments already name for `aws_s3_bucket_policy` and
 `aws_sns_topic_policy`. <!-- survey-gen:begin untaggable-parent-read -->
 | Type | Parent | Removed by this leg |
@@ -2607,7 +2607,7 @@ can also *remove* it is a narrower, per-type question the parent read
 alone does not settle, and the "Removed by this leg" column above is that
 answer today rather than a promise about the rest of the row. Wired for
 removal this pass: `aws_s3_bucket_policy`, this fork's first read-based
-removal - S3's `GetBucketPolicy` returns a clean "not found" when a bucket
+removal, because S3's `GetBucketPolicy` returns a clean "not found" when a bucket
 carries none, so a parent read gives the sweep the same yes/no answer a
 marker would have, and the bucket name is the whole of the policy's
 identity end to end (`internal/live/discovery`'s gated e2e exercises this
@@ -2622,7 +2622,7 @@ what the parent alone determines. The S3 siblings besides the policy,
 and the SNS/SQS policy pair, are structurally the named-singleton shape
 that would let a future pass wire them the same way `aws_s3_bucket_policy`
 was wired here, once each one's own "found vs. not found" provider
-behavior is checked the way the bucket policy's was - see
+behavior is checked the way the bucket policy's was. See
 `internal/live/identity/parent.go`'s `parentReadRemovable` for the
 per-type reasoning as it stands.
 
@@ -2706,7 +2706,7 @@ KMS alias and the Lambda layer version are each client-named on their own
 terms, with no dependency on any other admitted type's identity. For these,
 issue #60 changes nothing: destroy the resource before removing its block,
 or delete it out of band. Every plan still names this narrower list under
-"Not swept for removal" - the parent-readable set above is reported there
+"Not swept for removal". The parent-readable set above is reported there
 too when it is report-only, and left out of it entirely on the one row this
 pass also removes.
 
