@@ -597,6 +597,9 @@ func (g *generator) valueExpr(addr resourceAddr, argName string, ty cty.Type, ro
 		if parent, attrName, ok := g.siblingRef(addr.Type, argName); ok {
 			return fmt.Sprintf("%s.%s", parent, attrName)
 		}
+		if lit, ok := g.pairedSeedLiteral(addr.Type, argName); ok {
+			return lit
+		}
 		if idArg, ok := identityArgName(addr.Type); ok && idArg == argName {
 			return fmt.Sprintf("%q", fmt.Sprintf("tofu-%s-cohort-%s", g.cohort, identitySuffix(g.cohort, addr.Type)))
 		}
@@ -810,7 +813,7 @@ func commonPrefixLen(a, b string) int {
 // argument (aws_ecr_repository's "name" for a "repository" argument) and
 // finally its "id". Every choice is gated on the attribute existing in the
 // sibling's schema; when none does, the reference is not wired at all.
-func (g *generator) refAttr(siblingType, argName, suffix string) (string, bool) {
+func (g *generator) refAttr(siblingType, argName, suffix string, identityBound bool) (string, bool) {
 	res, ok := g.schemas.ResourceTypes[siblingType]
 	if !ok || res.Block == nil {
 		return "", false
@@ -819,19 +822,59 @@ func (g *generator) refAttr(siblingType, argName, suffix string) (string, bool) 
 		_, ok := res.Block.Attributes[n]
 		return ok
 	}
-	if has(argName) {
+	// When the argument being wired is an identity component of the CHILD,
+	// identity resolution will read the reference and refuse any attribute
+	// outside the sibling's own IdentityAttrs ("Not an identity attribute")
+	// - which the first version of this rule tripped on
+	// aws_transfer_web_app_customization.web_app_id reading the sibling's
+	// like-named but non-identity web_app_id (its IdentityAttrs are id and
+	// arn). A non-identity argument keeps the like-named attribute, which
+	// is the right VALUE: a Connect child's routing_profile_id must not
+	// become the sibling's composite id.
+	//
+	// An IdentityAttrs attribute's VALUE is the sibling's import identity
+	// (table.go's own definition), so the reference is also only correct
+	// when that identity IS the value the slot wants. A sibling whose
+	// identity is an assembled ARN (any Literal or Cloud component) fails
+	// that for every non-_arn slot: aws_codeartifact_domain's id is the
+	// domain's ARN, and a child's bare "domain" slot fed the ARN composes
+	// a wrong identity and a value the API rejects. Those pairs render
+	// matching literals instead (pairedSeedLiteral).
+	allowed := func(n string) bool {
+		if !identityBound {
+			return true
+		}
+		entry, found := identity.LookupType(siblingType)
+		if !found {
+			return true // schema-fallback sibling: no ledger to restrict against
+		}
+		if !strings.HasSuffix(argName, "_arn") {
+			for _, c := range entry.Components {
+				if c.Literal != "" || c.Cloud != "" {
+					return false
+				}
+			}
+		}
+		for _, a := range entry.IdentityAttrs {
+			if a == n {
+				return true
+			}
+		}
+		return false
+	}
+	if has(argName) && allowed(argName) {
 		return argName, true
 	}
 	if suffix != "" {
-		if has(suffix) {
+		if has(suffix) && allowed(suffix) {
 			return suffix, true
 		}
 		return "", false
 	}
-	if idArg, ok := identityArgName(siblingType); ok && has(idArg) {
+	if idArg, ok := identityArgName(siblingType); ok && has(idArg) && allowed(idArg) {
 		return idArg, true
 	}
-	if has("id") {
+	if has("id") && allowed("id") {
 		return "id", true
 	}
 	return "", false
@@ -867,7 +910,7 @@ func (g *generator) siblingRef(selfType, argName string) (parent resourceAddr, a
 		if selfIdArg, owns := identityArgName(selfType); owns && selfIdArg == argName && !strings.HasPrefix(selfType, t+"_") {
 			return resourceAddr{}, "", false
 		}
-		attr, found := g.refAttr(t, argName, suffix)
+		attr, found := g.refAttr(t, argName, suffix, identityComponentAttr(selfType, argName))
 		if !found {
 			return resourceAddr{}, "", false
 		}
@@ -882,13 +925,51 @@ func (g *generator) siblingRef(selfType, argName string) (parent resourceAddr, a
 		if !found {
 			continue
 		}
-		attr, found := g.refAttr(cand, argName, "")
+		attr, found := g.refAttr(cand, argName, "", true)
 		if !found {
 			continue
 		}
 		return addr, attr, true
 	}
 	return resourceAddr{}, "", false
+}
+
+// pairedSeedLiteral renders the same documented literal the sibling that
+// owns argName renders for it, for an identity-bound argument no reference
+// can carry (an assembled-identity parent; see refAttr's allowed). Both
+// sides read the seed through the same lookup, so the pair matches by
+// construction rather than by the coincidence that held before issue #173:
+// aws_codeartifact_domain seeds domain = "example" from its page, and its
+// three dependents render the same "example" here. Without a seed literal
+// both sides fall through to the same generic placeholder, which pairs
+// too.
+func (g *generator) pairedSeedLiteral(selfType, argName string) (string, bool) {
+	if !identityComponentAttr(selfType, argName) {
+		return "", false
+	}
+	for _, cand := range constructedParentTypes(selfType, argName) {
+		if _, rendered := g.byType[cand]; !rendered {
+			continue
+		}
+		if _, overridden := typeOverrides[cand]; overridden {
+			return "", false // the override owns the parent's value; do not guess it
+		}
+		if idArg, ok := identityArgName(cand); (ok && idArg == argName) || looksLikeName(argName) {
+			return "", false // the seed defers these on the parent too; no literal to mirror
+		}
+		for _, arg := range g.seed[cand] {
+			// Incomplete literals count: seedFromExample writes them onto
+			// the parent when they replace a placeholder, and the value is
+			// what pairs - the structural caution behind the flag is about
+			// creating arguments, which this never does.
+			if len(arg.Path) != 1 || arg.Path[0] != argName {
+				continue
+			}
+			return seedLiteral(arg), true
+		}
+		return "", false
+	}
+	return "", false
 }
 
 // pruneUnreferencedSupporting drops every supporting resource whose

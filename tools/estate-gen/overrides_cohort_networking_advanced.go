@@ -356,14 +356,10 @@ var typeOverridesNetworkingAdvanced = map[string]typeOverride{
 	},
 	"aws_vpclattice_auth_policy": {
 		Reasons: []string{
-			`resource_identifier is Required; the generic pass rendered its own identity-table placeholder name (a self-reference to no real resource) rather than an actual VPC Lattice resource - overridden to this cohort's own aws_vpclattice_service_network.app.arn. policy is Required and the provider validates it is well-formed JSON (validate: "\"policy\" contains an invalid JSON")`,
+			`resource_identifier is Required and validate wants an ARN shape; a literal placeholder ARN rather than a reference to this cohort's own aws_vpclattice_service_network, because resource_identifier is this type's identity argument and the sibling's only statically-resolvable identity attribute is its opaque id, not its arn - identity resolution refuses the .arn read ("Not an identity attribute"), and the id value is not the ARN validate wants. No reference satisfies both checks. policy is Required and the provider validates it is well-formed JSON (validate: "\"policy\" contains an invalid JSON")`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if sn, ok := g.byType["aws_vpclattice_service_network"]; ok {
-				body.SetAttributeRaw("resource_identifier", exprTokens(fmt.Sprintf("%s.arn", sn)))
-			} else {
-				body.SetAttributeRaw("resource_identifier", exprTokens(`"arn:aws:vpc-lattice:us-east-1:123456789012:servicenetwork/sn-0123456789abcdef0"`))
-			}
+			body.SetAttributeRaw("resource_identifier", exprTokens(`"arn:aws:vpc-lattice:us-east-1:123456789012:servicenetwork/sn-0123456789abcdef0"`))
 			body.SetAttributeRaw("policy", exprTokens(`jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -456,14 +452,10 @@ var typeOverridesNetworkingAdvanced = map[string]typeOverride{
 	},
 	"aws_vpclattice_resource_policy": {
 		Reasons: []string{
-			`resource_arn is Required; the generic pass's own identity-table placeholder (a self-reference to no real resource) left a non-ARN string in place (validate: "is an invalid ARN") - overridden to this cohort's own aws_vpclattice_service_network.app.arn. policy is Required and the provider validates it is well-formed JSON (validate: "\"policy\" contains an invalid JSON")`,
+			`resource_arn is Required and validate refuses a non-ARN string ("is an invalid ARN"); a literal placeholder ARN rather than a reference to this cohort's own aws_vpclattice_service_network, because resource_arn is this type's identity argument and the sibling's only statically-resolvable identity attribute is its opaque id, not its arn - identity resolution refuses the .arn read ("Not an identity attribute"), and the id value is not an ARN. No reference satisfies both checks. policy is Required and the provider validates it is well-formed JSON (validate: "\"policy\" contains an invalid JSON")`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if sn, ok := g.byType["aws_vpclattice_service_network"]; ok {
-				body.SetAttributeRaw("resource_arn", exprTokens(fmt.Sprintf("%s.arn", sn)))
-			} else {
-				body.SetAttributeRaw("resource_arn", exprTokens(`"arn:aws:vpc-lattice:us-east-1:123456789012:servicenetwork/sn-0123456789abcdef0"`))
-			}
+			body.SetAttributeRaw("resource_arn", exprTokens(`"arn:aws:vpc-lattice:us-east-1:123456789012:servicenetwork/sn-0123456789abcdef0"`))
 			body.SetAttributeRaw("policy", exprTokens(`jsonencode({
     Version = "2012-10-17"
     Statement = [{
