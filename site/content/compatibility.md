@@ -62,12 +62,13 @@ A type is admitted when its identity can be recovered from the live system,
 either from the admission table, from the provider's own identity schema, or
 from the way your configuration names it.
 
-Common types are largely covered. The gap that hurts is connective tissue.
-`aws_ecs_service`, `aws_lambda_permission`, `aws_cloudwatch_event_rule` and
-`aws_cloudwatch_event_target`, `aws_api_gateway_deployment` and
-`aws_api_gateway_resource`. You cannot run ECS, EventBridge or an API Gateway
-without some of these, and none of them is reachable yet through any of the
-three admission paths above.
+Common types are largely covered, and the connective tissue that long was
+not - `aws_ecs_service`, `aws_lambda_permission`,
+`aws_cloudwatch_event_rule`, `aws_cloudwatch_event_target` - carries full
+table rows as of the 2026-08-15 ratification batch. The named gap that
+remains is API Gateway assembly: `aws_api_gateway_deployment` and
+`aws_api_gateway_resource` are not yet reachable through any of the three
+admission paths above.
 
 `live/LIMITATIONS.md` in the repository carries the current per-type detail.
 

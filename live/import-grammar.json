@@ -20883,6 +20883,9 @@
         "account_id",
         "region"
       ],
+      "omitted_fallbacks": {
+        "event_bus_name": "default"
+      },
       "id_parts": [
         {
           "token": "event_bus_name",
@@ -21030,7 +21033,10 @@
       "identity_schema_optional": [
         "account_id",
         "region"
-      ]
+      ],
+      "omitted_fallbacks": {
+        "event_bus_name": "default"
+      }
     },
     {
       "tf_type": "aws_cloudwatch_log_account_policy",

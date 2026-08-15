@@ -574,6 +574,16 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		}
 		attr := firstPresent(attrs, comp.Attrs)
 		if attr == nil {
+			if comp.Default != "" {
+				// The provider documents what omission means for this
+				// argument (an omitted event_bus_name is the "default"
+				// bus), so the identity is computable without it - see
+				// [Component.Default].
+				got := []Part{{Literal: comp.Default}}
+				parts = append(parts, got...)
+				addTo(comp.identityAttrFor(comp.Attrs[0]), got)
+				continue
+			}
 			r.errorf(rc.DeclRange, "Identity argument not set",
 				"%s has no value for %s, so its import identity (%s) cannot be built.",
 				addr.String(), orList(comp.Attrs), entry.ImportSyntax)

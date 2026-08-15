@@ -1,22 +1,17 @@
 # Limits fixture: RuleUnadmittedType.
 #
 # aws_nat_gateway held this fixture's place until the EC2 networking batch
-# (issue #65) admitted it; aws_cloudwatch_event_rule takes over as a
-# replacement stabler than "not yet wired" could offer. It is one of
+# (issue #65) admitted it, and aws_cloudwatch_event_rule until the
+# omitted-bus fallback vocabulary ([Component.Default]) let its batch land
+# (#175). aws_iam_access_key is stabler than either: one of
 # live/SURVEY.md's curated 68 top types (TestLimitationsDocAgainstSurvey
-# requires the example to stay in that roster), and its own documented
-# import id — "event_bus_name/rule_name", where event_bus_name silently
-# defaults to the account's default bus when omitted from configuration —
-# needs a [Component] this table's vocabulary does not have yet: a literal
-# fallback for an omitted argument, not just a separator. That gap has
-# already outlived four ratification batches (messaging, DynamoDB
-# periphery, RDS, ECS/EKS all cite this exact type when explaining why they
-# left a similarly-shaped composite unwired), so it is a stable pick rather
-# than a type the very next batch is likely to reach. See
-# internal/live/identity/table.go's messaging-batch comment for the full
-# grammar citation and live/LIMITATIONS.md.
+# requires the example to stay in that roster), and excluded by ruling
+# rather than by a gap - the access key ID is server-assigned and the
+# secret half is unreadable after create, so #125 ruled the ops exclusion
+# stands and the one prior admission was withdrawn. The standing credential
+# exclusion is the single class of type parity deliberately leaves out, so
+# no future ratification batch retires this example.
 
-resource "aws_cloudwatch_event_rule" "web" {
-  name                = "example-rule"
-  schedule_expression = "rate(5 minutes)"
+resource "aws_iam_access_key" "web" {
+  user = "example-user"
 }

@@ -1,13 +1,13 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 872,
-    "compared": 851,
+    "admitted_total": 876,
+    "compared": 855,
     "not_in_mapped_set": 21,
-    "adopted_unchanged": 744,
-    "adopted_unchanged_pct": 87.43,
-    "genuine_mismatches": 107,
-    "annotated": 107,
+    "adopted_unchanged": 747,
+    "adopted_unchanged_pct": 87.37,
+    "genuine_mismatches": 108,
+    "annotated": 108,
     "unannotated_mismatches": 0,
     "scrape_gap_mismatches": 23
   },
@@ -328,8 +328,8 @@
       "adopted_unchanged_pct": 100
     },
     "ECS": {
-      "compared": 6,
-      "adopted_unchanged": 6,
+      "compared": 7,
+      "adopted_unchanged": 7,
       "adopted_unchanged_pct": 100
     },
     "EFS": {
@@ -388,9 +388,9 @@
       "adopted_unchanged_pct": 0
     },
     "Events": {
-      "compared": 6,
-      "adopted_unchanged": 5,
-      "adopted_unchanged_pct": 83.33
+      "compared": 8,
+      "adopted_unchanged": 6,
+      "adopted_unchanged_pct": 75
     },
     "Evidently": {
       "compared": 2,
@@ -513,8 +513,8 @@
       "adopted_unchanged_pct": 100
     },
     "Lambda": {
-      "compared": 5,
-      "adopted_unchanged": 5,
+      "compared": 6,
+      "adopted_unchanged": 6,
       "adopted_unchanged_pct": 100
     },
     "Lex": {
@@ -2447,6 +2447,29 @@
       "annotation_reason": "The registry's composite (event bus + statement id) is not what the provider imports by: the Identity Schema and the ratified row both say statement_id alone. The ratifiers followed the schema over the registry; row-gen's needs-hand-separator proposal claims nothing rather than either."
     },
     {
+      "tf_type": "aws_cloudwatch_event_rule",
+      "service": "Events",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_event_target",
+      "service": "Events",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::Events::Rule",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "Fold-child (via=fold, parent AWS::Events::Rule), so classifyAll produces no pastable row: the fold-child path leaves the child's own component shape to a human, and foldParentTypes is deliberately NOT used because target_id is exactly the 'one further argument' that mechanism excludes. The ratified row is the provider's own documented three-segment composite with the documented omitted-bus fallback."
+    },
+    {
       "tf_type": "aws_cloudwatch_log_account_policy",
       "service": "Logs",
       "proposed_bucket": "composite",
@@ -4374,6 +4397,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_ecs_service",
+      "service": "ECS",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order taken from the provider's own Identity Schema and corroborated against the example's segments",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_ecs_task_definition",
       "service": "ECS",
       "proposed_bucket": "server-assigned",
@@ -5924,6 +5955,14 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lambda_permission",
+      "service": "Lambda",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "matched": true,
       "annotated": false
     },

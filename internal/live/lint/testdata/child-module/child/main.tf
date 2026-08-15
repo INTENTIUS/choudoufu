@@ -1,3 +1,3 @@
-resource "aws_cloudwatch_event_rule" "web" {
+resource "aws_accessanalyzer_analyzer" "web" {
   name = "example-rule"
 }

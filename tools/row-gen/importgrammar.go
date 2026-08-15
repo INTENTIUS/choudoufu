@@ -27,6 +27,13 @@ type importGrammarRow struct {
 	Separator           *string  `json:"separator"`
 	Arguments           []string `json:"arguments"`
 
+	// OmittedFallbacks is the Import section's own omitted-argument
+	// fallback statement, scraped by tools/importdocs-gen ("if you omit
+	// `event_bus_name`, the `default` event bus will be used" ->
+	// {"event_bus_name": "default"}), recorded only for arguments the
+	// composite's own Arguments list names.
+	OmittedFallbacks map[string]string `json:"omitted_fallbacks"`
+
 	// ArgumentReference, ArgumentsInOrder, IdentitySchemaRequired and
 	// IdentitySchemaOptional are the widened scrape's own evidence (issue:
 	// the decisive identity evidence for a scrape-gap type sits in the

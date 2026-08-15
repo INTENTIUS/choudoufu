@@ -26,7 +26,7 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 3 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 872 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Admitted (the shipped table) | 876 types | Nothing at lint. Runtime support varies by type; see the layers below. |
 | Pastable proposals (server-assigned 582, client-named 358, composite 106, assembled 8) | 1054 types | A ratification batch: paste, fixture, test. |
 | Needs a hand separator | 82 types | One one-character import-separator decision each. |
 | Evidence-only | 36 types | An identity-argument name no current evidence source states. |
@@ -38,7 +38,7 @@ them moves. The prose on this page quotes none of the numbers.
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-872<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+876<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
   `aws_amplify_app`, `aws_amplify_branch`, `aws_api_gateway_account`,
@@ -118,7 +118,8 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_cloudwatch_dashboard`, `aws_cloudwatch_event_api_destination`,
   `aws_cloudwatch_event_archive`, `aws_cloudwatch_event_bus`,
   `aws_cloudwatch_event_connection`, `aws_cloudwatch_event_endpoint`,
-  `aws_cloudwatch_event_permission`, `aws_cloudwatch_log_account_policy`,
+  `aws_cloudwatch_event_permission`, `aws_cloudwatch_event_rule`,
+  `aws_cloudwatch_event_target`, `aws_cloudwatch_log_account_policy`,
   `aws_cloudwatch_log_anomaly_detector`, `aws_cloudwatch_log_delivery`,
   `aws_cloudwatch_log_delivery_destination`,
   `aws_cloudwatch_log_delivery_source`, `aws_cloudwatch_log_destination`,
@@ -209,11 +210,12 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_ecrpublic_repository`, `aws_ecrpublic_repository_policy`,
   `aws_ecs_cluster`, `aws_ecs_cluster_capacity_providers`, `aws_ecs_daemon`,
   `aws_ecs_daemon_task_definition`, `aws_ecs_express_gateway_service`,
-  `aws_ecs_task_definition`, `aws_efs_access_point`, `aws_efs_file_system`,
-  `aws_efs_mount_target`, `aws_egress_only_internet_gateway`, `aws_eip`,
-  `aws_eip_association`, `aws_eks_access_entry`,
-  `aws_eks_access_policy_association`, `aws_eks_addon`, `aws_eks_capability`,
-  `aws_eks_cluster`, `aws_eks_fargate_profile`, `aws_eks_node_group`,
+  `aws_ecs_service`, `aws_ecs_task_definition`, `aws_efs_access_point`,
+  `aws_efs_file_system`, `aws_efs_mount_target`,
+  `aws_egress_only_internet_gateway`, `aws_eip`, `aws_eip_association`,
+  `aws_eks_access_entry`, `aws_eks_access_policy_association`,
+  `aws_eks_addon`, `aws_eks_capability`, `aws_eks_cluster`,
+  `aws_eks_fargate_profile`, `aws_eks_node_group`,
   `aws_elastic_beanstalk_application`, `aws_elastic_beanstalk_environment`,
   `aws_elasticache_cluster`, `aws_elasticache_parameter_group`,
   `aws_elasticache_replication_group`, `aws_elasticache_serverless_cache`,
@@ -272,7 +274,7 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_kinesis_stream_consumer`, `aws_kms_alias`, `aws_kms_external_key`,
   `aws_kms_key`, `aws_kms_replica_key`, `aws_lambda_capacity_provider`,
   `aws_lambda_code_signing_config`, `aws_lambda_event_source_mapping`,
-  `aws_lambda_function`, `aws_lambda_layer_version`,
+  `aws_lambda_function`, `aws_lambda_layer_version`, `aws_lambda_permission`,
   `aws_launch_configuration`, `aws_launch_template`, `aws_lb`,
   `aws_lb_listener`, `aws_lb_listener_rule`, `aws_lb_target_group`,
   `aws_lb_target_group_attachment`, `aws_lb_trust_store`,

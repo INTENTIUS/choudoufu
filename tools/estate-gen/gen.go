@@ -175,6 +175,35 @@ func identityArgName(typeName string) (string, bool) {
 	return c.Attrs[0], true
 }
 
+// identityComponentArgs returns every argument name a type's identity
+// components read (the first alternative of each), in component order, for
+// fillBlock's root pass: a composite identity's arguments must be set for
+// the fixture to mean anything, whether or not the wire schema requires
+// them (aws_cloudwatch_event_rule's "name" and aws_lambda_permission's
+// "statement_id" are Optional - the provider invents a value when they are
+// omitted, and an invented value is exactly what a live-marker fixture
+// cannot round-trip). A component carrying a Default is skipped on
+// purpose: the provider documents what omission means there (the "default"
+// event bus), so leaving it out both is legal and exercises the fallback
+// the way real configurations do. Server-assigned types return nil, as
+// ever - their identity is not configuration's to write. identityArgName
+// above stays the single-component question the parent-synthesis and
+// sibling-pairing sites ask; this is the fill-stage question only.
+func identityComponentArgs(typeName string) []string {
+	entry, ok := identity.LookupType(typeName)
+	if !ok || entry.ServerAssigned {
+		return nil
+	}
+	var out []string
+	for _, c := range entry.Components {
+		if len(c.Attrs) == 0 || c.Default != "" {
+			continue
+		}
+		out = append(out, c.Attrs[0])
+	}
+	return out
+}
+
 // planCohort decides the full set of resources a run over requested types
 // will render: the requested types themselves (coverage rows) plus
 // whichever supporting resources their required arguments need
@@ -511,7 +540,7 @@ func (g *generator) fillBlock(body *hclwrite.Body, b *configschema.Block, addr r
 	}
 	identityArg := ""
 	if root {
-		if argName, ok := identityArgName(addr.Type); ok {
+		for i, argName := range identityComponentArgs(addr.Type) {
 			// Only when the schema says the attribute is configurable. The
 			// identity table describes how a value IDENTIFIES the resource,
 			// not where it is written: aws_s3control_multi_region_access_point
@@ -522,7 +551,9 @@ func (g *generator) fillBlock(body *hclwrite.Body, b *configschema.Block, addr r
 			// type was adopted (#108; found by the tier, reverted, fixed
 			// here as the rule-level gap it is).
 			if attr, ok := b.Attributes[argName]; ok && (attr.Required || attr.Optional) {
-				identityArg = argName
+				if i == 0 {
+					identityArg = argName
+				}
 				names[argName] = true
 			}
 		}

@@ -32,16 +32,18 @@ func (w testLogWriter) Write(p []byte) (int, error) {
 
 var _ io.Writer = testLogWriter{}
 
-// lambdaTypes is the registry-ratified Lambda batch's five types, the same
-// roster live/e2e/estates/lambda/lambda.tf carries by hand - see
-// internal/live/lint/admission.go's "Registry-ratified ... first batch,
-// Lambda" section.
+// lambdaTypes is the registry-ratified Lambda roster, the same list
+// live/e2e/estates/lambda/lambda.tf carries by hand - the first batch's
+// five types (see internal/live/lint/admission.go's "Registry-ratified ...
+// first batch, Lambda" section) plus aws_lambda_permission, ratified with
+// the 2026-08-15 reversal batch (#175).
 var lambdaTypes = []string{
 	"aws_lambda_capacity_provider",
 	"aws_lambda_code_signing_config",
 	"aws_lambda_event_source_mapping",
 	"aws_lambda_function",
 	"aws_lambda_layer_version",
+	"aws_lambda_permission",
 }
 
 // s3Types is the second cohort this generator was run against for issue

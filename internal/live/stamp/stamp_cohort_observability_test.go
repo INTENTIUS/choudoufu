@@ -29,6 +29,9 @@ var taggableObservability = []string{
 	"aws_synthetics_group",
 	"aws_xray_group",
 	"aws_xray_sampling_rule",
+	// #175 reversal batch, 2026-08-15: taggability per the provider
+	// schema survey (live/survey-full.json, v6.59.0 signals.taggable).
+	"aws_cloudwatch_event_rule",
 }
 
 var untaggableObservability = []string{
@@ -51,6 +54,9 @@ var untaggableObservability = []string{
 	"aws_cloudwatch_event_endpoint",
 	"aws_cloudwatch_event_permission",
 	"aws_xray_resource_policy",
+	// #175 reversal batch, 2026-08-15: taggability per the provider
+	// schema survey (live/survey-full.json, v6.59.0 signals.taggable).
+	"aws_cloudwatch_event_target",
 }
 
 func init() {
@@ -91,6 +97,9 @@ func init() {
 			"aws_rum_app_monitor":                     taggedSchema("id", "name", "domain"),
 			"aws_synthetics_canary":                   taggedSchema("id", "arn", "name"),
 			"aws_synthetics_group":                    taggedSchema("id", "arn", "name"),
+			// #175 reversal batch, 2026-08-15.
+			"aws_cloudwatch_event_rule":   taggedSchema("id", "arn", "name", "event_bus_name"),
+			"aws_cloudwatch_event_target": untaggedSchema("id", "rule", "target_id", "event_bus_name", "arn"),
 		})
 	})
 }

@@ -180,13 +180,6 @@
         "internal/live/identity/table_cohort_stragglers.go"
       ]
     },
-    "aws_cloudwatch_event_rule": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_ecs_eks.go",
-        "internal/live/identity/table_cohort_messaging.go",
-        "internal/live/identity/table_cohort_streaming.go"
-      ]
-    },
     "aws_codebuild_source_credential": {
       "recovered_from": [
         "internal/live/identity/table_cohort_devtools.go",
@@ -311,11 +304,6 @@
       ]
     },
     "aws_ecs_capacity_provider": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_ecs_eks.go"
-      ]
-    },
-    "aws_ecs_service": {
       "recovered_from": [
         "internal/live/identity/table_cohort_ecs_eks.go"
       ]

@@ -6,7 +6,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 64,
+      "sites": 62,
       "unresolved_modules": 6,
       "unset_variables": 0,
       "schemas": true,
@@ -18,7 +18,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 31,
+      "sites": 30,
       "unresolved_modules": 3,
       "unset_variables": 0,
       "schemas": true
@@ -29,7 +29,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 39,
+      "sites": 38,
       "unresolved_modules": 6,
       "unset_variables": 0,
       "schemas": true,
@@ -209,7 +209,7 @@
       "unresolved_modules": 1,
       "unset_variables": 3,
       "schemas": true,
-      "shadowed": 58,
+      "shadowed": 57,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -236,7 +236,7 @@
           {
             "layer": "identity",
             "id": "Not an identity attribute",
-            "sites": 18
+            "sites": 19
           },
           {
             "layer": "identity",
@@ -281,13 +281,12 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 87
+            "sites": 86
           }
         ],
         "unadmitted_types": [
           "aws_default_route_table",
           "aws_iam_access_key",
-          "aws_lambda_permission",
           "aws_security_group_rule",
           "aws_vpc_peering_connection_options"
         ]
@@ -299,7 +298,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 666,
+      "sites": 660,
       "unresolved_modules": 4,
       "unset_variables": 0,
       "schemas": true
@@ -982,13 +981,18 @@
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
-      "shadowed": 4,
+      "shadowed": 3,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
+            "sites": 1
+          },
+          {
+            "layer": "identity",
+            "id": "Identity argument not set",
             "sites": 1
           },
           {
@@ -1015,14 +1019,13 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 4
+            "sites": 3
           }
         ],
         "unadmitted_types": [
           "aws_apigatewayv2_api_mapping",
           "aws_apigatewayv2_integration",
-          "aws_apigatewayv2_route",
-          "aws_lambda_permission"
+          "aws_apigatewayv2_route"
         ]
       }
     },
@@ -1141,7 +1144,6 @@
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
-      "shadowed": 2,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -1152,6 +1154,16 @@
             "unset_var_only": true
           },
           {
+            "layer": "identity",
+            "id": "Not an identity attribute",
+            "sites": 1
+          },
+          {
+            "layer": "identity",
+            "id": "Unresolvable identity",
+            "sites": 1
+          },
+          {
             "layer": "lint",
             "id": "remote-state",
             "sites": 6
@@ -1160,16 +1172,7 @@
             "layer": "lint",
             "id": "state-backend",
             "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 2
           }
-        ],
-        "unadmitted_types": [
-          "aws_cloudwatch_event_target",
-          "aws_lambda_permission"
         ]
       }
     },
@@ -1640,7 +1643,7 @@
       "unresolved_modules": 0,
       "unset_variables": 6,
       "schemas": true,
-      "shadowed": 8,
+      "shadowed": 6,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -1654,6 +1657,11 @@
             "id": "Non-static identity argument",
             "sites": 13,
             "unset_var_only": true
+          },
+          {
+            "layer": "identity",
+            "id": "Not an identity attribute",
+            "sites": 2
           },
           {
             "layer": "identity",
@@ -1678,12 +1686,11 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 8
+            "sites": 6
           }
         ],
         "unadmitted_types": [
           "aws_bedrock_model_invocation_logging_configuration",
-          "aws_cloudwatch_event_target",
           "aws_security_group_rule"
         ]
       }
@@ -2009,13 +2016,18 @@
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
-      "shadowed": 4,
+      "shadowed": 3,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
+            "sites": 1
+          },
+          {
+            "layer": "identity",
+            "id": "Identity argument not set",
             "sites": 1
           },
           {
@@ -2036,14 +2048,13 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 6
+            "sites": 5
           }
         ],
         "unadmitted_types": [
           "aws_apigatewayv2_api_mapping",
           "aws_apigatewayv2_integration",
           "aws_apigatewayv2_route",
-          "aws_lambda_permission",
           "aws_s3_bucket_object_lock_configuration",
           "aws_s3_bucket_replication_configuration"
         ]
@@ -2124,7 +2135,6 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 1,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -2145,6 +2155,11 @@
           },
           {
             "layer": "identity",
+            "id": "Not an identity attribute",
+            "sites": 1
+          },
+          {
+            "layer": "identity",
             "id": "Unable to compute static value",
             "sites": 2
           },
@@ -2152,15 +2167,7 @@
             "layer": "lint",
             "id": "state-backend",
             "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 1
           }
-        ],
-        "unadmitted_types": [
-          "aws_cloudwatch_event_target"
         ]
       }
     },
@@ -3794,11 +3801,11 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 52,
+      "sites": 46,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 9
+      "shadowed": 7
     },
     {
       "name": ".corpus/lambda/examples/async",
@@ -3806,7 +3813,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 25,
+      "sites": 23,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3818,7 +3825,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 62,
-      "sites": 444,
+      "sites": 386,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3830,7 +3837,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 27,
+      "sites": 25,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3842,7 +3849,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 23,
-      "sites": 312,
+      "sites": 284,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3854,7 +3861,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 60,
+      "sites": 56,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3866,7 +3873,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 8,
-      "sites": 38,
+      "sites": 34,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3878,7 +3885,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 52,
+      "sites": 50,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3890,7 +3897,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 60,
+      "sites": 56,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3902,7 +3909,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 89,
+      "sites": 81,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3914,7 +3921,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 24,
+      "sites": 22,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3926,7 +3933,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 24,
+      "sites": 22,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3938,11 +3945,10 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 29,
+      "sites": 27,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true,
-      "shadowed": 1
+      "schemas": true
     },
     {
       "name": ".corpus/lambda/examples/with-efs",
@@ -3950,7 +3956,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 25,
+      "sites": 23,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3962,7 +3968,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 25,
+      "sites": 23,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3974,7 +3980,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 25,
+      "sites": 23,
       "unresolved_modules": 5,
       "unset_variables": 0,
       "schemas": true,
@@ -4042,29 +4048,24 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 6,
-      "sites": 3,
+      "instances": 7,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
-      "shadowed": 2,
       "profile": {
-        "onboarding_class": "admissions-only",
+        "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "lint",
-            "id": "state-backend",
+            "layer": "identity",
+            "id": "Not an identity attribute",
             "sites": 1
           },
           {
             "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 2
+            "id": "state-backend",
+            "sites": 1
           }
-        ],
-        "unadmitted_types": [
-          "aws_cloudwatch_event_target",
-          "aws_lambda_permission"
         ]
       }
     },
@@ -4125,29 +4126,24 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 2,
-      "sites": 3,
+      "instances": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 2,
       "profile": {
-        "onboarding_class": "admissions-only",
+        "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "lint",
-            "id": "state-backend",
+            "layer": "identity",
+            "id": "Not an identity attribute",
             "sites": 1
           },
           {
             "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 2
+            "id": "state-backend",
+            "sites": 1
           }
-        ],
-        "unadmitted_types": [
-          "aws_cloudwatch_event_target",
-          "aws_lambda_permission"
         ]
       }
     },
@@ -4244,29 +4240,24 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 2,
-      "sites": 3,
+      "instances": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 2,
       "profile": {
-        "onboarding_class": "admissions-only",
+        "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "lint",
-            "id": "state-backend",
+            "layer": "identity",
+            "id": "Not an identity attribute",
             "sites": 1
           },
           {
             "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 2
+            "id": "state-backend",
+            "sites": 1
           }
-        ],
-        "unadmitted_types": [
-          "aws_cloudwatch_event_target",
-          "aws_lambda_permission"
         ]
       }
     },
@@ -4275,29 +4266,24 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 2,
-      "sites": 3,
+      "instances": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 2,
       "profile": {
-        "onboarding_class": "admissions-only",
+        "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "lint",
-            "id": "state-backend",
+            "layer": "identity",
+            "id": "Not an identity attribute",
             "sites": 1
           },
           {
             "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 2
+            "id": "state-backend",
+            "sites": 1
           }
-        ],
-        "unadmitted_types": [
-          "aws_cloudwatch_event_target",
-          "aws_lambda_permission"
         ]
       }
     },
@@ -4306,29 +4292,24 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 2,
-      "sites": 3,
+      "instances": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 2,
       "profile": {
-        "onboarding_class": "admissions-only",
+        "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "lint",
-            "id": "state-backend",
+            "layer": "identity",
+            "id": "Not an identity attribute",
             "sites": 1
           },
           {
             "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 2
+            "id": "state-backend",
+            "sites": 1
           }
-        ],
-        "unadmitted_types": [
-          "aws_cloudwatch_event_target",
-          "aws_lambda_permission"
         ]
       }
     },
@@ -4363,29 +4344,24 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 6,
-      "sites": 3,
+      "instances": 7,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 4,
       "schemas": true,
-      "shadowed": 2,
       "profile": {
-        "onboarding_class": "admissions-only",
+        "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "lint",
-            "id": "state-backend",
+            "layer": "identity",
+            "id": "Not an identity attribute",
             "sites": 1
           },
           {
             "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 2
+            "id": "state-backend",
+            "sites": 1
           }
-        ],
-        "unadmitted_types": [
-          "aws_cloudwatch_event_target",
-          "aws_lambda_permission"
         ]
       }
     },
@@ -4467,12 +4443,11 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 7,
-      "sites": 6,
+      "instances": 8,
+      "sites": 5,
       "unresolved_modules": 0,
       "unset_variables": 8,
       "schemas": true,
-      "shadowed": 2,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -4482,19 +4457,15 @@
             "sites": 3
           },
           {
-            "layer": "lint",
-            "id": "state-backend",
+            "layer": "identity",
+            "id": "Not an identity attribute",
             "sites": 1
           },
           {
             "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 2
+            "id": "state-backend",
+            "sites": 1
           }
-        ],
-        "unadmitted_types": [
-          "aws_cloudwatch_event_target",
-          "aws_lambda_permission"
         ]
       }
     },
@@ -4845,29 +4816,24 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 3,
-      "sites": 4,
+      "instances": 5,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3,
       "profile": {
-        "onboarding_class": "admissions-only",
+        "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "lint",
-            "id": "state-backend",
+            "layer": "identity",
+            "id": "Not an identity attribute",
             "sites": 1
           },
           {
             "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 3
+            "id": "state-backend",
+            "sites": 1
           }
-        ],
-        "unadmitted_types": [
-          "aws_cloudwatch_event_target",
-          "aws_lambda_permission"
         ]
       }
     },
@@ -4975,29 +4941,24 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 2,
-      "sites": 3,
+      "instances": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 2,
       "profile": {
-        "onboarding_class": "admissions-only",
+        "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "lint",
-            "id": "state-backend",
+            "layer": "identity",
+            "id": "Not an identity attribute",
             "sites": 1
           },
           {
             "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 2
+            "id": "state-backend",
+            "sites": 1
           }
-        ],
-        "unadmitted_types": [
-          "aws_cloudwatch_event_target",
-          "aws_lambda_permission"
         ]
       }
     },
@@ -5224,7 +5185,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 29,
+      "sites": 28,
       "unresolved_modules": 4,
       "unset_variables": 0,
       "schemas": true
@@ -6041,7 +6002,7 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 4,
+      "shadowed": 2,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -6054,6 +6015,11 @@
             "layer": "identity",
             "id": "Identity argument not set",
             "sites": 4
+          },
+          {
+            "layer": "identity",
+            "id": "Identity not resolvable from configuration",
+            "sites": 2
           },
           {
             "layer": "identity",
@@ -6083,11 +6049,10 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 4
+            "sites": 2
           }
         ],
         "unadmitted_types": [
-          "aws_cloudwatch_event_target",
           "aws_s3_bucket_inventory"
         ]
       }
@@ -6648,7 +6613,7 @@
       "origin": "in-repo fixture",
       "blocked": true,
       "loaded": true,
-      "instances": 35,
+      "instances": 36,
       "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
@@ -6659,8 +6624,8 @@
       "origin": "in-repo fixture",
       "blocked": true,
       "loaded": true,
-      "instances": 19,
-      "sites": 6,
+      "instances": 20,
+      "sites": 5,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -6692,7 +6657,7 @@
       "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
-      "instances": 34,
+      "instances": 38,
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
@@ -6725,7 +6690,7 @@
       "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
-      "instances": 33,
+      "instances": 34,
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
@@ -6769,8 +6734,8 @@
       "origin": "in-repo fixture",
       "blocked": true,
       "loaded": true,
-      "instances": 38,
-      "sites": 5,
+      "instances": 40,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -6780,8 +6745,8 @@
       "origin": "in-repo fixture",
       "blocked": true,
       "loaded": true,
-      "instances": 8,
-      "sites": 3,
+      "instances": 11,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -6791,7 +6756,7 @@
       "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
-      "instances": 24,
+      "instances": 26,
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
@@ -6813,8 +6778,8 @@
       "origin": "in-repo fixture",
       "blocked": true,
       "loaded": true,
-      "instances": 19,
-      "sites": 5,
+      "instances": 21,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -6835,7 +6800,7 @@
       "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
-      "instances": 6,
+      "instances": 7,
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
@@ -6879,7 +6844,7 @@
       "origin": "in-repo fixture",
       "blocked": true,
       "loaded": true,
-      "instances": 29,
+      "instances": 31,
       "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
@@ -6901,7 +6866,7 @@
       "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
-      "instances": 24,
+      "instances": 32,
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
@@ -6945,7 +6910,7 @@
       "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
-      "instances": 47,
+      "instances": 49,
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
@@ -6978,7 +6943,7 @@
       "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
-      "instances": 14,
+      "instances": 18,
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
@@ -7027,16 +6992,12 @@
       "title": "Resource type is outside the live-markers subset",
       "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
       "raised_by": "internal/live/lint",
-      "configs": 131,
-      "sites": 1964,
+      "configs": 120,
+      "sites": 1791,
       "types": [
         {
           "type": "aws_security_group_rule",
           "sites": 242
-        },
-        {
-          "type": "aws_lambda_permission",
-          "sites": 151
         },
         {
           "type": "aws_s3_bucket_replication_configuration",
@@ -7125,10 +7086,6 @@
         {
           "type": "google_storage_bucket",
           "sites": 17
-        },
-        {
-          "type": "aws_cloudwatch_event_target",
-          "sites": 16
         },
         {
           "type": "aws_default_network_acl",
@@ -7280,10 +7237,6 @@
         },
         {
           "type": "aws_ecs_capacity_provider",
-          "sites": 6
-        },
-        {
-          "type": "aws_ecs_service",
           "sites": 6
         },
         {
@@ -7911,8 +7864,8 @@
         ".corpus/alb/examples/complete-alb/main.tf:561",
         ".corpus/alb/main.tf:476",
         ".corpus/alb/main.tf:476",
-        ".corpus/alb/main.tf:603",
-        ".corpus/alb/main.tf:603"
+        ".corpus/alb/main.tf:701",
+        ".corpus/alb/main.tf:701"
       ],
       "registered": true
     },
@@ -7941,8 +7894,8 @@
       "what": "An identity could not be built because a reference it depends on failed; the reference's own error explains why.",
       "docs_ref": "live/LIMITATIONS.md, \"Unresolvable identity\"",
       "raised_by": "internal/live/identity",
-      "configs": 73,
-      "sites": 582,
+      "configs": 74,
+      "sites": 585,
       "examples": [
         ".corpus/autoscaling/main.tf:1463",
         ".corpus/cool-assessment/operations_routing.tf:21",
@@ -8120,6 +8073,24 @@
     },
     {
       "layer": "identity",
+      "id": "Not an identity attribute",
+      "title": "Not an identity attribute",
+      "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
+      "docs_ref": "live/LIMITATIONS.md, \"Not an identity attribute\"",
+      "raised_by": "internal/live/identity",
+      "configs": 29,
+      "sites": 59,
+      "examples": [
+        ".corpus/cyhy-amis/terraform/bod_bastion_route53.tf:17",
+        ".corpus/cyhy-amis/terraform/bod_docker_route53.tf:4",
+        ".corpus/cyhy-amis/terraform/bod_route53.tf:34",
+        ".corpus/cyhy-amis/terraform/bod_route53.tf:46",
+        ".corpus/cyhy-amis/terraform/bod_route53.tf:58"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
       "id": "Non-static for_each expression",
       "title": "Non-static for_each expression",
       "what": "A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.",
@@ -8190,24 +8161,6 @@
     },
     {
       "layer": "identity",
-      "id": "Identity argument not set",
-      "title": "Identity argument not set",
-      "what": "The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.",
-      "docs_ref": "live/LIMITATIONS.md, \"Identity argument not set\"",
-      "raised_by": "internal/live/identity",
-      "configs": 19,
-      "sites": 36,
-      "examples": [
-        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:41",
-        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:74",
-        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:100",
-        ".corpus/eks/cluster.tf:87",
-        ".corpus/eks/cluster.tf:87"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
       "id": "Non-static count expression",
       "title": "Non-static count expression",
       "what": "A count expression evaluates to null, or to a value not knowable from configuration alone.",
@@ -8226,19 +8179,19 @@
     },
     {
       "layer": "identity",
-      "id": "Not an identity attribute",
-      "title": "Not an identity attribute",
-      "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
-      "docs_ref": "live/LIMITATIONS.md, \"Not an identity attribute\"",
+      "id": "Identity argument not set",
+      "title": "Identity argument not set",
+      "what": "The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.",
+      "docs_ref": "live/LIMITATIONS.md, \"Identity argument not set\"",
       "raised_by": "internal/live/identity",
-      "configs": 16,
-      "sites": 44,
+      "configs": 17,
+      "sites": 32,
       "examples": [
-        ".corpus/cyhy-amis/terraform/bod_bastion_route53.tf:17",
-        ".corpus/cyhy-amis/terraform/bod_docker_route53.tf:4",
-        ".corpus/cyhy-amis/terraform/bod_route53.tf:34",
-        ".corpus/cyhy-amis/terraform/bod_route53.tf:46",
-        ".corpus/cyhy-amis/terraform/bod_route53.tf:58"
+        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:41",
+        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:74",
+        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:100",
+        ".corpus/eks/cluster.tf:87",
+        ".corpus/eks/cluster.tf:87"
       ],
       "registered": true
     },
@@ -8284,8 +8237,8 @@
       "what": "An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.",
       "docs_ref": "live/LIMITATIONS.md, \"Identity not resolvable from configuration\"",
       "raised_by": "internal/live/identity",
-      "configs": 10,
-      "sites": 56,
+      "configs": 11,
+      "sites": 58,
       "examples": [
         ".corpus/autoscaling/main.tf:1116",
         ".corpus/autoscaling/main.tf:1116",
@@ -9292,8 +9245,8 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 2582,
-    "sites": 15261,
+    "instances": 2625,
+    "sites": 15104,
     "refusals_fired": 28,
     "refusals_in_set": 109,
     "configs_without_schemas": 0,
@@ -9306,8 +9259,8 @@
       "loaded": 31,
       "blocked": 8,
       "clean": 23,
-      "instances": 641,
-      "sites": 23,
+      "instances": 674,
+      "sites": 17,
       "reads_as": "ranking"
     },
     {
@@ -9316,8 +9269,8 @@
       "loaded": 144,
       "blocked": 144,
       "clean": 0,
-      "instances": 1525,
-      "sites": 3624,
+      "instances": 1535,
+      "sites": 3614,
       "reads_as": "rate"
     },
     {
@@ -9327,7 +9280,7 @@
       "blocked": 72,
       "clean": 2,
       "instances": 416,
-      "sites": 11614,
+      "sites": 11473,
       "reads_as": "ranking"
     }
   ],
@@ -9350,11 +9303,11 @@
       },
       {
         "class": "admissions-only",
-        "configs": 18
+        "configs": 10
       },
       {
         "class": "language-blocked",
-        "configs": 114
+        "configs": 122
       },
       {
         "class": "unreadable",
@@ -9365,14 +9318,6 @@
       {
         "type": "aws_s3_bucket_replication_configuration",
         "configs": 16
-      },
-      {
-        "type": "aws_cloudwatch_event_target",
-        "configs": 13
-      },
-      {
-        "type": "aws_lambda_permission",
-        "configs": 13
       },
       {
         "type": "aws_s3_bucket_object_lock_configuration",

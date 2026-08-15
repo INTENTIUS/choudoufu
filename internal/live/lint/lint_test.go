@@ -219,9 +219,9 @@ func TestCheck(t *testing.T) {
 			want: []wantIssue{
 				{
 					rule:      RuleUnadmittedType,
-					construct: "aws_cloudwatch_event_rule.web",
+					construct: "aws_accessanalyzer_analyzer.web",
 					file:      "testdata/unadmitted/main.tf",
-					line:      5,
+					line:      9,
 				},
 			},
 		},
@@ -291,13 +291,13 @@ func TestCheck(t *testing.T) {
 				},
 				{
 					rule:      RuleUnadmittedType,
-					construct: "aws_cloudwatch_event_rule.web",
+					construct: "aws_accessanalyzer_analyzer.web",
 					file:      "testdata/multiple/main.tf",
 					line:      11,
 				},
 				{
 					rule:      RuleProvisioner,
-					construct: `provisioner "local-exec" on aws_cloudwatch_event_rule.web`,
+					construct: `provisioner "local-exec" on aws_accessanalyzer_analyzer.web`,
 					file:      "testdata/multiple/main.tf",
 					line:      14,
 				},
@@ -332,7 +332,7 @@ func TestCheck(t *testing.T) {
 			want: []wantIssue{
 				{
 					rule:      RuleUnadmittedType,
-					construct: "aws_cloudwatch_event_rule.web",
+					construct: "aws_accessanalyzer_analyzer.web",
 					module:    "module.compute",
 					file:      "testdata/child-module/child/main.tf",
 					line:      1,

@@ -128,6 +128,14 @@ type proposal struct {
 	CompositeArgs []string
 	CompositeSep  string
 
+	// CompositeDefaults carries the doc's own omitted-argument fallback for
+	// any of CompositeArgs (import-grammar's omitted_fallbacks field): the
+	// rendered component reads the argument when the configuration sets it
+	// and contributes the documented literal when it does not
+	// (identity.Component.Default). Nil for every composite whose doc
+	// states no fallback.
+	CompositeDefaults map[string]string
+
 	// bucketAssembled only: the documented ARN/URL template's segments,
 	// copied from live/import-grammar.json's import_id_template field once
 	// tryAssembledTemplate's evidence bar passed. Every segment is a

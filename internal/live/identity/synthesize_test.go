@@ -145,9 +145,9 @@ func TestSchemaFallbackAbsentSchemasUnchanged(t *testing.T) {
 func TestSchemaFallbackTypeNotServed(t *testing.T) {
 	_, errText := resolveFallback(t, "unknown-type", fallbackSchemas())
 	if errText == "" {
-		t.Fatal("aws_cloudwatch_event_rule resolved against schemas that do not describe it")
+		t.Fatal("aws_appstream_directory_config resolved against schemas that do not describe it")
 	}
-	if !strings.Contains(errText, "serves no aws_cloudwatch_event_rule") {
+	if !strings.Contains(errText, "serves no aws_appstream_directory_config") {
 		t.Errorf("the refusal does not say the provider never served the type: %s", errText)
 	}
 }

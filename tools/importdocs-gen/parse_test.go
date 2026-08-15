@@ -191,3 +191,22 @@ func equalStrings(a, b []string) bool {
 	}
 	return true
 }
+
+func TestOmittedFallbacks(t *testing.T) {
+	section := "use an import block to import EventBridge Rules using the `event_bus_name/rule_name` (if you omit `event_bus_name`, the `default` event bus will be used). For example:"
+	got := omittedFallbacks(section, []string{"event_bus_name", "name"})
+	if len(got) != 1 || got["event_bus_name"] != "default" {
+		t.Errorf("omittedFallbacks = %v, want {event_bus_name: default}", got)
+	}
+
+	// The argument constraint: a fallback sentence about an argument the
+	// composite does not name is not recorded.
+	if got := omittedFallbacks(section, []string{"statement_id"}); got != nil {
+		t.Errorf("omittedFallbacks recorded %v for a composite that does not name event_bus_name", got)
+	}
+
+	// No sentence, no field.
+	if got := omittedFallbacks("using `a/b`. For example:", []string{"a", "b"}); got != nil {
+		t.Errorf("omittedFallbacks = %v on a section with no fallback sentence", got)
+	}
+}

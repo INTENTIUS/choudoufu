@@ -93,6 +93,19 @@ type Row struct {
 	// short-ID example. See idtemplate.go.
 	IDTemplate *IDTemplate `json:"import_id_template,omitempty"`
 
+	// OmittedFallbacks records the Import section's own statement that one
+	// of Arguments may be omitted from the composite ID and what the
+	// service substitutes when it is: "(if you omit `event_bus_name`, the
+	// `default` event bus will be used)" becomes
+	// {"event_bus_name": "default"}. Scraped only from that documented
+	// shape, and only for an argument Arguments already names - the
+	// fallback literal is the doc's own backticked word, never a guess.
+	// Three pages in the 6.59.0 cache carry the sentence, all EventBridge,
+	// all "default"; the field exists so the identity table's
+	// literal-fallback vocabulary (Component.Default) derives from the
+	// doc's statement rather than from a hand ruling per type.
+	OmittedFallbacks map[string]string `json:"omitted_fallbacks,omitempty"`
+
 	// IDParts is the documented import ID's per-segment source attribution
 	// (issue #132): each segment name the Import section's own prose gives,
 	// attributed to the doc section that defines it - an Argument Reference
@@ -264,6 +277,7 @@ func buildRow(tfType, doc string) (Row, bool) {
 		ArgumentsInOrder:       cr.ArgumentsInOrder,
 		IdentitySchemaRequired: idReq,
 		IdentitySchemaOptional: idOpt,
+		OmittedFallbacks:       omittedFallbacks(section, cr.Arguments),
 		IDParts:                parts,
 		IDTemplate:             idTemplate(section, tfType, argEntries, exArgs),
 	}, true

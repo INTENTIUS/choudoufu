@@ -310,7 +310,7 @@ func proposedFields(p proposal) (serverAssigned bool, components []identity.Comp
 			if i > 0 {
 				components = append(components, identity.Component{Literal: p.CompositeSep})
 			}
-			components = append(components, identity.Component{Attrs: []string{arg}, IdentityAttr: identity.SameNameIdentity})
+			components = append(components, identity.Component{Attrs: []string{arg}, Default: p.CompositeDefaults[arg], IdentityAttr: identity.SameNameIdentity})
 		}
 		// #106 criterion 3: an assembled row whose leading literal names its
 		// own scheme carries the derived IdentityAttr on every component. A

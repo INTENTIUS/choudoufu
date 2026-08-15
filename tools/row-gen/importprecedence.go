@@ -382,6 +382,7 @@ func setClientNamedComposite(p *proposal, args []string, sep string, g importGra
 	p.Bucket = bucketComposite
 	p.CompositeArgs = append([]string(nil), args...)
 	p.CompositeSep = sep
+	p.CompositeDefaults = compositeDefaultsFor(args, g)
 	p.ArgSource = argSourceImportGrammar
 	p.Rule = "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string"
 	p.Notes = append(p.Notes, fmt.Sprintf("import docs pin %s joined by %q: %s", quoteList(args), sep, g.ImportIDExample))
@@ -532,6 +533,7 @@ func tryRegistryComposite(p *proposal, g importGrammarRow) bool {
 		p.Bucket = bucketComposite
 		p.CompositeArgs = dc.ArgsInOrder
 		p.CompositeSep = dc.Separator
+		p.CompositeDefaults = compositeDefaultsFor(dc.ArgsInOrder, g)
 		p.ArgSource = argSourceImportGrammar
 		p.Rule = "import-grammar precedence: registry composite primaryIdentifier, separator and order recovered from the documented example string"
 		p.Notes = append(p.Notes, fmt.Sprintf("import docs example %q splits on %q into exactly the registry's %d primary-identifier parts, matched by name: %s", g.ImportIDExample, sep, len(p.PrimaryIdentifier), quoteList(dc.ArgsInOrder)))
@@ -1064,6 +1066,7 @@ func tryArgumentReferenceComposite(p *proposal, g importGrammarRow) bool {
 		p.Bucket = bucketComposite
 		p.CompositeArgs = dc.ArgsInOrder
 		p.CompositeSep = dc.Separator
+		p.CompositeDefaults = compositeDefaultsFor(dc.ArgsInOrder, g)
 		p.ArgSource = argSourceArgumentReference
 		p.Rule = "import-grammar precedence: Argument Reference's own Required arguments, separator and order recovered from the documented example string"
 		p.Notes = append(p.Notes, fmt.Sprintf("import docs example %q splits on %q into exactly %d Required Argument Reference names, matched by name: %s", g.ImportIDExample, sep, len(required), quoteList(dc.ArgsInOrder)))
@@ -1351,4 +1354,21 @@ func tryCompoundArnImportSyntax(p *proposal, g importGrammarRow) {
 	}
 	p.DerivedImportSyntax = strings.Join(parts, "#")
 	p.Notes = append(p.Notes, fmt.Sprintf("import docs example %q joins %d ARNs; ImportSyntax reflects that compound shape rather than the registry's single-ARN placeholder", g.ImportIDExample, len(matches)))
+}
+
+// compositeDefaultsFor is the slice of the grammar row's omitted_fallbacks
+// that names one of this composite's own arguments; nil when there are
+// none, so proposals without a documented fallback stay byte-identical to
+// what they were before the field existed.
+func compositeDefaultsFor(args []string, g importGrammarRow) map[string]string {
+	var out map[string]string
+	for _, a := range args {
+		if v, ok := g.OmittedFallbacks[a]; ok {
+			if out == nil {
+				out = map[string]string{}
+			}
+			out[a] = v
+		}
+	}
+	return out
 }

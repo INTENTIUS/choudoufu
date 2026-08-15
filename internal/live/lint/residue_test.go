@@ -76,16 +76,15 @@ func assertRefusalNamesCohort(t *testing.T, dir, construct string, wantCohort re
 // contract: a type in no exclusion cohort - the common case, since most
 // unadmitted types are simply not wired yet rather than excluded by any
 // rule - keeps exactly today's base refusal message, with nothing appended
-// by [residue.Lookup]. aws_cloudwatch_event_rule is in no cohort: it has a
-// real CFN counterpart (AWS::Events::Rule) with a working handler, in no
-// deprecated service, and is not on the emulator-blocked roster — what
-// keeps it out is a gap in this table's own [Component] vocabulary (a
-// literal fallback for an omitted argument), not a residue exclusion.
-// aws_customer_gateway had this fixture's place before the EC2 networking
-// batch (issue #65) admitted it.
+// by [residue.Lookup]. aws_accessanalyzer_analyzer is in no cohort: a
+// real CFN counterpart, no deprecated service, not emulator-blocked -
+// simply not yet ratified by any batch. aws_customer_gateway and then
+// aws_cloudwatch_event_rule held this fixture's place before their batches
+// admitted them (the EC2 networking batch, and the omitted-bus fallback
+// vocabulary Component.Default introduced).
 func TestRefusalSilentForTypeInNoCohort(t *testing.T) {
-	if _, _, ok := residue.Lookup("aws_cloudwatch_event_rule"); ok {
-		t.Fatal("aws_cloudwatch_event_rule now resolves to a cohort; this test needs a type genuinely in none")
+	if _, _, ok := residue.Lookup("aws_accessanalyzer_analyzer"); ok {
+		t.Fatal("aws_accessanalyzer_analyzer now resolves to a cohort; this test needs a type genuinely in none")
 	}
 
 	cfg := loadConfigDir(t, "testdata/unadmitted")

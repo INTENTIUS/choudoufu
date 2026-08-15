@@ -253,7 +253,13 @@ func renderCompositeEntry(p proposal) string {
 		if i > 0 {
 			fmt.Fprintf(&comps, "\n\t\tsep(%q),", p.CompositeSep)
 		}
-		fmt.Fprintf(&comps, "\n\t\tattr(%q),", arg)
+		if def, ok := p.CompositeDefaults[arg]; ok {
+			// attr() cannot carry a fallback; the component is spelled in
+			// full so the paste stays unedited (see Component.Default).
+			fmt.Fprintf(&comps, "\n\t\tComponent{Attrs: []string{%q}, Default: %q, IdentityAttr: SameNameIdentity},", arg, def)
+		} else {
+			fmt.Fprintf(&comps, "\n\t\tattr(%q),", arg)
+		}
 		syn = append(syn, strings.ToUpper(arg))
 	}
 	importSyntax := strings.Join(syn, strings.ToUpper(p.CompositeSep))

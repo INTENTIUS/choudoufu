@@ -105,8 +105,23 @@ type Component struct {
 
 	// Attrs names the resource arguments to read, in preference order. The
 	// first one present in configuration supplies the value; if none is
-	// present, resolution fails naming all of them.
+	// present, resolution fails naming all of them - unless Default below
+	// says what omission means.
 	Attrs []string
+
+	// Default is the literal value this component contributes when none of
+	// Attrs is set in the configuration, for the arguments whose omission
+	// the provider itself documents as selecting a server-side default: an
+	// omitted event_bus_name means the "default" event bus, and the Import
+	// section says so in words ("if you omit `event_bus_name`, the
+	// `default` event bus will be used" - scraped into import-grammar's
+	// omitted_fallbacks field). The empty string keeps the standing rule:
+	// an unset identity argument refuses resolution. A component carrying
+	// one still supplies its identity attribute - under the first Attrs
+	// name, since no argument was chosen per instance - so identity-object
+	// import works the same whether the configuration wrote the default or
+	// left it out.
+	Default string
 
 	// Cloud names a value that comes from the cloud the run is pointed at
 	// rather than from the configuration: the AWS account ID, the region.

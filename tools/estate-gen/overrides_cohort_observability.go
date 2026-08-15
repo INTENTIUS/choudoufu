@@ -21,6 +21,34 @@ var typeOverridesObservability = map[string]typeOverride{
 	// carry), or is a nested block the schema marks optional while the
 	// provider requires its contents in practice - the same two failure
 	// shapes issue #56 already named for the earlier cohorts above.
+	// #175 reversal batch, 2026-08-15. The rule and its target pair by
+	// matching seed literals (the assembled-identity pairing shape the
+	// 55856b4473 ruling recorded): event_rule's own IdentityAttrs is nil -
+	// the id-alias inference issue #44 leaves to a human was not made - so
+	// no identity-bound reference from the target's "rule" argument to the
+	// rule's "name" attribute is sanctioned, and both sides carry the same
+	// literal instead. event_bus_name stays omitted on both on purpose:
+	// the row's Component.Default supplies the documented "default" bus,
+	// and a committed fixture exercising the fallback is the round-trip
+	// proof the vocabulary needs.
+	"aws_cloudwatch_event_rule": {
+		Reasons: []string{
+			`"name" mis-wired to aws_cloudwatch_alarm_mute_rule.app.name by the generic pass's same-name search; corrected to a literal so the target below can pair with it by matching seed literal. event_pattern carries the doc example's own value by hand because a type override displaces the doc-example seeding, and the provider requires one of event_pattern/schedule_expression (validate: "one of event_pattern,schedule_expression must be specified"), a constraint the wire schema does not express`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(`"tofu-observability-cohort-event-rule"`))
+			body.SetAttributeRaw("event_pattern", exprTokens(`"{\"detail-type\":[\"AWS Console Sign In via CloudTrail\"]}"`))
+		},
+	},
+	"aws_cloudwatch_event_target": {
+		Reasons: []string{
+			`"rule" pairs with aws_cloudwatch_event_rule's name by matching seed literal (see the batch comment above); arn is validated as a well-formed ARN (validate: "arn" (placeholder) is an invalid ARN) and no admitted type in this cohort is a valid EventBridge target, so it stays a literal placeholder ARN naming an SNS topic - the same "no real sibling to reference" shape aws_pipes_pipe's target accepts in the streaming cohort`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("rule", exprTokens(`"tofu-observability-cohort-event-rule"`))
+			body.SetAttributeRaw("arn", exprTokens(`"arn:aws:sns:us-east-1:123456789012:tofu-observability-cohort-event-target"`))
+		},
+	},
 	"aws_cloudwatch_alarm_mute_rule": {
 		Reasons: []string{
 			`rule is a required argument typed as a nested block with MinItems 0 in the wire schema, so the generic required-only pass never renders one at all - not caught by "terraform validate" (which only checks the arguments a block actually has), only surfaced applying against floci (apply: "missing required field, PutAlarmMuteRuleInput.Rule"). Its own nested schedule block is likewise required in practice.`,

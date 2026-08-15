@@ -925,3 +925,35 @@ func dedupeStrings(in []string) []string {
 	}
 	return out
 }
+
+// omittedFallbackSentence is the one documented shape omittedFallbacks
+// reads: "(if you omit `event_bus_name`, the `default` event bus will be
+// used)". The argument and the substituted literal are both the doc's own
+// backticked words; everything between the literal and "will be used" is
+// the service's prose name for the thing being defaulted and is not
+// captured.
+var omittedFallbackSentence = regexp.MustCompile("\\(if you omit `([a-z0-9_]+)`, the `([^`]+)`[^)]*will be used\\)")
+
+// omittedFallbacks scrapes the Import section for the documented
+// omitted-argument fallback sentence, keeping only matches whose argument
+// is one the composite's own Arguments list already names - a fallback for
+// an argument the ID does not compose is a sentence about something else.
+// Returns nil when the section states none, so the artifact field is
+// omitted rather than empty.
+func omittedFallbacks(section string, args []string) map[string]string {
+	named := map[string]bool{}
+	for _, a := range args {
+		named[a] = true
+	}
+	var out map[string]string
+	for _, m := range omittedFallbackSentence.FindAllStringSubmatch(section, -1) {
+		if !named[m[1]] {
+			continue
+		}
+		if out == nil {
+			out = map[string]string{}
+		}
+		out[m[1]] = m[2]
+	}
+	return out
+}

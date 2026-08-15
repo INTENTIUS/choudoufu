@@ -473,8 +473,8 @@ func TestResolveErrors(t *testing.T) {
 		{
 			dir:         "unknown-type",
 			wantSummary: "Resource type outside the live-markers subset",
-			wantDetail:  `"aws_cloudwatch_event_rule"`,
-			wantAbsent:  `aws_cloudwatch_event_rule.app`,
+			wantDetail:  `"aws_appstream_directory_config"`,
+			wantAbsent:  `aws_appstream_directory_config.app`,
 		},
 		{
 			dir:         "unevaluable-name",
@@ -944,4 +944,21 @@ func TestSynthesizedTypeWarnsAboutOrphanRecovery(t *testing.T) {
 			t.Errorf("the warning does not say what will not happen: %q", detail)
 		}
 	}
+}
+
+// TestResolveDefaultedIdentityArg pins [Component.Default]'s two sides on
+// the row that introduced it (aws_cloudwatch_event_rule, #175's reversal):
+// an omitted event_bus_name resolves to the documented "default" bus
+// rather than refusing, and a written one still wins.
+func TestResolveDefaultedIdentityArg(t *testing.T) {
+	cfg := loadConfig(t, "testdata/defaulted-identity-arg", nil)
+
+	result, diags := Resolve(context.Background(), cfg)
+	assertNoErrors(t, diags)
+
+	want := map[string]string{
+		`aws_cloudwatch_event_rule.quiet`: `CONCRETE default/capture-signin`,
+		`aws_cloudwatch_event_rule.loud`:  `CONCRETE team-bus/capture-signin-custom`,
+	}
+	assertClassifications(t, result, want)
 }

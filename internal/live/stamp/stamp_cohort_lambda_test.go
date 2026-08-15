@@ -22,6 +22,9 @@ var untaggableLambda = []string{
 	// untaggable type. See live/e2e/estates/lambda/README.md,
 	// "Untaggable types".
 	"aws_lambda_layer_version",
+	// #175 reversal batch, 2026-08-15: taggability per the provider
+	// schema survey (live/survey-full.json, v6.59.0 signals.taggable).
+	"aws_lambda_permission",
 }
 
 func init() {
@@ -36,6 +39,8 @@ func init() {
 			"aws_lambda_event_source_mapping": taggedSchema("id", "uuid", "arn", "function_arn"),
 			"aws_lambda_function":             taggedSchema("id", "arn", "function_name"),
 			"aws_lambda_layer_version":        untaggedSchema("id", "arn", "layer_arn", "layer_name", "version"),
+			// #175 reversal batch, 2026-08-15.
+			"aws_lambda_permission": untaggedSchema("id", "function_name", "statement_id"),
 		})
 	})
 }

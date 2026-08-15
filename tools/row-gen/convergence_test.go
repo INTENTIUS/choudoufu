@@ -105,7 +105,13 @@ const unannotatedMismatchRatchetMax = 0
 // the same bar by the -emit gate. Every ruling carries an exit naming what
 // a fuller extraction would have to capture; the ledger is a list of named
 // extractor gaps, not accepted losses.
-const annotationCountRatchetMax = 128
+//
+// 129 (2026-08-15): the reviewed bump the constant's own rule allows - the
+// #175 reversal batch admitted aws_cloudwatch_event_target, a fold-child
+// the classifier deliberately does not shape (its ruling names the exit: a
+// fold-child rule composing the parent's tuple with the child's own
+// import-doc arguments).
+const annotationCountRatchetMax = 129
 
 // TestAnnotationCountRatchet reads the committed ledger directly and fails
 // when it has grown past annotationCountRatchetMax - never when it shrinks:
