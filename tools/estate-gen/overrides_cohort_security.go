@@ -193,14 +193,6 @@ var typeOverridesSecurity = map[string]typeOverride{
 			}
 		},
 	},
-	"aws_macie2_findings_filter": {
-		Reasons: []string{
-			`action is a plain string in the schema but the provider validates it against a fixed enum (validate: "expected action to be one of [ARCHIVE NOOP]")`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("action", exprTokens(`"ARCHIVE"`))
-		},
-	},
 	"aws_secretsmanager_secret_policy": {
 		Reasons: []string{
 			`secret_arn is a plain string in the schema but the provider validates it is a well-formed ARN (validate: "is an invalid ARN"), which the generic pass's placeholder name is not - a real cross-reference to aws_secretsmanager_secret.app's own arn is both the fix and the point of this coverage row (the parent-derived composite this batch ratified); policy is a plain string in the schema but the provider validates it is well-formed JSON (validate: "contains an invalid JSON")`,

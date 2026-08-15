@@ -115,7 +115,11 @@ func TestSeedIsSuppressedWhereAnOverrideExists(t *testing.T) {
 	}
 }
 
-func TestSeedSkipsIncompleteArguments(t *testing.T) {
+// TestSeedIncompleteNeverAddsAnArgument is the SSE guard: an argument from
+// a block whose cross-resource reference was dropped is evidence, not a
+// configuration, so it may never introduce an attribute the generic pass
+// did not write.
+func TestSeedIncompleteNeverAddsAnArgument(t *testing.T) {
 	arg := at(str("aws:kms"), "sse_algorithm")
 	arg.Incomplete = true
 	g := seedGen("aws_thing", arg)
@@ -124,6 +128,51 @@ func TestSeedSkipsIncompleteArguments(t *testing.T) {
 	if applied := g.seedFromExample(body, blockWith(map[string]*configschema.Attribute{"sse_algorithm": optString()}, nil), "aws_thing"); len(applied) != 0 {
 		t.Errorf("seeded %v from a block whose cross-resource reference was dropped; the result is a "+
 			"configuration the provider rejects", applied)
+	}
+}
+
+// TestSeedIncompleteNeverCreatesABlock is the same guard one level up: the
+// real SSE case sits inside an optional nested block the generic pass never
+// creates, and an incomplete example must not create it either.
+func TestSeedIncompleteNeverCreatesABlock(t *testing.T) {
+	arg := at(str("aws:kms"), "apply_server_side_encryption_by_default", "sse_algorithm")
+	arg.Incomplete = true
+	g := seedGen("aws_thing", arg)
+	body := hclwrite.NewEmptyFile().Body()
+	schema := blockWith(nil, map[string]*configschema.NestedBlock{
+		"apply_server_side_encryption_by_default": {
+			Nesting: configschema.NestingList, MinItems: 1, MaxItems: 1,
+			Block: *blockWith(map[string]*configschema.Attribute{"sse_algorithm": optString()}, nil),
+		},
+	})
+
+	if applied := g.seedFromExample(body, schema, "aws_thing"); len(applied) != 0 {
+		t.Errorf("seeded %v; an incomplete argument created the block it sits in", applied)
+	}
+	if body.FirstMatchingBlock("apply_server_side_encryption_by_default", nil) != nil {
+		t.Error("the block was created for an incomplete argument")
+	}
+}
+
+// TestSeedIncompleteReplacesThePlaceholder is the widening that guard
+// allows: where the generic pass wrote its placeholder - the generator
+// admitting it had nothing to offer - the page's literal for that exact
+// argument is still the best evidence available, dropped reference or not.
+// Measured 2026-08-15: refusing this kept 72 override types hand-written
+// whose documented literal was byte-identical to the override's.
+func TestSeedIncompleteReplacesThePlaceholder(t *testing.T) {
+	arg := at(str("NONE"), "authorization")
+	arg.Incomplete = true
+	g := seedGen("aws_thing", arg)
+	body := hclwrite.NewEmptyFile().Body()
+	body.SetAttributeRaw("authorization", exprTokens(genericExprText(cty.String)))
+
+	applied := g.seedFromExample(body, blockWith(map[string]*configschema.Attribute{"authorization": optString()}, nil), "aws_thing")
+	if len(applied) != 1 || applied[0] != "authorization" {
+		t.Fatalf("applied = %v, want [authorization]", applied)
+	}
+	if got := strings.TrimSpace(string(body.GetAttribute("authorization").Expr().BuildTokens(nil).Bytes())); got != `"NONE"` {
+		t.Errorf("authorization = %s, want the documented \"NONE\" to replace the placeholder", got)
 	}
 }
 

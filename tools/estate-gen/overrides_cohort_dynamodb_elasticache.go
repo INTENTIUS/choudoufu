@@ -62,14 +62,6 @@ var typeOverridesDynamodbElasticache = map[string]typeOverride{
 			body.SetAttributeRaw("engine", exprTokens(`"redis"`))
 		},
 	},
-	"aws_elasticache_user_group": {
-		Reasons: []string{
-			`engine is a required argument the schema types as an unconstrained string, but the provider validates it against a closed enum (validate: "expected engine to be one of [\"redis\" \"valkey\"]"); the generic placeholder string is neither`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("engine", exprTokens(`"redis"`))
-		},
-	},
 }
 
 func init() { registerCohortOverrides(typeOverridesDynamodbElasticache) }

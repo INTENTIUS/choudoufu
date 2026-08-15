@@ -250,18 +250,6 @@ var typeOverridesSagemaker = map[string]typeOverride{
   })`, resourceExpr)))
 		},
 	},
-	"aws_sagemaker_monitoring_schedule": {
-		Reasons: []string{
-			`monitoring_schedule_config.monitoring_type is Required and the provider validates it against a closed enum (validate: "expected monitoring_type to be one of [...]")`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			for _, blk := range body.Blocks() {
-				if blk.Type() == "monitoring_schedule_config" {
-					blk.Body().SetAttributeRaw("monitoring_type", exprTokens(`"DataQuality"`))
-				}
-			}
-		},
-	},
 	"aws_sagemaker_notebook_instance": {
 		Reasons: []string{
 			`instance_type is Required and the provider validates it against a closed enum (validate: "expected instance_type to be one of [...]"); role_arn is Required and the provider validates it is a well-formed ARN (validate: "is an invalid ARN") - wired to the shared aws_iam_role`,

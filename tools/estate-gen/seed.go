@@ -65,9 +65,18 @@ import (
 //     computed on purpose (a parent reference, an identity name, a role
 //     ref) is left alone, because that one carries meaning the page cannot
 //     know - the doc's own "example-bucket" would collide across cohorts.
-//   - The example marked it complete. An argument whose block had a
+//   - The example marked it complete, OR it is replacing a placeholder the
+//     generic pass already wrote. An argument whose block had a
 //     cross-resource reference dropped is evidence, not a configuration -
-//     see ExampleArgument.Incomplete, and the SSE case that produced it.
+//     see ExampleArgument.Incomplete, and the SSE case that produced it -
+//     so an incomplete argument may never ADD anything: no new attribute,
+//     no new block. But where the generic pass has already admitted it had
+//     nothing to offer, the page's literal for that exact argument is
+//     still the best evidence available, and refusing it kept 72 override
+//     types hand-written whose documented literal was byte-identical to
+//     the override's (measured 2026-08-15). The SSE guard holds either
+//     way: sse_algorithm sits in an optional block the generic pass never
+//     creates, so there is no placeholder for it to replace.
 //   - The schema has an argument of that name at that path, and it is
 //     settable. A page can name an argument this provider version renamed
 //     or made computed, and writing it produces a configuration that fails
@@ -136,7 +145,7 @@ func (g *generator) seedFromExample(body *hclwrite.Body, block *configschema.Blo
 
 	var applied []string
 	for _, arg := range args {
-		if arg.Incomplete || len(arg.Path) == 0 {
+		if len(arg.Path) == 0 {
 			continue
 		}
 		// Naming arguments belong to the generator, not to the page. A
@@ -153,7 +162,7 @@ func (g *generator) seedFromExample(body *hclwrite.Body, block *configschema.Blo
 		if leaf := arg.Path[len(arg.Path)-1]; leaf == identityArg || looksLikeName(leaf) {
 			continue
 		}
-		target, attr, ok := resolveSeedPath(body, block, arg.Path)
+		target, attr, ok := resolveSeedPath(body, block, arg.Path, !arg.Incomplete)
 		if !ok {
 			continue
 		}
@@ -161,7 +170,14 @@ func (g *generator) seedFromExample(body *hclwrite.Body, block *configschema.Blo
 			continue // computed-only: writing it is an error, not a fix
 		}
 		name := arg.Path[len(arg.Path)-1]
-		if existing := target.GetAttribute(name); existing != nil && !isGenericPlaceholder(existing, attr.Type) {
+		existing := target.GetAttribute(name)
+		if arg.Incomplete {
+			// Evidence, not a configuration: it may correct a placeholder
+			// the generic pass admitted it had nothing for, and only that.
+			if existing == nil || !isGenericPlaceholder(existing, attr.Type) {
+				continue
+			}
+		} else if existing != nil && !isGenericPlaceholder(existing, attr.Type) {
 			continue // valueExpr computed this on purpose; do not overwrite it
 		}
 		target.SetAttributeRaw(name, exprTokens(seedLiteral(arg)))
@@ -171,14 +187,15 @@ func (g *generator) seedFromExample(body *hclwrite.Body, block *configschema.Blo
 }
 
 // resolveSeedPath walks a path's leading block names, creating each block if
-// the generic pass did not, and returns the body to write into plus the
-// schema attribute the last element names.
+// the generic pass did not (only when create is true - an incomplete
+// argument may never add structure), and returns the body to write into
+// plus the schema attribute the last element names.
 //
 // A block that can hold more than one instance stops the walk. "which
 // element does this value belong to" is a question one page's example does
 // not answer, and picking the first is the kind of guess that produces a
 // configuration nobody can explain later.
-func resolveSeedPath(body *hclwrite.Body, block *configschema.Block, path []string) (*hclwrite.Body, *configschema.Attribute, bool) {
+func resolveSeedPath(body *hclwrite.Body, block *configschema.Block, path []string, create bool) (*hclwrite.Body, *configschema.Attribute, bool) {
 	cur := body
 	curBlock := block
 
@@ -192,6 +209,9 @@ func resolveSeedPath(body *hclwrite.Body, block *configschema.Block, path []stri
 		}
 		existing := cur.FirstMatchingBlock(name, nil)
 		if existing == nil {
+			if !create {
+				return nil, nil, false
+			}
 			existing = cur.AppendNewBlock(name, nil)
 		}
 		cur = existing.Body()

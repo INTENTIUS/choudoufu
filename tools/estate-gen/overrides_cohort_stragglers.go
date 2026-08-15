@@ -105,14 +105,6 @@ var typeOverridesStragglers = map[string]typeOverride{
 				`"arn:aws:iam::000000000000:role/tofu-%s-cohort-transfer-agreement"`, g.cohort)))
 		},
 	},
-	"aws_transfer_certificate": {
-		Reasons: []string{
-			`"usage" is a required string the provider validates against a fixed set (validate: "expected usage to be one of [\"SIGNING\" \"ENCRYPTION\" \"TLS\"]"); the generic placeholder string matches none of them`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("usage", exprTokens(`"SIGNING"`))
-		},
-	},
 	"aws_transfer_profile": {
 		Reasons: []string{
 			`"profile_type" is a required string the provider validates against a fixed set (validate: "expected profile_type to be one of [\"LOCAL\" \"PARTNER\"]"); the generic placeholder string matches neither`,

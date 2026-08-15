@@ -78,14 +78,6 @@ var typeOverridesEc2Networking = map[string]typeOverride{
 			body.SetAttributeRaw("metered_account", exprTokens(`"source-attachment-owner"`))
 		},
 	},
-	"aws_ec2_transit_gateway_route": {
-		Reasons: []string{
-			`destination_cidr_block is Required and the provider validates it is a well-formed CIDR (validate: "is not a valid CIDR block"); the generic placeholder string is not one`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("destination_cidr_block", exprTokens(`"0.0.0.0/0"`))
-		},
-	},
 	"aws_flow_log": {
 		Reasons: []string{
 			`every argument naming what the flow log watches (vpc_id, subnet_id, eni_id, transit_gateway_id, transit_gateway_attachment_id, regional_nat_gateway_id) is Optional in the schema, so the generic pass renders an empty body, but the provider requires exactly one (validate: "Invalid combination of arguments": "one of ... must be specified")`,
@@ -124,14 +116,6 @@ var typeOverridesEc2Networking = map[string]typeOverride{
 			}
 		},
 	},
-	"aws_vpc_ipam_pool": {
-		Reasons: []string{
-			`address_family is Required and the provider validates it against a closed enum (validate: "expected address_family to be one of [\"ipv4\" \"ipv6\"]"); the generic placeholder string is not a member`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("address_family", exprTokens(`"ipv4"`))
-		},
-	},
 	"aws_vpc_ipam_resource_discovery": {
 		Reasons: []string{
 			`operating_regions is a required block, the same shape as aws_vpc_ipam above; region_name is validated as a well-formed AWS region and the generic placeholder string is not one`,
@@ -142,15 +126,6 @@ var typeOverridesEc2Networking = map[string]typeOverride{
 					blk.Body().SetAttributeRaw("region_name", exprTokens(`"us-east-1"`))
 				}
 			}
-		},
-	},
-
-	"aws_vpn_connection": {
-		Reasons: []string{
-			`type is Required and the provider validates it against a closed enum (validate: "expected type to be one of [\"ipsec.1\" \"ipsec.1-aes256\"]"); the generic placeholder string is not a member`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("type", exprTokens(`"ipsec.1"`))
 		},
 	},
 }

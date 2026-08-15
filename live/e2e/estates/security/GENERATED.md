@@ -34,7 +34,7 @@ go run ./tools/estate-gen -cohort security -types aws_acmpca_certificate_authori
 | `aws_kms_replica_key.app` | coverage | primary_key_arn is a plain string in the schema but the provider validates it is a well-formed ARN (validate: "is an invalid ARN"); no aws_kms_key/aws_kms_external_key coverage row exists in this cohort to reference (KMS's own marker types are covered by the pre-registry v0 table and the KMS-remainder rows above), so this is a realistic literal rather than a cross-reference |
 | `aws_macie2_classification_job.app` | coverage | job_type is a plain string in the schema but the provider validates it against a fixed enum (validate: "expected job_type to be one of [ONE_TIME SCHEDULED]"); s3_job_definition.bucket_definitions.account_id/.buckets are required with no schema-visible default once the parent block is present |
 | `aws_macie2_custom_data_identifier.app` | coverage | none |
-| `aws_macie2_findings_filter.app` | coverage | action is a plain string in the schema but the provider validates it against a fixed enum (validate: "expected action to be one of [ARCHIVE NOOP]") |
+| `aws_macie2_findings_filter.app` | coverage | none |
 | `aws_macie2_member.app` | coverage | none |
 | `aws_macie2_organization_admin_account.app` | coverage | none |
 | `aws_secretsmanager_secret.app` | coverage | none |

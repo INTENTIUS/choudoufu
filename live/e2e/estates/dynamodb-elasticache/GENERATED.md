@@ -23,7 +23,7 @@ go run ./tools/estate-gen -cohort dynamodb-elasticache -types aws_dynamodb_globa
 | `aws_elasticache_serverless_cache.app` | coverage | none |
 | `aws_elasticache_subnet_group.app` | coverage | none |
 | `aws_elasticache_user.app` | coverage | engine is a required argument the schema types as an unconstrained string, but the provider validates it against a closed enum (validate: "expected engine to be one of [\"redis\" \"valkey\"]"); the generic placeholder string is neither |
-| `aws_elasticache_user_group.app` | coverage | engine is a required argument the schema types as an unconstrained string, but the provider validates it against a closed enum (validate: "expected engine to be one of [\"redis\" \"valkey\"]"); the generic placeholder string is neither |
+| `aws_elasticache_user_group.app` | coverage | none |
 
 ## Requested types
 

@@ -29,7 +29,7 @@ go run ./tools/estate-gen -cohort ec2-networking -types aws_customer_gateway,aws
 | `aws_ec2_transit_gateway_peering_attachment.app` | coverage | none |
 | `aws_ec2_transit_gateway_policy_table.app` | coverage | none |
 | `aws_ec2_transit_gateway_policy_table_association.app` | coverage | none |
-| `aws_ec2_transit_gateway_route.app` | coverage | destination_cidr_block is Required and the provider validates it is a well-formed CIDR (validate: "is not a valid CIDR block"); the generic placeholder string is not one |
+| `aws_ec2_transit_gateway_route.app` | coverage | none |
 | `aws_ec2_transit_gateway_route_table.app` | coverage | none |
 | `aws_ec2_transit_gateway_route_table_association.app` | coverage | none |
 | `aws_ec2_transit_gateway_route_table_propagation.app` | coverage | none |
@@ -49,13 +49,13 @@ go run ./tools/estate-gen -cohort ec2-networking -types aws_customer_gateway,aws
 | `aws_vpc_endpoint_service.app` | coverage | none |
 | `aws_vpc_endpoint_subnet_association.app` | coverage | none |
 | `aws_vpc_ipam.app` | coverage | operating_regions is a required block, but its own region_name argument is validated by the provider as a well-formed AWS region (validate: "doesn't look like AWS Region"), and the generic placeholder string is not one |
-| `aws_vpc_ipam_pool.app` | coverage | address_family is Required and the provider validates it against a closed enum (validate: "expected address_family to be one of [\"ipv4\" \"ipv6\"]"); the generic placeholder string is not a member |
+| `aws_vpc_ipam_pool.app` | coverage | none |
 | `aws_vpc_ipam_pool_cidr.app` | coverage | none |
 | `aws_vpc_ipam_resource_discovery.app` | coverage | operating_regions is a required block, the same shape as aws_vpc_ipam above; region_name is validated as a well-formed AWS region and the generic placeholder string is not one |
 | `aws_vpc_ipam_resource_discovery_association.app` | coverage | none |
 | `aws_vpc_ipam_scope.app` | coverage | none |
 | `aws_vpc_peering_connection.app` | coverage | none |
-| `aws_vpn_connection.app` | coverage | type is Required and the provider validates it against a closed enum (validate: "expected type to be one of [\"ipsec.1\" \"ipsec.1-aes256\"]"); the generic placeholder string is not a member |
+| `aws_vpn_connection.app` | coverage | none |
 | `aws_vpn_gateway.app` | coverage | none |
 
 ## Requested types

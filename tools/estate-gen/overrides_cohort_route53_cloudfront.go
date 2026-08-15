@@ -35,14 +35,6 @@ var typeOverridesRoute53Cloudfront = map[string]typeOverride{
 			}
 		},
 	},
-	"aws_cloudfront_function": {
-		Reasons: []string{
-			`"runtime" is a required string the schema does not constrain to an enum, but the provider validates it against a fixed set (validate: "expected runtime to be one of [...]"); the generic placeholder string matches neither`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("runtime", exprTokens(`"cloudfront-js-2.0"`))
-		},
-	},
 	"aws_cloudfront_anycast_ip_list": {
 		Reasons: []string{
 			`"ip_count" is a required number the schema does not constrain, but the provider validates it against a fixed set (validate: "Attribute ip_count value must be one of: [3 21]"); the generic placeholder 0 matches neither`,
