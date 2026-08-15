@@ -326,6 +326,22 @@ func resolveCloudControlImportID(typeName, identifier string) (string, bool) {
 		if identifier == "" {
 			return "", false
 		}
+		// An ARN identifier for a type whose identity is NOT its arn: the
+		// CFN registry pins several types' primaryIdentifier to the
+		// read-only Arn property (AWS::APS::Workspace) while the provider
+		// imports by the server-assigned id the ARN's resource segment
+		// carries - handing the raw ARN out bound aws_prometheus_workspace
+		// to an identity the provider reports ABSENT (#124's aps cohort).
+		// This is the same arn-vs-id split [joinTaggedResource] already
+		// makes for a Tagging API ResourceARN; a type that genuinely
+		// imports by ARN (IdentityAttrs[0] == "arn", the IVS family) keeps
+		// the identifier whole.
+		if a, ok := cloudcontrol.ParseARN(identifier); ok && a.ResourceID != "" {
+			if ti, tok := identity.LookupType(typeName); tok &&
+				!(len(ti.IdentityAttrs) > 0 && ti.IdentityAttrs[0] == "arn") {
+				return a.ResourceID, true
+			}
+		}
 		return identifier, true
 	}
 	ti, ok := identity.LookupType(typeName)

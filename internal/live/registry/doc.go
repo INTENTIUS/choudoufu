@@ -18,13 +18,19 @@
 //
 // # What counts as mapped
 //
-// live/mapping.json's via column carries four values (see tools/mapping-gen):
+// live/mapping.json's via column carries five values (see tools/mapping-gen):
 // "name" and "alias" are a real CFN counterpart, curated or found by the
-// name heuristic; "fold" says the TF type's live representation is folded
-// into a parent CFN resource's own type, so there is no CFN type of its own
-// to enumerate; "none" is no counterpart at all. Only "name" and "alias" rows
-// produce a [Roster.CloudControlType] hit - a fold parent is a different
-// resource, and enumerating it would return the wrong type's population.
+// name heuristic; "service-alias" is the same claim from mapping-gen's
+// heuristic v2 (a service-level join whose ambiguous hits are never written
+// into the artifact, so a row that carries it is an unambiguous match);
+// "fold" says the TF type's live representation is folded into a parent CFN
+// resource's own type, so there is no CFN type of its own to enumerate;
+// "none" is no counterpart at all. Only the first three produce a
+// [Roster.CloudControlType] hit - a fold parent is a different resource, and
+// enumerating it would return the wrong type's population. (service-alias
+// was missing from the accepted set until #124's aps cohort failed replan on
+// aws_prometheus_workspace, a service-alias row the roster silently
+// dropped.)
 //
 // # What counts as listable
 //

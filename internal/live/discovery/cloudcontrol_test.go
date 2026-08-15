@@ -577,6 +577,17 @@ func TestResolveCloudControlImportID(t *testing.T) {
 		{"single empty part refuses", "aws_efs_file_system", "", "", false},
 		{"composite with a table entry", "aws_route_table_association", "subnet-1|rtb-1", "subnet-1/rtb-1", true},
 		{"composite with no table entry", "aws_totally_unknown_type", "a|b", "", false},
+		// The arn-vs-id split (#124's aps cohort): a registry that pins
+		// primaryIdentifier to the read-only Arn hands an ARN to a type the
+		// provider imports by server-assigned id - the resource segment is
+		// the import ID, exactly as joinTaggedResource already rules for a
+		// Tagging API ResourceARN.
+		{"ARN identifier, id-identity type extracts the resource id", "aws_prometheus_workspace",
+			"arn:aws:aps:us-east-1:000000000000:workspace/ws-C6DCB907", "ws-C6DCB907", true},
+		// aws_ivs_channel genuinely imports by ARN (IdentityAttrs[0] ==
+		// "arn"), so its identifier stays whole.
+		{"ARN identifier, arn-identity type keeps the ARN", "aws_ivs_channel",
+			"arn:aws:ivs:us-east-1:000000000000:channel/abcDEF123", "arn:aws:ivs:us-east-1:000000000000:channel/abcDEF123", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -55,5 +55,16 @@ func TestEmbeddedRosterAnswersForMultiplex(t *testing.T) {
 	if cfnType != "AWS::MediaLive::Multiplex" {
 		t.Fatalf("EnumerationSource(aws_medialive_multiplex) = %q, want AWS::MediaLive::Multiplex", cfnType)
 	}
+
+	// aws_prometheus_workspace is the service-alias tier's pin: its mapping
+	// row carries via "service-alias", which the roster silently dropped
+	// until #124's aps cohort failed replan on exactly this type.
+	cfnType, ok = r.EnumerationSource("aws_prometheus_workspace")
+	if !ok {
+		t.Fatal("EnumerationSource(aws_prometheus_workspace) = not ok; service-alias mapping rows are no longer accepted as mapped")
+	}
+	if cfnType != "AWS::APS::Workspace" {
+		t.Fatalf("EnumerationSource(aws_prometheus_workspace) = %q, want AWS::APS::Workspace", cfnType)
+	}
 }
 

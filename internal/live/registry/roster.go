@@ -13,11 +13,15 @@ import (
 )
 
 // The mapping artifact's via column vocabulary (tools/mapping-gen). Only
-// viaName and viaAlias name a CFN type this package will hand out; see the
-// package doc's "What counts as mapped".
+// these three name a CFN type this package will hand out; see the package
+// doc's "What counts as mapped". viaServiceAlias was missing from this list
+// until #124's aps cohort failed replan on aws_prometheus_workspace - the
+// roster predated that tier of the mapping and silently dropped every row
+// carrying it.
 const (
-	viaName  = "name"
-	viaAlias = "alias"
+	viaName         = "name"
+	viaAlias        = "alias"
+	viaServiceAlias = "service-alias"
 )
 
 // mappingArtifact mirrors live/mapping.json's shape (tools/mapping-gen's
@@ -118,7 +122,7 @@ func Parse(mappingJSON, registryJSON []byte) (*Roster, error) {
 		arity:     make(map[string]int, len(reg.Types)),
 	}
 	for _, row := range m.Rows {
-		if (row.Via != viaName && row.Via != viaAlias) || row.CFNType == nil || *row.CFNType == "" {
+		if (row.Via != viaName && row.Via != viaAlias && row.Via != viaServiceAlias) || row.CFNType == nil || *row.CFNType == "" {
 			continue
 		}
 		r.cfnType[row.TFType] = *row.CFNType
