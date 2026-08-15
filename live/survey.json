@@ -2,7 +2,6 @@
   "provider": "hashicorp/aws",
   "provider_version": "6.59.0",
   "generated_by": "tools/survey-gen (go run ./tools/survey-gen)",
-  "accepted": "2026-08-13",
   "counts": {
     "types": 68,
     "taggable": 47,
@@ -532,7 +531,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (policy_arn, role), composed over other types' identities: policy_arn (-> aws_fms_policy)"
+      "evidence": "identity fully client-assigned (policy_arn, role), composed over other types' identities: policy_arn (-> aws_iam_policy)"
     },
     {
       "type": "aws_iam_user",
@@ -772,7 +771,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (target_group_arn, target_id), composed over other types' identities: target_group_arn (-> aws_lb_target_group), target_id (-> aws_db_proxy_target)"
+      "evidence": "identity fully client-assigned (target_group_arn, target_id), composed over other types' identities: target_group_arn (-> aws_lb_target_group)"
     },
     {
       "type": "aws_nat_gateway",

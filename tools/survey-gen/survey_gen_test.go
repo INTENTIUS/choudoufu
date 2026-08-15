@@ -46,7 +46,7 @@ func TestSurveyJSONMatchesProviderSchemas(t *testing.T) {
 		t.Fatalf("acquiring the provider schemas: %v", err)
 	}
 
-	got, err := buildSurvey(schemas, rosterTypes(roster)).marshal()
+	got, err := buildSurvey(schemas, rosterTypes(roster), testServiceOf).marshal()
 	if err != nil {
 		t.Fatalf("marshaling the regenerated survey: %v", err)
 	}

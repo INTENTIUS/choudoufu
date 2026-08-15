@@ -2,7 +2,6 @@
   "provider": "hashicorp/aws",
   "provider_version": "6.59.0",
   "generated_by": "tools/survey-gen (go run ./tools/survey-gen -all)",
-  "accepted": "2026-08-13",
   "counts": {
     "types": 1699,
     "taggable": 847,
@@ -149,7 +148,7 @@
     },
     {
       "type": "aws_acmpca_policy",
-      "path": "parent-derived",
+      "path": "client-named",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -161,7 +160,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (resource_arn), composed over other types' identities: resource_arn (-> aws_api_gateway_resource)"
+      "evidence": "every required-for-import identity attribute is a required argument: resource_arn"
     },
     {
       "type": "aws_alb",
@@ -255,7 +254,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (target_group_arn, target_id), composed over other types' identities: target_group_arn (-> aws_lb_target_group), target_id (-> aws_db_proxy_target)"
+      "evidence": "identity fully client-assigned (target_group_arn, target_id), composed over other types' identities: target_group_arn (-> aws_alb_target_group)"
     },
     {
       "type": "aws_ami",
@@ -846,7 +845,7 @@
     },
     {
       "type": "aws_appautoscaling_policy",
-      "path": "parent-derived",
+      "path": "client-named",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -865,7 +864,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (name, resource_id, scalable_dimension, service_namespace), composed over other types' identities: resource_id (-> aws_api_gateway_resource)"
+      "evidence": "every required-for-import identity attribute is a required argument: name, resource_id, scalable_dimension, service_namespace"
     },
     {
       "type": "aws_appautoscaling_scheduled_action",
@@ -879,7 +878,7 @@
     },
     {
       "type": "aws_appautoscaling_target",
-      "path": "parent-derived",
+      "path": "client-named",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -897,7 +896,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (resource_id, scalable_dimension, service_namespace), composed over other types' identities: resource_id (-> aws_api_gateway_resource)"
+      "evidence": "every required-for-import identity attribute is a required argument: resource_id, scalable_dimension, service_namespace"
     },
     {
       "type": "aws_appconfig_application",
@@ -1496,7 +1495,7 @@
     },
     {
       "type": "aws_arczonalshift_autoshift_observer_notification_status",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -1509,11 +1508,11 @@
           "region"
         ]
       },
-      "evidence": "identity schema requires nothing for import; untaggable and no native list resource, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     },
     {
       "type": "aws_arczonalshift_zonal_autoshift_configuration",
-      "path": "parent-derived",
+      "path": "client-named",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -1525,7 +1524,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (resource_arn), composed over other types' identities: resource_arn (-> aws_api_gateway_resource)"
+      "evidence": "every required-for-import identity attribute is a required argument: resource_arn"
     },
     {
       "type": "aws_athena_capacity_reservation",
@@ -2124,7 +2123,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (model_id), composed over other types' identities: model_id (-> aws_sagemaker_model)"
+      "evidence": "identity fully client-assigned (model_id), composed over other types' identities: model_id (-> aws_bedrock_custom_model)"
     },
     {
       "type": "aws_bedrock_guardrail",
@@ -2550,7 +2549,7 @@
     },
     {
       "type": "aws_bedrockagentcore_resource_policy",
-      "path": "parent-derived",
+      "path": "client-named",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -2562,7 +2561,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (resource_arn), composed over other types' identities: resource_arn (-> aws_api_gateway_resource)"
+      "evidence": "every required-for-import identity attribute is a required argument: resource_arn"
     },
     {
       "type": "aws_bedrockagentcore_token_vault_cmk",
@@ -3152,7 +3151,7 @@
     },
     {
       "type": "aws_cloudfront_realtime_log_config",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -3163,7 +3162,7 @@
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; untaggable and no native list resource, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's account-id"
     },
     {
       "type": "aws_cloudfront_response_headers_policy",
@@ -3197,7 +3196,7 @@
     },
     {
       "type": "aws_cloudfrontkeyvaluestore_key",
-      "path": "parent-derived",
+      "path": "client-named",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -3213,7 +3212,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (key, key_value_store_arn), composed over other types' identities: key_value_store_arn (-> aws_cloudfront_key_value_store)"
+      "evidence": "every required-for-import identity attribute is a required argument: key, key_value_store_arn"
     },
     {
       "type": "aws_cloudfrontkeyvaluestore_keys_exclusive",
@@ -3367,7 +3366,7 @@
     },
     {
       "type": "aws_cloudwatch_contributor_managed_insight_rule",
-      "path": "parent-derived",
+      "path": "client-named",
       "signals": {
         "taggable": true,
         "list_resource": false,
@@ -3384,7 +3383,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (resource_arn, template_name), composed over other types' identities: resource_arn (-> aws_api_gateway_resource)"
+      "evidence": "every required-for-import identity attribute is a required argument: resource_arn, template_name"
     },
     {
       "type": "aws_cloudwatch_dashboard",
@@ -3528,7 +3527,7 @@
     },
     {
       "type": "aws_cloudwatch_event_permission",
-      "path": "parent-derived",
+      "path": "client-named",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -3544,7 +3543,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (statement_id), composed over other types' identities: statement_id (-> aws_redshiftdata_statement)"
+      "evidence": "every required-for-import identity attribute is a required argument: statement_id"
     },
     {
       "type": "aws_cloudwatch_event_rule",
@@ -4016,7 +4015,7 @@
     },
     {
       "type": "aws_codeartifact_domain",
-      "path": "marker",
+      "path": "account-derived",
       "signals": {
         "taggable": true,
         "list_resource": false,
@@ -4027,11 +4026,11 @@
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region and account-id"
     },
     {
       "type": "aws_codeartifact_domain_permissions_policy",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -4042,11 +4041,11 @@
           "resource_arn"
         ]
       },
-      "evidence": "identity requires server-assigned resource_arn; untaggable and no native list resource, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region and account-id"
     },
     {
       "type": "aws_codeartifact_repository",
-      "path": "marker",
+      "path": "account-derived",
       "signals": {
         "taggable": true,
         "list_resource": false,
@@ -4057,11 +4056,11 @@
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region and account-id"
     },
     {
       "type": "aws_codeartifact_repository_permissions_policy",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -4072,7 +4071,7 @@
           "resource_arn"
         ]
       },
-      "evidence": "identity requires server-assigned resource_arn; untaggable and no native list resource, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region and account-id"
     },
     {
       "type": "aws_codebuild_fleet",
@@ -4106,7 +4105,7 @@
     },
     {
       "type": "aws_codebuild_report_group",
-      "path": "marker",
+      "path": "account-derived",
       "signals": {
         "taggable": true,
         "list_resource": false,
@@ -4117,11 +4116,11 @@
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region and account-id"
     },
     {
       "type": "aws_codebuild_resource_policy",
-      "path": "parent-derived",
+      "path": "client-named",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -4133,7 +4132,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (resource_arn), composed over other types' identities: resource_arn (-> aws_api_gateway_resource)"
+      "evidence": "every required-for-import identity attribute is a required argument: resource_arn"
     },
     {
       "type": "aws_codebuild_source_credential",
@@ -4347,7 +4346,7 @@
     },
     {
       "type": "aws_codepipeline_webhook",
-      "path": "marker",
+      "path": "account-derived",
       "signals": {
         "taggable": true,
         "list_resource": false,
@@ -4358,7 +4357,7 @@
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region and account-id"
     },
     {
       "type": "aws_codestarconnections_connection",
@@ -5468,7 +5467,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (domain_id, environment_blueprint_id), composed over other types' identities: domain_id (-> aws_swf_domain)"
+      "evidence": "identity fully client-assigned (domain_id, environment_blueprint_id), composed over other types' identities: domain_id (-> aws_datazone_domain)"
     },
     {
       "type": "aws_datazone_environment_profile",
@@ -6589,7 +6588,7 @@
     },
     {
       "type": "aws_dynamodb_resource_policy",
-      "path": "parent-derived",
+      "path": "client-named",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -6601,7 +6600,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (resource_arn), composed over other types' identities: resource_arn (-> aws_api_gateway_resource)"
+      "evidence": "every required-for-import identity attribute is a required argument: resource_arn"
     },
     {
       "type": "aws_dynamodb_table",
@@ -7813,7 +7812,7 @@
     },
     {
       "type": "aws_eks_access_entry",
-      "path": "parent-derived",
+      "path": "client-named",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -7830,11 +7829,11 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (cluster_name, principal_arn), composed over other types' identities: principal_arn (-> aws_vpc_endpoint_service_allowed_principal)"
+      "evidence": "every required-for-import identity attribute is a required argument: cluster_name, principal_arn"
     },
     {
       "type": "aws_eks_access_policy_association",
-      "path": "parent-derived",
+      "path": "client-named",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -7852,7 +7851,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (cluster_name, policy_arn, principal_arn), composed over other types' identities: policy_arn (-> aws_fms_policy), principal_arn (-> aws_vpc_endpoint_service_allowed_principal)"
+      "evidence": "every required-for-import identity attribute is a required argument: cluster_name, policy_arn, principal_arn"
     },
     {
       "type": "aws_eks_addon",
@@ -8845,23 +8844,23 @@
     },
     {
       "type": "aws_glue_catalog_database",
-      "path": "marker",
+      "path": "account-derived",
       "signals": {
         "taggable": true,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; taggable, so recoverable by tag-filtered list"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's account-id"
     },
     {
       "type": "aws_glue_catalog_table",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's account-id"
     },
     {
       "type": "aws_glue_catalog_table_optimizer",
@@ -8885,13 +8884,13 @@
     },
     {
       "type": "aws_glue_connection",
-      "path": "marker",
+      "path": "account-derived",
       "signals": {
         "taggable": true,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; taggable, so recoverable by tag-filtered list"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's account-id"
     },
     {
       "type": "aws_glue_crawler",
@@ -8905,13 +8904,13 @@
     },
     {
       "type": "aws_glue_data_catalog_encryption_settings",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's account-id"
     },
     {
       "type": "aws_glue_data_quality_ruleset",
@@ -8985,7 +8984,7 @@
     },
     {
       "type": "aws_glue_registry",
-      "path": "marker",
+      "path": "account-derived",
       "signals": {
         "taggable": true,
         "list_resource": false,
@@ -8996,7 +8995,7 @@
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region and account-id"
     },
     {
       "type": "aws_glue_resource_policy",
@@ -9367,7 +9366,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (group, policy_arn), composed over other types' identities: policy_arn (-> aws_fms_policy)"
+      "evidence": "identity fully client-assigned (group, policy_arn), composed over other types' identities: policy_arn (-> aws_iam_policy)"
     },
     {
       "type": "aws_iam_group_policy_attachments_exclusive",
@@ -9468,7 +9467,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (policy_arn), composed over other types' identities: policy_arn (-> aws_fms_policy)"
+      "evidence": "identity fully client-assigned (policy_arn), composed over other types' identities: policy_arn (-> aws_iam_policy)"
     },
     {
       "type": "aws_iam_role",
@@ -9537,7 +9536,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (policy_arn, role), composed over other types' identities: policy_arn (-> aws_fms_policy)"
+      "evidence": "identity fully client-assigned (policy_arn, role), composed over other types' identities: policy_arn (-> aws_iam_policy)"
     },
     {
       "type": "aws_iam_role_policy_attachments_exclusive",
@@ -9696,7 +9695,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (policy_arn, user), composed over other types' identities: policy_arn (-> aws_fms_policy)"
+      "evidence": "identity fully client-assigned (policy_arn, user), composed over other types' identities: policy_arn (-> aws_iam_policy)"
     },
     {
       "type": "aws_iam_user_policy_attachments_exclusive",
@@ -10468,7 +10467,7 @@
     },
     {
       "type": "aws_kinesis_firehose_delivery_stream",
-      "path": "marker",
+      "path": "account-derived",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -10480,11 +10479,11 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region and account-id"
     },
     {
       "type": "aws_kinesis_resource_policy",
-      "path": "parent-derived",
+      "path": "client-named",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -10496,7 +10495,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (resource_arn), composed over other types' identities: resource_arn (-> aws_api_gateway_resource)"
+      "evidence": "every required-for-import identity attribute is a required argument: resource_arn"
     },
     {
       "type": "aws_kinesis_stream",
@@ -11147,7 +11146,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (target_group_arn, target_id), composed over other types' identities: target_group_arn (-> aws_lb_target_group), target_id (-> aws_db_proxy_target)"
+      "evidence": "identity fully client-assigned (target_group_arn, target_id), composed over other types' identities: target_group_arn (-> aws_lb_target_group)"
     },
     {
       "type": "aws_lb_trust_store",
@@ -12122,7 +12121,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (cluster_arn, name), composed over other types' identities: cluster_arn (-> aws_dax_cluster)"
+      "evidence": "identity fully client-assigned (cluster_arn, name), composed over other types' identities: cluster_arn (-> aws_msk_cluster)"
     },
     {
       "type": "aws_msk_vpc_connection",
@@ -12686,7 +12685,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (core_network_id, prefix_list_arn), composed over other types' identities: core_network_id (-> aws_networkmanager_core_network), prefix_list_arn (-> aws_ec2_managed_prefix_list)"
+      "evidence": "identity fully client-assigned (core_network_id, prefix_list_arn), composed over other types' identities: core_network_id (-> aws_networkmanager_core_network)"
     },
     {
       "type": "aws_networkmanager_site",
@@ -13452,7 +13451,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (policy_id, target_id), composed over other types' identities: policy_id (-> aws_fms_policy), target_id (-> aws_db_proxy_target)"
+      "evidence": "identity fully client-assigned (policy_id, target_id), composed over other types' identities: policy_id (-> aws_organizations_policy)"
     },
     {
       "type": "aws_organizations_resource_policy",
@@ -13523,7 +13522,7 @@
     },
     {
       "type": "aws_osis_resource_policy",
-      "path": "parent-derived",
+      "path": "client-named",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -13535,7 +13534,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (resource_arn), composed over other types' identities: resource_arn (-> aws_api_gateway_resource)"
+      "evidence": "every required-for-import identity attribute is a required argument: resource_arn"
     },
     {
       "type": "aws_outposts_capacity_task",
@@ -13774,7 +13773,7 @@
     },
     {
       "type": "aws_pinpointsmsvoicev2_resource_policy",
-      "path": "parent-derived",
+      "path": "client-named",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -13786,7 +13785,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (resource_arn), composed over other types' identities: resource_arn (-> aws_api_gateway_resource)"
+      "evidence": "every required-for-import identity attribute is a required argument: resource_arn"
     },
     {
       "type": "aws_pinpointsmsvoicev2_sender_id",
@@ -14857,7 +14856,7 @@
     },
     {
       "type": "aws_rekognition_collection",
-      "path": "parent-derived",
+      "path": "client-named",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -14873,7 +14872,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (collection_id), composed over other types' identities: collection_id (-> aws_route53_cidr_collection)"
+      "evidence": "every required-for-import identity attribute is a required argument: collection_id"
     },
     {
       "type": "aws_rekognition_project",
@@ -16262,7 +16261,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (file_system_id), composed over other types' identities: file_system_id (-> aws_efs_file_system)"
+      "evidence": "identity fully client-assigned (file_system_id), composed over other types' identities: file_system_id (-> aws_s3files_file_system)"
     },
     {
       "type": "aws_s3files_mount_target",
@@ -16301,7 +16300,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (file_system_id), composed over other types' identities: file_system_id (-> aws_efs_file_system)"
+      "evidence": "identity fully client-assigned (file_system_id), composed over other types' identities: file_system_id (-> aws_s3files_file_system)"
     },
     {
       "type": "aws_s3outposts_endpoint",
@@ -16404,7 +16403,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (table_arn), composed over other types' identities: table_arn (-> aws_route_table)"
+      "evidence": "identity fully client-assigned (table_arn), composed over other types' identities: table_arn (-> aws_s3tables_table)"
     },
     {
       "type": "aws_s3vectors_index",
@@ -16474,13 +16473,13 @@
     },
     {
       "type": "aws_sagemaker_app",
-      "path": "marker",
+      "path": "account-derived",
       "signals": {
         "taggable": true,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; taggable, so recoverable by tag-filtered list"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region and account-id"
     },
     {
       "type": "aws_sagemaker_app_image_config",
@@ -16827,13 +16826,13 @@
     },
     {
       "type": "aws_sagemaker_space",
-      "path": "marker",
+      "path": "account-derived",
       "signals": {
         "taggable": true,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; taggable, so recoverable by tag-filtered list"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region and account-id"
     },
     {
       "type": "aws_sagemaker_studio_lifecycle_config",
@@ -16867,7 +16866,7 @@
     },
     {
       "type": "aws_sagemaker_user_profile",
-      "path": "parent-derived",
+      "path": "account-derived",
       "signals": {
         "taggable": true,
         "list_resource": false,
@@ -16884,7 +16883,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (domain_id, user_profile_name), composed over other types' identities: domain_id (-> aws_swf_domain)"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region and account-id"
     },
     {
       "type": "aws_sagemaker_workforce",
@@ -17217,7 +17216,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (target_id), composed over other types' identities: target_id (-> aws_db_proxy_target)"
+      "evidence": "identity fully client-assigned (target_id), composed over other types' identities: target_id (-> aws_securityhub_action_target)"
     },
     {
       "type": "aws_securityhub_connector_v2",
@@ -17299,7 +17298,7 @@
     },
     {
       "type": "aws_securityhub_organization_admin_account",
-      "path": "parent-derived",
+      "path": "client-named",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -17315,7 +17314,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (admin_account_id), composed over other types' identities: admin_account_id (-> aws_fms_admin_account)"
+      "evidence": "every required-for-import identity attribute is a required argument: admin_account_id"
     },
     {
       "type": "aws_securityhub_organization_configuration",
@@ -18038,7 +18037,7 @@
     },
     {
       "type": "aws_shield_application_layer_automatic_response",
-      "path": "parent-derived",
+      "path": "client-named",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -18050,7 +18049,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (resource_arn), composed over other types' identities: resource_arn (-> aws_api_gateway_resource)"
+      "evidence": "every required-for-import identity attribute is a required argument: resource_arn"
     },
     {
       "type": "aws_shield_drt_access_log_bucket_association",
@@ -18647,7 +18646,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (instance_arn, permission_set_arn, principal_id, principal_type, target_id, target_type), composed over other types' identities: instance_arn (-> aws_instance), permission_set_arn (-> aws_ssoadmin_permission_set), principal_id (-> aws_vpc_endpoint_service_allowed_principal), target_id (-> aws_db_proxy_target)"
+      "evidence": "identity fully client-assigned (instance_arn, permission_set_arn, principal_id, principal_type, target_id, target_type), composed over other types' identities: instance_arn (-> aws_instance), permission_set_arn (-> aws_ssoadmin_permission_set)"
     },
     {
       "type": "aws_ssoadmin_application",
@@ -18704,7 +18703,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (application_arn), composed over other types' identities: application_arn (-> aws_m2_application)"
+      "evidence": "identity fully client-assigned (application_arn), composed over other types' identities: application_arn (-> aws_ssoadmin_application)"
     },
     {
       "type": "aws_ssoadmin_customer_managed_policy_attachment",
@@ -20421,7 +20420,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "identity fully client-assigned (name, web_acl_arn), composed over other types' identities: web_acl_arn (-> aws_waf_web_acl)"
+      "evidence": "identity fully client-assigned (name, web_acl_arn), composed over other types' identities: web_acl_arn (-> aws_wafv2_web_acl)"
     },
     {
       "type": "aws_wafv2_web_acl_rule_group_association",

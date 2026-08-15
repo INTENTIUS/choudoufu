@@ -70,8 +70,13 @@ func tfServicePrefix(typeName string) string {
 	return rest
 }
 
-// sameServiceAffinity reports whether a candidate parent is close enough to
-// the child for rule 2 to accept it (issue #129).
+// SameServiceAffinity reports whether a candidate parent is close enough to
+// the child for a name-convention match to be trusted (issue #129).
+//
+// Exported because tools/survey-gen needs the identical test (#167) and two
+// copies of this rule is how the repository got here: parentByConvention and
+// survey-gen's parentRef were the same shortest-name heuristic, one of them
+// documented as harmless prose, and both wrong in the same way.
 //
 // The CloudFormation service is the real test, and it is the one that has to
 // be tried first, because it is the only one that gets aws_volume_attachment
@@ -87,7 +92,7 @@ func tfServicePrefix(typeName string) string {
 // aws_api_gateway_domain_name, and it still lets
 // aws_prometheus_alert_manager_definition find aws_prometheus_workspace
 // instead of the shorter aws_grafana_workspace.
-func sameServiceAffinity(child, candidate string, service ServiceOf) bool {
+func SameServiceAffinity(child, candidate string, service ServiceOf) bool {
 	if service != nil {
 		childSvc, childOK := service(child)
 		candSvc, candOK := service(candidate)
@@ -439,7 +444,7 @@ func parentByConvention(attr, self string, parents map[string]bool, service Serv
 
 	if exact := "aws_" + base; exact != self {
 		if _, ok := DefaultTable[exact]; ok {
-			if !sameServiceAffinity(self, exact, service) {
+			if !SameServiceAffinity(self, exact, service) {
 				return "", false
 			}
 			return exact, parents[exact]
@@ -454,7 +459,7 @@ func parentByConvention(attr, self string, parents map[string]bool, service Serv
 		if !strings.HasSuffix(t, "_"+base) {
 			continue
 		}
-		if !sameServiceAffinity(self, t, service) {
+		if !SameServiceAffinity(self, t, service) {
 			continue
 		}
 		if best == "" || len(t) < len(best) || (len(t) == len(best) && t < best) {

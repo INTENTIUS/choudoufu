@@ -79,6 +79,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/registry"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
@@ -193,7 +195,17 @@ func run(initBin string, all, accept bool) error {
 // their accepted field; when it is false, today is unused and the field is
 // left unset, which is how an unreviewed regeneration surfaces in the diff.
 func writeSurveys(root string, schemas providers.GetProviderSchemaResponse, roster []HandRow, all, accept bool, today string, log io.Writer) error {
-	survey := buildSurvey(schemas, rosterTypes(roster))
+	// The CFN service per Terraform type, for parentRef's suffix-match
+	// affinity (issue #167). live/mapping.json is the only thing that knows
+	// two differently-prefixed types belong to one AWS service, and the
+	// embedded roster carries it.
+	reg, err := registry.Embedded()
+	if err != nil {
+		return fmt.Errorf("loading the embedded registry roster: %w", err)
+	}
+	serviceOf := identity.ServiceOf(reg.ServiceOf)
+
+	survey := buildSurvey(schemas, rosterTypes(roster), serviceOf)
 	if accept {
 		survey.Accepted = today
 	}
@@ -213,7 +225,7 @@ func writeSurveys(root string, schemas providers.GetProviderSchemaResponse, rost
 		return nil
 	}
 
-	full := buildSurvey(schemas, allResourceTypeNames(schemas))
+	full := buildSurvey(schemas, allResourceTypeNames(schemas), serviceOf)
 	full.GeneratedBy = "tools/survey-gen (go run ./tools/survey-gen -all)"
 	if accept {
 		full.Accepted = today

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/registry"
 )
 
 // This file is issue #130's guard.
@@ -27,6 +28,17 @@ import (
 // TestEligibleParentsAreOnlyPositivelyTaggableTypes pins the direction of the
 // test. Membership requires live/survey-full.json to record taggable: true;
 // absence from the artifact is never enough.
+// testServiceOf is the ServiceOf the schema-driven tests run under: the real
+// roster, so parentRef's suffix-match affinity (#167) is exercised against
+// live/mapping.json rather than against a stub that would let anything match.
+var testServiceOf = func() identity.ServiceOf {
+	r, err := registry.Embedded()
+	if err != nil {
+		panic("registry.Embedded: " + err.Error())
+	}
+	return r.ServiceOf
+}()
+
 func TestEligibleParentsAreOnlyPositivelyTaggableTypes(t *testing.T) {
 	root, err := repoRoot()
 	if err != nil {

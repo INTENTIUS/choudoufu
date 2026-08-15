@@ -139,7 +139,13 @@ type IdentityAttrs struct {
 }
 
 // buildSurvey derives one row per roster type from the provider's schemas.
-func buildSurvey(schema providers.GetProviderSchemaResponse, roster []string) Survey {
+//
+// service answers "which AWS service does this Terraform type belong to",
+// for parentRef's suffix-match affinity (issue #167). It is passed in rather
+// than loaded here for the same reason internal/live/identity takes one: the
+// fact lives in live/mapping.json, and a classifier that reaches for an
+// artifact on its own is harder to test than one handed the answer.
+func buildSurvey(schema providers.GetProviderSchemaResponse, roster []string, service identity.ServiceOf) Survey {
 	// The strict client-named judgment is identity.Derivable's, not this
 	// tool's: it is the one classifier that already knows the
 	// Optional+Computed trap (aws_s3_bucket.bucket and aws_vpc.id are the
@@ -159,6 +165,10 @@ func buildSurvey(schema providers.GetProviderSchemaResponse, roster []string) Su
 	// without reading anything by hand.
 	report := identity.Report(schema.ResourceTypes, nil)
 
+	// The CFN service per type, for parentRef's suffix-match affinity
+	// (issue #167). The embedded roster carries live/mapping.json, which is
+	// the only thing that knows two differently-prefixed Terraform types
+	// belong to one AWS service.
 	// Sorted type names for the deterministic parent-reference scan.
 	allTypes := make([]string, 0, len(schema.ResourceTypes))
 	for name := range schema.ResourceTypes {
@@ -175,7 +185,7 @@ func buildSurvey(schema providers.GetProviderSchemaResponse, roster []string) Su
 	sorted := append([]string(nil), roster...)
 	sort.Strings(sorted)
 	for _, typeName := range sorted {
-		row := classify(typeName, schema, derivable, allTypes)
+		row := classify(typeName, schema, derivable, allTypes, service)
 		if c, ok := report.Admits(typeName); ok {
 			row.Admission = string(c.Admits)
 		}
@@ -230,7 +240,7 @@ func allResourceTypeNames(schema providers.GetProviderSchemaResponse) []string {
 //     Ops when neither.
 //  5. No identity schema at all: the same discovery fallback, with the
 //     evidence saying the identity side is unreadable from schemas.
-func classify(typeName string, schema providers.GetProviderSchemaResponse, derivable map[string]identity.DerivableType, allTypes []string) Row {
+func classify(typeName string, schema providers.GetProviderSchemaResponse, derivable map[string]identity.DerivableType, allTypes []string, service identity.ServiceOf) Row {
 	rs := schema.ResourceTypes[typeName]
 	_, hasList := schema.ListResourceTypes[typeName]
 
@@ -280,7 +290,7 @@ func classify(typeName string, schema providers.GetProviderSchemaResponse, deriv
 	if d, ok := derivable[typeName]; ok {
 		var parents []string
 		for _, attr := range d.IdentityAttrs {
-			if parent, ok := parentRef(attr, typeName, allTypes); ok {
+			if parent, ok := parentRef(attr, typeName, allTypes, service); ok {
 				parents = append(parents, fmt.Sprintf("%s (-> %s)", attr, parent))
 			}
 		}
@@ -381,11 +391,50 @@ func serverAssigned(required []string, block *configschema.Block) []string {
 // rule from issue #25; a suffix like statement_id whose base names no
 // resource type stays a client-chosen string.
 //
-// When several types end in the base, the shortest name wins (then
-// alphabetical): zone_id should name aws_route53_zone, not
-// aws_controltower_landing_zone. The named parent is evidence prose, not a
-// wiring claim, so a best-effort pick is enough.
-func parentRef(attr, self string, allTypes []string) (string, bool) {
+// Two shapes of match, and they are held to different standards, because
+// only one of them is a whole-name fact (issue #167).
+//
+// An exact "aws_<base>" match is the type itself under another name -
+// vpc_id naming aws_vpc - and is allowed to cross AWS services, which is
+// what keeps aws_neptunegraph_private_graph_endpoint pointed at aws_vpc.
+//
+// A suffix match is a guess, and must share the child's CloudFormation
+// service. Without that requirement this rule searched every type for the
+// shortest name ending in the base, and "resource_arn" resolved to
+// aws_api_gateway_resource five separate times, "cluster_arn" to
+// aws_dax_cluster for MSK, "collection_id" to aws_route53_cidr_collection
+// for Rekognition. The service is the right affinity test rather than the
+// Terraform prefix for the same reason it is in
+// internal/live/identity/parent.go: AWS::EC2::VolumeAttachment and
+// AWS::EC2::Volume are one service and two Terraform prefixes.
+//
+// The comment this replaced said "the named parent is evidence prose, not a
+// wiring claim, so a best-effort pick is enough". The NAME is prose. The ok
+// is not: classify above reads it to choose between pathParentDerived and
+// pathClientNamed, and both are rendered into live/SURVEY.md's summary
+// table.
+//
+// A candidate no branch accepts yields no parent, and there is deliberately
+// no exception table. aws_networkmanager_prefix_list_association ->
+// aws_ec2_managed_prefix_list is a correct cross-service SUFFIX match and is
+// lost that way; that is the honest cost, per #129's own rule.
+//
+// The exact branch keeps one known-wrong match, and it is left in
+// deliberately: aws_ssoadmin_account_assignment's instance_arn resolves to
+// aws_instance, because "instance" is as generic a noun as "resource" was
+// and an exact match cannot tell an IAM Identity Center instance from an EC2
+// one. Refusing it needs either a stop-list of generic nouns or affinity on
+// the exact branch, and affinity there would also lose
+// aws_neptunegraph_private_graph_endpoint -> aws_vpc, which is correct.
+//
+// It costs nothing that matters. The row's Path is parent-derived either
+// way - aws_ssoadmin_account_assignment genuinely is composed of parent
+// identities - so only the Evidence prose names the wrong type, which is
+// the one case where the comment this replaced was right about a
+// best-effort pick being enough. Measured after this change: 47
+// parent-derived rows, 2 cross-service links, both from the exact branch,
+// one correct and this one.
+func parentRef(attr, self string, allTypes []string, service identity.ServiceOf) (string, bool) {
 	var base string
 	switch {
 	case strings.HasSuffix(attr, "_id"):
@@ -398,9 +447,20 @@ func parentRef(attr, self string, allTypes []string) (string, bool) {
 	if base == "" {
 		return "", false
 	}
+	if exact := "aws_" + base; exact != self {
+		for _, t := range allTypes {
+			if t == exact {
+				return t, true
+			}
+		}
+	}
+
 	best := ""
 	for _, t := range allTypes {
 		if t == self {
+			continue
+		}
+		if !identity.SameServiceAffinity(self, t, service) {
 			continue
 		}
 		if t == "aws_"+base {
