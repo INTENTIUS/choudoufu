@@ -18,7 +18,10 @@
     "list_with_required_input": 322,
     "no_list_handler": 240,
     "no_handlers_at_all": 161,
-    "with_read": 1516
+    "with_read": 1516,
+    "with_relationships": 26,
+    "relationships": 85,
+    "relationships_unattributed": 0
   },
   "types": [
     {
@@ -1327,7 +1330,15 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "VpcEndpointIds",
+          "pointer": "/definitions/EndpointConfiguration/properties/VpcEndpointIds/items/relationshipRef",
+          "type_name": "AWS::EC2::VPCEndpoint",
+          "property_path": "Id"
+        }
+      ]
     },
     {
       "type_name": "AWS::ApiGateway::Stage",
@@ -3876,7 +3887,21 @@
         "update": false,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "SecurityGroups",
+          "pointer": "/properties/SecurityGroups/items/anyOf/0/relationshipRef",
+          "type_name": "AWS::EC2::SecurityGroup",
+          "property_path": "GroupId"
+        },
+        {
+          "property": "SecurityGroups",
+          "pointer": "/properties/SecurityGroups/items/anyOf/1/relationshipRef",
+          "type_name": "AWS::EC2::SecurityGroup",
+          "property_path": "Id"
+        }
+      ]
     },
     {
       "type_name": "AWS::AutoScaling::LifecycleHook",
@@ -14484,7 +14509,21 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "LagId",
+          "pointer": "/properties/LagId/anyOf/1/relationshipRef",
+          "type_name": "AWS::DirectConnect::Lag",
+          "property_path": "LagArn"
+        },
+        {
+          "property": "LagId",
+          "pointer": "/properties/LagId/anyOf/0/relationshipRef",
+          "type_name": "AWS::DirectConnect::Lag",
+          "property_path": "LagId"
+        }
+      ]
     },
     {
       "type_name": "AWS::DirectConnect::DirectConnectGateway",
@@ -14543,7 +14582,39 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "AssociatedGatewayId",
+          "pointer": "/properties/AssociatedGatewayId/anyOf/1/relationshipRef",
+          "type_name": "AWS::EC2::TransitGateway",
+          "property_path": "Id"
+        },
+        {
+          "property": "AssociatedGatewayId",
+          "pointer": "/properties/AssociatedGatewayId/anyOf/2/relationshipRef",
+          "type_name": "AWS::EC2::TransitGateway",
+          "property_path": "TransitGatewayArn"
+        },
+        {
+          "property": "AssociatedGatewayId",
+          "pointer": "/properties/AssociatedGatewayId/anyOf/0/relationshipRef",
+          "type_name": "AWS::EC2::VPNGateway",
+          "property_path": "VPNGatewayId"
+        },
+        {
+          "property": "DirectConnectGatewayId",
+          "pointer": "/properties/DirectConnectGatewayId/anyOf/1/relationshipRef",
+          "type_name": "AWS::DirectConnect::DirectConnectGateway",
+          "property_path": "DirectConnectGatewayArn"
+        },
+        {
+          "property": "DirectConnectGatewayId",
+          "pointer": "/properties/DirectConnectGatewayId/anyOf/0/relationshipRef",
+          "type_name": "AWS::DirectConnect::DirectConnectGateway",
+          "property_path": "DirectConnectGatewayId"
+        }
+      ]
     },
     {
       "type_name": "AWS::DirectConnect::Lag",
@@ -14617,7 +14688,45 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "ConnectionId",
+          "pointer": "/properties/ConnectionId/anyOf/1/relationshipRef",
+          "type_name": "AWS::DirectConnect::Connection",
+          "property_path": "ConnectionArn"
+        },
+        {
+          "property": "ConnectionId",
+          "pointer": "/properties/ConnectionId/anyOf/0/relationshipRef",
+          "type_name": "AWS::DirectConnect::Connection",
+          "property_path": "ConnectionId"
+        },
+        {
+          "property": "ConnectionId",
+          "pointer": "/properties/ConnectionId/anyOf/3/relationshipRef",
+          "type_name": "AWS::DirectConnect::Lag",
+          "property_path": "LagArn"
+        },
+        {
+          "property": "ConnectionId",
+          "pointer": "/properties/ConnectionId/anyOf/2/relationshipRef",
+          "type_name": "AWS::DirectConnect::Lag",
+          "property_path": "LagId"
+        },
+        {
+          "property": "DirectConnectGatewayId",
+          "pointer": "/properties/DirectConnectGatewayId/anyOf/1/relationshipRef",
+          "type_name": "AWS::DirectConnect::DirectConnectGateway",
+          "property_path": "DirectConnectGatewayArn"
+        },
+        {
+          "property": "DirectConnectGatewayId",
+          "pointer": "/properties/DirectConnectGatewayId/anyOf/0/relationshipRef",
+          "type_name": "AWS::DirectConnect::DirectConnectGateway",
+          "property_path": "DirectConnectGatewayId"
+        }
+      ]
     },
     {
       "type_name": "AWS::DirectConnect::PublicVirtualInterface",
@@ -14653,7 +14762,33 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "ConnectionId",
+          "pointer": "/properties/ConnectionId/anyOf/1/relationshipRef",
+          "type_name": "AWS::DirectConnect::Connection",
+          "property_path": "ConnectionArn"
+        },
+        {
+          "property": "ConnectionId",
+          "pointer": "/properties/ConnectionId/anyOf/0/relationshipRef",
+          "type_name": "AWS::DirectConnect::Connection",
+          "property_path": "ConnectionId"
+        },
+        {
+          "property": "ConnectionId",
+          "pointer": "/properties/ConnectionId/anyOf/3/relationshipRef",
+          "type_name": "AWS::DirectConnect::Lag",
+          "property_path": "LagArn"
+        },
+        {
+          "property": "ConnectionId",
+          "pointer": "/properties/ConnectionId/anyOf/2/relationshipRef",
+          "type_name": "AWS::DirectConnect::Lag",
+          "property_path": "LagId"
+        }
+      ]
     },
     {
       "type_name": "AWS::DirectConnect::TransitVirtualInterface",
@@ -14689,7 +14824,45 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "ConnectionId",
+          "pointer": "/properties/ConnectionId/anyOf/1/relationshipRef",
+          "type_name": "AWS::DirectConnect::Connection",
+          "property_path": "ConnectionArn"
+        },
+        {
+          "property": "ConnectionId",
+          "pointer": "/properties/ConnectionId/anyOf/0/relationshipRef",
+          "type_name": "AWS::DirectConnect::Connection",
+          "property_path": "ConnectionId"
+        },
+        {
+          "property": "ConnectionId",
+          "pointer": "/properties/ConnectionId/anyOf/3/relationshipRef",
+          "type_name": "AWS::DirectConnect::Lag",
+          "property_path": "LagArn"
+        },
+        {
+          "property": "ConnectionId",
+          "pointer": "/properties/ConnectionId/anyOf/2/relationshipRef",
+          "type_name": "AWS::DirectConnect::Lag",
+          "property_path": "LagId"
+        },
+        {
+          "property": "DirectConnectGatewayId",
+          "pointer": "/properties/DirectConnectGatewayId/anyOf/1/relationshipRef",
+          "type_name": "AWS::DirectConnect::DirectConnectGateway",
+          "property_path": "DirectConnectGatewayArn"
+        },
+        {
+          "property": "DirectConnectGatewayId",
+          "pointer": "/properties/DirectConnectGatewayId/anyOf/0/relationshipRef",
+          "type_name": "AWS::DirectConnect::DirectConnectGateway",
+          "property_path": "DirectConnectGatewayId"
+        }
+      ]
     },
     {
       "type_name": "AWS::DirectoryService::MicrosoftAD",
@@ -14993,7 +15166,27 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "KMSMasterKeyId",
+          "pointer": "/definitions/ReplicaSSESpecification/properties/KMSMasterKeyId/anyOf/2/relationshipRef",
+          "type_name": "AWS::KMS::Alias",
+          "property_path": "AliasName"
+        },
+        {
+          "property": "KMSMasterKeyId",
+          "pointer": "/definitions/ReplicaSSESpecification/properties/KMSMasterKeyId/anyOf/0/relationshipRef",
+          "type_name": "AWS::KMS::Key",
+          "property_path": "Arn"
+        },
+        {
+          "property": "KMSMasterKeyId",
+          "pointer": "/definitions/ReplicaSSESpecification/properties/KMSMasterKeyId/anyOf/1/relationshipRef",
+          "type_name": "AWS::KMS::Key",
+          "property_path": "KeyId"
+        }
+      ]
     },
     {
       "type_name": "AWS::DynamoDB::Table",
@@ -15022,7 +15215,27 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "KMSMasterKeyId",
+          "pointer": "/definitions/SSESpecification/properties/KMSMasterKeyId/anyOf/2/relationshipRef",
+          "type_name": "AWS::KMS::Alias",
+          "property_path": "AliasName"
+        },
+        {
+          "property": "KMSMasterKeyId",
+          "pointer": "/definitions/SSESpecification/properties/KMSMasterKeyId/anyOf/0/relationshipRef",
+          "type_name": "AWS::KMS::Key",
+          "property_path": "Arn"
+        },
+        {
+          "property": "KMSMasterKeyId",
+          "pointer": "/definitions/SSESpecification/properties/KMSMasterKeyId/anyOf/1/relationshipRef",
+          "type_name": "AWS::KMS::Key",
+          "property_path": "KeyId"
+        }
+      ]
     },
     {
       "type_name": "AWS::EC2::CapacityManagerDataExport",
@@ -15428,7 +15641,21 @@
         "update": false,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "EIP",
+          "pointer": "/properties/EIP/anyOf/1/relationshipRef",
+          "type_name": "AWS::EC2::EIP",
+          "property_path": "AllocationId"
+        },
+        {
+          "property": "EIP",
+          "pointer": "/properties/EIP/anyOf/0/relationshipRef",
+          "type_name": "AWS::EC2::EIP",
+          "property_path": "PublicIp"
+        }
+      ]
     },
     {
       "type_name": "AWS::EC2::EgressOnlyInternetGateway",
@@ -17318,7 +17545,15 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "SubnetIds",
+          "pointer": "/properties/SubnetIds/items/relationshipRef",
+          "type_name": "AWS::EC2::Subnet",
+          "property_path": "SubnetId"
+        }
+      ]
     },
     {
       "type_name": "AWS::EC2::TransitGatewayConnect",
@@ -18113,7 +18348,39 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "RouteTableIds",
+          "pointer": "/properties/RouteTableIds/items/relationshipRef",
+          "type_name": "AWS::EC2::RouteTable",
+          "property_path": "RouteTableId"
+        },
+        {
+          "property": "SecurityGroupIds",
+          "pointer": "/properties/SecurityGroupIds/items/anyOf/0/relationshipRef",
+          "type_name": "AWS::EC2::SecurityGroup",
+          "property_path": "GroupId"
+        },
+        {
+          "property": "SecurityGroupIds",
+          "pointer": "/properties/SecurityGroupIds/items/anyOf/1/relationshipRef",
+          "type_name": "AWS::EC2::SecurityGroup",
+          "property_path": "Id"
+        },
+        {
+          "property": "SecurityGroupIds",
+          "pointer": "/properties/SecurityGroupIds/items/anyOf/2/relationshipRef",
+          "type_name": "AWS::EC2::VPC",
+          "property_path": "DefaultSecurityGroup"
+        },
+        {
+          "property": "SubnetIds",
+          "pointer": "/properties/SubnetIds/items/relationshipRef",
+          "type_name": "AWS::EC2::Subnet",
+          "property_path": "SubnetId"
+        }
+      ]
     },
     {
       "type_name": "AWS::EC2::VPCEndpointConnectionNotification",
@@ -18162,7 +18429,15 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "NetworkLoadBalancerArns",
+          "pointer": "/properties/NetworkLoadBalancerArns/items/relationshipRef",
+          "type_name": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+          "property_path": "LoadBalancerArn"
+        }
+      ]
     },
     {
       "type_name": "AWS::EC2::VPCEndpointServicePermissions",
@@ -20426,7 +20701,33 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "CertificateArn",
+          "pointer": "/definitions/Certificate/properties/CertificateArn/anyOf/0/relationshipRef",
+          "type_name": "AWS::CertificateManager::Certificate",
+          "property_path": "Id"
+        },
+        {
+          "property": "CertificateArn",
+          "pointer": "/definitions/Certificate/properties/CertificateArn/anyOf/1/relationshipRef",
+          "type_name": "AWS::IAM::ServerCertificate",
+          "property_path": "Arn"
+        },
+        {
+          "property": "UserPoolClientId",
+          "pointer": "/definitions/AuthenticateCognitoConfig/properties/UserPoolClientId/anyOf/1/relationshipRef",
+          "type_name": "AWS::Cognito::UserPoolClient",
+          "property_path": "ClientId"
+        },
+        {
+          "property": "UserPoolClientId",
+          "pointer": "/definitions/AuthenticateCognitoConfig/properties/UserPoolClientId/anyOf/0/relationshipRef",
+          "type_name": "AWS::Cognito::UserPoolClient",
+          "property_path": "UserPoolId"
+        }
+      ]
     },
     {
       "type_name": "AWS::ElasticLoadBalancingV2::ListenerCertificate",
@@ -27648,7 +27949,21 @@
         "update": true,
         "delete": true,
         "list": false
-      }
+      },
+      "relationships": [
+        {
+          "property": "ResourceArn",
+          "pointer": "/properties/ResourceArn/anyOf/0/relationshipRef",
+          "type_name": "AWS::Kinesis::Stream",
+          "property_path": "Arn"
+        },
+        {
+          "property": "ResourceArn",
+          "pointer": "/properties/ResourceArn/anyOf/1/relationshipRef",
+          "type_name": "AWS::Kinesis::StreamConsumer",
+          "property_path": "ConsumerARN"
+        }
+      ]
     },
     {
       "type_name": "AWS::Kinesis::Stream",
@@ -27676,7 +27991,21 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "KeyId",
+          "pointer": "/definitions/StreamEncryption/properties/KeyId/anyOf/0/relationshipRef",
+          "type_name": "AWS::KMS::Key",
+          "property_path": "Arn"
+        },
+        {
+          "property": "KeyId",
+          "pointer": "/definitions/StreamEncryption/properties/KeyId/anyOf/1/relationshipRef",
+          "type_name": "AWS::KMS::Key",
+          "property_path": "KeyId"
+        }
+      ]
     },
     {
       "type_name": "AWS::Kinesis::StreamConsumer",
@@ -27943,7 +28272,51 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "DomainARN",
+          "pointer": "/definitions/ElasticsearchDestinationConfiguration/properties/DomainARN/anyOf/0/relationshipRef",
+          "type_name": "AWS::Elasticsearch::Domain",
+          "property_path": "Arn"
+        },
+        {
+          "property": "DomainARN",
+          "pointer": "/definitions/ElasticsearchDestinationConfiguration/properties/DomainARN/anyOf/1/relationshipRef",
+          "type_name": "AWS::OpenSearchService::Domain",
+          "property_path": "Arn"
+        },
+        {
+          "property": "ParameterValue",
+          "pointer": "/definitions/ProcessorParameter/properties/ParameterValue/anyOf/1/relationshipRef",
+          "type_name": "AWS::IAM::Role",
+          "property_path": "Arn"
+        },
+        {
+          "property": "ParameterValue",
+          "pointer": "/definitions/ProcessorParameter/properties/ParameterValue/anyOf/2/relationshipRef",
+          "type_name": "AWS::Lambda::Alias",
+          "property_path": "Id"
+        },
+        {
+          "property": "ParameterValue",
+          "pointer": "/definitions/ProcessorParameter/properties/ParameterValue/anyOf/0/relationshipRef",
+          "type_name": "AWS::Lambda::Function",
+          "property_path": "Arn"
+        },
+        {
+          "property": "SecurityGroupIds",
+          "pointer": "/definitions/VpcConfiguration/properties/SecurityGroupIds/items/relationshipRef",
+          "type_name": "AWS::EC2::SecurityGroup",
+          "property_path": "GroupId"
+        },
+        {
+          "property": "SubnetIds",
+          "pointer": "/definitions/VpcConfiguration/properties/SubnetIds/items/relationshipRef",
+          "type_name": "AWS::EC2::Subnet",
+          "property_path": "SubnetId"
+        }
+      ]
     },
     {
       "type_name": "AWS::KinesisVideo::SignalingChannel",
@@ -37974,7 +38347,33 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "SecurityGroupIds",
+          "pointer": "/definitions/SecurityGroupIds/items/anyOf/0/relationshipRef",
+          "type_name": "AWS::EC2::SecurityGroup",
+          "property_path": "GroupId"
+        },
+        {
+          "property": "SecurityGroupIds",
+          "pointer": "/definitions/SecurityGroupIds/items/anyOf/1/relationshipRef",
+          "type_name": "AWS::EC2::SecurityGroup",
+          "property_path": "Id"
+        },
+        {
+          "property": "SubnetIds",
+          "pointer": "/definitions/SubnetIds/items/relationshipRef",
+          "type_name": "AWS::EC2::Subnet",
+          "property_path": "SubnetId"
+        },
+        {
+          "property": "VpcId",
+          "pointer": "/definitions/VpcId/relationshipRef",
+          "type_name": "AWS::EC2::VPC",
+          "property_path": "VpcId"
+        }
+      ]
     },
     {
       "type_name": "AWS::RTBFabric::ResponderGateway",
@@ -38006,7 +38405,39 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "AcmCertificateArn",
+          "pointer": "/definitions/AcmCertificateArn/relationshipRef",
+          "type_name": "AWS::CertificateManager::Certificate",
+          "property_path": "CertificateArn"
+        },
+        {
+          "property": "SecurityGroupIds",
+          "pointer": "/definitions/SecurityGroupIds/items/anyOf/0/relationshipRef",
+          "type_name": "AWS::EC2::SecurityGroup",
+          "property_path": "GroupId"
+        },
+        {
+          "property": "SecurityGroupIds",
+          "pointer": "/definitions/SecurityGroupIds/items/anyOf/1/relationshipRef",
+          "type_name": "AWS::EC2::SecurityGroup",
+          "property_path": "Id"
+        },
+        {
+          "property": "SubnetIds",
+          "pointer": "/definitions/SubnetIds/items/relationshipRef",
+          "type_name": "AWS::EC2::Subnet",
+          "property_path": "SubnetId"
+        },
+        {
+          "property": "VpcId",
+          "pointer": "/definitions/VpcId/relationshipRef",
+          "type_name": "AWS::EC2::VPC",
+          "property_path": "VpcId"
+        }
+      ]
     },
     {
       "type_name": "AWS::RUM::AppMonitor",
@@ -38117,7 +38548,57 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "ClusterSecurityGroups",
+          "pointer": "/properties/ClusterSecurityGroups/items/anyOf/0/relationshipRef",
+          "type_name": "AWS::EC2::SecurityGroup",
+          "property_path": "Id"
+        },
+        {
+          "property": "ClusterSecurityGroups",
+          "pointer": "/properties/ClusterSecurityGroups/items/anyOf/1/relationshipRef",
+          "type_name": "AWS::Redshift::ClusterSecurityGroup",
+          "property_path": "Id"
+        },
+        {
+          "property": "IamRoles",
+          "pointer": "/properties/IamRoles/items/relationshipRef",
+          "type_name": "AWS::IAM::Role",
+          "property_path": "Arn"
+        },
+        {
+          "property": "KmsKeyId",
+          "pointer": "/properties/KmsKeyId/anyOf/0/relationshipRef",
+          "type_name": "AWS::KMS::Key",
+          "property_path": "Arn"
+        },
+        {
+          "property": "KmsKeyId",
+          "pointer": "/properties/KmsKeyId/anyOf/1/relationshipRef",
+          "type_name": "AWS::KMS::Key",
+          "property_path": "KeyId"
+        },
+        {
+          "property": "MasterPasswordSecretKmsKeyId",
+          "pointer": "/properties/MasterPasswordSecretKmsKeyId/anyOf/0/relationshipRef",
+          "type_name": "AWS::KMS::Key",
+          "property_path": "Arn"
+        },
+        {
+          "property": "MasterPasswordSecretKmsKeyId",
+          "pointer": "/properties/MasterPasswordSecretKmsKeyId/anyOf/1/relationshipRef",
+          "type_name": "AWS::KMS::Key",
+          "property_path": "KeyId"
+        },
+        {
+          "property": "VpcSecurityGroupIds",
+          "pointer": "/properties/VpcSecurityGroupIds/items/relationshipRef",
+          "type_name": "AWS::EC2::VPC",
+          "property_path": "VpcId"
+        }
+      ]
     },
     {
       "type_name": "AWS::Redshift::ClusterParameterGroup",
@@ -38212,7 +38693,15 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "SubnetIds",
+          "pointer": "/properties/SubnetIds/items/relationshipRef",
+          "type_name": "AWS::EC2::Subnet",
+          "property_path": "SubnetId"
+        }
+      ]
     },
     {
       "type_name": "AWS::Redshift::EndpointAccess",
@@ -38252,7 +38741,21 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "VpcEndpointId",
+          "pointer": "/properties/VpcEndpoint/properties/VpcEndpointId/relationshipRef",
+          "type_name": "AWS::EC2::VPCEndpoint",
+          "property_path": "Id"
+        },
+        {
+          "property": "VpcId",
+          "pointer": "/properties/VpcEndpoint/properties/VpcId/relationshipRef",
+          "type_name": "AWS::EC2::VPCEndpoint",
+          "property_path": "VpcId"
+        }
+      ]
     },
     {
       "type_name": "AWS::Redshift::EndpointAuthorization",
@@ -38288,7 +38791,15 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "VpcId",
+          "pointer": "/definitions/VpcId/relationshipRef",
+          "type_name": "AWS::EC2::VPC",
+          "property_path": "VpcId"
+        }
+      ]
     },
     {
       "type_name": "AWS::Redshift::EventSubscription",
@@ -40811,7 +41322,21 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "KMSMasterKeyID",
+          "pointer": "/definitions/ServerSideEncryptionByDefault/properties/KMSMasterKeyID/anyOf/1/relationshipRef",
+          "type_name": "AWS::KMS::Key",
+          "property_path": "Arn"
+        },
+        {
+          "property": "KMSMasterKeyID",
+          "pointer": "/definitions/ServerSideEncryptionByDefault/properties/KMSMasterKeyID/anyOf/0/relationshipRef",
+          "type_name": "AWS::KMS::Key",
+          "property_path": "KeyId"
+        }
+      ]
     },
     {
       "type_name": "AWS::S3Files::AccessPoint",
@@ -42342,7 +42867,21 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "S3BucketName",
+          "pointer": "/definitions/S3BucketName/relationshipRef",
+          "type_name": "AWS::S3::Bucket",
+          "property_path": "BucketName"
+        },
+        {
+          "property": "Values",
+          "pointer": "/definitions/Target/properties/Values/items/anyOf/0/relationshipRef",
+          "type_name": "AWS::EC2::Instance",
+          "property_path": "Id"
+        }
+      ]
     },
     {
       "type_name": "AWS::SSM::CloudConnector",
@@ -47511,7 +48050,33 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "relationships": [
+        {
+          "property": "SecurityGroupIds",
+          "pointer": "/properties/SecurityGroupIds/items/anyOf/0/relationshipRef",
+          "type_name": "AWS::EC2::SecurityGroup",
+          "property_path": "GroupId"
+        },
+        {
+          "property": "SecurityGroupIds",
+          "pointer": "/properties/SecurityGroupIds/items/anyOf/1/relationshipRef",
+          "type_name": "AWS::EC2::SecurityGroup",
+          "property_path": "Id"
+        },
+        {
+          "property": "SecurityGroupIds",
+          "pointer": "/properties/SecurityGroupIds/items/anyOf/2/relationshipRef",
+          "type_name": "AWS::EC2::VPC",
+          "property_path": "DefaultSecurityGroup"
+        },
+        {
+          "property": "SubnetIds",
+          "pointer": "/properties/SubnetIds/items/relationshipRef",
+          "type_name": "AWS::EC2::Subnet",
+          "property_path": "SubnetId"
+        }
+      ]
     },
     {
       "type_name": "AWS::VpcLattice::ResourcePolicy",
