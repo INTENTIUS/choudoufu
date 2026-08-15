@@ -210,7 +210,7 @@ func compareOne(p proposal, ratified identity.TypeIdentity) convergenceRow {
 	row.Matched = len(row.MismatchClasses) == 0
 
 	if !row.Matched {
-		row.ScrapeGap = isScrapeGap(p, row.MismatchClasses)
+		row.ScrapeGap = isScrapeGap(p, row.MismatchClasses, ratified)
 	}
 
 	return row
@@ -239,18 +239,33 @@ func compareOne(p proposal, ratified identity.TypeIdentity) convergenceRow {
 //     (aws_vpc_dhcp_options_association's grammar row, for one, has no
 //     composed_of_arguments detection at all even though the type client-
 //     names by a plain vpc_id).
-//   - A server-assigned proposal whose ONLY disagreement is IdentityAttrs:
-//     rules 2 and 4 already resolve the ARN-vs-short-id shape, but a type
-//     like aws_batch_compute_environment has both a legacy Import section
-//     (a plain name-based example, which is where live/import-grammar.json's
+//   - A server-assigned proposal whose ONLY disagreement is IdentityAttrs,
+//     AND whose ratified entry actually claims some: rules 2 and 4 already
+//     resolve the ARN-vs-short-id shape, but a type like
+//     aws_batch_compute_environment has both a legacy Import section (a
+//     plain name-based example, which is where live/import-grammar.json's
 //     own scrape reads ImportIDExample from) and a newer Terraform 1.12+
-//     Identity Schema block naming "arn" as the real required attribute -
-//     the ratified entry follows the Identity Schema, which
-//     live/import-grammar.json does not expose as its own structured field,
-//     only as unparsed prose inside evidence_excerpt.
-func isScrapeGap(p proposal, mismatchClasses []string) bool {
+//     Identity Schema block naming "arn" as the real required attribute.
+//
+// The qualifier on that last bullet is issue #132's correction, and it
+// matters at scale. A scrape gap means "fuller extraction would have
+// produced the ratified answer". When the RATIFIED entry claims no identity
+// attributes at all - table.go's own "no attribute of this type is usable as
+// an identity source", the honest answer for a type whose id is a
+// provider-synthesized value distinct from the import ID - no amount of
+// further extraction gets there, because the proposal's fault is claiming
+// too much rather than knowing too little. Those are ratification judgments
+// and belong in the annotation ledger, not in a count of extractor debt.
+//
+// Measured when the qualifier went in: 33 of the 36 identity-attrs-only
+// mismatches had an empty ratified IdentityAttrs, and 13 of them had a
+// scraped identity_schema_required that the ratified entry still declined to
+// follow. The evidence was there and the judgment went the other way.
+func isScrapeGap(p proposal, mismatchClasses []string, ratified identity.TypeIdentity) bool {
 	if len(mismatchClasses) == 1 && mismatchClasses[0] == "identity-attrs" && p.Bucket == bucketServerAssigned {
-		return true
+		// Only when the ratified entry claims something a fuller scrape
+		// could have found. A ratified empty is a decision, not a gap.
+		return len(ratified.IdentityAttrs) > 0
 	}
 	for _, c := range mismatchClasses {
 		if c == "server-assigned" {

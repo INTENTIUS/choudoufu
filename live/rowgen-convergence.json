@@ -9,7 +9,7 @@
     "genuine_mismatches": 184,
     "annotated": 0,
     "unannotated_mismatches": 184,
-    "scrape_gap_mismatches": 115
+    "scrape_gap_mismatches": 82
   },
   "by_service": {
     "ACMPCA": {
@@ -1398,7 +1398,6 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -1801,7 +1800,6 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -1840,7 +1838,6 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -1863,7 +1860,6 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -1905,7 +1901,6 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -1920,7 +1915,6 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -1954,7 +1948,6 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -1969,7 +1962,6 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -1981,7 +1973,6 @@
       "mismatch_classes": [
         "identity-attrs"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -3673,7 +3664,6 @@
       "mismatch_classes": [
         "identity-attrs"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -3685,7 +3675,6 @@
       "mismatch_classes": [
         "identity-attrs"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -3697,7 +3686,6 @@
       "mismatch_classes": [
         "identity-attrs"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -3709,7 +3697,6 @@
       "mismatch_classes": [
         "identity-attrs"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -3721,7 +3708,6 @@
       "mismatch_classes": [
         "identity-attrs"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -3733,7 +3719,6 @@
       "mismatch_classes": [
         "identity-attrs"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -6250,7 +6235,6 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -6265,7 +6249,6 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -7008,7 +6991,6 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -7023,7 +7005,6 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -7038,7 +7019,6 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -7053,7 +7033,6 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -7068,7 +7047,6 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -7375,7 +7353,6 @@
       "mismatch_classes": [
         "identity-attrs"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -8137,7 +8114,6 @@
       "mismatch_classes": [
         "identity-attrs"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -8573,7 +8549,6 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -8636,7 +8611,6 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -8696,7 +8670,6 @@
       "mismatch_classes": [
         "identity-attrs"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -8790,7 +8763,6 @@
       "mismatch_classes": [
         "identity-attrs"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -9002,7 +8974,6 @@
       "mismatch_classes": [
         "identity-attrs"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -9174,7 +9145,6 @@
       "mismatch_classes": [
         "identity-attrs"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -9197,7 +9167,6 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -9220,7 +9189,6 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -9235,7 +9203,6 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
