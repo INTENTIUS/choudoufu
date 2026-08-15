@@ -651,6 +651,9 @@
         "internal/live/identity/table_cohort_iot.go"
       ]
     },
+    "aws_ivs_playback_key_pair": {
+      "reason": "public_key is Required, ForceNew and write-only (no IVS read returns the material), so a marker-rebuilt plan always proposes replacement - measured by the acceptance tier's media cohort 2026-08-14 (#124). Same ground as SURVEY.md's credential-material exclusion (aws_iam_access_key, #125), extended to client-supplied write-only material."
+    },
     "aws_key_pair": {
       "recovered_from": [
         "internal/live/identity/table_cohort_ec2_core.go"
@@ -754,6 +757,9 @@
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
       ]
+    },
+    "aws_medialive_multiplex_program": {
+      "reason": "the pinned provider's import leaves multiplex_id (ForceNew) unset - reproduced directly against floci 2026-08-14: terraform import by the documented PROGRAM_NAME/MULTIPLEX_ID id populates program_name and settings but not multiplex_id, so a marker-rebuilt plan always proposes replacement (#124). Re-admittable if a future pass backfills null ForceNew arguments from the identity components that composed the import id."
     },
     "aws_msk_single_scram_secret_association": {
       "recovered_from": [

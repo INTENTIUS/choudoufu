@@ -29,7 +29,7 @@ every type in it gets a named, one-sentence answer in
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-845<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+843<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
   `aws_amplify_app`, `aws_amplify_branch`, `aws_api_gateway_account`,
@@ -247,9 +247,9 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_iot_provisioning_template`, `aws_iot_role_alias`, `aws_iot_thing`,
   `aws_iot_thing_group`, `aws_iot_thing_type`, `aws_iot_topic_rule`,
   `aws_iot_topic_rule_destination`, `aws_ivs_channel`,
-  `aws_ivs_playback_key_pair`, `aws_ivs_recording_configuration`,
-  `aws_ivschat_logging_configuration`, `aws_ivschat_room`, `aws_kendra_index`,
-  `aws_key_pair`, `aws_keyspaces_keyspace`, `aws_keyspaces_table`,
+  `aws_ivs_recording_configuration`, `aws_ivschat_logging_configuration`,
+  `aws_ivschat_room`, `aws_kendra_index`, `aws_key_pair`,
+  `aws_keyspaces_keyspace`, `aws_keyspaces_table`,
   `aws_kinesis_analytics_application`, `aws_kinesis_firehose_delivery_stream`,
   `aws_kinesis_resource_policy`, `aws_kinesis_stream`,
   `aws_kinesis_stream_consumer`, `aws_kms_alias`, `aws_kms_external_key`,
@@ -273,12 +273,11 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_macie2_organization_admin_account`, `aws_mailmanager_rule_set`,
   `aws_mailmanager_traffic_policy`, `aws_media_package_channel`,
   `aws_media_packagev2_channel_group`, `aws_medialive_multiplex`,
-  `aws_medialive_multiplex_program`, `aws_memorydb_acl`,
-  `aws_memorydb_cluster`, `aws_memorydb_multi_region_cluster`,
-  `aws_memorydb_parameter_group`, `aws_memorydb_subnet_group`,
-  `aws_memorydb_user`, `aws_mq_broker`, `aws_mq_configuration`,
-  `aws_msk_cluster`, `aws_msk_cluster_policy`, `aws_msk_configuration`,
-  `aws_msk_replicator`, `aws_msk_serverless_cluster`,
+  `aws_memorydb_acl`, `aws_memorydb_cluster`,
+  `aws_memorydb_multi_region_cluster`, `aws_memorydb_parameter_group`,
+  `aws_memorydb_subnet_group`, `aws_memorydb_user`, `aws_mq_broker`,
+  `aws_mq_configuration`, `aws_msk_cluster`, `aws_msk_cluster_policy`,
+  `aws_msk_configuration`, `aws_msk_replicator`, `aws_msk_serverless_cluster`,
   `aws_msk_vpc_connection`, `aws_mskconnect_connector`,
   `aws_mskconnect_custom_plugin`, `aws_mskconnect_worker_configuration`,
   `aws_mwaa_environment`, `aws_nat_gateway`,

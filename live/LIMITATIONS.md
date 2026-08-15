@@ -2378,10 +2378,9 @@ inject into a shared configuration body. (`internal/live/stamp/stamp.go`,
 `aws_lexv2models_bot_locale`, `aws_lightsail_lb_certificate`,
 `aws_lightsail_static_ip`, `aws_location_tracker_association`,
 `aws_macie2_account`, `aws_macie2_organization_admin_account`,
-`aws_medialive_multiplex_program`, `aws_msk_cluster_policy`,
-`aws_msk_configuration`, `aws_nat_gateway_eip_association`,
-`aws_network_acl_rule`, `aws_network_interface_attachment`,
-`aws_network_interface_permission`,
+`aws_msk_cluster_policy`, `aws_msk_configuration`,
+`aws_nat_gateway_eip_association`, `aws_network_acl_rule`,
+`aws_network_interface_attachment`, `aws_network_interface_permission`,
 `aws_networkfirewall_logging_configuration`,
 `aws_networkmanager_core_network_policy_attachment`,
 `aws_networkmanager_customer_gateway_association`,
@@ -2542,7 +2541,6 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_lightsail_lb_certificate` | `aws_lightsail_lb` | no (report-only) |
 | `aws_lightsail_static_ip` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_location_tracker_association` | `aws_location_tracker` | no (report-only) |
-| `aws_medialive_multiplex_program` | `aws_medialive_multiplex` | no (report-only) |
 | `aws_nat_gateway_eip_association` | `aws_nat_gateway` | no (report-only) |
 | `aws_network_acl_rule` | `aws_network_acl` | no (report-only) |
 | `aws_networkfirewall_logging_configuration` | `aws_networkfirewall_firewall` | no (report-only) |
@@ -2600,7 +2598,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_workspacesweb_user_access_logging_settings_association` | `aws_workspacesweb_user_access_logging_settings` | no (report-only) |
 | `aws_workspacesweb_user_settings_association` | `aws_workspacesweb_user_settings` | no (report-only) |
 
-**Total.** 132 types swept via a parent read.
+**Total.** 131 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it

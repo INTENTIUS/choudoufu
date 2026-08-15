@@ -38,14 +38,12 @@ var typeOverridesMedia = map[string]typeOverride{
 			ms.Body().SetAttributeRaw("transport_stream_id", exprTokens(`1`))
 		},
 	},
-	"aws_medialive_multiplex_program": {
-		Reasons: []string{
-			`multiplex_id names the parent aws_medialive_multiplex by its server-assigned id, but this type's identity is a two-component composite (program_name, multiplex_id joined by "/"), and gen.go's identityArgName only links a single-component identity - so parentRef has nothing to match multiplex_id against and the generic pass leaves it a disconnected placeholder, the same "no automatic link to a server-assigned parent" gap cognitoUserPoolIDRef and iamPolicyArnRef below already work around for their own types`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("multiplex_id", exprTokens(medialiveMultiplexIDRef(g)))
-		},
-	},
+	// aws_medialive_multiplex_program's override (multiplex_id wired to the
+	// parent via medialiveMultiplexIDRef, plus the multiplex_program_settings
+	// block the SDK requires despite the wire schema calling it Optional)
+	// left with the type's admission: the pinned provider's import leaves
+	// multiplex_id unset, so a marker-rebuilt plan always forces replacement
+	// (#124, measured 2026-08-14; the ruling is in tools/row-gen/rejected.json).
 }
 
 func init() { registerCohortOverrides(typeOverridesMedia) }

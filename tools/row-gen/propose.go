@@ -198,7 +198,12 @@ type rejectedTypesArtifact struct {
 }
 
 type rejectedTypeRow struct {
-	RecoveredFrom []string `json:"recovered_from"`
+	RecoveredFrom []string `json:"recovered_from,omitempty"`
+
+	// Reason carries a fresh, measured rejection's own ground - entries
+	// recovered from deleted prose trace provenance via RecoveredFrom
+	// instead. Either field alone is a valid row.
+	Reason string `json:"reason,omitempty"`
 }
 
 // loadRejectedTypes is PROPOSE's second safety net: the veto set of types

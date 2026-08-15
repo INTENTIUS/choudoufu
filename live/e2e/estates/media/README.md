@@ -21,10 +21,25 @@ below), and two services this batch was asked to check (MediaTailor,
 Elastic Transcoder) turn out to have nothing to ratify for reasons
 independent of row-gen.
 
+**Two of the nine left the admission on 2026-08-14** (#124's acceptance
+measurement; rulings recorded in `tools/row-gen/rejected.json`, the same
+procedure #125 used for `aws_iam_access_key`): `aws_ivs_playback_key_pair`,
+whose `public_key` is Required, ForceNew and write-only (no IVS read
+returns the material, so a marker-rebuilt plan always proposes
+replacement), and `aws_medialive_multiplex_program`, whose import under
+the pinned provider leaves `multiplex_id` unset (reproduced directly:
+`terraform import` by the documented `PROGRAM_NAME/MULTIPLEX_ID` id
+populates `program_name` and the settings block but not `multiplex_id`,
+which is ForceNew - so replan always proposes replacement; re-admittable
+if a future pass backfills null ForceNew arguments from the identity
+components that composed the import id). The coverage rows below keep
+both types' original evidence for the record; the estate no longer
+declares them.
+
 Regenerate with:
 
 ```
-go run ./tools/estate-gen -cohort media -types aws_medialive_multiplex,aws_medialive_multiplex_program,aws_media_package_channel,aws_media_packagev2_channel_group,aws_ivs_channel,aws_ivs_playback_key_pair,aws_ivs_recording_configuration,aws_ivschat_logging_configuration,aws_ivschat_room -out live/e2e/estates/media
+go run ./tools/estate-gen -cohort media -types aws_ivs_channel,aws_ivs_recording_configuration,aws_ivschat_logging_configuration,aws_ivschat_room,aws_media_package_channel,aws_media_packagev2_channel_group,aws_medialive_multiplex -out live/e2e/estates/media
 ```
 
 `-types` is explicit because `tools/estate-gen/cohort.go`'s no-`-types`

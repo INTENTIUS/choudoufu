@@ -184,21 +184,6 @@ func registerCohortOverrides(fragment map[string]typeOverride) {
 	}
 }
 
-// medialiveMultiplexIDRef is the sibling aws_medialive_multiplex's own id
-// attribute as HCL source when this run renders one, or a literal
-// placeholder id-shaped string otherwise. multiplex_id is not a
-// single-component identity argument gen.go's parentRef links
-// automatically (aws_medialive_multiplex is server-assigned, so
-// identityArgName returns ok=false for it, the same gap
-// cognitoUserPoolIDRef below documents for its own type), so
-// aws_medialive_multiplex_program's own override resolves it here by hand.
-func medialiveMultiplexIDRef(g *generator) string {
-	addr, ok := g.byType["aws_medialive_multiplex"]
-	if !ok {
-		return `"12345678"`
-	}
-	return fmt.Sprintf("%s.id", addr)
-}
 
 // eksClusterNameRef is the sibling aws_eks_cluster's name attribute as HCL
 // source when this run renders one, or a literal placeholder (a cohort

@@ -1,14 +1,14 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 845,
-    "compared": 824,
+    "admitted_total": 843,
+    "compared": 822,
     "not_in_mapped_set": 21,
-    "adopted_unchanged": 630,
-    "adopted_unchanged_pct": 76.46,
-    "genuine_mismatches": 194,
+    "adopted_unchanged": 629,
+    "adopted_unchanged_pct": 76.52,
+    "genuine_mismatches": 193,
     "annotated": 0,
-    "unannotated_mismatches": 194,
+    "unannotated_mismatches": 193,
     "scrape_gap_mismatches": 117
   },
   "by_service": {
@@ -428,8 +428,8 @@
       "adopted_unchanged_pct": 62.5
     },
     "IVS": {
-      "compared": 3,
-      "adopted_unchanged": 3,
+      "compared": 2,
+      "adopted_unchanged": 2,
       "adopted_unchanged_pct": 100
     },
     "IVSChat": {
@@ -543,9 +543,9 @@
       "adopted_unchanged_pct": 100
     },
     "MediaLive": {
-      "compared": 2,
+      "compared": 1,
       "adopted_unchanged": 1,
-      "adopted_unchanged_pct": 50
+      "adopted_unchanged_pct": 100
     },
     "MediaPackage": {
       "compared": 1,
@@ -5730,17 +5730,6 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_ivs_playback_key_pair",
-      "service": "IVS",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_ivs_recording_configuration",
       "service": "IVS",
       "proposed_bucket": "server-assigned",
@@ -6412,20 +6401,6 @@
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
       "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_medialive_multiplex_program",
-      "service": "MediaLive",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "components"
-      ],
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
-      "matched": false,
       "annotated": false
     },
     {
