@@ -49,6 +49,14 @@ type LiveCheckReport struct {
 
 	// UnsetVariables are required input variables that had no value.
 	UnsetVariables []string
+
+	// VariableDependentFindings is how many refusals have at least one site
+	// reading an unset variable, and FullyVariableDependent how many have
+	// no other kind of site. The second is the number that would go away if
+	// the variables were supplied; the first is the number that might
+	// change. Issue #161.
+	VariableDependentFindings int
+	FullyVariableDependent    int
 }
 
 // LiveCheckFinding is one refusal and where it fired.
@@ -79,6 +87,11 @@ type LiveCheckFinding struct {
 	// omitted.
 	Remedy  string
 	DocsRef string
+
+	// UnsetVarRefs are the valueless input variables this refusal's sites
+	// read, and UnsetVarSites how many of its sites read one.
+	UnsetVarRefs  []string
+	UnsetVarSites int
 }
 
 // LiveCheckSite is one position.
@@ -131,9 +144,31 @@ func (v *LiveCheckHuman) Report(rep LiveCheckReport) {
 	var b strings.Builder
 
 	if rep.Blocked {
-		fmt.Fprintf(&b, "\n%s cannot move under live resource markers yet.\n", rep.Dir)
-		fmt.Fprintf(&b, "%d refusal(s) across %d site(s); %d managed resource instance(s) resolved.\n",
-			len(rep.Findings), rep.Sites, rep.Instances)
+		// The headline distinguishes refusals that survive missing
+		// variable values from ones that may not (issue #161). Someone
+		// assessing compatibility reads this line and stops, so a count
+		// inflated by unsupplied variables is wrong in the direction that
+		// makes this fork look worse than it is - and the audiences most
+		// worth winning, whose variables come from a pipeline, are exactly
+		// the ones who run with none of them set.
+		settled := len(rep.Findings) - rep.FullyVariableDependent
+		switch {
+		case settled == 0 && rep.FullyVariableDependent > 0:
+			fmt.Fprintf(&b, "\n%s is inconclusive: every refusal below depends on an input variable that\n", rep.Dir)
+			fmt.Fprintf(&b, "had no value. Supply %s and run this again.\n", varPhrase(rep.UnsetVariables))
+			fmt.Fprintf(&b, "%d refusal(s) across %d site(s); %d managed resource instance(s) resolved.\n",
+				len(rep.Findings), rep.Sites, rep.Instances)
+		case rep.FullyVariableDependent > 0:
+			fmt.Fprintf(&b, "\n%s cannot move under live resource markers yet.\n", rep.Dir)
+			fmt.Fprintf(&b, "%d refusal(s) across %d site(s); %d managed resource instance(s) resolved.\n",
+				len(rep.Findings), rep.Sites, rep.Instances)
+			fmt.Fprintf(&b, "%d of those refusal(s) depend entirely on an input variable that had no value and\n", rep.FullyVariableDependent)
+			fmt.Fprintf(&b, "may not be real; supply %s to find out.\n", varPhrase(rep.UnsetVariables))
+		default:
+			fmt.Fprintf(&b, "\n%s cannot move under live resource markers yet.\n", rep.Dir)
+			fmt.Fprintf(&b, "%d refusal(s) across %d site(s); %d managed resource instance(s) resolved.\n",
+				len(rep.Findings), rep.Sites, rep.Instances)
+		}
 	} else {
 		fmt.Fprintf(&b, "\nNothing in %s is refused by the two checks below.\n", rep.Dir)
 		fmt.Fprintf(&b, "%d managed resource instance(s) resolved.\n", rep.Instances)
@@ -141,6 +176,14 @@ func (v *LiveCheckHuman) Report(rep LiveCheckReport) {
 
 	for _, finding := range rep.Findings {
 		fmt.Fprintf(&b, "\n%s  (%d site(s), %s)\n", finding.Title, finding.SiteCount, finding.Layer)
+		if finding.UnsetVarSites > 0 {
+			if finding.UnsetVarSites == finding.SiteCount {
+				fmt.Fprintf(&b, "  May not be real: every site reads %s, which had no value.\n", varPhrase(finding.UnsetVarRefs))
+			} else {
+				fmt.Fprintf(&b, "  %d of these site(s) read %s, which had no value, and may not be real.\n",
+					finding.UnsetVarSites, varPhrase(finding.UnsetVarRefs))
+			}
+		}
 
 		switch {
 		case len(finding.Types) > 0:
@@ -189,9 +232,14 @@ func (v *LiveCheckHuman) Report(rep LiveCheckReport) {
 	}
 
 	if len(rep.UnsetVariables) > 0 {
-		fmt.Fprintf(&b, "\n%d required input variable(s) had no value, so expressions reading them are not\n", len(rep.UnsetVariables))
-		b.WriteString("statically evaluable and some refusals above may be an artifact of that rather than of\n")
-		fmt.Fprintf(&b, "the configuration: %s\n", strings.Join(rep.UnsetVariables, ", "))
+		fmt.Fprintf(&b, "\n%d required input variable(s) had no value: %s\n",
+			len(rep.UnsetVariables), strings.Join(rep.UnsetVariables, ", "))
+		b.WriteString("Expressions reading them are not statically evaluable. ")
+		if rep.VariableDependentFindings > 0 {
+			b.WriteString("The refusals this affects are\nmarked above.\n")
+		} else {
+			b.WriteString("No refusal above reads one, so none\nof them is an artifact of this.\n")
+		}
 	}
 
 	if len(rep.Warnings) > 0 {
@@ -202,4 +250,20 @@ func (v *LiveCheckHuman) Report(rep LiveCheckReport) {
 	}
 
 	v.view.streams.Print(b.String())
+}
+
+// varPhrase renders variable names as prose: "var.account_id", or
+// "var.a and var.b", or "var.a, var.b and var.c".
+func varPhrase(names []string) string {
+	switch len(names) {
+	case 0:
+		return "an input variable"
+	case 1:
+		return "var." + names[0]
+	}
+	q := make([]string, len(names))
+	for i, n := range names {
+		q[i] = "var." + n
+	}
+	return strings.Join(q[:len(q)-1], ", ") + " and " + q[len(q)-1]
 }

@@ -83,6 +83,7 @@ func Load(ctx context.Context, dir string) LoadResult {
 		return result
 	}
 	result.Config = cfg
+	result.sources = parser.Sources()
 	return result
 }
 
@@ -110,7 +111,14 @@ type LoadResult struct {
 	// the names at the end of Load and reported none, which is the
 	// quietest possible way to lose the caveat that matters most.
 	vars *variableValues
+
+	// sources are the parsed files, kept so a report can recover the source
+	// text of a refusal's own range. See [Report.AttributeUnsetVariables].
+	sources map[string]*hcl.File
 }
+
+// Sources are the configuration files this load parsed, by filename.
+func (r LoadResult) Sources() map[string]*hcl.File { return r.sources }
 
 // UnsetVariables are the required root input variables no value was found
 // for, sorted.

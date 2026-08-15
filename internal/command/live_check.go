@@ -130,6 +130,10 @@ func (c *LiveCheckCommand) liveCheck(ctx context.Context, dir string) check.Repo
 
 	report := check.Analyze(ctx, load.Config, check.Context{Schemas: schemas})
 	report.Load = load
+	// After Analyze, not inside it: the static evaluator is lazy, so most
+	// variables are first read during identity resolution and the unset set
+	// is not complete until now (issue #161).
+	report.AttributeUnsetVariables(load.UnsetVariables(), load.Sources())
 	return report
 }
 
@@ -146,6 +150,14 @@ func liveCheckReport(dir string, report check.Report) views.LiveCheckReport {
 		Checked:        layerNames(report.Checked),
 		Unchecked:      layerNames(report.Unchecked),
 		UnsetVariables: report.Load.UnsetVariables(),
+	}
+	for _, finding := range report.Findings {
+		if finding.UnsetVarSites > 0 {
+			out.VariableDependentFindings++
+			if finding.UnsetVarSites == len(finding.Sites) {
+				out.FullyVariableDependent++
+			}
+		}
 	}
 
 	for _, finding := range report.Findings {
@@ -173,6 +185,9 @@ func liveCheckFinding(finding check.Finding) views.LiveCheckFinding {
 		SiteCount: len(finding.Sites),
 		Remedy:    condense(finding.Remedy()),
 		DocsRef:   finding.DocsRef,
+
+		UnsetVarRefs:  finding.UnsetVarRefs,
+		UnsetVarSites: finding.UnsetVarSites,
 	}
 
 	// A type-shaped rule is summarized by type rather than enumerated by

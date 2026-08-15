@@ -67,6 +67,9 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 			File:    issue.Subject.Filename,
 			Line:    issue.Subject.Start.Line,
 			Column:  issue.Subject.Start.Column,
+
+			StartByte: issue.Subject.Start.Byte,
+			EndByte:   issue.Subject.End.Byte,
 		})
 	}
 
@@ -104,6 +107,8 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 			site.File = src.Subject.Filename
 			site.Line = src.Subject.Start.Line
 			site.Column = src.Subject.Start.Column
+			site.StartByte = src.Subject.Start.Byte
+			site.EndByte = src.Subject.End.Byte
 		}
 
 		switch diag.Severity() {
@@ -217,6 +222,18 @@ type Finding struct {
 	// drifted, and the finding is reported under its raw summary rather
 	// than dropped.
 	Registered bool
+
+	// UnsetVarRefs are the required input variables with no value that this
+	// refusal's sites reference, sorted, and UnsetVarSites how many of its
+	// sites reference one. Both are set by
+	// [Report.AttributeUnsetVariables] and are zero until it runs.
+	//
+	// UnsetVarSites < len(Sites) is the interesting case and the reason
+	// this is a count rather than a flag: a refusal that fires in six
+	// places, two of which read an unset variable, is still a real refusal
+	// in four.
+	UnsetVarRefs  []string
+	UnsetVarSites int
 }
 
 // Site is one place a refusal fired.
@@ -240,6 +257,18 @@ type Site struct {
 	File   string
 	Line   int
 	Column int
+
+	// StartByte and EndByte bound the offending construct in File, kept so
+	// that its source text can be recovered after the fact. Line and Column
+	// locate it for a reader; these locate it for a program.
+	StartByte int
+	EndByte   int
+
+	// UnsetVarRefs are the required input variables with no value that this
+	// site's own source text references, sorted. Non-empty means this
+	// refusal may be an artifact of the missing value rather than of the
+	// configuration - see [Report.AttributeUnsetVariables].
+	UnsetVarRefs []string
 }
 
 // location renders the site as "file:line", the form an editor and a reader
