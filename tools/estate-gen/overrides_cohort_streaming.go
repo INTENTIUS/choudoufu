@@ -35,6 +35,32 @@ var typeOverridesStreaming = map[string]typeOverride{
 			body.SetAttributeRaw("authentication_type", exprTokens(`"API_KEY"`))
 		},
 	},
+	// #175 ratification batch, 2026-08-15: two of the four types this
+	// batch added to the cohort carry arguments the provider validates as
+	// well-formed ARNs at plan time, a constraint the wire schema does not
+	// express (the same class as aws_pipes_pipe's role_arn/source/target
+	// below).
+	"aws_appsync_domain_name": {
+		Reasons: []string{
+			`certificate_arn is Required and validated as a well-formed ARN (validate: "certificate_arn" (placeholder) is an invalid ARN: arn: invalid prefix); no admitted ACM type exists in this cohort to reference, so it stays a literal placeholder ARN naming an ACM certificate - the same "no real sibling to reference" shape aws_pipes_pipe's target accepts below`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("certificate_arn", exprTokens(`"arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"`))
+		},
+	},
+	"aws_msk_scram_secret_association": {
+		Reasons: []string{
+			`cluster_arn and every secret_arn_list member are validated as well-formed ARNs (validate: "cluster_arn" ... is an invalid ARN: arn: invalid prefix / "secret_arn_list.0" (placeholder) is an invalid ARN). cluster_arn is wired to this cohort's own aws_msk_cluster - the association's identity IS that cluster's server-assigned ARN, the identity-bound reference shape the table's IdentityAttrs sanction - and secret_arn_list stays a literal placeholder ARN naming a Secrets Manager secret with the AmazonMSK_ prefix the service requires of associated secrets, since no admitted Secrets Manager type exists in this cohort to reference`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			clusterExpr := `"arn:aws:kafka:us-east-1:123456789012:cluster/tofu-streaming-cohort/12345678-1234-1234-1234-123456789012-1"`
+			if cluster, ok := g.byType["aws_msk_cluster"]; ok {
+				clusterExpr = fmt.Sprintf("%s.arn", cluster)
+			}
+			body.SetAttributeRaw("cluster_arn", exprTokens(clusterExpr))
+			body.SetAttributeRaw("secret_arn_list", exprTokens(`["arn:aws:secretsmanager:us-east-1:123456789012:secret:AmazonMSK_tofu-streaming-cohort-AbCdEf"]`))
+		},
+	},
 	"aws_msk_configuration": {
 		Reasons: []string{
 			`"name" mis-wired to aws_appflow_connector_profile.app.name, the same cause and fix as aws_appsync_graphql_api above. server_properties is Required but the generic placeholder string is not a real Kafka broker properties file, which the provider does not validate at plan time but does need at apply time (confirmed by hand against floci during this batch's verification)`,

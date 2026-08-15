@@ -221,6 +221,7 @@ var untaggableRemainder = []string{
 	"aws_appconfig_hosted_configuration_version",
 	"aws_datazone_environment_blueprint_configuration",
 	"aws_datazone_form_type",
+	"aws_paymentcryptography_key_alias",
 	"aws_s3control_bucket_policy",
 }
 

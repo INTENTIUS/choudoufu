@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/live/flocitest"
+	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
 // This file is issue #108's fourth criterion made a test: the committed
@@ -79,6 +80,74 @@ var knownDrift = map[string]driftEntry{}
 // the relocation step now precedes every fold rather than only covering
 // the file being deleted.
 var regenGaps = map[string]string{}
+
+// fixtureGaps: admitted type -> why no cohort fixture exercises it. The
+// third gap table, added with the #175 ratification batch under the ruling
+// that an unbuildable fixture does not exempt a type from parity: the row
+// lands in the identity and admission tables, and the missing fixture is
+// recorded here by name with the physical prerequisite that blocks it,
+// rather than silently joining the many types no cohort happens to wire.
+// TestFixtureGapsAreRealAndCurrent holds each entry to both halves: the
+// type must actually be admitted, and no committed fixture may use it - an
+// entry whose fixture appears is stale and must be deleted.
+var fixtureGaps = map[string]string{
+	"aws_s3control_bucket_policy":                                "the bucket argument must be an S3 on Outposts bucket ARN, and creating one requires a physical AWS Outpost (#175, ratified 2026-08-15)",
+	"aws_ssoadmin_customer_managed_policy_attachments_exclusive": "requires an IAM Identity Center instance, which cannot be created by configuration - the instance_arn only exists after console/org-level enablement (#175, ratified 2026-08-15)",
+	"aws_ssoadmin_managed_policy_attachments_exclusive":          "requires an IAM Identity Center instance, same prerequisite as the row above (#175, ratified 2026-08-15)",
+	"aws_ssoadmin_permission_set_inline_policy":                  "requires an IAM Identity Center instance, same prerequisite as the row above (#175, ratified 2026-08-15)",
+	"aws_ssoadmin_permissions_boundary_attachment":               "requires an IAM Identity Center instance, same prerequisite as the row above (#175, ratified 2026-08-15)",
+}
+
+// TestFixtureGapsAreRealAndCurrent keeps fixtureGaps exact in both
+// directions its doc comment promises: every listed type is really
+// admitted (a typo here would record a gap for nothing), and no committed
+// cohort fixture declares it (a fixture landing retires the entry, and a
+// stale entry fails the same way knownDrift's stale entries do).
+func TestFixtureGapsAreRealAndCurrent(t *testing.T) {
+	admitted := map[string]bool{}
+	for _, typeName := range identity.AdmittedTypes() {
+		admitted[typeName] = true
+	}
+
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	usedBy := map[string]string{}
+	estates := filepath.Join(root, "live", "e2e", "estates")
+	entries, err := os.ReadDir(estates)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resourceDecl := regexp.MustCompile(`(?m)^resource "(aws_[a-z0-9_]+)"`)
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		tfs, err := filepath.Glob(filepath.Join(estates, e.Name(), "*.tf"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tf := range tfs {
+			content, err := os.ReadFile(tf) //nolint:gosec // fixture paths inside the checkout
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, m := range resourceDecl.FindAllStringSubmatch(string(content), -1) {
+				usedBy[m[1]] = e.Name()
+			}
+		}
+	}
+
+	for typeName := range fixtureGaps {
+		if !admitted[typeName] {
+			t.Errorf("fixtureGaps lists %s, which the identity table does not admit; the entry records a gap for nothing", typeName)
+		}
+		if cohort, ok := usedBy[typeName]; ok {
+			t.Errorf("fixtureGaps lists %s but the %s cohort's fixture declares it; the gap has closed - delete the entry", typeName, cohort)
+		}
+	}
+}
 
 // recordedRegenTypes reads the command out of the cohort's "Regenerate
 // with" fenced block - GENERATED.md first, README.md as the pre-split

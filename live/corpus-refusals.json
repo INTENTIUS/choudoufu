@@ -1314,12 +1314,11 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 9,
-      "sites": 15,
+      "instances": 13,
+      "sites": 11,
       "unresolved_modules": 0,
       "unset_variables": 4,
       "schemas": true,
-      "shadowed": 4,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -1338,15 +1337,7 @@
             "layer": "lint",
             "id": "state-backend",
             "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 4
           }
-        ],
-        "unadmitted_types": [
-          "aws_wafv2_web_acl_logging_configuration"
         ]
       }
     },
@@ -2063,12 +2054,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 7,
-      "sites": 45,
+      "instances": 9,
+      "sites": 43,
       "unresolved_modules": 2,
       "unset_variables": 1,
       "schemas": true,
-      "shadowed": 7,
+      "shadowed": 5,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -2110,7 +2101,7 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 13
+            "sites": 11
           }
         ],
         "unadmitted_types": [
@@ -2118,7 +2109,6 @@
           "aws_s3_bucket_replication_configuration",
           "aws_security_group_rule",
           "aws_wafv2_web_acl_association",
-          "aws_wafv2_web_acl_logging_configuration",
           "helm_release",
           "kubernetes_role_binding_v1"
         ]
@@ -2446,12 +2436,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 57,
-      "sites": 265,
+      "instances": 59,
+      "sites": 263,
       "unresolved_modules": 6,
       "unset_variables": 7,
       "schemas": true,
-      "shadowed": 58,
+      "shadowed": 55,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -2463,7 +2453,7 @@
           {
             "layer": "identity",
             "id": "Module output not supported in static context",
-            "sites": 2
+            "sites": 3
           },
           {
             "layer": "identity",
@@ -2523,7 +2513,7 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 77
+            "sites": 74
           }
         ],
         "unadmitted_types": [
@@ -2539,8 +2529,7 @@
           "aws_s3_bucket_replication_configuration",
           "aws_secretsmanager_secret_version",
           "aws_security_group_rule",
-          "aws_wafv2_web_acl_association",
-          "aws_wafv2_web_acl_logging_configuration"
+          "aws_wafv2_web_acl_association"
         ]
       }
     },
@@ -7015,13 +7004,31 @@
       "registered": true
     },
     {
+      "layer": "identity",
+      "id": "Dynamic value in static context",
+      "title": "Dynamic value in static context",
+      "what": "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.",
+      "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
+      "raised_by": "internal/configs",
+      "configs": 131,
+      "sites": 2336,
+      "examples": [
+        ".corpus/alb/examples/complete-alb/main.tf:195",
+        ".corpus/alb/examples/complete-alb/main.tf:195",
+        ".corpus/alb/examples/complete-alb/main.tf:195",
+        ".corpus/alb/examples/complete-alb/main.tf:196",
+        ".corpus/alb/examples/complete-alb/main.tf:196"
+      ],
+      "registered": true
+    },
+    {
       "layer": "lint",
       "id": "unadmitted-type",
       "title": "Resource type is outside the live-markers subset",
       "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
       "raised_by": "internal/live/lint",
-      "configs": 132,
-      "sites": 1973,
+      "configs": 131,
+      "sites": 1964,
       "types": [
         {
           "type": "aws_security_group_rule",
@@ -7194,10 +7201,6 @@
         {
           "type": "tfe_project",
           "sites": 10
-        },
-        {
-          "type": "aws_wafv2_web_acl_logging_configuration",
-          "sites": 9
         },
         {
           "type": "kubernetes_role_binding_v1",
@@ -7915,24 +7918,6 @@
     },
     {
       "layer": "identity",
-      "id": "Dynamic value in static context",
-      "title": "Dynamic value in static context",
-      "what": "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.",
-      "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
-      "raised_by": "internal/configs",
-      "configs": 131,
-      "sites": 2336,
-      "examples": [
-        ".corpus/alb/examples/complete-alb/main.tf:195",
-        ".corpus/alb/examples/complete-alb/main.tf:195",
-        ".corpus/alb/examples/complete-alb/main.tf:195",
-        ".corpus/alb/examples/complete-alb/main.tf:196",
-        ".corpus/alb/examples/complete-alb/main.tf:196"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
       "id": "Unable to compute static value",
       "title": "Unable to compute static value",
       "what": "Something an identity argument, a count or a for_each depends on could not be computed. It is the trailing half of another refusal: the diagnostic before it names what actually failed, and this one names the chain that led there.",
@@ -8071,7 +8056,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"Module output not supported in static context\"",
       "raised_by": "internal/configs",
       "configs": 45,
-      "sites": 278,
+      "sites": 279,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:55",
         ".corpus/alb/examples/complete-alb/main.tf:180",
@@ -9307,8 +9292,8 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 2574,
-    "sites": 15269,
+    "instances": 2582,
+    "sites": 15261,
     "refusals_fired": 28,
     "refusals_in_set": 109,
     "configs_without_schemas": 0,
@@ -9331,8 +9316,8 @@
       "loaded": 144,
       "blocked": 144,
       "clean": 0,
-      "instances": 1517,
-      "sites": 3632,
+      "instances": 1525,
+      "sites": 3624,
       "reads_as": "rate"
     },
     {
@@ -9435,10 +9420,6 @@
       },
       {
         "type": "aws_s3_bucket_inventory",
-        "configs": 3
-      },
-      {
-        "type": "aws_wafv2_web_acl_logging_configuration",
         "configs": 3
       },
       {

@@ -40,6 +40,20 @@ var typeOverridesSecurity = map[string]typeOverride{
 			}
 		},
 	},
+	// #175 ratification batch, 2026-08-15.
+	"aws_wafv2_web_acl_logging_configuration": {
+		Reasons: []string{
+			`resource_arn and every log_destination_configs member are validated as well-formed ARNs (validate: "resource_arn" ... is an invalid ARN / "log_destination_configs.0" (placeholder) is an invalid ARN). resource_arn is wired to this cohort's own aws_wafv2_web_acl - the logging configuration's identity IS that ACL's ARN, which the ACL's own IdentityAttrs carry, the same identity-bound reference shape aws_acmpca_policy's resource_arn uses below - and log_destination_configs stays a literal placeholder ARN naming a CloudWatch log group with the aws-waf-logs- prefix the service requires, since no admitted log-destination type exists in this cohort to reference`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			aclExpr := `"arn:aws:wafv2:us-east-1:123456789012:regional/webacl/placeholder/12345678-1234-1234-1234-123456789012"`
+			if acl, ok := g.byType["aws_wafv2_web_acl"]; ok {
+				aclExpr = fmt.Sprintf("%s.arn", acl)
+			}
+			body.SetAttributeRaw("resource_arn", exprTokens(aclExpr))
+			body.SetAttributeRaw("log_destination_configs", exprTokens(`["arn:aws:logs:us-east-1:123456789012:log-group:aws-waf-logs-tofu-security-cohort"]`))
+		},
+	},
 	"aws_acmpca_policy": {
 		Reasons: []string{
 			`resource_arn is not wired to any resource by the generic pass (aws_acmpca_certificate_authority is server-assigned, so parentRef's identity-argument match never fires - see this file's batch header comment); policy is a plain string in the schema but the provider validates it is well-formed JSON (validate: "contains an invalid JSON")`,

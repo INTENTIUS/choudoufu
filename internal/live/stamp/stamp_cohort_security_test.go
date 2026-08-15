@@ -69,7 +69,6 @@ var untaggableSecurity = []string{
 	// #175 ratification batch (PROPOSE, issue #65), 2026-08-15:
 	// taggability per the provider schema survey (live/survey-full.json,
 	// v6.59.0 signals.taggable).
-	"aws_paymentcryptography_key_alias",
 	"aws_ssm_maintenance_window_task",
 	"aws_verifiedpermissions_policy",
 	"aws_verifiedpermissions_policy_template",

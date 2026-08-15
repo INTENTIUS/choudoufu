@@ -63,7 +63,7 @@ import (
 
 const (
 	providerSource  = "hashicorp/aws"
-	providerVersion = "6.58.0"
+	providerVersion = "6.59.0"
 
 	// defaultInitBin downloads the provider for the schema read. Stock
 	// terraform, the same binary tools/survey-gen defaults to and the

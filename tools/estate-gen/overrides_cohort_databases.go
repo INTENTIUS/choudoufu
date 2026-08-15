@@ -32,6 +32,15 @@ var typeOverridesDatabases = map[string]typeOverride{
 	// closed enum the schema itself does not carry; one
 	// (aws_redshift_cluster) fixes a provider-side requirement that
 	// validate does not catch at all, only a real apply against floci.
+	// #175 ratification batch, 2026-08-15.
+	"aws_redshift_endpoint_access": {
+		Reasons: []string{
+			`endpoint_name is validated against a 30-character ceiling the wire schema does not express (validate: "expected length of endpoint_name to be in the range (1 - 30)"), and the generic tofu-<cohort>-cohort-<type> literal is 46 characters; shortened here, still cohort-prefixed and unique in the run`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("endpoint_name", exprTokens(`"tofu-databases-endpoint"`))
+		},
+	},
 	"aws_redshift_cluster": {
 		Reasons: []string{
 			`neither "manage_master_password" nor "master_password" is Required in the wire schema (the provider accepts either), so the generic required-only pass sets neither, and validate does not catch the gap - but the provider's own plan-time logic refuses the combination outright (apply: "one of \"manage_master_password\" or \"master_password\" is required"), found only by exercising a real apply against floci`,

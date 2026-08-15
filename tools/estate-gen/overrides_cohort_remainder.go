@@ -15,10 +15,45 @@ import (
 // Registered by init below; see contributing/LIVE-TABLES.md.
 var typeOverridesRemainder = map[string]typeOverride{
 	// REMAINDER ratification batch (issue #65) overrides, live/e2e/estates/remainder.
+	// #175 ratification batch, 2026-08-15: three of the batch's types carry
+	// plan-time validators the wire schema does not express, the documented
+	// override class.
+	"aws_appconfig_deployment": {
+		Reasons: []string{
+			`deployment_strategy_id is validated against a pattern (validate: "expected value of deployment_strategy_id to match regular expression \"(^[0-9a-z]{4,7}$|^AppConfig\\.[0-9A-Za-z]{9,40}$)\""); no strategy type is admitted to reference, so the predefined AppConfig.AllAtOnce strategy the service ships is the literal`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("deployment_strategy_id", exprTokens(`"AppConfig.AllAtOnce"`))
+		},
+	},
+	"aws_datazone_form_type": {
+		Reasons: []string{
+			`domain_identifier is validated against the DataZone domain-ID pattern (validate: "Attribute domain_identifier ^dzd[-_][a-zA-Z0-9_-]{1,36}$, got: placeholder"); wired to this cohort's own aws_datazone_domain - this type is server-assigned in the identity table, so the argument is not identity-bound and the reference is plain apply-correctness`,
+			`model is a required nested block the generic required-only pass does not emit (validate: "Block model must have a configuration value as the provider has marked it as required"); its one member is a Smithy model document, supplied here as the minimal structure the service accepts`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			domainExpr := `"dzd_placeholder"`
+			if domain, ok := g.byType["aws_datazone_domain"]; ok {
+				domainExpr = fmt.Sprintf("%s.id", domain)
+			}
+			body.SetAttributeRaw("domain_identifier", exprTokens(domainExpr))
+			model := body.AppendNewBlock("model", nil)
+			model.Body().SetAttributeRaw("smithy", exprTokens(`"structure exampleForm { }"`))
+		},
+	},
+	"aws_paymentcryptography_key_alias": {
+		Reasons: []string{
+			`alias_name is validated against the service's alias/ prefix rule (validate: "An alias must begin with alias/ followed by a name"); the generic tofu-<cohort>-cohort-<type> literal lacks the prefix`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("alias_name", exprTokens(`"alias/tofu-remainder-cohort-key-alias"`))
+		},
+	},
 	"aws_arcregionswitch_plan": {
 		Reasons: []string{
 			`execution_role is Required and validated as a well-formed ARN (validate: "value must be a valid ARN"); the generic placeholder string is not one`,
 			`recovery_approach is Required and validated against a closed enum (validate: "does not match any valid values", valid: activeActive, activePassive); the generic placeholder string satisfies neither`,
+			`regions is validated against a two-element floor the wire schema does not express (validate at 6.59.0: "Attribute regions list must contain at least 2 elements, got: 1"); the generic single-element placeholder list is one short`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			ref, ok := g.iamRoleRefExpr()
@@ -27,6 +62,7 @@ var typeOverridesRemainder = map[string]typeOverride{
 			}
 			body.SetAttributeRaw("execution_role", exprTokens(ref))
 			body.SetAttributeRaw("recovery_approach", exprTokens(`"activeActive"`))
+			body.SetAttributeRaw("regions", exprTokens(`["us-east-1", "us-west-2"]`))
 		},
 	},
 	"aws_cloudfront_cache_policy": {
