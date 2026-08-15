@@ -6,6 +6,7 @@
 package acceptance
 
 import (
+	"fmt"
 	"path/filepath"
 	"testing"
 )
@@ -75,5 +76,24 @@ func TestArtifactRoundTrip(t *testing.T) {
 
 	if _, ok, err := readArtifact(filepath.Join(dir, "absent.json")); err != nil || ok {
 		t.Fatalf("a missing artifact must read as (not present, no error), got ok=%t err=%v", ok, err)
+	}
+}
+
+// TestStillInFlightSummarizesATimedOutApply pins the timeout detail: the
+// four cohorts #149 could not attribute all looked like this, and the
+// artifact must say what was hanging rather than "signal: killed".
+func TestStillInFlightSummarizesATimedOutApply(t *testing.T) {
+	out := "aws_msk_cluster.app: Still creating... [07m40s elapsed]\n" +
+		"aws_msk_serverless_cluster.app: Still creating... [07m40s elapsed]\n" +
+		"aws_msk_cluster.app: Still creating... [07m50s elapsed]\n" +
+		"aws_msk_serverless_cluster.app: Still creating... [07m50s elapsed]\n"
+	got := firstErrorLine(out, fmt.Errorf("signal: killed"))
+	want := "deadline: still in flight: aws_msk_cluster.app at 07m50s, aws_msk_serverless_cluster.app at 07m50s"
+	if got != want {
+		t.Errorf("firstErrorLine = %q, want %q", got, want)
+	}
+	// An output with a real Error: line keeps the existing behavior.
+	if got := firstErrorLine("x: Still creating... [01m00s elapsed]\n│ Error: boom\n", nil); got != "Error: boom" {
+		t.Errorf("firstErrorLine with an Error line = %q", got)
 	}
 }

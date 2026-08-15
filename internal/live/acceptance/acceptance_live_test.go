@@ -313,9 +313,15 @@ func planSummaryOf(out string) string {
 }
 
 // firstErrorLine is a one-line Detail for the artifact: the first "Error:"
-// line of the output, or the exec error itself when the output has none
-// (a timeout kill usually leaves a truncated log). The box-drawing gutter
-// -no-color keeps (│) is trimmed along with the whitespace.
+// line of the output, or - when the deadline killed the run before any
+// error was printed - the resources still in flight at the kill, or the
+// exec error itself as the last resort. The box-drawing gutter -no-color
+// keeps (│) is trimmed along with the whitespace.
+//
+// The in-flight summary exists because "signal: killed" attributes
+// nothing: #149's re-measure left four cohorts unattributable until each
+// was re-run verbosely by hand, and every one turned out to be a create
+// hanging at the deadline - exactly what the partial output already said.
 func firstErrorLine(out string, err error) string {
 	for _, line := range strings.Split(out, "\n") {
 		trimmed := strings.TrimLeft(line, "│╷╵ \t")
@@ -324,10 +330,38 @@ func firstErrorLine(out string, err error) string {
 			return trimmed
 		}
 	}
+	if inFlight := stillInFlight(out); inFlight != "" {
+		return inFlight
+	}
 	if err != nil {
 		return err.Error()
 	}
 	return "no Error: line in the output"
+}
+
+// stillCreatingLine matches terraform's progress lines, e.g.
+// "aws_msk_cluster.app: Still creating... [07m50s elapsed]".
+var stillCreatingLine = regexp.MustCompile(`(\S+): Still (?:creating|destroying|reading)\.\.\. \[(\d+m\d+s) elapsed\]`)
+
+// stillInFlight summarizes the resources whose last progress line never
+// resolved, with the elapsed time each was last seen at.
+func stillInFlight(out string) string {
+	last := map[string]string{}
+	var order []string
+	for _, m := range stillCreatingLine.FindAllStringSubmatch(out, -1) {
+		if _, seen := last[m[1]]; !seen {
+			order = append(order, m[1])
+		}
+		last[m[1]] = m[2]
+	}
+	if len(order) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(order))
+	for _, addr := range order {
+		parts = append(parts, addr+" at "+last[addr])
+	}
+	return "deadline: still in flight: " + strings.Join(parts, ", ")
 }
 
 func timedOutSuffix(res CohortResult) string {
