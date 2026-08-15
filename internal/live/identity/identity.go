@@ -139,6 +139,50 @@ func (r Resolution) Type() string {
 	return r.Addr.Resource.Resource.Type
 }
 
+// attrParts is one identity attribute of this resolution, as the parts that
+// concatenate into its value, for a reference from another resource that reads
+// that attribute. It reports false when this resolution says nothing about the
+// named attribute, which is every resolution that is not concrete or
+// parent-derived and every entry that does not say which component supplies
+// which attribute.
+//
+// It exists because a reference like aws_cloudwatch_event_target.rule =
+// aws_cloudwatch_event_rule.x.name asks for one attribute of a parent whose
+// import identity is several attributes joined by a separator. The whole
+// import ID is the wrong answer to that question in two ways that no guard
+// downstream can see:
+//
+//   - For a parent whose import ID is composite, it is a longer string than
+//     the attribute holds. aws_volume_attachment's entry lists device_name,
+//     instance_id and volume_id in [TypeIdentity.IdentityAttrs] while its own
+//     components say each supplies one third of "DEVICE_NAME:VOLUME_ID:
+//     INSTANCE_ID", so a child reading .device_name used to receive all three.
+//   - For a parent that is import-by-identity-object only
+//     ([TypeIdentity.IdentityObjectOnly]), the import ID is deliberately
+//     empty, so a child reading any of its attributes used to receive "".
+//
+// Both produce a marker that claims ownership of the wrong cloud object, with
+// no diagnostic, which is strictly worse than the refusal a caller gets when
+// nothing here can answer.
+func (r Resolution) attrParts(name string) ([]Part, bool) {
+	switch r.Class {
+	case ClassConcrete:
+		if v, ok := r.IdentityValues[name]; ok {
+			return []Part{{Literal: v}}, true
+		}
+	case ClassParentDerived:
+		if r.Formula == nil {
+			return nil, false
+		}
+		for _, a := range r.Formula.Attrs {
+			if a.Name == name {
+				return append([]Part(nil), a.Parts...), true
+			}
+		}
+	}
+	return nil, false
+}
+
 // String renders a resolution in a single line, for diagnostics and test
 // failure output.
 func (r Resolution) String() string {

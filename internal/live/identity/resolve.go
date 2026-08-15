@@ -858,6 +858,23 @@ func (r *resolver) parentPart(parent addrs.AbsResourceInstance, attrName string,
 	}
 
 	entry, _ := r.lookupType(parent.Resource.Resource.Type)
+
+	// The parent's own resolution already answers this, one attribute at a
+	// time, whenever the parent's entry says which component supplies which
+	// identity attribute: that split is [Resolution.IdentityValues] for a
+	// concrete parent and [Formula.Attrs] for a parent-derived one. Reading
+	// it is not a new claim about the cloud - it is the same parts, from the
+	// same arguments, that the parent's own identity is built from, so a
+	// reference to one attribute can never disagree with the identity the
+	// parent already asserts.
+	//
+	// It is tried before IdentityAttrs because it is the more precise of the
+	// two, and because the fallback below is wrong wherever they differ. See
+	// [Resolution.attrParts].
+	if got, ok := parentRes.attrParts(attrName); ok {
+		return got, true
+	}
+
 	if !entry.hasIdentityAttr(attrName) {
 		detail := fmt.Sprintf(
 			"%s reads %s.%s, but %q is not an identity attribute of %s. ",

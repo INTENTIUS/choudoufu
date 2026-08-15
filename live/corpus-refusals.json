@@ -1149,14 +1149,14 @@
         "refusals": [
           {
             "layer": "identity",
-            "id": "Non-static identity argument",
-            "sites": 8,
-            "unset_var_only": true
+            "id": "Identity argument not set",
+            "sites": 1
           },
           {
             "layer": "identity",
-            "id": "Not an identity attribute",
-            "sites": 1
+            "id": "Non-static identity argument",
+            "sites": 8,
+            "unset_var_only": true
           },
           {
             "layer": "identity",
@@ -1638,8 +1638,8 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 23,
-      "sites": 28,
+      "instances": 25,
+      "sites": 26,
       "unresolved_modules": 0,
       "unset_variables": 6,
       "schemas": true,
@@ -1657,11 +1657,6 @@
             "id": "Non-static identity argument",
             "sites": 13,
             "unset_var_only": true
-          },
-          {
-            "layer": "identity",
-            "id": "Not an identity attribute",
-            "sites": 2
           },
           {
             "layer": "identity",
@@ -2145,17 +2140,17 @@
           },
           {
             "layer": "identity",
+            "id": "Identity argument not set",
+            "sites": 1
+          },
+          {
+            "layer": "identity",
             "id": "Invalid for_each set",
             "sites": 1
           },
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 1
-          },
-          {
-            "layer": "identity",
-            "id": "Not an identity attribute",
             "sites": 1
           },
           {
@@ -4048,19 +4043,14 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 7,
-      "sites": 2,
+      "instances": 8,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "backend-only",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Not an identity attribute",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -4126,19 +4116,14 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 3,
-      "sites": 2,
+      "instances": 4,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "backend-only",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Not an identity attribute",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -4240,19 +4225,14 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 3,
-      "sites": 2,
+      "instances": 4,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "backend-only",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Not an identity attribute",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -4266,19 +4246,14 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 3,
-      "sites": 2,
+      "instances": 4,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "backend-only",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Not an identity attribute",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -4292,19 +4267,14 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 3,
-      "sites": 2,
+      "instances": 4,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "backend-only",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Not an identity attribute",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -4344,19 +4314,14 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 7,
-      "sites": 2,
+      "instances": 8,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 4,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "backend-only",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Not an identity attribute",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -4443,8 +4408,8 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 8,
-      "sites": 5,
+      "instances": 9,
+      "sites": 4,
       "unresolved_modules": 0,
       "unset_variables": 8,
       "schemas": true,
@@ -4455,11 +4420,6 @@
             "layer": "identity",
             "id": "Dynamic value in static context",
             "sites": 3
-          },
-          {
-            "layer": "identity",
-            "id": "Not an identity attribute",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -4816,19 +4776,14 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 5,
-      "sites": 2,
+      "instances": 6,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "backend-only",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Not an identity attribute",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -4941,19 +4896,14 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 3,
-      "sites": 2,
+      "instances": 4,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "backend-only",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Not an identity attribute",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -6624,8 +6574,8 @@
       "origin": "in-repo fixture",
       "blocked": true,
       "loaded": true,
-      "instances": 20,
-      "sites": 5,
+      "instances": 21,
+      "sites": 4,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -6732,10 +6682,10 @@
     {
       "name": "live/e2e/estates/ec2-networking",
       "origin": "in-repo fixture",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
-      "instances": 40,
-      "sites": 3,
+      "instances": 43,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -6778,8 +6728,8 @@
       "origin": "in-repo fixture",
       "blocked": true,
       "loaded": true,
-      "instances": 21,
-      "sites": 3,
+      "instances": 23,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -6842,10 +6792,10 @@
     {
       "name": "live/e2e/estates/observability",
       "origin": "in-repo fixture",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
-      "instances": 31,
-      "sites": 1,
+      "instances": 32,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -6853,10 +6803,10 @@
     {
       "name": "live/e2e/estates/rds",
       "origin": "in-repo fixture",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
-      "instances": 16,
-      "sites": 1,
+      "instances": 17,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -6875,10 +6825,10 @@
     {
       "name": "live/e2e/estates/route53-cloudfront",
       "origin": "in-repo fixture",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
-      "instances": 29,
-      "sites": 1,
+      "instances": 30,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -8073,24 +8023,6 @@
     },
     {
       "layer": "identity",
-      "id": "Not an identity attribute",
-      "title": "Not an identity attribute",
-      "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
-      "docs_ref": "live/LIMITATIONS.md, \"Not an identity attribute\"",
-      "raised_by": "internal/live/identity",
-      "configs": 29,
-      "sites": 59,
-      "examples": [
-        ".corpus/cyhy-amis/terraform/bod_bastion_route53.tf:17",
-        ".corpus/cyhy-amis/terraform/bod_docker_route53.tf:4",
-        ".corpus/cyhy-amis/terraform/bod_route53.tf:34",
-        ".corpus/cyhy-amis/terraform/bod_route53.tf:46",
-        ".corpus/cyhy-amis/terraform/bod_route53.tf:58"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
       "id": "Non-static for_each expression",
       "title": "Non-static for_each expression",
       "what": "A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.",
@@ -8143,6 +8075,24 @@
       "registered": true
     },
     {
+      "layer": "identity",
+      "id": "Identity argument not set",
+      "title": "Identity argument not set",
+      "what": "The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.",
+      "docs_ref": "live/LIMITATIONS.md, \"Identity argument not set\"",
+      "raised_by": "internal/live/identity",
+      "configs": 20,
+      "sites": 35,
+      "examples": [
+        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:41",
+        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:74",
+        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:100",
+        ".corpus/eks/cluster.tf:87",
+        ".corpus/eks/cluster.tf:87"
+      ],
+      "registered": true
+    },
+    {
       "layer": "lint",
       "id": "for-each-key",
       "title": "for_each key is outside the marker character set",
@@ -8178,24 +8128,6 @@
       "registered": true
     },
     {
-      "layer": "identity",
-      "id": "Identity argument not set",
-      "title": "Identity argument not set",
-      "what": "The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.",
-      "docs_ref": "live/LIMITATIONS.md, \"Identity argument not set\"",
-      "raised_by": "internal/live/identity",
-      "configs": 17,
-      "sites": 32,
-      "examples": [
-        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:41",
-        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:74",
-        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:100",
-        ".corpus/eks/cluster.tf:87",
-        ".corpus/eks/cluster.tf:87"
-      ],
-      "registered": true
-    },
-    {
       "layer": "lint",
       "id": "child-module",
       "title": "This module call cannot be expanded under live resource markers",
@@ -8209,6 +8141,24 @@
         ".corpus/cool-assessment/gophish_ec2.tf:139",
         ".corpus/cool-assessment/kali_ec2.tf:109",
         ".corpus/cool-assessment/nessus_ec2.tf:120"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Not an identity attribute",
+      "title": "Not an identity attribute",
+      "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
+      "docs_ref": "live/LIMITATIONS.md, \"Not an identity attribute\"",
+      "raised_by": "internal/live/identity",
+      "configs": 12,
+      "sites": 36,
+      "examples": [
+        ".corpus/cyhy-amis/terraform/bod_bastion_route53.tf:17",
+        ".corpus/cyhy-amis/terraform/bod_docker_route53.tf:4",
+        ".corpus/cyhy-amis/terraform/bod_route53.tf:34",
+        ".corpus/cyhy-amis/terraform/bod_route53.tf:46",
+        ".corpus/cyhy-amis/terraform/bod_route53.tf:58"
       ],
       "registered": true
     },
@@ -9245,8 +9195,8 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 2625,
-    "sites": 15104,
+    "instances": 2645,
+    "sites": 15084,
     "refusals_fired": 28,
     "refusals_in_set": 109,
     "configs_without_schemas": 0,
@@ -9257,10 +9207,10 @@
       "origin": "in-repo fixture",
       "configs": 31,
       "loaded": 31,
-      "blocked": 8,
-      "clean": 23,
-      "instances": 674,
-      "sites": 17,
+      "blocked": 4,
+      "clean": 27,
+      "instances": 683,
+      "sites": 8,
       "reads_as": "ranking"
     },
     {
@@ -9269,8 +9219,8 @@
       "loaded": 144,
       "blocked": 144,
       "clean": 0,
-      "instances": 1535,
-      "sites": 3614,
+      "instances": 1546,
+      "sites": 3603,
       "reads_as": "rate"
     },
     {
@@ -9295,7 +9245,7 @@
       },
       {
         "class": "backend-only",
-        "configs": 11
+        "configs": 19
       },
       {
         "class": "backend-plus-remote-state",
@@ -9307,7 +9257,7 @@
       },
       {
         "class": "language-blocked",
-        "configs": 122
+        "configs": 114
       },
       {
         "class": "unreadable",
