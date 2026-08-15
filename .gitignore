@@ -59,19 +59,25 @@ site/public/
 # stripped back out of a merge).
 /admission-pipeline
 /cloudcontrol-probe
+/corpus-fetch
+/corpus-gen
 /estate-gen
 /find-dep-upgrades
 /find-pkg-importer
+/floci-capability-gen
+/iamref-gen
 /importdocs-gen
+/limits-gen
 /loggraphdiff
 /mapping-gen
+/merge-guard
 /protobuf-compile
 /registry-gen
-/rename-phase
 /row-gen
 /selected-go-version
 /survey-gen
 /tagverbs-gen
+/wo-sweep
 
 # The #102 corpus: third-party configurations pinned in live/corpus-manifest.json
 # and materialized by tools/corpus-fetch. Reproducible from the pins, so not

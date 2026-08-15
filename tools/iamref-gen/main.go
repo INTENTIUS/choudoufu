@@ -127,6 +127,10 @@ func run(refresh bool, out, errOut *os.File) error {
 		return fmt.Errorf("writing %s: %w", artifactRel, err)
 	}
 
+	if err := renderResourceTagSpan(root, rows); err != nil {
+		return err
+	}
+
 	c := art.Counts
 	fmt.Fprintf(errOut, "iamref-gen: wrote %s (%d services: %d resolved [%d unresolved, %d ambiguous]; "+
 		"of those, %d tagging verbs checked [%d absent from the reference, %d never recorded]; "+

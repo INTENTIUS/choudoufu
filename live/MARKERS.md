@@ -371,6 +371,118 @@ knowing it exists. No known implementation of this spec exists outside
 this fork today, which is expected at this stage: the spec is written to
 be the stable integration surface a future tool builds against.
 
+## Granting an estate
+
+An estate is inherited by being granted access to it, and this is the grant.
+The marker is an ordinary resource tag, so IAM can condition on it directly
+through `aws:ResourceTag`, with no second permission model to keep in sync.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ActOnWhatTheEstateAlreadyOwns",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:TerminateInstances",
+        "ec2:ModifyInstanceAttribute",
+        "ec2:DeleteTags"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {"aws:ResourceTag/tofu-estate": "prod-networking"}
+      }
+    },
+    {
+      "Sid": "CreateOnlyIntoThisEstate",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:RunInstances",
+        "ec2:CreateTags"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {"aws:RequestTag/tofu-estate": "prod-networking"}
+      }
+    }
+  ]
+}
+```
+
+**Two statements, because creation and mutation are conditioned by different
+keys.** `aws:ResourceTag` reads a tag off a resource that already exists, so it
+governs everything the estate acts on. It cannot govern a create: there is no
+resource yet to carry the tag, and a `RunInstances` under a `ResourceTag`
+condition never matches. What the creating principal supplies is
+`aws:RequestTag`, and conditioning on it is what makes the second statement a
+grant to create *into this estate* rather than a grant to create anything.
+
+The actions above are illustrative of the shape, not of the scope: a real
+grant names the actions the estate's own types need, which
+[`site/content/reference.md`](https://intentius.io/choudoufu/reference.html)
+lists per stage, and the resource types the configuration declares.
+
+**Handover is two IAM changes and no tag writes.** Attach that policy to the
+receiving role, detach it from the sending one, and the estate has moved.
+Nothing about the resources changes, no state is exported, and the two roles
+never both hold it unless you want an overlap. The receiving team can list
+what it inherited before running anything, with `aws resourcegroupstaggingapi
+get-resources --tag-filters Key=tofu-estate,Values=prod-networking` and no
+`choudoufu` binary.
+
+**Splitting an estate is a tag rewrite, then two policies.** Rewrite
+`tofu-estate` on the resources that are leaving, and the same statement with
+the new estate name governs them. The split is a tag write and a policy copy;
+neither half moves.
+
+### Which services this actually reaches
+
+The condition key is evaluated per action, per service, and support is not
+uniform. This roster is generated from AWS's own Service Authorization
+Reference (`live/iam-reference.json`, `just iamref`), so it is checkable
+rather than asserted.
+
+<!-- iamref-gen:begin resource-tag-services -->
+| Service | IAM prefix | Actions naming `aws:ResourceTag` |
+|---|---|---|
+| EC2 | `ec2` | 495 of 793 |
+| ResilienceHub, ResilienceHubV2 | `resiliencehub` | 57 of 128 |
+| SES | `ses` | 48 of 228 |
+| AutoScaling | `autoscaling` | 42 of 68 |
+| ECS | `ecs` | 37 of 81 |
+| Kinesis | `kinesis` | 31 of 40 |
+| CertificateManager | `acm` | 20 of 41 |
+| CleanRooms | `cleanrooms` | 12 of 107 |
+| ElastiCache | `elasticache` | 11 of 77 |
+| CloudWatch | `cloudwatch` | 7 of 67 |
+| SageMaker | `sagemaker` | 7 of 444 |
+| WorkSpaces | `workspaces` | 7 of 101 |
+| KafkaConnect | `kafkaconnect` | 2 of 18 |
+| AuditManager | `auditmanager` | 1 of 62 |
+| Batch | `batch` | 1 of 45 |
+| CUR | `cur` | 1 of 12 |
+| SSMQuickSetup | `ssm-quicksetup` | 1 of 14 |
+
+17 of the 154 IAM prefixes this estate's admitted types reach name the key on at least one action. The remaining 137 are **unmeasured, not disproven**: the reference does not set out to enumerate every global condition key per action, and `lambda:GetFunction` lists none at all while Lambda does support tag-based authorization. Read this as the set a marker-scoped grant is known to bite on, never as its complement.
+<!-- iamref-gen:end resource-tag-services -->
+
+The asymmetry in that last sentence is the whole of how to use this section,
+and it is the same caution the SCP below states about `aws:TagKeys`: a
+statement that looks correct and silently does nothing for one service is
+worse than no policy. Build a grant on the services above and it constrains
+what you expect. Assume the ones absent from it are unreachable and you will
+be wrong about several, because the reference is silent rather than negative.
+
+For a service outside the roster, the reachable guarantees are the ordinary
+ones: the account boundary, the resource types named in the policy, and the
+region. Those are coarser than a marker, and they are what an estate not yet
+covered by tag-based authorization inherits.
+
+**This governs API calls, not tag survival.** A principal that cannot act on
+an estate's resources can still, with tagging permissions elsewhere, remove
+the markers that define it. That is the next section's subject.
+
 ## Protecting the markers
 
 Markers are plain resource tags, and nothing about that grammar stops
