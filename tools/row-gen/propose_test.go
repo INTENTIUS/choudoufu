@@ -173,11 +173,22 @@ func TestLoadRejectedTypes_LedgerIsIntact(t *testing.T) {
 			t.Errorf("loadRejectedTypes did not find %q, recovered from the remainder README in #127", want)
 		}
 	}
-	// The ledger was recovered wholesale from deleted prose - 147 types from
-	// the pre-#96 fragments, 65 more from the remainder README (#127); a
-	// drop well below that count means rows were lost, not curated.
-	if len(rejected) < 205 {
-		t.Errorf("rejected.json carries %d types, want at least the 212 recovered from the pre-#96 fragments and the remainder README", len(rejected))
+	// The ledger was recovered wholesale from deleted prose, and the first
+	// recovery over-collected: it harvested every type name near the word
+	// "Rejected" rather than the subject of each "- <type>:" bullet, so a
+	// rejection's own explanatory prose ("...the already-admitted
+	// aws_dynamodb_table") put admitted types into the veto set. Issue #131
+	// re-ran the scrape on the bullet-subject rule and reconciled against
+	// the admission table: 58 contradictions dropped, 5 genuine rejections
+	// the first pass had missed recovered.
+	//
+	// So a floor still guards against silent loss, at the corrected count
+	// rather than the original one. Lowering it again needs the same
+	// treatment: a stated rule, applied to the source, with the delta
+	// explained. TestRejectedLedgerIsDisjointFromAdmitted guards the other
+	// direction.
+	if len(rejected) < 155 {
+		t.Errorf("rejected.json carries %d types, want at least the 161 standing after #131's reconciliation", len(rejected))
 	}
 }
 

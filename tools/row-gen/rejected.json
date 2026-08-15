@@ -1,5 +1,5 @@
 {
-  "note": "Types a ratification batch considered and did not admit. PROPOSE reads this as a veto set so it never re-proposes a type already ruled out by name. Recovered at commit 5d1666e3a from the 'Rejected' prose comments in the per-cohort identity and admission fragments, which issue #96 deleted; recovered_from names the fragment each type was mentioned in, for tracing back through git history. Over-inclusion here is safe by design - it only makes PROPOSE more conservative. A second recovery (#127): the remainder batch's own rejections were carried only in prose banners the ratify-remainder merges dropped before #96's scrape ran, so they never reached this ledger; those types were recovered from live/e2e/estates/remainder/README.md's 'Rejected on identity grounds' and 'Excluded despite verifying clean' sections. The four aws_datasync_location_fsx_* types that README rejects are deliberately absent here: a concurrent batch admitted them with their own coverage rows, and an admitted type must not be vetoed.",
+  "note": "Types a ratification batch considered and did not admit. PROPOSE reads this as a veto set so it never re-proposes a type already ruled out by name. Recovered from the 'Rejected, and deliberately absent from this table' prose in the per-cohort identity and admission fragments that issue #96 deleted (readable at d40d9f5ded^) and from live/e2e/estates/remainder/README.md; recovered_from names the source each type came from. THE INVARIANT: this set and internal/live/identity.DefaultTable are disjoint. A type that is admitted must not be vetoed, because two contradictory rulings are not conservatism. TestRejectedLedgerIsDisjointFromAdmitted enforces it. Issue #131 rebuilt the ledger against that invariant: the first recovery harvested every type name adjacent to the word Rejected rather than the subject of each '- <type>:' bullet, which admitted 58 types into the veto set and lost 5 genuine rejections. Over-inclusion is safe only among types nobody admitted; among admitted types it is a defect.",
   "rejected": {
     "aws_alb": {
       "recovered_from": [
@@ -24,11 +24,6 @@
     "aws_alb_target_group": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_amplify_branch": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_compute_platforms.go"
       ]
     },
     "aws_amplify_domain_association": {
@@ -116,22 +111,7 @@
         "live/e2e/estates/remainder/README.md"
       ]
     },
-    "aws_appsync_api": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_streaming.go"
-      ]
-    },
-    "aws_appsync_api_cache": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_streaming.go"
-      ]
-    },
     "aws_appsync_api_key": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_streaming.go"
-      ]
-    },
-    "aws_appsync_domain_name_api_association": {
       "recovered_from": [
         "internal/live/identity/table_cohort_streaming.go"
       ]
@@ -139,16 +119,6 @@
     "aws_appsync_function": {
       "recovered_from": [
         "internal/live/identity/table_cohort_streaming.go"
-      ]
-    },
-    "aws_athena_named_query": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_data.go"
-      ]
-    },
-    "aws_backup_framework": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_storage.go"
       ]
     },
     "aws_backup_restore_testing_selection": {
@@ -171,11 +141,6 @@
         "internal/live/identity/table_cohort_stragglers.go"
       ]
     },
-    "aws_bedrockagent_agent_alias": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_stragglers.go"
-      ]
-    },
     "aws_bedrockagent_agent_collaborator": {
       "recovered_from": [
         "internal/live/identity/table_cohort_stragglers.go"
@@ -191,11 +156,6 @@
         "internal/live/identity/table_cohort_stragglers.go"
       ]
     },
-    "aws_bedrockagentcore_agent_runtime_endpoint": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_stragglers.go"
-      ]
-    },
     "aws_bedrockagentcore_gateway_target": {
       "recovered_from": [
         "internal/live/identity/table_cohort_stragglers.go"
@@ -206,14 +166,15 @@
         "internal/live/identity/table_cohort_stragglers.go"
       ]
     },
+    "aws_bedrockagentcore_registry": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_stragglers.go"
+      ],
+      "reason": "recovered by re-running the fragment scrape with the bullet-subject rule (#131); the first pass collected every type name near the word Rejected, which both over- and under-counted"
+    },
     "aws_bedrockagentcore_workload_identity": {
       "recovered_from": [
         "internal/live/identity/table_cohort_stragglers.go"
-      ]
-    },
-    "aws_cloudwatch_alarm_mute_rule": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_messaging.go"
       ]
     },
     "aws_cloudwatch_event_rule": {
@@ -221,11 +182,6 @@
         "internal/live/identity/table_cohort_ecs_eks.go",
         "internal/live/identity/table_cohort_messaging.go",
         "internal/live/identity/table_cohort_streaming.go"
-      ]
-    },
-    "aws_codebuild_report_group": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_devtools.go"
       ]
     },
     "aws_codebuild_source_credential": {
@@ -254,6 +210,12 @@
         "internal/live/identity/table_cohort_identity.go"
       ]
     },
+    "aws_comprehend_entity_recognizer": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_stragglers.go"
+      ],
+      "reason": "recovered by re-running the fragment scrape with the bullet-subject rule (#131); the first pass collected every type name near the word Rejected, which both over- and under-counted"
+    },
     "aws_datazone_environment_profile": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
@@ -265,11 +227,6 @@
       ]
     },
     "aws_db_cluster_snapshot": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_rds.go"
-      ]
-    },
-    "aws_db_proxy_default_target_group": {
       "recovered_from": [
         "internal/live/identity/table_cohort_rds.go"
       ]
@@ -320,11 +277,6 @@
         "internal/live/identity/table_cohort_dynamodb_elasticache.go"
       ]
     },
-    "aws_dynamodb_table": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_dynamodb_elasticache.go"
-      ]
-    },
     "aws_ec2_carrier_gateway": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
@@ -338,11 +290,6 @@
     "aws_ec2_client_vpn_network_association": {
       "recovered_from": [
         "internal/live/identity/table_cohort_ec2_networking.go"
-      ]
-    },
-    "aws_ec2_instance_connect_endpoint": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_ec2_core.go"
       ]
     },
     "aws_ec2_transit_gateway_multicast_domain_association": {
@@ -360,54 +307,7 @@
         "internal/live/identity/table_cohort_ec2_networking.go"
       ]
     },
-    "aws_ecr_lifecycle_policy": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_devtools.go"
-      ]
-    },
-    "aws_ecr_pull_through_cache_rule": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_devtools.go"
-      ]
-    },
-    "aws_ecr_pull_time_update_exclusion": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_devtools.go"
-      ]
-    },
-    "aws_ecr_registry_policy": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_data.go",
-        "internal/live/identity/table_cohort_dynamodb_elasticache.go",
-        "internal/live/identity/table_cohort_route53_cloudfront.go"
-      ]
-    },
-    "aws_ecr_repository_creation_template": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_devtools.go"
-      ]
-    },
-    "aws_ecr_repository_policy": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_devtools.go"
-      ]
-    },
     "aws_ecs_capacity_provider": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_ecs_eks.go"
-      ]
-    },
-    "aws_ecs_cluster": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_ecs_eks.go"
-      ]
-    },
-    "aws_ecs_daemon_task_definition": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_ecs_eks.go"
-      ]
-    },
-    "aws_ecs_express_gateway_service": {
       "recovered_from": [
         "internal/live/identity/table_cohort_ecs_eks.go"
       ]
@@ -417,32 +317,21 @@
         "internal/live/identity/table_cohort_ecs_eks.go"
       ]
     },
-    "aws_ecs_task_definition": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_ecs_eks.go"
-      ]
-    },
     "aws_ecs_task_set": {
       "recovered_from": [
         "internal/live/identity/table_cohort_ecs_eks.go"
-      ]
-    },
-    "aws_efs_file_system": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_ecs_eks.go",
-        "internal/live/identity/table_cohort_storage.go"
-      ]
-    },
-    "aws_efs_mount_target": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_security.go",
-        "internal/live/identity/table_cohort_storage.go"
       ]
     },
     "aws_eks_identity_provider_config": {
       "recovered_from": [
         "internal/live/identity/table_cohort_ecs_eks.go"
       ]
+    },
+    "aws_eks_pod_identity_association": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ecs_eks.go"
+      ],
+      "reason": "recovered by re-running the fragment scrape with the bullet-subject rule (#131); the first pass collected every type name near the word Rejected, which both over- and under-counted"
     },
     "aws_elastic_beanstalk_application_version": {
       "recovered_from": [
@@ -461,24 +350,9 @@
         "internal/live/identity/table_cohort_remainder.go"
       ]
     },
-    "aws_elasticache_user": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_dynamodb_elasticache.go"
-      ]
-    },
-    "aws_elasticache_user_group": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_dynamodb_elasticache.go"
-      ]
-    },
     "aws_elasticache_user_group_association": {
       "recovered_from": [
         "internal/live/identity/table_cohort_dynamodb_elasticache.go"
-      ]
-    },
-    "aws_emr_cluster": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_compute_platforms.go"
       ]
     },
     "aws_emr_instance_fleet": {
@@ -516,27 +390,7 @@
         "internal/live/identity/table_cohort_data.go"
       ]
     },
-    "aws_glue_catalog_database": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_data.go"
-      ]
-    },
-    "aws_glue_catalog_table": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_data.go"
-      ]
-    },
     "aws_glue_catalog_table_optimizer": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_data.go"
-      ]
-    },
-    "aws_glue_data_catalog_encryption_settings": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_data.go"
-      ]
-    },
-    "aws_glue_data_quality_ruleset": {
       "recovered_from": [
         "internal/live/identity/table_cohort_data.go"
       ]
@@ -551,27 +405,7 @@
         "internal/live/identity/table_cohort_data.go"
       ]
     },
-    "aws_glue_registry": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_data.go"
-      ]
-    },
-    "aws_glue_schema": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_data.go"
-      ]
-    },
-    "aws_glue_security_configuration": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_data.go"
-      ]
-    },
     "aws_glue_user_defined_function": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_data.go"
-      ]
-    },
-    "aws_glue_workflow": {
       "recovered_from": [
         "internal/live/identity/table_cohort_data.go"
       ]
@@ -583,36 +417,8 @@
         "internal/live/identity/table_cohort_iot.go"
       ]
     },
-    "aws_iam_group": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_iam_ecr.go"
-      ]
-    },
     "aws_iam_group_membership": {
       "recovered_from": [
-        "internal/live/identity/table_cohort_identity.go"
-      ]
-    },
-    "aws_iam_policy": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_iam_ecr.go",
-        "internal/live/identity/table_cohort_storage.go"
-      ]
-    },
-    "aws_iam_role_policy": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_storage.go"
-      ]
-    },
-    "aws_iam_saml_provider": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_iam_ecr.go",
-        "internal/live/identity/table_cohort_identity.go"
-      ]
-    },
-    "aws_iam_virtual_mfa_device": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_iam_ecr.go",
         "internal/live/identity/table_cohort_identity.go"
       ]
     },
@@ -654,21 +460,6 @@
     "aws_ivs_playback_key_pair": {
       "reason": "public_key is Required, ForceNew and write-only (no IVS read returns the material), so a marker-rebuilt plan always proposes replacement - measured by the acceptance tier's media cohort 2026-08-14 (#124). Same ground as SURVEY.md's credential-material exclusion (aws_iam_access_key, #125), extended to client-supplied write-only material."
     },
-    "aws_key_pair": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_ec2_core.go"
-      ]
-    },
-    "aws_kinesis_analytics_application": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_data.go"
-      ]
-    },
-    "aws_kinesis_resource_policy": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_data.go"
-      ]
-    },
     "aws_kinesis_video_stream": {
       "recovered_from": [
         "internal/live/identity/table_cohort_data.go"
@@ -707,12 +498,6 @@
         "internal/live/identity/table_cohort_storage.go"
       ]
     },
-    "aws_lambda_layer_version": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_iam_ecr.go",
-        "internal/live/identity/table_cohort_messaging.go"
-      ]
-    },
     "aws_lambda_layer_version_permission": {
       "recovered_from": [
         "internal/live/identity/table_cohort_lambda.go"
@@ -721,11 +506,6 @@
     "aws_lb_listener_certificate": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_lexv2models_bot_locale": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_stragglers.go"
       ]
     },
     "aws_lexv2models_bot_version": {
@@ -748,6 +528,12 @@
         "internal/live/identity/table_cohort_stragglers.go"
       ]
     },
+    "aws_lightsail_domain": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_compute_platforms.go"
+      ],
+      "reason": "recovered by re-running the fragment scrape with the bullet-subject rule (#131); the first pass collected every type name near the word Rejected, which both over- and under-counted"
+    },
     "aws_m2_deployment": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
@@ -766,24 +552,9 @@
         "live/e2e/estates/remainder/README.md"
       ]
     },
-    "aws_nat_gateway": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_ec2_core.go"
-      ]
-    },
-    "aws_nat_gateway_eip_association": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_ec2_core.go"
-      ]
-    },
     "aws_network_acl_association": {
       "recovered_from": [
         "internal/live/identity/table_cohort_ec2_networking.go"
-      ]
-    },
-    "aws_network_interface": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_ec2_core.go"
       ]
     },
     "aws_network_interface_sg_attachment": {
@@ -809,11 +580,6 @@
     "aws_pinpointsmsvoicev2_resource_policy": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_placement_group": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_ec2_core.go"
       ]
     },
     "aws_prometheus_anomaly_detector": {
@@ -842,33 +608,12 @@
         "live/e2e/estates/remainder/README.md"
       ]
     },
-    "aws_route53_cidr_collection": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_route53_cloudfront.go"
-      ]
-    },
     "aws_route53_cidr_location": {
       "recovered_from": [
         "internal/live/identity/table_cohort_route53_cloudfront.go"
       ]
     },
     "aws_route53_query_log": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_route53_cloudfront.go"
-      ]
-    },
-    "aws_route53_record": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_ecs_eks.go",
-        "internal/live/identity/table_cohort_storage.go"
-      ]
-    },
-    "aws_route53_zone": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_route53_cloudfront.go"
-      ]
-    },
-    "aws_route53recoverycontrolconfig_routing_control": {
       "recovered_from": [
         "internal/live/identity/table_cohort_route53_cloudfront.go"
       ]
@@ -938,32 +683,12 @@
         "live/e2e/estates/remainder/README.md"
       ]
     },
-    "aws_sns_topic": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_iam_ecr.go"
-      ]
-    },
-    "aws_sns_topic_subscription": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_messaging.go"
-      ]
-    },
     "aws_ssm_document": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
       ]
     },
-    "aws_ssoadmin_permission_set": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_identity.go"
-      ]
-    },
     "aws_transfer_ssh_key": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_remainder.go"
-      ]
-    },
-    "aws_transfer_web_app_customization": {
       "recovered_from": [
         "internal/live/identity/table_cohort_remainder.go"
       ]
@@ -993,6 +718,12 @@
         "internal/live/identity/table_cohort_ec2_networking.go",
         "internal/live/identity/table_cohort_stragglers.go"
       ]
+    },
+    "aws_vpn_gateway_attachment": {
+      "recovered_from": [
+        "internal/live/identity/table_cohort_ec2_networking.go"
+      ],
+      "reason": "recovered by re-running the fragment scrape with the bullet-subject rule (#131); the first pass collected every type name near the word Rejected, which both over- and under-counted"
     },
     "aws_vpn_gateway_route_propagation": {
       "recovered_from": [
