@@ -40,6 +40,11 @@ type Corpus struct {
 	// Populations are the per-origin counts, where blocked and clean live.
 	Populations []PopulationTotals `json:"populations"`
 
+	// Ladder is #175's roll-up over the rate-capable entries: counts per
+	// onboarding class and the unadmitted-type demand table. Nil when the
+	// corpus has no rate-capable population.
+	Ladder *LadderSummary `json:"ladder,omitempty"`
+
 	// Checked and Unchecked are the layers behind every number above,
 	// repeated here so the artifact carries its own scope. See
 	// [UncheckedLayers].
@@ -86,6 +91,14 @@ type CorpusEntry struct {
 	// Shadowed is how many identity refusals landed on a construct lint
 	// had already refused. See [Report.Shadowed].
 	Shadowed int `json:"shadowed,omitempty"`
+
+	// Profile is the per-estate section (#175): refusal IDs with site
+	// counts, unset-variable attribution, unadmitted types and the
+	// onboarding class. Present exactly when the entry's origin is in
+	// rateCapableOrigins - the ranking-only populations measure fixtures
+	// and module examples, and a per-entry profile over them would measure
+	// the fixtures.
+	Profile *EntryProfile `json:"profile,omitempty"`
 }
 
 // CorpusRefusal is one refusal's row in the ranked table.
@@ -223,6 +236,12 @@ func (c *Corpus) Add(name, origin string, report Report) {
 	if !entry.Loaded && len(report.Load.Diags) > 0 {
 		entry.LoadError = report.Load.Diags[0].Error()
 	}
+	if rateCapableOrigins[origin] {
+		// The profile's unset_var_only flags read whatever attribution the
+		// caller ran; see [EntryRefusal.UnsetVarOnly]. corpus-gen runs
+		// [Report.AttributeUnsetVariables] before folding each report in.
+		entry.Profile = profileReport(report)
+	}
 	c.Entries = append(c.Entries, entry)
 
 	for _, finding := range report.Findings {
@@ -334,6 +353,7 @@ func (c *Corpus) Finish() {
 		return a.ID < b.ID
 	})
 	sort.Slice(c.Entries, func(i, j int) bool { return c.Entries[i].Name < c.Entries[j].Name })
+	c.Ladder = ladderSummary(c.Entries)
 }
 
 // mergeTypes folds one finding's type breakdown into a row's running one.

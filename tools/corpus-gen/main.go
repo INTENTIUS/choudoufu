@@ -102,6 +102,11 @@ func run() error {
 	for _, entry := range entries {
 		logf(logOut, "corpus-gen: %s\n", entry.Name)
 		report := check.Dir(ctx, entry.Dir, check.Context{Schemas: schemas})
+		// Attribution before folding, so a rate-capable entry's profile can
+		// flag the refusals that are artifacts of running without the
+		// operator's tfvars (#161, #175). It only marks; it never changes a
+		// verdict or a count.
+		report.AttributeUnsetVariables(report.Load.UnsetVariables(), report.Load.Sources())
 		corpus.Add(entry.Name, entry.Origin, report)
 		origins[entry.Origin]++
 	}
@@ -270,6 +275,28 @@ func renderTable(artifact Artifact) string {
 		fmt.Fprintf(&b, "\n%d refusal(s) fired on nothing in this corpus. They are in the artifact with a zero,\n",
 			totals.RefusalsInSet-totals.RefusalsFired)
 		b.WriteString("which is the half of the answer an instrument built from observed output cannot have.\n")
+	}
+
+	if ladder := artifact.Ladder; ladder != nil {
+		fmt.Fprintf(&b, "\nOnboarding ladder over the rate-capable population(s) (%s):\n",
+			strings.Join(ladder.Origins, ", "))
+		for _, row := range ladder.Classes {
+			fmt.Fprintf(&b, "    %-26s %d\n", row.Class, row.Configs)
+		}
+		if len(ladder.UnadmittedDemand) > 0 {
+			b.WriteString("Unadmitted-type demand (configs declaring each type):\n")
+			shown := ladder.UnadmittedDemand
+			const maxDemandRows = 20
+			if len(shown) > maxDemandRows {
+				shown = shown[:maxDemandRows]
+			}
+			for _, row := range shown {
+				fmt.Fprintf(&b, "    %-4d %s\n", row.Configs, row.Type)
+			}
+			if rest := len(ladder.UnadmittedDemand) - len(shown); rest > 0 {
+				fmt.Fprintf(&b, "    ... and %d more in the artifact\n", rest)
+			}
+		}
 	}
 
 	b.WriteString("\nCorpus origins:\n")
