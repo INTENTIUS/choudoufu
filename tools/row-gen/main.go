@@ -231,7 +231,7 @@ func runConvergence(out, errOut *os.File) error {
 // move it, while the measurement that does predict onboarding success (issue
 // #102) does not exist yet and produces no number until it is finished. That
 // asymmetry is what the drift keeps following, so the warning belongs where
-// the number is, not only in HANDOFF.md.
+// the number is, not only in a document somebody has to think to open.
 const notACoverageMetric = `
   NOT A COVERAGE METRIC. This compares row-gen's fresh proposal against the
   human-ratified row in internal/live/identity.DefaultTable. The ratified row
@@ -242,7 +242,8 @@ const notACoverageMetric = `
 
   The gate users actually hit is admission, and above that the config-language
   subset (static evaluability). Do not use this number to size coverage, to
-  rank work, or to decide what is blocked. See HANDOFF.md and issue #102.
+  rank work, or to decide what is blocked. See issue #102 and live/corpus-
+  refusals.json, which measure what does.
 `
 
 // runPropose is -propose's entry point: buildProposeReport (propose.go) does

@@ -29,8 +29,9 @@
 // blockers there are, ahead of every rule either live package owns", which
 // is false four times over: unadmitted-type at 58 and logical-resource at 49
 // both outrank the third, and unadmitted-type outranks the second. The claim
-// came from HANDOFF.md and was copied into five files before an audit
-// recomputed it. Rank 1 is the part that is true and the part that matters.
+// came from a since-retired handoff document and was copied into five files
+// before an audit recomputed it. Rank 1 is the part that is true and the part
+// that matters.
 //
 // # What is in here, and how completeness is argued
 //
