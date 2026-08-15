@@ -1175,50 +1175,7 @@ func (r *resolver) buildExpansion(rc *configs.Resource) (*expansion, bool) {
 
 	switch {
 	case rc.Count != nil:
-		ident := r.moduleIdentifier(addr.String()+" count", rc.Count.Range())
-		val, ok := r.evalStatic(rc.Count, instScope{}, ident)
-		if !ok {
-			return nil, false
-		}
-		if val.IsMarked() {
-			// Before the marked check, gocty.FromCtyValue below panicked
-			// ("value is marked, so must be unmarked first") and took the
-			// whole run down. An ephemeral variable in count is the shortest
-			// way there - internal/command/e2etest/testdata/
-			// ephemeral-repetition/count is exactly that configuration - and
-			// a sensitive one reaches it too. for_each already refused its
-			// own marked value a few lines below; count did not.
-			r.errorf(rc.Count.Range(), "Sensitive count expression",
-				"The count for %s is sensitive or ephemeral, so the instance keys it produces cannot become part of resource addresses. Addresses are written to markers, logs and plan output.", addr.String())
-			return nil, false
-		}
-		if !val.IsKnown() || val.IsNull() {
-			r.errorf(rc.Count.Range(), "Non-static count expression",
-				"The count for %s evaluated to null, or to a value not knowable from configuration alone. Instance keys are the addresses a projection binds against, so a count has to be a whole number this run can compute before anything is read from the cloud; guessing a cardinality would silently drop or invent instances.", addr.String())
-			return nil, false
-		}
-		num, err := convert.Convert(val, cty.Number)
-		if err != nil {
-			r.errorf(rc.Count.Range(), "Invalid count",
-				"The count for %s is not a number: %s.", addr.String(), err)
-			return nil, false
-		}
-		var n int
-		if err := gocty.FromCtyValue(num, &n); err != nil {
-			r.errorf(rc.Count.Range(), "Invalid count",
-				"The count for %s is not a whole number: %s.", addr.String(), err)
-			return nil, false
-		}
-		if n < 0 {
-			r.errorf(rc.Count.Range(), "Invalid count",
-				"The count for %s is negative.", addr.String())
-			return nil, false
-		}
-		exp := &expansion{counted: true}
-		for i := 0; i < n; i++ {
-			exp.keys = append(exp.keys, addrs.IntKey(i))
-		}
-		return exp, true
+		return r.countExpansion(rc)
 
 	case rc.ForEach != nil:
 		return r.forEachExpansion(rc)
@@ -1252,6 +1209,202 @@ func (r *resolver) buildExpansion(rc *configs.Resource) (*expansion, bool) {
 	default:
 		return &expansion{keys: []addrs.InstanceKey{addrs.NoKey}}, true
 	}
+}
+
+// countExpansion resolves rc.Count. It is the same evaluation buildExpansion
+// always did, except that length(<resource>) - the whole expression, or
+// nested under a comparison, a ternary, or parentheses, the shapes count
+// actually uses in the corpus (#178) - is rewritten to that resource's own
+// already-computed instance count before the generic static evaluator ever
+// sees it. That is the count analogue of forEachOverResource: the keys come
+// from the resolver's own expansion of the referenced resource, never from
+// evaluating the referenced resource's attributes.
+func (r *resolver) countExpansion(rc *configs.Resource) (*expansion, bool) {
+	addr := rc.Addr()
+	expr := rc.Count
+	if rewritten, changed, ok := r.rewriteResourceLength(expr); changed {
+		// changed is true only when a length(<resource>) call was actually
+		// matched, so !ok here always means that resource's own expansion
+		// failed - the error is already on r.diags (see expansionFor and
+		// the cycle guard above it), and there is nothing more to say.
+		// A resource reference in a shape this does not recognize comes
+		// back as changed=false instead, expr unmodified, and falls
+		// through to evalStatic below, which raises the ordinary "Dynamic
+		// value in static context" refusal for it - the honest answer,
+		// since this rule explains length(<resource>), not every shape
+		// that might wrap one.
+		if !ok {
+			return nil, false
+		}
+		expr = rewritten
+	}
+
+	ident := r.moduleIdentifier(addr.String()+" count", rc.Count.Range())
+	val, ok := r.evalStatic(expr, instScope{}, ident)
+	if !ok {
+		return nil, false
+	}
+	if val.IsMarked() {
+		// Before the marked check, gocty.FromCtyValue below panicked
+		// ("value is marked, so must be unmarked first") and took the
+		// whole run down. An ephemeral variable in count is the shortest
+		// way there - internal/command/e2etest/testdata/
+		// ephemeral-repetition/count is exactly that configuration - and
+		// a sensitive one reaches it too. for_each already refused its
+		// own marked value a few lines below; count did not.
+		r.errorf(rc.Count.Range(), "Sensitive count expression",
+			"The count for %s is sensitive or ephemeral, so the instance keys it produces cannot become part of resource addresses. Addresses are written to markers, logs and plan output.", addr.String())
+		return nil, false
+	}
+	if !val.IsKnown() || val.IsNull() {
+		r.errorf(rc.Count.Range(), "Non-static count expression",
+			"The count for %s evaluated to null, or to a value not knowable from configuration alone. Instance keys are the addresses a projection binds against, so a count has to be a whole number this run can compute before anything is read from the cloud; guessing a cardinality would silently drop or invent instances.", addr.String())
+		return nil, false
+	}
+	num, err := convert.Convert(val, cty.Number)
+	if err != nil {
+		r.errorf(rc.Count.Range(), "Invalid count",
+			"The count for %s is not a number: %s.", addr.String(), err)
+		return nil, false
+	}
+	var n int
+	if err := gocty.FromCtyValue(num, &n); err != nil {
+		r.errorf(rc.Count.Range(), "Invalid count",
+			"The count for %s is not a whole number: %s.", addr.String(), err)
+		return nil, false
+	}
+	if n < 0 {
+		r.errorf(rc.Count.Range(), "Invalid count",
+			"The count for %s is negative.", addr.String())
+		return nil, false
+	}
+	exp := &expansion{counted: true}
+	for i := 0; i < n; i++ {
+		exp.keys = append(exp.keys, addrs.IntKey(i))
+	}
+	return exp, true
+}
+
+// lengthOfResource reports whether expr is exactly length(<resource>): a
+// call to the length function whose single argument is a bare reference to
+// a whole managed resource that itself uses count or for_each. Only a
+// multi-instance resource makes length(<resource>) mean "how many
+// instances there are": OpenTofu evaluates length() of a single-instance
+// resource reference over that resource's own object attributes instead, a
+// different number this resolver has no way to reproduce without a schema
+// read, so that case is left alone for the generic evaluator's own
+// refusal rather than guessed at.
+func (r *resolver) lengthOfResource(expr hcl.Expression) (*configs.Resource, bool) {
+	call, diags := hcl.ExprCall(expr)
+	if diags.HasErrors() {
+		return nil, false
+	}
+	if call.Name != "length" || len(call.Arguments) != 1 {
+		return nil, false
+	}
+	trav, diags := hcl.AbsTraversalForExpr(call.Arguments[0])
+	if diags.HasErrors() {
+		return nil, false
+	}
+	ref, refDiags := addrs.ParseRef(trav)
+	if refDiags.HasErrors() {
+		return nil, false
+	}
+	resAddr, ok := ref.Subject.(addrs.Resource)
+	if !ok || len(ref.Remaining) > 0 || resAddr.Mode != addrs.ManagedResourceMode {
+		return nil, false
+	}
+	parentRC := r.mod.ResourceByAddr(resAddr)
+	if parentRC == nil || (parentRC.Count == nil && parentRC.ForEach == nil) {
+		return nil, false
+	}
+	return parentRC, true
+}
+
+// rewriteResourceLength looks for length(<resource>) inside expr and
+// replaces each one with that resource's own already-computed instance
+// count from expansionFor - the memoized, cycle-guarded expansion every
+// other resource's count and for_each already goes through. It recurses
+// through parentheses, ternaries and comparisons, because those are the
+// wrapped forms count actually uses in the corpus (#178); it does not
+// invent handling for shapes that are not there.
+//
+// changed reports whether expr referenced a managed resource at all. When
+// changed is false, rewritten is expr itself and ok is always true: the
+// caller can evaluate it exactly as before, because nothing here applies.
+// When changed is true, ok is false in two different situations the caller
+// must tell apart: a matched length(<resource>) call whose resource failed
+// to resolve (the failure is already on r.diags - give up, do not fall
+// back), or a resource reference in a shape this function does not
+// recognize (nothing has been reported yet - the caller should evaluate the
+// original expr through the generic path instead, which raises the
+// ordinary "Dynamic value in static context" refusal for it).
+func (r *resolver) rewriteResourceLength(expr hcl.Expression) (rewritten hcl.Expression, changed bool, ok bool) {
+	if !r.isSymbolic(expr, instScope{}) {
+		return expr, false, true
+	}
+
+	if parentRC, isLen := r.lengthOfResource(expr); isLen {
+		parentExp, expOK := r.expansionFor(parentRC)
+		if !expOK {
+			return nil, true, false
+		}
+		return &hclsyntax.LiteralValueExpr{
+			Val:      cty.NumberIntVal(int64(len(parentExp.keys))),
+			SrcRange: expr.Range(),
+		}, true, true
+	}
+
+	switch e := expr.(type) {
+	case *hclsyntax.ParenthesesExpr:
+		inner, ch, ok := r.rewriteResourceLength(e.Expression)
+		if !ok {
+			return nil, ch, false
+		}
+		cp := *e
+		cp.Expression = inner.(hclsyntax.Expression)
+		return &cp, true, true
+
+	case *hclsyntax.ConditionalExpr:
+		cond, ch, ok := r.rewriteResourceLength(e.Condition)
+		if !ok {
+			return nil, ch, false
+		}
+		tr, ch, ok := r.rewriteResourceLength(e.TrueResult)
+		if !ok {
+			return nil, ch, false
+		}
+		fr, ch, ok := r.rewriteResourceLength(e.FalseResult)
+		if !ok {
+			return nil, ch, false
+		}
+		cp := *e
+		cp.Condition = cond.(hclsyntax.Expression)
+		cp.TrueResult = tr.(hclsyntax.Expression)
+		cp.FalseResult = fr.(hclsyntax.Expression)
+		return &cp, true, true
+
+	case *hclsyntax.BinaryOpExpr:
+		lhs, ch, ok := r.rewriteResourceLength(e.LHS)
+		if !ok {
+			return nil, ch, false
+		}
+		rhs, ch, ok := r.rewriteResourceLength(e.RHS)
+		if !ok {
+			return nil, ch, false
+		}
+		cp := *e
+		cp.LHS = lhs.(hclsyntax.Expression)
+		cp.RHS = rhs.(hclsyntax.Expression)
+		return &cp, true, true
+	}
+
+	// isSymbolic is true but expr is none of the recognized wrapper shapes:
+	// a bare reference, an attribute traversal, a different function, a
+	// for expression, and so on. Left unrecognized on purpose - the caller
+	// falls back to the generic evaluator's own message rather than a
+	// bespoke one here.
+	return nil, false, false
 }
 
 func (r *resolver) forEachExpansion(rc *configs.Resource) (*expansion, bool) {

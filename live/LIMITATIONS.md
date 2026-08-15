@@ -950,7 +950,7 @@ refused, and each says so in its own entry.
 | Configs | Sites | Layer | Refusal | Raised by | Documented at |
 |---|---|---|---|---|---|
 | 142 | 142 | lint | state-backend | `internal/live/lint` | "backend-block" / "cloud-block" |
-| 131 | 2336 | identity | Dynamic value in static context | `internal/configs` | "Dynamic value in static context" |
+| 131 | 2325 | identity | Dynamic value in static context | `internal/configs` | "Dynamic value in static context" |
 | 114 | 1646 | lint | unadmitted-type | `internal/live/lint` | "unadmitted-type" |
 | 89 | 3674 | identity | Unable to compute static value | `internal/configs` | "Unable to compute static value" |
 | 74 | 589 | identity | Unresolvable identity | `internal/live/identity` | "Unresolvable identity" |
@@ -1146,7 +1146,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 131 configurations in the measured corpus, at 2336 sites.
+**How often.** Blocked 131 configurations in the measured corpus, at 2325 sites.
 
 #### Unable to compute static value
 

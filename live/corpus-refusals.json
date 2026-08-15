@@ -204,8 +204,8 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 200,
-      "sites": 345,
+      "instances": 202,
+      "sites": 334,
       "unresolved_modules": 1,
       "unset_variables": 3,
       "schemas": true,
@@ -216,7 +216,7 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 19
+            "sites": 8
           },
           {
             "layer": "identity",
@@ -6854,7 +6854,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
       "raised_by": "internal/configs",
       "configs": 131,
-      "sites": 2336,
+      "sites": 2325,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:195",
         ".corpus/alb/examples/complete-alb/main.tf:195",
@@ -9115,8 +9115,8 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 2646,
-    "sites": 14944,
+    "instances": 2648,
+    "sites": 14933,
     "refusals_fired": 28,
     "refusals_in_set": 109,
     "configs_without_schemas": 0,
@@ -9139,8 +9139,8 @@
       "loaded": 144,
       "blocked": 144,
       "clean": 0,
-      "instances": 1547,
-      "sites": 3499,
+      "instances": 1549,
+      "sites": 3488,
       "reads_as": "rate"
     },
     {
