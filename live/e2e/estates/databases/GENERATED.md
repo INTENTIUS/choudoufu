@@ -39,7 +39,7 @@ go run ./tools/estate-gen -cohort databases -types aws_docdb_event_subscription,
 | `aws_redshift_cluster.app` | coverage | neither "manage_master_password" nor "master_password" is Required in the wire schema (the provider accepts either), so the generic required-only pass sets neither, and validate does not catch the gap - but the provider's own plan-time logic refuses the combination outright (apply: "one of \"manage_master_password\" or \"master_password\" is required"), found only by exercising a real apply against floci |
 | `aws_redshift_endpoint_access.app` | coverage | endpoint_name is validated against a 30-character ceiling the wire schema does not express (validate: "expected length of endpoint_name to be in the range (1 - 30)"), and the generic tofu-<cohort>-cohort-<type> literal is 46 characters; shortened here, still cohort-prefixed and unique in the run |
 | `aws_redshift_parameter_group.app` | coverage | none |
-| `aws_redshift_snapshot_schedule.app` | coverage | "definitions" is a list of schedule expressions the schema types as unconstrained strings; the generic placeholder is neither a documented cron nor rate expression (not caught by validate, found by reading the provider's own documented example) - set to that same example's "rate(12 hours)" |
+| `aws_redshift_snapshot_schedule.app` | coverage | none |
 | `aws_redshift_subnet_group.app` | coverage | none |
 | `aws_redshiftserverless_namespace.app` | coverage | none |
 | `aws_redshiftserverless_workgroup.app` | coverage | none |

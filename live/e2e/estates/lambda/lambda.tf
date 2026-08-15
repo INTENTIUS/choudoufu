@@ -66,6 +66,6 @@ resource "aws_lambda_layer_version" "app" {
 resource "aws_lambda_permission" "app" {
   function_name = aws_lambda_function.app.function_name
   action        = "lambda:InvokeFunction"
-  principal     = "events.amazonaws.com"
-  statement_id  = "AllowExecutionFromCloudWatch"
+  principal     = "apigateway.amazonaws.com"
+  statement_id  = "AllowMyDemoAPIInvoke"
 }
