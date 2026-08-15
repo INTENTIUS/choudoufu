@@ -221,18 +221,28 @@ resource "aws_secretsmanager_secret_rotation" "b" {
 }
 
 // TestVariantScoreIgnoresALiteralInsideAnUnreachableBlock is
-// aws_ssm_maintenance_window_task's page, reduced. The Run Command variant
-// holds two complete literals, but they sit inside a parameter block nested
-// in run_command_parameters, which drops three references and so may never
-// be created - while the Automation variant's document_version is one level
-// down a block that drops nothing. Two beat one on the old count, and the
-// fixture lost the only member it could write.
+// aws_ssm_maintenance_window_task's page - all four of its fences, because
+// the two-fence reduction of it agrees with any rule and proves nothing.
+//
+// Run Command holds two complete literals, but they sit inside a parameter
+// block nested in run_command_parameters, which drops three references and
+// so may never be created; it is not a candidate at all. Step Functions is
+// a candidate and ties Automation on dropped references (three each), so
+// the page's own lead example wins. Counting complete literals instead
+// ranked Run Command first, then Step Functions, and either way the fixture
+// lost both the automation_parameters member and the literal task_arn.
 func TestVariantScoreIgnoresALiteralInsideAnUnreachableBlock(t *testing.T) {
 	doc := "## Example Usage\n\n### Automation Tasks\n\n```terraform\n" + `
 resource "aws_ssm_maintenance_window_task" "a" {
-  task_arn  = "AWS-RestartEC2Instance"
-  task_type = "AUTOMATION"
-  window_id = aws_ssm_maintenance_window.example.id
+  max_concurrency = 2
+  task_arn        = "AWS-RestartEC2Instance"
+  task_type       = "AUTOMATION"
+  window_id       = aws_ssm_maintenance_window.example.id
+
+  targets {
+    key    = "InstanceIds"
+    values = [aws_instance.example.id]
+  }
 
   task_invocation_parameters {
     automation_parameters {
@@ -245,17 +255,46 @@ resource "aws_ssm_maintenance_window_task" "a" {
     }
   }
 }
-` + "```\n\n### Run Command Tasks\n\n```terraform\n" + `
+` + "```\n\n### Lambda Tasks\n\n```terraform\n" + `
 resource "aws_ssm_maintenance_window_task" "b" {
-  task_arn  = "AWS-RunShellScript"
-  task_type = "RUN_COMMAND"
-  window_id = aws_ssm_maintenance_window.example.id
+  max_concurrency = 2
+  task_arn        = aws_lambda_function.example.arn
+  task_type       = "LAMBDA"
+  window_id       = aws_ssm_maintenance_window.example.id
+
+  targets {
+    key    = "InstanceIds"
+    values = [aws_instance.example.id]
+  }
+
+  task_invocation_parameters {
+    lambda_parameters {
+      payload = "{\"key1\":\"value1\"}"
+    }
+  }
+}
+` + "```\n\n### Run Command Tasks\n\n```terraform\n" + `
+resource "aws_ssm_maintenance_window_task" "c" {
+  max_concurrency = 2
+  task_arn        = "AWS-RunShellScript"
+  task_type       = "RUN_COMMAND"
+  window_id       = aws_ssm_maintenance_window.example.id
+
+  targets {
+    key    = "InstanceIds"
+    values = [aws_instance.example.id]
+  }
 
   task_invocation_parameters {
     run_command_parameters {
       output_s3_bucket = aws_s3_bucket.example.id
       service_role_arn = aws_iam_role.example.arn
       timeout_seconds  = 600
+
+      notification_config {
+        notification_arn  = aws_sns_topic.example.arn
+        notification_type = "Command"
+      }
 
       parameter {
         name   = "commands"
@@ -264,12 +303,68 @@ resource "aws_ssm_maintenance_window_task" "b" {
     }
   }
 }
+` + "```\n\n### Step Function Tasks\n\n```terraform\n" + `
+resource "aws_ssm_maintenance_window_task" "d" {
+  max_concurrency = 2
+  task_arn        = aws_sfn_activity.example.id
+  task_type       = "STEP_FUNCTIONS"
+  window_id       = aws_ssm_maintenance_window.example.id
+
+  targets {
+    key    = "InstanceIds"
+    values = [aws_instance.example.id]
+  }
+
+  task_invocation_parameters {
+    step_functions_parameters {
+      input = "{\"key1\":\"value1\"}"
+      name  = "example"
+    }
+  }
+}
 ` + "```\n"
 
 	args := exampleArguments(doc, "aws_ssm_maintenance_window_task")
 	got := argFor(args, "task_invocation_parameters.automation_parameters.document_version")
 	if got == nil || got.Value != "$LATEST" {
-		t.Fatalf("automation_parameters.document_version = %+v, want the Automation variant's literal", got)
+		t.Fatalf("automation_parameters.document_version = %+v, want the Automation variant's literal; got %v", got, args)
+	}
+	if a := argFor(args, "task_arn"); a == nil || a.Reference || a.Value != "AWS-RestartEC2Instance" {
+		t.Errorf("task_arn = %+v, want the Automation variant's literal rather than a Lambda/Step Functions reference", a)
+	}
+}
+
+// TestVariantPreferenceMeasuresSelfContainment: the property #177 names is
+// how much a fence gives up to its siblings, and a fence's SIZE is not that
+// property. A big wired-up variant must not outrank a small self-contained
+// one just by carrying more arguments.
+func TestVariantPreferenceMeasuresSelfContainment(t *testing.T) {
+	doc := "## Example Usage\n\n### Wired\n\n```terraform\n" + `
+resource "aws_thing" "a" {
+  one   = aws_other.x.id
+  two   = aws_other.x.arn
+  three = aws_other.x.name
+
+  block {
+    p = "1"
+    q = "2"
+    r = "3"
+  }
+}
+` + "```\n\n### Self contained\n\n```terraform\n" + `
+resource "aws_thing" "b" {
+  one = aws_other.x.id
+
+  block {
+    p = "9"
+  }
+}
+` + "```\n"
+
+	args := exampleArguments(doc, "aws_thing")
+	got := argFor(args, "block.p")
+	if got == nil || got.Value != "9" {
+		t.Fatalf("block.p = %+v, want the self-contained variant's 9; the wired variant is merely larger", got)
 	}
 }
 

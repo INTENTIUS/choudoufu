@@ -164,22 +164,30 @@ func exampleSection(doc string) (string, bool) {
 // mutually exclusive settings, which is how a seed starts producing
 // configurations the provider rejects. WHICH fence (issue #177): the first
 // whose extraction is fully literal (no dropped reference, no incomplete
-// block); failing that, the fence with the most REACHABLE literals
-// (reachableLiterals) - a page may lead with a wired-up variant and keep
-// the self-contained one second, which is exactly aws_sagemaker_workteam's
-// shape: its "Cognito Usage" members are all references while its "Oidc
-// Usage" carries the literal oidc_member_definition the seed wants, and
-// both variants reference the shared workforce, so neither is clean.
-// Failing every literal, the first fence with any entry - a reference-only
-// extraction is still evidence, and the reference rule in
-// tools/estate-gen/seed.go can wire it back up.
+// block); failing that, the candidate fence that drops the FEWEST
+// references, where a candidate is a fence with at least one placeable
+// literal (placeableLiterals).
+//
+// Fewest references is the property, not most literals, because this
+// artifact cannot know what any cohort renders: every dropped reference is
+// a dependency on a roster decided elsewhere, so the fence least wired to
+// its siblings is the one whose contents survive in the most cohorts. A
+// bigger variant must not outrank a smaller self-contained one merely by
+// carrying more arguments. The candidacy bar is what keeps
+// aws_sagemaker_workteam's shape right: its all-reference "Cognito Usage"
+// lead has nothing placeable and cannot win, while its "Oidc Usage" carries
+// the literal oidc_member_definition the seed wants.
+//
+// Ties go to the page's own lead example. Failing every literal, the first
+// fence with any entry: a reference-only extraction is still evidence, and
+// the reference rule in tools/estate-gen/seed.go can wire it back up.
 func exampleArguments(doc, tfType string) []ExampleArgument {
 	section, ok := exampleSection(doc)
 	if !ok {
 		return nil
 	}
 	var best, firstAny []ExampleArgument
-	bestComplete := 0
+	bestRefs := -1
 	for _, m := range exampleFenceRe.FindAllStringSubmatch(section, -1) {
 		body, diags := hclsyntax.ParseConfig([]byte(m[1]), "example.tf", hcl.InitialPos)
 		if diags.HasErrors() || body == nil {
@@ -201,18 +209,21 @@ func exampleArguments(doc, tfType string) []ExampleArgument {
 			if len(args) == 0 {
 				continue
 			}
-			clean := true
+			clean, refs := true, 0
 			for _, a := range args {
+				if a.Reference {
+					refs++
+				}
 				if a.Reference || a.Incomplete {
 					clean = false
 				}
 			}
-			complete := reachableLiterals(args)
-			if clean && complete > 0 {
+			placeable := placeableLiterals(args)
+			if clean && placeable > 0 {
 				return args
 			}
-			if complete > bestComplete {
-				best, bestComplete = args, complete
+			if placeable > 0 && (bestRefs == -1 || refs < bestRefs) {
+				best, bestRefs = args, refs
 			}
 			if firstAny == nil {
 				firstAny = args
@@ -225,34 +236,40 @@ func exampleArguments(doc, tfType string) []ExampleArgument {
 	return firstAny
 }
 
-// reachableLiterals is the variant-preference score: how many of this
-// fence's literals a consumer could actually write, rather than how many it
-// contains.
+// placeableLiterals is the candidacy bar for the variant preference: how
+// many of this fence's literals a consumer could actually write, rather
+// than how many it contains. A fence with none offers nothing to seed, so
+// it may not win however few references it drops; scoring by the raw
+// literal count instead picked the wrong variant on three pages, found by
+// regenerating the estate cohorts against the pinned 6.59.0 cache and
+// reading the diff rather than by reasoning.
 //
-// The two differ, and counting the wrong one picked the wrong variant twice
-// (found by regenerating the estate cohorts against the pinned 6.59.0 cache
-// and reading the diff, 2026-08-15). Three shapes are unreachable by this
-// artifact's own stated contract:
+// A literal is placeable when all three hold:
 //
-//   - A later block element. Only element zero has a place to land, so
+//   - It is element zero. Only the first element of a repeated block has
+//     somewhere to land. Counting later ones ranked
 //     aws_secretsmanager_secret_rotation's partner-integration variant
-//     scored 2 on its second external_secret_rotation_metadata element and
-//     beat the Basic variant, whose rotation_rules {
-//     automatically_after_days = 30 } is the one thing the fixture needed.
-//   - A literal inside a block that dropped a reference. That block may not
-//     be created, so nothing inside it can be written:
-//     aws_ssm_maintenance_window_task's Run Command variant scored 2 on the
-//     parameter block nested inside run_command_parameters, which drops
-//     three references, and beat the Automation variant's reachable
-//     document_version.
-//   - A literal already marked Incomplete, or a reference, which were never
-//     counted.
+//     above its Basic one on a second external_secret_rotation_metadata
+//     element, and the Basic variant's rotation_rules {
+//     automatically_after_days = 30 } was the one thing the fixture needed:
+//     the security cohort stopped validating with "one of
+//     automatically_after_days, schedule_expression must be specified".
+//   - No enclosing block dropped a reference. Such a block may never be
+//     created, so nothing inside it can be written. Counting those ranked
+//     aws_ssm_maintenance_window_task's Run Command variant above its
+//     Automation one on a parameter block nested inside
+//     run_command_parameters, which drops three references, and the fixture
+//     rendered task_invocation_parameters {} empty.
+//   - It is complete, OR it sits in the resource's own body. The root is
+//     not a block anyone creates - it always exists - so a consumer can
+//     write an incomplete root literal over a placeholder, which is exactly
+//     what tools/estate-gen/seed.go does. Excluding those disqualified
+//     aws_vpn_connection's second fence, whose type = "ipsec.1" sits beside
+//     dropped root references, and left the win to its all-reference lead.
 //
-// The resource's own body is not a block a consumer creates - it always
-// exists - so a reference at the root does not make the whole variant
-// unreachable. A root literal beside a dropped root reference is already
-// Incomplete and excluded on that ground.
-func reachableLiterals(args []ExampleArgument) int {
+// References are not literals and are never counted here; they count
+// against a fence in the preference itself, as the dependencies they are.
+func placeableLiterals(args []ExampleArgument) int {
 	refIn := map[string]bool{}
 	for _, a := range args {
 		if a.Reference && len(a.Path) > 1 {
@@ -261,21 +278,79 @@ func reachableLiterals(args []ExampleArgument) int {
 	}
 	n := 0
 	for _, a := range args {
-		if a.Reference || a.Incomplete || a.Element > 0 {
+		if a.Reference || a.Element > 0 {
 			continue
 		}
-		reachable := true
+		if a.Incomplete && len(a.Path) > 1 {
+			continue // its block may never be created
+		}
+		placeable := true
 		for i := 1; i < len(a.Path); i++ {
 			if refIn[strings.Join(a.Path[:i], ".")] {
-				reachable = false
+				placeable = false
 				break
 			}
 		}
-		if reachable {
+		if placeable {
 			n++
 		}
 	}
 	return n
+}
+
+// exampleRootLiterals collects the top-level string literals each Example
+// Usage fence sets on a resource of tfType - every fence, one slice per
+// fence, not the one fence exampleArguments chooses.
+//
+// This is the attribution input, not the seed. exampleArguments must pick a
+// single fence because variants are mutually exclusive as configurations,
+// but "which documented argument carries this exact value" is a question
+// every variant answers independently: a page's import example routinely
+// spells the LEAD fence's names while the seeding rule prefers a later,
+// more self-contained fence. Coupling the two lost
+// aws_kinesisanalyticsv2_application's name attribution the moment the
+// variant preference stopped picking its SQL fence - the import example
+// says "application/example-sql-application" and only that fence spells the
+// name.
+//
+// The fence grouping survives into the result because attributeSegment
+// reads each fence as its own witness, the same merge idTemplate already
+// applies across the Import section's example forms: flattening fences into
+// one pool manufactured an ambiguity aws_evidently_segment's page never
+// states - its third variant sets name AND description to "example", so a
+// flat pool refuses, while its first two variants each tie "example" to
+// name alone and no variant uniquely says anything else.
+func exampleRootLiterals(doc, tfType string) [][]ExampleArgument {
+	section, ok := exampleSection(doc)
+	if !ok {
+		return nil
+	}
+	var out [][]ExampleArgument
+	for _, m := range exampleFenceRe.FindAllStringSubmatch(section, -1) {
+		body, diags := hclsyntax.ParseConfig([]byte(m[1]), "example.tf", hcl.InitialPos)
+		if diags.HasErrors() || body == nil {
+			continue
+		}
+		syn, ok := body.Body.(*hclsyntax.Body)
+		if !ok {
+			continue
+		}
+		for _, blk := range syn.Blocks {
+			if blk.Type != "resource" || len(blk.Labels) != 2 || blk.Labels[0] != tfType {
+				continue
+			}
+			var fence []ExampleArgument
+			for _, a := range literalArguments(blk.Body, nil) {
+				if len(a.Path) == 1 && !a.Reference && a.IsString {
+					fence = append(fence, a)
+				}
+			}
+			if len(fence) > 0 {
+				out = append(out, fence)
+			}
+		}
+	}
+	return out
 }
 
 // literalArguments walks one block for arguments that are self-contained

@@ -127,6 +127,42 @@ func TestIDTemplate_SQSQueue_LegacyHostStaysLiteral(t *testing.T) {
 	})
 }
 
+// Attribution reads every Example Usage fence, not the one fence the seed
+// chooses. This page's import example spells the LEAD fence's name while
+// the variant preference picks the clean second fence (the lead drops a
+// reference), which is aws_kinesisanalyticsv2_application's exact shape:
+// its import example says "application/example-sql-application" and only
+// the SQL fence spells that name. Coupling attribution to the chosen fence
+// turned this segment unattributed the moment the preference moved.
+func TestIDTemplate_AttributionSpansAllFences(t *testing.T) {
+	doc := "# Resource: aws_thing\n\n## Example Usage\n\n### Lead\n\n```terraform\n" + `
+resource "aws_thing" "a" {
+  thing_name = "example-sql-application"
+  role       = aws_iam_role.example.arn
+}
+` + "```\n\n### Second\n\n```terraform\n" + `
+resource "aws_thing" "b" {
+  thing_name = "example-flink-application"
+  mode       = "fast"
+}
+` + "```\n\n## Argument Reference\n\n* `thing_name` - (Required)\n* `role` - (Optional)\n* `mode` - (Optional)\n\n" +
+		"## Import\n\n```console\n% terraform import aws_thing.a arn:aws:thing:us-west-2:123456789012:application/example-sql-application\n```\n"
+
+	row, ok := buildRow("aws_thing", doc)
+	if !ok {
+		t.Fatal("buildRow refused the page")
+	}
+	// The seed's pick is the clean second fence; the sanity check that this
+	// fixture really exercises the decoupling.
+	if a := argFor(row.ExampleArguments, "thing_name"); a == nil || a.Value != "example-flink-application" {
+		t.Fatalf("chosen fence's thing_name = %+v; the fixture no longer separates the seed's fence from the import example's", a)
+	}
+	wantSegments(t, row.IDTemplate, "arn", []TemplateSegment{
+		lit("arn:aws:thing:"), cloudSeg("region"), lit(":"), cloudSeg("account-id"),
+		lit(":"), unattr("application"), lit("/"), argSeg("thing_name", attrByExampleValue),
+	})
+}
+
 // A short-ID example produces no template at all.
 func TestIDTemplate_NilForShortIDExample(t *testing.T) {
 	if got := templateFor(t, "aws_ecs_cluster", "ecs_cluster"); got != nil {

@@ -304,7 +304,7 @@ func buildRow(tfType, doc string) (Row, bool) {
 		OmittedFallbacks:       omittedFallbacks(section, cr.Arguments),
 		ExclusiveGroups:        exclusiveGroups(section, argEntries, doc),
 		IDParts:                parts,
-		IDTemplate:             idTemplate(section, tfType, argEntries, exArgs),
+		IDTemplate:             idTemplate(section, tfType, argEntries, exampleRootLiterals(doc, tfType)),
 	}, true
 }
 

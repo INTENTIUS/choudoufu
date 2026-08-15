@@ -106,7 +106,7 @@ var (
 // (aws_codeartifact_domain: "example" vs "tf-acc-test-8593714120730241305"),
 // and a signal from either attributes the position, with a disagreement
 // between them failing closed to Unattributed.
-func idTemplate(section, tfType string, args []ArgumentRefEntry, exampleArgs []ExampleArgument) *IDTemplate {
+func idTemplate(section, tfType string, args []ArgumentRefEntry, exampleArgs [][]ExampleArgument) *IDTemplate {
 	cands := importIDCandidates(section)
 	if len(cands) == 0 {
 		return nil
@@ -227,7 +227,7 @@ func parseARNExample(example, tfType string) (parsedARN, bool) {
 // fixed skeleton (partition, service, region presence, head, arity) must be
 // identical across candidates; the per-position attribution may come from
 // any candidate's value.
-func arnTemplate(cands []string, tfType string, args []ArgumentRefEntry, exampleArgs []ExampleArgument) *IDTemplate {
+func arnTemplate(cands []string, tfType string, args []ArgumentRefEntry, exampleArgs [][]ExampleArgument) *IDTemplate {
 	var parsed []parsedARN
 	for _, c := range cands {
 		if !strings.HasPrefix(c, "arn:") {
@@ -284,7 +284,7 @@ func arnTemplate(cands []string, tfType string, args []ArgumentRefEntry, example
 // guesses), and the path segments go through the same tail attribution. The
 // template still records what the example shows; whether any consumer can
 // act on a slotless URL template is the consumer's call.
-func urlTemplate(cands []string, tfType string, args []ArgumentRefEntry, exampleArgs []ExampleArgument) *IDTemplate {
+func urlTemplate(cands []string, tfType string, args []ArgumentRefEntry, exampleArgs [][]ExampleArgument) *IDTemplate {
 	type parsedURL struct {
 		Host string
 		Path []string
@@ -334,7 +334,7 @@ func urlTemplate(cands []string, tfType string, args []ArgumentRefEntry, example
 // Bijective: an argument attributes at most one position (left to right),
 // and two candidates attributing the same position to different arguments
 // fail that position closed.
-func attributeTail(values [][]string, tfType string, args []ArgumentRefEntry, exampleArgs []ExampleArgument) []TemplateSegment {
+func attributeTail(values [][]string, tfType string, args []ArgumentRefEntry, exampleArgs [][]ExampleArgument) []TemplateSegment {
 	var out []TemplateSegment
 	taken := map[string]bool{}
 	arity := len(values[0])
@@ -385,11 +385,14 @@ func attributeTail(values [][]string, tfType string, args []ArgumentRefEntry, ex
 //     exactly the case this must not guess.
 //  5. The segment's value string-equals the doc's own Example Usage literal
 //     for exactly one top-level argument (aws_glue_registry's
-//     registry_name = "example" against tail "example").
+//     registry_name = "example" against tail "example"). exampleArgs is
+//     exampleRootLiterals' union across every fence, not the one fence the
+//     seed chooses: the import example spells whichever variant's names the
+//     doc author copied.
 //
 // Signals 1-3 are statements the segment's own text makes; 4-5 are
 // contextual. AttributedBy records which fired.
-func attributeSegment(value, tfType string, args []ArgumentRefEntry, exampleArgs []ExampleArgument, taken map[string]bool) (arg, by string, ok bool) {
+func attributeSegment(value, tfType string, args []ArgumentRefEntry, exampleArgs [][]ExampleArgument, taken map[string]bool) (arg, by string, ok bool) {
 	nouns := ownTypeNouns(tfType)
 	words, wordsOK := placeholderWords(value)
 	if wordsOK {
@@ -441,19 +444,37 @@ func attributeSegment(value, tfType string, args []ArgumentRefEntry, exampleArgs
 		for _, a := range args {
 			documented[a.Name] = true
 		}
+		// Each fence is its own witness, the same merge idTemplate applies
+		// across the Import section's example forms: a fence whose values
+		// tie this literal to exactly one argument votes for it, a fence
+		// setting two arguments to the same literal cannot tell them apart
+		// and abstains (aws_evidently_segment's third variant spells both
+		// name and description "example"; its first two spell only name),
+		// and two fences voting for different arguments fail closed.
 		match := ""
-		for _, ea := range exampleArgs {
-			if len(ea.Path) != 1 || !ea.IsString || ea.Value != value {
+		for _, fence := range exampleArgs {
+			vote := ""
+			ambiguous := false
+			for _, ea := range fence {
+				if len(ea.Path) != 1 || !ea.IsString || ea.Value != value {
+					continue
+				}
+				name := ea.Path[0]
+				if !documented[name] || taken[name] {
+					continue
+				}
+				if vote != "" && vote != name {
+					ambiguous = true
+				}
+				vote = name
+			}
+			if ambiguous || vote == "" {
 				continue
 			}
-			name := ea.Path[0]
-			if !documented[name] || taken[name] {
-				continue
+			if match != "" && match != vote {
+				return "", "", false // two variants claim different arguments
 			}
-			if match != "" && match != name {
-				return "", "", false // two arguments carry this same literal
-			}
-			match = name
+			match = vote
 		}
 		if match != "" {
 			return match, attrByExampleValue, true
