@@ -401,14 +401,19 @@ func writeCohort(out, cohort string, requested []string, g *generator, moduleWra
 		g.moduleKeyVar = "key"
 	}
 
+	texts := make([]string, len(g.order))
+	for i, p := range g.order {
+		texts[i], _ = g.render(p)
+	}
+	texts = g.pruneUnreferencedSupporting(texts)
+
 	var coverage, supporting []string
-	for _, p := range g.order {
-		text, _ := g.render(p)
+	for i, p := range g.order {
 		switch p.Kind {
 		case kindCoverage:
-			coverage = append(coverage, text)
+			coverage = append(coverage, texts[i])
 		case kindSupporting:
-			supporting = append(supporting, text)
+			supporting = append(supporting, texts[i])
 		}
 	}
 

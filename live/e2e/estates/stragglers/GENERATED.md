@@ -27,6 +27,7 @@ go run ./tools/estate-gen -cohort stragglers -types aws_ecr_lifecycle_policy,aws
 | `aws_transfer_profile.app` | coverage | "profile_type" is a required string the provider validates against a fixed set (validate: "expected profile_type to be one of [\"LOCAL\" \"PARTNER\"]"); the generic placeholder string matches neither |
 | `aws_transfer_web_app.app` | coverage | identity_provider_details is a required block appearing zero times in the generic pass's output (the wire schema's own MinItems does not force it, unlike a required string argument) - not caught by the generic required-only pass, only surfaced by "terraform validate" ("Block identity_provider_details must have a configuration value as the provider has marked it as required"). A wholly empty block satisfies validate, but not apply: hand-verifying this cohort against the pinned floci image surfaced a provider-side panic expanding an empty identity_provider_details ("Expanding ...webAppIdentityProviderDetailsModel returned nil"), reachable independently of floci since it happens client-side during request marshaling, before any HTTP call. identity_center_config's own fields are Optional, but populating them with placeholder values avoids the empty-block panic entirely. |
 | `aws_transfer_web_app_customization.app` | coverage | none |
+| `aws_ecr_repository.stragglers` | supporting, not coverage | none |
 
 ## Requested types
 
@@ -50,6 +51,7 @@ go run ./tools/estate-gen -cohort stragglers -types aws_ecr_lifecycle_policy,aws
 | `versions.tf` | `terraform`/`provider "aws"` blocks, identical in shape to `live/e2e/estate/versions.tf`. |
 | `locals.tf` | `estate_tag` — "stragglers-cohort", distinct from every other cohort's own tag. |
 | `stragglers.tf` | Every requested (coverage) resource. |
+| `supporting.tf` | Resources this generator added on its own so a required argument had something to reference - not a coverage row (see the Provenance table above). |
 
 ## Gating
 

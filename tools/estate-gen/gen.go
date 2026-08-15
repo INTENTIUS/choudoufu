@@ -224,6 +224,57 @@ func planCohort(cohort string, schemas providers.GetProviderSchemaResponse, requ
 	if needsRole {
 		supporting["aws_iam_role"] = true
 	}
+
+	// A coverage type whose own identity argument names a parent type this
+	// run does not render gets that parent generated as a supporting
+	// resource - the treatment the shared aws_iam_role donor already gets,
+	// derived from the same reference rule siblingRef applies, rather than
+	// a hand NeedsSupporting entry (issue #173's escaping shape 2:
+	// aws_ecr_lifecycle_policy's "repository" names an aws_ecr_repository
+	// that lives in a different cohort, so the tier-4 self-name was a
+	// syntactically valid name for a repository existing nowhere). The
+	// parent type is constructed from the argument name and the child's own
+	// service segment (constructedParentTypes), must exist in the
+	// provider's schema and the identity table, and - for a suffixed
+	// identity argument - must prefix the child's own name, mirroring
+	// siblingRef's tiebreaker so a parent is only synthesized where the
+	// reference would actually be wired. Scoped to the identity argument on
+	// purpose: a non-identity reference argument with no rendered sibling
+	// keeps its placeholder rather than pulling in a supporting chain this
+	// generator cannot bound.
+	for _, p := range g.order {
+		idArg, ok := identityArgName(p.Addr.Type)
+		if !ok {
+			continue
+		}
+		block := schemas.ResourceTypes[p.Addr.Type].Block
+		if block == nil {
+			continue
+		}
+		if attr, ok := block.Attributes[idArg]; !ok || attr == nil || (!attr.Required && !attr.Optional) {
+			continue // fillBlock would never emit it, so nothing would reference the parent
+		}
+		if _, _, wired := g.siblingRef(p.Addr.Type, idArg); wired {
+			continue // a rendered sibling already answers it
+		}
+		_, suffix := refArgSuffix(idArg)
+		for _, cand := range constructedParentTypes(p.Addr.Type, idArg) {
+			if suffix != "" && !strings.HasPrefix(p.Addr.Type, cand+"_") {
+				continue
+			}
+			if _, inCohort := g.byType[cand]; inCohort {
+				break
+			}
+			if _, inSchema := schemas.ResourceTypes[cand]; !inSchema {
+				continue
+			}
+			if _, admitted := identity.LookupType(cand); !admitted {
+				continue
+			}
+			supporting[cand] = true
+			break
+		}
+	}
 	supportingSorted := make([]string, 0, len(supporting))
 	for t := range supporting {
 		supportingSorted = append(supportingSorted, t)
@@ -514,17 +565,25 @@ func (g *generator) fillBlock(body *hclwrite.Body, b *configschema.Block, addr r
 //     resources actually pointed at its parent, live/e2e/estates/lambda's
 //     hand-written role -> function/capacity-provider wiring made
 //     mechanical.
-//  3. This resource's own identity argument (identityArgName): a
+//  3. A sibling reference (siblingRef, issue #173): the argument's own
+//     name says which other resource it points at - "<base>_id"/"<base>_arn"
+//     naming a sibling type this run also renders (prefix_list_id against
+//     aws_ec2_managed_prefix_list), or a bare identity-component argument
+//     whose service-qualified parent type is rendered here (the codeartifact
+//     dependents' "domain" against aws_codeartifact_domain). The referenced
+//     attribute comes from the sibling's schema and the identity table, not
+//     a guess - see refAttr.
+//  4. This resource's own identity argument (identityArgName): a
 //     deterministic, type-derived placeholder name,
 //     "tofu-<cohort>-cohort-<suffix>".
-//  4. A required string argument that merely looks like a name (looksLikeName)
+//  5. A required string argument that merely looks like a name (looksLikeName)
 //     but carries no identity-table row at all - a server-assigned type's
 //     own naming argument, such as aws_lambda_layer_version's layer_name -
-//     gets the same deterministic placeholder name tier 3 would have used,
+//     gets the same deterministic placeholder name tier 4 would have used,
 //     rather than the generic "placeholder" literal, since many such
 //     arguments carry the provider's own charset/length validation and a
 //     descriptive, unique name is the safer generic guess.
-//  5. Anything else: a type-driven generic placeholder (genericExprText).
+//  6. Anything else: a type-driven generic placeholder (genericExprText).
 func (g *generator) valueExpr(addr resourceAddr, argName string, ty cty.Type, root bool) string {
 	if isRoleArg(argName) {
 		if ref, ok := g.iamRoleRefExpr(); ok {
@@ -533,6 +592,9 @@ func (g *generator) valueExpr(addr resourceAddr, argName string, ty cty.Type, ro
 	}
 	if root {
 		if parent, attrName, ok := g.parentRef(addr.Type, argName); ok {
+			return fmt.Sprintf("%s.%s", parent, attrName)
+		}
+		if parent, attrName, ok := g.siblingRef(addr.Type, argName); ok {
 			return fmt.Sprintf("%s.%s", parent, attrName)
 		}
 		if idArg, ok := identityArgName(addr.Type); ok && idArg == argName {
@@ -611,6 +673,263 @@ func (g *generator) parentRef(selfType, argName string) (parent resourceAddr, at
 		}
 	}
 	return resourceAddr{}, "", false
+}
+
+// refArgSuffix splits a reference-shaped argument name: "<base>_id" or
+// "<base>_arn" with a non-empty base ("prefix_list_id" -> "prefix_list",
+// "id"). Any other shape returns two empty strings. AWS's own argument
+// naming convention is the rule here: an argument named after another
+// resource kind plus "_id"/"_arn" carries that resource's exported handle,
+// never an independent value (issue #173's escaping shape 1).
+func refArgSuffix(argName string) (base, suffix string) {
+	for _, s := range []string{"id", "arn"} {
+		if b, ok := strings.CutSuffix(argName, "_"+s); ok && b != "" {
+			return b, s
+		}
+	}
+	return "", ""
+}
+
+// serviceSegment is a type name's first underscore-separated word after
+// "aws_" - "ecr" for aws_ecr_lifecycle_policy - the provider's own service
+// grouping convention, used both to scope suffix matches (a "_route_table"
+// suffix match across services is a coincidence, not a reference) and to
+// construct a partitioned-away parent's type name.
+func serviceSegment(typeName string) string {
+	rest := strings.TrimPrefix(typeName, "aws_")
+	if i := strings.Index(rest, "_"); i >= 0 {
+		return rest[:i]
+	}
+	return rest
+}
+
+// constructedParentTypes derives the type names argName could be naming as
+// a parent, from the argument name and selfType's own service segment
+// alone: "aws_<service>_<base>" and "aws_<base>", for the argument name
+// as-is and with a trailing "_id"/"_arn" stripped. selfType itself is never
+// a candidate - which is also what keeps a type whose identity argument is
+// its own name (aws_codeartifact_repository's "repository" constructs
+// aws_codeartifact_repository, itself) from referencing anything.
+func constructedParentTypes(selfType, argName string) []string {
+	service := serviceSegment(selfType)
+	bases := []string{argName}
+	if b, _ := refArgSuffix(argName); b != "" {
+		bases = append(bases, b)
+	}
+	seen := map[string]bool{selfType: true}
+	var out []string
+	for _, b := range bases {
+		for _, cand := range []string{"aws_" + service + "_" + b, "aws_" + b} {
+			if !seen[cand] {
+				seen[cand] = true
+				out = append(out, cand)
+			}
+		}
+	}
+	return out
+}
+
+// identityComponentAttr reports whether argName is one of typeName's own
+// identity components per internal/live/identity's table - the gate for the
+// bare (unsuffixed) sibling-reference shape: an identity-bearing argument
+// must name a real resource for the fixture's markers to mean anything,
+// while a bare argument outside the identity ("policy", "description") says
+// nothing about what it points at.
+func identityComponentAttr(typeName, argName string) bool {
+	entry, ok := identity.LookupType(typeName)
+	if !ok || entry.ServerAssigned {
+		return false
+	}
+	for _, c := range entry.Components {
+		for _, a := range c.Attrs {
+			if a == argName {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// siblingForBase finds the rendered sibling type a "<base>_id"/"<base>_arn"
+// argument is naming: the type spelled exactly "aws_<base>" (any service -
+// "network_acl_id" against aws_network_acl), else a type whose name ends in
+// "_<base>" within selfType's own service segment ("prefix_list_id" against
+// aws_ec2_managed_prefix_list; the service scope is what keeps
+// aws_vpc_endpoint_route_table_association's route_table_id off the
+// unrelated aws_ec2_transit_gateway_route_table). Among several same-service
+// matches the one sharing the longest name prefix with selfType wins
+// (aws_fsx_ontap_storage_virtual_machine's file_system_id lands on
+// aws_fsx_ontap_file_system, not the lustre/openzfs/windows siblings), then
+// lexicographic order - deterministic either way.
+func (g *generator) siblingForBase(selfType, base string) (string, bool) {
+	selfService := serviceSegment(selfType)
+	var exact string
+	var suffixed []string
+	for t := range g.byType {
+		if t == selfType {
+			continue
+		}
+		stripped := strings.TrimPrefix(t, "aws_")
+		switch {
+		case stripped == base:
+			exact = t
+		case strings.HasSuffix(stripped, "_"+base) && serviceSegment(t) == selfService:
+			suffixed = append(suffixed, t)
+		}
+	}
+	if exact != "" {
+		return exact, true
+	}
+	if len(suffixed) == 0 {
+		return "", false
+	}
+	sort.Slice(suffixed, func(i, j int) bool {
+		pi, pj := commonPrefixLen(suffixed[i], selfType), commonPrefixLen(suffixed[j], selfType)
+		if pi != pj {
+			return pi > pj
+		}
+		return suffixed[i] < suffixed[j]
+	})
+	return suffixed[0], true
+}
+
+func commonPrefixLen(a, b string) int {
+	n := 0
+	for n < len(a) && n < len(b) && a[n] == b[n] {
+		n++
+	}
+	return n
+}
+
+// refAttr picks which of the sibling's attributes the reference reads,
+// from the sibling's own schema and the identity table rather than a guess:
+// an attribute named exactly like the argument when the sibling exports one
+// (aws_workspacesweb_portal's portal_arn, aws_bedrockagent_agent's
+// agent_id), else - for a suffixed argument - the plain "id"/"arn" the
+// suffix names, else - for a bare argument - the sibling's own identity
+// argument (aws_ecr_repository's "name" for a "repository" argument) and
+// finally its "id". Every choice is gated on the attribute existing in the
+// sibling's schema; when none does, the reference is not wired at all.
+func (g *generator) refAttr(siblingType, argName, suffix string) (string, bool) {
+	res, ok := g.schemas.ResourceTypes[siblingType]
+	if !ok || res.Block == nil {
+		return "", false
+	}
+	has := func(n string) bool {
+		_, ok := res.Block.Attributes[n]
+		return ok
+	}
+	if has(argName) {
+		return argName, true
+	}
+	if suffix != "" {
+		if has(suffix) {
+			return suffix, true
+		}
+		return "", false
+	}
+	if idArg, ok := identityArgName(siblingType); ok && has(idArg) {
+		return idArg, true
+	}
+	if has("id") {
+		return "id", true
+	}
+	return "", false
+}
+
+// siblingRef is issue #173's rule-level fix for reference arguments
+// parentRef cannot see: parentRef only links an argument that shares its
+// NAME with a sibling's identity-table argument, while a reference-by-id
+// argument (prefix_list_id, framework_id, bot_id) never does, and a bare
+// identity-component argument can name a parent whose own identity is a
+// different word entirely (aws_codeartifact_domain's identity is its ARN
+// assembly, but its dependents' "domain" argument still names it).
+//
+// Two shapes, both derived from the argument name and the roster this run
+// already holds - no per-type table:
+//
+//   - "<base>_id"/"<base>_arn": base resolves to a rendered sibling type
+//     (siblingForBase). When the argument is also selfType's own identity
+//     argument, the same tiebreaker parentRef uses applies: only a
+//     candidate whose name prefixes selfType's is a parent rather than a
+//     coincidence, which is what keeps aws_dms_s3_endpoint's endpoint_id
+//     its own name instead of a reference to aws_dms_endpoint.
+//   - bare: the argument is one of selfType's own identity components and
+//     its service-qualified construction (constructedParentTypes) is a
+//     rendered sibling - the codeartifact dependents' "domain".
+func (g *generator) siblingRef(selfType, argName string) (parent resourceAddr, attrName string, ok bool) {
+	base, suffix := refArgSuffix(argName)
+	if base != "" {
+		t, found := g.siblingForBase(selfType, base)
+		if !found {
+			return resourceAddr{}, "", false
+		}
+		if selfIdArg, owns := identityArgName(selfType); owns && selfIdArg == argName && !strings.HasPrefix(selfType, t+"_") {
+			return resourceAddr{}, "", false
+		}
+		attr, found := g.refAttr(t, argName, suffix)
+		if !found {
+			return resourceAddr{}, "", false
+		}
+		return g.byType[t], attr, true
+	}
+
+	if !identityComponentAttr(selfType, argName) {
+		return resourceAddr{}, "", false
+	}
+	for _, cand := range constructedParentTypes(selfType, argName) {
+		addr, found := g.byType[cand]
+		if !found {
+			continue
+		}
+		attr, found := g.refAttr(cand, argName, "")
+		if !found {
+			continue
+		}
+		return addr, attr, true
+	}
+	return resourceAddr{}, "", false
+}
+
+// pruneUnreferencedSupporting drops every supporting resource whose
+// address no other rendered block references, and returns the texts that
+// remain, keeping g.order and g.byType in step. A supporting resource
+// exists only so a referring resource has a value to point at (the
+// kindSupporting comment's own definition); when the reference that
+// justified it never lands in the rendered text - a hand override
+// replacing the wired reference with its own literal is the case that
+// exists today - emitting the resource anyway would put an unreferenced,
+// unexplained block in the cohort. Iterates to a fixpoint so a supporting
+// resource referenced only by another pruned one goes too. texts must be
+// parallel to g.order.
+func (g *generator) pruneUnreferencedSupporting(texts []string) []string {
+	for {
+		removed := false
+		for i, p := range g.order {
+			if p.Kind != kindSupporting {
+				continue
+			}
+			needle := p.Addr.String() + "."
+			referenced := false
+			for j, other := range texts {
+				if j != i && strings.Contains(other, needle) {
+					referenced = true
+					break
+				}
+			}
+			if referenced {
+				continue
+			}
+			g.order = append(g.order[:i], g.order[i+1:]...)
+			texts = append(texts[:i], texts[i+1:]...)
+			delete(g.byType, p.Addr.Type)
+			removed = true
+			break
+		}
+		if !removed {
+			return texts
+		}
+	}
 }
 
 // identitySuffix derives a short, deterministic, per-type word for an

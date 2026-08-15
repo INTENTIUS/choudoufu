@@ -57,6 +57,7 @@ go run ./tools/estate-gen -cohort ec2-networking -types aws_customer_gateway,aws
 | `aws_vpc_peering_connection.app` | coverage | none |
 | `aws_vpn_connection.app` | coverage | none |
 | `aws_vpn_gateway.app` | coverage | none |
+| `aws_vpc.ec2-networking` | supporting, not coverage | none |
 
 ## Requested types
 
@@ -110,6 +111,7 @@ go run ./tools/estate-gen -cohort ec2-networking -types aws_customer_gateway,aws
 | `versions.tf` | `terraform`/`provider "aws"` blocks, identical in shape to `live/e2e/estate/versions.tf`. |
 | `locals.tf` | `estate_tag` — "ec2-networking-cohort", distinct from every other cohort's own tag. |
 | `ec2-networking.tf` | Every requested (coverage) resource. |
+| `supporting.tf` | Resources this generator added on its own so a required argument had something to reference - not a coverage row (see the Provenance table above). |
 
 ## Gating
 
