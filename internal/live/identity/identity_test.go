@@ -495,10 +495,24 @@ func TestResolveErrors(t *testing.T) {
 			wantAbsent:  `aws_route_table_association.this["a"]`,
 		},
 		{
-			dir:         "dynamic-count",
+			// count = length(<resource>) itself resolves now (see
+			// countlength_test.go); this is the boundary that must keep
+			// refusing - length() of a for expression over the resource
+			// rather than a bare reference to it, #178's separate
+			// for/splat-into-a-list bucket.
+			dir:         "count-length-unrecognized",
 			wantSummary: "Dynamic value in static context",
 			wantDetail:  `aws_eip.pool`,
 			wantAbsent:  `aws_cloudwatch_log_group.per_eip[0]`,
+		},
+		{
+			// length(<resource>) where the resource has neither count nor
+			// for_each: a single object, whose length() is its attribute
+			// count rather than an instance count. Must not be guessed.
+			dir:         "count-length-singleton",
+			wantSummary: "Dynamic value in static context",
+			wantDetail:  `aws_eip.single`,
+			wantAbsent:  `aws_cloudwatch_log_group.sized_by_single[0]`,
 		},
 		{
 			dir:         "computed-expression",

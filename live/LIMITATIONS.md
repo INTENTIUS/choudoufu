@@ -950,7 +950,7 @@ refused, and each says so in its own entry.
 | Configs | Sites | Layer | Refusal | Raised by | Documented at |
 |---|---|---|---|---|---|
 | 142 | 142 | lint | state-backend | `internal/live/lint` | "backend-block" / "cloud-block" |
-| 131 | 2399 | identity | Dynamic value in static context | `internal/configs` | "Dynamic value in static context" |
+| 131 | 2388 | identity | Dynamic value in static context | `internal/configs` | "Dynamic value in static context" |
 | 113 | 1404 | lint | unadmitted-type | `internal/live/lint` | "unadmitted-type" |
 | 89 | 3720 | identity | Unable to compute static value | `internal/configs` | "Unable to compute static value" |
 | 74 | 589 | identity | Unresolvable identity | `internal/live/identity` | "Unresolvable identity" |
@@ -1147,7 +1147,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 131 configurations in the measured corpus, at 2399 sites.
+**How often.** Blocked 131 configurations in the measured corpus, at 2388 sites.
 
 #### Unable to compute static value
 
@@ -2463,8 +2463,7 @@ undeclared instance is created through whichever configuration found it.
 `aws_s3vectors_vector_bucket_policy`,
 `aws_sagemaker_model_package_group_policy`,
 `aws_secretsmanager_secret_policy`, `aws_secretsmanager_secret_rotation`,
-`aws_security_group_rule`, `aws_securityhub_account`,
-`aws_securityhub_configuration_policy`,
+`aws_securityhub_account`, `aws_securityhub_configuration_policy`,
 `aws_securityhub_configuration_policy_association`,
 `aws_securityhub_finding_aggregator`, `aws_securityhub_insight`,
 `aws_securityhub_member`, `aws_securityhub_organization_admin_account`,
@@ -2606,7 +2605,6 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_sagemaker_model_package_group_policy` | `aws_sagemaker_model_package_group` | no (report-only) |
 | `aws_secretsmanager_secret_policy` | `aws_secretsmanager_secret` | no (report-only) |
 | `aws_secretsmanager_secret_rotation` | `aws_secretsmanager_secret` | no (report-only) |
-| `aws_security_group_rule` | `aws_security_group` | no (report-only) |
 | `aws_servicecatalog_portfolio_share` | `aws_servicecatalog_portfolio` | no (report-only) |
 | `aws_servicecatalogappregistry_attribute_group_association` | `aws_servicecatalogappregistry_attribute_group` | no (report-only) |
 | `aws_sns_topic_policy` | `aws_sns_topic` | no (report-only) |
@@ -2636,7 +2634,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_workspacesweb_user_access_logging_settings_association` | `aws_workspacesweb_user_access_logging_settings` | no (report-only) |
 | `aws_workspacesweb_user_settings_association` | `aws_workspacesweb_user_settings` | no (report-only) |
 
-**Total.** 108 types swept via a parent read.
+**Total.** 107 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child. Whether it
