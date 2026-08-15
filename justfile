@@ -14,6 +14,8 @@ test:
 # os.Getwd() honours PWD, which the Linux runner does not have to care about.
 # TestCIRunsEveryForkOwnedTestPackage (live/ci_coverage_test.go) keeps the
 # package list here and in the workflow from drifting apart.
+#
+# Run exactly what CI runs, in order, before pushing.
 ci:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -42,12 +44,16 @@ demo:
 
 # Build the docs site into site/public/. Wipes the directory first, so a
 # page removed from the generator stops being served instead of lingering.
+#
+# Build the docs site into site/public/.
 site:
     rm -rf site/public
     cd site && go run . -out public/
 
 # Build the docs site and open it. `just site-serve 8001` picks another port,
 # which is what you want when a second checkout or worktree is already serving.
+#
+# Build the docs site and serve it locally.
 site-serve port="8000": site
     @echo "choudoufu docs: http://127.0.0.1:{{port}}/  (serving $(pwd)/site/public)"
     @if lsof -nP -iTCP:{{port}} -sTCP:LISTEN >/dev/null 2>&1; then \
@@ -74,16 +80,82 @@ corpus-fetch:
 # committed, which is how a regeneration command silently stops reproducing
 # its own output. Provider install needs network once; after that the plugin
 # cache serves it.
+#
+# Rank which refusals fire across the corpus -> live/corpus-refusals.json.
 corpus init_bin="terraform":
     go run ./tools/corpus-gen -init-bin {{init_bin}}
 
+# ---------------------------------------------------------------------------
+# The generation pipeline (#133). Stages in dependency order; each recipe's
+# comment ends with the one-line summary `just --list` shows.
+#
+# Two rules these recipes exist to encode:
+#   - Never pipe a generator into `head`. SIGPIPE kills it before it writes,
+#     and the run looks exactly like one that produced no change.
+#   - A regenerated artifact IS the measurement. Regenerate, then read the
+#     diff; do not reason about what should have moved.
+#
+# `just tables` on a clean tree must produce no diff. If it does, either a
+# recipe is wrong or an artifact was already stale - both worth finding.
+#
+# `tables` runs the DERIVED stages only. The four source stages - registry,
+# importdocs, tagverbs and survey - fetch from upstream or need a running
+# provider, so re-running them is a deliberate act with a pin bump behind it,
+# not something a routine regeneration should trigger as a side effect.
+# estate-gen is out for the same reason plus its own: it regenerates committed
+# fixtures whose acceptance verdicts are a ratchet, and it carries a separate
+# provider pin (#137).
+# ---------------------------------------------------------------------------
+
+# Regenerate every derived artifact, in dependency order (#133). No network.
+tables: mapping row-emit convergence identity-sources survey-render limits
+    @git status --porcelain || true
+
+# CloudFormation Registry schemas -> live/registry.json + its embedded copy. Network on a cold cache.
+registry:
+    env -u PWD go run ./tools/registry-gen
+    cp live/registry.json internal/live/registry/registry.json
+
+# registry.json + overlay.json + overlay.d/*.json -> live/mapping.json + its embedded copy.
+mapping:
+    env -u PWD go run ./tools/mapping-gen
+    cp live/mapping.json internal/live/registry/mapping.json
+
+# Provider doc pages -> live/import-grammar.json. Offline: the doc cache is complete.
+importdocs:
+    env -u PWD go run ./tools/importdocs-gen
+
+# botocore -> live/tag-verbs.json, the tagging verb per admitted type.
+tagverbs:
+    env -u PWD go run ./tools/tagverbs-gen
+
+# mapping + registry + import-grammar + the ratified rows -> the two generated tables (a fixed point; see emit.go).
+row-emit:
+    env -u PWD go run ./tools/row-gen -emit
+
+# Measure the classifier against the shipped table -> rowgen-convergence.json. NOT a coverage metric.
+convergence:
+    env -u PWD go run ./tools/row-gen -convergence
+
+# Provider schemas -> live/survey.json and live/survey-full.json. Needs the provider.
+survey init_bin="terraform":
+    env -u PWD go run ./tools/survey-gen -all -init-bin {{init_bin}}
+
+# The committed surveys -> the rendered spans in SURVEY.md, LIMITATIONS.md and COVERAGE.md. No provider, no network.
+survey-render:
+    env -u PWD go run ./tools/survey-gen -render
+
 # Where the sources describing each type's identity disagree (#106), into
 # live/identity-sources.json. No provider, no network.
+#
+# Compare the sources describing each type's identity -> live/identity-sources.json.
 identity-sources:
     go run ./tools/row-gen -sources
 
 # live/LIMITATIONS.md's per-refusal content (#110), from the three refusal
 # registries plus the corpus artifact above. No provider, no network.
+#
+# Render live/LIMITATIONS.md's per-refusal spans from the refusal registries.
 limits:
     go run ./tools/limits-gen
 
