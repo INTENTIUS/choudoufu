@@ -129,7 +129,7 @@ importdocs:
 iamref:
     env -u PWD go run ./tools/iamref-gen
 
-# botocore -> live/tag-verbs.json, the tagging verb per admitted type.
+# botocore -> live/tag-verbs.json and reference.md's tagging-verb span.
 tagverbs:
     env -u PWD go run ./tools/tagverbs-gen
 

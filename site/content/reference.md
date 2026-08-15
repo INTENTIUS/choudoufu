@@ -110,6 +110,56 @@ requires a nested `scope` block bounding what a sweep may touch, through
 delete verbs (including `undeclared_tagged`'s, the default estate-scoped
 sweep) need none.
 
+## Permissions a run needs
+
+choudoufu makes very few AWS calls of its own. Resource reads, writes and lists
+go through the provider plugin, so those are the AWS provider's permissions,
+exactly as for any OpenTofu run. What follows is the fork's own surface.
+
+| Stage | Calls | Where |
+|---|---|---|
+| Estate-wide tag sweep | `tag:GetResources` | `internal/live/cloudcontrol/tagging.go` |
+| Cloud Control fallback | `cloudformation:ListResources`, `cloudformation:GetResource` | `internal/live/cloudcontrol/client.go` |
+| Record store, `ssm` | `ssm:GetParameter`, `ssm:PutParameter`, `ssm:DeleteParameter`, `ssm:GetParametersByPath` | `internal/live/staterecord/ssm.go` |
+| Record store, `s3` | `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket` | `internal/live/staterecord/s3.go` |
+| Record store, `local` | none | `internal/live/staterecord/local.go` |
+
+Each row names the file that makes the calls, because that list is short and
+fixed and a generated span for ten names would be more machinery than it saves.
+The tagging verbs below are not: they move with botocore and there are 205
+services of them, so they are generated.
+
+## Marker stamping
+
+Writing an ownership marker means calling the tagging action for the resource's
+own service. The provider makes that call as part of the ordinary apply, so a
+role that can already create the resource can usually already tag it, but the
+actions are worth knowing when a policy is scoped tightly.
+
+<!-- tagverbs-gen:begin tag-verbs -->
+| Action | Services |
+|---|---|
+| `TagResource` | 136 — ARCRegionSwitch, AccessAnalyzer, Amplify, AppConfig, AppFlow, AppIntegrations and 130 more |
+| `AddTagsToResource` | 7 — DMS, DocDB, ElastiCache, Neptune, RDS, SSM and 1 more |
+| `AddTags` | 5 — DataPipeline, EMR, ElasticLoadBalancing, ElasticLoadBalancingV2, SageMaker |
+| `CreateTags` | 4 — EC2, MediaLive, Redshift, WorkSpaces |
+| `AddLFTagsToResource` | 1 — LakeFormation |
+| `ChangeTagsForResource` | 1 — Route53 |
+| `SetTagsForResource` | 1 — Inspector |
+| `Tag` | 1 — ResourceGroups |
+| `TagCertificateAuthority` | 1 — ACMPCA |
+| `TagQueue` | 1 — SQS |
+
+158 services carry an unambiguous tagging verb; 47 do not, and a run cannot stamp a marker on those.
+<!-- tagverbs-gen:end tag-verbs -->
+
+Whether a policy condition on those actions is actually evaluated is a separate
+question, and `live/iam-reference.json` answers it from AWS's own Service
+Authorization Reference. Read it the way that artifact documents: it is
+authoritative about the condition keys it names and not about the ones it
+omits, so a listed key is evidence the condition applies and an unlisted one is
+the absence of a statement rather than a statement of absence.
+
 ## Everything else is OpenTofu
 
 The language, the CLI, providers and backends are all unmodified. Use

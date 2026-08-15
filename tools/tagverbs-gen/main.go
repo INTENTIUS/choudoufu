@@ -141,6 +141,10 @@ func run(accept bool, cacheDirOverride string, log *os.File) error {
 	if err := os.WriteFile(out, data, 0o644); err != nil { //nolint:gosec // a committed artifact, not a secret
 		return err
 	}
+	if err := renderTagVerbSpan(root, rows); err != nil {
+		return err
+	}
+
 	fmt.Fprintf(log,
 		"tagverbs-gen: wrote %s (%d services: %d single verb [%d composable], %d ambiguous, %d none, %d no directory)%s\n",
 		tagVerbsJSONRel, art.Counts.Services, art.Counts.Single, art.Counts.Composable,
