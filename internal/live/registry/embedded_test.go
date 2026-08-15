@@ -13,7 +13,7 @@ import (
 )
 
 // TestEmbeddedArtifactsMatchLive is the drift gate on the embedded copies:
-// go:embed cannot reach live/ at the repo root, so the package carries
+// An embed directive cannot reach live/ at the repo root, so the package carries
 // byte-for-byte copies, and regenerating the live/ artifacts must fail here
 // until the copies are refreshed (cp live/mapping.json live/registry.json
 // internal/live/registry/).

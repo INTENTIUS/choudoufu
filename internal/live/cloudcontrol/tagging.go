@@ -140,7 +140,7 @@ func toWireTagFilters(filters []TagFilter) []wireTagFilterOut {
 	}
 	out := make([]wireTagFilterOut, len(filters))
 	for i, f := range filters {
-		out[i] = wireTagFilterOut{Key: f.Key, Values: f.Values}
+		out[i] = wireTagFilterOut(f)
 	}
 	return out
 }

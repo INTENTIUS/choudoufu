@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // This file (package residue, colocated with residue.go for the same
-// go:embed reason: an embed directive can only name files in its own
+// embed-directive reason: an embed directive can only name files in its own
 // package's directory, and live/tag-verbs.json lives here) is issue #52's
 // botocore side: internal/live/foreign/classify.go's adoptionHint used to
 // consult a ten-row hand-written ec2Types table naming which admitted types

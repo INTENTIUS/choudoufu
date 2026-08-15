@@ -241,10 +241,7 @@ func TestVerificationReportsDerivableTypes(t *testing.T) {
 
 	entry := cacheWith(t, schemas)
 
-	var derivable []identity.DerivableType
-	for _, d := range entry.verification.Derivable {
-		derivable = append(derivable, d)
-	}
+	derivable := append([]identity.DerivableType(nil), entry.verification.Derivable...)
 	if len(derivable) != 1 || derivable[0].Type != "aws_dynamodb_table" {
 		t.Fatalf("derivable set is %v, want only aws_dynamodb_table", derivable)
 	}

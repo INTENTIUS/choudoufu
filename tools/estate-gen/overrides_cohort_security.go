@@ -58,14 +58,14 @@ var typeOverridesSecurity = map[string]typeOverride{
 			if ca, ok := g.byType["aws_acmpca_certificate_authority"]; ok {
 				body.SetAttributeRaw("resource_arn", exprTokens(fmt.Sprintf("%s.arn", ca)))
 			}
-			body.SetAttributeRaw("policy", exprTokens(fmt.Sprintf(`jsonencode({
+			body.SetAttributeRaw("policy", exprTokens(`jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect    = "Allow"
       Principal = { AWS = "arn:aws:iam::000000000000:root" }
       Action    = "acm-pca:IssueCertificate"
     }]
-  })`)))
+  })`))
 		},
 	},
 	"aws_guardduty_organization_configuration": {

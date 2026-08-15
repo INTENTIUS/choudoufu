@@ -299,8 +299,8 @@ func classify(typeName string, schema providers.GetProviderSchemaResponse, deriv
 	// Not provably client-named. Say why before falling through to the
 	// discovery paths, so the evidence names the identity-side reason.
 	var identityNote string
-	switch {
-	case rs.IdentitySchema == nil:
+	switch rs.IdentitySchema {
+	case nil:
 		identityNote = "no identity schema in v" + providerVersion
 	default:
 		required := row.Identity.RequiredForImport

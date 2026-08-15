@@ -1088,17 +1088,6 @@ func statelessNeedsDiscovery(resolutions *identity.Result) map[string]bool {
 	return out
 }
 
-// statelessOwnership is the rule the projection admits live objects by: this
-// run's estate, plus whatever marker discovery already proved ownership of.
-// It is never nil, because "this run established no estate" is a verdict
-// about ownership (nothing can be verified) rather than an absence of one.
-func statelessOwnership(estate string, disco *discovery.Result) *projection.Ownership {
-	return &projection.Ownership{
-		Estate:   estate,
-		Verified: disco.MarkerVerified(),
-	}
-}
-
 // statelessUndiscoveredNote names what a run without discovery leaves
 // unresolved, so that every warning above says what it costs.
 func statelessUndiscoveredNote(needs []identity.Resolution) string {

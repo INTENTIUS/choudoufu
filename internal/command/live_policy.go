@@ -71,11 +71,19 @@ func statelessPolicy(live *configs.Live, estate string) *policy.Policy {
 	return policy.Build(raw, estate)
 }
 
-// statelessOwnershipWith is [statelessOwnership] plus policy: the same
-// verified set, extended with any addresses a scoped reconciliation pass
-// already vetted, and the policy itself, so [projection.Build] can apply
-// GitHub issue #67's declared-quadrant verbs. See
-// internal/live/projection's checkOwnership.
+// statelessOwnershipWith is the rule the projection admits live objects by:
+// this run's estate, plus whatever marker discovery already proved ownership
+// of, extended with any addresses a scoped reconciliation pass already
+// vetted, and the policy itself, so [projection.Build] can apply GitHub issue
+// #67's declared-quadrant verbs. See internal/live/projection's
+// checkOwnership.
+//
+// Never nil, because "this run established no estate" is a verdict about
+// ownership (nothing can be verified) rather than an absence of one.
+//
+// It superseded a plain statelessOwnership when #67's matrix landed; that one
+// survived unreferenced until golangci-lint's unused check was actually
+// reachable (#148).
 func statelessOwnershipWith(estate string, disco *discovery.Result, pol *policy.Policy, extraVerified map[string]bool) *projection.Ownership {
 	verified := disco.MarkerVerified()
 	if len(extraVerified) > 0 {

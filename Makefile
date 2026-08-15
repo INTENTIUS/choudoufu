@@ -58,11 +58,25 @@ protobuf:
 	go tool protobuf-compile .
 
 # Golangci-lint is installed first and then run twice to cover all platforms.
+#
+# $(CURDIR), not $(PWD): $(PWD) is the environment variable, and this
+# repository's own test invocation has to unset it (/Users/alex/checkouts is a
+# symlink and os.Getwd() honours PWD), which made `env -u PWD make
+# golangci-lint` install into /tools and fail on a read-only filesystem. The
+# two commands this repo needs should not have incompatible environments.
+#
+# Both passes run and the target fails if either did, rather than aborting on
+# the first. The windows pass reported 11 findings for long enough that nobody
+# had ever seen what the linux pass says, because make stopped there (#148).
 .PHONY: golangci-lint
 golangci-lint:
-	GOBIN=$(PWD)/tools go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.6.0
-	GOOS=windows tools/golangci-lint${EXT} run --timeout 60m ./...
-	GOOS=linux tools/golangci-lint${EXT} run --timeout 60m ./...
+	GOBIN=$(CURDIR)/tools go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.6.0
+	@rc=0; \
+	for goos in windows linux; do \
+		echo "==> golangci-lint GOOS=$$goos"; \
+		GOOS=$$goos tools/golangci-lint${EXT} run --timeout 60m ./... || rc=1; \
+	done; \
+	exit $$rc
 
 # Run license check
 .PHONY: license-check

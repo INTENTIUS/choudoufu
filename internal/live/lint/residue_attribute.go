@@ -244,7 +244,7 @@ func warnResidueInObjectExpr(addr string, expr hcl.Expression, obj *configschema
 // label when both flags are set, because it is the stronger claim: the
 // protocol itself forbids the value coming back, no-secrets rule or not.
 func residueFlag(a *configschema.Attribute) (string, bool) {
-	if a == nil || !(a.Required || a.Optional) {
+	if a == nil || (!a.Required && !a.Optional) {
 		// A computed-only attribute cannot be set in configuration, so
 		// there is nothing to warn about even when it is sensitive: that is
 		// the aws_iam_access_key.secret shape (#125), a created-once export

@@ -102,7 +102,11 @@ func checkModuleProviderMapping(mod *configs.Module, path addrs.Module, issues *
 			// unless the root happens to declare that same address, which is
 			// what the module's resources will actually resolve against.
 			aliasedChild := passed.InChild != nil && passed.InChild.Alias != ""
-			if passed.InParent.Alias == "" && !(aliasedChild && mod.ProviderConfigs[child] == nil) {
+			// Same reason as internal/live/discovery/cloudcontrol.go: the
+			// negated compound IS the condition being described - "not the
+			// case that the child is aliased and the root declares nothing
+			// for it" - and splitting it reads as two unrelated tests.
+			if passed.InParent.Alias == "" && !(aliasedChild && mod.ProviderConfigs[child] == nil) { //nolint:staticcheck // QF1001: the negation is the claim
 				continue
 			}
 

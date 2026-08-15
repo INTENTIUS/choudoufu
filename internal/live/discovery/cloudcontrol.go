@@ -337,8 +337,11 @@ func resolveCloudControlImportID(typeName, identifier string) (string, bool) {
 		// imports by ARN (IdentityAttrs[0] == "arn", the IVS family) keeps
 		// the identifier whole.
 		if a, ok := cloudcontrol.ParseARN(identifier); ok && a.ResourceID != "" {
+			// The negated compound is the readable form here: the condition
+			// being tested is "this type is not arn-identified", and De
+			// Morgan's split states it as two unrelated-looking clauses.
 			if ti, tok := identity.LookupType(typeName); tok &&
-				!(len(ti.IdentityAttrs) > 0 && ti.IdentityAttrs[0] == "arn") {
+				!(len(ti.IdentityAttrs) > 0 && ti.IdentityAttrs[0] == "arn") { //nolint:staticcheck // QF1001: the negation is the claim
 				return a.ResourceID, true
 			}
 		}

@@ -62,7 +62,10 @@ func openRepo(dir string, minLen int) (*repo, error) {
 
 func (r *repo) close() {
 	r.batchIn.Close()
-	r.batchCmd.Wait()
+	// Wait's error is deliberately dropped: close() runs on the teardown
+	// path after the caller already has its answer, and a non-zero status
+	// from the batch process there says nothing a caller could act on.
+	_ = r.batchCmd.Wait()
 }
 
 // git runs a git subcommand and returns its stdout.
