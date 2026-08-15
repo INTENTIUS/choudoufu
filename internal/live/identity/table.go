@@ -168,6 +168,40 @@ type Component struct {
 	// a subnet and a route table. Both are right about different things, and
 	// only one of them is an identity object.
 	IdentityAttr string
+
+	// SoleElement narrows this component's value before every other rule in
+	// this struct's comments applies: when the argument's own expression is
+	// a static list or set construct, resolution requires it to carry
+	// exactly one element and uses that element's value in place of the
+	// whole collection. A scalar-typed argument (another name in the same
+	// Attrs list may be scalar, e.g. a mutually exclusive sibling) passes
+	// through unchanged - the flag only ever narrows a collection, never
+	// touches a value that already is not one.
+	//
+	// It exists for identities the provider documents as one segment per
+	// value in a list-typed argument (aws_security_group_rule's import ID
+	// appends one token per entry of whichever of cidr_blocks,
+	// ipv6_cidr_blocks or prefix_list_ids is set), where cty's own convert
+	// package refuses a list-to-string conversion unconditionally,
+	// regardless of length (verified: even a one-element
+	// cty.ListVal/cty.SetVal fails convert.Convert(..., cty.String) with
+	// "string required, but have list/set of string"). The common,
+	// documented single-value case - one CIDR, one prefix list ID - is
+	// exactly a one-element list, so unwrapping it is not a guess about
+	// which element to keep.
+	//
+	// More than one element refuses outright rather than picking one: the
+	// AWS API, not the configuration's own list order, decides how such a
+	// rule's multiple sources compose into (or split across) real
+	// SecurityGroupRule objects (the provider's own docs: "Not all rule
+	// permissions... need to be imported"), so no configuration-only
+	// answer for the segment order would be honest. A non-static list (a
+	// variable or function call, rather than a literal `[...]` or `[ref]`
+	// construct written in configuration) refuses the same way, for the
+	// same reason [resolver.isSymbolic] and [resolver.evalStatic] already
+	// refuse other non-static identity arguments elsewhere in this
+	// package.
+	SoleElement bool
 }
 
 // SameNameIdentity is [Component.IdentityAttr] for the ordinary case: the

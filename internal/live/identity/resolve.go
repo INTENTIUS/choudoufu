@@ -590,7 +590,15 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			return Resolution{}, false
 		}
 		ident := r.identifier(addr, attr.Name, attr.Range)
-		got, ok := r.resolveExpr(attr.Expr, scope, ident)
+		expr := attr.Expr
+		if comp.SoleElement {
+			narrowed, ok := r.soleElementExpr(expr, attr, ident)
+			if !ok {
+				return Resolution{}, false
+			}
+			expr = narrowed
+		}
+		got, ok := r.resolveExpr(expr, scope, ident)
 		if !ok {
 			return Resolution{}, false
 		}
@@ -738,6 +746,34 @@ func (r *resolver) identityArgs(rc *configs.Resource, entry TypeIdentity) (hcl.A
 }
 
 // resolveExpr turns one argument expression into import-ID parts.
+// soleElementExpr is [Component.SoleElement]'s whole implementation: given
+// the expression a list/set-typed identity argument was written with, it
+// returns the one sub-expression to resolve in its place, or refuses.
+//
+// hcl.ExprList only ever succeeds for a syntactic list/set/tuple
+// CONSTRUCT ("[...]") - never for a variable or function call that merely
+// evaluates to one, which is exactly the "written in configuration, not
+// merely producing one at apply time" bar every other identity component in
+// this package already holds itself to. When it fails, expr is treated as
+// already scalar and returned unchanged, so a Component.Attrs list mixing a
+// collection-typed name with a genuinely scalar one (aws_security_group_rule
+// pairs cidr_blocks/ipv6_cidr_blocks/prefix_list_ids, all lists, with
+// source_security_group_id, a plain string) narrows only the members that
+// need it.
+func (r *resolver) soleElementExpr(expr hcl.Expression, attr *hcl.Attribute, ident configs.StaticIdentifier) (hcl.Expression, bool) {
+	elems, diags := hcl.ExprList(expr)
+	if diags.HasErrors() || elems == nil {
+		return expr, true
+	}
+	if len(elems) != 1 {
+		r.errorf(attr.Range, "Ambiguous list-valued identity argument",
+			"%s has %d elements. This component's identity can only be built when %s carries exactly one value; the AWS API - not this configuration's list order - decides how more than one composes into the real object, so this package will not guess which one to use.",
+			ident.Subject, len(elems), attr.Name)
+		return nil, false
+	}
+	return elems[0], true
+}
+
 func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) ([]Part, bool) {
 	if !r.isSymbolic(expr, scope) {
 		val, ok := r.evalStatic(expr, scope, ident)
