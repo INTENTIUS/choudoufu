@@ -26,7 +26,7 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 3 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 876 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Admitted (the shipped table) | 878 types | Nothing at lint. Runtime support varies by type; see the layers below. |
 | Pastable proposals (server-assigned 582, client-named 474, composite 129, assembled 10) | 1195 types | A ratification batch: paste, fixture, test. |
 | Needs a hand separator | 82 types | One one-character import-separator decision each. |
 | Evidence-only | 345 types | An identity-argument name no current evidence source states. |
@@ -38,7 +38,7 @@ them moves. The prose on this page quotes none of the numbers.
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-876<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+878<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
   `aws_amplify_app`, `aws_amplify_branch`, `aws_api_gateway_account`,
@@ -384,8 +384,10 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_route53recoveryreadiness_recovery_group`,
   `aws_route53recoveryreadiness_resource_set`, `aws_route_table`,
   `aws_route_table_association`, `aws_rum_app_monitor`, `aws_s3_bucket`,
-  `aws_s3_bucket_lifecycle_configuration`, `aws_s3_bucket_policy`,
+  `aws_s3_bucket_lifecycle_configuration`,
+  `aws_s3_bucket_object_lock_configuration`, `aws_s3_bucket_policy`,
   `aws_s3_bucket_public_access_block`,
+  `aws_s3_bucket_replication_configuration`,
   `aws_s3_bucket_server_side_encryption_configuration`,
   `aws_s3_bucket_versioning`, `aws_s3_directory_bucket`,
   `aws_s3control_bucket`, `aws_s3control_bucket_policy`,

@@ -1,11 +1,11 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 876,
-    "compared": 866,
+    "admitted_total": 878,
+    "compared": 868,
     "not_in_mapped_set": 10,
-    "adopted_unchanged": 757,
-    "adopted_unchanged_pct": 87.41,
+    "adopted_unchanged": 759,
+    "adopted_unchanged_pct": 87.44,
     "genuine_mismatches": 109,
     "annotated": 109,
     "unannotated_mismatches": 0,
@@ -743,8 +743,8 @@
       "adopted_unchanged_pct": 90
     },
     "S3": {
-      "compared": 7,
-      "adopted_unchanged": 7,
+      "compared": 9,
+      "adopted_unchanged": 9,
       "adopted_unchanged_pct": 100
     },
     "S3Express": {
@@ -8162,6 +8162,18 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_s3_bucket_object_lock_configuration",
+      "service": "S3",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: the documented ID has a shorter form the kept example itself shows, and the Argument Reference marks every retained argument Required and every omitted one Optional",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_s3_bucket_policy",
       "service": "S3",
       "proposed_bucket": "client-named",
@@ -8175,6 +8187,18 @@
     },
     {
       "tf_type": "aws_s3_bucket_public_access_block",
+      "service": "S3",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3_bucket_replication_configuration",
       "service": "S3",
       "proposed_bucket": "client-named",
       "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",

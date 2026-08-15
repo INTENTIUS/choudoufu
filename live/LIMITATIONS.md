@@ -2444,7 +2444,9 @@ undeclared instance is created through whichever configuration found it.
 `aws_route53profiles_resource_association`,
 `aws_route53recoverycontrolconfig_routing_control`,
 `aws_route_table_association`, `aws_s3_bucket_lifecycle_configuration`,
-`aws_s3_bucket_policy`, `aws_s3_bucket_public_access_block`,
+`aws_s3_bucket_object_lock_configuration`, `aws_s3_bucket_policy`,
+`aws_s3_bucket_public_access_block`,
+`aws_s3_bucket_replication_configuration`,
 `aws_s3_bucket_server_side_encryption_configuration`,
 `aws_s3_bucket_versioning`, `aws_s3control_bucket_policy`,
 `aws_s3control_multi_region_access_point`, `aws_s3files_file_system_policy`,
@@ -2581,8 +2583,10 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_route53_zone_association` | `aws_route53_zone` | no (report-only) |
 | `aws_route_table_association` | `aws_route_table` | no (report-only) |
 | `aws_s3_bucket_lifecycle_configuration` | `aws_s3_bucket` | no (report-only) |
+| `aws_s3_bucket_object_lock_configuration` | `aws_s3_bucket` | no (report-only) |
 | `aws_s3_bucket_policy` | `aws_s3_bucket` | yes |
 | `aws_s3_bucket_public_access_block` | `aws_s3_bucket` | no (report-only) |
+| `aws_s3_bucket_replication_configuration` | `aws_s3_bucket` | no (report-only) |
 | `aws_s3_bucket_server_side_encryption_configuration` | `aws_s3_bucket` | no (report-only) |
 | `aws_s3_bucket_versioning` | `aws_s3_bucket` | no (report-only) |
 | `aws_s3control_bucket_policy` | `aws_s3control_bucket` | no (report-only) |
@@ -2621,7 +2625,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_workspacesweb_user_access_logging_settings_association` | `aws_workspacesweb_user_access_logging_settings` | no (report-only) |
 | `aws_workspacesweb_user_settings_association` | `aws_workspacesweb_user_settings` | no (report-only) |
 
-**Total.** 105 types swept via a parent read.
+**Total.** 107 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child. Whether it
