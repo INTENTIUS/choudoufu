@@ -53,13 +53,19 @@ type ManifestSource struct {
 
 // ManifestFetch pins one external source to an exact commit.
 //
-// Both a tag and a commit are recorded, and tools/corpus-fetch checks out the
-// tag and then verifies it resolves to the commit. That is deliberate
-// redundancy: the tag is what a human recognizes and the commit is what makes
-// a run reproducible, and a tag that has been moved to a different commit is
-// something the fetch should refuse rather than silently measure. A corpus
-// that changed under the artifact would turn every number in it into a claim
-// about an unknown input.
+// When the source tags releases, both the tag and the commit are recorded,
+// and tools/corpus-fetch checks out the tag and then verifies it resolves to
+// the commit. That is deliberate redundancy: the tag is what a human
+// recognizes and the commit is what makes a run reproducible, and a tag that
+// has been moved to a different commit is something the fetch should refuse
+// rather than silently measure. A corpus that changed under the artifact
+// would turn every number in it into a claim about an unknown input.
+//
+// A source that publishes no tags at all - true of every repository in the
+// published-deployment population (#147) - is pinned by commit alone, and
+// the fetch checks the commit out directly. The reproducibility property
+// lives entirely in the commit either way; the tag only ever added the
+// human-readable name and the moved-tag tripwire.
 type ManifestFetch struct {
 	// Dir is where the source is materialized, relative to the repository
 	// root. It is expected to be ignored by git: the corpus is pinned by
@@ -70,10 +76,12 @@ type ManifestFetch struct {
 	// Repo is the clone URL.
 	Repo string `json:"repo"`
 
-	// Tag is the human-recognizable version, e.g. "v6.6.1".
-	Tag string `json:"tag"`
+	// Tag is the human-recognizable version, e.g. "v6.6.1". Empty for a
+	// source that publishes no tags; the commit alone pins it then.
+	Tag string `json:"tag,omitempty"`
 
-	// Commit is the exact object the tag must resolve to.
+	// Commit is the exact object fetched: what Tag must resolve to when
+	// one is recorded, or the checkout target itself when there is none.
 	Commit string `json:"commit"`
 }
 
@@ -117,8 +125,8 @@ func ReadManifest(path string) (Manifest, error) {
 			return manifest, fmt.Errorf("%s: source %q has no origin", path, source.Glob)
 		}
 		if f := source.Fetch; f != nil {
-			if f.Dir == "" || f.Repo == "" || f.Tag == "" || f.Commit == "" {
-				return manifest, fmt.Errorf("%s: source %q has an incomplete fetch block; dir, repo, tag and commit are all required", path, source.Glob)
+			if f.Dir == "" || f.Repo == "" || f.Commit == "" {
+				return manifest, fmt.Errorf("%s: source %q has an incomplete fetch block; dir, repo and commit are all required (tag only when the source publishes one)", path, source.Glob)
 			}
 		}
 	}

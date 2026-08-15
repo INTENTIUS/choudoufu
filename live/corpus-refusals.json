@@ -47,6 +47,53 @@
       "schemas": true
     },
     {
+      "name": ".corpus/cloud-platform/terraform/aws-accounts/cloud-platform-dsd",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 2,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/cloud-platform/terraform/global-resources",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 6,
+      "sites": 11,
+      "unresolved_modules": 1,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 10
+    },
+    {
+      "name": ".corpus/cool-assessment",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 134,
+      "sites": 354,
+      "unresolved_modules": 17,
+      "unset_variables": 4,
+      "schemas": true,
+      "shadowed": 99
+    },
+    {
+      "name": ".corpus/cyhy-amis/terraform",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 200,
+      "sites": 345,
+      "unresolved_modules": 1,
+      "unset_variables": 3,
+      "schemas": true,
+      "shadowed": 58
+    },
+    {
       "name": ".corpus/ecs/examples/complete",
       "origin": "terraform-aws-modules",
       "blocked": true,
@@ -174,6 +221,732 @@
       "shadowed": 9
     },
     {
+      "name": ".corpus/govuk-aws/terraform/projects/app-elasticsearch6",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 5,
+      "sites": 16,
+      "unresolved_modules": 0,
+      "unset_variables": 2,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/app-govuk-attachments",
+      "origin": "published deployment",
+      "blocked": false,
+      "loaded": false,
+      "load_error": ".corpus/govuk-aws/terraform/projects/app-govuk-attachments/main.tf:42,10-21: Invalid variable name; The variable name \"lifecycle\" is reserved due to its special meaning inside module blocks.",
+      "instances": 0,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/app-licensify-documentdb",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 9,
+      "unresolved_modules": 0,
+      "unset_variables": 3,
+      "schemas": true,
+      "shadowed": 6
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/app-publishing-amazonmq",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 7,
+      "sites": 16,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true,
+      "shadowed": 14
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/app-related-links",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 10,
+      "sites": 13,
+      "unresolved_modules": 0,
+      "unset_variables": 3,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/app-search",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 13,
+      "sites": 37,
+      "unresolved_modules": 0,
+      "unset_variables": 3,
+      "schemas": true,
+      "shadowed": 1
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/app-transition-postgresql",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 24,
+      "unresolved_modules": 0,
+      "unset_variables": 6,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/app-whitehall-backend",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 11,
+      "unresolved_modules": 0,
+      "unset_variables": 2,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/infra-assets",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 22,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/infra-athena-query-results",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 8,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/infra-certificates",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 4,
+      "sites": 10,
+      "unresolved_modules": 0,
+      "unset_variables": 2,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/infra-content-data-admin",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 9,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/infra-content-publisher",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 8,
+      "sites": 14,
+      "unresolved_modules": 0,
+      "unset_variables": 2,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/infra-csp-reporter",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 9,
+      "sites": 25,
+      "unresolved_modules": 0,
+      "unset_variables": 2,
+      "schemas": true,
+      "shadowed": 4
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/infra-cyber-cloudwatch-to-splunk",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 1,
+      "sites": 1,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/infra-database-backups-bucket",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 19,
+      "sites": 17,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true,
+      "shadowed": 1
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/infra-datagovuk-organogram-bucket",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 3,
+      "sites": 7,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/infra-fastly-logs",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 20,
+      "sites": 17,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true,
+      "shadowed": 2
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/infra-google-mirror-bucket",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 5,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 3
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/infra-google-monitoring",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 2
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/infra-monitoring",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 21,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/infra-networking",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 72,
+      "unresolved_modules": 0,
+      "unset_variables": 4,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/infra-public-wafs",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 9,
+      "sites": 15,
+      "unresolved_modules": 0,
+      "unset_variables": 4,
+      "schemas": true,
+      "shadowed": 4
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/infra-root-dns-zones",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 2,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/infra-security",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 16,
+      "sites": 12,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true,
+      "shadowed": 1
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/infra-specialist-publisher",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 9,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/infra-stack-dns-zones",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 1,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-aws/terraform/projects/infra-vpc",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 9,
+      "sites": 4,
+      "unresolved_modules": 0,
+      "unset_variables": 4,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/ai-accelerator-opensearch",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 13,
+      "sites": 89,
+      "unresolved_modules": 0,
+      "unset_variables": 3,
+      "schemas": true,
+      "shadowed": 5
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/cdn-analytics",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 8,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 6
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/chat",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 23,
+      "sites": 28,
+      "unresolved_modules": 0,
+      "unset_variables": 6,
+      "schemas": true,
+      "shadowed": 8
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/chat-evaluation-ci",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 4,
+      "sites": 1,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/chat-opensearch",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 4,
+      "sites": 21,
+      "unresolved_modules": 0,
+      "unset_variables": 3,
+      "schemas": true,
+      "shadowed": 3
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/cloudfront",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 14,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/cluster-access",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 68,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 31
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/cluster-infrastructure",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 25,
+      "sites": 45,
+      "unresolved_modules": 8,
+      "unset_variables": 5,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/cluster-services",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 5,
+      "sites": 63,
+      "unresolved_modules": 3,
+      "unset_variables": 1,
+      "schemas": true,
+      "shadowed": 38
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/csp-reporter",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 9,
+      "sites": 27,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true,
+      "shadowed": 4
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/datagovuk-infrastructure",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 7,
+      "sites": 45,
+      "unresolved_modules": 2,
+      "unset_variables": 1,
+      "schemas": true,
+      "shadowed": 7
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/ecr",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 9,
+      "sites": 8,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 1
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/elasticache",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 4,
+      "sites": 4,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/ephemeral",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 8,
+      "unresolved_modules": 4,
+      "unset_variables": 1,
+      "schemas": true,
+      "shadowed": 6
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/gcp-gov-graph",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 1,
+      "sites": 320,
+      "unresolved_modules": 6,
+      "unset_variables": 4,
+      "schemas": true,
+      "shadowed": 309
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 70,
+      "unresolved_modules": 0,
+      "unset_variables": 2,
+      "schemas": true,
+      "shadowed": 66
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/github",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 3,
+      "sites": 35,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 27
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 57,
+      "sites": 265,
+      "unresolved_modules": 6,
+      "unset_variables": 7,
+      "schemas": true,
+      "shadowed": 58
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/govuk-reports",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 1,
+      "sites": 1,
+      "unresolved_modules": 1,
+      "unset_variables": 1,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/logging",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 11,
+      "sites": 16,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true,
+      "shadowed": 2
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/mobile-backend",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 5,
+      "sites": 10,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/neptune",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 14,
+      "unresolved_modules": 0,
+      "unset_variables": 2,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/rds",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 4,
+      "sites": 37,
+      "unresolved_modules": 0,
+      "unset_variables": 2,
+      "schemas": true,
+      "shadowed": 1
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/release",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 6,
+      "sites": 2,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/root-dns",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 3,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/search-api-v2",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 102,
+      "unresolved_modules": 0,
+      "unset_variables": 3,
+      "schemas": true,
+      "shadowed": 98
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/search-opensearch",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 16,
+      "sites": 122,
+      "unresolved_modules": 0,
+      "unset_variables": 3,
+      "schemas": true,
+      "shadowed": 5
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/security",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 9,
+      "sites": 1,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/sentry",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 2,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 46
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/service-linked-roles",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 1,
+      "sites": 1,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/synthetic-test",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 6,
+      "sites": 2,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/tfc-aws-config",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 3,
+      "sites": 18,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true,
+      "shadowed": 16
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/tfc-bootstrap",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 4,
+      "unresolved_modules": 1,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 3
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/tfc-configuration",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 29,
+      "unresolved_modules": 118,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 19
+    },
+    {
+      "name": ".corpus/govuk-infrastructure/terraform/deployments/vpc",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 7,
+      "sites": 6,
+      "unresolved_modules": 0,
+      "unset_variables": 3,
+      "schemas": true
+    },
+    {
       "name": ".corpus/iam/examples/iam-account",
       "origin": "terraform-aws-modules",
       "blocked": true,
@@ -262,6 +1035,166 @@
       "unset_variables": 0,
       "schemas": true,
       "shadowed": 5
+    },
+    {
+      "name": ".corpus/k8s-io/infra/aws/terraform/artifacts.k8s.io",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 3,
+      "sites": 120,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/k8s-io/infra/aws/terraform/audit-account",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 2
+    },
+    {
+      "name": ".corpus/k8s-io/infra/aws/terraform/cdn.packages.k8s.io",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 4,
+      "sites": 5,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/k8s-io/infra/aws/terraform/cncf-k8s-infra-aws-capa-ami",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 1,
+      "sites": 1,
+      "unresolved_modules": 2,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/k8s-io/infra/aws/terraform/infrastructure-services",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 3,
+      "sites": 4,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/k8s-io/infra/aws/terraform/kops-infra-ci",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 18,
+      "sites": 20,
+      "unresolved_modules": 8,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 11
+    },
+    {
+      "name": ".corpus/k8s-io/infra/aws/terraform/macos",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 5,
+      "sites": 3,
+      "unresolved_modules": 1,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 1
+    },
+    {
+      "name": ".corpus/k8s-io/infra/aws/terraform/management-account",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 53,
+      "sites": 133,
+      "unresolved_modules": 2,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 100
+    },
+    {
+      "name": ".corpus/k8s-io/infra/aws/terraform/policy-staging-account-1",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 1,
+      "unresolved_modules": 4,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/k8s-io/infra/aws/terraform/prow-build-cluster",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 4,
+      "sites": 7,
+      "unresolved_modules": 7,
+      "unset_variables": 1,
+      "schemas": true,
+      "shadowed": 3
+    },
+    {
+      "name": ".corpus/k8s-io/infra/aws/terraform/registry-k8s-io-prod",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 3,
+      "sites": 7,
+      "unresolved_modules": 5,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/k8s-io/infra/aws/terraform/registry-sandbox-k8s-io-image-layers",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 1,
+      "sites": 14,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/k8s-io/infra/aws/terraform/registry.k8s.io",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 64,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 1
+    },
+    {
+      "name": ".corpus/k8s-io/infra/aws/terraform/test-artifacts.k8s.io",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 3,
+      "sites": 120,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
     },
     {
       "name": ".corpus/lambda/examples/alias",
@@ -454,6 +1387,433 @@
       "unset_variables": 0,
       "schemas": true,
       "shadowed": 1
+    },
+    {
+      "name": ".corpus/mastino/global/dns",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 61,
+      "sites": 4,
+      "unresolved_modules": 0,
+      "unset_variables": 15,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/analytics-api",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 5,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 3,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/analytics-worker",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 6,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true,
+      "shadowed": 2
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/assets",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/bastion",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 4,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 3,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/check-links",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 2
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/citation",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 4,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/client-api",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 31,
+      "sites": 20,
+      "unresolved_modules": 0,
+      "unset_variables": 21,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/content-negotiation",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 8,
+      "sites": 7,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/crossref-agent",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 2
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/crossref-orcid-agent",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 2
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/crossref-related-agent",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 2
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/datadog",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 4,
+      "sites": 2,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/datafile-generator",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 6,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 4,
+      "schemas": true,
+      "shadowed": 2
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/datafiles",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 5,
+      "sites": 4,
+      "unresolved_modules": 0,
+      "unset_variables": 8,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/datafiles-generator",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 1,
+      "sites": 1,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/design",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/events",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 7,
+      "sites": 6,
+      "unresolved_modules": 0,
+      "unset_variables": 8,
+      "schemas": true,
+      "shadowed": 2
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/federation",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 8,
+      "sites": 5,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/levriero",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 7,
+      "sites": 5,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/mds",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 12,
+      "sites": 9,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/message-queue",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 29,
+      "sites": 16,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/metadata-completeness-api",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 5,
+      "sites": 2,
+      "unresolved_modules": 0,
+      "unset_variables": 4,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/metrics-api",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 10,
+      "sites": 7,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/oai",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 6,
+      "sites": 7,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/pidcheck",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 2,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/profiles",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 10,
+      "sites": 7,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/raw-resolution-logs",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 1,
+      "sites": 1,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/re3data",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 6,
+      "sites": 5,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/repository-finder",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 1,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/salesforce-api",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 3,
+      "sites": 4,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 3
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/schema",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/search",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 4,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/sitemaps-generator",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 3,
+      "sites": 1,
+      "unresolved_modules": 0,
+      "unset_variables": 3,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/stats-portal",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/store-crawler-results",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 2
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/strapi",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 1,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/test",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 1,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
     },
     {
       "name": ".corpus/rds/examples/blue-green-deployment",
@@ -704,6 +2064,310 @@
       "unset_variables": 0,
       "schemas": true,
       "shadowed": 3
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/assets-backup-prod",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 8,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 11
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/assets-backup-staging",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 8,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 11
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/bastion",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 5,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/bors",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 2,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/crater",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 22,
+      "sites": 18,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 15
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/crates-io-heroku-metrics",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 16,
+      "sites": 21,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 6
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/dev-desktops",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 23,
+      "sites": 15,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/dns",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 27,
+      "sites": 4,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 3
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/dns-delegation",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 7,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/docs-rs",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 10,
+      "sites": 18,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 10
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/domain-redirects",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 42,
+      "sites": 33,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 20
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/fastly-exporter",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 11,
+      "sites": 8,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 2
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/fastly-tls-subscription",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 1,
+      "schemas": true,
+      "shadowed": 2
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/google-workspace",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 3,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 2
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/monitorbot",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 17,
+      "sites": 22,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 7
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/playground",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 16,
+      "sites": 5,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/rds-databases",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 6,
+      "sites": 8,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 11
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/releases",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 39,
+      "sites": 18,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 4
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/rust-forge",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 4,
+      "sites": 4,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/rust-lang-org",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 5,
+      "sites": 5,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/rust-log-analyzer",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 21,
+      "sites": 22,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 6
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/rustc-perf",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 28,
+      "sites": 20,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 4
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/shared",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 69,
+      "sites": 36,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 5
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/team-members-access",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 35,
+      "sites": 40,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/team-members-datadog",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 42,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 54
+    },
+    {
+      "name": ".corpus/simpleinfra/terraform/team-members-fastly",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 0,
+      "sites": 15,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "shadowed": 30
     },
     {
       "name": ".corpus/vpc/examples/block-public-access",
@@ -1063,7 +2727,7 @@
       "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
-      "instances": 9,
+      "instances": 7,
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
@@ -1204,20 +2868,19 @@
   ],
   "refusals": [
     {
-      "layer": "identity",
-      "id": "Unable to compute static value",
-      "title": "Unable to compute static value",
-      "what": "Something an identity argument, a count or a for_each depends on could not be computed. It is the trailing half of another refusal: the diagnostic before it names what actually failed, and this one names the chain that led there.",
-      "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
-      "raised_by": "internal/configs",
-      "configs": 66,
-      "sites": 3536,
+      "layer": "lint",
+      "id": "state-backend",
+      "title": "State backends are not available under live resource markers",
+      "docs_ref": "live/LIMITATIONS.md, \"backend-block\" / \"cloud-block\"",
+      "raised_by": "internal/live/lint",
+      "configs": 142,
+      "sites": 142,
       "examples": [
-        ".corpus/alb/main.tf:88",
-        ".corpus/alb/main.tf:231",
-        ".corpus/alb/main.tf:243",
-        ".corpus/alb/main.tf:460",
-        ".corpus/alb/main.tf:477"
+        ".corpus/cloud-platform/terraform/aws-accounts/cloud-platform-dsd/main.tf:4",
+        ".corpus/cloud-platform/terraform/global-resources/main.tf:2",
+        ".corpus/cool-assessment/backend.tf:2",
+        ".corpus/cyhy-amis/terraform/backend.tf:2",
+        ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:12"
       ],
       "registered": true
     },
@@ -1227,12 +2890,24 @@
       "title": "Resource type is outside the live-markers subset",
       "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
       "raised_by": "internal/live/lint",
-      "configs": 58,
-      "sites": 851,
+      "configs": 132,
+      "sites": 1973,
       "types": [
         {
+          "type": "aws_security_group_rule",
+          "sites": 242
+        },
+        {
           "type": "aws_lambda_permission",
-          "sites": 137
+          "sites": 151
+        },
+        {
+          "type": "aws_s3_bucket_replication_configuration",
+          "sites": 95
+        },
+        {
+          "type": "google_bigquery_table",
+          "sites": 72
         },
         {
           "type": "aws_lambda_function_event_invoke_config",
@@ -1251,12 +2926,36 @@
           "sites": 62
         },
         {
+          "type": "aws_s3_bucket_object_lock_configuration",
+          "sites": 50
+        },
+        {
           "type": "aws_vpn_gateway_route_propagation",
           "sites": 48
         },
         {
-          "type": "aws_security_group_rule",
-          "sites": 37
+          "type": "google_service_account",
+          "sites": 36
+        },
+        {
+          "type": "aws_account_region",
+          "sites": 31
+        },
+        {
+          "type": "google_bigquery_routine",
+          "sites": 30
+        },
+        {
+          "type": "google_bigquery_dataset",
+          "sites": 24
+        },
+        {
+          "type": "aws_s3_bucket_inventory",
+          "sites": 23
+        },
+        {
+          "type": "aws_default_route_table",
+          "sites": 20
         },
         {
           "type": "aws_s3_bucket_accelerate_configuration",
@@ -1271,19 +2970,7 @@
           "sites": 19
         },
         {
-          "type": "aws_s3_bucket_inventory",
-          "sites": 19
-        },
-        {
           "type": "aws_s3_bucket_metric",
-          "sites": 19
-        },
-        {
-          "type": "aws_s3_bucket_object_lock_configuration",
-          "sites": 19
-        },
-        {
-          "type": "aws_s3_bucket_replication_configuration",
           "sites": 19
         },
         {
@@ -1291,11 +2978,23 @@
           "sites": 19
         },
         {
-          "type": "aws_default_network_acl",
+          "type": "google_bigquery_dataset_iam_policy",
+          "sites": 19
+        },
+        {
+          "type": "helm_release",
+          "sites": 18
+        },
+        {
+          "type": "google_storage_bucket",
+          "sites": 17
+        },
+        {
+          "type": "aws_cloudwatch_event_target",
           "sites": 16
         },
         {
-          "type": "aws_default_route_table",
+          "type": "aws_default_network_acl",
           "sites": 16
         },
         {
@@ -1319,19 +3018,131 @@
           "sites": 16
         },
         {
+          "type": "google_service_account_iam_policy",
+          "sites": 16
+        },
+        {
+          "type": "aws_iam_access_key",
+          "sites": 15
+        },
+        {
+          "type": "restapi_object",
+          "sites": 15
+        },
+        {
           "type": "aws_ecs_task_set",
           "sites": 14
+        },
+        {
+          "type": "google_project_iam_member",
+          "sites": 14
+        },
+        {
+          "type": "aws_secretsmanager_secret_version",
+          "sites": 12
+        },
+        {
+          "type": "google_secret_manager_secret",
+          "sites": 12
         },
         {
           "type": "aws_autoscaling_traffic_source_attachment",
           "sites": 11
         },
         {
+          "type": "aws_lb_listener_certificate",
+          "sites": 11
+        },
+        {
+          "type": "aws_organizations_delegated_administrator",
+          "sites": 10
+        },
+        {
+          "type": "google_secret_manager_secret_iam_policy",
+          "sites": 10
+        },
+        {
+          "type": "tfe_project",
+          "sites": 10
+        },
+        {
+          "type": "aws_wafv2_web_acl_logging_configuration",
+          "sites": 9
+        },
+        {
+          "type": "kubernetes_role_binding_v1",
+          "sites": 9
+        },
+        {
           "type": "aws_lambda_alias",
           "sites": 8
         },
         {
+          "type": "datadog_role",
+          "sites": 8
+        },
+        {
+          "type": "datadog_team",
+          "sites": 8
+        },
+        {
+          "type": "datadog_team_membership",
+          "sites": 8
+        },
+        {
+          "type": "github_team_repository",
+          "sites": 8
+        },
+        {
+          "type": "google_project_service",
+          "sites": 8
+        },
+        {
+          "type": "kubernetes_cluster_role_binding_v1",
+          "sites": 8
+        },
+        {
+          "type": "kubernetes_cluster_role_v1",
+          "sites": 8
+        },
+        {
+          "type": "kubernetes_role_v1",
+          "sites": 8
+        },
+        {
+          "type": "tfe_variable",
+          "sites": 8
+        },
+        {
           "type": "aws_appautoscaling_scheduled_action",
+          "sites": 7
+        },
+        {
+          "type": "aws_wafv2_web_acl_association",
+          "sites": 7
+        },
+        {
+          "type": "github_actions_organization_secret_repositories",
+          "sites": 7
+        },
+        {
+          "type": "github_team",
+          "sites": 7
+        },
+        {
+          "type": "google_compute_instance_template",
+          "sites": 7
+        },
+        {
+          "type": "google_storage_bucket_iam_member",
+          "sites": 7
+        },
+        {
+          "type": "google_storage_bucket_iam_policy",
+          "sites": 7
+        },
+        {
+          "type": "google_storage_bucket_object",
           "sites": 7
         },
         {
@@ -1343,10 +3154,6 @@
           "sites": 6
         },
         {
-          "type": "aws_iam_access_key",
-          "sites": 6
-        },
-        {
           "type": "aws_iam_user_login_profile",
           "sites": 6
         },
@@ -1355,7 +3162,47 @@
           "sites": 6
         },
         {
+          "type": "github_actions_secret",
+          "sites": 6
+        },
+        {
+          "type": "google_bigquery_data_transfer_config",
+          "sites": 6
+        },
+        {
           "type": "aws_vpc_security_group_rules_exclusive",
+          "sites": 5
+        },
+        {
+          "type": "elasticsearch_opensearch_monitor",
+          "sites": 5
+        },
+        {
+          "type": "google_cloud_run_v2_service",
+          "sites": 5
+        },
+        {
+          "type": "google_cloud_run_v2_service_iam_policy",
+          "sites": 5
+        },
+        {
+          "type": "google_cloud_scheduler_job",
+          "sites": 5
+        },
+        {
+          "type": "google_iam_workload_identity_pool",
+          "sites": 5
+        },
+        {
+          "type": "google_iam_workload_identity_pool_provider",
+          "sites": 5
+        },
+        {
+          "type": "google_project_iam_binding",
+          "sites": 5
+        },
+        {
+          "type": "google_service_account_iam_binding",
           "sites": 5
         },
         {
@@ -1363,15 +3210,91 @@
           "sites": 5
         },
         {
-          "type": "aws_lb_listener_certificate",
+          "type": "kubernetes_namespace_v1",
+          "sites": 5
+        },
+        {
+          "type": "aws_docdb_cluster",
           "sites": 4
         },
         {
-          "type": "aws_wafv2_web_acl_association",
+          "type": "aws_docdb_cluster_instance",
+          "sites": 4
+        },
+        {
+          "type": "aws_docdb_cluster_parameter_group",
+          "sites": 4
+        },
+        {
+          "type": "aws_elasticsearch_domain_policy",
+          "sites": 4
+        },
+        {
+          "type": "aws_elasticsearch_vpc_endpoint",
+          "sites": 4
+        },
+        {
+          "type": "aws_opensearch_authorize_vpc_endpoint_access",
+          "sites": 4
+        },
+        {
+          "type": "aws_opensearch_domain_policy",
+          "sites": 4
+        },
+        {
+          "type": "aws_opensearch_outbound_connection",
+          "sites": 4
+        },
+        {
+          "type": "aws_opensearch_vpc_endpoint",
+          "sites": 4
+        },
+        {
+          "type": "google_bigquery_connection",
+          "sites": 4
+        },
+        {
+          "type": "google_bigquery_connection_iam_policy",
+          "sites": 4
+        },
+        {
+          "type": "google_bigquery_job",
+          "sites": 4
+        },
+        {
+          "type": "google_project",
+          "sites": 4
+        },
+        {
+          "type": "google_project_iam_custom_role",
+          "sites": 4
+        },
+        {
+          "type": "google_workflows_workflow",
+          "sites": 4
+        },
+        {
+          "type": "tfe_variable_set",
+          "sites": 4
+        },
+        {
+          "type": "tfe_workspace_run",
           "sites": 4
         },
         {
           "type": "aws_db_instance_automated_backups_replication",
+          "sites": 3
+        },
+        {
+          "type": "aws_docdb_subnet_group",
+          "sites": 3
+        },
+        {
+          "type": "aws_efs_file_system_policy",
+          "sites": 3
+        },
+        {
+          "type": "aws_vpc_peering_connection_options",
           "sites": 3
         },
         {
@@ -1383,11 +3306,151 @@
           "sites": 3
         },
         {
+          "type": "google_compute_firewall",
+          "sites": 3
+        },
+        {
+          "type": "google_compute_network",
+          "sites": 3
+        },
+        {
+          "type": "google_dataform_repository_workflow_config",
+          "sites": 3
+        },
+        {
+          "type": "google_service_account_iam_member",
+          "sites": 3
+        },
+        {
+          "type": "google_service_account_key",
+          "sites": 3
+        },
+        {
+          "type": "google_storage_transfer_job",
+          "sites": 3
+        },
+        {
+          "type": "kubectl_manifest",
+          "sites": 3
+        },
+        {
+          "type": "aws_accessanalyzer_analyzer",
+          "sites": 2
+        },
+        {
+          "type": "aws_apigatewayv2_api_mapping",
+          "sites": 2
+        },
+        {
+          "type": "aws_apigatewayv2_integration",
+          "sites": 2
+        },
+        {
+          "type": "aws_apigatewayv2_route",
+          "sites": 2
+        },
+        {
+          "type": "aws_autoscaling_attachment",
+          "sites": 2
+        },
+        {
+          "type": "aws_bedrock_model_invocation_logging_configuration",
+          "sites": 2
+        },
+        {
+          "type": "aws_ce_cost_allocation_tag",
+          "sites": 2
+        },
+        {
+          "type": "aws_iam_account_password_policy",
+          "sites": 2
+        },
+        {
           "type": "aws_iam_group_membership",
           "sites": 2
         },
         {
-          "type": "aws_cloudwatch_event_target",
+          "type": "aws_kms_key_policy",
+          "sites": 2
+        },
+        {
+          "type": "aws_vpc_ipam_preview_next_cidr",
+          "sites": 2
+        },
+        {
+          "type": "elasticsearch_index_template",
+          "sites": 2
+        },
+        {
+          "type": "fastly_tls_subscription",
+          "sites": 2
+        },
+        {
+          "type": "fastly_tls_subscription_validation",
+          "sites": 2
+        },
+        {
+          "type": "google_artifact_registry_repository",
+          "sites": 2
+        },
+        {
+          "type": "google_artifact_registry_repository_iam_policy",
+          "sites": 2
+        },
+        {
+          "type": "google_cloud_run_v2_job",
+          "sites": 2
+        },
+        {
+          "type": "google_compute_global_forwarding_rule",
+          "sites": 2
+        },
+        {
+          "type": "google_compute_managed_ssl_certificate",
+          "sites": 2
+        },
+        {
+          "type": "google_compute_url_map",
+          "sites": 2
+        },
+        {
+          "type": "google_dns_managed_zone",
+          "sites": 2
+        },
+        {
+          "type": "google_dns_record_set",
+          "sites": 2
+        },
+        {
+          "type": "kubernetes_cluster_role",
+          "sites": 2
+        },
+        {
+          "type": "kubernetes_cluster_role_binding",
+          "sites": 2
+        },
+        {
+          "type": "kubernetes_secret_v1",
+          "sites": 2
+        },
+        {
+          "type": "postgresql_grant",
+          "sites": 2
+        },
+        {
+          "type": "aws_api_gateway_deployment",
+          "sites": 1
+        },
+        {
+          "type": "aws_api_gateway_resource",
+          "sites": 1
+        },
+        {
+          "type": "aws_autoscaling_notification",
+          "sites": 1
+        },
+        {
+          "type": "aws_budgets_budget",
           "sites": 1
         },
         {
@@ -1399,11 +3462,23 @@
           "sites": 1
         },
         {
+          "type": "aws_eks_pod_identity_association",
+          "sites": 1
+        },
+        {
           "type": "aws_iam_account_alias",
           "sites": 1
         },
         {
-          "type": "aws_iam_account_password_policy",
+          "type": "aws_iam_role_policy_attachments_exclusive",
+          "sites": 1
+        },
+        {
+          "type": "aws_iam_user_group_membership",
+          "sites": 1
+        },
+        {
+          "type": "aws_lambda_invocation",
           "sites": 1
         },
         {
@@ -1411,7 +3486,31 @@
           "sites": 1
         },
         {
+          "type": "aws_neptune_cluster",
+          "sites": 1
+        },
+        {
+          "type": "aws_neptune_cluster_instance",
+          "sites": 1
+        },
+        {
+          "type": "aws_networkflowmonitor_monitor",
+          "sites": 1
+        },
+        {
+          "type": "aws_networkflowmonitor_scope",
+          "sites": 1
+        },
+        {
+          "type": "aws_organizations_organization",
+          "sites": 1
+        },
+        {
           "type": "aws_s3_account_public_access_block",
+          "sites": 1
+        },
+        {
+          "type": "aws_s3control_storage_lens_configuration",
           "sites": 1
         },
         {
@@ -1427,10 +3526,6 @@
           "sites": 1
         },
         {
-          "type": "aws_secretsmanager_secret_version",
-          "sites": 1
-        },
-        {
           "type": "aws_signer_signing_job",
           "sites": 1
         },
@@ -1439,7 +3534,243 @@
           "sites": 1
         },
         {
-          "type": "aws_vpc_ipam_preview_next_cidr",
+          "type": "aws_ssoadmin_managed_policy_attachment",
+          "sites": 1
+        },
+        {
+          "type": "datadog_user",
+          "sites": 1
+        },
+        {
+          "type": "elasticsearch_opensearch_destination",
+          "sites": 1
+        },
+        {
+          "type": "elasticsearch_opensearch_ism_policy",
+          "sites": 1
+        },
+        {
+          "type": "fastly_configstore",
+          "sites": 1
+        },
+        {
+          "type": "fastly_configstore_entries",
+          "sites": 1
+        },
+        {
+          "type": "fastly_ngwaf_workspace",
+          "sites": 1
+        },
+        {
+          "type": "fastly_secretstore",
+          "sites": 1
+        },
+        {
+          "type": "fastly_service_authorization",
+          "sites": 1
+        },
+        {
+          "type": "fastly_service_compute",
+          "sites": 1
+        },
+        {
+          "type": "fastly_user",
+          "sites": 1
+        },
+        {
+          "type": "github_branch_protection",
+          "sites": 1
+        },
+        {
+          "type": "github_repository",
+          "sites": 1
+        },
+        {
+          "type": "github_repository_dependabot_security_updates",
+          "sites": 1
+        },
+        {
+          "type": "github_repository_vulnerability_alerts",
+          "sites": 1
+        },
+        {
+          "type": "google_cloud_quotas_quota_preference",
+          "sites": 1
+        },
+        {
+          "type": "google_cloud_run_service",
+          "sites": 1
+        },
+        {
+          "type": "google_cloud_run_service_iam_policy",
+          "sites": 1
+        },
+        {
+          "type": "google_cloudfunctions2_function",
+          "sites": 1
+        },
+        {
+          "type": "google_compute_backend_service",
+          "sites": 1
+        },
+        {
+          "type": "google_compute_global_address",
+          "sites": 1
+        },
+        {
+          "type": "google_compute_health_check",
+          "sites": 1
+        },
+        {
+          "type": "google_compute_project_default_network_tier",
+          "sites": 1
+        },
+        {
+          "type": "google_compute_project_metadata",
+          "sites": 1
+        },
+        {
+          "type": "google_compute_region_autoscaler",
+          "sites": 1
+        },
+        {
+          "type": "google_compute_region_instance_group_manager",
+          "sites": 1
+        },
+        {
+          "type": "google_compute_region_network_endpoint_group",
+          "sites": 1
+        },
+        {
+          "type": "google_compute_subnetwork",
+          "sites": 1
+        },
+        {
+          "type": "google_compute_target_http_proxy",
+          "sites": 1
+        },
+        {
+          "type": "google_compute_target_https_proxy",
+          "sites": 1
+        },
+        {
+          "type": "google_dataform_repository",
+          "sites": 1
+        },
+        {
+          "type": "google_dataform_repository_release_config",
+          "sites": 1
+        },
+        {
+          "type": "google_discovery_engine_data_store",
+          "sites": 1
+        },
+        {
+          "type": "google_discovery_engine_search_engine",
+          "sites": 1
+        },
+        {
+          "type": "google_iap_web_backend_service_iam_policy",
+          "sites": 1
+        },
+        {
+          "type": "google_logging_project_sink",
+          "sites": 1
+        },
+        {
+          "type": "google_monitoring_alert_policy",
+          "sites": 1
+        },
+        {
+          "type": "google_monitoring_notification_channel",
+          "sites": 1
+        },
+        {
+          "type": "google_project_iam_policy",
+          "sites": 1
+        },
+        {
+          "type": "google_pubsub_subscription",
+          "sites": 1
+        },
+        {
+          "type": "google_pubsub_topic",
+          "sites": 1
+        },
+        {
+          "type": "google_pubsub_topic_iam_policy",
+          "sites": 1
+        },
+        {
+          "type": "google_redis_instance",
+          "sites": 1
+        },
+        {
+          "type": "google_secret_manager_secret_iam_member",
+          "sites": 1
+        },
+        {
+          "type": "google_storage_bucket_access_control",
+          "sites": 1
+        },
+        {
+          "type": "google_storage_bucket_acl",
+          "sites": 1
+        },
+        {
+          "type": "google_vpc_access_connector",
+          "sites": 1
+        },
+        {
+          "type": "kubernetes_annotations",
+          "sites": 1
+        },
+        {
+          "type": "kubernetes_api_service",
+          "sites": 1
+        },
+        {
+          "type": "kubernetes_deployment",
+          "sites": 1
+        },
+        {
+          "type": "kubernetes_labels",
+          "sites": 1
+        },
+        {
+          "type": "kubernetes_role_binding",
+          "sites": 1
+        },
+        {
+          "type": "kubernetes_service",
+          "sites": 1
+        },
+        {
+          "type": "kubernetes_service_account",
+          "sites": 1
+        },
+        {
+          "type": "postgresql_database",
+          "sites": 1
+        },
+        {
+          "type": "postgresql_role",
+          "sites": 1
+        },
+        {
+          "type": "sentry_project",
+          "sites": 1
+        },
+        {
+          "type": "tfe_team_project_access",
+          "sites": 1
+        },
+        {
+          "type": "tfe_workspace",
+          "sites": 1
+        },
+        {
+          "type": "tfe_workspace_settings",
           "sites": 1
         }
       ],
@@ -1459,8 +3790,8 @@
       "what": "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.",
       "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
       "raised_by": "internal/configs",
-      "configs": 57,
-      "sites": 1953,
+      "configs": 131,
+      "sites": 2336,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:195",
         ".corpus/alb/examples/complete-alb/main.tf:195",
@@ -1471,41 +3802,81 @@
       "registered": true
     },
     {
+      "layer": "identity",
+      "id": "Unable to compute static value",
+      "title": "Unable to compute static value",
+      "what": "Something an identity argument, a count or a for_each depends on could not be computed. It is the trailing half of another refusal: the diagnostic before it names what actually failed, and this one names the chain that led there.",
+      "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
+      "raised_by": "internal/configs",
+      "configs": 89,
+      "sites": 3674,
+      "examples": [
+        ".corpus/alb/main.tf:88",
+        ".corpus/alb/main.tf:231",
+        ".corpus/alb/main.tf:243",
+        ".corpus/alb/main.tf:460",
+        ".corpus/alb/main.tf:477"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Unresolvable identity",
+      "title": "Unresolvable identity",
+      "what": "An identity could not be built because a reference it depends on failed; the reference's own error explains why.",
+      "docs_ref": "live/LIMITATIONS.md, \"Unresolvable identity\"",
+      "raised_by": "internal/live/identity",
+      "configs": 73,
+      "sites": 582,
+      "examples": [
+        ".corpus/autoscaling/main.tf:1463",
+        ".corpus/cool-assessment/operations_routing.tf:21",
+        ".corpus/cool-assessment/operations_routing.tf:29",
+        ".corpus/cool-assessment/operations_routing.tf:39",
+        ".corpus/cool-assessment/route53.tf:51"
+      ],
+      "registered": true
+    },
+    {
       "layer": "lint",
       "id": "logical-resource",
       "title": "Logical resource is not admitted",
       "docs_ref": "live/LIMITATIONS.md, \"null-resource\" / \"terraform-data\" / \"local-file\" / \"random-password\" / \"time-sleep\"",
       "raised_by": "internal/live/lint",
-      "configs": 49,
-      "sites": 415,
+      "configs": 66,
+      "sites": 482,
       "types": [
         {
           "type": "null_resource",
-          "sites": 200
+          "sites": 211
+        },
+        {
+          "type": "terraform_data",
+          "sites": 89
         },
         {
           "type": "local_file",
           "sites": 68
         },
         {
-          "type": "terraform_data",
-          "sites": 62
-        },
-        {
           "type": "random_pet",
-          "sites": 39
+          "sites": 40
         },
         {
           "type": "random_id",
           "sites": 26
         },
         {
-          "type": "time_sleep",
-          "sites": 6
+          "type": "random_password",
+          "sites": 19
         },
         {
           "type": "random_string",
-          "sites": 5
+          "sites": 10
+        },
+        {
+          "type": "time_sleep",
+          "sites": 8
         },
         {
           "type": "tls_private_key",
@@ -1520,7 +3891,15 @@
           "sites": 2
         },
         {
-          "type": "random_password",
+          "type": "local_sensitive_file",
+          "sites": 1
+        },
+        {
+          "type": "random_bytes",
+          "sites": 1
+        },
+        {
+          "type": "random_uuid",
           "sites": 1
         },
         {
@@ -1538,37 +3917,19 @@
       "registered": true
     },
     {
-      "layer": "identity",
-      "id": "Unresolvable identity",
-      "title": "Unresolvable identity",
-      "what": "An identity could not be built because a reference it depends on failed; the reference's own error explains why.",
-      "docs_ref": "live/LIMITATIONS.md, \"Unresolvable identity\"",
-      "raised_by": "internal/live/identity",
-      "configs": 37,
-      "sites": 121,
-      "examples": [
-        ".corpus/autoscaling/main.tf:1463",
-        ".corpus/ecs/modules/service/main.tf:1237",
-        ".corpus/ecs/modules/service/main.tf:1589",
-        ".corpus/ecs/modules/service/main.tf:1589",
-        ".corpus/ecs/modules/service/main.tf:2025"
-      ],
-      "registered": true
-    },
-    {
       "layer": "lint",
       "id": "count-index",
       "title": "count.index is not available in resource arguments",
       "docs_ref": "live/LIMITATIONS.md, \"count-index-in-tag\"",
       "raised_by": "internal/live/lint",
-      "configs": 35,
-      "sites": 4254,
+      "configs": 52,
+      "sites": 4587,
       "examples": [
-        ".corpus/eks/workers.tf:10",
-        ".corpus/eks/workers.tf:10",
-        ".corpus/eks/workers.tf:11",
-        ".corpus/eks/workers.tf:11",
-        ".corpus/eks/workers.tf:16"
+        ".corpus/cool-assessment/debiandesktop_ec2.tf:64",
+        ".corpus/cool-assessment/debiandesktop_ec2.tf:67",
+        ".corpus/cool-assessment/debiandesktop_ec2.tf:72",
+        ".corpus/cool-assessment/debiandesktop_route53.tf:6",
+        ".corpus/cool-assessment/debiandesktop_route53.tf:7"
       ],
       "registered": true
     },
@@ -1579,8 +3940,8 @@
       "what": "An identity argument, a count or a for_each reads a child module's output. Module outputs are produced by evaluating the module, which has not happened yet.",
       "docs_ref": "live/LIMITATIONS.md, \"Module output not supported in static context\"",
       "raised_by": "internal/configs",
-      "configs": 33,
-      "sites": 239,
+      "configs": 45,
+      "sites": 278,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:55",
         ".corpus/alb/examples/complete-alb/main.tf:180",
@@ -1592,18 +3953,71 @@
     },
     {
       "layer": "lint",
+      "id": "remote-state",
+      "title": "terraform_remote_state is not available under live resource markers",
+      "docs_ref": "live/LIMITATIONS.md, \"remote-state\"",
+      "raised_by": "internal/live/lint",
+      "configs": 38,
+      "sites": 120,
+      "examples": [
+        ".corpus/cool-assessment/remote_states.tf:7",
+        ".corpus/cool-assessment/remote_states.tf:22",
+        ".corpus/cool-assessment/remote_states.tf:41",
+        ".corpus/cool-assessment/remote_states.tf:56",
+        ".corpus/cool-assessment/remote_states.tf:71"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "lint",
       "id": "provisioner",
       "title": "Provisioners are not available under live resource markers",
       "docs_ref": "live/LIMITATIONS.md, \"local-exec\" / \"remote-exec\"",
       "raised_by": "internal/live/lint",
-      "configs": 27,
-      "sites": 75,
+      "configs": 31,
+      "sites": 90,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:452",
         ".corpus/alb/examples/mutual-auth-alb/main.tf:244",
         ".corpus/autoscaling/examples/complete/main.tf:882",
-        ".corpus/ecs/examples/container-definition/outputs.tf:22",
-        ".corpus/ecs/examples/container-definition/outputs.tf:45"
+        ".corpus/cool-assessment/transitgateway.tf:41",
+        ".corpus/cyhy-amis/terraform/bod_bastion_ec2.tf:72"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Non-static identity argument",
+      "title": "Non-static identity argument",
+      "what": "An identity argument cannot be evaluated from configuration alone, including an impure call reached through a local or written in .tf.json.",
+      "docs_ref": "live/LIMITATIONS.md, \"Non-static identity argument\"",
+      "raised_by": "internal/live/identity",
+      "configs": 30,
+      "sites": 131,
+      "examples": [
+        ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:65",
+        ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:70",
+        ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:75",
+        ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:91",
+        ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:180"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Non-static for_each expression",
+      "title": "Non-static for_each expression",
+      "what": "A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.",
+      "docs_ref": "live/LIMITATIONS.md, \"Non-static for_each expression\"",
+      "raised_by": "internal/live/identity",
+      "configs": 24,
+      "sites": 106,
+      "examples": [
+        ".corpus/cool-assessment/efs.tf:22",
+        ".corpus/cool-assessment/efs.tf:39",
+        ".corpus/cool-assessment/network_acls.tf:23",
+        ".corpus/cool-assessment/operations_acl_rules.tf:8",
+        ".corpus/cool-assessment/operations_acl_rules.tf:27"
       ],
       "registered": true
     },
@@ -1626,20 +4040,72 @@
       "registered": true
     },
     {
+      "layer": "lint",
+      "id": "module-providers",
+      "title": "Module provider mapping is not honoured",
+      "docs_ref": "live/LIMITATIONS.md, \"module-providers\"",
+      "raised_by": "internal/live/lint",
+      "configs": 21,
+      "sites": 110,
+      "examples": [
+        ".corpus/cool-assessment/debiandesktop_ec2.tf:89",
+        ".corpus/cool-assessment/egressassess_ec2.tf:103",
+        ".corpus/cool-assessment/email_sending_domain_certreadrole.tf:9",
+        ".corpus/cool-assessment/gophish_ec2.tf:143",
+        ".corpus/cool-assessment/guacamole_ec2.tf:104"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "for-each-key",
+      "title": "for_each key is outside the marker character set",
+      "docs_ref": "live/LIMITATIONS.md, \"foreach-dotted-key\"",
+      "raised_by": "internal/live/lint",
+      "configs": 19,
+      "sites": 215,
+      "examples": [
+        ".corpus/cool-assessment/email_sending_domain_certreadrole.tf:4",
+        ".corpus/cyhy-amis/terraform/cloudwatch_alarm_sns_topic.tf:12",
+        ".corpus/cyhy-amis/terraform/kevsync_failure_sns_topic.tf:12",
+        ".corpus/cyhy-amis/terraform/kevsync_failure_sns_topic.tf:12",
+        ".corpus/govuk-infrastructure/terraform/deployments/cdn-analytics/main.tf:29"
+      ],
+      "registered": true
+    },
+    {
       "layer": "identity",
       "id": "Identity argument not set",
       "title": "Identity argument not set",
       "what": "The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.",
       "docs_ref": "live/LIMITATIONS.md, \"Identity argument not set\"",
       "raised_by": "internal/live/identity",
-      "configs": 13,
-      "sites": 25,
+      "configs": 19,
+      "sites": 36,
       "examples": [
+        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:41",
+        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:74",
+        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:100",
         ".corpus/eks/cluster.tf:87",
-        ".corpus/eks/cluster.tf:87",
-        ".corpus/eks/workers.tf:3",
-        ".corpus/eks/workers.tf:122",
-        ".corpus/eks/workers.tf:302"
+        ".corpus/eks/cluster.tf:87"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Non-static count expression",
+      "title": "Non-static count expression",
+      "what": "A count expression evaluates to null, or to a value not knowable from configuration alone.",
+      "docs_ref": "live/LIMITATIONS.md, \"Non-static count expression\"",
+      "raised_by": "internal/live/identity",
+      "configs": 18,
+      "sites": 73,
+      "examples": [
+        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:26",
+        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:96",
+        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:109",
+        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:125",
+        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:140"
       ],
       "registered": true
     },
@@ -1650,14 +4116,31 @@
       "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
       "docs_ref": "live/LIMITATIONS.md, \"Not an identity attribute\"",
       "raised_by": "internal/live/identity",
-      "configs": 13,
-      "sites": 25,
+      "configs": 17,
+      "sites": 47,
       "examples": [
-        ".corpus/lambda/examples/complete/main.tf:486",
-        ".corpus/lambda/examples/event-source-mapping/main.tf:217",
-        ".corpus/lambda/examples/event-source-mapping/main.tf:237",
-        ".corpus/s3-bucket/examples/s3-replication/iam.tf:2",
-        ".corpus/s3-bucket/modules/table-bucket/main.tf:19"
+        ".corpus/cyhy-amis/terraform/bod_bastion_route53.tf:17",
+        ".corpus/cyhy-amis/terraform/bod_docker_route53.tf:4",
+        ".corpus/cyhy-amis/terraform/bod_route53.tf:34",
+        ".corpus/cyhy-amis/terraform/bod_route53.tf:46",
+        ".corpus/cyhy-amis/terraform/bod_route53.tf:58"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "child-module",
+      "title": "This module call cannot be expanded under live resource markers",
+      "docs_ref": "live/LIMITATIONS.md, \"child-module\"",
+      "raised_by": "internal/live/lint",
+      "configs": 13,
+      "sites": 30,
+      "examples": [
+        ".corpus/cool-assessment/debiandesktop_ec2.tf:85",
+        ".corpus/cool-assessment/egressassess_ec2.tf:99",
+        ".corpus/cool-assessment/gophish_ec2.tf:139",
+        ".corpus/cool-assessment/kali_ec2.tf:109",
+        ".corpus/cool-assessment/nessus_ec2.tf:120"
       ],
       "registered": true
     },
@@ -1668,10 +4151,10 @@
       "what": "A for_each set's element type is not a string.",
       "docs_ref": "live/LIMITATIONS.md, \"Invalid for_each set\"",
       "raised_by": "internal/live/identity",
-      "configs": 11,
-      "sites": 20,
+      "configs": 12,
+      "sites": 21,
       "examples": [
-        ".corpus/rds/modules/db_instance/main.tf:168",
+        ".corpus/govuk-infrastructure/terraform/deployments/ecr/main.tf:105",
         ".corpus/rds/modules/db_instance/main.tf:168",
         ".corpus/rds/modules/db_instance/main.tf:168",
         ".corpus/rds/modules/db_instance/main.tf:168",
@@ -1686,48 +4169,14 @@
       "what": "An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.",
       "docs_ref": "live/LIMITATIONS.md, \"Identity not resolvable from configuration\"",
       "raised_by": "internal/live/identity",
-      "configs": 7,
-      "sites": 19,
+      "configs": 10,
+      "sites": 56,
       "examples": [
         ".corpus/autoscaling/main.tf:1116",
         ".corpus/autoscaling/main.tf:1116",
         ".corpus/autoscaling/main.tf:1116",
-        ".corpus/lambda/modules/deploy/main.tf:213",
-        ".corpus/lambda/modules/deploy/main.tf:270"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "lint",
-      "id": "module-providers",
-      "title": "Module provider mapping is not honoured",
-      "docs_ref": "live/LIMITATIONS.md, \"module-providers\"",
-      "raised_by": "internal/live/lint",
-      "configs": 6,
-      "sites": 11,
-      "examples": [
-        ".corpus/lambda/examples/multiple-regions/main.tf:118",
-        ".corpus/rds/examples/complete-mssql/main.tf:101",
-        ".corpus/rds/examples/complete-oracle/main.tf:105",
-        ".corpus/rds/examples/complete-oracle/main.tf:116",
-        ".corpus/rds/examples/complete-postgres/main.tf:173"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "lint",
-      "id": "child-module",
-      "title": "This module call cannot be expanded under live resource markers",
-      "docs_ref": "live/LIMITATIONS.md, \"child-module\"",
-      "raised_by": "internal/live/lint",
-      "configs": 4,
-      "sites": 6,
-      "examples": [
-        ".corpus/ecs/main.tf:96",
-        ".corpus/ecs/modules/service/main.tf:867",
-        ".corpus/ecs/modules/service/main.tf:867",
-        ".corpus/ecs/modules/service/main.tf:867",
-        ".corpus/iam/examples/iam-role/main.tf:21"
+        ".corpus/cool-assessment/guacamole_route53.tf:33",
+        ".corpus/cool-assessment/private_acl_rules.tf:449"
       ],
       "registered": true
     },
@@ -1737,30 +4186,109 @@
       "title": "moved blocks are not available under live resource markers",
       "docs_ref": "live/LIMITATIONS.md, \"moved-block\"",
       "raised_by": "internal/live/lint",
-      "configs": 2,
-      "sites": 10,
+      "configs": 6,
+      "sites": 63,
       "examples": [
-        ".corpus/iam/modules/iam-group/migrations.tf:5",
-        ".corpus/iam/modules/iam-group/migrations.tf:5",
-        ".corpus/iam/modules/iam-group/migrations.tf:10",
-        ".corpus/iam/modules/iam-group/migrations.tf:10",
-        ".corpus/iam/modules/iam-user/migrations.tf:5"
+        ".corpus/govuk-infrastructure/terraform/deployments/datagovuk-infrastructure/organogram_bucket.tf:54",
+        ".corpus/govuk-infrastructure/terraform/deployments/datagovuk-infrastructure/organogram_bucket.tf:59",
+        ".corpus/govuk-infrastructure/terraform/deployments/datagovuk-infrastructure/organogram_bucket.tf:64",
+        ".corpus/govuk-infrastructure/terraform/deployments/datagovuk-infrastructure/organogram_bucket.tf:69",
+        ".corpus/govuk-infrastructure/terraform/deployments/datagovuk-infrastructure/organogram_bucket.tf:74"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "module-provider-block",
+      "title": "Provider block in a child module is not consulted",
+      "docs_ref": "live/LIMITATIONS.md, \"module-provider-block\"",
+      "raised_by": "internal/live/lint",
+      "configs": 3,
+      "sites": 3,
+      "examples": [
+        ".corpus/simpleinfra/terraform/shared/modules/gha-iam-user/main.tf:10",
+        ".corpus/simpleinfra/terraform/shared/modules/gha-iam-user/main.tf:10",
+        ".corpus/simpleinfra/terraform/shared/modules/gha-iam-user/main.tf:10"
       ],
       "registered": true
     },
     {
       "layer": "identity",
-      "id": "Non-static for_each expression",
-      "title": "Non-static for_each expression",
-      "what": "A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.",
-      "docs_ref": "live/LIMITATIONS.md, \"Non-static for_each expression\"",
+      "id": "Attempt to get attribute from null value",
+      "title": "Attempt to get attribute from null value",
+      "what": "An identity argument, a count or a for_each reads an attribute of something that evaluated to null.",
+      "docs_ref": "live/LIMITATIONS.md, \"Attempt to get attribute from null value\"",
+      "raised_by": "hcl",
+      "configs": 2,
+      "sites": 30,
+      "examples": [
+        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:45",
+        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:45",
+        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:77",
+        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:77",
+        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:80"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Two resources with the same identity",
+      "title": "Two resources with the same identity",
+      "what": "Two resource blocks resolve to one identity, so one live object would have two owners.",
+      "docs_ref": "live/LIMITATIONS.md, \"duplicate-identity\"",
       "raised_by": "internal/live/identity",
       "configs": 2,
       "sites": 3,
       "examples": [
-        ".corpus/ecs/modules/service/main.tf:872",
-        ".corpus/ecs/modules/service/main.tf:872",
-        ".corpus/ecs/modules/service/main.tf:872"
+        ".corpus/govuk-infrastructure/terraform/deployments/chat/cloudwatch.tf:7",
+        ".corpus/govuk-infrastructure/terraform/deployments/chat/eventbridge.tf:16",
+        ".corpus/simpleinfra/terraform/dev-desktops/aws-region/instances.tf:176"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Invalid operand",
+      "title": "Invalid operand",
+      "what": "An operator inside a statically evaluated expression was given an operand of the wrong type - arithmetic on a string, for instance.",
+      "docs_ref": "live/LIMITATIONS.md, \"Invalid operand\"",
+      "raised_by": "hcl",
+      "configs": 1,
+      "sites": 4,
+      "examples": [
+        ".corpus/govuk-aws/terraform/modules/aws/rds_instance/main.tf:271",
+        ".corpus/govuk-aws/terraform/modules/aws/rds_instance/main.tf:271",
+        ".corpus/govuk-aws/terraform/modules/aws/rds_instance/main.tf:281",
+        ".corpus/govuk-aws/terraform/modules/aws/rds_instance/main.tf:281"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Invalid function argument",
+      "title": "Invalid function argument",
+      "what": "A function inside a statically evaluated expression was given an argument of the wrong type or an unacceptable value.",
+      "docs_ref": "live/LIMITATIONS.md, \"Invalid function argument\"",
+      "raised_by": "hcl",
+      "configs": 1,
+      "sites": 2,
+      "examples": [
+        ".corpus/govuk-infrastructure/terraform/deployments/github/main.tf:71",
+        ".corpus/govuk-infrastructure/terraform/deployments/github/main.tf:71"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Resource type outside the live-markers subset",
+      "title": "Resource type outside the live-markers subset",
+      "what": "The type is absent from the admission table, and neither the provider's identity schema nor the configuration's own arguments settle its identity.",
+      "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+      "raised_by": "internal/live/identity",
+      "configs": 1,
+      "sites": 1,
+      "examples": [
+        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/search_api_gateway.tf:71"
       ],
       "registered": true
     },
@@ -1770,17 +4298,6 @@
       "title": "Ambiguous attribute key",
       "what": "An object key in a statically evaluated expression is a bare name that could be either a variable reference or a literal string, so which was meant cannot be decided.",
       "docs_ref": "live/LIMITATIONS.md, \"Ambiguous attribute key\"",
-      "raised_by": "hcl",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "identity",
-      "id": "Attempt to get attribute from null value",
-      "title": "Attempt to get attribute from null value",
-      "what": "An identity argument, a count or a for_each reads an attribute of something that evaluated to null.",
-      "docs_ref": "live/LIMITATIONS.md, \"Attempt to get attribute from null value\"",
       "raised_by": "hcl",
       "configs": 0,
       "sites": 0,
@@ -2085,17 +4602,6 @@
     },
     {
       "layer": "identity",
-      "id": "Invalid function argument",
-      "title": "Invalid function argument",
-      "what": "A function inside a statically evaluated expression was given an argument of the wrong type or an unacceptable value.",
-      "docs_ref": "live/LIMITATIONS.md, \"Invalid function argument\"",
-      "raised_by": "hcl",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "identity",
       "id": "Invalid index",
       "title": "Invalid index",
       "what": "A collection is indexed out of range, or with a key it does not have.",
@@ -2133,17 +4639,6 @@
       "title": "Invalid object key",
       "what": "An object constructor's key does not evaluate to a string and cannot be converted to one.",
       "docs_ref": "live/LIMITATIONS.md, \"Invalid object key\"",
-      "raised_by": "hcl",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "identity",
-      "id": "Invalid operand",
-      "title": "Invalid operand",
-      "what": "An operator inside a statically evaluated expression was given an operand of the wrong type - arithmetic on a string, for instance.",
-      "docs_ref": "live/LIMITATIONS.md, \"Invalid operand\"",
       "raised_by": "hcl",
       "configs": 0,
       "sites": 0,
@@ -2243,28 +4738,6 @@
       "title": "No configuration to scan",
       "what": "Signal collection was handed an empty configuration. A caller error, not a configuration one.",
       "docs_ref": "live/LIMITATIONS.md, \"No configuration to scan\"",
-      "raised_by": "internal/live/identity",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "identity",
-      "id": "Non-static count expression",
-      "title": "Non-static count expression",
-      "what": "A count expression evaluates to null, or to a value not knowable from configuration alone.",
-      "docs_ref": "live/LIMITATIONS.md, \"Non-static count expression\"",
-      "raised_by": "internal/live/identity",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "identity",
-      "id": "Non-static identity argument",
-      "title": "Non-static identity argument",
-      "what": "An identity argument cannot be evaluated from configuration alone, including an impure call reached through a local or written in .tf.json.",
-      "docs_ref": "live/LIMITATIONS.md, \"Non-static identity argument\"",
       "raised_by": "internal/live/identity",
       "configs": 0,
       "sites": 0,
@@ -2415,17 +4888,6 @@
     },
     {
       "layer": "identity",
-      "id": "Resource type outside the live-markers subset",
-      "title": "Resource type outside the live-markers subset",
-      "what": "The type is absent from the admission table, and neither the provider's identity schema nor the configuration's own arguments settle its identity.",
-      "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
-      "raised_by": "internal/live/identity",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "identity",
       "id": "Sensitive count expression",
       "title": "Sensitive count expression",
       "what": "A count expression reads a sensitive or ephemeral value; the instance keys it produces become marker values.",
@@ -2497,17 +4959,6 @@
       "what": "A function inside a statically evaluated expression was called with too many arguments.",
       "docs_ref": "live/LIMITATIONS.md, \"Too many function arguments\"",
       "raised_by": "hcl",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "identity",
-      "id": "Two resources with the same identity",
-      "title": "Two resources with the same identity",
-      "what": "Two resource blocks resolve to one identity, so one live object would have two owners.",
-      "docs_ref": "live/LIMITATIONS.md, \"duplicate-identity\"",
-      "raised_by": "internal/live/identity",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -2634,29 +5085,9 @@
     },
     {
       "layer": "lint",
-      "id": "for-each-key",
-      "title": "for_each key is outside the marker character set",
-      "docs_ref": "live/LIMITATIONS.md, \"foreach-dotted-key\"",
-      "raised_by": "internal/live/lint",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "lint",
       "id": "ignore-changes",
       "title": "Ownership markers would be ignored",
       "docs_ref": "live/LIMITATIONS.md, \"ignore-changes\"",
-      "raised_by": "internal/live/lint",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "lint",
-      "id": "module-provider-block",
-      "title": "Provider block in a child module is not consulted",
-      "docs_ref": "live/LIMITATIONS.md, \"module-provider-block\"",
       "raised_by": "internal/live/lint",
       "configs": 0,
       "sites": 0,
@@ -2734,26 +5165,6 @@
     },
     {
       "layer": "lint",
-      "id": "remote-state",
-      "title": "terraform_remote_state is not available under live resource markers",
-      "docs_ref": "live/LIMITATIONS.md, \"remote-state\"",
-      "raised_by": "internal/live/lint",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "lint",
-      "id": "state-backend",
-      "title": "State backends are not available under live resource markers",
-      "docs_ref": "live/LIMITATIONS.md, \"backend-block\" / \"cloud-block\"",
-      "raised_by": "internal/live/lint",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "lint",
       "id": "undeclared-provider-alias",
       "title": "Provider configuration is not declared",
       "docs_ref": "live/LIMITATIONS.md, \"undeclared-provider-alias\"",
@@ -2764,11 +5175,11 @@
     }
   ],
   "totals": {
-    "configs": 105,
-    "loaded": 105,
-    "instances": 1053,
-    "sites": 11640,
-    "refusals_fired": 17,
+    "configs": 250,
+    "loaded": 249,
+    "instances": 2568,
+    "sites": 15272,
+    "refusals_fired": 28,
     "refusals_in_set": 109,
     "configs_without_schemas": 0,
     "refusals_unregistered": 0
@@ -2780,9 +5191,19 @@
       "loaded": 31,
       "blocked": 9,
       "clean": 22,
-      "instances": 637,
+      "instances": 635,
       "sites": 26,
       "reads_as": "ranking"
+    },
+    {
+      "origin": "published deployment",
+      "configs": 145,
+      "loaded": 144,
+      "blocked": 144,
+      "clean": 0,
+      "instances": 1517,
+      "sites": 3632,
+      "reads_as": "rate"
     },
     {
       "origin": "terraform-aws-modules",
@@ -2811,6 +5232,10 @@
     "resource_types": 1699
   },
   "origins": [
+    {
+      "origin": "published deployment",
+      "configs": 145
+    },
     {
       "origin": "terraform-aws-modules",
       "configs": 74

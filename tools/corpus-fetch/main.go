@@ -66,7 +66,11 @@ func run() error {
 
 		if !*force {
 			if at, err := headCommit(dir); err == nil && at == spec.Commit {
-				fmt.Printf("corpus-fetch: %s already at %s (%s)\n", spec.Dir, short(spec.Commit), spec.Tag)
+				label := spec.Tag
+				if label == "" {
+					label = "commit-pinned"
+				}
+				fmt.Printf("corpus-fetch: %s already at %s (%s)\n", spec.Dir, short(spec.Commit), label)
 				skipped++
 				continue
 			}
@@ -97,12 +101,18 @@ func fetchOne(dir string, spec check.ManifestFetch) error {
 		return err
 	}
 
-	// A shallow single-tag clone: the corpus needs the tree at one commit,
-	// not the history that led to it.
+	// A shallow single-ref clone: the corpus needs the tree at one commit,
+	// not the history that led to it. A source with no tag is fetched by
+	// its pinned commit directly; GitHub serves reachable SHAs to shallow
+	// fetches, and the verification below is then an identity check.
+	ref := spec.Commit
+	if spec.Tag != "" {
+		ref = "refs/tags/" + spec.Tag
+	}
 	steps := [][]string{
 		{"init", "--quiet"},
 		{"remote", "add", "origin", spec.Repo},
-		{"fetch", "--quiet", "--depth", "1", "origin", "refs/tags/" + spec.Tag},
+		{"fetch", "--quiet", "--depth", "1", "origin", ref},
 		{"checkout", "--quiet", "FETCH_HEAD"},
 	}
 	for _, args := range steps {

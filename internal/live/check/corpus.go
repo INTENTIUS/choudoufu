@@ -155,19 +155,29 @@ type CorpusTotals struct {
 	Unregistered int `json:"refusals_unregistered"`
 }
 
-// ReadsAsRanking is [PopulationTotals.ReadsAs] for every population this
-// corpus currently has: the blocked count orders work, it does not estimate
-// compatibility. The only value ever intended to join it is "rate", and
-// only for an estate-shaped population - whole configurations describing
-// one deployment - which does not exist yet. TestPopulationsClaimNoRate
-// holds the line: a population claiming "rate" must be in
-// rateCapableOrigins, which is empty until such a population lands with
-// its provenance recorded in the manifest like every other origin.
+// ReadsAsRanking is [PopulationTotals.ReadsAs] for the fixture and
+// module-example populations: their blocked count orders work, it does not
+// estimate compatibility. The only other value is "rate", reserved for an
+// estate-shaped population - whole configurations describing one
+// deployment - which #147's published-deployment population is.
+// TestPopulationsClaimNoRate holds the line: a population claiming "rate"
+// must be in rateCapableOrigins, with its provenance recorded in the
+// manifest like every other origin.
 const ReadsAsRanking = "ranking"
 
 // rateCapableOrigins is the allowlist of populations whose blocked count
-// may be read as a compatibility rate. Empty on purpose; see #118.
-var rateCapableOrigins = map[string]bool{}
+// may be read as a compatibility rate. #118 kept it empty until an
+// estate-shaped population existed; #147 landed one: whole published
+// deployment root modules, written by their operators to describe one
+// deployment each, pinned by commit in the manifest. Unlike module
+// examples/, nothing in that population exists to exercise a variable
+// surface, which is what makes its blocked count readable as a rate.
+// Whether any user-facing document quotes that rate is a separate,
+// later decision; this only licenses the artifact row to say what its
+// number means.
+var rateCapableOrigins = map[string]bool{
+	"published deployment": true,
+}
 
 // PopulationTotals are one origin's counts, kept apart from the corpus-wide
 // totals so a ranking over module examples and a would-be rate over estates

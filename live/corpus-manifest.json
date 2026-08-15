@@ -20,7 +20,18 @@
     "",
     "Each fetch block records both a tag and the commit it must resolve to.",
     "corpus-fetch refuses a tag that has been moved, so the artifact cannot",
-    "silently change under an input nobody watched."
+    "silently change under an input nobody watched.",
+    "",
+    "The published-deployment sources (#147) are whole deployment root",
+    "modules their operators published: each root describes one deployment,",
+    "not a module's option surface, which is what makes this the one",
+    "population whose blocked count may read as a compatibility rate",
+    "(reads_as: rate; see rateCapableOrigins). None of these repositories",
+    "tag releases, so they are pinned by commit alone and corpus-fetch",
+    "checks the commit out directly. Licenses checked 2026-08-15: MIT",
+    "(simpleinfra, govuk-aws, govuk-infrastructure, mastino,",
+    "cloud-platform-infrastructure), CC0-1.0 (both cisagov repos),",
+    "Apache-2.0 (k8s.io)."
   ],
   "sources": [
     {
@@ -126,6 +137,86 @@
         "tag": "v7.6.0",
         "commit": "c83279b39a69c19cb206038a7c0e24768caa5e35"
       }
+    },
+    {
+      "glob": ".corpus/simpleinfra/terraform/*",
+      "origin": "published deployment",
+      "fetch": {
+        "dir": ".corpus/simpleinfra",
+        "repo": "https://github.com/rust-lang/simpleinfra.git",
+        "commit": "1f7f2e775a5bb567bc96b0f246f2e4656302b70c"
+      }
+    },
+    {
+      "glob": ".corpus/cyhy-amis/terraform",
+      "origin": "published deployment",
+      "fetch": {
+        "dir": ".corpus/cyhy-amis",
+        "repo": "https://github.com/cisagov/cyhy_amis.git",
+        "commit": "ddae2784229bce534054df299c6c88cda0faddf0"
+      }
+    },
+    {
+      "glob": ".corpus/cool-assessment",
+      "origin": "published deployment",
+      "fetch": {
+        "dir": ".corpus/cool-assessment",
+        "repo": "https://github.com/cisagov/cool-assessment-terraform.git",
+        "commit": "79808d2ab41c4e3a14a84da44324924ee9b214cb"
+      }
+    },
+    {
+      "glob": ".corpus/govuk-aws/terraform/projects/*",
+      "origin": "published deployment",
+      "fetch": {
+        "dir": ".corpus/govuk-aws",
+        "repo": "https://github.com/alphagov/govuk-aws.git",
+        "commit": "81ee9f6e91fd8692fbf751ecf980c671c13aa3c0"
+      }
+    },
+    {
+      "glob": ".corpus/mastino/prod-eu-west/services/*",
+      "origin": "published deployment",
+      "fetch": {
+        "dir": ".corpus/mastino",
+        "repo": "https://github.com/datacite/mastino.git",
+        "commit": "4d8c1f1bebd91e73195017ce44a243002e9e36e5"
+      }
+    },
+    {
+      "glob": ".corpus/mastino/global/*",
+      "origin": "published deployment"
+    },
+    {
+      "glob": ".corpus/govuk-infrastructure/terraform/deployments/*",
+      "origin": "published deployment",
+      "fetch": {
+        "dir": ".corpus/govuk-infrastructure",
+        "repo": "https://github.com/alphagov/govuk-infrastructure.git",
+        "commit": "c02504fa4abb439234669e9ea9b662bdb35209e9"
+      }
+    },
+    {
+      "glob": ".corpus/k8s-io/infra/aws/terraform/*",
+      "origin": "published deployment",
+      "fetch": {
+        "dir": ".corpus/k8s-io",
+        "repo": "https://github.com/kubernetes/k8s.io.git",
+        "commit": "4046258e7d54fdc156e2f39ad8da51b57be88f55"
+      }
+    },
+    {
+      "glob": ".corpus/cloud-platform/terraform/aws-accounts/*",
+      "origin": "published deployment",
+      "fetch": {
+        "dir": ".corpus/cloud-platform",
+        "repo": "https://github.com/ministryofjustice/cloud-platform-infrastructure.git",
+        "commit": "6e1eca7be0d4224718a993e82508df8b7b19857d"
+      }
+    },
+    {
+      "glob": ".corpus/cloud-platform/terraform/global-resources",
+      "origin": "published deployment"
     }
   ]
 }
