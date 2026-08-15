@@ -26,6 +26,7 @@ type bucketsArtifact struct {
 	ServerAssigned     int    `json:"server_assigned"`
 	ClientNamed        int    `json:"client_named"`
 	Composite          int    `json:"composite"`
+	Assembled          int    `json:"assembled"`
 	NeedsHandSeparator int    `json:"needs_hand_separator"`
 	FoldChild          int    `json:"fold_child"`
 	EvidenceOnly       int    `json:"evidence_only"`
@@ -41,6 +42,7 @@ func bucketsFromProposals(proposals []proposal) bucketsArtifact {
 		ServerAssigned:     counts.ServerAssigned,
 		ClientNamed:        counts.ClientNamed,
 		Composite:          counts.Composite,
+		Assembled:          counts.Assembled,
 		NeedsHandSeparator: counts.NeedsHandSeparator,
 		FoldChild:          counts.FoldChild,
 		EvidenceOnly:       counts.EvidenceOnly,

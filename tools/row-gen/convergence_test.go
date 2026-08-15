@@ -99,13 +99,13 @@ const unannotatedMismatchRatchetMax = 0
 // needs its own reviewed reason - a newly admitted type the classifier
 // cannot reproduce - not a silent increase.
 //
-// The committed 135 is 114 genuine mismatches (live/rowgen-convergence.json's
+// The committed 128 is 107 genuine mismatches (live/rowgen-convergence.json's
 // summary) plus the 21 not_in_mapped_set types, which never appear in the
 // artifact's rows at all (no proposal exists to compare) but are held to
 // the same bar by the -emit gate. Every ruling carries an exit naming what
 // a fuller extraction would have to capture; the ledger is a list of named
 // extractor gaps, not accepted losses.
-const annotationCountRatchetMax = 135
+const annotationCountRatchetMax = 128
 
 // TestAnnotationCountRatchet reads the committed ledger directly and fails
 // when it has grown past annotationCountRatchetMax - never when it shrinks:

@@ -27,8 +27,8 @@ them moves. The prose on this page quotes none of the numbers.
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 3 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
 | Admitted (the shipped table) | 843 types | Nothing at lint. Runtime support varies by type; see the layers below. |
-| Pastable proposals (server-assigned 587, client-named 363, composite 106) | 1056 types | A ratification batch: paste, fixture, test. |
-| Needs a hand separator | 83 types | One one-character import-separator decision each. |
+| Pastable proposals (server-assigned 582, client-named 361, composite 106, assembled 8) | 1057 types | A ratification batch: paste, fixture, test. |
+| Needs a hand separator | 82 types | One one-character import-separator decision each. |
 | Evidence-only | 34 types | An identity-argument name no current evidence source states. |
 | Fold-children | 87 types | Nothing of their own; identity is the parent's. |
 | Mapped in total | 1260 of 1699 provider types | The layers above partition this set. |

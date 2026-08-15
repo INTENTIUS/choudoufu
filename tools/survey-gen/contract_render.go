@@ -105,6 +105,7 @@ func renderCoverageLayers(root string) (string, error) {
 		ServerAssigned     int `json:"server_assigned"`
 		ClientNamed        int `json:"client_named"`
 		Composite          int `json:"composite"`
+		Assembled          int `json:"assembled"`
 		NeedsHandSeparator int `json:"needs_hand_separator"`
 		FoldChild          int `json:"fold_child"`
 		EvidenceOnly       int `json:"evidence_only"`
@@ -144,9 +145,9 @@ func renderCoverageLayers(root string) (string, error) {
 		acceptance.Totals.Pass, acceptance.Totals.Cohorts)
 	fmt.Fprintf(&b, "| Admitted (the shipped table) | %d types | Nothing at lint. Runtime support varies by type; see the layers below. |\n",
 		len(identity.AdmittedTypes()))
-	fmt.Fprintf(&b, "| Pastable proposals (server-assigned %d, client-named %d, composite %d) | %d types | A ratification batch: paste, fixture, test. |\n",
-		buckets.ServerAssigned, buckets.ClientNamed, buckets.Composite,
-		buckets.ServerAssigned+buckets.ClientNamed+buckets.Composite)
+	fmt.Fprintf(&b, "| Pastable proposals (server-assigned %d, client-named %d, composite %d, assembled %d) | %d types | A ratification batch: paste, fixture, test. |\n",
+		buckets.ServerAssigned, buckets.ClientNamed, buckets.Composite, buckets.Assembled,
+		buckets.ServerAssigned+buckets.ClientNamed+buckets.Composite+buckets.Assembled)
 	fmt.Fprintf(&b, "| Needs a hand separator | %d types | One one-character import-separator decision each. |\n",
 		buckets.NeedsHandSeparator)
 	fmt.Fprintf(&b, "| Evidence-only | %d types | An identity-argument name no current evidence source states. |\n",

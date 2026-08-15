@@ -47,6 +47,11 @@ import (
 //     widened scrape's own ArgumentsInOrder - the same segments, matched to
 //     Argument Reference names from the format-string prose instead of the
 //     literal example value - see tryGrammarComposite's own doc comment.
+//     Between rules 1 and 2 sits tryAssembledTemplate (issue #172): the
+//     scrape's own per-segment ARN/URL template, when fully attributed,
+//     resolves the one shape no other bucket can express - components
+//     carrying Cloud region/account slots and mid-string literals. See its
+//     own doc comment for the two-tier evidence bar.
 //  2. tryArgumentReferenceConfirmedGuess: a proposal classify.go already
 //     filed evidence-only because its argument name was GUESSED (the CFN
 //     property name, snake-cased, backed by no schema or grammar) - the
@@ -142,6 +147,7 @@ func applyImportGrammarPrecedence(proposals []proposal, importGrammar map[string
 		// argument name to a grammar-sourced one that happens to agree.
 		switch {
 		case p.Bucket != bucketClientNamed && tryGrammarComposite(p, g):
+		case p.Bucket != bucketComposite && tryAssembledTemplate(p, g):
 		case p.Bucket == bucketEvidenceOnly && tryArgumentReferenceConfirmedGuess(p, g):
 		case p.Bucket != bucketClientNamed && p.Bucket != bucketComposite && tryArgumentReferenceValueMatch(p, g):
 		case p.Bucket == bucketNeedsHandSeparator && tryDocNamedServerSegment(p, g):
@@ -378,6 +384,122 @@ func setClientNamedComposite(p *proposal, args []string, sep string, g importGra
 	p.ArgSource = argSourceImportGrammar
 	p.Rule = "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string"
 	p.Notes = append(p.Notes, fmt.Sprintf("import docs pin %s joined by %q: %s", quoteList(args), sep, g.ImportIDExample))
+}
+
+// tryAssembledTemplate is issue #172's rule: the scrape decomposed the
+// documented import ID into an ARN/URL template
+// (live/import-grammar.json's import_id_template - a leading scheme
+// literal, positional Cloud region/account slots, fixed mid-string
+// literals, argument tail segments), and every segment is attributed, so
+// the proposal can finally render the assembled-components shape the
+// ratified table spells as {Literal: "arn:aws:sns:"}, {Cloud: "region"},
+// ..., {Attrs: [...]}. Refuses whenever any segment is Unattributed, the
+// template carries no Cloud slot, no argument at all, or the tail does not
+// END in an argument - a template whose last segment is opaque
+// reconstructs nothing.
+//
+// The bar then depends on what the rule would overturn - the same
+// proportionality tryDocNamedServerSegment and #134's order-corroboration
+// already practice:
+//
+//   - A proposal the registry left unresolved (needs-hand-separator,
+//     evidence-only, fold-child), or client-named by a name that is not a
+//     documented configuration argument at all (aws_kinesis_firehose_
+//     delivery_stream's "arn", the Identity Schema's required attribute
+//     taken as if it were an argument): any attribution signal suffices.
+//     There is no standing claim to defeat, only a gap to fill.
+//   - A rule-1 server-assigned proposal (primaryIdentifier wholly
+//     read-only): every tail segment must be attributed by its OWN TEXT
+//     (attrByPlaceholderName/attrByPlaceholderAbbrev - "report-group-name"
+//     spells `name`, "example-repo" abbreviates `repository`). The
+//     contextual signals (a self-placeholder resolved against the one
+//     Required name argument, an Example Usage value match) are NOT enough
+//     to overturn the registry here, and this was measured, not assumed:
+//     letting them fire flips 16 admitted rows the ratifiers adopted
+//     server-assigned unchanged - aws_ram_permission (tail
+//     "test-permission", a self-placeholder over a Required `name`, ratified
+//     ServerAssigned) is evidence-identical to aws_sns_topic (tail
+//     "my-topic", ratified as components) on every pinned source: rule-1
+//     registry claim, Identity Schema requiring [arn], listable, taggable.
+//     No evidence-only rule can split that pair, so the contextual tier
+//     stays confined to rows with no server-assigned claim standing.
+func tryAssembledTemplate(p *proposal, g importGrammarRow) bool {
+	t := g.IDTemplate
+	if t == nil || len(t.Segments) == 0 {
+		return false
+	}
+	hasCloud, hasArg, allOwnText := false, false, true
+	for _, s := range t.Segments {
+		switch {
+		case s.Unattributed != "":
+			return false
+		case s.Cloud != "":
+			hasCloud = true
+		case s.Argument != "":
+			hasArg = true
+			if s.AttributedBy != attrByPlaceholderName && s.AttributedBy != attrByPlaceholderAbbrev {
+				allOwnText = false
+			}
+		case s.Literal != "":
+		default:
+			return false // an empty segment is a malformed template, not evidence
+		}
+	}
+	if !hasCloud || !hasArg || t.Segments[len(t.Segments)-1].Argument == "" {
+		return false
+	}
+
+	switch p.Bucket {
+	case bucketNeedsHandSeparator, bucketEvidenceOnly, bucketFoldChild:
+		// No standing claim; any attribution tier fills the gap.
+	case bucketClientNamed:
+		if argDocumented(p.ArgName, g) {
+			return false // a documented-argument client-naming already resolved this row
+		}
+	case bucketServerAssigned:
+		if !allOwnText {
+			return false // see the doc comment: the aws_ram_permission counterexample
+		}
+	default:
+		return false
+	}
+
+	p.Bucket = bucketAssembled
+	p.Assembled = append([]idTemplateSegment(nil), t.Segments...)
+	p.CompositeArgs = nil
+	p.CompositeSep = ""
+	p.ArgName = ""
+	p.ArgSource = argSourceImportGrammar
+	p.Rule = "import-grammar precedence: the documented import ID is a full " + strings.ToUpper(t.Kind) + " template; scheme literals, Cloud region/account slots and every tail segment attributed per-segment by the scrape (issue #172)"
+	p.Notes = append(p.Notes, fmt.Sprintf("import docs template (%s) attributes every segment: %s", t.Kind, describeSegments(t.Segments)))
+	return true
+}
+
+// argDocumented reports whether name is a documented top-level
+// configuration argument on the grammar row's Argument Reference.
+func argDocumented(name string, g importGrammarRow) bool {
+	for _, a := range g.ArgumentReference {
+		if a.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// describeSegments renders a template's segments for a proposal note.
+func describeSegments(segs []idTemplateSegment) string {
+	var out []string
+	for _, s := range segs {
+		switch {
+		case s.Cloud != "":
+			out = append(out, "<"+s.Cloud+">")
+		case s.Argument != "":
+			out = append(out, fmt.Sprintf("%s (%s)", s.Argument, s.AttributedBy))
+		default:
+			out = append(out, fmt.Sprintf("%q", s.Literal))
+		}
+	}
+	return strings.Join(out, " + ")
 }
 
 // tryRegistryComposite is rule 5: only reached for a still-needs-hand-

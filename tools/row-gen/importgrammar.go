@@ -40,6 +40,12 @@ type importGrammarRow struct {
 	IdentitySchemaRequired []string           `json:"identity_schema_required"`
 	IdentitySchemaOptional []string           `json:"identity_schema_optional"`
 
+	// IDTemplate mirrors tools/importdocs-gen/idtemplate.go's IDTemplate
+	// (issue #172): the documented ARN/URL import ID decomposed into
+	// literals, Cloud region/account slots, and per-segment-attributed tail
+	// arguments. Nil for the ordinary short-ID example.
+	IDTemplate *idTemplate `json:"import_id_template"`
+
 	// IDParts is the documented import ID's per-segment source attribution
 	// (issue #132): the segment names the Import section's own prose gives,
 	// each attributed to the doc section that defines it ("argument",
@@ -48,6 +54,35 @@ type importGrammarRow struct {
 	// tools/importdocs-gen/parse.go's idParts.
 	IDParts []idPart `json:"id_parts"`
 }
+
+// idTemplate and idTemplateSegment mirror tools/importdocs-gen/
+// idtemplate.go's IDTemplate/TemplateSegment: Kind is "arn" or "url";
+// exactly one of a segment's Literal/Cloud/Argument/Unattributed is set,
+// with AttributedBy naming the doc signal that linked an Argument segment -
+// the confidence-tier vocabulary tryAssembledTemplate keys on (see the
+// attrBy* constants below).
+type idTemplate struct {
+	Kind     string              `json:"kind"`
+	Segments []idTemplateSegment `json:"segments"`
+}
+
+type idTemplateSegment struct {
+	Literal      string `json:"literal"`
+	Cloud        string `json:"cloud"`
+	Argument     string `json:"argument"`
+	AttributedBy string `json:"attributed_by"`
+	Unattributed string `json:"unattributed"`
+}
+
+// The AttributedBy values tools/importdocs-gen/idtemplate.go writes. The
+// first two are statements the segment's own text makes (the placeholder
+// spells or abbreviates the argument's name); the other two, not named
+// here because only their absence matters, are contextual
+// ("self-placeholder-required-name", "example-usage-value").
+const (
+	attrByPlaceholderName   = "placeholder-names-argument"
+	attrByPlaceholderAbbrev = "placeholder-abbreviates-argument"
+)
 
 // idPart mirrors tools/importdocs-gen/parse.go's IDPart: one prose-named
 // segment of the documented import ID and which doc section defines it.

@@ -1,10 +1,11 @@
 {
   "generated_by": "go run ./tools/row-gen -emit",
   "mapped": 1260,
-  "server_assigned": 587,
-  "client_named": 363,
+  "server_assigned": 582,
+  "client_named": 361,
   "composite": 106,
-  "needs_hand_separator": 83,
+  "assembled": 8,
+  "needs_hand_separator": 82,
   "fold_child": 87,
   "evidence_only": 34
 }

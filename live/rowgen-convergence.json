@@ -4,12 +4,12 @@
     "admitted_total": 843,
     "compared": 822,
     "not_in_mapped_set": 21,
-    "adopted_unchanged": 708,
-    "adopted_unchanged_pct": 86.13,
-    "genuine_mismatches": 114,
-    "annotated": 114,
+    "adopted_unchanged": 715,
+    "adopted_unchanged_pct": 86.98,
+    "genuine_mismatches": 107,
+    "annotated": 107,
     "unannotated_mismatches": 0,
-    "scrape_gap_mismatches": 28
+    "scrape_gap_mismatches": 23
   },
   "by_service": {
     "ACMPCA": {
@@ -159,8 +159,8 @@
     },
     "CloudFront": {
       "compared": 20,
-      "adopted_unchanged": 19,
-      "adopted_unchanged_pct": 95
+      "adopted_unchanged": 20,
+      "adopted_unchanged_pct": 100
     },
     "CloudTrail": {
       "compared": 2,
@@ -174,13 +174,13 @@
     },
     "CodeArtifact": {
       "compared": 4,
-      "adopted_unchanged": 0,
-      "adopted_unchanged_pct": 0
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 25
     },
     "CodeBuild": {
       "compared": 4,
-      "adopted_unchanged": 3,
-      "adopted_unchanged_pct": 75
+      "adopted_unchanged": 4,
+      "adopted_unchanged_pct": 100
     },
     "CodeCommit": {
       "compared": 1,
@@ -494,8 +494,8 @@
     },
     "KinesisFirehose": {
       "compared": 1,
-      "adopted_unchanged": 0,
-      "adopted_unchanged_pct": 0
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
     },
     "Lambda": {
       "compared": 5,
@@ -799,8 +799,8 @@
     },
     "SageMaker": {
       "compared": 27,
-      "adopted_unchanged": 24,
-      "adopted_unchanged_pct": 88.89
+      "adopted_unchanged": 27,
+      "adopted_unchanged_pct": 100
     },
     "Scheduler": {
       "compared": 1,
@@ -2156,20 +2156,14 @@
     {
       "tf_type": "aws_cloudfront_realtime_log_config",
       "service": "CloudFront",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "server-assigned",
-        "components"
-      ],
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is a full ARN template; scheme literals, Cloud region/account slots and every tail segment attributed per-segment by the scrape (issue #172)",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "The ratified components assemble the config ARN, decomposed into arn:aws:cloudfront:: + account + :realtime-log-config/ + the name argument (CloudFront ARNs carry no region). The registry reads the identity as wholly read-only, which is true of the assembled string but not of its parts: the tail is configuration and the middle is the cloud the run points at. No proposal bucket can express a Cloud component or a mid-string literal, so no rule change reaches this row - it needs a new proposal vocabulary."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_cloudfront_response_headers_policy",
@@ -2524,7 +2518,7 @@
       "scrape_gap": true,
       "matched": false,
       "annotated": true,
-      "annotation_reason": "The ratified components assemble the domain ARN, decomposed into arn:aws:codeartifact: + region + account + :domain/ + the domain argument. The registry reads the identity as wholly read-only, which is true of the assembled string but not of its parts: the tail is configuration and the middle is the cloud the run points at. No proposal bucket can express a Cloud component or a mid-string literal, so no rule change reaches this row - it needs a new proposal vocabulary."
+      "annotation_reason": "The ratified components assemble the domain ARN, decomposed into arn:aws:codeartifact: + region + account + :domain/ + the domain argument. The #172 template decomposes the example fully and attributes the tail to domain - but only by the contextual example-usage-value signal (Example Usage sets domain = \"example\" and the identity-block example's tail is 'example'), and the standing proposal is rule-1 server-assigned (Arn wholly read-only), which the contextual tier must not overturn."
     },
     {
       "tf_type": "aws_codeartifact_domain_permissions_policy",
@@ -2544,20 +2538,14 @@
     {
       "tf_type": "aws_codeartifact_repository",
       "service": "CodeArtifact",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "server-assigned",
-        "components"
-      ],
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is a full ARN template; scheme literals, Cloud region/account slots and every tail segment attributed per-segment by the scrape (issue #172)",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "The ratified components assemble the repository ARN, decomposed into arn:aws:codeartifact: + region + account + :repository/ + domain + / + repository. The registry reads the identity as wholly read-only, which is true of the assembled string but not of its parts: the tail is configuration and the middle is the cloud the run points at. No proposal bucket can express a Cloud component or a mid-string literal, so no rule change reaches this row - it needs a new proposal vocabulary."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_codeartifact_repository_permissions_policy",
@@ -2599,20 +2587,14 @@
     {
       "tf_type": "aws_codebuild_report_group",
       "service": "CodeBuild",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "server-assigned",
-        "components"
-      ],
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is a full ARN template; scheme literals, Cloud region/account slots and every tail segment attributed per-segment by the scrape (issue #172)",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "The ratified components assemble the report-group ARN, decomposed into arn:aws:codebuild: + region + account + :report-group/ + the name argument. The registry reads the identity as wholly read-only, which is true of the assembled string but not of its parts: the tail is configuration and the middle is the cloud the run points at. No proposal bucket can express a Cloud component or a mid-string literal, so no rule change reaches this row - it needs a new proposal vocabulary."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_codebuild_webhook",
@@ -2739,7 +2721,7 @@
       "scrape_gap": true,
       "matched": false,
       "annotated": true,
-      "annotation_reason": "The ratified components assemble the webhook ARN, decomposed into arn:aws:codepipeline: + region + account + :webhook: + the name argument. The registry reads the identity as wholly read-only, which is true of the assembled string but not of its parts: the tail is configuration and the middle is the cloud the run points at. No proposal bucket can express a Cloud component or a mid-string literal, so no rule change reaches this row - it needs a new proposal vocabulary."
+      "annotation_reason": "The ratified components assemble the webhook ARN, decomposed into arn:aws:codepipeline: + region + account + :webhook: + the name argument. The #172 template decomposes the example fully and attributes the tail to name - but only by the contextual self-placeholder signal ('example-webhook'/'example' are stand-ins for the resource itself, resolved against the one Required name), and the standing proposal is rule-1 server-assigned (Id wholly read-only), which the contextual tier must not overturn."
     },
     {
       "tf_type": "aws_codestarconnections_connection",
@@ -4967,7 +4949,7 @@
       "scrape_gap": true,
       "matched": false,
       "annotated": true,
-      "annotation_reason": "The ratified components assemble the registry ARN, decomposed into arn:aws:glue: + region + account + :registry/ + the registry_name argument. The registry reads the identity as wholly read-only, which is true of the assembled string but not of its parts: the tail is configuration and the middle is the cloud the run points at. No proposal bucket can express a Cloud component or a mid-string literal, so no rule change reaches this row - it needs a new proposal vocabulary."
+      "annotation_reason": "The ratified components assemble the registry ARN, decomposed into arn:aws:glue: + region + account + :registry/ + the registry_name argument. The #172 template decomposes the example fully and attributes the tail to registry_name - but only by the contextual example-usage-value signal (Example Usage sets registry_name = \"example\" and the tail is 'example'), and the standing proposal is rule-1 server-assigned (Arn wholly read-only), which the contextual tier must not overturn."
     },
     {
       "tf_type": "aws_glue_schema",
@@ -5663,18 +5645,14 @@
     {
       "tf_type": "aws_kinesis_firehose_delivery_stream",
       "service": "KinesisFirehose",
-      "proposed_bucket": "client-named",
-      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is a full ARN template; scheme literals, Cloud region/account slots and every tail segment attributed per-segment by the scrape (issue #172)",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "The ratified components assemble the delivery-stream ARN from arn:aws:firehose: + region + account + :deliverystream/ + the name argument. The fresh proposal client-names by 'arn', which is not a configuration argument at all - the Identity Schema's required attribute taken as if it were one. The row is the same ARN-template shape as the issue #172 ten, reached from a different wrong bucket."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_kinesis_resource_policy",
@@ -8047,20 +8025,14 @@
     {
       "tf_type": "aws_sagemaker_app",
       "service": "SageMaker",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the registry's composite primaryIdentifier does not reconstruct the documented example string under any known separator; the provider's own Import section shows a single opaque value instead",
-      "mismatch_classes": [
-        "server-assigned",
-        "components",
-        "identity-attrs"
-      ],
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is a full ARN template; scheme literals, Cloud region/account slots and every tail segment attributed per-segment by the scrape (issue #172)",
       "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "The ratified components assemble the app ARN, decomposed into arn:aws:sagemaker: + region + account + :app/ + the domain_id, user_profile_name, app_type and app_name arguments joined with /. The registry reads the identity as wholly read-only, which is true of the assembled string but not of its parts: the tail is configuration and the middle is the cloud the run points at. No proposal bucket can express a Cloud component or a mid-string literal, so no rule change reaches this row - it needs a new proposal vocabulary."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_sagemaker_app_image_config",
@@ -8302,20 +8274,14 @@
     {
       "tf_type": "aws_sagemaker_space",
       "service": "SageMaker",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the registry's composite primaryIdentifier does not reconstruct the documented example string under any known separator; the provider's own Import section shows a single opaque value instead",
-      "mismatch_classes": [
-        "server-assigned",
-        "components",
-        "identity-attrs"
-      ],
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is a full ARN template; scheme literals, Cloud region/account slots and every tail segment attributed per-segment by the scrape (issue #172)",
       "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "The ratified components assemble the space ARN, decomposed into arn:aws:sagemaker: + region + account + :space/ + the domain_id and space_name arguments joined with /. The registry reads the identity as wholly read-only, which is true of the assembled string but not of its parts: the tail is configuration and the middle is the cloud the run points at. No proposal bucket can express a Cloud component or a mid-string literal, so no rule change reaches this row - it needs a new proposal vocabulary."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_sagemaker_studio_lifecycle_config",
@@ -8331,18 +8297,14 @@
     {
       "tf_type": "aws_sagemaker_user_profile",
       "service": "SageMaker",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is a full ARN template; scheme literals, Cloud region/account slots and every tail segment attributed per-segment by the scrape (issue #172)",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "The ratified components assemble the user-profile ARN from arn:aws:sagemaker: + region + account + :user-profile/ + the domain_id and user_profile_name arguments. The registry's composite primaryIdentifier cannot reconstruct the documented ARN under any separator, so the proposal claims nothing; the row needs issue #172's template vocabulary, not a separator."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_sagemaker_workteam",
@@ -8824,7 +8786,7 @@
       "scrape_gap": true,
       "matched": false,
       "annotated": true,
-      "annotation_reason": "The ratified components assemble the topic ARN, decomposed into arn:aws:sns: + region + account + the name argument. The registry reads the identity as wholly read-only, which is true of the assembled string but not of its parts: the tail is configuration and the middle is the cloud the run points at. No proposal bucket can express a Cloud component or a mid-string literal, so no rule change reaches this row - it needs a new proposal vocabulary."
+      "annotation_reason": "The ratified components assemble the topic ARN, decomposed into arn:aws:sns: + region + account + the name argument. The #172 template vocabulary now exists and the scrape decomposes this example, but the tail stays unattributed: 'my-topic' is a self-placeholder (generic word + the type's own noun), and the Argument Reference marks name Optional (name_prefix and provider-generated names exist), so no Required argument corroborates the tail and the extraction records it rather than guessing."
     },
     {
       "tf_type": "aws_sns_topic_policy",
@@ -8873,7 +8835,7 @@
       "scrape_gap": true,
       "matched": false,
       "annotated": true,
-      "annotation_reason": "The ratified components assemble the queue URL, decomposed into https://sqs. + region + .amazonaws.com/ + account + the name argument (the ratifiers also normalised the doc's legacy region-less host https://queue.amazonaws.com/ to the modern regional form). The registry reads the identity as wholly read-only, which is true of the assembled string but not of its parts: the tail is configuration and the middle is the cloud the run points at. No proposal bucket can express a Cloud component or a mid-string literal, so no rule change reaches this row - it needs a new proposal vocabulary."
+      "annotation_reason": "The ratified components assemble the queue URL in the modern regional form https://sqs.REGION.amazonaws.com/ACCOUNT/NAME, where the doc's only example is the legacy region-less host https://queue.amazonaws.com/80398EXAMPLE/MyQueue - the ratifiers normalised the endpoint, a judgment no extraction of this example reproduces. The #172 template records the URL as the doc states it: literal legacy host, then two unattributed path segments ('80398EXAMPLE' is not a numeric account; 'MyQueue' is a self-placeholder and name is Optional)."
     },
     {
       "tf_type": "aws_sqs_queue_policy",

@@ -142,8 +142,8 @@ func run(service string, out, errOut *os.File) error {
 
 	fmt.Fprint(out, renderReport(proposals, service))
 	counts := tally(proposals)
-	fmt.Fprintf(errOut, "row-gen: %d mapped types (%d server-assigned, %d client-named, %d composite, %d needs-hand-separator, %d fold-child, %d evidence-only)\n",
-		len(proposals), counts.ServerAssigned, counts.ClientNamed, counts.Composite, counts.NeedsHandSeparator, counts.FoldChild, counts.EvidenceOnly)
+	fmt.Fprintf(errOut, "row-gen: %d mapped types (%d server-assigned, %d client-named, %d composite, %d assembled, %d needs-hand-separator, %d fold-child, %d evidence-only)\n",
+		len(proposals), counts.ServerAssigned, counts.ClientNamed, counts.Composite, counts.Assembled, counts.NeedsHandSeparator, counts.FoldChild, counts.EvidenceOnly)
 	return nil
 }
 

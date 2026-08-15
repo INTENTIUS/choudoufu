@@ -97,6 +97,8 @@ func renderProposal(p proposal) string {
 		fmt.Fprintf(&b, "## %s -> %s [needs hand separator]\n", p.TFType, p.CFNType)
 	case bucketComposite:
 		fmt.Fprintf(&b, "## %s -> %s [proposed: composite]\n", p.TFType, p.CFNType)
+	case bucketAssembled:
+		fmt.Fprintf(&b, "## %s -> %s [proposed: assembled template]\n", p.TFType, p.CFNType)
 	case bucketFoldChild:
 		fmt.Fprintf(&b, "## %s -> (property-child of %s) [fold-child: parent %s]\n", p.TFType, p.FoldParent, p.ParentTFType)
 	case bucketEvidenceOnly:
@@ -123,6 +125,9 @@ func renderProposal(p proposal) string {
 	if p.Bucket == bucketComposite {
 		fmt.Fprintf(&b, "components: %s joined by %q (source: %s)\n", quoteList(p.CompositeArgs), p.CompositeSep, p.ArgSource)
 	}
+	if p.Bucket == bucketAssembled {
+		fmt.Fprintf(&b, "template: %s (source: %s)\n", describeSegments(p.Assembled), p.ArgSource)
+	}
 	for _, n := range p.Notes {
 		fmt.Fprintf(&b, "note: %s\n", n)
 	}
@@ -143,6 +148,11 @@ func renderProposal(p proposal) string {
 		b.WriteString(renderAdmissionLine(p.TFType))
 		b.WriteString("\n--- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---\n")
 		b.WriteString(renderCompositeEntry(p))
+	case bucketAssembled:
+		b.WriteString("\n--- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---\n")
+		b.WriteString(renderAdmissionLine(p.TFType))
+		b.WriteString("\n--- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---\n")
+		b.WriteString(renderAssembledEntry(p))
 	case bucketNeedsHandSeparator:
 		b.WriteString("no pastable row: the composite separator is not registry evidence; a human chooses it.\n")
 	case bucketFoldChild:
@@ -257,6 +267,39 @@ func renderCompositeEntry(p proposal) string {
 `, p.TFType, comps.String(), importSyntax)
 }
 
+// renderAssembledEntry is bucketAssembled's ready-to-paste TypeIdentity{}
+// literal (issue #172): the template's segments spelled as the explicit
+// Component list the ratified table uses for this shape - {Literal: ...},
+// {Cloud: "region"}, {Attrs: []string{...}} - with the per-component
+// IdentityAttr derived from the leading scheme literal (identityattr.go's
+// rule). IdentityAttrs is left nil for the same issue #44 id-alias reason
+// renderCompositeEntry states.
+func renderAssembledEntry(p proposal) string {
+	serverAssigned, components, importSyntax, _, _ := proposedFields(p)
+	_ = serverAssigned
+	var comps strings.Builder
+	for i, c := range components {
+		if i > 0 {
+			comps.WriteString(", ")
+		}
+		switch {
+		case c.Cloud != "":
+			fmt.Fprintf(&comps, "{Cloud: %q, IdentityAttr: %q}", string(c.Cloud), c.IdentityAttr)
+		case len(c.Attrs) > 0:
+			fmt.Fprintf(&comps, "{Attrs: []string{%s}, IdentityAttr: %q}", quoteArgs(c.Attrs), c.IdentityAttr)
+		default:
+			fmt.Fprintf(&comps, "{Literal: %q, IdentityAttr: %q}", c.Literal, c.IdentityAttr)
+		}
+	}
+	return fmt.Sprintf(`TypeIdentity{
+	Type:          %q,
+	Components:    []Component{%s},
+	ImportSyntax:  %q,
+	IdentityAttrs: nil, // id-alias inference intentionally left to the ratifier; see issue #44 non-goals
+},
+`, p.TFType, comps.String(), importSyntax)
+}
+
 // renderClientNamedEntry is the ready-to-paste TypeIdentity{...} literal for
 // DefaultTable. IdentityAttrs names only the resolved argument itself, for
 // the same id-alias reason renderServerAssignedEntry's comment states.
@@ -276,8 +319,8 @@ func renderClientNamedEntry(p proposal) string {
 func summaryCounts(proposals []proposal) string {
 	counts := tally(proposals)
 	return fmt.Sprintf(
-		"summary (mapped set: %d types)\n  proposed server-assigned:  %d\n  proposed client-named:     %d\n  proposed composite:        %d\n  needs hand separator:      %d\n  fold-child (issue #68):    %d\n  evidence-only:             %d\n",
-		len(proposals), counts.ServerAssigned, counts.ClientNamed, counts.Composite, counts.NeedsHandSeparator, counts.FoldChild, counts.EvidenceOnly)
+		"summary (mapped set: %d types)\n  proposed server-assigned:  %d\n  proposed client-named:     %d\n  proposed composite:        %d\n  proposed assembled (#172): %d\n  needs hand separator:      %d\n  fold-child (issue #68):    %d\n  evidence-only:             %d\n",
+		len(proposals), counts.ServerAssigned, counts.ClientNamed, counts.Composite, counts.Assembled, counts.NeedsHandSeparator, counts.FoldChild, counts.EvidenceOnly)
 }
 
 // summary is the acceptance counts, shared by main.go's stderr line and the
@@ -286,6 +329,7 @@ type summary struct {
 	ServerAssigned     int
 	ClientNamed        int
 	Composite          int
+	Assembled          int
 	NeedsHandSeparator int
 	FoldChild          int
 	EvidenceOnly       int
@@ -301,6 +345,8 @@ func tally(proposals []proposal) summary {
 			s.ClientNamed++
 		case bucketComposite:
 			s.Composite++
+		case bucketAssembled:
+			s.Assembled++
 		case bucketNeedsHandSeparator:
 			s.NeedsHandSeparator++
 		case bucketFoldChild:

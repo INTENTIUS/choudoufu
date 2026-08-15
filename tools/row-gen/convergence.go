@@ -315,14 +315,36 @@ func proposedFields(p proposal) (serverAssigned bool, components []identity.Comp
 		// #106 criterion 3: an assembled row whose leading literal names its
 		// own scheme carries the derived IdentityAttr on every component. A
 		// separator-joined composite never has a leading literal, so this is
-		// inert for every proposal shape that exists today; see
-		// identityattr.go for why it is wired anyway.
+		// inert here; bucketAssembled below is the shape it was wired for.
 		components = applyDerivedIdentityAttrs(components)
 		syn := make([]string, len(p.CompositeArgs))
 		for i, a := range p.CompositeArgs {
 			syn[i] = strings.ToUpper(a)
 		}
 		importSyntax = strings.Join(syn, strings.ToUpper(p.CompositeSep))
+	case bucketAssembled:
+		// Issue #172's shape: the template's segments become Components
+		// verbatim - Literal, Cloud slot, or a single-argument Attrs - and
+		// the leading scheme literal derives the per-component IdentityAttr
+		// (identityattr.go's rule, inert until this bucket existed). No
+		// IdentityAttrs claim: the id-alias pairing stays issue #44's
+		// declared non-goal here as everywhere.
+		var syn strings.Builder
+		for _, s := range p.Assembled {
+			switch {
+			case s.Cloud != "":
+				components = append(components, identity.Component{Cloud: identity.CloudValue(s.Cloud)})
+				syn.WriteString(strings.ToUpper(strings.ReplaceAll(s.Cloud, "-", "_")))
+			case s.Argument != "":
+				components = append(components, identity.Component{Attrs: []string{s.Argument}})
+				syn.WriteString(strings.ToUpper(s.Argument))
+			default:
+				components = append(components, identity.Component{Literal: s.Literal})
+				syn.WriteString(s.Literal)
+			}
+		}
+		components = applyDerivedIdentityAttrs(components)
+		importSyntax = syn.String()
 	default:
 		// bucketNeedsHandSeparator, bucketFoldChild, bucketEvidenceOnly:
 		// no pastable claim on any of the four fields - the zero values

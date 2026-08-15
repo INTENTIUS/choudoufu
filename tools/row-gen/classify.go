@@ -60,6 +60,19 @@ const (
 	// bucketNeedsHandSeparator, this IS pastable: CompositeArgs and
 	// CompositeSep carry what render.go needs.
 	bucketComposite bucket = "composite"
+	// bucketAssembled: the documented import ID is a full ARN/URL template
+	// (issue #172) whose every segment the scrape attributed - a leading
+	// scheme literal, Cloud region/account slots, fixed mid-string
+	// literals, and configuration-argument tail segments. The one proposal
+	// shape whose components can carry a Component{Cloud: ...} or a
+	// mid-string literal at all. Pastable: Assembled carries the segments
+	// render.go and convergence.go both build the Components from, and
+	// applyDerivedIdentityAttrs (identityattr.go) derives the per-component
+	// IdentityAttr from the leading literal - the "future ARN-template
+	// proposal shape" that function was wired for. See
+	// tryAssembledTemplate's doc comment for the two-tier evidence bar and
+	// the measured counterexample behind it.
+	bucketAssembled bucket = "assembled"
 )
 
 // argSource names where a client-named proposal's TF argument name came
@@ -114,6 +127,13 @@ type proposal struct {
 	// own doc comment.
 	CompositeArgs []string
 	CompositeSep  string
+
+	// bucketAssembled only: the documented ARN/URL template's segments,
+	// copied from live/import-grammar.json's import_id_template field once
+	// tryAssembledTemplate's evidence bar passed. Every segment is a
+	// Literal, a Cloud slot or an attributed Argument - never Unattributed,
+	// which that rule refuses outright.
+	Assembled []idTemplateSegment
 
 	// CrossCheck is what the three identity sources disagreed about for
 	// this type, recorded by applyIdentitySchemaCrossCheck so the rendered

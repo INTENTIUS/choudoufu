@@ -107,7 +107,7 @@ func (s ruleStats) qualifies() bool {
 	return s.Compared >= proposeMinSample && s.Matched == s.Compared
 }
 
-// pastableBucket reports whether b is one of the three buckets render.go
+// pastableBucket reports whether b is one of the four buckets render.go
 // ever prints a "--- paste into ... ---" block for (renderProposal's own
 // switch). bucketFoldChild and bucketNeedsHandSeparator are proposable in
 // row-gen's ordinary report sense - they carry real evidence - but never
@@ -117,7 +117,7 @@ func (s ruleStats) qualifies() bool {
 // bucketEvidenceOnly is, by definition, unconfident evidence.
 func pastableBucket(b bucket) bool {
 	switch b {
-	case bucketServerAssigned, bucketClientNamed, bucketComposite:
+	case bucketServerAssigned, bucketClientNamed, bucketComposite, bucketAssembled:
 		return true
 	default:
 		return false
@@ -127,7 +127,7 @@ func pastableBucket(b bucket) bool {
 // ruleAdoption groups a fresh convergence comparison's rows (buildConvergence's
 // own Types slice - one row per type internal/live/identity.DefaultTable
 // already admits) by rule class, counting Compared/Matched per class.
-// Restricted to the three pastable buckets: a rule class built from
+// Restricted to the pastable buckets: a rule class built from
 // bucketFoldChild or bucketNeedsHandSeparator could never produce a pastable
 // candidate, so its Matched rate (which is always 0 - see convergence.go's
 // proposedFields default case) would only ever read as a permanent, and
