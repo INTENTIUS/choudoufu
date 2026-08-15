@@ -79,7 +79,7 @@ and the rename all traverse `cfg.Children`, and a `tofu-address` value
 carries the full module-qualified address for a resource inside a static
 module tree or a `for_each`-keyed module call with statically-evaluable
 keys, at any nesting depth (issue #59, phases 1-2 / "59b"/"59c"). The one
-segment shape this grammar allows but no build ever produces is a `count`
+segment this grammar allows but no build ever produces is a `count`
 instance key on a `module.` segment: a module block expanded with `count`
 is refused outright before anything reads the live system, permanently,
 because the position-based renumbering it causes is exactly the ambiguity
@@ -406,7 +406,7 @@ policy defines," and enforcement mode "prevents noncompliant tagging
 requests on specified resource types from completing." That is a check on
 the value a tag is set to, run when a tag is written, on resource types the
 feature explicitly supports. Nothing in that mechanism inspects a
-`DeleteTags`-shaped call at all, and AWS says so directly: "Basic
+`DeleteTags`-style call at all, and AWS says so directly: "Basic
 compliance rules do not enforce tag compliance on resources that are
 created without tags. This capability does not enforce missing tag keys."
 A tag policy cannot be configured to block a tag from being removed,
@@ -486,7 +486,7 @@ it:
 - **`route53:ChangeTagsForResource`** folds adding and removing tags into
   one call keyed by a "keys to remove" parameter instead of a
   dedicated untag action; the condition still keys off `aws:TagKeys`, but
-  verify the shape against that action's reference page before
+  verify it against that action's reference page before
   trusting it.
 - **The management account and any standalone (non-Organizations) account
   are outside SCP reach entirely.** A principal there needs ordinary

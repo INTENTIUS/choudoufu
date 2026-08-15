@@ -99,7 +99,7 @@ This distinction is enforced rather than advised. A `key_prefix` whose first
 segment is literally `tofu-receipts` is a configuration error, so a record can
 never be written into the receipts namespace.
 
-The reason is visibility. A receipt is deliberately AWS-shaped so its value
+The reason is visibility. A receipt is deliberately AWS-native so its value
 stays readable with a plain `aws ssm get-parameter`, by a person with read-only
 IAM access and no `choudoufu` binary at all, at three in the morning. A
 record-store payload is tool-internal by design. Moving a receipt onto it would

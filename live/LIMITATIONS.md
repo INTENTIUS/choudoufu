@@ -11,7 +11,7 @@ table drifts from the directory tree, and `TestLimitsEnforced` /
 `TestLimitsNotYetEnforced` fail if the lint rule that actually fires stops
 matching what is written below. Nothing here is asserted from memory.
 
-One enforced family is indexed elsewhere: the receipt-shape rules
+One enforced family is indexed elsewhere: the three receipt rules
 (`RuleReceiptLeaf`, `RuleReceiptValue`, `RuleReceiptSecret`) are specified
 alongside the pattern they guard in `live/RECEIPTS.md`, and have no
 fixture directory here.
@@ -338,7 +338,7 @@ module calls, a static call ("network", admitted), a statically-keyed
 `for_each` call ("keyed-static", admitted), a `count` call ("counted",
 refused permanently), and a `for_each` call whose keys reference another
 resource ("keyed", refused as non-static), so one load proves both
-admitted shapes pass clean while the other two still fail, each for its own
+admitted forms pass clean while the other two still fail, each for its own
 named reason.
 
 ### backend-block
@@ -400,7 +400,7 @@ the missing `Component` kind could still admit it.
 
 Two kinds of type hit this rule, and the error message does not distinguish
 them. Most out-of-table types are simply not wired yet, which is the
-scoping boundary described above. `aws_nat_gateway` was exactly this shape
+scoping boundary described above. `aws_nat_gateway` was exactly this case
 until issue #65's EC2 networking batch reached it, and most of the survey's
 remaining unadmitted rows still are. `aws_cloudwatch_event_rule` carries a
 second, independent reason it stays out, one this table's own vocabulary
@@ -553,7 +553,7 @@ alone.
 
 **Enforcement.** `RuleIgnoreChanges`, `internal/live/lint/ignore_changes.go`
 (`checkIgnoreChanges`). Fixture at `live/e2e/limits/ignore-changes/`, whose
-fourth resource is the admitted single-key shape, pinned by
+fourth resource is the admitted single-key form, pinned by
 `TestIgnoreChangesAdmitsAForeignTagKey`, since `TestLimitsEnforced` alone
 would pass just as happily if all four were refused.
 
@@ -589,7 +589,7 @@ run them separately. Aliases themselves work. A resource's own `provider =`
 argument is honoured, and `live-plan` carries the alias correctly. It is the
 module-call mapping that is not read.
 
-**The other shape, and the worse one.** `providers = { aws.primary = aws }`
+**The other form, and the worse one.** `providers = { aws.primary = aws }`
 is the standard `configuration_aliases` form: the alias is on the child side,
 and the module's resources write `provider = aws.primary`. Live mode resolves
 that address against the *root* module, which declares no `aws.primary`, so
@@ -604,7 +604,7 @@ admitted. So is `{ myaws = aws }`, where only the child's local name differs.
 **Enforcement.** `RuleModuleProviders`,
 `internal/live/lint/module_providers_mapping.go`
 (`checkModuleProviderMapping`). Fixture at
-`live/e2e/limits/module-providers/`, carrying all three shapes. The admitted
+`live/e2e/limits/module-providers/`, carrying all three forms. The admitted
 default mapping is pinned by `TestModuleProvidersAdmitsTheDefaultMapping`,
 since `TestLimitsEnforced` would pass just as happily if every call were
 refused.
@@ -639,7 +639,7 @@ already says don't, side with that). Across the ten most-installed
 terraform-aws-modules repositories, the same repos the third-party corpus
 pins, 740 module-source `.tf` files, and not one declares a provider block
 inside module source, and none uses `configuration_aliases`. Every provider
-block found sits at an example's *root*, the shape live mode already
+block found sits at an example's *root*, the form live mode already
 supports. Upstream's own documentation points the same way: provider
 configurations belong in the root module, and a child module declaring its
 own is legacy practice, because it cannot be used with `count`, `for_each` or
@@ -651,7 +651,7 @@ stop being rare.
 **Forwarding address.** Move the provider configuration to the root module
 and let the module receive it implicitly. A `providers` mapping on the
 module call remains subject to the `module-providers` rule's admitted
-shapes: an unaliased mapping such as `providers = { aws = aws }` is
+forms: an unaliased mapping such as `providers = { aws = aws }` is
 admitted, an aliased one is refused.
 
 **What is not refused.** Provider blocks in the root module, aliased or
@@ -835,7 +835,7 @@ resolution, by design. The whole point is that a human has to choose.
 `internal/live/identity/resolve.go` (`checkCollisions`), not
 `internal/live/lint`. This split is intentional and documented rather
 than papered over. Lint has no notion of identity, only construct and type
-shape, so it cannot see two `bucket` attributes colliding. Identity
+type, so it cannot see two `bucket` attributes colliding. Identity
 resolution runs later in the pipeline and is where that check belongs.
 Fixture at `live/e2e/limits/duplicate-identity/`, asserted to produce
 zero *lint* issues by `TestLimitsNotYetEnforced` (a parallel fixture at
@@ -918,7 +918,7 @@ fork does not author.
 
 - `internal/live/lint` decides whether a construct is inside the subset at
   all. Most of its rules have a hand-written entry above and the table links
-  to it. The three receipt-shape rules are specified in `live/RECEIPTS.md`
+  to it. The three receipt rules are specified in `live/RECEIPTS.md`
   instead. Two of its rules do evaluate expressions, since the `for_each`-key
   and overlong-address budgets both need the keys, so "before anything is
   evaluated" would be too strong.
@@ -1132,7 +1132,7 @@ when one points at a heading nobody wrote.
 
 Two limits on that, stated rather than left to be discovered. The
 documentation for four refusals lives outside this file. Three
-receipt-shape rules in `live/RECEIPTS.md` and the marker character-set rule
+receipt rules in `live/RECEIPTS.md` and the marker character-set rule
 in `live/MARKERS.md` - and the table's "Documented at" column says so. And
 the guarantee is over the registries, not over the source: what keeps a new
 diagnostic from escaping them is each package's own `refusalscan` test, not
@@ -2488,7 +2488,7 @@ are applied.
 **Some are swept via a parent read instead (issue #60).** An untaggable
 type whose identity is composed from an admitted, taggable parent's own
 identity, since a bucket policy's `bucket` is the same string as the bucket's
-own identity, and the same shape holds for a role, a topic, a queue, a
+own identity, and the same holds for a role, a topic, a queue, a
 route table or a hosted zone, does not need a marker of its own: reading
 the parent tells the sweep the child's identity too, so the child's live
 existence is one read away with no memory required. This is derived, not a
@@ -2496,7 +2496,7 @@ second hand list: `internal/live/identity`'s `ParentOf` reads the same
 `Components` every identity resolution already reads, matched against
 which admitted types are themselves taggable
 (`live/survey-full.json`'s signal here, the provider's own schema at run
-time), and `SingleParentComponent` narrows that to the shape where nothing
+time), and `SingleParentComponent` narrows that to the case where nothing
 besides the parent's value is needed, the "named-singleton child" the
 identity table's own comments already name for `aws_s3_bucket_policy` and
 `aws_sns_topic_policy`. <!-- survey-gen:begin untaggable-parent-read -->
@@ -2617,9 +2617,9 @@ destroying it. `aws_iam_role_policy` and `aws_iam_role_policy_attachment`
 each carry a second, free-standing argument the parent alone does not
 supply (the inline policy's own name, the attached policy's ARN).
 `aws_route`, `aws_route53_record`, `aws_route_table_association` and
-`aws_lb_target_group_attachment` are the same shape, one component short of
+`aws_lb_target_group_attachment` are the same, one component short of
 what the parent alone determines. The S3 siblings besides the policy,
-and the SNS/SQS policy pair, are structurally the named-singleton shape
+and the SNS/SQS policy pair, are structurally named-singleton children
 that would let a future pass wire them the same way `aws_s3_bucket_policy`
 was wired here, once each one's own "found vs. not found" provider
 behavior is checked the way the bucket policy's was. See

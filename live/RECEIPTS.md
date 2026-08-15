@@ -35,7 +35,7 @@ Guard 1 above. A record-backed resource's prior state comes from
 *plan diff* is exactly as visible either way. What moves is where the
 resource's *value* is read from, not whether a plan shows a change to it.
 Receipts stay off the record store because a receipt is deliberately
-AWS-shaped
+AWS-native
 (`aws_ssm_parameter`, `/tofu-receipts/<estate>/<effect>`) so its value stays
 readable with a plain `aws ssm get-parameter` by anyone with read-only IAM
 access and no `choudoufu` binary at all, whether a person, a script, or an

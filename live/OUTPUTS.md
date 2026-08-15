@@ -88,7 +88,7 @@ build memory for a fact the live system already answers, which is
 what `live/LIMITATIONS.md`'s recurring test names: "every banned
 feature exists to maintain or repair the store. That is the test for edge
 cases." An SSM-parameter mirror of a live attribute is a store by that
-test, even though it is shaped like a receipt.
+test, even though it looks like a receipt.
 
 Three concrete problems follow from treating it as one anyway.
 
