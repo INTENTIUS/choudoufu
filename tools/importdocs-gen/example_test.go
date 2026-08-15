@@ -459,6 +459,27 @@ resource "aws_thing" "x" {
 	}
 }
 
+// TestTemplateEscapesSurviveTheRoundTrip.
+// aws_ssoadmin_instance_access_control_attributes' example writes
+// source = ["$${path:name.givenName}"]: HCL evaluation unescapes the
+// element to ${path:...}, and spelling it back into the artifact's HCL
+// list without re-escaping produced source no consumer can parse.
+func TestTemplateEscapesSurviveTheRoundTrip(t *testing.T) {
+	doc := "## Example Usage\n\n```terraform\n" + `
+resource "aws_thing" "x" {
+  source = ["$${path:name.givenName}"]
+}
+` + "```\n"
+	args := exampleArguments(doc, "aws_thing")
+	got := argFor(args, "source")
+	if got == nil || !got.IsList {
+		t.Fatalf("source = %+v, want a list literal", got)
+	}
+	if got.Value != `["$${path:name.givenName}"]` {
+		t.Errorf("source = %s, want the template escape spelled back out", got.Value)
+	}
+}
+
 // TestLabelledNestedBlocksAreSkipped. A label is part of the block's
 // identity, and seeding one without knowing what the label means is a guess.
 func TestLabelledNestedBlocksAreSkipped(t *testing.T) {

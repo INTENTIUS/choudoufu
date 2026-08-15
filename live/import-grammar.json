@@ -128579,7 +128579,7 @@
             "value",
             "source"
           ],
-          "value": "[\"${path:name.givenName}\"]",
+          "value": "[\"$${path:name.givenName}\"]",
           "is_list": true
         },
         {
@@ -128597,7 +128597,7 @@
             "value",
             "source"
           ],
-          "value": "[\"${path:name.familyName}\"]",
+          "value": "[\"$${path:name.familyName}\"]",
           "is_list": true,
           "element": 1
         }

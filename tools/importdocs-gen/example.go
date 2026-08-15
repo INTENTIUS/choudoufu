@@ -482,6 +482,20 @@ func exampleEvalContext() *hcl.EvalContext {
 	}
 }
 
+// quoteHCLString spells a string VALUE as HCL string source, for the list
+// rendering whose whole Value is HCL a consumer writes raw. strconv.Quote
+// covers the C-style escapes, but ${ and %{ introduce templates in HCL, so
+// a literal value carrying one must escape it back out as $${ / %%{ - the
+// docs' own spelling. aws_ssoadmin_instance_access_control_attributes'
+// example writes source = ["$${path:name.givenName}"]; evaluation unescapes
+// the element to ${path:...}, and re-quoting it without the escape put
+// unparseable source in the artifact.
+func quoteHCLString(v string) string {
+	q := strconv.Quote(v)
+	q = strings.ReplaceAll(q, "${", "$${")
+	return strings.ReplaceAll(q, "%{", "%%{")
+}
+
 // renderLiteral turns a cty value into the artifact's rendering, refusing
 // anything it cannot spell exactly.
 func renderLiteral(path []string, val cty.Value) (ExampleArgument, bool) {
@@ -509,7 +523,7 @@ func renderLiteral(path []string, val cty.Value) (ExampleArgument, bool) {
 				return ExampleArgument{}, false
 			}
 			if inner.IsString {
-				elems = append(elems, strconv.Quote(inner.Value))
+				elems = append(elems, quoteHCLString(inner.Value))
 			} else {
 				elems = append(elems, inner.Value)
 			}

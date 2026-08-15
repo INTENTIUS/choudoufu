@@ -590,6 +590,63 @@ func TestSeedRefusesAnAttributeTheSiblingDoesNotExport(t *testing.T) {
 	}
 }
 
+// TestSeedEscapesTemplateSequencesInStringLiterals: a documented value can
+// itself contain ${ - the docs spell it "$${path:name.givenName}" and
+// evaluation unescapes it - so quoting it back into HCL must re-escape or
+// the generated expression does not parse (exprTokens panics; found by the
+// retirement measurement reaching a literal the committed override shadows).
+func TestSeedEscapesTemplateSequencesInStringLiterals(t *testing.T) {
+	g := seedGen("aws_thing", at(str("${path:name.givenName}"), "source_path"))
+	body := hclwrite.NewEmptyFile().Body()
+	schema := blockWith(map[string]*configschema.Attribute{"source_path": optString()}, nil)
+	if applied := g.seedFromExample(body, schema, "aws_thing"); len(applied) != 1 {
+		t.Fatalf("applied = %v, want [source_path]", applied)
+	}
+	if got := strings.TrimSpace(string(body.GetAttribute("source_path").Expr().BuildTokens(nil).Bytes())); got != `"$${path:name.givenName}"` {
+		t.Errorf("source_path = %s, want the template escape spelled back out", got)
+	}
+}
+
+// TestSeedShapesAReferenceToTheSlotsOwnType: the extractor records the
+// traversal and loses the expression around it, so the page's
+// `agent_arns = [aws_datasync_agent.example.arn]` arrives as a bare
+// reference. The slot's schema says the brackets back: a scalar sibling
+// attribute wired into a collection-of-strings slot is spelled [ref]
+// (terraform validate rejected the bare spelling on the data-movement
+// cohort: "set of string required, but have string"), and a shape with no
+// derivable spelling - a list attribute into a string slot - refuses, so
+// the block stays unwired rather than written wrong.
+func TestSeedShapesAReferenceToTheSlotsOwnType(t *testing.T) {
+	t.Run("scalar into a set slot is wrapped", func(t *testing.T) {
+		g := seedGenWithRoster("aws_thing",
+			map[string]*configschema.Block{"aws_other": exportsString("arn")},
+			ref("aws_other", "arn", "peer_arns"))
+		body := hclwrite.NewEmptyFile().Body()
+		schema := blockWith(map[string]*configschema.Attribute{
+			"peer_arns": {Type: cty.Set(cty.String), Optional: true},
+		}, nil)
+		if applied := g.seedFromExample(body, schema, "aws_thing"); len(applied) != 1 {
+			t.Fatalf("applied = %v, want [peer_arns]", applied)
+		}
+		if got := strings.TrimSpace(string(body.GetAttribute("peer_arns").Expr().BuildTokens(nil).Bytes())); got != "[aws_other.app.arn]" {
+			t.Errorf("peer_arns = %s, want [aws_other.app.arn]", got)
+		}
+	})
+
+	t.Run("collection into a scalar slot refuses", func(t *testing.T) {
+		g := seedGenWithRoster("aws_thing",
+			map[string]*configschema.Block{"aws_other": blockWith(map[string]*configschema.Attribute{
+				"arns": {Type: cty.List(cty.String), Computed: true},
+			}, nil)},
+			ref("aws_other", "arns", "peer_arn"))
+		body := hclwrite.NewEmptyFile().Body()
+		schema := blockWith(map[string]*configschema.Attribute{"peer_arn": optString()}, nil)
+		if applied := g.seedFromExample(body, schema, "aws_thing"); len(applied) != 0 {
+			t.Errorf("applied = %v; a list attribute has no spelling in a string slot", applied)
+		}
+	})
+}
+
 // TestSeedRefusesANonIdentityAttributeOnAnIdentityBoundSlot is commit
 // 55856b4473's rule, reached through the seed instead of through valueExpr.
 // aws_transfer_web_app_customization's web_app_id is one of its own identity

@@ -223,7 +223,7 @@ func (g *generator) seedFromExample(body *hclwrite.Body, block *configschema.Blo
 		}
 		prefix := blockPrefix(arg.Path)
 		hasRef[prefix] = true
-		expr, ok := g.seedRefExpr(tfType, arg)
+		expr, ok := g.seedRefExpr(tfType, block, arg)
 		if !ok || pathCount[joinPath(arg.Path)] > 1 {
 			unwired[prefix] = true
 			continue
@@ -359,7 +359,17 @@ func (g *generator) seedFromExample(body *hclwrite.Body, block *configschema.Blo
 //     identity-bound slot may only read an attribute in the sibling's own
 //     IdentityAttrs, and only when that identity IS the value it wants.
 //     Identity resolution refuses anything else outright.
-func (g *generator) seedRefExpr(selfType string, arg seedArgument) (string, bool) {
+//   - The slot's own schema type can hold the reference. The extractor
+//     records the traversal and loses the expression around it, so the
+//     page's `agent_arns = [aws_datasync_agent.example.arn]` arrives as a
+//     bare reference - and the slot's type says the list brackets back: a
+//     scalar sibling attribute wired into a collection-of-primitives slot
+//     is spelled [ref] (terraform validate rejected the bare spelling:
+//     "set of string required, but have string"), matching kinds pass
+//     through, and a shape with no derivable spelling - a collection into
+//     a scalar, a map or object slot - refuses, which keeps the block
+//     unwired rather than written wrong.
+func (g *generator) seedRefExpr(selfType string, block *configschema.Block, arg seedArgument) (string, bool) {
 	if !arg.Reference || arg.RefType == "" || arg.RefAttr == "" || len(arg.Path) == 0 {
 		return "", false
 	}
@@ -374,7 +384,8 @@ func (g *generator) seedRefExpr(selfType string, arg seedArgument) (string, bool
 	if !ok || res.Block == nil {
 		return "", false
 	}
-	if a, ok := res.Block.Attributes[arg.RefAttr]; !ok || a == nil {
+	sib, ok := res.Block.Attributes[arg.RefAttr]
+	if !ok || sib == nil {
 		return "", false
 	}
 	leaf := arg.Path[len(arg.Path)-1]
@@ -386,7 +397,40 @@ func (g *generator) seedRefExpr(selfType string, arg seedArgument) (string, bool
 	if !refAttrAllowed(arg.RefType, leaf, arg.RefAttr, identityBound) {
 		return "", false
 	}
-	return addr.String() + "." + arg.RefAttr, true
+	slot := attrAtPath(block, arg.Path)
+	if slot == nil {
+		return "", false
+	}
+	expr := addr.String() + "." + arg.RefAttr
+	slotT, sibT := slot.Type, sib.Type
+	switch {
+	case slotT.IsPrimitiveType() && sibT.IsPrimitiveType():
+		return expr, true
+	case (slotT.IsListType() || slotT.IsSetType()) && slotT.ElementType().IsPrimitiveType():
+		if sibT.IsPrimitiveType() {
+			return "[" + expr + "]", true
+		}
+		if sibT.IsListType() || sibT.IsSetType() || sibT.IsTupleType() {
+			return expr, true
+		}
+	}
+	return "", false
+}
+
+// attrAtPath walks a schema's nested blocks along path[:len-1] and returns
+// the attribute the last element names, or nil when any step is not a block
+// or the leaf is not an attribute - the safe answer for a shape this walk
+// cannot see.
+func attrAtPath(block *configschema.Block, path []string) *configschema.Attribute {
+	cur := block
+	for _, step := range path[:len(path)-1] {
+		nb, ok := cur.BlockTypes[step]
+		if !ok || nb == nil {
+			return nil
+		}
+		cur = &nb.Block
+	}
+	return cur.Attributes[path[len(path)-1]]
 }
 
 // blockPrefix is the block an argument's leaf sits in - "" for a top-level
@@ -512,9 +556,23 @@ func isGenericPlaceholder(attr *hclwrite.Attribute, ty cty.Type) bool {
 // seedLiteral renders the value as HCL source.
 func seedLiteral(arg seedArgument) string {
 	if arg.IsString {
-		return strconv.Quote(arg.Value)
+		return quoteHCL(arg.Value)
 	}
 	return arg.Value
+}
+
+// quoteHCL spells a string VALUE as HCL string source. strconv.Quote covers
+// the C-style escapes, but ${ and %{ introduce templates in HCL, so a
+// literal value carrying one must escape it back out as $${ / %%{ - the
+// docs' own spelling. aws_ssoadmin_instance_access_control_attributes'
+// example writes "$${path:name.givenName}"; evaluation unescapes it to
+// ${path:...}, and re-quoting that without the escape produced source
+// exprTokens could not parse (found by the retirement measurement, which
+// reaches seed literals the committed overrides normally shadow).
+func quoteHCL(v string) string {
+	q := strconv.Quote(v)
+	q = strings.ReplaceAll(q, "${", "$${")
+	return strings.ReplaceAll(q, "%{", "%%{")
 }
 
 func joinPath(path []string) string {
