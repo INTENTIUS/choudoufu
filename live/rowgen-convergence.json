@@ -4,12 +4,12 @@
     "admitted_total": 843,
     "compared": 822,
     "not_in_mapped_set": 21,
-    "adopted_unchanged": 629,
-    "adopted_unchanged_pct": 76.52,
-    "genuine_mismatches": 193,
+    "adopted_unchanged": 638,
+    "adopted_unchanged_pct": 77.62,
+    "genuine_mismatches": 184,
     "annotated": 0,
-    "unannotated_mismatches": 193,
-    "scrape_gap_mismatches": 117
+    "unannotated_mismatches": 184,
+    "scrape_gap_mismatches": 115
   },
   "by_service": {
     "ACMPCA": {
@@ -324,8 +324,8 @@
     },
     "EKS": {
       "compared": 7,
-      "adopted_unchanged": 1,
-      "adopted_unchanged_pct": 14.29
+      "adopted_unchanged": 5,
+      "adopted_unchanged_pct": 71.43
     },
     "EMR": {
       "compared": 3,
@@ -424,8 +424,8 @@
     },
     "IAM": {
       "compared": 16,
-      "adopted_unchanged": 10,
-      "adopted_unchanged_pct": 62.5
+      "adopted_unchanged": 11,
+      "adopted_unchanged_pct": 68.75
     },
     "IVS": {
       "compared": 2,
@@ -519,8 +519,8 @@
     },
     "Logs": {
       "compared": 13,
-      "adopted_unchanged": 8,
-      "adopted_unchanged_pct": 61.54
+      "adopted_unchanged": 12,
+      "adopted_unchanged_pct": 92.31
     },
     "M2": {
       "compared": 2,
@@ -2374,15 +2374,9 @@
     {
       "tf_type": "aws_cloudwatch_log_account_policy",
       "service": "Logs",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "components"
-      ],
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
-      "matched": false,
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order taken from the provider's own Identity Schema and corroborated against the example's segments",
+      "matched": true,
       "annotated": false
     },
     {
@@ -2455,15 +2449,9 @@
     {
       "tf_type": "aws_cloudwatch_log_metric_filter",
       "service": "Logs",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "components"
-      ],
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
-      "matched": false,
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order taken from the provider's own Identity Schema and corroborated against the example's segments",
+      "matched": true,
       "annotated": false
     },
     {
@@ -2483,29 +2471,17 @@
     {
       "tf_type": "aws_cloudwatch_log_stream",
       "service": "Logs",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "components"
-      ],
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
-      "matched": false,
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order taken from the provider's own Identity Schema and corroborated against the example's segments",
+      "matched": true,
       "annotated": false
     },
     {
       "tf_type": "aws_cloudwatch_log_subscription_filter",
       "service": "Logs",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "components"
-      ],
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
-      "matched": false,
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order taken from the provider's own Identity Schema and corroborated against the example's segments",
+      "matched": true,
       "annotated": false
     },
     {
@@ -4456,31 +4432,24 @@
     {
       "tf_type": "aws_eks_addon",
       "service": "EKS",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order taken from the provider's own Identity Schema and corroborated against the example's segments",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
       "tf_type": "aws_eks_capability",
       "service": "EKS",
-      "proposed_bucket": "evidence-only",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order taken from the provider's own Identity Schema and corroborated against the example's segments",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -4497,32 +4466,25 @@
     {
       "tf_type": "aws_eks_fargate_profile",
       "service": "EKS",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order taken from the provider's own Identity Schema and corroborated against the example's segments",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
       "tf_type": "aws_eks_node_group",
       "service": "EKS",
-      "proposed_bucket": "evidence-only",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order taken from the provider's own Identity Schema and corroborated against the example's segments",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -5320,16 +5282,13 @@
     {
       "tf_type": "aws_iam_role_policy",
       "service": "IAM",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order taken from the provider's own Identity Schema and corroborated against the example's segments",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {

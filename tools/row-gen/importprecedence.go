@@ -231,6 +231,106 @@ func tryGrammarComposite(p *proposal, g importGrammarRow) bool {
 		p.Rule = "import-grammar precedence: composed_of_arguments, multi-argument, order recovered from the doc's format-string prose (the example's own segments were too opaque to match by value)"
 		return true
 	}
+
+	// Third fallback (issue #134): the provider's own Identity Schema is an
+	// ORDERED list, present on 441 rows, and it settles the order the two
+	// passes above could not.
+	//
+	// aws_iam_role_policy is the shape. Its example is
+	// "role_of_mypolicy_name:mypolicy_name" and its arguments are
+	// ["name","role"]; both segments contain the token "name", so the
+	// value-token bijection is ambiguous and declines. Its
+	// identity_schema_required is ["role","name"] - which is the example's
+	// own order, from the provider rather than from a guess.
+	//
+	// Arity alone must not be enough, and aws_ssoadmin_account_assignment is
+	// why: six segments, arity matches, and the schema's order is NOT the
+	// example's. So the order has to be corroborated, not merely fitted -
+	// see identitySchemaOrderCorroborated.
+	if order, ok := identitySchemaOrder(g); ok {
+		setClientNamedComposite(p, order, *g.Separator, g)
+		p.Rule = "import-grammar precedence: composed_of_arguments, multi-argument, order taken from the provider's own Identity Schema and corroborated against the example's segments"
+		return true
+	}
+	return false
+}
+
+// identitySchemaOrder is the third fallback's whole test. It returns the
+// argument order the provider's Identity Schema states, and whether that
+// order is safe to use.
+//
+// Three conditions, all required:
+//
+//  1. The schema's required attributes are the same SET as the grammar row's
+//     own argument list. A schema naming something the arguments do not is
+//     describing a different identity, not a reordering of this one.
+//  2. Their count equals the number of segments the example splits into.
+//     Same arity discipline the ArgumentsInOrder branch above holds.
+//  3. At least one segment bijects unambiguously to its schema-ordered
+//     position by value token. This is the corroboration: an order that fits
+//     the arity but matches no segment anywhere is a coincidence of length,
+//     and aws_ssoadmin_account_assignment is exactly that - its six
+//     identity attributes are a real set in a different order from the
+//     documented example.
+func identitySchemaOrder(g importGrammarRow) ([]string, bool) {
+	req := g.IdentitySchemaRequired
+	if len(req) < 2 || g.Separator == nil {
+		return nil, false
+	}
+	if !sameStringSet(req, g.Arguments) {
+		return nil, false
+	}
+	segments := strings.Split(g.ImportIDExample, *g.Separator)
+	if len(segments) != len(req) {
+		return nil, false
+	}
+	if !anySegmentCorroboratesOrder(segments, req) {
+		return nil, false
+	}
+	return append([]string(nil), req...), true
+}
+
+// anySegmentCorroboratesOrder reports whether at least one (segment,
+// argument) pair at the same index shares a name token, and no pair at the
+// same index is positively contradicted by matching a DIFFERENT argument
+// instead.
+//
+// The positive half is the corroboration. The negative half is what refuses
+// aws_ssoadmin_account_assignment, whose example leads with a principal id
+// while its schema leads with instance_arn: that segment matches
+// "principal_id"'s token and not "instance_arn"'s, so the order is
+// contradicted rather than merely unconfirmed.
+func anySegmentCorroboratesOrder(segments, order []string) bool {
+	corroborated := false
+	for i, seg := range segments {
+		lower := strings.ToLower(seg)
+		if segmentNamesArgument(lower, order[i]) {
+			corroborated = true
+			continue
+		}
+		for j, other := range order {
+			if j != i && segmentNamesArgument(lower, other) {
+				return false // this segment belongs at another position
+			}
+		}
+	}
+	return corroborated
+}
+
+// segmentNamesArgument reports whether an example segment's text carries a
+// token from the argument's own name - "example-cluster" for "cluster_name",
+// "role_of_mypolicy_name" for "role". Tokens shorter than four characters
+// are skipped: "id", "arn" and "name" appear in almost every segment and
+// would corroborate anything.
+func segmentNamesArgument(lowerSegment, argument string) bool {
+	for _, token := range strings.Split(argument, "_") {
+		if len(token) < 4 {
+			continue
+		}
+		if strings.Contains(lowerSegment, token) {
+			return true
+		}
+	}
 	return false
 }
 
