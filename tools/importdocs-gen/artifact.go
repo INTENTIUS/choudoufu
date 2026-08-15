@@ -83,6 +83,20 @@ type Row struct {
 	// itself.
 	IdentitySchemaRequired []string `json:"identity_schema_required,omitempty"`
 	IdentitySchemaOptional []string `json:"identity_schema_optional,omitempty"`
+
+	// IDParts is the documented import ID's per-segment source attribution
+	// (issue #132): each segment name the Import section's own prose gives,
+	// attributed to the doc section that defines it - an Argument Reference
+	// entry (configuration supplies it) or an Attribute Reference entry
+	// (the server supplies it; the doc says so itself). Present only when
+	// the prose names every segment of the documented example under the
+	// resolved separator - see idParts. This is what distinguishes
+	// aws_connect_queue's "instance_id:queue_id" (queue_id is an exported
+	// attribute; the ID is not reconstructible from configuration) from
+	// aws_lambda_alias's structurally identical-looking "function_name/
+	// alias" (alias is prose shorthand for the `name` argument, which
+	// resolves to neither section and stays "unknown").
+	IDParts []IDPart `json:"id_parts,omitempty"`
 }
 
 // Counts are the sweep-wide totals a reviewer reads off the header without
@@ -172,6 +186,7 @@ func buildRow(tfType, doc string) (Row, bool) {
 			cr.Separator = &sep
 		}
 	}
+	parts := idParts(section, cr.Separator, idExample, argNames, attributeReferenceNames(doc))
 	return Row{
 		TFType:                 tfType,
 		ImportIDExample:        idExample,
@@ -184,6 +199,7 @@ func buildRow(tfType, doc string) (Row, bool) {
 		ArgumentsInOrder:       cr.ArgumentsInOrder,
 		IdentitySchemaRequired: idReq,
 		IdentitySchemaOptional: idOpt,
+		IDParts:                parts,
 	}, true
 }
 

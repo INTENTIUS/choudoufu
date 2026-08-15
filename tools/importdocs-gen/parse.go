@@ -151,6 +151,36 @@ func identitySchemaOptional(section string) []string {
 	return dedupe(bulletNameRe.FindAllStringSubmatch(rest[:end], -1), 1)
 }
 
+// attrHeadingRe matches the doc's top-level attribute-listing heading, the
+// Attribute Reference sibling of argHeadingRe: most resources use
+// "## Attribute Reference", older docs pluralize it "## Attributes
+// Reference".
+var attrHeadingRe = regexp.MustCompile(`(?m)^## Attributes? Reference\s*$`)
+
+// attributeReferenceNames returns the resource's top-level exported
+// attribute names: the bullets under "## Attribute Reference", with the same
+// boundary rule argumentReferenceNames holds itself to (stop at the next
+// "## " heading and at the first "### " sub-heading - a nested block's own
+// attributes are never import-ID material). These are the names the doc
+// itself declares server-provided ("In addition to all arguments above, the
+// following attributes are exported"), which is what lets an Import
+// section's own prose token be attributed to the server rather than to
+// configuration - see idParts.
+func attributeReferenceNames(doc string) []string {
+	loc := attrHeadingRe.FindStringIndex(doc)
+	if loc == nil {
+		return nil
+	}
+	rest := doc[loc[1]:]
+	if end := strings.Index(rest, "\n## "); end != -1 {
+		rest = rest[:end]
+	}
+	if end := strings.Index(rest, "\n### "); end != -1 {
+		rest = rest[:end]
+	}
+	return dedupe(bulletNameRe.FindAllStringSubmatch(rest, -1), 1)
+}
+
 // forceNewPhraseRe matches either spelling the provider's docs use for a
 // ForceNew argument's own parenthetical marker: the literal SDK term
 // "ForceNew" itself (a handful of resources spell it this way verbatim) or
@@ -584,6 +614,91 @@ func classifyGrammar(section string, argNames []string) composedResult {
 	sort.Strings(result.Arguments)
 	result.Arguments = dedupeStrings(result.Arguments)
 	return result
+}
+
+// IDPart is one segment of the documented import ID as the Import section's
+// own prose names it, attributed back to the section of the doc that owns
+// the name (issue #132's per-segment source attribution: the exit for the
+// Connect-family shape, where "using the `instance_id` and `queue_id`
+// separated by a colon" names two segments of which only one is a
+// configuration argument - the flat Arguments list cannot say which kind
+// the other one is, and that distinction is the whole question of whether
+// the ID is reconstructible from configuration).
+type IDPart struct {
+	// Token is the doc's own spelling of the segment name, verbatim
+	// ("instance_id", "queue_id", "ID", "alias").
+	Token string `json:"token"`
+
+	// Source is where the doc itself defines that name:
+	//   - "argument": a top-level Argument Reference entry - configuration
+	//     supplies this segment;
+	//   - "attribute": a top-level Attribute Reference entry and NOT an
+	//     argument - the server supplies this segment, the doc says so
+	//     itself;
+	//   - "unknown": neither section defines the token (aws_lambda_alias's
+	//     "alias", which is prose shorthand for the `name` argument) - no
+	//     claim either way.
+	Source string `json:"source"`
+}
+
+// IDPart.Source's three values.
+const (
+	idPartSourceArgument  = "argument"
+	idPartSourceAttribute = "attribute"
+	idPartSourceUnknown   = "unknown"
+)
+
+// idParts extracts the documented import ID's per-segment source
+// attribution. The segment names come from the Import section's own prose,
+// strongest signal first: a multi-segment format token ("using
+// `ID/Name/Scope`", "using the `server_id/agreement_id`"), else the
+// backtick-quoted names a "separated by (`:`)" sentence lists ("using the
+// `instance_id` and `queue_id` separated by a colon (`:`)"). Nothing is
+// returned unless the named segments account for every segment of the
+// documented example under the resolved separator - the same arity
+// discipline issue #39's aws_route trap demands: a partial name list is not
+// a statement about the whole ID.
+//
+// sep is the row's final Separator (after buildRow's own fallbacks), not
+// classifyGrammar's intermediate one, so a separator recovered from the
+// example string itself still gates the arity here.
+func idParts(section string, sep *string, example string, argNames, attrNames []string) []IDPart {
+	if sep == nil || example == "" {
+		return nil
+	}
+	tokens, _, ok := formatToken(section)
+	if !ok {
+		if _, clause, clauseOK := separatedByClause(section); clauseOK && len(clause) >= 2 {
+			tokens = clause
+		}
+	}
+	if len(tokens) < 2 {
+		return nil
+	}
+	if len(strings.Split(example, *sep)) != len(tokens) {
+		return nil // the named segments do not account for the whole example
+	}
+	args := map[string]bool{}
+	for _, a := range argNames {
+		args[normalize(a)] = true
+	}
+	attrs := map[string]bool{}
+	for _, a := range attrNames {
+		attrs[normalize(a)] = true
+	}
+	out := make([]IDPart, len(tokens))
+	for i, t := range tokens {
+		n := normalize(t)
+		switch {
+		case args[n]:
+			out[i] = IDPart{Token: t, Source: idPartSourceArgument}
+		case attrs[n]:
+			out[i] = IDPart{Token: t, Source: idPartSourceAttribute}
+		default:
+			out[i] = IDPart{Token: t, Source: idPartSourceUnknown}
+		}
+	}
+	return out
 }
 
 func unionStrings(a, b []string) []string {

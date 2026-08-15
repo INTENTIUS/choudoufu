@@ -67,6 +67,11 @@ import (
 //     shape: a server-assigned registry claim (Arn is read-only) whose
 //     classic import example nonetheless names a Required argument
 //     directly.
+//     Between rules 3 and 4 sits tryDocNamedServerSegment (issue #132): a
+//     needs-hand-separator proposal whose doc names every segment of the
+//     documented example and attributes one to the Attribute Reference is
+//     server-assigned outright, refuting the argument reconstructions rules
+//     4 and 5 would otherwise attempt - see its own doc comment.
 //  4. tryArgumentReferenceComposite: the still-needs-hand-separator
 //     sibling of rule 3, for a documented example that does split - tries
 //     every candidate separator against the Argument Reference's own
@@ -139,6 +144,7 @@ func applyImportGrammarPrecedence(proposals []proposal, importGrammar map[string
 		case p.Bucket != bucketClientNamed && tryGrammarComposite(p, g):
 		case p.Bucket == bucketEvidenceOnly && tryArgumentReferenceConfirmedGuess(p, g):
 		case p.Bucket != bucketClientNamed && p.Bucket != bucketComposite && tryArgumentReferenceValueMatch(p, g):
+		case p.Bucket == bucketNeedsHandSeparator && tryDocNamedServerSegment(p, g):
 		case p.Bucket == bucketNeedsHandSeparator && tryArgumentReferenceComposite(p, g):
 		case p.Bucket == bucketNeedsHandSeparator && tryRegistryComposite(p, g):
 		case p.Bucket == bucketNeedsHandSeparator && tryOpaqueOverride(p, g):
@@ -575,6 +581,45 @@ func tryArgumentReferenceValueMatch(p *proposal, g importGrammarRow) bool {
 	p.ArgSource = argSourceArgumentReference
 	p.Rule = "import-grammar precedence: the documented example's own text embeds exactly one Required argument's name, confirming it over the registry's own primaryIdentifier claim"
 	p.Notes = append(p.Notes, fmt.Sprintf("import docs example %q embeds the Required argument %q; superseding the registry-only classification", g.ImportIDExample, match))
+	return true
+}
+
+// tryDocNamedServerSegment sits between rules 3 and 4, for a still-needs-
+// hand-separator proposal (the registry claims a composite primaryIdentifier
+// that is not wholly read-only, so classify.go could settle nothing): when
+// the Import section's own prose names every segment of the documented
+// example and attributes at least one to the doc's own Attribute Reference
+// (importdocs-gen's per-segment attribution, issue #132), the ID carries a
+// server-provided value no configuration argument supplies, so no
+// argument-reconstruction rule below can ever be right about this type -
+// the identity is server-assigned, discovered by listing, exactly what
+// WAFv2's "using `ID/Name/Scope`" (ID is the exported attribute) and
+// Transfer's "using the `server_id/agreement_id`" (agreement_id exported)
+// say outright. Tried before rules 4 and 5 because both try to reconstruct
+// a composite from argument names, and a doc-named server segment refutes
+// that reconstruction at the source: aws_ssoadmin_permission_set's example
+// happens to token-match the registry's two-ARN primaryIdentifier under
+// rule 5, but its own doc names the first segment `arn` - the exported
+// attribute - so the composite that reconstruction builds is one the
+// provider never accepts from configuration alone.
+//
+// Claims no IdentityAttrs: which exported attribute (if any single one)
+// equals the whole joined ID is issue #44's declared non-goal, same as
+// every other server-assigned path here. The ImportSyntax placeholder is
+// the prose's own segment names, uppercased around the pinned separator -
+// documentation only, per TypeIdentity's doc comment.
+func tryDocNamedServerSegment(p *proposal, g importGrammarRow) bool {
+	if !docNamesServerSegment(g) || g.Separator == nil {
+		return false
+	}
+	tokens := make([]string, len(g.IDParts))
+	for i, part := range g.IDParts {
+		tokens[i] = strings.ToUpper(part.Token)
+	}
+	p.Bucket = bucketServerAssigned
+	p.DerivedImportSyntax = strings.Join(tokens, *g.Separator)
+	p.Rule = "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration"
+	p.Notes = append(p.Notes, fmt.Sprintf("import docs name the ID's segments and attribute %s to the Attribute Reference, not the Argument Reference; a server-provided segment makes the identity server-assigned despite the registry's composite primaryIdentifier %s", serverSegmentTokens(g), quoteList(p.PrimaryIdentifier)))
 	return true
 }
 

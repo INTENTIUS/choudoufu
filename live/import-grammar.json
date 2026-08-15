@@ -134,6 +134,16 @@
       "arguments_in_doc_order": [
         "analyzer_name",
         "rule_name"
+      ],
+      "id_parts": [
+        {
+          "token": "analyzer_name",
+          "source": "argument"
+        },
+        {
+          "token": "rule_name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -1403,6 +1413,16 @@
           "name": "type",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "REST-API-ID",
+          "source": "argument"
+        },
+        {
+          "token": "AUTHORIZER-ID",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -1509,6 +1529,16 @@
           "name": "variables",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "REST-API-ID",
+          "source": "argument"
+        },
+        {
+          "token": "DEPLOYMENT-ID",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -1571,6 +1601,16 @@
           "name": "rest_api_id",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "REST-API-ID",
+          "source": "argument"
+        },
+        {
+          "token": "DOC-PART-ID",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -1622,6 +1662,16 @@
       "arguments_in_doc_order": [
         "rest_api_id",
         "version"
+      ],
+      "id_parts": [
+        {
+          "token": "REST-API-ID",
+          "source": "argument"
+        },
+        {
+          "token": "VERSION",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -1812,6 +1862,16 @@
       "arguments_in_doc_order": [
         "rest_api_id",
         "response_type"
+      ],
+      "id_parts": [
+        {
+          "token": "REST-API-ID",
+          "source": "argument"
+        },
+        {
+          "token": "RESPONSE-TYPE",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -1945,6 +2005,20 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "REST-API-ID",
+          "source": "argument"
+        },
+        {
+          "token": "RESOURCE-ID",
+          "source": "argument"
+        },
+        {
+          "token": "HTTP-METHOD",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -2012,6 +2086,24 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "REST-API-ID",
+          "source": "argument"
+        },
+        {
+          "token": "RESOURCE-ID",
+          "source": "argument"
+        },
+        {
+          "token": "HTTP-METHOD",
+          "source": "argument"
+        },
+        {
+          "token": "STATUS-CODE",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -2106,6 +2198,20 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "REST-API-ID",
+          "source": "argument"
+        },
+        {
+          "token": "RESOURCE-ID",
+          "source": "argument"
+        },
+        {
+          "token": "HTTP-METHOD",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -2175,6 +2281,24 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "REST-API-ID",
+          "source": "argument"
+        },
+        {
+          "token": "RESOURCE-ID",
+          "source": "argument"
+        },
+        {
+          "token": "HTTP-METHOD",
+          "source": "argument"
+        },
+        {
+          "token": "STATUS-CODE",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -2314,6 +2438,16 @@
       "arguments_in_doc_order": [
         "rest_api_id",
         "name"
+      ],
+      "id_parts": [
+        {
+          "token": "REST-API-ID",
+          "source": "argument"
+        },
+        {
+          "token": "NAME",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -2370,6 +2504,16 @@
           "name": "validate_request_parameters",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "REST-API-ID",
+          "source": "argument"
+        },
+        {
+          "token": "REQUEST-VALIDATOR-ID",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -2416,6 +2560,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "REST-API-ID",
+          "source": "argument"
+        },
+        {
+          "token": "RESOURCE-ID",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -2671,6 +2825,16 @@
       "arguments_in_doc_order": [
         "rest_api_id",
         "stage_name"
+      ],
+      "id_parts": [
+        {
+          "token": "REST-API-ID",
+          "source": "argument"
+        },
+        {
+          "token": "STAGE-NAME",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -2809,6 +2973,16 @@
         {
           "name": "usage_plan_id",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "USAGE-PLAN-ID",
+          "source": "argument"
+        },
+        {
+          "token": "USAGE-PLAN-KEY-ID",
+          "source": "unknown"
         }
       ]
     },
@@ -4516,6 +4690,16 @@
           "name": "tenant_id",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "app_bundle_identifier",
+          "source": "unknown"
+        },
+        {
+          "token": "arn",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -5534,6 +5718,16 @@
           "name": "service_arn",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "domain_name",
+          "source": "argument"
+        },
+        {
+          "token": "service_arn",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -6092,6 +6286,16 @@
           "name": "stack_name",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "fleet_name",
+          "source": "argument"
+        },
+        {
+          "token": "stack_name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -6524,6 +6728,16 @@
           "name": "send_email_notification",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "user_name",
+          "source": "argument"
+        },
+        {
+          "token": "authentication_type",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -6557,6 +6771,20 @@
         {
           "name": "send_email_notification",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "user_name",
+          "source": "argument"
+        },
+        {
+          "token": "authentication_type",
+          "source": "argument"
+        },
+        {
+          "token": "stack_name",
+          "source": "argument"
         }
       ]
     },
@@ -6786,6 +7014,16 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "api_id",
+          "source": "argument"
+        },
+        {
+          "token": "name",
+          "source": "argument"
         }
       ]
     },
@@ -7280,6 +7518,16 @@
         {
           "name": "source_api_id",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "association_id",
+          "source": "attribute"
+        },
+        {
+          "token": "merged_api_id",
+          "source": "argument"
         }
       ]
     },
@@ -7846,6 +8094,16 @@
         {
           "name": "description",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "WORKGROUP-NAME",
+          "source": "unknown"
+        },
+        {
+          "token": "STATEMENT-NAME",
+          "source": "unknown"
         }
       ]
     },
@@ -8893,6 +9151,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "autoscaling_group_name",
+          "source": "argument"
+        },
+        {
+          "token": "name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -9026,6 +9294,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "autoscaling_group_name",
+          "source": "argument"
+        },
+        {
+          "token": "name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -9134,6 +9412,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "autoscaling_group_name",
+          "source": "argument"
+        },
+        {
+          "token": "scheduled_action_name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -9176,6 +9464,20 @@
         {
           "name": "type",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "autoscaling_group_name",
+          "source": "argument"
+        },
+        {
+          "token": "traffic_source_type",
+          "source": "unknown"
+        },
+        {
+          "token": "traffic_source_identifier",
+          "source": "unknown"
         }
       ]
     },
@@ -10039,6 +10341,16 @@
       "arguments_in_doc_order": [
         "name",
         "restore_testing_plan_name"
+      ],
+      "id_parts": [
+        {
+          "token": "name",
+          "source": "argument"
+        },
+        {
+          "token": "restore_testing_plan_name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -10125,6 +10437,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "plan_id",
+          "source": "argument"
+        },
+        {
+          "token": "id",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -12919,6 +13241,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "gateway_identifier",
+          "source": "argument"
+        },
+        {
+          "token": "rule_id",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -13525,6 +13857,16 @@
         {
           "name": "region",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "memory_id",
+          "source": "argument"
+        },
+        {
+          "token": "strategy_id",
+          "source": "unknown"
         }
       ]
     },
@@ -14178,6 +14520,16 @@
           "name": "time_period_start",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "AccountID",
+          "source": "argument"
+        },
+        {
+          "token": "BudgetName",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -14287,6 +14639,20 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "AccountID",
+          "source": "argument"
+        },
+        {
+          "token": "ActionID",
+          "source": "attribute"
+        },
+        {
+          "token": "BudgetName",
+          "source": "argument"
         }
       ]
     },
@@ -18992,6 +19358,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "resource_arn",
+          "source": "argument"
+        },
+        {
+          "token": "template_name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -19688,6 +20064,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "event_bus_name",
+          "source": "argument"
+        },
+        {
+          "token": "rule_name",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -19894,6 +20280,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "policy_name",
+          "source": "argument"
+        },
+        {
+          "token": "policy_type",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -20492,6 +20888,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "log_group_name",
+          "source": "argument"
+        },
+        {
+          "token": "name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -20588,6 +20994,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "integration_arn",
+          "source": "argument"
+        },
+        {
+          "token": "id",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -20666,6 +21082,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "log_group_name",
+          "source": "argument"
+        },
+        {
+          "token": "name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -20757,6 +21183,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "log_group_name",
+          "source": "argument"
+        },
+        {
+          "token": "name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -22232,6 +22668,16 @@
         {
           "name": "repository_name",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "approval_rule_template_name",
+          "source": "argument"
+        },
+        {
+          "token": "repository_name",
+          "source": "argument"
         }
       ]
     },
@@ -23911,6 +24357,16 @@
           "name": "use_cognito_provided_values",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "user_pool_id",
+          "source": "argument"
+        },
+        {
+          "token": "managed_login_branding_id",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -24606,6 +25062,16 @@
           "name": "user_pool_id",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "user_pool_id",
+          "source": "argument"
+        },
+        {
+          "token": "client_id",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -24944,6 +25410,16 @@
       "arguments_in_doc_order": [
         "account_id",
         "authorized_aws_region"
+      ],
+      "id_parts": [
+        {
+          "token": "account_id",
+          "source": "argument"
+        },
+        {
+          "token": "authorized_aws_region",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -25984,6 +26460,16 @@
           "required": false,
           "force_new": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "instance_id",
+          "source": "argument"
+        },
+        {
+          "token": "contact_flow_id",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -26057,6 +26543,16 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "instance_id",
+          "source": "argument"
+        },
+        {
+          "token": "contact_flow_module_id",
+          "source": "attribute"
         }
       ]
     },
@@ -26228,6 +26724,16 @@
           "name": "minutes",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "instance_id",
+          "source": "argument"
+        },
+        {
+          "token": "hours_of_operation_id",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -26368,6 +26874,20 @@
           "name": "storage_config",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "instance_id",
+          "source": "argument"
+        },
+        {
+          "token": "association_id",
+          "source": "attribute"
+        },
+        {
+          "token": "resource_type",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -26392,6 +26912,16 @@
         {
           "name": "instance_id",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "instance_id",
+          "source": "argument"
+        },
+        {
+          "token": "function_arn",
+          "source": "argument"
         }
       ]
     },
@@ -26490,6 +27020,20 @@
           "name": "region",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "phone_number_id",
+          "source": "argument"
+        },
+        {
+          "token": "instance_id",
+          "source": "argument"
+        },
+        {
+          "token": "contact_flow_id",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -26583,6 +27127,16 @@
         {
           "name": "outbound_flow_id",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "instance_id",
+          "source": "argument"
+        },
+        {
+          "token": "queue_id",
+          "source": "attribute"
         }
       ]
     },
@@ -26691,6 +27245,16 @@
         {
           "name": "user_id",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "instance_id",
+          "source": "argument"
+        },
+        {
+          "token": "quick_connect_id",
+          "source": "attribute"
         }
       ]
     },
@@ -26844,6 +27408,16 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "instance_id",
+          "source": "argument"
+        },
+        {
+          "token": "routing_profile_id",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -26902,6 +27476,16 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "instance_id",
+          "source": "argument"
+        },
+        {
+          "token": "security_profile_id",
+          "source": "attribute"
         }
       ]
     },
@@ -27040,6 +27624,16 @@
           "name": "phone_type",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "instance_id",
+          "source": "argument"
+        },
+        {
+          "token": "user_id",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -27087,6 +27681,16 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "instance_id",
+          "source": "argument"
+        },
+        {
+          "token": "hierarchy_group_id",
+          "source": "attribute"
         }
       ]
     },
@@ -27219,6 +27823,16 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "instance_id",
+          "source": "argument"
+        },
+        {
+          "token": "vocabulary_id",
+          "source": "attribute"
         }
       ]
     },
@@ -29037,6 +29651,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "domain_identifier",
+          "source": "argument"
+        },
+        {
+          "token": "name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -29222,6 +29846,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "domain_identifier",
+          "source": "argument"
+        },
+        {
+          "token": "id",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -29275,6 +29909,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "domain_id",
+          "source": "argument"
+        },
+        {
+          "token": "environment_blueprint_id",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -29703,6 +30347,20 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "user_identifier",
+          "source": "argument"
+        },
+        {
+          "token": "domain_identifier",
+          "source": "argument"
+        },
+        {
+          "token": "type",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -30970,6 +31628,16 @@
       "arguments_in_doc_order": [
         "db_proxy_name",
         "db_proxy_endpoint_name"
+      ],
+      "id_parts": [
+        {
+          "token": "DB-PROXY-NAME",
+          "source": "argument"
+        },
+        {
+          "token": "DB-PROXY-ENDPOINT-NAME",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -36137,6 +36805,16 @@
           "name": "table_name",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "table_name",
+          "source": "argument"
+        },
+        {
+          "token": "stream_arn",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -36616,6 +37294,16 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "table-name",
+          "source": "unknown"
+        },
+        {
+          "token": "main-region",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -36739,6 +37427,16 @@
         {
           "name": "snapshot_id",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "availability_zone",
+          "source": "argument"
+        },
+        {
+          "token": "snapshot_id",
+          "source": "argument"
         }
       ]
     },
@@ -37910,6 +38608,16 @@
           "name": "prefix_list_id",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "prefix_list_id",
+          "source": "argument"
+        },
+        {
+          "token": "cidr",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -38245,6 +38953,16 @@
           "name": "description",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "SUBNET_ID",
+          "source": "argument"
+        },
+        {
+          "token": "RESERVATION_ID",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -38437,6 +39155,16 @@
         {
           "name": "to_port",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "traffic_mirror_filter_id",
+          "source": "argument"
+        },
+        {
+          "token": "id",
+          "source": "attribute"
         }
       ]
     },
@@ -40767,6 +41495,20 @@
           "name": "wait_until_stable_timeout",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "task_set_id",
+          "source": "attribute"
+        },
+        {
+          "token": "service",
+          "source": "argument"
+        },
+        {
+          "token": "cluster",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -41346,6 +42088,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "cluster_name",
+          "source": "argument"
+        },
+        {
+          "token": "addon_name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -41444,6 +42196,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "cluster_name",
+          "source": "argument"
+        },
+        {
+          "token": "capability_name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -41648,6 +42410,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "cluster_name",
+          "source": "argument"
+        },
+        {
+          "token": "fargate_profile_name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -41710,6 +42482,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "cluster_name",
+          "source": "argument"
+        },
+        {
+          "token": "identity_provider_config_name",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -41857,6 +42639,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "cluster_name",
+          "source": "argument"
+        },
+        {
+          "token": "node_group_name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -41946,6 +42738,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "cluster_name",
+          "source": "argument"
+        },
+        {
+          "token": "association_id",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -44976,6 +45778,20 @@
         "studio_id",
         "identity_type",
         "identity_id"
+      ],
+      "id_parts": [
+        {
+          "token": "studio-id",
+          "source": "argument"
+        },
+        {
+          "token": "identity-type",
+          "source": "argument"
+        },
+        {
+          "token": "identity-id",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -45352,6 +46168,16 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "name",
+          "source": "argument"
+        },
+        {
+          "token": "arn",
+          "source": "attribute"
         }
       ]
     },
@@ -46274,6 +47100,16 @@
       "arguments_in_doc_order": [
         "account_id",
         "experiment_template_id"
+      ],
+      "id_parts": [
+        {
+          "token": "account_id",
+          "source": "argument"
+        },
+        {
+          "token": "experiment_template_id",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -48852,6 +49688,16 @@
       "arguments_in_doc_order": [
         "catalog_id",
         "name"
+      ],
+      "id_parts": [
+        {
+          "token": "catalog_id",
+          "source": "argument"
+        },
+        {
+          "token": "name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -49064,6 +49910,24 @@
         "database_name",
         "table_name",
         "type"
+      ],
+      "id_parts": [
+        {
+          "token": "catalog_id",
+          "source": "argument"
+        },
+        {
+          "token": "database_name",
+          "source": "argument"
+        },
+        {
+          "token": "table_name",
+          "source": "argument"
+        },
+        {
+          "token": "type",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -50371,6 +51235,20 @@
           "name": "resource_uris",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "catalog_id",
+          "source": "argument"
+        },
+        {
+          "token": "database_name",
+          "source": "argument"
+        },
+        {
+          "token": "function_name",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -50673,6 +51551,16 @@
         {
           "name": "workspace_id",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "workspace_id",
+          "source": "argument"
+        },
+        {
+          "token": "service_account_id",
+          "source": "attribute"
         }
       ]
     },
@@ -51507,6 +52395,16 @@
           "name": "group",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "group_name",
+          "source": "unknown"
+        },
+        {
+          "token": "group_policy_name",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -51896,6 +52794,16 @@
       ],
       "identity_schema_optional": [
         "account_id"
+      ],
+      "id_parts": [
+        {
+          "token": "role_name",
+          "source": "unknown"
+        },
+        {
+          "token": "role_policy_name",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -52110,6 +53018,20 @@
           "required": false,
           "force_new": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "service_name",
+          "source": "argument"
+        },
+        {
+          "token": "user_name",
+          "source": "argument"
+        },
+        {
+          "token": "service_specific_credential_id",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -52316,6 +53238,16 @@
           "name": "user",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "user_name",
+          "source": "unknown"
+        },
+        {
+          "token": "user_policy_name",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -52512,6 +53444,16 @@
         {
           "name": "identity_store_id",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "identity_store_id",
+          "source": "argument"
+        },
+        {
+          "token": "membership_id",
+          "source": "attribute"
         }
       ]
     },
@@ -55988,6 +56930,16 @@
           "name": "order_by",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "keyspace_name",
+          "source": "argument"
+        },
+        {
+          "token": "table_name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -57569,6 +58521,24 @@
           "name": "table_data",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "database_name",
+          "source": "unknown"
+        },
+        {
+          "token": "name",
+          "source": "unknown"
+        },
+        {
+          "token": "table_catalog_id",
+          "source": "unknown"
+        },
+        {
+          "token": "table_name",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -57642,6 +58612,16 @@
       "arguments_in_doc_order": [
         "catalog_id",
         "key"
+      ],
+      "id_parts": [
+        {
+          "token": "catalog_id",
+          "source": "argument"
+        },
+        {
+          "token": "key",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -57688,6 +58668,16 @@
       "arguments_in_doc_order": [
         "name",
         "catalog_id"
+      ],
+      "id_parts": [
+        {
+          "token": "name",
+          "source": "argument"
+        },
+        {
+          "token": "catalog_id",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -57749,6 +58739,16 @@
         {
           "name": "routing_config",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "function_name",
+          "source": "argument"
+        },
+        {
+          "token": "alias",
+          "source": "unknown"
         }
       ]
     },
@@ -58354,6 +59354,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "function_name",
+          "source": "argument"
+        },
+        {
+          "token": "qualifier",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -58454,6 +59464,20 @@
         {
           "name": "triggers",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "function_name",
+          "source": "argument"
+        },
+        {
+          "token": "qualifier",
+          "source": "argument"
+        },
+        {
+          "token": "result_hash",
+          "source": "unknown"
         }
       ]
     },
@@ -58610,6 +59634,16 @@
           "name": "skip_destroy",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "layer_name",
+          "source": "argument"
+        },
+        {
+          "token": "version_number",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -58759,6 +59793,16 @@
         {
           "name": "skip_destroy",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "function_name",
+          "source": "argument"
+        },
+        {
+          "token": "qualifier",
+          "source": "argument"
         }
       ]
     },
@@ -61036,6 +62080,24 @@
           "name": "slot_priority",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "intent_id",
+          "source": "attribute"
+        },
+        {
+          "token": "bot_id",
+          "source": "argument"
+        },
+        {
+          "token": "bot_version",
+          "source": "argument"
+        },
+        {
+          "token": "locale_id",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -61197,6 +62259,16 @@
       "arguments_in_doc_order": [
         "resource_arn",
         "license_configuration_arn"
+      ],
+      "id_parts": [
+        {
+          "token": "resource_arn",
+          "source": "argument"
+        },
+        {
+          "token": "license_configuration_arn",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -61681,6 +62753,16 @@
         {
           "name": "region",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "service_name",
+          "source": "argument"
+        },
+        {
+          "token": "version",
+          "source": "attribute"
         }
       ]
     },
@@ -62710,6 +63792,16 @@
       "arguments_in_doc_order": [
         "tracker_name",
         "consumer_arn"
+      ],
+      "id_parts": [
+        {
+          "token": "tracker_name",
+          "source": "argument"
+        },
+        {
+          "token": "consumer_arn",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -62827,6 +63919,16 @@
         {
           "name": "start",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "APPLICATION-ID",
+          "source": "argument"
+        },
+        {
+          "token": "DEPLOYMENT-ID",
+          "source": "unknown"
         }
       ]
     },
@@ -66175,6 +67277,16 @@
       "arguments_in_doc_order": [
         "nat_gateway_id",
         "allocation_id"
+      ],
+      "id_parts": [
+        {
+          "token": "nat_gateway_id",
+          "source": "argument"
+        },
+        {
+          "token": "allocation_id",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -66417,6 +67529,16 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "cluster-identifier",
+          "source": "argument"
+        },
+        {
+          "token": "endpoint-identfier",
+          "source": "unknown"
         }
       ]
     },
@@ -67326,6 +68448,24 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "NETWORK_ACL_ID",
+          "source": "argument"
+        },
+        {
+          "token": "RULE_NUMBER",
+          "source": "argument"
+        },
+        {
+          "token": "PROTOCOL",
+          "source": "argument"
+        },
+        {
+          "token": "EGRESS",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -69104,6 +70244,16 @@
           "name": "notification_configuration_arn",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "notification_configuration_arn",
+          "source": "argument"
+        },
+        {
+          "token": "channel_arn",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -69205,6 +70355,16 @@
       "arguments_in_doc_order": [
         "managed_notification_configuration_arn",
         "contact_identifier"
+      ],
+      "id_parts": [
+        {
+          "token": "managed_notification_configuration_arn",
+          "source": "argument"
+        },
+        {
+          "token": "contact_identifier",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -69240,6 +70400,16 @@
       "arguments_in_doc_order": [
         "managed_notification_arn",
         "channel_arn"
+      ],
+      "id_parts": [
+        {
+          "token": "managed_notification_arn",
+          "source": "argument"
+        },
+        {
+          "token": "channel_arn",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -69332,6 +70502,16 @@
       "arguments_in_doc_order": [
         "notification_configuration_arn",
         "organizational_unit_id"
+      ],
+      "id_parts": [
+        {
+          "token": "notification_configuration_arn",
+          "source": "argument"
+        },
+        {
+          "token": "organizational_unit_id",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -70953,6 +72133,16 @@
       "arguments_in_doc_order": [
         "domain_name",
         "package_id"
+      ],
+      "id_parts": [
+        {
+          "token": "DOMAIN_NAME",
+          "source": "argument"
+        },
+        {
+          "token": "PACKAGE_ID",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -71043,6 +72233,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "name",
+          "source": "argument"
+        },
+        {
+          "token": "type",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -71271,6 +72471,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "name",
+          "source": "argument"
+        },
+        {
+          "token": "type",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -71408,6 +72618,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "name",
+          "source": "argument"
+        },
+        {
+          "token": "type",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -76580,6 +77800,16 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "engine",
+          "source": "argument"
+        },
+        {
+          "token": "engine_version",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -79526,6 +80756,16 @@
           "name": "resource_arn",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "group_arn",
+          "source": "argument"
+        },
+        {
+          "token": "resource_arn",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -79749,6 +80989,16 @@
         "destination_ipv6_cidr_block",
         "destination_prefix_list_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "ROUTETABLEID",
+          "source": "argument"
+        },
+        {
+          "token": "DESTINATION",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -82195,6 +83445,16 @@
           "name": "vpc_configuration",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "account_id",
+          "source": "argument"
+        },
+        {
+          "token": "name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -82531,6 +83791,16 @@
           "name": "storage_class_analysis",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "bucket",
+          "source": "argument"
+        },
+        {
+          "token": "analytics",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -82659,6 +83929,16 @@
       "arguments_in_doc_order": [
         "bucket",
         "name"
+      ],
+      "id_parts": [
+        {
+          "token": "bucket",
+          "source": "argument"
+        },
+        {
+          "token": "name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -82742,6 +84022,16 @@
         {
           "name": "region",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "bucket",
+          "source": "argument"
+        },
+        {
+          "token": "inventory",
+          "source": "unknown"
         }
       ]
     },
@@ -82974,6 +84264,16 @@
         {
           "name": "region",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "bucket",
+          "source": "argument"
+        },
+        {
+          "token": "metric",
+          "source": "unknown"
         }
       ]
     },
@@ -83970,6 +85270,16 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "account_id",
+          "source": "argument"
+        },
+        {
+          "token": "access_grant_id",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -84072,6 +85382,16 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "account_id",
+          "source": "argument"
+        },
+        {
+          "token": "access_grants_location_id",
+          "source": "attribute"
         }
       ]
     },
@@ -84313,6 +85633,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "account_id",
+          "source": "argument"
+        },
+        {
+          "token": "name",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -84336,6 +85666,16 @@
         {
           "name": "region",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "account_id",
+          "source": "argument"
+        },
+        {
+          "token": "name",
+          "source": "unknown"
         }
       ]
     },
@@ -84428,6 +85768,16 @@
           "name": "region",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "account_id",
+          "source": "argument"
+        },
+        {
+          "token": "name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -84456,6 +85806,16 @@
         {
           "name": "region",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "account_id",
+          "source": "argument"
+        },
+        {
+          "token": "name",
+          "source": "argument"
         }
       ]
     },
@@ -84555,6 +85915,16 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "account_id",
+          "source": "argument"
+        },
+        {
+          "token": "config_id",
+          "source": "argument"
         }
       ]
     },
@@ -85637,6 +87007,16 @@
           "name": "device",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "device-fleet-name",
+          "source": "argument"
+        },
+        {
+          "token": "device-name",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -86220,6 +87600,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "hub_name",
+          "source": "argument"
+        },
+        {
+          "token": "hub_content_name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -88857,6 +90247,32 @@
           "name": "source_security_group_id",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "security_group_id",
+          "source": "argument"
+        },
+        {
+          "token": "type",
+          "source": "argument"
+        },
+        {
+          "token": "protocol",
+          "source": "argument"
+        },
+        {
+          "token": "from_port",
+          "source": "argument"
+        },
+        {
+          "token": "to_port",
+          "source": "argument"
+        },
+        {
+          "token": "cidr_block",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -89720,6 +91136,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "product_arn",
+          "source": "argument"
+        },
+        {
+          "token": "arn",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -89844,6 +91270,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "security_control_id",
+          "source": "argument"
+        },
+        {
+          "token": "standards_arn",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -91356,6 +92792,16 @@
           "name": "region",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "application_id",
+          "source": "argument"
+        },
+        {
+          "token": "attribute_group_id",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -92733,6 +94179,16 @@
           "name": "policy",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "email_identity",
+          "source": "argument"
+        },
+        {
+          "token": "policy_name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -92806,6 +94262,16 @@
         {
           "name": "region",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "tenant_name",
+          "source": "argument"
+        },
+        {
+          "token": "resource_arn",
+          "source": "argument"
         }
       ]
     },
@@ -94744,6 +96210,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "WINDOW_ID",
+          "source": "argument"
+        },
+        {
+          "token": "WINDOW_TARGET_ID",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -94980,6 +96456,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "window_id",
+          "source": "argument"
+        },
+        {
+          "token": "window_task_id",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -95203,6 +96689,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "patch_group",
+          "source": "argument"
+        },
+        {
+          "token": "baseline_id",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -95776,6 +97272,32 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "principal_id",
+          "source": "argument"
+        },
+        {
+          "token": "principal_type",
+          "source": "argument"
+        },
+        {
+          "token": "target_id",
+          "source": "argument"
+        },
+        {
+          "token": "target_type",
+          "source": "argument"
+        },
+        {
+          "token": "permission_set_arn",
+          "source": "argument"
+        },
+        {
+          "token": "instance_arn",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -96000,6 +97522,24 @@
           "required": true,
           "force_new": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "name",
+          "source": "unknown"
+        },
+        {
+          "token": "path",
+          "source": "unknown"
+        },
+        {
+          "token": "permission_set_arn",
+          "source": "argument"
+        },
+        {
+          "token": "instance_arn",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -96048,6 +97588,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "instance_arn",
+          "source": "argument"
+        },
+        {
+          "token": "permission_set_arn",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -96134,6 +97684,20 @@
           "name": "region",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "managed_policy_arn",
+          "source": "argument"
+        },
+        {
+          "token": "permission_set_arn",
+          "source": "argument"
+        },
+        {
+          "token": "instance_arn",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -96171,6 +97735,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "instance_arn",
+          "source": "argument"
+        },
+        {
+          "token": "permission_set_arn",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -96247,6 +97821,16 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "arn",
+          "source": "attribute"
+        },
+        {
+          "token": "instance_arn",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -96277,6 +97861,16 @@
           "name": "permission_set_arn",
           "required": true,
           "force_new": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "permission_set_arn",
+          "source": "argument"
+        },
+        {
+          "token": "instance_arn",
+          "source": "argument"
         }
       ]
     },
@@ -96321,6 +97915,16 @@
           "name": "permissions_boundary",
           "required": true,
           "force_new": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "permission_set_arn",
+          "source": "argument"
+        },
+        {
+          "token": "instance_arn",
+          "source": "argument"
         }
       ]
     },
@@ -97510,6 +99114,16 @@
       "arguments_in_doc_order": [
         "canary_arn",
         "group_name"
+      ],
+      "id_parts": [
+        {
+          "token": "canary_arn",
+          "source": "argument"
+        },
+        {
+          "token": "group_name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -98534,6 +100148,16 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "server_id",
+          "source": "argument"
+        },
+        {
+          "token": "agreement_id",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -98754,6 +100378,16 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "server_id",
+          "source": "argument"
+        },
+        {
+          "token": "host_key_id",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -98946,6 +100580,20 @@
           "name": "user_name",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "server_id",
+          "source": "argument"
+        },
+        {
+          "token": "user_name",
+          "source": "argument"
+        },
+        {
+          "token": "ssh_public_key_id",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -99076,6 +100724,16 @@
         {
           "name": "user_name",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "server_id",
+          "source": "argument"
+        },
+        {
+          "token": "user_name",
+          "source": "argument"
         }
       ]
     },
@@ -99486,6 +101144,16 @@
           "name": "verifiedaccess_trust_provider_id",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "verifiedaccess_instance_id",
+          "source": "argument"
+        },
+        {
+          "token": "verifiedaccess_trust_provider_id",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -99646,6 +101314,16 @@
           "name": "principal_entity_type",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "policy_store_id",
+          "source": "argument"
+        },
+        {
+          "token": "identity_source_id",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -99680,6 +101358,16 @@
         {
           "name": "definition",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "policy_id",
+          "source": "attribute"
+        },
+        {
+          "token": "policy_store_id",
+          "source": "argument"
         }
       ]
     },
@@ -99758,6 +101446,16 @@
         {
           "name": "description",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "policy_store_id",
+          "source": "argument"
+        },
+        {
+          "token": "policy_template_id",
+          "source": "attribute"
         }
       ]
     },
@@ -99859,6 +101557,20 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "DEVICE_NAME",
+          "source": "argument"
+        },
+        {
+          "token": "VOLUME_ID",
+          "source": "argument"
+        },
+        {
+          "token": "INSTANCE_ID",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -101508,6 +103220,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "security_group_id",
+          "source": "argument"
+        },
+        {
+          "token": "vpc_id",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -104144,6 +105866,16 @@
           "name": "token_domains",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "api_key",
+          "source": "attribute"
+        },
+        {
+          "token": "scope",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -104221,6 +105953,20 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "ID",
+          "source": "attribute"
+        },
+        {
+          "token": "name",
+          "source": "argument"
+        },
+        {
+          "token": "scope",
+          "source": "argument"
         }
       ]
     },
@@ -104302,6 +106048,20 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "ID",
+          "source": "attribute"
+        },
+        {
+          "token": "name",
+          "source": "argument"
+        },
+        {
+          "token": "scope",
+          "source": "argument"
         }
       ]
     },
@@ -104446,6 +106206,20 @@
         {
           "name": "visibility_config",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "ID",
+          "source": "attribute"
+        },
+        {
+          "token": "name",
+          "source": "argument"
+        },
+        {
+          "token": "scope",
+          "source": "argument"
         }
       ]
     },
@@ -104653,6 +106427,20 @@
           "name": "visibility_config",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "ID",
+          "source": "attribute"
+        },
+        {
+          "token": "Name",
+          "source": "argument"
+        },
+        {
+          "token": "Scope",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -104682,6 +106470,16 @@
       "arguments_in_doc_order": [
         "web_acl_arn",
         "resource_arn"
+      ],
+      "id_parts": [
+        {
+          "token": "WEB_ACL_ARN",
+          "source": "argument"
+        },
+        {
+          "token": "RESOURCE_ARN",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -104827,6 +106625,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "web_acl_arn",
+          "source": "argument"
+        },
+        {
+          "token": "name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -104888,6 +106696,24 @@
         {
           "name": "visibility_config",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "WebACLARN",
+          "source": "argument"
+        },
+        {
+          "token": "RuleName",
+          "source": "argument"
+        },
+        {
+          "token": "RuleGroupType",
+          "source": "unknown"
+        },
+        {
+          "token": "RuleGroupARN",
+          "source": "unknown"
         }
       ]
     },
@@ -104967,6 +106793,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "organization_id",
+          "source": "argument"
+        },
+        {
+          "token": "domain_name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -105017,6 +106853,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "organization_id",
+          "source": "argument"
+        },
+        {
+          "token": "group_id",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -105205,6 +107051,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "organization_id",
+          "source": "argument"
+        },
+        {
+          "token": "user_id",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -105855,6 +107711,16 @@
       "arguments_in_doc_order": [
         "browser_settings_arn",
         "portal_arn"
+      ],
+      "id_parts": [
+        {
+          "token": "browser_settings_arn",
+          "source": "argument"
+        },
+        {
+          "token": "portal_arn",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -105931,6 +107797,16 @@
       "arguments_in_doc_order": [
         "data_protection_settings_arn",
         "portal_arn"
+      ],
+      "id_parts": [
+        {
+          "token": "data_protection_settings_arn",
+          "source": "argument"
+        },
+        {
+          "token": "portal_arn",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -106067,6 +107943,16 @@
       "arguments_in_doc_order": [
         "ip_access_settings_arn",
         "portal_arn"
+      ],
+      "id_parts": [
+        {
+          "token": "ip_access_settings_arn",
+          "source": "argument"
+        },
+        {
+          "token": "portal_arn",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -106126,6 +108012,16 @@
       "arguments_in_doc_order": [
         "network_settings_arn",
         "portal_arn"
+      ],
+      "id_parts": [
+        {
+          "token": "network_settings_arn",
+          "source": "argument"
+        },
+        {
+          "token": "portal_arn",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -106285,6 +108181,16 @@
       "arguments_in_doc_order": [
         "session_logger_arn",
         "portal_arn"
+      ],
+      "id_parts": [
+        {
+          "token": "session_logger_arn",
+          "source": "argument"
+        },
+        {
+          "token": "portal_arn",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -106336,6 +108242,16 @@
       "arguments_in_doc_order": [
         "trust_store_arn",
         "portal_arn"
+      ],
+      "id_parts": [
+        {
+          "token": "trust_store_arn",
+          "source": "argument"
+        },
+        {
+          "token": "portal_arn",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -106387,6 +108303,16 @@
       "arguments_in_doc_order": [
         "user_access_logging_settings_arn",
         "portal_arn"
+      ],
+      "id_parts": [
+        {
+          "token": "user_access_logging_settings_arn",
+          "source": "argument"
+        },
+        {
+          "token": "portal_arn",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -106523,6 +108449,16 @@
       "arguments_in_doc_order": [
         "user_settings_arn",
         "portal_arn"
+      ],
+      "id_parts": [
+        {
+          "token": "user_settings_arn",
+          "source": "argument"
+        },
+        {
+          "token": "portal_arn",
+          "source": "argument"
+        }
       ]
     },
     {

@@ -4,12 +4,12 @@
     "admitted_total": 843,
     "compared": 822,
     "not_in_mapped_set": 21,
-    "adopted_unchanged": 638,
-    "adopted_unchanged_pct": 77.62,
-    "genuine_mismatches": 184,
+    "adopted_unchanged": 653,
+    "adopted_unchanged_pct": 79.44,
+    "genuine_mismatches": 169,
     "annotated": 0,
-    "unannotated_mismatches": 184,
-    "scrape_gap_mismatches": 84
+    "unannotated_mismatches": 169,
+    "scrape_gap_mismatches": 69
   },
   "by_service": {
     "ACMPCA": {
@@ -234,8 +234,8 @@
     },
     "Connect": {
       "compared": 12,
-      "adopted_unchanged": 3,
-      "adopted_unchanged_pct": 25
+      "adopted_unchanged": 12,
+      "adopted_unchanged_pct": 100
     },
     "ControlTower": {
       "compared": 3,
@@ -794,8 +794,8 @@
     },
     "SSO": {
       "compared": 5,
-      "adopted_unchanged": 2,
-      "adopted_unchanged_pct": 40
+      "adopted_unchanged": 3,
+      "adopted_unchanged_pct": 60
     },
     "SageMaker": {
       "compared": 27,
@@ -864,8 +864,8 @@
     },
     "Transfer": {
       "compared": 9,
-      "adopted_unchanged": 6,
-      "adopted_unchanged_pct": 66.67
+      "adopted_unchanged": 7,
+      "adopted_unchanged_pct": 77.78
     },
     "VerifiedPermissions": {
       "compared": 1,
@@ -879,8 +879,8 @@
     },
     "WAFv2": {
       "compared": 5,
-      "adopted_unchanged": 0,
-      "adopted_unchanged_pct": 0
+      "adopted_unchanged": 4,
+      "adopted_unchanged_pct": 80
     },
     "WorkSpaces": {
       "compared": 4,
@@ -2985,49 +2985,37 @@
     {
       "tf_type": "aws_connect_contact_flow",
       "service": "Connect",
-      "proposed_bucket": "evidence-only",
+      "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "server-assigned"
-      ],
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
       "tf_type": "aws_connect_contact_flow_module",
       "service": "Connect",
-      "proposed_bucket": "evidence-only",
+      "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "server-assigned"
-      ],
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
       "tf_type": "aws_connect_hours_of_operation",
       "service": "Connect",
-      "proposed_bucket": "evidence-only",
+      "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "server-assigned"
-      ],
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -3049,97 +3037,73 @@
     {
       "tf_type": "aws_connect_queue",
       "service": "Connect",
-      "proposed_bucket": "evidence-only",
+      "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "server-assigned"
-      ],
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
       "tf_type": "aws_connect_quick_connect",
       "service": "Connect",
-      "proposed_bucket": "evidence-only",
+      "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "server-assigned"
-      ],
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
       "tf_type": "aws_connect_routing_profile",
       "service": "Connect",
-      "proposed_bucket": "evidence-only",
+      "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "server-assigned"
-      ],
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
       "tf_type": "aws_connect_security_profile",
       "service": "Connect",
-      "proposed_bucket": "evidence-only",
+      "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "server-assigned"
-      ],
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
       "tf_type": "aws_connect_user",
       "service": "Connect",
-      "proposed_bucket": "evidence-only",
+      "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "server-assigned"
-      ],
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
       "tf_type": "aws_connect_user_hierarchy_group",
       "service": "Connect",
-      "proposed_bucket": "evidence-only",
+      "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "server-assigned"
-      ],
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -9272,17 +9236,12 @@
     {
       "tf_type": "aws_ssoadmin_permission_set",
       "service": "SSO",
-      "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: registry composite primaryIdentifier, separator and order recovered from the documented example string",
-      "mismatch_classes": [
-        "server-assigned",
-        "components"
-      ],
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -9393,17 +9352,12 @@
     {
       "tf_type": "aws_transfer_agreement",
       "service": "Transfer",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "server-assigned"
-      ],
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
       "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)",
-        "import-syntax-wording"
+        "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -10000,65 +9954,45 @@
     {
       "tf_type": "aws_wafv2_ip_set",
       "service": "WAFv2",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "server-assigned"
-      ],
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
       "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)",
-        "import-syntax-wording"
+        "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
       "tf_type": "aws_wafv2_regex_pattern_set",
       "service": "WAFv2",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "server-assigned"
-      ],
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
       "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)",
-        "import-syntax-wording"
+        "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
       "tf_type": "aws_wafv2_rule_group",
       "service": "WAFv2",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "server-assigned"
-      ],
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
       "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)",
-        "import-syntax-wording"
+        "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
       "tf_type": "aws_wafv2_web_acl",
       "service": "WAFv2",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "server-assigned"
-      ],
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
       "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)",
-        "import-syntax-wording"
+        "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {

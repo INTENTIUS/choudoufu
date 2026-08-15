@@ -356,6 +356,22 @@ func applyImportGrammarDemotions(proposals []proposal, importGrammar map[string]
 		if !ok || g.ComposedOfArguments == nil || !*g.ComposedOfArguments {
 			continue
 		}
+		// The per-segment attribution can overrule the flat composed_of_
+		// arguments signal (issue #132's Connect-family shape): when the
+		// Import section's own prose names every segment and at least one
+		// is the doc's own Attribute Reference export ("instance_id:
+		// queue_id", queue_id exported, never configured), the ID carries a
+		// server-provided value the registry's read-only primaryIdentifier
+		// was right about all along, and the demotion would replace a
+		// correct server-assigned claim with nothing. aws_lambda_alias's
+		// structurally identical row ("function_name/alias") still demotes:
+		// its second segment attributes to neither section ("unknown"), so
+		// no server-provided segment is established and the conservative
+		// path holds.
+		if docNamesServerSegment(g) {
+			p.Notes = append(p.Notes, fmt.Sprintf("import docs name a server-provided segment (%s); the ID is not wholly argument-composed, so the server-assigned classification stands", serverSegmentTokens(g)))
+			continue
+		}
 		p.Bucket = bucketEvidenceOnly
 		p.Notes = append(p.Notes, fmt.Sprintf("import docs show argument-composed ID: %s", g.ImportIDExample))
 	}

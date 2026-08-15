@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 )
 
 // importGrammarRow is the slice of live/import-grammar.json's per-type shape
@@ -38,6 +39,59 @@ type importGrammarRow struct {
 	ArgumentsInOrder       []string           `json:"arguments_in_doc_order"`
 	IdentitySchemaRequired []string           `json:"identity_schema_required"`
 	IdentitySchemaOptional []string           `json:"identity_schema_optional"`
+
+	// IDParts is the documented import ID's per-segment source attribution
+	// (issue #132): the segment names the Import section's own prose gives,
+	// each attributed to the doc section that defines it ("argument",
+	// "attribute" or "unknown"), present only when the named segments
+	// account for every segment of the documented example - see
+	// tools/importdocs-gen/parse.go's idParts.
+	IDParts []idPart `json:"id_parts"`
+}
+
+// idPart mirrors tools/importdocs-gen/parse.go's IDPart: one prose-named
+// segment of the documented import ID and which doc section defines it.
+type idPart struct {
+	Token  string `json:"token"`
+	Source string `json:"source"`
+}
+
+// idPartSourceAttribute is the Source value naming a segment the doc's own
+// Attribute Reference exports - a server-provided value no configuration
+// argument supplies. The other two values ("argument", "unknown") are only
+// ever tested for indirectly, so they carry no constant here.
+const idPartSourceAttribute = "attribute"
+
+// docNamesServerSegment reports whether the grammar row's per-segment
+// attribution names at least one segment as the doc's own Attribute
+// Reference export. When it does, the doc itself is saying the import ID
+// carries a server-provided value, so the ID is not reconstructible from
+// configuration - the fact that separates aws_connect_queue
+// ("instance_id:queue_id", queue_id exported) from the structurally
+// identical-looking aws_lambda_alias ("function_name/alias", alias being
+// prose shorthand for the `name` argument, attributed "unknown"). A
+// non-empty IDParts already guarantees the named segments cover the whole
+// documented example (the scrape's own arity gate), so no further arity
+// check is needed here.
+func docNamesServerSegment(g importGrammarRow) bool {
+	for _, part := range g.IDParts {
+		if part.Source == idPartSourceAttribute {
+			return true
+		}
+	}
+	return false
+}
+
+// serverSegmentTokens names the attribute-sourced segments, for the note a
+// docNamesServerSegment-based decision leaves behind.
+func serverSegmentTokens(g importGrammarRow) string {
+	var out []string
+	for _, part := range g.IDParts {
+		if part.Source == idPartSourceAttribute {
+			out = append(out, part.Token)
+		}
+	}
+	return strings.Join(out, ", ")
 }
 
 // argumentRefEntry mirrors tools/importdocs-gen/artifact.go's
