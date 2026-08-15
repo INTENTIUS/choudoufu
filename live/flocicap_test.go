@@ -57,9 +57,13 @@ func TestFlociTypeCapability(t *testing.T) {
 		t.Errorf("aws_redshift_cluster status = %q, want %q", cap.Status, FlociUnimplemented)
 	}
 
-	broken, ok := FlociTypeCapability(pinnedDigest, "aws_qldb_ledger", "")
-	if !ok || broken.Status != FlociBroken {
-		t.Errorf("aws_qldb_ledger = %+v, ok=%v, want status %q", broken, ok, FlociBroken)
+	// aws_qldb_ledger was FlociBroken (HTML-error-page crash) until the
+	// media-services image's routing fix converted the shape into a clean
+	// UnknownOperationException - re-probed 2026-08-14 against the pinned
+	// digest, still no QLDB handler, so the honest status is unimplemented.
+	qldb, ok := FlociTypeCapability(pinnedDigest, "aws_qldb_ledger", "")
+	if !ok || qldb.Status != FlociUnimplemented {
+		t.Errorf("aws_qldb_ledger = %+v, ok=%v, want status %q", qldb, ok, FlociUnimplemented)
 	}
 
 	partial, ok := FlociTypeCapability(pinnedDigest, "aws_opensearch_domain", "")

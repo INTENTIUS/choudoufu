@@ -18,6 +18,10 @@
 //
 //	# one resource instead of a list
 //	go run ./tools/cloudcontrol-probe -type AWS::EC2::Instance -identifier i-0123456789abcdef0
+//
+//	# the Resource Groups Tagging API instead: GetResources filtered to a
+//	# tag key, the same call the #51 tagging sweep makes
+//	go run ./tools/cloudcontrol-probe -tag-key tofu-estate -region us-east-1
 package main
 
 import (
@@ -41,7 +45,8 @@ func main() {
 }
 
 func run() error {
-	typeName := flag.String("type", "", "Cloud Control type name, e.g. AWS::EC2::Instance (required)")
+	typeName := flag.String("type", "", "Cloud Control type name, e.g. AWS::EC2::Instance (required unless -tag-key)")
+	tagKey := flag.String("tag-key", "", "probe the Resource Groups Tagging API instead: GetResources filtered to this tag key (the #51 tagging sweep's own call)")
 	identifier := flag.String("identifier", "", "identifier to GetResource instead of ListResources; multi-part identifiers join with |")
 	endpoint := flag.String("endpoint", "", "endpoint override, e.g. http://localhost:4566 for floci; empty means real AWS")
 	region := flag.String("region", "us-east-1", "region, for both the real-AWS host and the SigV4 credential scope")
@@ -49,9 +54,9 @@ func run() error {
 	timeout := flag.Duration("timeout", 30*time.Second, "request timeout")
 	flag.Parse()
 
-	if *typeName == "" {
+	if *typeName == "" && *tagKey == "" {
 		flag.Usage()
-		return errors.New("-type is required")
+		return errors.New("one of -type or -tag-key is required")
 	}
 
 	client := cloudcontrol.New(cloudcontrol.Config{
@@ -66,6 +71,21 @@ func run() error {
 
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
+
+	if *tagKey != "" {
+		tagging := cloudcontrol.NewTagging(cloudcontrol.Config{
+			Endpoint:             *endpoint,
+			Region:               *region,
+			SignEndpointOverride: *signOverride,
+			RoundTripper:         http.DefaultTransport,
+		})
+		res, err := tagging.GetResources(ctx, nil, []cloudcontrol.TagFilter{{Key: *tagKey}})
+		if err != nil {
+			return reportAPIError(err)
+		}
+		fmt.Fprintf(os.Stderr, "%d resource(s) tagged %q\n", len(res), *tagKey)
+		return enc.Encode(res)
+	}
 
 	if *identifier != "" {
 		desc, err := client.GetResource(ctx, *typeName, *identifier)

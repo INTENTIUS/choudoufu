@@ -89,6 +89,16 @@ func TestMain(m *testing.M) {
 	// Make sure backend init is initialized, since our tests tend to assume it.
 	backendInit.Init(nil)
 
+	// The Cloud Control fallback and tagging sweep (#47/#51, wired in
+	// live_plan.go's cloudControlTarget) default ON against real AWS. A unit
+	// test doing discovery against a mock provider must never turn that into
+	// real network calls - credential-chain probes plus an HTTPS call per
+	// roster-mapped type blew this package's 10-minute timeout when the
+	// wiring first landed - so the whole package runs with the fallback off.
+	// The live acceptance tier is a different test process that never sets
+	// this, and is where the wiring's behavior is actually proven.
+	os.Setenv("TOFU_LIVE_CLOUDCONTROL", "off")
+
 	os.Exit(m.Run())
 }
 

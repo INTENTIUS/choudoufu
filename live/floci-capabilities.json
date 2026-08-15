@@ -1069,7 +1069,7 @@
         {
           "type": "aws_docdbelastic_cluster",
           "status": "broken",
-          "evidence": "CreateCluster reaches a router-recognized handler, but the response is an HTML error page rather than a JSON error body (deserialization failed: invalid character '\u003c' looking for beginning of value)",
+          "evidence": "CreateCluster reaches a router-recognized handler, but the response is an HTML error page rather than a JSON error body (deserialization failed: invalid character '<' looking for beginning of value)",
           "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
         },
         {
@@ -5789,6 +5789,13 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
         },
         {
+          "type": "aws_iam_role",
+          "mechanism": "tagging-sweep",
+          "status": "unimplemented",
+          "evidence": "Carried from the previous digest and re-verified against this one 2026-08-14: an aws_iam_role created and tagged via the IAM API (confirmed present via iam list-role-tags) still comes back empty from the Resource Groups Tagging API's GetResources (tools/cloudcontrol-probe -tag-key tofu-estate). The media-services branch touched neither the tagging service nor IAM.",
+          "source": "hand probe against this digest; original finding internal/live/discovery/tagging_live_test.go, TestTaggingSweepAgainstFloci"
+        },
+        {
           "type": "aws_iam_saml_provider",
           "mechanism": "cloudcontrol-list",
           "status": "implemented",
@@ -6678,6 +6685,12 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
         },
         {
+          "type": "aws_opensearch_domain",
+          "status": "partial",
+          "evidence": "Carried from the previous digest and re-checked against this one 2026-08-14: CreateDomain without the host Docker socket mounted fails (HTTP 500 after retries), and the opensearch-dns-fix branch (e4835e72, addressing spawned domain containers by IP) is NOT in this image's branch, so the readiness-probe gap the previous entry describes still applies when the socket is mounted.",
+          "source": "hand probe against this digest; original finding live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
           "type": "aws_opensearchserverless_collection",
           "mechanism": "cloudcontrol-list",
           "status": "implemented",
@@ -6769,6 +6782,12 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
         },
         {
+          "type": "aws_qldb_ledger",
+          "status": "unimplemented",
+          "evidence": "Re-probed against this digest 2026-08-14: CreateLedger (POST /ledgers) now answers a clean JSON UnknownOperationException instead of the previous digest's HTML-error-page crash - the media-services branch's routing fix (reject known-scope requests that fall through to wildcard routes) converted the broken shape into an honest unimplemented one. Still no QLDB handler.",
+          "source": "hand probe against this digest; original finding live/e2e/estates/databases/README.md, \"Floci coverage\""
+        },
+        {
           "type": "aws_ram_permission",
           "mechanism": "cloudcontrol-list",
           "status": "implemented",
@@ -6816,6 +6835,12 @@
           "status": "implemented",
           "evidence": "ListResources(AWS::RDS::DBShardGroup) succeeded",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_redshift_cluster",
+          "status": "unimplemented",
+          "evidence": "Carried from the previous digest and re-verified against this one 2026-08-14: CreateCluster is still routed by floci to its SQS handler (UnsupportedOperation: Operation CreateCluster is not supported by SQS).",
+          "source": "hand probe against this digest; original finding live/e2e/estates/databases/README.md, \"Floci coverage\""
         },
         {
           "type": "aws_redshift_cluster",

@@ -701,29 +701,36 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 	return res, diags
 }
 
-// cloudControlOptInEnvVar turns the Cloud Control enumeration fallback on
-// against real AWS, where no endpoint override names a target. Set it to
-// any non-empty value. Endpoint-override runs (emulators, the acceptance
-// tier) need no opt-in - the override itself is the signal that a Cloud
-// Control target exists.
-const cloudControlOptInEnvVar = "TOFU_LIVE_CLOUDCONTROL"
+// cloudControlEnvVar turns the Cloud Control enumeration fallback (and the
+// #51 tagging sweep riding the same gate) OFF: set it to "off", "0" or
+// "false". The default is ON - against an endpoint override and against
+// real AWS alike - because a user with unlistable types is exactly who the
+// fallback exists for, and both clients' real-AWS paths (SigV4 through the
+// default credential chain, the 30s per-attempt bound) are validated by
+// tools/cloudcontrol-probe against a live account (2026-08-14, both the
+// Cloud Control and -tag-key modes). Offline test suites that must never
+// touch the network set the off value in their TestMain - see
+// internal/command's - since a discovery run over roster-mapped types
+// otherwise turns into per-type HTTPS calls.
+const cloudControlEnvVar = "TOFU_LIVE_CLOUDCONTROL"
 
 // cloudControlTarget resolves where the Cloud Control fallback client
 // should point, and whether one should exist at all: the SDK's
 // service-specific override first, then the all-services override every
-// emulator run (floci, the acceptance tier) sets, then - only when
-// cloudControlOptInEnvVar opts in - real AWS. The AWS provider resolves
+// emulator run (floci, the acceptance tier) sets, then real AWS unless
+// cloudControlEnvVar switches the fallback off. The AWS provider resolves
 // its own endpoints from the same variables, so a run pointed at an
 // emulator sends both the provider's list calls and the fallback's to the
 // same place without extra configuration.
 func cloudControlTarget() (endpoint string, on bool) {
+	switch os.Getenv(cloudControlEnvVar) {
+	case "off", "0", "false":
+		return "", false
+	}
 	if v := os.Getenv("AWS_ENDPOINT_URL_CLOUDCONTROL"); v != "" {
 		return v, true
 	}
-	if v := os.Getenv("AWS_ENDPOINT_URL"); v != "" {
-		return v, true
-	}
-	return "", os.Getenv(cloudControlOptInEnvVar) != ""
+	return os.Getenv("AWS_ENDPOINT_URL"), true
 }
 
 // guidedDiscoveryDisableEnvVar opts every estate this process plans or
