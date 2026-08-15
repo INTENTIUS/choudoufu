@@ -7,7 +7,7 @@ different owners.
 | What | Where it lives | Who reads it | Losing it costs |
 |---|---|---|---|
 | Ownership markers | Two tags on the resource itself | choudoufu, and you, with any cloud tool | The resource goes invisible and the next plan proposes a duplicate |
-| Micro-state records | A `record_store` you declare: local dir, SSM, or S3 | choudoufu only | Churn: the effect re-runs or its value regenerates |
+| Micro-state records | A `record_store` you declare, backed by a local dir, SSM, or S3 | choudoufu only | Churn, since the effect re-runs or its value regenerates |
 | Receipts | Ordinary resources *you* declare, by convention SSM parameters | You, your reviewers, your incident responder | Nothing structural. It is your data, in your configuration |
 
 The first is the product. The second is plumbing you turn on when you need it.
@@ -29,13 +29,13 @@ needs markers and nothing more.
 
 ## The record store
 
-Some resources have no cloud twin to read back. A `null_resource` that ran a
-script, a `time_static` that captured a timestamp, a `random_pet` that
-generated a name: nothing in AWS knows these happened, so there is no marker to
-recover them from.
+Some resources have no cloud twin to read back. Nothing in AWS knows that a
+`null_resource` ran a script, that a `time_static` captured a timestamp, or
+that a `random_pet` generated a name, so there is no marker to recover them
+from.
 
-Those persist as **micro-state**: one small record per resource. Declare a
-store and they are admitted; without one they are refused.
+Those persist as **micro-state**, one small record per resource. Declare a
+store and they are admitted. Without one they are refused.
 
 ```hcl
 # estate.chdf.hcl
@@ -53,15 +53,15 @@ form instead of the sidecar file. The label picks the backend.
 | `ssm` | SSM Parameter Store, under a prefix derived from the estate name | `key_prefix`, `region` |
 | `s3` | An S3 bucket you already own | `bucket` (required), `key_prefix`, `region` |
 
-Three things about it are worth knowing before you turn it on.
+Know these four things before you turn it on.
 
 **You are not meant to read it.** The payload is a self-describing ctyjson
 envelope, readable by this fork's own code. It is not an operator-facing
 artifact, and nothing about its format is a contract.
 
-**There is no lock.** Writes are conditional: a record is written only if it
-still carries the version the writer read. A losing writer gets a named
-failure, not a blocking wait and not a silent overwrite.
+**Writes are conditional.** A record is written only if it still carries the
+version the writer read. A losing writer gets a named failure, not a blocking
+wait and not a silent overwrite.
 
 **Losing a record is churn, not a lost estate.** The effect re-runs or its
 value regenerates, and anything reading that value plans as a change. It cannot
@@ -76,15 +76,15 @@ steps.
 
 ## Receipts
 
-A receipt answers a different question: not "what was this resource's last
-value" but "did this external effect actually run, and with what input".
+A receipt answers a different question. It records whether an external effect
+actually ran, and with what input.
 
 A receipt is not choudoufu storage. It is an ordinary resource you declare,
 which by convention is an SSM parameter at
 `/tofu-receipts/<estate>/<effect>` holding a hash. It goes through the
-ordinary plan and apply cycle, and its diff appearing in a plan is the point:
-that diff is what tells a reviewer or a CI gate that this apply is about to
-trigger something with consequences outside the resources being managed.
+ordinary plan and apply cycle, and its diff appearing in a plan is what tells
+a reviewer or a CI gate that this apply is about to trigger something with
+consequences outside the resources being managed.
 
 choudoufu does not write receipts. It lints them, enforcing that the value is a
 hash or a constant and never a `SecureString`, that nothing references a
@@ -95,16 +95,15 @@ by value.
 
 ## Why receipts are not record-store entries
 
-This is the distinction the rest of the page exists to set up, and it is
-enforced rather than advised: a `key_prefix` whose first segment is literally
-`tofu-receipts` is a configuration error, so a record can never be written into
-the receipts namespace.
+This distinction is enforced rather than advised. A `key_prefix` whose first
+segment is literally `tofu-receipts` is a configuration error, so a record can
+never be written into the receipts namespace.
 
 The reason is visibility. A receipt is deliberately AWS-shaped so its value
 stays readable with a plain `aws ssm get-parameter`, by a person with read-only
 IAM access and no `choudoufu` binary at all, at three in the morning. A
 record-store payload is tool-internal by design. Moving a receipt onto it would
-trade `aws ssm get-parameter` for "read choudoufu's internal JSON envelope",
+trade `aws ssm get-parameter` for reading choudoufu's internal JSON envelope,
 which is strictly worse for the one artifact whose entire job is being legible
 to someone who is not running the tool.
 
@@ -115,9 +114,9 @@ collapses a receipt's semantics into "did an input change", with no existence
 flavour, no hash flavour, and no naming convention for the lint rules to
 recognise.
 
-`terraform_data` is for the graph: ordering an apply, feeding
-`replace_triggered_by`, standing in for a resource that does nothing. Receipts
-are for external effects. Keep them apart.
+`terraform_data` is for the graph, meaning ordering an apply, feeding
+`replace_triggered_by`, or standing in for a resource that does nothing.
+Receipts are for external effects. Keep them apart.
 
 ## Choosing a record store backend
 
@@ -128,5 +127,5 @@ fine and nothing else needs to read it.
 up, since Parameter Store already exists in the account.
 
 `s3` when you want the records in a bucket you already operate, with your own
-versioning and lifecycle rules. You create and configure the bucket; choudoufu
-only reads and writes keys in it.
+versioning and lifecycle rules. You create and configure the bucket, and
+choudoufu only reads and writes keys in it.

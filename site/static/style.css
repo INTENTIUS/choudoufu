@@ -318,8 +318,47 @@ hr {
   margin: 0.6rem 0 0;
 }
 
+/* Everything below the hero reads on the cream card, the same surface the
+   doc pages use. Body text on salmon is 5.8:1 and the 0.9rem secondary text
+   is 3.8:1, which fails AA; on cream those are 13.6:1 and 8.8:1. Only the
+   hero's display type stays on the tablecloth. */
+.landing-card {
+  background: var(--cream);
+  border-radius: 12px;
+  border: 1px solid var(--salmon-deep);
+  padding: 2.2rem 2.6rem 1.6rem;
+  min-width: 0;
+}
+
+.landing-card a { color: var(--rust); }
+.landing-card a:hover { color: var(--rust-dark); }
+
+.landing-card > :first-child > :first-child { margin-top: 0; }
+
 .landing section {
   margin-bottom: 2.4rem;
+}
+
+.landing-card section:last-child {
+  margin-bottom: 0;
+}
+
+/* The one sentence the landing page exists to deliver. Sized between the
+   tagline and body text so it reads as the claim the demo below it tests. */
+.claim {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--espresso);
+  border-left: 3px solid var(--rust);
+  padding-left: 0.9rem;
+  margin: 1.3rem 0;
+}
+
+.next {
+  font-size: 0.95rem;
+  margin-top: 1rem;
 }
 
 .docs-menu {
@@ -328,9 +367,11 @@ hr {
   gap: 1.2rem;
 }
 
+/* These sat on salmon and needed a cream fill to lift off it. Now that the
+   whole landing body is cream, they recess instead. */
 .docs-menu-group {
-  background: var(--cream);
-  border: 1px solid var(--salmon-deep);
+  background: var(--cream-dim);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 1rem 1.2rem;
 }
@@ -340,7 +381,9 @@ hr {
   font-size: 0.82rem;
   text-transform: uppercase;
   letter-spacing: 0.09em;
-  color: var(--olive-deep);
+  /* a step darker than --olive-deep: on the recessed cream-dim panel that
+     variable is 4.26:1, just under AA for text this size */
+  color: #5c6438;
 }
 
 .docs-menu-group ul {
@@ -364,9 +407,9 @@ hr {
 }
 
 .legal {
-  border-top: 1px solid var(--salmon-deep);
+  border-top: 1px solid var(--border);
   padding-top: 1.2rem;
-  color: var(--rust-dark);
+  color: var(--muted);
   font-size: 0.92rem;
 }
 

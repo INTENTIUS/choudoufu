@@ -1,17 +1,18 @@
 # Migrate an existing estate
 
-This is the path most people arrive on: an OpenTofu configuration that already
-manages live AWS resources, and a state file you would like to stop having.
+This is the path most people arrive on, an OpenTofu configuration that already
+manages live AWS resources.
 
-Deleting the state file is the easy half. Binding the live resources to your
-configuration is the half that needs attention, because it does not happen
-automatically and the failure mode is quiet.
+The migration is binding those resources to your configuration, one marker at
+a time, until each one carries its own ownership record. That part needs
+attention, because it does not happen automatically and the failure mode is
+quiet.
 
 :::warning
 Turning on live markers for a configuration that already manages live
-resources does not bind them. A resource with no ownership marker is not yours yet, so
-the first plan reads it as absent and proposes creating a second one beside it.
-Applying that plan does not fail. It creates the duplicate.
+resources does not bind them. A resource with no ownership marker is not yours
+yet, so the first plan reads it as absent and proposes creating a second one
+beside it. Applying that plan does not fail. It creates the duplicate.
 
 Run `choudoufu plan` and read the `Adoptable` and `Unowned` sections before you
 apply anything.
@@ -28,33 +29,33 @@ arriving from `choudoufu live-import`, this is everything.
 **Offered for adoption.** For a resource whose identity AWS assigned (a VPC, a
 subnet, a security group), the configuration holds nothing that identifies the
 live object, so the marker is the only way back to it. The plan can still offer
-a match when the configuration content is distinctive enough to be compared: a
+a match when the configuration content is distinctive enough to be compared, a
 VPC by its `cidr_block`, a security group by its `name`, a subnet by its
 `cidr_block` and `availability_zone`. The full list of matchable types, and
 what each is matched on, is `matchTable` in
 [`internal/live/foreign/classify.go`](https://github.com/INTENTIUS/choudoufu/blob/main/internal/live/foreign/classify.go).
-You do not need that list in advance: the plan's `Adoptable` section names
-each match it found and what it matched on.
+You do not need that list in advance, because the plan's `Adoptable` section
+names each match it found and what it matched on.
 
 **Adopted by hand.** Everything else with an ownership marker to write.
 `aws_route_table`, `aws_internet_gateway`, `aws_kms_key` and `aws_lb_listener`
 are server-assigned too, but nothing in their configuration tells one from
 another, so the classifier can never offer them. A route table is "the one
-attached to this VPC"; a listener is a port and a protocol on a load balancer
+attached to this VPC". A listener is a port and a protocol on a load balancer
 named only by a live ARN. Write their markers yourself.
 
 `aws_eip` is bound by slot marker, so a pre-existing unmarked EIP is never
 offered. The first apply gives it a fresh slot instead of recognising the old
-one. The same applies to every `count` or `for_each` instance of any type:
-content matching only considers instances still waiting to be found with no
-index or key. If a specific instance must survive rather than be duplicated,
+one. The same applies to every `count` or `for_each` instance of any type,
+where content matching only considers instances still waiting to be found with
+no index or key. If a specific instance must survive rather than be duplicated,
 hand-write its markers before the first apply.
 
 ## The loop
 
 1. **Add the sidecar.** Create `estate.chdf.hcl` beside the configuration with
    `estate = "..."` as its body (or put `live { estate = "..." }` in
-   `terraform` - either form, not both), remove any `backend` or `cloud`
+   `terraform`, either form, not both), remove any `backend` or `cloud`
    block, and delete the state file. The two blocks are refused alongside a
    live configuration, so this is not optional.
 2. **Plan.** `choudoufu plan` runs discovery and prints an `Adoptable` section
@@ -81,8 +82,8 @@ hand-write its markers before the first apply.
    The printed one-liner covers the types tagged through `ec2 create-tags`. An
    `aws_route53_zone`, `aws_lb`, `aws_lb_target_group` or `aws_sns_topic`
    candidate is offered with its marker pair and no command, because each of
-   those services has its own tagging call: `route53
-   change-tags-for-resource`, `elbv2 add-tags`, `sns tag-resource`. Write the
+   those services has its own tagging call (`route53
+   change-tags-for-resource`, `elbv2 add-tags`, `sns tag-resource`). Write the
    same two tags with the call for that service.
 5. **Plan again.** Every adopted resource reads back its own markers and
    reports no changes.
@@ -93,10 +94,10 @@ can adopt a resource.
 
 ## Client-named resources, and the `Unowned` section
 
-A client-named type carries its identity in the configuration already: an S3
-bucket's name, an IAM role's name, a log group's name. There is no discovery
-step to skip, so it is tempting to assume the resource at your declared name is
-yours.
+A client-named type carries its identity in the configuration already, such as
+an S3 bucket's name, an IAM role's name, or a log group's name. There is no
+discovery step to skip, so it is tempting to assume the resource at your
+declared name is yours.
 
 It is not treated that way. A live resource at a declared client name that does
 not carry this estate's `tofu-estate` marker is refused from entering prior
@@ -105,7 +106,7 @@ which the cloud will reject for name-unique types while the unmarked one holds
 the name, and the refusal is printed as an omission tagged `[UNOWNED]`.
 
 Those refusals also gather into a rendered `Unowned` section, one entry per
-live resource:
+live resource.
 
 - **`[ADOPTABLE]`** shows the two tag values that claim it for this estate,
   ready to copy.
@@ -116,9 +117,9 @@ Adoption here is the same deliberate tag write as the server-assigned path.
 Read the entry, run the tag write it names, plan again.
 
 If you would rather not do this one resource at a time, the ownership policy
-matrix can do it for you: `policy { declared_untagged = "adopt" }` in the live
-configuration adopts every resource in that situation at once. Read what the
-other three settings do before you set it.
+matrix can do it for you. Setting `policy { declared_untagged = "adopt" }` in
+the live configuration adopts every resource in that situation at once. Read
+what the other three settings do before you set it.
 
 ## What has no adoption path
 
@@ -152,10 +153,11 @@ alone. `moved` blocks are refused by lint.
 
 Forgetting without destroying is the one place the parallel is not exact by
 default. Deleting a resource block leaves its marker on the live object, and
-`undeclared_tagged` defaults to `delete`, so the next plan destroys it. That matches what upstream does without a `removed` block.
+`undeclared_tagged` defaults to `delete`, so the next plan destroys it. That
+matches what upstream does without a `removed` block.
 
-The equivalent of `removed` with `destroy = false` is to set that instead of
-accepting the default:
+To get the equivalent of `removed` with `destroy = false`, set that policy
+rather than accepting the default.
 
 ```hcl
 # estate.chdf.hcl
@@ -175,7 +177,7 @@ operations](day2.html) covers the rest of the matrix.
 Know this before you start. Keeping the door open costs nothing.
 
 The markers are plain tags and the resources are ordinary resources. Remove
-the live configuration - the `estate.chdf.hcl` sidecar or the `live` block -
+the live configuration (the `estate.chdf.hcl` sidecar or the `live` block),
 restore a `backend` if you want one, and import the resources into a fresh
 state file with stock tooling. The marker tags can stay, since stock OpenTofu
 ignores them, or you can delete them with your cloud CLI.

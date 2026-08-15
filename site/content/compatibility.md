@@ -5,7 +5,7 @@ expect.
 
 Resource type coverage is rarely what stops a configuration, and `choudoufu
 live-check` below answers for your exact types. What stops configurations is
-how they are written and how they are run: a `for_each` over a data source, a
+how they are written and how they are run. A `for_each` over a data source, a
 `count.index` in a resource name, a `backend "s3"` block, or a CI pipeline
 that saves a plan file.
 
@@ -40,14 +40,15 @@ the types responsible, and what to do about each.
 
 Run `choudoufu init` in the directory first if you can. With provider schemas
 available it judges types from the provider's own identity schema as well as
-the built-in table, and admits more; without them it says so and tells you the
+the built-in table, and admits more. Without them it says so and tells you the
 answer is pessimistic.
 
 **It checks two of the five stages.** Lint and identity resolution run without a
 provider, which is what makes the command fast and credential-free. Marker
 stamping, discovery and projection need a cloud and are not checked, and the
-command says so every time. A clean result is necessary, not sufficient: run a
-plan against a non-production account before believing a migration will work.
+command says so every time. A clean result is necessary but not sufficient, so
+run a plan against a non-production account before believing a migration will
+work.
 
 ## Your provider
 
@@ -61,7 +62,7 @@ A type is admitted when its identity can be recovered from the live system,
 either from the admission table, from the provider's own identity schema, or
 from the way your configuration names it.
 
-Common types are largely covered. The gap that hurts is connective tissue:
+Common types are largely covered. The gap that hurts is connective tissue.
 `aws_ecs_service`, `aws_lambda_permission`, `aws_cloudwatch_event_rule` and
 `aws_cloudwatch_event_target`, `aws_api_gateway_deployment` and
 `aws_api_gateway_resource`. You cannot run ECS, EventBridge or an API Gateway
@@ -114,13 +115,13 @@ that name has the same static requirement.
 | `name = "app-${uuid()}"` | a different value on every evaluation |
 | reading `.arn` where the table expects `name` | that attribute is not part of the identity |
 
-The registry of these refusals, with a one-line description of each shape, is
+The registry of these refusals, with a one-line description of each, is
 `internal/live/identity/refusals.go`. It is the same list the code enforces.
 
 ## Your modules
 
 A marker binds to a configuration address, and it stays correct for exactly as
-long as that address stays stable. That one test decides which module shapes
+long as that address stays stable. That one test decides which module forms
 work.
 
 **A plain `module "app" {}` call** with neither `count` nor `for_each` is
@@ -130,7 +131,7 @@ module-qualified address, `module.app.aws_x.y` or
 
 **`for_each` on a module call** works when every key is evaluable from
 configuration alone. A key you chose does not move when a sibling is added or
-removed: `module.app["prod"]` stays `module.app["prod"]` whatever happens to
+removed, so `module.app["prod"]` stays `module.app["prod"]` whatever happens to
 `module.app["staging"]`. Keys are held to the same marker-safe character and
 length rules as a resource's own `for_each` key, because the key becomes part
 of every address inside the module.
@@ -152,7 +153,7 @@ choudoufu leaves such a resource alone when it already declares `tags`, and
 raises a must-stamp error when it declares none and its type needs discovery to
 be found again.
 
-Thread the module's own `each.key` through and build the address from it:
+Thread the module's own `each.key` through and build the address from it.
 
 ```hcl
 # root module: the call passes its own each.key through
@@ -186,13 +187,13 @@ proven against a live emulator.
 ### Crossing a module boundary
 
 A marker carries the full module-qualified address, escaped into a tag value
-per `live/MARKERS.md` (`[` becomes `:`; `]` and `"` are dropped). `choudoufu
+per `live/MARKERS.md`, where `[` becomes `:` and `]` and `"` are dropped. `choudoufu
 live-mv` reads and writes those the same way it does a root address, so
 flattening a module into the root, moving a resource into a module, or renaming
 across two module instances are all ordinary renames. Only a step carrying a
 `count` key stays refused.
 
-`choudoufu live-import` is narrower: it ratifies root-module state entries only
+`choudoufu live-import` is narrower. It ratifies root-module state entries only
 and reports the count of non-root module instances it saw and skipped. A
 module-tree estate adopts by planning with a `live` block added, the ordinary
 path on [Migrate an existing estate](migrate.html).
@@ -212,8 +213,8 @@ invoked.
   re-plans and re-confirms. The design that ties a reviewed plan to the apply
   that follows is settled in
   [#74](https://github.com/INTENTIUS/choudoufu/issues/74)'s RFC
-  (`rfc/20260814-plan-approval.md` in the repository); it is not implemented
-  yet.
+  (`rfc/20260814-plan-approval.md` in the repository), and it is not
+  implemented yet.
 - `-json` and `-json-into`.
 - `-destroy` and `-refresh-only`.
 - `-state`, `-state-out`, `-backup`, `-generate-config-out`.
@@ -238,7 +239,7 @@ invoked.
 An older refusal message said these were unsupported. They are not.
 
 `null_resource`, `terraform_data`, `time_*` and non-secret `random_*` are
-admitted as soon as the live configuration declares a `record_store`:
+admitted as soon as the live configuration declares a `record_store`.
 
 ```hcl
 # estate.chdf.hcl
@@ -247,7 +248,7 @@ estate = "my-estate"
 record_store "ssm" {}
 ```
 
-The label picks the backend: `local`, `ssm` or `s3`. [Where things are
+The label picks the backend, one of `local`, `ssm` or `s3`. [Where things are
 stored](storage.html) has the arguments and how to choose.
 
 Without one they are refused. With one they run through the stock provider
@@ -276,26 +277,26 @@ instead ([#104](https://github.com/INTENTIUS/choudoufu/issues/104) has the
 reasoning). `providers = { aws = aws }` is admitted, since it names what live
 mode already does, and provider aliases at the root work correctly.
 
-A `provider` block declared *inside* a child module is the adjacent shape,
-and it is refused too: the module's resources would be served by the root
+A `provider` block declared *inside* a child module is the adjacent case,
+and it is refused too. The module's resources would be served by the root
 configuration's provider config instead, silently, so lint refuses the block
-by name ([#70](https://github.com/INTENTIUS/choudoufu/issues/70) has the
-measurement behind the ruling - none of the ten most-installed shared AWS
-modules declares one, and upstream itself calls the shape legacy). Configure
+by name. [#70](https://github.com/INTENTIUS/choudoufu/issues/70) has the
+measurement behind the ruling, that none of the ten most-installed shared AWS
+modules declares one, and that upstream itself calls the pattern legacy. Configure
 providers at the root and let modules receive them implicitly, which is the
 only proven pattern.
 
 ## Editors and linters
 
 The `estate.chdf.hcl` sidecar file exists for exactly this concern
-([#72](https://github.com/INTENTIUS/choudoufu/issues/72)): it carries the
+([#72](https://github.com/INTENTIUS/choudoufu/issues/72)). It carries the
 live configuration in a file whose extension stock tooling never reads, so a
 repository adopting live markers through the sidecar keeps every `.tf` file
 free of non-standard syntax. Stock `terraform validate`, `tflint` and editors
 keep passing untouched.
 
 The in-`terraform` `live` block is the one form that costs you here. Stock
-Terraform and stock OpenTofu reject a configuration containing one:
+Terraform and stock OpenTofu reject a configuration containing one.
 
 ```
 Error: Unsupported block type
@@ -313,25 +314,25 @@ which includes `tflint`, since it decodes HCL through OpenTofu's own
 configuration libraries. Tools that only tokenize HCL, including most syntax
 highlighters and formatters, are unaffected.
 
-If you keep the in-block form anyway - some teams prefer the configuration in
-one place - the options are running `choudoufu validate` in CI instead of
+Some teams prefer the configuration in one place and keep the in-block form
+anyway. The options then are running `choudoufu validate` in CI instead of
 stock `terraform validate`, or keeping the `live` block in a small root module
 that stock tooling has no reason to touch. Or move the block's content into
-the sidecar, which is one file and zero edited lines; declaring both forms at
+the sidecar, which is one file and zero edited lines. Declaring both forms at
 once is an error.
 
 ## Where this page's ordering comes from
 
 [`live/corpus-refusals.json`](https://github.com/INTENTIUS/choudoufu/blob/main/live/corpus-refusals.json)
 in the repository measures which refusals fire, and how often, across a corpus
-with two populations: the fixtures in this repository, and the `examples/`
+with two populations, the fixtures in this repository and the `examples/`
 root modules of `terraform-aws-modules` repositories pinned to exact commits.
-The per-refusal and per-population counts live in that artifact; this page
+The per-refusal and per-population counts live in that artifact. This page
 deliberately does not copy them, because a copied count is stale the moment
 the corpus is re-run.
 
-That measured ranking is why the static-evaluability rule leads this page:
-several of the refusals that fire most often are that one rule, surfacing
+That measured ranking is why the static-evaluability rule leads this page.
+Several of the refusals that fire most often are that one rule, surfacing
 under different diagnostics.
 
 **Do not read the corpus as a compatibility rate.** Module `examples/`
@@ -339,8 +340,9 @@ directories exist to demonstrate a module's full surface, so they lean much
 harder on variables, conditionals and `dynamic` blocks than a configuration
 describing one deployment, and they refuse almost across the board. For that
 reason the artifact marks each population as a ranking and carries no
-rate-shaped figure; [#118](https://github.com/INTENTIUS/choudoufu/issues/118)
-settled that. A number that could honestly be read as a rate waits on a
+rate-like figure, which
+[#118](https://github.com/INTENTIUS/choudoufu/issues/118)
+settled. A number that could honestly be read as a rate waits on a
 population of whole single-deployment estates, which needs a source before it
 can exist.
 

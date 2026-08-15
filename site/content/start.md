@@ -1,6 +1,6 @@
 # Start a new estate
 
-This page is for an estate with nothing in it yet: you are writing the
+This page is for an estate with nothing in it yet, where you are writing the
 configuration and choudoufu will create every resource in it.
 
 If AWS already holds resources this configuration should manage, stop here and
@@ -23,14 +23,14 @@ gh release download -R INTENTIUS/choudoufu --pattern "*_${os}_${arch}.tar.gz"
 tar xzf choudoufu_*_"${os}"_"${arch}".tar.gz   # unpacks ./choudoufu
 ```
 
-Building from a checkout is one command:
+Building from a checkout is one command.
 
 ```
 go build ./cmd/choudoufu
 ```
 
-The binary is called `choudoufu`. Until a configuration opts in - with the
-sidecar file below, or a `live` block - it behaves as the OpenTofu commit it
+The binary is called `choudoufu`. Until a configuration opts in, with the
+sidecar file below or a `live` block, it behaves as the OpenTofu commit it
 was forked from, so you can point it at existing work without changing
 anything.
 
@@ -48,15 +48,14 @@ The estate name is the unit of ownership. Every resource this configuration
 manages gets tagged with it, and that tag is how the next plan finds the
 resource again.
 
-That one file is the whole adoption: no `.tf` file changes, so stock
+That one file is the whole setup. No `.tf` file changes, so stock
 `terraform validate`, `tflint` and editors keep passing on the rest of the
-repository, and reverting is deleting the file. There is nothing else to
-configure. No backend, no lock, no state migration. If your configuration
-later needs an effect the cloud cannot report back on, you add a
-`record_store` to this same file; until then nothing is persisted at all.
+repository, and reverting is deleting the file. If your configuration later
+needs an effect the cloud cannot report back on, you add a `record_store` to
+this same file. Until then the markers on your resources hold everything.
 
 If you prefer the configuration in one place, the same content can live as a
-`live` block inside `terraform` instead:
+`live` block inside `terraform`.
 
 ```hcl
 terraform {
@@ -66,16 +65,16 @@ terraform {
 }
 ```
 
-The two forms are equivalent, and declaring both at once is an error: one
-source of truth.
+The two forms are equivalent. Declaring both at once is an error, so that
+there is one source of truth.
 
 :::warning
-The in-block form only: stock Terraform and stock OpenTofu reject a
-configuration containing a `live` block, because `live` is this fork's
-addition to the `terraform` block's schema and nothing signals it to a tool
-that never heard of it. Any tool that validates the `terraform` block against
-upstream's schema will do the same. The sidecar file has none of this cost -
-its extension is one those tools never read. See
+This applies to the in-block form only. Stock Terraform and stock OpenTofu
+reject a configuration containing a `live` block, because `live` is this
+fork's addition to the `terraform` block's schema and nothing signals it to a
+tool that never heard of it. Any tool that validates the `terraform` block
+against upstream's schema will do the same. The sidecar file has none of this
+cost, because its extension is one those tools never read. See
 [Will my config work](compatibility.html#editors-and-linters) for the
 details.
 :::
@@ -128,28 +127,22 @@ Those two tags are the entire ownership contract. `live/MARKERS.md` in the
 repository is the normative spec, and it is the surface external tooling can
 rely on.
 
-## Check that nothing was written
+## Check that the markers carry it
 
-```
-$ ls terraform.tfstate
-ls: terraform.tfstate: No such file or directory
-```
+Run `choudoufu plan` again in this directory. It rebuilds prior state by
+reading the `tofu-estate` and `tofu-address` tags back off the live
+resources, and reports no changes. The tags alone were enough.
 
-Nothing wrote one, because this configuration declares only resources the
-cloud can report back on. The next `choudoufu plan` in this directory rebuilds
-prior state by reading the `tofu-estate` and `tofu-address` tags back off the
-live resources, and reports no changes.
-
-Repeat that check on your own estate. It is the one you can run without
-trusting this page: after a live apply, the plan rebuilt from markers alone is
-empty, and no state file exists.
+Repeat that on your own estate. It is the check you can run without trusting
+this page, because after a live apply the plan rebuilt from markers alone is
+empty.
 
 ## See it prove itself
 
 The demo is also the test suite. It stands up a real estate against a local AWS
-emulator, deletes the state file partway through, and shows the plans stay
-exact anyway. It needs Docker, and takes about two minutes on a warm Go build
-cache.
+emulator, hands it over to its markers partway through, and shows the plans
+stay exact across the handover. It needs Docker, and takes about two minutes on
+a warm Go build cache.
 
 ```
 bash live/e2e/run.sh --expect 5

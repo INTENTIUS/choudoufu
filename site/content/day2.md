@@ -1,12 +1,12 @@
 # Day-2 operations
 
-Running an estate after the first apply: renaming things, removing things,
+Running an estate after the first apply. Renaming things, removing things,
 recording effects the cloud cannot tell you about, and working with other
 people.
 
 ## Renaming a resource
 
-Rename the resource block in your configuration, then rewrite the marker:
+Rename the resource block in your configuration, then rewrite the marker.
 
 ```
 choudoufu live-mv aws_vpc.old aws_vpc.new
@@ -28,7 +28,7 @@ destroys a marked, undeclared, taggable resource on the next plan. That matches
 what upstream does without a `removed` block.
 
 To stop managing something without destroying it, change what happens to a
-resource you have stopped declaring:
+resource you have stopped declaring.
 
 ```hcl
 # estate.chdf.hcl
@@ -61,14 +61,14 @@ sweep is defined over the admission table.
 
 Both appear in every plan under "Not swept for removal". Types a provider
 simply cannot list or tag are reported by count, since that is true of every
-run; pass `-verbose` to itemise them. A list call that actually failed during
+run. Pass `-verbose` to itemise them. A list call that actually failed during
 this run is itemised every time.
 
 ## Choosing what happens to each kind of resource
 
-Every resource choudoufu sees falls into one of four situations, decided by two
-questions: does your configuration declare it, and does it carry this estate's
-marker? The `policy` block sets what happens in each.
+Every resource choudoufu sees falls into one of four situations, decided by
+whether your configuration declares it and whether it carries this estate's
+marker. The `policy` block sets what happens in each.
 
 With no `policy` block you get the defaults below, which are exactly today's
 behaviour.
@@ -82,7 +82,7 @@ behaviour.
 
 :::warning
 The third row is the one to know before you delete a resource block. Removing
-the block does not mean "stop managing this", it means "destroy this" — which
+the block does not mean "stop managing this", it means "destroy this", which
 is also what upstream does without a `removed` block. Set `undeclared_tagged`
 to `untag` or `keep` first if the resource should survive.
 :::
@@ -117,11 +117,11 @@ account is clean.
 
 ## Effects the cloud cannot tell you about
 
-A database migration, a script, a one-shot API call: nothing in the live system
-records that it happened, so there is no marker to read back.
+Nothing in the live system records that a database migration, a script, or a
+one-shot API call happened, so there is no marker to read back.
 
 `null_resource`, `terraform_data`, `time_*` and non-secret `random_*` work as
-soon as the live configuration declares a `record_store`:
+soon as the live configuration declares a `record_store`.
 
 ```hcl
 # estate.chdf.hcl
@@ -130,18 +130,17 @@ estate = "my-estate"
 record_store "ssm" {}
 ```
 
-The label picks the backend: `local`, `ssm` or `s3`. Those resources then run
-through the stock provider lifecycle exactly as upstream.
+The label picks the backend, one of `local`, `ssm` or `s3`. Those resources
+then run through the stock provider lifecycle exactly as upstream.
 
 [Where things are stored](storage.html) covers the backends, what the records
 hold, and why a receipt is a different thing that must not go in there.
 
 ## Running this with other people
 
-There is no lock. Ownership lives on the resources, so there is no shared
-file for a lock to protect, and the micro-state records use conditional writes
-instead (see below). Two simultaneous applies against one estate resolve one of
-four ways:
+Ownership lives on the resources themselves, and the micro-state records
+settle concurrent writes by conditional write (see below). Two simultaneous
+applies against one estate resolve one of four ways.
 
 | Race | Outcome |
 |---|---|
@@ -153,11 +152,12 @@ four ways:
 No race orphans a resource silently. Each case is either a clean re-plan or a
 named collision.
 
-Compare that with a backend whose lock fails or was never configured: the last state write wins and the loser's resource is
-silently dropped from every future plan. A crash mid-apply is the same story,
-lock or no lock, because a resource created but not yet recorded is orphaned
-either way. Under markers the tag rode the create call itself, so the resource
-is discoverable and there is nothing to unlock or recover.
+Compare that with a backend whose lock fails or was never configured, where
+the last state write wins and the loser's resource is silently dropped from
+every future plan. A crash mid-apply is the same story, lock or no lock,
+because a resource created but not yet recorded is orphaned either way. Under
+markers the tag rode the create call itself, so the resource is discoverable
+and there is nothing to unlock or recover.
 
 None of that is an argument for applying concurrently. Serialize applies in CI,
 which is where the real mutex has always been.
@@ -174,8 +174,8 @@ applying exactly that artifact has no direct equivalent yet. Ordinary `apply`
 re-plans and re-confirms against the live system, which is the honest behaviour,
 but nothing today detects that the world moved between review and apply.
 
-The design that closes that gap is settled:
+The design that closes that gap is settled.
 [#74](https://github.com/INTENTIUS/choudoufu/issues/74) chose a plan
 fingerprint, a digest printed at plan time that apply checks against its own
 fresh plan and refuses on mismatch. `rfc/20260814-plan-approval.md` in the
-repository is the design; it is not implemented yet.
+repository is the design, and it is not implemented yet.

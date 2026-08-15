@@ -1,81 +1,33 @@
 <section class="hero">
   <h1>choudoufu <img class="hero-icon" src="choudoufu-inline-64.png" alt="" width="64" height="64"></h1>
-  <p class="tagline">Ownership on the resource.</p>
-  <p class="versions">Built on <strong>OpenTofu {{.UpstreamVersion}}</strong>
-  (fork point
-  <a href="https://github.com/opentofu/opentofu/commit/03743ce6e8"><code>03743ce6e8</code></a>).
-  The <a href="https://github.com/INTENTIUS/choudoufu/releases">latest
-  release</a> names both versions in its notes.</p>
+  <p class="tagline">IAM-governed state for OpenTofu.</p>
 </section>
 
+<div class="landing-card">
+
 <section class="lead">
+  <p class="versions">Experimental, AWS only. Built on <strong>OpenTofu {{.UpstreamVersion}}</strong>
+  (fork point
+  <a href="https://github.com/opentofu/opentofu/commit/03743ce6e8"><code>03743ce6e8</code></a>).</p>
+
   <!-- The canonical description paragraph (#113): identical wording in
        README.md's opening, this lead, and the GitHub repo description.
        Change all three together or none. -->
-  <p>choudoufu is OpenTofu with live resource markers: no state file, no
-  backend, no lock. Each resource carries its own ownership record as
-  ordinary cloud tags, and every plan rebuilds prior state by reading those
-  markers back off the live system. Experimental, AWS only.</p>
+  <p>Each resource carries its own ownership record as ordinary cloud tags.
+  AWS can tell you what an estate contains. Your IAM already decides who may
+  read or change it.</p>
 
-  <p><strong>Choudoufu state is allowed to be stale. OpenTofu state is
-  not.</strong> A record here is rebuilt from
-  the live system on demand, so a stale or missing one costs a re-read, never
-  a wrong plan. Adoption is a tag you write and a rename is a tag you
-  rewrite.</p>
+  <p class="claim">An estate is inherited by being granted access to it.</p>
 
-  <p>You never configure a backend, take a lock, or perform state surgery.
-  What cannot be read back from the cloud — an effect with no cloud
-  twin, like a <code>null_resource</code> or a <code>time_*</code> — persists
-  as one small record per resource in SSM Parameter Store, S3, or a local
-  file. Those records are written with conditional writes rather than
-  protected by a lock, so a race is a loud, named failure instead of a
-  blocking mutex or a silent clobber.</p>
-
-  <p>Everything else in this fork is stock OpenTofu, unmodified. The name is
-  stinky tofu, which is off-putting on first encounter and grows on
-  people.</p>
-</section>
-
-<section class="status">
-  <h2>Where this stands</h2>
-  <p><strong>Experimental, and AWS only.</strong> Common AWS resource types
-  are largely admitted. The gap that hurts is the connective tissue between
-  them, such as <code>aws_ecs_service</code> and
-  <code>aws_lambda_permission</code>.</p>
-  <p>Type coverage is rarely what stops a configuration, though. A
-  <code>for_each</code> over a data source, a <code>count.index</code> in a
-  resource name, a <code>backend "s3"</code> block, or a CI pipeline that
-  saves a plan file will each stop one first.
-  <a href="compatibility.html">Will my config work?</a> is the honest list.
-  Read it before you try a migration.</p>
-</section>
-
-<section class="paths">
-  <h2>Two paths</h2>
-  <div class="path-cards">
-    <div class="path-card">
-      <h3><a href="migrate.html">Migrate an existing estate</a></h3>
-      <p>You have an OpenTofu configuration managing live AWS resources and a
-      state file you would like to stop having. Deleting the file is the easy
-      half; binding the live resources is the half that needs attention.</p>
-    </div>
-    <div class="path-card">
-      <h3><a href="start.html">Start a new estate</a></h3>
-      <p>Nothing exists yet and choudoufu will create all of it. Install,
-      declare a <code>live</code> block, apply, then confirm no state file
-      was written.</p>
-    </div>
-  </div>
+  <p>Handover is granting a role. Splitting an estate in two is rewriting
+  tags. Whoever inherits one can list what they got with any cloud tool
+  before running anything.</p>
 </section>
 
 <section class="demo">
-  <h2>See it prove itself</h2>
-  <p>The demo is also the test suite. It stands up a real estate against a
-  local AWS emulator, deletes the state file partway through, and shows the
-  plans stay exact anyway. It needs Docker and takes about two minutes on a
-  warm Go build cache. The exit code is the verdict.</p>
-  <pre><code>bash live/e2e/run.sh --expect 5</code></pre>
-  <p>Or hand this to a coding agent and let it run the whole thing.</p>
+  <h2>Prove it in two minutes</h2>
+  <p>Paste this to a coding agent. It stands up a real estate against a local
+  AWS emulator and checks each claim above. The exit code is the verdict.</p>
   <pre><code>Clone https://github.com/INTENTIUS/choudoufu, then do the following.
 
 1. Confirm Docker is running (`docker info` must succeed).
@@ -88,6 +40,9 @@
 
 Exit code 0 means every claim the script makes about live resource markers
 held. Non-zero means one of them did not. Report which step failed.</code></pre>
+  <p class="next"><a href="compatibility.html">Will my config work?</a>
+  &middot; <a href="migrate.html">Migrate an existing estate</a>
+  &middot; <a href="start.html">Start a new one</a></p>
 </section>
 
 <section class="docs-nav">
@@ -102,20 +57,15 @@ held. Non-zero means one of them did not. Report which step failed.</code></pre>
     </div>
     {{end}}
   </div>
-</section>
-
-<section class="elsewhere">
-  <h2>Everything else is OpenTofu</h2>
-  <p>This site covers only what this fork adds. For the language, the CLI,
-  providers, backends, and everything else that is plain OpenTofu, use the
-  upstream documentation.</p>
-  <p><a href="https://opentofu.org/docs/">opentofu.org/docs</a></p>
+  <p>This site covers only what this fork adds. Everything that is plain
+  OpenTofu lives at <a href="https://opentofu.org/docs/">opentofu.org/docs</a>.</p>
 </section>
 
 <section class="legal">
-  <h2>License and affiliation</h2>
-  <p>choudoufu is licensed MPL-2.0, the same license as OpenTofu. This
-  project is not affiliated with or endorsed by OpenTofu or the Linux
-  Foundation. OpenTofu is a registered trademark of the Linux Foundation.</p>
-  <p>The upstream project is <a href="https://github.com/opentofu/opentofu">github.com/opentofu/opentofu</a>.</p>
+  <p>MPL-2.0, the same license as OpenTofu. Not affiliated with or endorsed
+  by OpenTofu or the Linux Foundation. OpenTofu is a registered trademark of
+  the Linux Foundation. The upstream project is
+  <a href="https://github.com/opentofu/opentofu">github.com/opentofu/opentofu</a>.</p>
 </section>
+
+</div>
