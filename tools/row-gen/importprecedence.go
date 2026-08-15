@@ -561,19 +561,8 @@ func tryArgumentReferenceValueMatch(p *proposal, g importGrammarRow) bool {
 	if strings.ContainsAny(g.ImportIDExample, "<>{}") {
 		return false // a doc placeholder token ("<id>"), not a real example value
 	}
-	valueNorm := alnum(g.ImportIDExample)
-	var match string
-	for _, name := range requiredArgumentReferenceNames(g) {
-		tok := argToken(name)
-		if len(tok) < 3 || !strings.Contains(valueNorm, tok) {
-			continue
-		}
-		if match != "" {
-			return false // ambiguous: more than one Required argument's token appears in the value
-		}
-		match = name
-	}
-	if match == "" {
+	match, ok := valueNamesRequiredArgument(g.ImportIDExample, p.TFType, requiredArgumentReferenceNames(g))
+	if !ok {
 		return false
 	}
 	p.Bucket = bucketClientNamed
@@ -627,6 +616,117 @@ func tryDocNamedServerSegment(p *proposal, g importGrammarRow) bool {
 	p.Rule = "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration"
 	p.Notes = append(p.Notes, fmt.Sprintf("import docs name the ID's segments and attribute %s to the Attribute Reference, not the Argument Reference; a server-provided segment makes the identity server-assigned despite the registry's composite primaryIdentifier %s", serverSegmentTokens(g), quoteList(p.PrimaryIdentifier)))
 	return true
+}
+
+// valueNamesRequiredArgument decides whether a single documented example
+// value names exactly one Required argument. The earlier form of this
+// check was bare substring containment, and it misfired on five real
+// pages: "vpce-3ecf2a57" contains "vpc" without being a VPC's id, and
+// "lgw-vpc-assoc-…", "vpcec-…", "ipam-res-disco-assoc-…", "rule-set-id"
+// each embed an argument's token inside the resource's OWN id prefix. The
+// value's own shape is the discriminator, over its hyphen-split words:
+//
+//   - An all-alphabetic value is a placeholder description, not an id
+//     ("fleet-name", "project-name" - the doc describing "the fleet's
+//     name"). It resolves by longest word-suffix against the Required
+//     arguments, unless its words describe the resource's own identifier
+//     ("rule-set-id" on aws_mailmanager_rule_set's page: strip the
+//     trailing "id" and what remains is the type's own noun), which is a
+//     server value and refuses.
+//   - Anything else is a real id value, and the argument's token must
+//     equal the value's ENTIRE alphabetic prefix - the id-scheme part
+//     before the opaque tail. "vpc-0f001273ec18911b1" has prefix "vpc",
+//     exactly vpc_id's token; "lgw-vpc-assoc-…"'s prefix is
+//     "lgwvpcassoc", which is nobody's argument, however many argument
+//     tokens float inside it.
+func valueNamesRequiredArgument(example, tfType string, required []string) (string, bool) {
+	words := strings.Split(strings.ToLower(example), "-")
+	allAlpha := true
+	for _, w := range words {
+		if !isAlphaWord(w) {
+			allAlpha = false
+			break
+		}
+	}
+	if allAlpha {
+		if len(words) >= 2 && words[len(words)-1] == "id" && namesOwnType(words[:len(words)-1], tfType) {
+			return "", false // the value describes the resource's own identifier
+		}
+		for k := len(words); k >= 1; k-- {
+			cand := strings.Join(words[len(words)-k:], "")
+			if len(cand) < 3 {
+				continue
+			}
+			match := ""
+			for _, name := range required {
+				if alnum(name) == cand || argToken(name) == cand {
+					if match != "" {
+						return "", false // two Required arguments claim the same words
+					}
+					match = name
+				}
+			}
+			if match != "" {
+				return match, true
+			}
+		}
+		return "", false
+	}
+	prefix := ""
+	for _, w := range words {
+		if !isAlphaWord(w) {
+			break
+		}
+		prefix += w
+	}
+	if len(prefix) < 3 {
+		return "", false
+	}
+	match := ""
+	for _, name := range required {
+		if argToken(name) == prefix {
+			if match != "" {
+				return "", false
+			}
+			match = name
+		}
+	}
+	return match, match != ""
+}
+
+// isAlphaWord reports whether w is non-empty and purely letters.
+func isAlphaWord(w string) bool {
+	if w == "" {
+		return false
+	}
+	for _, r := range w {
+		if r < 'a' || r > 'z' {
+			return false
+		}
+	}
+	return true
+}
+
+// namesOwnType reports whether words concatenate to the tail of the TF
+// type's own name - the same own-noun test importdocs-gen's plain-part
+// attribution uses ("rule set" against aws_mailmanager_rule_set).
+func namesOwnType(words []string, tfType string) bool {
+	base := strings.Join(words, "")
+	if base == "" {
+		return false
+	}
+	typeTokens := strings.Split(strings.TrimPrefix(tfType, "aws_"), "_")
+	tail := ""
+	for k := 1; k <= len(typeTokens); k++ {
+		tail = typeTokens[len(typeTokens)-k] + tail
+		if tail == base {
+			return true
+		}
+		if len(tail) > len(base) {
+			break
+		}
+	}
+	return false
 }
 
 // tryArgumentReferenceComposite is rule 4: the still-needs-hand-separator

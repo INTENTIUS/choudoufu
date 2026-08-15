@@ -7,6 +7,47 @@ package main
 
 import "testing"
 
+// TestValueNamesRequiredArgument pins the shapes that rewrote rule 3's
+// matching (issue #132). Every case is a real page: the three the old
+// substring containment got right must keep resolving, and the five it got
+// wrong - an argument's token floating inside the resource's own id prefix
+// or a placeholder describing the resource's own identifier - must refuse.
+func TestValueNamesRequiredArgument(t *testing.T) {
+	cases := []struct {
+		name     string
+		example  string
+		tfType   string
+		required []string
+		want     string
+		wantOK   bool
+	}{
+		{"id value whose prefix is the argument's token, aws_vpc_dhcp_options_association",
+			"vpc-0f001273ec18911b1", "aws_vpc_dhcp_options_association", []string{"vpc_id", "dhcp_options_id"}, "vpc_id", true},
+		{"placeholder describing the argument, aws_codebuild_fleet",
+			"fleet-name", "aws_codebuild_fleet", []string{"name"}, "name", true},
+		{"placeholder describing the argument, aws_codebuild_project",
+			"project-name", "aws_codebuild_project", []string{"name"}, "name", true},
+		{"the resource's own id prefix embedding a token, aws_vpc_endpoint",
+			"vpce-3ecf2a57", "aws_vpc_endpoint", []string{"vpc_id", "service_name"}, "", false},
+		{"a token inside a longer own prefix, aws_ec2_local_gateway_route_table_vpc_association",
+			"lgw-vpc-assoc-1234567890abcdef", "aws_ec2_local_gateway_route_table_vpc_association", []string{"local_gateway_route_table_id", "vpc_id"}, "", false},
+		{"a token inside a longer own prefix, aws_vpc_encryption_control",
+			"vpcec-12345678901234567", "aws_vpc_encryption_control", []string{"vpc_id"}, "", false},
+		{"a token inside a longer own prefix, aws_vpc_ipam_resource_discovery_association",
+			"ipam-res-disco-assoc-0178368ad2146a492", "aws_vpc_ipam_resource_discovery_association", []string{"ipam_id", "ipam_resource_discovery_id"}, "", false},
+		{"placeholder describing the resource's own identifier, aws_mailmanager_rule_set",
+			"rule-set-id", "aws_mailmanager_rule_set", []string{"rule_set_name"}, "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := valueNamesRequiredArgument(tc.example, tc.tfType, tc.required)
+			if got != tc.want || ok != tc.wantOK {
+				t.Errorf("valueNamesRequiredArgument(%q) = (%q, %v), want (%q, %v)", tc.example, got, ok, tc.want, tc.wantOK)
+			}
+		})
+	}
+}
+
 // TestIdentitySchemaOrder is issue #134's guard: the third fallback in
 // tryGrammarComposite, which takes the provider's own Identity Schema as the
 // segment order when the value-token bijection is ambiguous.

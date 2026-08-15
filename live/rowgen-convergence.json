@@ -4,12 +4,12 @@
     "admitted_total": 843,
     "compared": 822,
     "not_in_mapped_set": 21,
-    "adopted_unchanged": 702,
-    "adopted_unchanged_pct": 85.4,
-    "genuine_mismatches": 120,
+    "adopted_unchanged": 707,
+    "adopted_unchanged_pct": 86.01,
+    "genuine_mismatches": 115,
     "annotated": 0,
-    "unannotated_mismatches": 120,
-    "scrape_gap_mismatches": 36
+    "unannotated_mismatches": 115,
+    "scrape_gap_mismatches": 31
   },
   "by_service": {
     "ACMPCA": {
@@ -304,8 +304,8 @@
     },
     "EC2": {
       "compared": 87,
-      "adopted_unchanged": 70,
-      "adopted_unchanged_pct": 80.46
+      "adopted_unchanged": 74,
+      "adopted_unchanged_pct": 85.06
     },
     "ECR": {
       "compared": 11,
@@ -754,8 +754,8 @@
     },
     "SES": {
       "compared": 7,
-      "adopted_unchanged": 6,
-      "adopted_unchanged_pct": 85.71
+      "adopted_unchanged": 7,
+      "adopted_unchanged_pct": 100
     },
     "SMSVOICE": {
       "compared": 4,
@@ -3785,17 +3785,9 @@
     {
       "tf_type": "aws_ec2_local_gateway_route_table_vpc_association",
       "service": "EC2",
-      "proposed_bucket": "client-named",
-      "proposed_rule": "import-grammar precedence: the documented example's own text embeds exactly one Required argument's name, confirming it over the registry's own primaryIdentifier claim",
-      "mismatch_classes": [
-        "server-assigned",
-        "components"
-      ],
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
-      "scrape_gap": true,
-      "matched": false,
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
       "annotated": false
     },
     {
@@ -6107,17 +6099,9 @@
     {
       "tf_type": "aws_mailmanager_rule_set",
       "service": "SES",
-      "proposed_bucket": "client-named",
-      "proposed_rule": "import-grammar precedence: the documented example's own text embeds exactly one Required argument's name, confirming it over the registry's own primaryIdentifier claim",
-      "mismatch_classes": [
-        "server-assigned",
-        "components"
-      ],
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
-      "scrape_gap": true,
-      "matched": false,
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
       "annotated": false
     },
     {
@@ -9316,34 +9300,21 @@
     {
       "tf_type": "aws_vpc_encryption_control",
       "service": "EC2",
-      "proposed_bucket": "client-named",
-      "proposed_rule": "import-grammar precedence: the documented example's own text embeds exactly one Required argument's name, confirming it over the registry's own primaryIdentifier claim",
-      "mismatch_classes": [
-        "server-assigned",
-        "components"
-      ],
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
-      "scrape_gap": true,
-      "matched": false,
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
       "annotated": false
     },
     {
       "tf_type": "aws_vpc_endpoint",
       "service": "EC2",
-      "proposed_bucket": "client-named",
-      "proposed_rule": "import-grammar precedence: the documented example's own text embeds exactly one Required argument's name, confirming it over the registry's own primaryIdentifier claim",
-      "mismatch_classes": [
-        "server-assigned",
-        "components"
-      ],
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -9475,18 +9446,13 @@
     {
       "tf_type": "aws_vpc_ipam_resource_discovery_association",
       "service": "EC2",
-      "proposed_bucket": "client-named",
-      "proposed_rule": "import-grammar precedence: the documented example's own text embeds exactly one Required argument's name, confirming it over the registry's own primaryIdentifier claim",
-      "mismatch_classes": [
-        "server-assigned",
-        "components"
-      ],
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
