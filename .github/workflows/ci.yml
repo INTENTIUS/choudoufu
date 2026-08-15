@@ -16,18 +16,26 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      # gofmt is checked on the fork-owned packages only. A handful of
-      # upstream OpenTofu files are gofmt-dirty as inherited, and
-      # reformatting them would add permanent merge friction for no gain.
+      # gofmt covers the roots this fork wholly owns, plus internal/command,
+      # which it does not: that package is upstream's, and the fork has
+      # added 21 files inside it. Whole-root thinking left those 21
+      # unchecked, and internal/command/live_plan.go was gofmt-dirty on main
+      # (issue #171) - the same narrower-than-the-fork gap as #164 and #156,
+      # a third time, because the unit of ownership here is the file and
+      # every check was written against the directory.
       #
-      # The roots must match forkOwnedRoots in live/ci_coverage_test.go.
-      # They did not: tools/ and live/ were outside this check while being
-      # inside the fork, and two files under tools/ were dirty the whole
-      # time - the same narrower-than-the-fork gap #164 found in the test
-      # step, one step over.
-      - name: gofmt (fork-owned packages)
+      # The roots must match forkOwnedRoots plus forkOwnedMixedRoots in
+      # live/ci_coverage_test.go.
+      #
+      # Adding a mostly-upstream package to gofmt risks inherited dirt
+      # breaking CI, so it was measured first rather than assumed: `gofmt -l`
+      # over the whole tree reports zero files outside this list, so no
+      # upstream file is being reformatted here and there is no merge
+      # friction to trade away. TestNoInheritedFileIsGofmtDirty keeps that
+      # true, and says what to do if an upstream sync ever breaks it.
+      - name: gofmt (fork-owned files)
         run: |
-          out="$(gofmt -l internal/live cmd site tools live)"
+          out="$(gofmt -l internal/live cmd site tools live internal/command)"
           if [ -n "$out" ]; then
             echo "gofmt needed on:"
             echo "$out"
@@ -43,7 +51,7 @@ jobs:
       # (issue #164). TestCIRunsEveryForkOwnedTestPackage in ./live keeps
       # this list honest; add a package here, or exclude it by name there.
       - name: Fast test tier
-        run: go test ./internal/live/... ./tools/... ./live/ ./cmd/...
+        run: go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/
       - name: Docs site build
         working-directory: site
         run: go run . -out public/
