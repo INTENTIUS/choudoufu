@@ -162,6 +162,12 @@ type proposal struct {
 	DerivedImportSyntax  string
 	DerivedIdentityAttrs []string
 
+	// NoCFNModel is true for a classifyUnmapped row: live/mapping.json
+	// records no CloudFormation type for it at all, so the registry-evidence
+	// line every other proposal prints would be three empty lists. The
+	// renderer prints the mapping's own via and note instead.
+	NoCFNModel bool
+
 	// Fold rows only.
 	FoldParent   string
 	ParentTFType string // the mapped-set TF type sharing FoldParent, if any
@@ -260,6 +266,48 @@ func classifyMapped(tf, cfn string, e registryEntry, survey map[string]surveyEnt
 	// primary identifier recorded at all.
 	p.Bucket = bucketEvidenceOnly
 	p.Rule = "primaryIdentifier does not fit the server-assigned or client-named shape"
+	return p
+}
+
+// serviceUnmodeled is the report batch every classifyUnmapped proposal
+// files under. A row with no CFN type has no CFN namespace to batch by, and
+// inventing one from the TF type's own name prefix would be a guess
+// (aws_chime_voice_connector_logging's service is not "chime" in any
+// registry) - so the batch is named for the one thing every member has in
+// common, and -service takes it like any other batch name.
+const serviceUnmodeled = "(no CFN model)"
+
+// classifyUnmapped classifies a TF type live/mapping.json records with no
+// CloudFormation model at all: via cfn-unmodeled, tf-only,
+// deprecated-service or none.
+//
+// It seeds bucketEvidenceOnly with no registry evidence, which is the honest
+// starting point - there is no primaryIdentifier to reason from, so
+// classifyMapped's four rules have nothing to run on. What resolves these
+// rows is applyImportGrammarPrecedence, whose rules 1
+// (tryGrammarComposite), tryAssembledTemplate and 3
+// (tryArgumentReferenceValueMatch) read only live/import-grammar.json and
+// the proposal's own bucket - never PrimaryIdentifier - so they apply to a
+// row with no CFN model exactly as well as to a mapped one. The other rules
+// sit behind a bucketNeedsHandSeparator or bucketServerAssigned guard that
+// this bucket never satisfies, so no registry-dependent rule can reach a
+// row that has no registry evidence.
+//
+// This is the same structural move classifyFold made for property-children:
+// a row the registry cannot speak for is not thereby a row nothing can
+// speak for.
+func classifyUnmapped(tf, via string, note *string) proposal {
+	p := proposal{
+		TFType:      tf,
+		Service:     serviceUnmodeled,
+		Bucket:      bucketEvidenceOnly,
+		NoCFNModel:  true,
+		Rule:        "no CloudFormation model (live/mapping.json via=" + via + "); the provider's own import documentation is the only identity evidence there is",
+		Enumeration: "unknown: no CFN registry entry states this type's list handler",
+	}
+	if note != nil && *note != "" {
+		p.Notes = append(p.Notes, "mapping-gen declined to map this type: "+*note)
+	}
 	return p
 }
 

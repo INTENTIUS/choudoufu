@@ -2,16 +2,21 @@
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
     "admitted_total": 876,
-    "compared": 855,
-    "not_in_mapped_set": 21,
-    "adopted_unchanged": 747,
-    "adopted_unchanged_pct": 87.37,
-    "genuine_mismatches": 108,
-    "annotated": 108,
+    "compared": 866,
+    "not_in_mapped_set": 10,
+    "adopted_unchanged": 757,
+    "adopted_unchanged_pct": 87.41,
+    "genuine_mismatches": 109,
+    "annotated": 109,
     "unannotated_mismatches": 0,
-    "scrape_gap_mismatches": 23
+    "scrape_gap_mismatches": 24
   },
   "by_service": {
+    "(no CFN model)": {
+      "compared": 11,
+      "adopted_unchanged": 7,
+      "adopted_unchanged_pct": 63.64
+    },
     "ACMPCA": {
       "compared": 2,
       "adopted_unchanged": 2,
@@ -739,8 +744,8 @@
     },
     "S3": {
       "compared": 7,
-      "adopted_unchanged": 4,
-      "adopted_unchanged_pct": 57.14
+      "adopted_unchanged": 7,
+      "adopted_unchanged_pct": 100
     },
     "S3Express": {
       "compared": 1,
@@ -942,6 +947,18 @@
       "service": "ACMPCA",
       "proposed_bucket": "client-named",
       "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_acmpca_policy",
+      "service": "(no CFN model)",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
@@ -5235,6 +5252,33 @@
       "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
+      "tf_type": "aws_guardduty_organization_admin_account",
+      "service": "(no CFN model)",
+      "proposed_bucket": "evidence-only",
+      "proposed_rule": "no CloudFormation model (live/mapping.json via=tf-only); the provider's own import documentation is the only identity evidence there is",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "classifyUnmapped now proposes for this type (live/mapping.json records it tf-only with cfn_type null, and loadMapping no longer filters those rows out), but the proposal stays evidence-only: the Import section names the ID in plain words with no backticked argument, and the documented example is a bare account number that carries no argument's own name token, so neither the grammar rules nor tryArgumentReferenceValueMatch can attribute it. The ratified row is the ratifiers' reading of the same page."
+    },
+    {
+      "tf_type": "aws_guardduty_organization_configuration",
+      "service": "(no CFN model)",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_guardduty_publishing_destination",
       "service": "GuardDuty",
       "proposed_bucket": "server-assigned",
@@ -5528,12 +5572,36 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_inspector2_delegated_admin_account",
+      "service": "(no CFN model)",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_inspector2_filter",
       "service": "InspectorV2",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_inspector2_member_association",
+      "service": "(no CFN model)",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
       ],
       "matched": true,
       "annotated": false
@@ -6296,6 +6364,23 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_macie2_classification_job",
+      "service": "(no CFN model)",
+      "proposed_bucket": "evidence-only",
+      "proposed_rule": "no CloudFormation model (live/mapping.json via=cfn-unmodeled); the provider's own import documentation is the only identity evidence there is",
+      "mismatch_classes": [
+        "server-assigned"
+      ],
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "classifyUnmapped now proposes for this type (live/mapping.json records it cfn-unmodeled with cfn_type null, and loadMapping no longer filters those rows out), but the proposal stays evidence-only rather than server-assigned: the Import section says only 'using the id', which importProseOwnIDPhrase deliberately declines to read as an own-id claim because a bare 'the id' does not say WHOSE id it is (importprecedence.go: 'a bare \"the id\" claims nothing about whose id it is'). The ratified row is the ratifiers' reading of the same page."
+    },
+    {
       "tf_type": "aws_macie2_custom_data_identifier",
       "service": "Macie",
       "proposed_bucket": "server-assigned",
@@ -6316,6 +6401,34 @@
       ],
       "matched": true,
       "annotated": false
+    },
+    {
+      "tf_type": "aws_macie2_member",
+      "service": "(no CFN model)",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_macie2_organization_admin_account",
+      "service": "(no CFN model)",
+      "proposed_bucket": "evidence-only",
+      "proposed_rule": "no CloudFormation model (live/mapping.json via=cfn-unmodeled); the provider's own import documentation is the only identity evidence there is",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "classifyUnmapped now proposes for this type (live/mapping.json records it cfn-unmodeled with cfn_type null, and loadMapping no longer filters those rows out), but the proposal stays evidence-only: the Import section says only 'using the id' and the documented example is the opaque 'abcd1', so no signal in the scrape links the ID to a configuration argument. The ratified row is the ratifiers' reading of the same page."
     },
     {
       "tf_type": "aws_mailmanager_rule_set",
@@ -8039,18 +8152,14 @@
     {
       "tf_type": "aws_s3_bucket_lifecycle_configuration",
       "service": "S3",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::S3::Bucket",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: the documented ID has a shorter form the kept example itself shows, and the provider's own Identity Schema requires exactly [\"bucket\"] for import",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the doc documents two import forms (the bucket alone, or bucket and expected_bucket_owner comma-joined); the ratified row takes the single-argument form, which the scraped one-separator grammar row cannot express. The ratified row is the ratifiers' reading of the same page."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_s3_bucket_policy",
@@ -8079,34 +8188,26 @@
     {
       "tf_type": "aws_s3_bucket_server_side_encryption_configuration",
       "service": "S3",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::S3::Bucket",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: the documented ID has a shorter form the kept example itself shows, and the provider's own Identity Schema requires exactly [\"bucket\"] for import",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the doc documents two import forms (the bucket alone, or bucket and expected_bucket_owner comma-joined); the ratified row takes the single-argument form, which the scraped one-separator grammar row cannot express. The ratified row is the ratifiers' reading of the same page."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_s3_bucket_versioning",
       "service": "S3",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::S3::Bucket",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: the documented ID has a shorter form the kept example itself shows, and the provider's own Identity Schema requires exactly [\"bucket\"] for import",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the doc documents two import forms (the bucket alone, or bucket and expected_bucket_owner comma-joined); the ratified row takes the single-argument form, which the scraped one-separator grammar row cannot express. The ratified row is the ratifiers' reading of the same page."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_s3_directory_bucket",
@@ -8740,6 +8841,21 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_securityhub_member",
+      "service": "(no CFN model)",
+      "proposed_bucket": "evidence-only",
+      "proposed_rule": "no CloudFormation model (live/mapping.json via=cfn-unmodeled); the provider's own import documentation is the only identity evidence there is",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "classifyUnmapped now proposes for this type (live/mapping.json records it cfn-unmodeled with cfn_type null, and loadMapping no longer filters those rows out), but the proposal stays evidence-only: the scrape resolved composed_of_arguments to FALSE and recorded no arguments, so rule 1 has nothing to read and rule 3 (tryArgumentReferenceValueMatch) refuses on the composed flag before ever looking at the example. The Import prose does name the argument in backticks. The ratified row is the ratifiers' reading of the same page."
+    },
+    {
       "tf_type": "aws_securityhub_organization_admin_account",
       "service": "SecurityHub",
       "proposed_bucket": "client-named",
@@ -8756,6 +8872,29 @@
       "service": "SecurityHub",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_securityhub_standards_control",
+      "service": "(no CFN model)",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_securityhub_standards_control_association",
+      "service": "(no CFN model)",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],

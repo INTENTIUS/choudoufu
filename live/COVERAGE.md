@@ -27,12 +27,12 @@ them moves. The prose on this page quotes none of the numbers.
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 3 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
 | Admitted (the shipped table) | 876 types | Nothing at lint. Runtime support varies by type; see the layers below. |
-| Pastable proposals (server-assigned 582, client-named 360, composite 106, assembled 9) | 1057 types | A ratification batch: paste, fixture, test. |
+| Pastable proposals (server-assigned 582, client-named 474, composite 129, assembled 10) | 1195 types | A ratification batch: paste, fixture, test. |
 | Needs a hand separator | 82 types | One one-character import-separator decision each. |
-| Evidence-only | 33 types | An identity-argument name no current evidence source states. |
-| Fold-children | 88 types | Nothing of their own; identity is the parent's. |
-| Mapped in total | 1260 of 1699 provider types | The layers above partition this set. |
-| Excluded, each with a generated reason | 303 cfn-unmodeled, 116 tf-only, 7 deprecated-service, 13 unclassified | See `live/LIMITATIONS.md`'s exclusion cohorts. |<!-- survey-gen:end coverage-layers -->
+| Evidence-only | 345 types | An identity-argument name no current evidence source states. |
+| Fold-children | 77 types | Nothing of their own; identity is the parent's. |
+| Classified in total | 1699 of 1699 provider types | The layers above partition this set. |
+| Of those, with no CloudFormation model | 303 cfn-unmodeled, 116 tf-only, 7 deprecated-service, 13 unclassified | Classified from the provider's own import documentation alone, not from the CFN registry. See `live/LIMITATIONS.md`'s exclusion cohorts. |<!-- survey-gen:end coverage-layers -->
 
 ## The admitted set
 

@@ -162,19 +162,65 @@ func TestSummaryCountsSumToMappedSetSize(t *testing.T) {
 	}
 }
 
-// TestMappedSetIsSorted is a small determinism check: loadMapping sorts by
+// TestMappedSetIsSorted is the determinism check: loadMapping sorts by
 // tf_type, and classifyAll must preserve enough order that repeated runs
-// (and hence the golden file) are stable. It does not need to hold for the
-// fold rows appended after the mapped rows, only within each half.
+// (and hence the golden file) are stable.
+//
+// classifyAll emits three consecutive runs - the CFN-mapped rows, then the
+// fold rows, then the rows live/mapping.json gives no CFN model at all
+// (classifyUnmapped) - so sortedness holds within each run rather than
+// across the whole slice. Checking the runs separately would be a weakening
+// on its own, so this also pins that the three runs are CONTIGUOUS and in a
+// fixed order, and that between them they account for every proposal: a row
+// escaping its run, or the runs interleaving, fails here rather than
+// silently going unchecked.
 func TestMappedSetIsSorted(t *testing.T) {
 	proposals := loadAllForTest(t)
-	var mappedTypes []string
-	for _, p := range proposals {
-		if p.FoldParent == "" {
-			mappedTypes = append(mappedTypes, p.TFType)
+
+	group := func(p proposal) string {
+		switch {
+		case p.NoCFNModel:
+			return "no-cfn-model"
+		case p.FoldParent != "":
+			return "fold"
+		default:
+			return "mapped"
 		}
 	}
-	if !sort.StringsAreSorted(mappedTypes) {
-		t.Error("non-fold proposals are not sorted by TFType")
+
+	runs := map[string][]string{}
+	var order []string
+	for _, p := range proposals {
+		g := group(p)
+		runs[g] = append(runs[g], p.TFType)
+		if len(order) == 0 || order[len(order)-1] != g {
+			order = append(order, g)
+		}
+	}
+
+	for _, g := range []string{"mapped", "fold", "no-cfn-model"} {
+		if len(runs[g]) == 0 {
+			t.Errorf("no %s proposals at all; the check would pass vacuously", g)
+			continue
+		}
+		if !sort.StringsAreSorted(runs[g]) {
+			t.Errorf("%s proposals are not sorted by TFType", g)
+		}
+	}
+
+	want := []string{"mapped", "fold", "no-cfn-model"}
+	if len(order) != len(want) {
+		t.Errorf("classifyAll emitted the runs %v; want each of %v exactly once and contiguous", order, want)
+	} else {
+		for i := range want {
+			if order[i] != want[i] {
+				t.Errorf("classifyAll emitted the runs %v, want %v", order, want)
+				break
+			}
+		}
+	}
+
+	if total := len(runs["mapped"]) + len(runs["fold"]) + len(runs["no-cfn-model"]); total != len(proposals) {
+		t.Errorf("the three runs cover %d proposals, want all %d", total, len(proposals))
 	}
 }

@@ -47,6 +47,11 @@ import (
 //     widened scrape's own ArgumentsInOrder - the same segments, matched to
 //     Argument Reference names from the format-string prose instead of the
 //     literal example value - see tryGrammarComposite's own doc comment.
+//     Immediately after rule 1 sits tryDocumentedShorterForm (rule 1b), for
+//     the rows rule 1's arity check refuses because the doc documents the ID
+//     in more than one form and the scrape kept a shorter one - see its own
+//     doc comment for the four measured shapes it deliberately still
+//     refuses.
 //     Between rules 1 and 2 sits tryAssembledTemplate (issue #172): the
 //     scrape's own per-segment ARN/URL template, when fully attributed,
 //     resolves the one shape no other bucket can express - components
@@ -147,6 +152,7 @@ func applyImportGrammarPrecedence(proposals []proposal, importGrammar map[string
 		// argument name to a grammar-sourced one that happens to agree.
 		switch {
 		case p.Bucket != bucketClientNamed && tryGrammarComposite(p, g):
+		case p.Bucket != bucketClientNamed && tryDocumentedShorterForm(p, g):
 		case p.Bucket != bucketComposite && tryAssembledTemplate(p, g):
 		case p.Bucket == bucketEvidenceOnly && tryArgumentReferenceConfirmedGuess(p, g):
 		case p.Bucket != bucketClientNamed && p.Bucket != bucketComposite && tryArgumentReferenceValueMatch(p, g):
@@ -266,6 +272,116 @@ func tryGrammarComposite(p *proposal, g importGrammarRow) bool {
 		return true
 	}
 	return false
+}
+
+// tryDocumentedShorterForm is rule 1b: the doc documents its import ID in
+// more than one form, and the example the scrape kept is a SHORTER one than
+// the argument list it also scraped.
+//
+// aws_s3_bucket_object_lock_configuration is the shape. Its Import section
+// says the ID takes "one of two forms": the `bucket` alone when the caller
+// owns the bucket, or `bucket` and `expected_bucket_owner` joined by a comma
+// when it does not. The scrape records both arguments and the comma, but the
+// example it kept - "bucket-name" - is the short form, one segment against
+// two arguments. tryGrammarComposite's arity check therefore refuses, and
+// correctly: two arguments cannot be read out of a one-segment string. What
+// it cannot see on its own is that the doc MEANT the short form, because the
+// extra argument is not part of the identity at all.
+//
+// The rule keeps the leading arguments the example accounts for and drops
+// the rest, but only when a source outside the arity arithmetic says the
+// dropped ones are not identity. Two sources, strongest first:
+//
+//  1. The provider's own Terraform 1.12+ Identity Schema, when the page has
+//     one: its Required attributes must be exactly the retained prefix. This
+//     is the provider answering the question directly, and it is what makes
+//     aws_s3_bucket_acl safe - a page documenting FOUR forms (bucket;
+//     bucket,acl; bucket,expected_bucket_owner; bucket,expected_bucket_owner,acl)
+//     whose optional parts are not a clean trailing tail at all, and whose
+//     scraped argument list omits expected_bucket_owner entirely. The prefix
+//     arithmetic gets "bucket" there by luck; the Identity Schema's own
+//     ["bucket"] is why the row is allowed to ship.
+//  2. Failing that, the doc's own Argument Reference: every retained
+//     argument Required and every dropped one Optional.
+//
+// Argument Reference required-ness is the WEAKER source on purpose, and that
+// was measured: aws_cloudwatch_event_target marks event_bus_name Optional as
+// a configuration argument while its Identity Schema lists it as required
+// FOR IMPORT. Required-as-an-argument is not the same question as
+// member-of-the-identity, so when the provider answers the second question
+// directly, that answer wins outright rather than being one vote among two.
+//
+// Measured over the 6.59.0 scrape: 16 rows have an argument list longer than
+// their example's segment count. The rule fires on 12 and refuses 4, and
+// each refusal is a shape it would have got wrong:
+//
+//   - aws_account_alternate_contact: the short form is a required-only
+//     SUFFIX ("OPERATIONS"), not a prefix - the optional account_id LEADS.
+//     Refused because the retained prefix account_id is Optional.
+//   - aws_cloudwatch_event_target: the omitted event_bus_name has a
+//     documented server-side default, which Component.Default already
+//     models properly; refused because the Identity Schema names all three.
+//   - aws_lb_target_group_attachment: not a two-form page at all - the
+//     arity gap is a scrape artifact from "and optionally `port` and
+//     `availability_zone`"; refused because the Identity Schema names two.
+//   - aws_route: the surplus arguments are three mutually exclusive
+//     alternatives for ONE segment, not a droppable tail; refused because
+//     the scrape recovered no arguments_in_doc_order, so there is no
+//     documented order to take a prefix of.
+//
+// The rule never fires where anything already resolved: it runs only after
+// tryGrammarComposite declined, and it demands ArgumentsInOrder, which is
+// the doc's own stated order and never this package's guess.
+func tryDocumentedShorterForm(p *proposal, g importGrammarRow) bool {
+	if g.ComposedOfArguments == nil || !*g.ComposedOfArguments || g.Separator == nil || len(g.Arguments) < 2 {
+		return false
+	}
+	order := g.ArgumentsInOrder
+	if len(order) != len(g.Arguments) || !sameStringSet(order, g.Arguments) {
+		return false
+	}
+	n := len(strings.Split(g.ImportIDExample, *g.Separator))
+	if n < 1 || n >= len(order) {
+		return false
+	}
+	keep, drop := order[:n], order[n:]
+	why, ok := shorterFormEvidence(keep, drop, g)
+	if !ok {
+		return false
+	}
+	setClientNamedComposite(p, keep, *g.Separator, g)
+	p.Rule = "import-grammar precedence: the documented ID has a shorter form the kept example itself shows, and " + why
+	p.Notes = append(p.Notes, fmt.Sprintf("import docs example %q accounts for %d of the %d documented arguments; %s omitted from the identity because %s", g.ImportIDExample, n, len(order), quoteList(drop), why))
+	return true
+}
+
+// shorterFormEvidence answers whether the arguments a shorter documented
+// example drops are really outside the type's identity, and states the
+// reason in the words the proposal's own rule line uses. See
+// tryDocumentedShorterForm for why the Identity Schema, when present, is
+// consulted alone rather than alongside Argument Reference.
+func shorterFormEvidence(keep, drop []string, g importGrammarRow) (string, bool) {
+	if len(g.IdentitySchemaRequired) > 0 {
+		if sameStringSet(g.IdentitySchemaRequired, keep) {
+			return "the provider's own Identity Schema requires exactly " + quoteList(keep) + " for import", true
+		}
+		return "", false
+	}
+	required := map[string]bool{}
+	for _, a := range g.ArgumentReference {
+		required[a.Name] = a.Required
+	}
+	for _, a := range keep {
+		if !required[a] {
+			return "", false
+		}
+	}
+	for _, a := range drop {
+		if required[a] {
+			return "", false
+		}
+	}
+	return "the Argument Reference marks every retained argument Required and every omitted one Optional", true
 }
 
 // identitySchemaOrder is the third fallback's whole test. It returns the

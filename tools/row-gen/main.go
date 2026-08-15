@@ -142,7 +142,7 @@ func run(service string, out, errOut *os.File) error {
 
 	fmt.Fprint(out, renderReport(proposals, service))
 	counts := tally(proposals)
-	fmt.Fprintf(errOut, "row-gen: %d mapped types (%d server-assigned, %d client-named, %d composite, %d assembled, %d needs-hand-separator, %d fold-child, %d evidence-only)\n",
+	fmt.Fprintf(errOut, "row-gen: %d types (%d server-assigned, %d client-named, %d composite, %d assembled, %d needs-hand-separator, %d fold-child, %d evidence-only)\n",
 		len(proposals), counts.ServerAssigned, counts.ClientNamed, counts.Composite, counts.Assembled, counts.NeedsHandSeparator, counts.FoldChild, counts.EvidenceOnly)
 	return nil
 }
@@ -298,22 +298,28 @@ func classifyAll(rows []mappingRow, registry map[string]registryEntry, survey ma
 
 	var mapped []proposal
 	var folds []mappingRow
+	var unmapped []proposal
 	for _, r := range rows {
-		if r.Via == "fold" {
+		switch {
+		case r.Via == "fold":
 			folds = append(folds, r)
-			continue
-		}
-		if r.CFNType == nil {
+		case r.CFNType != nil:
+			entry, ok := registry[*r.CFNType]
+			if !ok {
+				return nil, fmt.Errorf("%s: mapped to %s, which is not in %s (a stale mapping against the current registry)", r.TFType, *r.CFNType, registryJSONRel)
+			}
+			mapped = append(mapped, classifyMapped(r.TFType, *r.CFNType, entry, survey, importGrammar, carveSeed))
+		case cfnModelledVia[r.Via]:
+			// A via that PROMISES a cfn_type and has none is still the
+			// broken invariant it always was; only the vias that promise
+			// nothing fall through to classifyUnmapped below.
 			return nil, fmt.Errorf("%s: via=%s but cfn_type is null (a mapping.json invariant broke)", r.TFType, r.Via)
+		default:
+			unmapped = append(unmapped, classifyUnmapped(r.TFType, r.Via, r.Note))
 		}
-		entry, ok := registry[*r.CFNType]
-		if !ok {
-			return nil, fmt.Errorf("%s: mapped to %s, which is not in %s (a stale mapping against the current registry)", r.TFType, *r.CFNType, registryJSONRel)
-		}
-		mapped = append(mapped, classifyMapped(r.TFType, *r.CFNType, entry, survey, importGrammar, carveSeed))
 	}
 
-	out := make([]proposal, 0, len(mapped)+len(folds))
+	out := make([]proposal, 0, len(mapped)+len(folds)+len(unmapped))
 	out = append(out, mapped...)
 	for _, r := range folds {
 		if r.FoldParent == nil {
@@ -321,6 +327,7 @@ func classifyAll(rows []mappingRow, registry map[string]registryEntry, survey ma
 		}
 		out = append(out, classifyFold(r.TFType, *r.FoldParent, mapped, admitted))
 	}
+	out = append(out, unmapped...)
 	applyImportGrammarDemotions(out, importGrammar)
 	applyImportGrammarPrecedence(out, importGrammar)
 	return out, nil

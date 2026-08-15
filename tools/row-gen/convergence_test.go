@@ -111,7 +111,29 @@ const unannotatedMismatchRatchetMax = 0
 // the classifier deliberately does not shape (its ruling names the exit: a
 // fold-child rule composing the parent's tuple with the child's own
 // import-doc arguments).
-const annotationCountRatchetMax = 129
+//
+// 122 (2026-08-15): the downward travel the constant's own rule describes,
+// and the first time a whole exit condition was met at once. Eleven rulings
+// shared the exit "an evidence path not rooted in the CFN registry:
+// classifyAll would have to propose from the scraped doc grammar alone when
+// live/mapping.json records cfn_type null". loadMapping stopped filtering
+// the mapping artifact by via and classifyUnmapped built that path, so
+// row-gen now proposes for all 439 types CloudFormation does not model; 7
+// of the 11 became stale and were deleted. The remaining 4 are reached now
+// but not reproduced, and their rulings were rewritten to say so rather
+// than left asserting a "no proposal reaches this type" that stopped being
+// true.
+//
+// 119 (2026-08-15): three more, from the same batch's second extractor fix.
+// aws_s3_bucket_versioning, _lifecycle_configuration and
+// _server_side_encryption_configuration were each ruled with the same
+// sentence - "the doc documents two import forms (the bucket alone, or
+// bucket and expected_bucket_owner comma-joined); the ratified row takes the
+// single-argument form, which the scraped one-separator grammar row cannot
+// express". tryDocumentedShorterForm (importprecedence.go rule 1b) makes it
+// expressible, and the classifier now reproduces all three ratified rows
+// without having been shown them.
+const annotationCountRatchetMax = 119
 
 // TestAnnotationCountRatchet reads the committed ledger directly and fails
 // when it has grown past annotationCountRatchetMax - never when it shrinks:

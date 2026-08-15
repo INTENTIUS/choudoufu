@@ -154,9 +154,9 @@ func renderCoverageLayers(root string) (string, error) {
 		buckets.EvidenceOnly)
 	fmt.Fprintf(&b, "| Fold-children | %d types | Nothing of their own; identity is the parent's. |\n",
 		buckets.FoldChild)
-	fmt.Fprintf(&b, "| Mapped in total | %d of %d provider types | The layers above partition this set. |\n",
+	fmt.Fprintf(&b, "| Classified in total | %d of %d provider types | The layers above partition this set. |\n",
 		buckets.Mapped, mapping.Counts.Types)
-	fmt.Fprintf(&b, "| Excluded, each with a generated reason | %d cfn-unmodeled, %d tf-only, %d deprecated-service, %d unclassified | See `live/LIMITATIONS.md`'s exclusion cohorts. |",
+	fmt.Fprintf(&b, "| Of those, with no CloudFormation model | %d cfn-unmodeled, %d tf-only, %d deprecated-service, %d unclassified | Classified from the provider's own import documentation alone, not from the CFN registry. See `live/LIMITATIONS.md`'s exclusion cohorts. |",
 		mapping.Counts.CFNUnmodeled, mapping.Counts.TFOnly, mapping.Counts.DeprecatedService, mapping.Counts.Unclassified)
 	return b.String(), nil
 }
