@@ -45,27 +45,32 @@ type parentReadableType struct {
 // parentReadableRoster splits root's untaggable-admitted roster
 // (untaggable_render.go's untaggableAdmittedTypes) into the types
 // identity.ParentOf resolves against an eligible parent, and the residue it
-// does not. The eligible-parent set is every admitted type minus the
-// untaggable ones themselves - live/survey-full.json's taggable signal,
-// read once here, is the same fact internal/live/discovery computes live
-// from the provider's own schema (markerCapable) at run time; both are
-// independent readings of "can this type carry an ownership marker",
-// which is what the parent-read leg is a substitute for.
+// does not.
+//
+// The eligible-parent set is every admitted type live/survey-full.json
+// positively records as taggable. That is the same fact
+// internal/live/discovery computes live from the provider's own schema
+// (markerCapable, in taggableAdmittedTypes) at run time, and the two are
+// independent readings of "can this type carry an ownership marker", which
+// is what the parent-read leg is a substitute for.
+//
+// Issue #130: this used to be derived subtractively, as every admitted type
+// minus the untaggable ones, which is not the same set. A type the survey
+// has no row for fell through the filter and became eligible, so
+// null_resource - record-backed, no tags argument, no AWS existence at all -
+// was published as the swept parent of seven types that discovery's own
+// default-deny check would never have allowed. Both sides are positive
+// tests now, which is the only way the "independent readings" claim above
+// can hold.
 func parentReadableRoster(root string) (readable []parentReadableType, residue []string, err error) {
-	untaggable, err := untaggableAdmittedTypes(root)
+	untaggable, taggable, err := untaggableAdmittedTypes(root)
 	if err != nil {
 		return nil, nil, err
 	}
-	untaggableSet := make(map[string]bool, len(untaggable))
-	for _, t := range untaggable {
-		untaggableSet[t] = true
-	}
 
-	eligibleParents := make(map[string]bool)
-	for _, t := range identity.AdmittedTypes() {
-		if !untaggableSet[t] {
-			eligibleParents[t] = true
-		}
+	eligibleParents := make(map[string]bool, len(taggable))
+	for _, t := range taggable {
+		eligibleParents[t] = true
 	}
 
 	for _, t := range untaggable {

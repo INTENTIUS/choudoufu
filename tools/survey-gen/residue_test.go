@@ -36,7 +36,7 @@ func TestLimitationsMDResidueRosterSpans(t *testing.T) {
 	}
 	md := string(mdBytes)
 
-	untaggable, err := untaggableAdmittedTypes(root)
+	untaggable, _, err := untaggableAdmittedTypes(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestParentReadableRosterPartitionsUntaggable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	untaggable, err := untaggableAdmittedTypes(root)
+	untaggable, _, err := untaggableAdmittedTypes(root)
 	if err != nil {
 		t.Fatal(err)
 	}

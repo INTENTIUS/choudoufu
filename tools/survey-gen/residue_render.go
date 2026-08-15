@@ -62,7 +62,7 @@ func renderLimitationsMD(root string) error {
 		return err
 	}
 
-	untaggable, err := untaggableAdmittedTypes(root)
+	untaggable, _, err := untaggableAdmittedTypes(root)
 	if err != nil {
 		return err
 	}

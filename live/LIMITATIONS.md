@@ -2467,7 +2467,6 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | Type | Parent | Removed by this leg |
 |---|---|---|
 | `aws_acmpca_certificate_authority_certificate` | `aws_acmpca_certificate_authority` | no (report-only) |
-| `aws_acmpca_policy` | `null_resource` | no (report-only) |
 | `aws_api_gateway_base_path_mapping` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_api_gateway_documentation_version` | `aws_api_gateway_rest_api` | no (report-only) |
 | `aws_api_gateway_gateway_response` | `aws_api_gateway_rest_api` | no (report-only) |
@@ -2482,9 +2481,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_appflow_connector_profile` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_appsync_api_cache` | `aws_appsync_api` | no (report-only) |
 | `aws_appsync_domain_name_api_association` | `aws_api_gateway_domain_name` | no (report-only) |
-| `aws_arczonalshift_zonal_autoshift_configuration` | `null_resource` | no (report-only) |
 | `aws_autoscaling_group` | `aws_api_gateway_domain_name` | no (report-only) |
-| `aws_bedrockagentcore_resource_policy` | `null_resource` | no (report-only) |
 | `aws_cloudfront_monitoring_subscription` | `aws_lightsail_distribution` | no (report-only) |
 | `aws_cloudfront_realtime_log_config` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_cloudwatch_event_api_destination` | `aws_api_gateway_domain_name` | no (report-only) |
@@ -2492,7 +2489,6 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_cloudwatch_event_connection` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_cloudwatch_event_endpoint` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_cloudwatch_log_metric_filter` | `aws_api_gateway_domain_name` | no (report-only) |
-| `aws_cloudwatch_log_resource_policy` | `null_resource` | no (report-only) |
 | `aws_cloudwatch_log_stream` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_cloudwatch_log_subscription_filter` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_cloudwatch_log_transformer` | `aws_cloudwatch_log_group` | no (report-only) |
@@ -2507,7 +2503,6 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_config_organization_conformance_pack` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_devopsguru_resource_collection` | `aws_iot_thing_type` | no (report-only) |
 | `aws_dynamodb_global_table` | `aws_api_gateway_domain_name` | no (report-only) |
-| `aws_dynamodb_resource_policy` | `null_resource` | no (report-only) |
 | `aws_ec2_client_vpn_route` | `aws_ec2_client_vpn_endpoint` | no (report-only) |
 | `aws_ec2_managed_prefix_list_entry` | `aws_ec2_managed_prefix_list` | no (report-only) |
 | `aws_ec2_transit_gateway_metering_policy_entry` | `aws_ec2_transit_gateway_metering_policy` | no (report-only) |
@@ -2533,7 +2528,6 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_iam_user_policy` | `aws_iam_user` | no (report-only) |
 | `aws_iam_user_policy_attachment` | `aws_iam_user` | no (report-only) |
 | `aws_iot_thing` | `aws_api_gateway_domain_name` | no (report-only) |
-| `aws_kinesis_resource_policy` | `null_resource` | no (report-only) |
 | `aws_kms_alias` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_launch_configuration` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_lb_target_group_attachment` | `aws_lb_target_group` | no (report-only) |
@@ -2587,7 +2581,6 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_vpc_endpoint_security_group_association` | `aws_vpc_endpoint` | no (report-only) |
 | `aws_vpc_endpoint_subnet_association` | `aws_vpc_endpoint` | no (report-only) |
 | `aws_vpc_ipam_pool_cidr` | `aws_vpc_ipam_pool` | no (report-only) |
-| `aws_vpclattice_resource_policy` | `null_resource` | no (report-only) |
 | `aws_wafv2_web_acl_rule` | `aws_wafv2_web_acl` | no (report-only) |
 | `aws_workspacesweb_browser_settings_association` | `aws_workspacesweb_browser_settings` | no (report-only) |
 | `aws_workspacesweb_data_protection_settings_association` | `aws_workspacesweb_data_protection_settings` | no (report-only) |
@@ -2598,7 +2591,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_workspacesweb_user_access_logging_settings_association` | `aws_workspacesweb_user_access_logging_settings` | no (report-only) |
 | `aws_workspacesweb_user_settings_association` | `aws_workspacesweb_user_settings` | no (report-only) |
 
-**Total.** 131 types swept via a parent read.
+**Total.** 124 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child; whether it
@@ -2626,26 +2619,29 @@ behavior is checked the way the bucket policy's was - see
 per-type reasoning as it stands.
 
 **The residue.** <!-- survey-gen:begin untaggable-residue -->
-`aws_api_gateway_account`, `aws_apigatewayv2_routing_rule`,
-`aws_appconfig_extension_association`,
+`aws_acmpca_policy`, `aws_api_gateway_account`,
+`aws_apigatewayv2_routing_rule`, `aws_appconfig_extension_association`,
 `aws_arczonalshift_autoshift_observer_notification_status`,
-`aws_athena_named_query`, `aws_cloudfront_cache_policy`,
+`aws_arczonalshift_zonal_autoshift_configuration`, `aws_athena_named_query`,
+`aws_bedrockagentcore_resource_policy`, `aws_cloudfront_cache_policy`,
 `aws_cloudfront_continuous_deployment_policy`, `aws_cloudfront_key_group`,
 `aws_cloudfront_origin_access_control`,
 `aws_cloudfront_origin_access_identity`,
 `aws_cloudfront_origin_request_policy`, `aws_cloudfront_public_key`,
 `aws_cloudfront_response_headers_policy`, `aws_cloudwatch_dashboard`,
 `aws_cloudwatch_event_permission`, `aws_cloudwatch_log_account_policy`,
-`aws_cloudwatch_otel_enrichment`, `aws_cloudwatch_query_definition`,
+`aws_cloudwatch_log_resource_policy`, `aws_cloudwatch_otel_enrichment`,
+`aws_cloudwatch_query_definition`,
 `aws_codeartifact_domain_permissions_policy`,
 `aws_codeartifact_repository_permissions_policy`, `aws_codebuild_webhook`,
 `aws_codedeploy_deployment_config`, `aws_cognito_user_pool_domain`,
 `aws_config_remediation_configuration`,
 `aws_connect_user_hierarchy_structure`, `aws_controltower_control`,
 `aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
-`aws_ebs_snapshot_block_public_access`, `aws_ec2_transit_gateway_route`,
-`aws_ecr_pull_through_cache_rule`, `aws_ecr_pull_time_update_exclusion`,
-`aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
+`aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
+`aws_ec2_transit_gateway_route`, `aws_ecr_pull_through_cache_rule`,
+`aws_ecr_pull_time_update_exclusion`, `aws_ecr_registry_policy`,
+`aws_ecr_registry_scanning_configuration`,
 `aws_ecr_replication_configuration`, `aws_ecr_repository_creation_template`,
 `aws_ecs_cluster_capacity_providers`, `aws_efs_mount_target`,
 `aws_eip_association`, `aws_globalaccelerator_endpoint_group`,
@@ -2654,14 +2650,14 @@ per-type reasoning as it stands.
 `aws_guardduty_organization_admin_account`,
 `aws_inspector2_delegated_admin_account`,
 `aws_inspector2_member_association`, `aws_inspector_assessment_target`,
-`aws_iot_topic_rule_destination`, `aws_lambda_layer_version`,
-`aws_macie2_account`, `aws_macie2_organization_admin_account`,
-`aws_msk_cluster_policy`, `aws_msk_configuration`,
-`aws_network_interface_attachment`, `aws_network_interface_permission`,
-`aws_networkmanager_link_association`, `aws_notifications_event_rule`,
-`aws_notifications_notification_hub`, `aws_rds_cluster_role_association`,
-`aws_route53_cidr_collection`, `aws_route53_hosted_zone_dnssec`,
-`aws_route53_resolver_dnssec_config`,
+`aws_iot_topic_rule_destination`, `aws_kinesis_resource_policy`,
+`aws_lambda_layer_version`, `aws_macie2_account`,
+`aws_macie2_organization_admin_account`, `aws_msk_cluster_policy`,
+`aws_msk_configuration`, `aws_network_interface_attachment`,
+`aws_network_interface_permission`, `aws_networkmanager_link_association`,
+`aws_notifications_event_rule`, `aws_notifications_notification_hub`,
+`aws_rds_cluster_role_association`, `aws_route53_cidr_collection`,
+`aws_route53_hosted_zone_dnssec`, `aws_route53_resolver_dnssec_config`,
 `aws_route53_resolver_query_log_config_association`,
 `aws_route53_resolver_rule_association`,
 `aws_route53profiles_resource_association`,
@@ -2679,8 +2675,8 @@ per-type reasoning as it stands.
 `aws_shield_proactive_engagement`, `aws_sns_topic_subscription`,
 `aws_ssm_service_setting`, `aws_ssmcontacts_contact_channel`,
 `aws_ssmcontacts_plan`, `aws_ssoadmin_application_assignment`,
-`aws_vpc_dhcp_options_association`, `aws_vpclattice_auth_policy` and
-`aws_xray_resource_policy`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
+`aws_vpc_dhcp_options_association`, `aws_vpclattice_auth_policy`,
+`aws_vpclattice_resource_policy` and `aws_xray_resource_policy`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
 parent-readable: the three ECR registry types are account-level singletons
 with no admitted parent resource to read at all, and the dashboard, the
 KMS alias and the Lambda layer version are each client-named on their own
