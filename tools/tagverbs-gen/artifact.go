@@ -68,6 +68,21 @@ type Row struct {
 	// (S3, which tags through a Tagging wrapper, not a *Tags member).
 	Candidates []string `json:"candidates,omitempty"`
 
+	// UntagOperation is the operation that REMOVES tags from this service's
+	// resources (ec2:DeleteTags, kms:UntagResource,
+	// route53:ChangeTagsForResource), empty when none was found or more
+	// than one candidate was ambiguous. Issue #152: this is the action an
+	// SCP denies to stop a live resource being stripped of its markers, and
+	// live/MARKERS.md used to publish a hand-written list of these with a
+	// caveat that nothing could check it.
+	UntagOperation string `json:"untag_operation,omitempty"`
+
+	// UntagAmbiguous and UntagCandidates mirror Ambiguous and Candidates
+	// for the removal verb: more than one plausible operation resolves to
+	// no answer rather than a guess.
+	UntagAmbiguous  bool     `json:"untag_ambiguous,omitempty"`
+	UntagCandidates []string `json:"untag_candidates,omitempty"`
+
 	// ResourceArg is the operation's own input member naming the resource
 	// to tag (e.g. "Resources", "KeyId", "ResourceArn"), raw as botocore
 	// spells it - the composer applies its own casing transform. Empty
@@ -167,6 +182,22 @@ func classifyRow(cfnService, dir, version string, model *serviceModel) Row {
 		BotocoreVersion:     version,
 		IAMPrefixCandidates: model.iamPrefixCandidates(dir),
 		DirectoryFound:      true,
+	}
+
+	// Resolved independently of the tagging verb below: a service whose
+	// tagging operation is ambiguous (IAM's eight per-entity Tag<X> calls)
+	// can still have exactly one unambiguous removal verb, and the SCP
+	// needs that one whatever happened to the other.
+	if untag := classifyUntagOps(model); len(untag) == 1 {
+		base.UntagOperation = untag[0].Name
+		base.UntagCandidates = []string{untag[0].Name}
+	} else if len(untag) > 1 {
+		names := make([]string, len(untag))
+		for i, c := range untag {
+			names[i] = c.Name
+		}
+		base.UntagAmbiguous = true
+		base.UntagCandidates = names
 	}
 
 	candidates := classifyTagOps(model)

@@ -181,6 +181,130 @@ func classifyTagOps(model *serviceModel) []tagCandidate {
 	return out
 }
 
+// untagOpNameRe matches the removal verbs excludeOpNameRe throws away.
+// Deliberately the mirror image: an operation that removes tags is named
+// UntagResource, DeleteTags, RemoveTags, RemoveTagsFromCertificate.
+var untagOpNameRe = regexp.MustCompile(`(?i)^(untag|deletetag|delete.*tags|removetag|remove.*tags)`)
+
+// untagReadOpNameRe rules out the reads that survive the filters above.
+// "DescribeTags" and "GetTags" contain neither an untag prefix nor a
+// key-list member in most services, but ListTagsForResource does carry one
+// in a few, so reads are excluded by name as well as by shape.
+var untagReadOpNameRe = regexp.MustCompile(`(?i)^(list|get|describe)`)
+
+// classifyUntagOps finds every operation that REMOVES tags, by the same
+// discipline classifyTagOps applies to the ones that write them: a rule over
+// every service's model, with ambiguity recorded rather than guessed.
+//
+// This exists for issue #152's SCP. Denying the untagging call for the
+// marker keys is the only real backstop against a resource being stripped
+// of its markers while it stays alive, and live/MARKERS.md published an
+// eight-action list with a caveat saying it could not be checked, because
+// this fork tracked each service's tagging verb and not its untagging one.
+//
+// Two shapes have to be caught, and neither rule alone catches both:
+//
+//   - The dedicated removal verb. ec2:DeleteTags, kms:UntagResource,
+//     elasticloadbalancing:RemoveTags, acm:RemoveTagsFromCertificate. Found
+//     by name, because their inputs disagree about the tags member: KMS and
+//     ELB take a list of bare key strings, EC2 and ACM take the same
+//     key/value structs the tagging call takes.
+//   - The combined call keyed by a "keys to remove" member.
+//     route53:ChangeTagsForResource adds and removes in one operation and
+//     is named for neither, so no prefix rule finds it. It is found by its
+//     RemoveTagKeys member instead.
+//
+// So: an operation is an untagging one if its name reads as a removal verb,
+// OR its input carries a member whose name says it holds tag KEYS to remove.
+// Reads are excluded either way.
+func classifyUntagOps(model *serviceModel) []tagCandidate {
+	var out []tagCandidate
+	for name, op := range model.Operations {
+		if !tagOpNameRe.MatchString(name) || untagReadOpNameRe.MatchString(name) {
+			continue
+		}
+		if op.Input == nil {
+			continue
+		}
+		inputShape, ok := model.Shapes[op.Input.Shape]
+		if !ok || len(inputShape.Members) < 2 {
+			continue
+		}
+
+		memberNames := make([]string, 0, len(inputShape.Members))
+		for m := range inputShape.Members {
+			memberNames = append(memberNames, m)
+		}
+		sort.Strings(memberNames)
+
+		// The member holding what to remove: either a tag-keys list
+		// (the combined-call shape) or the ordinary tags member on an
+		// operation whose name already says it removes.
+		keysMember := ""
+		for _, m := range memberNames {
+			if untagKeysMemberRe.MatchString(m) {
+				keysMember = m
+				break
+			}
+		}
+		byName := untagOpNameRe.MatchString(name)
+		if keysMember == "" {
+			if !byName {
+				continue
+			}
+			// A removal verb carries what to remove either as a bare key
+			// list (kms:UntagResource's TagKeys, elbv2:RemoveTags') or as
+			// the same key/value structs the tagging call takes
+			// (ec2:DeleteTags' Tags, acm:RemoveTagsFromCertificate's).
+			// Matching only the second spelling drops every UntagResource
+			// in the set - 139 of them - which is most of the roster.
+			for _, m := range memberNames {
+				lower := strings.ToLower(m)
+				if strings.HasSuffix(lower, "tags") || strings.Contains(lower, "tagkey") {
+					keysMember = m
+					break
+				}
+			}
+		}
+		if keysMember == "" {
+			continue
+		}
+
+		var extra []string
+		for _, m := range memberNames {
+			if m == keysMember || tagsMemberDenyList[strings.ToLower(m)] {
+				continue
+			}
+			extra = append(extra, m)
+		}
+
+		out = append(out, tagCandidate{
+			Name:         name,
+			TagsMember:   keysMember,
+			ExtraMembers: extra,
+			InputMembers: len(memberNames),
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+// untagKeysMemberRe matches an input member that holds tag keys TO REMOVE:
+// route53's RemoveTagKeys, and the same shape spelled with "delete".
+//
+// The removal word is required, and that is the whole point of the pattern.
+// Matching any *TagKey* member instead pulled in two operations that do not
+// remove anything: ec2's UpdateCapacityManagerMonitoredTagKeys, which sets
+// which tag keys a monitor watches, and resourcegroups' StartTagSyncTask,
+// which starts a sync. The first only made EC2 look ambiguous; the second
+// was worse, resolving as ResourceGroups' one unambiguous removal verb - a
+// confident wrong answer, and in a list whose whole purpose is to be denied
+// in an SCP.
+//
+// Operations that genuinely remove tags and carry a bare TagKeys member are
+// still caught, by name, through untagOpNameRe: UntagResource, RemoveTags.
+var untagKeysMemberRe = regexp.MustCompile(`(?i)(remove|delete)[a-z]*tagkey`)
+
 // resolveTagsShape inspects the tags-bearing member's own shape and reports
 // how it is composed: "list" (a list of a two-field struct - Key/Value,
 // TagKey/TagValue, key/value all sort the field carrying the tag's own key

@@ -107,6 +107,22 @@ type Row struct {
 	ListsResourceTag bool `json:"lists_resource_tag"`
 	ListsTagKeys     bool `json:"lists_tag_keys"`
 
+	// UntagAction is the service's own tag-REMOVAL operation, from
+	// live/tag-verbs.json (ec2:DeleteTags, kms:UntagResource,
+	// route53:ChangeTagsForResource). UntagActionFound says whether the
+	// reference lists an action of that name, and UntagListsTagKeys whether
+	// that action names aws:TagKeys - the condition an SCP denying marker
+	// removal is written against.
+	//
+	// "Lists", again, and for the same reason: a true here is evidence the
+	// Deny will be evaluated, a false is the absence of a statement rather
+	// than a statement of absence. live/MARKERS.md's own warning is that a
+	// policy which looks correct and silently does nothing is worse than no
+	// policy, so this field must never be read as the second thing.
+	UntagAction       string `json:"untag_action,omitempty"`
+	UntagActionFound  bool   `json:"untag_action_found"`
+	UntagListsTagKeys bool   `json:"untag_lists_tag_keys"`
+
 	// ActionsTotal and ActionsListingResourceTag describe the whole service
 	// rather than its tagging verb, because a grant policy conditioned on a
 	// marker tag governs the ordinary actions - the describes, updates and

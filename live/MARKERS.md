@@ -580,26 +580,165 @@ the same ownership record as stripping `tofu-address` itself, since a
 reader that cannot gather every chunk cannot reconstruct the address at
 all. See "`tofu-address` continuation tags," above.
 
-That action list is illustrative, not exhaustive or verified for every
-admitted type. It has to be, since this fork tracks each type's tagging
-verb (`live/tag-verbs.json`, `residue.TagVerbForType`) but not its
-untagging one, so there is no generated artifact to check it against the
-way the adoption hint's command is checked. Before deploying anything like
-it:
+The eight actions in that statement are illustrative of the shape. The
+exhaustive list is generated, because each service's tag-removal verb is
+resolvable from botocore's service models the same way its tagging verb
+already was, and whether AWS evaluates `aws:TagKeys` on it is resolvable
+from the Service Authorization Reference.
 
-- **Confirm `aws:TagKeys` is actually honored by each action**, per
-  service, per action. IAM's docs point at the [Service Authorization
-  Reference](https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html)
-  to check this instead of promising it applies uniformly, and it does
-  not: operators have reported services whose tag-removal call does not
-  evaluate the condition the way EC2's `DeleteTags` does. A statement that
-  looks correct and silently does nothing for one service in the list is
-  worse than no policy, because it reads as protection that is not there.
+<!-- iamref-gen:begin scp-untag-actions -->
+127 tag-removal actions across this estate's services name `aws:TagKeys` in the Service Authorization Reference, so a `Deny` conditioned on it is evaluated for them. Each service's removal verb is resolved from botocore's own service models (`live/tag-verbs.json`), not written by hand.
+
+<details>
+<summary>The full action list, for pasting into the policy above</summary>
+
+```json
+"Action": [
+  "acm-pca:UntagCertificateAuthority",
+  "airflow:UntagResource",
+  "amplify:UntagResource",
+  "aoss:UntagResource",
+  "app-integrations:UntagResource",
+  "appconfig:UntagResource",
+  "appflow:UntagResource",
+  "apprunner:UntagResource",
+  "appsync:UntagResource",
+  "arc-region-switch:UntagResource",
+  "athena:UntagResource",
+  "auditmanager:UntagResource",
+  "backup:UntagResource",
+  "batch:UntagResource",
+  "bcm-data-exports:UntagResource",
+  "bedrock:UntagResource",
+  "billing:UntagResource",
+  "ce:UntagResource",
+  "chatbot:UntagResource",
+  "cleanrooms:UntagResource",
+  "cloud9:UntagResource",
+  "cloudfront:UntagResource",
+  "cloudwatch:UntagResource",
+  "codeartifact:UntagResource",
+  "codecommit:UntagResource",
+  "codeconnections:UntagResource",
+  "codeguru-reviewer:UntagResource",
+  "codepipeline:UntagResource",
+  "codestar-connections:UntagResource",
+  "codestar-notifications:UntagResource",
+  "comprehend:UntagResource",
+  "config:UntagResource",
+  "controltower:UntagResource",
+  "cur:UntagResource",
+  "datapipeline:RemoveTags",
+  "datazone:UntagResource",
+  "detective:UntagResource",
+  "directconnect:UntagResource",
+  "dlm:UntagResource",
+  "dms:RemoveTagsFromResource",
+  "docdb-elastic:UntagResource",
+  "dsql:UntagResource",
+  "dynamodb:UntagResource",
+  "ec2:DeleteTags",
+  "ecr:UntagResource",
+  "ecs:UntagResource",
+  "eks:UntagResource",
+  "elasticache:RemoveTagsFromResource",
+  "elasticloadbalancing:RemoveTags",
+  "elasticmapreduce:RemoveTags",
+  "emr-containers:UntagResource",
+  "emr-serverless:UntagResource",
+  "events:UntagResource",
+  "fis:UntagResource",
+  "fsx:UntagResource",
+  "gamelift:UntagResource",
+  "geo:UntagResource",
+  "globalaccelerator:UntagResource",
+  "grafana:UntagResource",
+  "guardduty:UntagResource",
+  "imagebuilder:UntagResource",
+  "internetmonitor:UntagResource",
+  "invoicing:UntagResource",
+  "iot:UntagResource",
+  "ivs:UntagResource",
+  "ivschat:UntagResource",
+  "kafkaconnect:UntagResource",
+  "kendra:UntagResource",
+  "kinesisanalytics:UntagResource",
+  "kms:UntagResource",
+  "lambda:UntagResource",
+  "lightsail:UntagResource",
+  "m2:UntagResource",
+  "medialive:DeleteTags",
+  "mediapackage:UntagResource",
+  "mediapackagev2:UntagResource",
+  "memorydb:UntagResource",
+  "network-firewall:UntagResource",
+  "networkmanager:UntagResource",
+  "notifications-contacts:UntagResource",
+  "notifications:UntagResource",
+  "oam:UntagResource",
+  "observabilityadmin:UntagResource",
+  "odb:UntagResource",
+  "organizations:UntagResource",
+  "payment-cryptography:UntagResource",
+  "pipes:UntagResource",
+  "qbusiness:UntagResource",
+  "ram:UntagResource",
+  "rbin:UntagResource",
+  "rds:RemoveTagsFromResource",
+  "redshift-serverless:UntagResource",
+  "redshift:DeleteTags",
+  "rekognition:UntagResource",
+  "resiliencehub:UntagResource",
+  "resource-explorer-2:UntagResource",
+  "rolesanywhere:UntagResource",
+  "route53-recovery-readiness:UntagResource",
+  "route53profiles:UntagResource",
+  "route53resolver:UntagResource",
+  "rum:UntagResource",
+  "s3files:UntagResource",
+  "s3tables:UntagResource",
+  "s3vectors:UntagResource",
+  "sagemaker:DeleteTags",
+  "scheduler:UntagResource",
+  "secretsmanager:UntagResource",
+  "securitylake:UntagResource",
+  "servicecatalog:UntagResource",
+  "servicediscovery:UntagResource",
+  "shield:UntagResource",
+  "sns:UntagResource",
+  "sqs:UntagQueue",
+  "ssm-contacts:UntagResource",
+  "ssm-incidents:UntagResource",
+  "ssm-quicksetup:UntagResource",
+  "ssm:RemoveTagsFromResource",
+  "states:UntagResource",
+  "storagegateway:RemoveTagsFromResource",
+  "synthetics:UntagResource",
+  "transfer:UntagResource",
+  "verifiedpermissions:UntagResource",
+  "vpc-lattice:UntagResource",
+  "wafv2:UntagResource",
+  "workspaces-web:UntagResource",
+  "workspaces:DeleteTags",
+  "xray:UntagResource"
+]
+```
+
+</details>
+
+**2 do not name it, and these are where the warning above actually bites:** `route53:ChangeTagsForResource` and `securityhub:UntagResource`. The reference is silent rather than negative here, so this is not proof the `Deny` fails - but it is the difference between a statement checked and a statement assumed, and these are the ones to verify against the service's own reference page before relying on them. `route53:ChangeTagsForResource` is the combined add-and-remove call this section already singled out as worth checking; the measurement agrees.
+
+27 further services have no removal verb resolved in `live/tag-verbs.json` at all, either because the service's model offers more than one candidate or none. They are absent from the list above rather than silently covered by it.
+<!-- iamref-gen:end scp-untag-actions -->
+
+Before deploying anything like it:
+
 - **`route53:ChangeTagsForResource`** folds adding and removing tags into
-  one call keyed by a "keys to remove" parameter instead of a
-  dedicated untag action; the condition still keys off `aws:TagKeys`, but
-  verify it against that action's reference page before
-  trusting it.
+  one call keyed by a "keys to remove" parameter instead of a dedicated
+  untag action. It is one of the two actions above the reference does not
+  name `aws:TagKeys` on, so verify it against that action's own reference
+  page before trusting it rather than assuming the condition keys off it.
+
 - **The management account and any standalone (non-Organizations) account
   are outside SCP reach entirely.** A principal there needs ordinary
   least-privilege IAM to protect the marker keys, because no

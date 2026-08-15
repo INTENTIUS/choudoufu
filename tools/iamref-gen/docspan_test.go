@@ -119,3 +119,86 @@ func repoRootForTest(t *testing.T) string {
 		dir = parent
 	}
 }
+
+// TestSCPActionsSpanMatchesTheArtifact is the freshness guard for issue
+// #152's SCP action list, and matters more than the roster's.
+//
+// This list goes into a Deny. A stale entry is a service whose removal verb
+// changed name and is no longer denied, and nothing about that looks like a
+// failure: the policy still applies, still validates, and silently protects
+// one service fewer. live/MARKERS.md's own warning is that a statement which
+// looks correct and does nothing is worse than no policy.
+func TestSCPActionsSpanMatchesTheArtifact(t *testing.T) {
+	root := repoRootForTest(t)
+
+	raw, err := os.ReadFile(filepath.Join(root, "live", "iam-reference.json"))
+	if err != nil {
+		t.Fatalf("reading the artifact: %v", err)
+	}
+	var art Artifact
+	if err := json.Unmarshal(raw, &art); err != nil {
+		t.Fatalf("decoding the artifact: %v", err)
+	}
+	doc, err := os.ReadFile(filepath.Join(root, markersMDRel))
+	if err != nil {
+		t.Fatalf("reading %s: %v", markersMDRel, err)
+	}
+	shipped, ok := spanBody(string(doc), spanSCPActions)
+	if !ok {
+		t.Fatalf("%s no longer carries the %q span", markersMDRel, spanSCPActions)
+	}
+	if want := strings.TrimSpace(scpActionsSpanBody(art.Rows)); strings.TrimSpace(shipped) != want {
+		t.Errorf("%s's %q span is stale. Run `just iamref` rather than editing the list.\n\nshipped:\n%s\n\nre-rendered:\n%s",
+			markersMDRel, spanSCPActions, shipped, want)
+	}
+}
+
+// TestSCPSpanSeparatesCheckedFromAssumed keeps the two lists apart.
+//
+// Merging them is the tempting simplification - one action list is easier to
+// paste - and it is the one thing this span must not do. An action the
+// reference does not name aws:TagKeys on, sitting in the same list as the
+// ones it does, reads as protection that was checked. Two of the estate's
+// services are in that position, and one of them, route53, is an action the
+// surrounding prose independently flags as worth verifying.
+func TestSCPSpanSeparatesCheckedFromAssumed(t *testing.T) {
+	root := repoRootForTest(t)
+	raw, err := os.ReadFile(filepath.Join(root, "live", "iam-reference.json"))
+	if err != nil {
+		t.Fatalf("reading the artifact: %v", err)
+	}
+	var art Artifact
+	if err := json.Unmarshal(raw, &art); err != nil {
+		t.Fatalf("decoding the artifact: %v", err)
+	}
+
+	var unlisted []string
+	for _, r := range art.Rows {
+		if r.IAMPrefix == "" || r.UntagAction == "" || !r.UntagActionFound {
+			continue
+		}
+		if !r.UntagListsTagKeys {
+			unlisted = append(unlisted, r.IAMPrefix+":"+r.UntagAction)
+		}
+	}
+	if len(unlisted) == 0 {
+		t.Skip("every untag action names aws:TagKeys; nothing to separate")
+	}
+
+	body := scpActionsSpanBody(art.Rows)
+	pasteable := body
+	if i := strings.Index(body, "</details>"); i >= 0 {
+		pasteable = body[:i]
+	}
+	for _, a := range unlisted {
+		if strings.Contains(pasteable, `"`+a+`"`) {
+			t.Errorf("%s does not name aws:TagKeys, but appears in the pasteable Action list.\n"+
+				"It belongs in the separate list below it. In the same list it reads as a Deny that "+
+				"was checked, which is the failure this section warns about.", a)
+		}
+		if !strings.Contains(body, a) {
+			t.Errorf("%s does not name aws:TagKeys and is missing from the span entirely; "+
+				"dropping it silently narrows the policy without saying so", a)
+		}
+	}
+}

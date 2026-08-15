@@ -25,6 +25,10 @@
       "candidates": [
         "TagCertificateAuthority"
       ],
+      "untag_operation": "UntagCertificateAuthority",
+      "untag_candidates": [
+        "UntagCertificateAuthority"
+      ],
       "resource_arg": "CertificateAuthorityArn",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -51,6 +55,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "arn",
       "tags_arg": "tags",
@@ -83,6 +91,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -108,6 +120,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -126,6 +142,10 @@
         "CreateStage",
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "composable": false,
       "reason": "more than one operation looks tag-ish with no way to pick one: CreateStage, TagResource"
     },
@@ -143,6 +163,10 @@
         "CreateStage",
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "composable": false,
       "reason": "more than one operation looks tag-ish with no way to pick one: CreateStage, TagResource"
     },
@@ -158,6 +182,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
@@ -176,6 +204,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
@@ -196,6 +228,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -213,6 +249,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
@@ -233,6 +273,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
@@ -255,6 +299,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
       "tags_shape": "map",
@@ -272,6 +320,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
@@ -291,6 +343,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceARN",
       "tags_arg": "Tags",
       "tags_shape": "map",
@@ -309,6 +365,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceARN",
       "tags_arg": "Tags",
@@ -330,6 +390,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceARN",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -349,6 +413,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
@@ -392,6 +460,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "ResourceTags",
       "tags_shape": "list",
@@ -412,6 +484,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
       "tags_shape": "map",
@@ -430,6 +506,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -447,6 +527,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceARN",
       "tags_arg": "tags",
@@ -480,6 +564,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "resourceTags",
       "tags_shape": "list",
@@ -499,6 +587,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceARN",
       "tags_arg": "ResourceTags",
@@ -520,6 +612,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "ResourceTags",
       "tags_shape": "list",
@@ -539,6 +635,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ReportName",
       "tags_arg": "Tags",
@@ -567,6 +667,11 @@
         "AddTagsToCertificate",
         "TagResource"
       ],
+      "untag_ambiguous": true,
+      "untag_candidates": [
+        "RemoveTagsFromCertificate",
+        "UntagResource"
+      ],
       "composable": false,
       "reason": "more than one operation looks tag-ish with no way to pick one: AddTagsToCertificate, TagResource"
     },
@@ -582,6 +687,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceARN",
       "tags_arg": "Tags",
@@ -603,6 +712,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -620,6 +733,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceARN",
       "tags_arg": "Tags",
@@ -653,6 +770,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "Resource",
       "tags_arg": "Tags",
       "composable": false,
@@ -684,6 +805,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceARN",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -703,6 +828,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
@@ -736,6 +865,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -753,6 +886,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
@@ -774,6 +911,11 @@
         "AddTagsToOnPremisesInstances",
         "TagResource"
       ],
+      "untag_ambiguous": true,
+      "untag_candidates": [
+        "RemoveTagsFromOnPremisesInstances",
+        "UntagResource"
+      ],
       "composable": false,
       "reason": "more than one operation looks tag-ish with no way to pick one: AddTagsToOnPremisesInstances, TagResource"
     },
@@ -790,6 +932,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
@@ -809,6 +955,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "Tags",
       "tags_shape": "map",
@@ -826,6 +976,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
@@ -847,6 +1001,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -866,6 +1024,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "Arn",
       "tags_arg": "Tags",
@@ -892,6 +1054,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -911,6 +1077,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
@@ -932,6 +1102,11 @@
         "TagContact",
         "TagResource"
       ],
+      "untag_ambiguous": true,
+      "untag_candidates": [
+        "UntagContact",
+        "UntagResource"
+      ],
       "composable": false,
       "reason": "more than one operation looks tag-ish with no way to pick one: TagContact, TagResource"
     },
@@ -947,6 +1122,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
@@ -967,6 +1146,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -984,6 +1167,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceName",
       "tags_arg": "Tags",
@@ -1005,6 +1192,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
       "tags_shape": "map",
@@ -1022,6 +1213,10 @@
       "ambiguous": false,
       "candidates": [
         "AddTagsToResource"
+      ],
+      "untag_operation": "RemoveTagsFromResource",
+      "untag_candidates": [
+        "RemoveTagsFromResource"
       ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
@@ -1041,6 +1236,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -1058,6 +1257,10 @@
       "ambiguous": false,
       "candidates": [
         "AddTags"
+      ],
+      "untag_operation": "RemoveTags",
+      "untag_candidates": [
+        "RemoveTags"
       ],
       "resource_arg": "pipelineId",
       "tags_arg": "tags",
@@ -1099,6 +1302,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -1117,6 +1324,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
@@ -1148,6 +1359,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "list",
@@ -1169,6 +1384,10 @@
       "candidates": [
         "AddTagsToResource"
       ],
+      "untag_operation": "RemoveTagsFromResource",
+      "untag_candidates": [
+        "RemoveTagsFromResource"
+      ],
       "resource_arg": "ResourceName",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -1189,6 +1408,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -1206,6 +1429,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
@@ -1226,6 +1453,10 @@
       "ambiguous": false,
       "candidates": [
         "CreateTags"
+      ],
+      "untag_operation": "DeleteTags",
+      "untag_candidates": [
+        "DeleteTags"
       ],
       "resource_arg": "Resources",
       "resource_arg_is_list": true,
@@ -1249,6 +1480,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "list",
@@ -1268,6 +1503,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
@@ -1290,6 +1529,11 @@
         "CreateTags",
         "TagResource"
       ],
+      "untag_ambiguous": true,
+      "untag_candidates": [
+        "DeleteTags",
+        "UntagResource"
+      ],
       "composable": false,
       "reason": "more than one operation looks tag-ish with no way to pick one: CreateTags, TagResource"
     },
@@ -1305,6 +1549,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
@@ -1324,6 +1572,10 @@
       "ambiguous": false,
       "candidates": [
         "AddTags"
+      ],
+      "untag_operation": "RemoveTags",
+      "untag_candidates": [
+        "RemoveTags"
       ],
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -1345,6 +1597,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -1363,6 +1619,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -1380,6 +1640,10 @@
       "ambiguous": false,
       "candidates": [
         "AddTagsToResource"
+      ],
+      "untag_operation": "RemoveTagsFromResource",
+      "untag_candidates": [
+        "RemoveTagsFromResource"
       ],
       "resource_arg": "ResourceName",
       "tags_arg": "Tags",
@@ -1414,6 +1678,10 @@
       "candidates": [
         "AddTags"
       ],
+      "untag_operation": "RemoveTags",
+      "untag_candidates": [
+        "RemoveTags"
+      ],
       "resource_arg": "LoadBalancerNames",
       "resource_arg_is_list": true,
       "tags_arg": "Tags",
@@ -1435,6 +1703,10 @@
       "ambiguous": false,
       "candidates": [
         "AddTags"
+      ],
+      "untag_operation": "RemoveTags",
+      "untag_candidates": [
+        "RemoveTags"
       ],
       "resource_arg": "ResourceArns",
       "resource_arg_is_list": true,
@@ -1471,6 +1743,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceARN",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -1498,6 +1774,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -1512,6 +1792,10 @@
       ],
       "directory_found": true,
       "ambiguous": false,
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "composable": false,
       "reason": "no operation in this service's model looks like a tagging write (a tag-ish, non-removal name whose input carries both a resource identifier and a *tags-suffixed member)"
     },
@@ -1527,6 +1811,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceARN",
       "tags_arg": "Tags",
@@ -1548,6 +1836,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceARN",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -1567,6 +1859,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
@@ -1600,6 +1896,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -1617,6 +1917,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
@@ -1642,6 +1946,17 @@
         "TagServerCertificate",
         "TagUser"
       ],
+      "untag_ambiguous": true,
+      "untag_candidates": [
+        "UntagInstanceProfile",
+        "UntagMFADevice",
+        "UntagOpenIDConnectProvider",
+        "UntagPolicy",
+        "UntagRole",
+        "UntagSAMLProvider",
+        "UntagServerCertificate",
+        "UntagUser"
+      ],
       "composable": false,
       "reason": "more than one operation looks tag-ish with no way to pick one: TagInstanceProfile, TagMFADevice, TagOpenIDConnectProvider, TagPolicy, TagRole, TagSAMLProvider, TagServerCertificate, TagUser"
     },
@@ -1657,6 +1972,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
@@ -1675,6 +1994,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
@@ -1705,6 +2028,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
@@ -1751,6 +2078,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
       "tags_shape": "map",
@@ -1768,6 +2099,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceArn",
       "tags_arg": "ResourceTags",
@@ -1789,6 +2124,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "list",
@@ -1808,6 +2147,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "KeyId",
       "tags_arg": "Tags",
@@ -1829,6 +2172,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -1846,6 +2193,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceARN",
       "tags_arg": "Tags",
@@ -1867,6 +2218,11 @@
         "AddTagsToStream",
         "TagResource"
       ],
+      "untag_ambiguous": true,
+      "untag_candidates": [
+        "RemoveTagsFromStream",
+        "UntagResource"
+      ],
       "composable": false,
       "reason": "more than one operation looks tag-ish with no way to pick one: AddTagsToStream, TagResource"
     },
@@ -1882,6 +2238,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceARN",
       "tags_arg": "Tags",
@@ -1903,6 +2263,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceARN",
       "tags_arg": "Tags",
@@ -1931,6 +2295,11 @@
         "TagResource",
         "TagStream"
       ],
+      "untag_ambiguous": true,
+      "untag_candidates": [
+        "UntagResource",
+        "UntagStream"
+      ],
       "composable": false,
       "reason": "more than one operation looks tag-ish with no way to pick one: TagResource, TagStream"
     },
@@ -1946,6 +2315,10 @@
       "ambiguous": false,
       "candidates": [
         "AddLFTagsToResource"
+      ],
+      "untag_operation": "RemoveLFTagsFromResource",
+      "untag_candidates": [
+        "RemoveLFTagsFromResource"
       ],
       "tags_arg": "LFTags",
       "composable": false,
@@ -1963,6 +2336,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "Resource",
       "tags_arg": "Tags",
@@ -1989,6 +2366,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -2008,6 +2389,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "tags_arg": "tags",
       "tags_shape": "list",
@@ -2030,6 +2415,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
       "tags_shape": "map",
@@ -2048,6 +2437,11 @@
         "TagLogGroup",
         "TagResource"
       ],
+      "untag_ambiguous": true,
+      "untag_candidates": [
+        "UntagLogGroup",
+        "UntagResource"
+      ],
       "composable": false,
       "reason": "more than one operation looks tag-ish with no way to pick one: TagLogGroup, TagResource"
     },
@@ -2063,6 +2457,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
@@ -2090,6 +2488,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
       "tags_shape": "map",
@@ -2115,6 +2517,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "Arn",
       "tags_arg": "Tags",
       "tags_shape": "map",
@@ -2132,6 +2538,10 @@
       "ambiguous": false,
       "candidates": [
         "CreateTags"
+      ],
+      "untag_operation": "DeleteTags",
+      "untag_candidates": [
+        "DeleteTags"
       ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
@@ -2151,6 +2561,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
       "tags_shape": "map",
@@ -2169,6 +2583,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
       "tags_shape": "map",
@@ -2186,6 +2604,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "Resource",
       "tags_arg": "Tags",
@@ -2208,6 +2630,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -2229,6 +2655,10 @@
       "candidates": [
         "AddTagsToResource"
       ],
+      "untag_operation": "RemoveTagsFromResource",
+      "untag_candidates": [
+        "RemoveTagsFromResource"
+      ],
       "resource_arg": "ResourceName",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -2249,6 +2679,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -2266,6 +2700,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
@@ -2287,6 +2725,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -2304,6 +2746,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
@@ -2325,6 +2771,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "arn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -2344,6 +2794,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "arn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -2362,6 +2816,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -2379,6 +2837,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "Arn",
       "tags_arg": "Tags",
@@ -2400,6 +2862,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
       "tags_shape": "map",
@@ -2417,6 +2883,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceARN",
       "tags_arg": "Tags",
@@ -2436,6 +2906,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
@@ -2464,6 +2938,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceId",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -2485,6 +2963,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -2502,6 +2984,10 @@
       ],
       "directory_found": true,
       "ambiguous": false,
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "composable": false,
       "reason": "no operation in this service's model looks like a tagging write (a tag-ish, non-removal name whose input carries both a resource identifier and a *tags-suffixed member)"
     },
@@ -2517,6 +3003,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
@@ -2535,6 +3025,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceARN",
       "tags_arg": "tags",
@@ -2563,6 +3057,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -2582,6 +3080,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "tags_arg": "tags",
       "tags_shape": "list",
@@ -2603,6 +3105,10 @@
       "candidates": [
         "AddTagsToResource"
       ],
+      "untag_operation": "RemoveTagsFromResource",
+      "untag_candidates": [
+        "RemoveTagsFromResource"
+      ],
       "resource_arg": "ResourceName",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -2623,6 +3129,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
       "tags_shape": "map",
@@ -2640,6 +3150,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
@@ -2661,6 +3175,10 @@
       "candidates": [
         "CreateTags"
       ],
+      "untag_operation": "DeleteTags",
+      "untag_candidates": [
+        "DeleteTags"
+      ],
       "resource_arg": "ResourceName",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -2680,6 +3198,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
@@ -2701,6 +3223,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
       "tags_shape": "map",
@@ -2718,6 +3244,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
@@ -2738,6 +3268,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -2755,6 +3289,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "Tags",
@@ -2792,6 +3330,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "list",
@@ -2810,6 +3352,10 @@
       "operation": "ChangeTagsForResource",
       "ambiguous": false,
       "candidates": [
+        "ChangeTagsForResource"
+      ],
+      "untag_operation": "ChangeTagsForResource",
+      "untag_candidates": [
         "ChangeTagsForResource"
       ],
       "tags_arg": "AddTags",
@@ -2831,6 +3377,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
@@ -2857,6 +3407,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
       "tags_shape": "map",
@@ -2874,6 +3428,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
@@ -2913,6 +3471,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceId",
       "tags_arg": "tags",
@@ -2954,6 +3516,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -2971,6 +3537,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
@@ -3016,6 +3586,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -3036,6 +3610,10 @@
       "candidates": [
         "TagQueue"
       ],
+      "untag_operation": "UntagQueue",
+      "untag_candidates": [
+        "UntagQueue"
+      ],
       "resource_arg": "QueueUrl",
       "tags_arg": "Tags",
       "tags_shape": "map",
@@ -3053,6 +3631,10 @@
       "ambiguous": false,
       "candidates": [
         "AddTagsToResource"
+      ],
+      "untag_operation": "RemoveTagsFromResource",
+      "untag_candidates": [
+        "RemoveTagsFromResource"
       ],
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -3074,6 +3656,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceARN",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -3094,6 +3680,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -3111,6 +3701,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
@@ -3145,6 +3739,10 @@
       "candidates": [
         "AddTags"
       ],
+      "untag_operation": "DeleteTags",
+      "untag_candidates": [
+        "DeleteTags"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -3164,6 +3762,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
@@ -3185,6 +3787,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "SecretId",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -3205,6 +3811,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
       "tags_shape": "map",
@@ -3222,6 +3832,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
@@ -3256,6 +3870,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -3273,6 +3891,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceARN",
       "tags_arg": "Tags",
@@ -3294,6 +3916,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceARN",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -3314,6 +3940,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -3332,6 +3962,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
@@ -3353,6 +3987,10 @@
       "candidates": [
         "AddTagsToResource"
       ],
+      "untag_operation": "RemoveTagsFromResource",
+      "untag_candidates": [
+        "RemoveTagsFromResource"
+      ],
       "resource_arg": "ResourceARN",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -3372,6 +4010,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
@@ -3398,6 +4040,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceArn",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -3417,6 +4063,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "Arn",
       "tags_arg": "Tags",
@@ -3438,6 +4088,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -3456,6 +4110,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "map",
@@ -3473,6 +4131,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceARN",
       "tags_arg": "Tags",
@@ -3494,6 +4156,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "ResourceARN",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -3513,6 +4179,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceARN",
       "tags_arg": "Tags",
@@ -3534,6 +4204,10 @@
       "candidates": [
         "CreateTags"
       ],
+      "untag_operation": "DeleteTags",
+      "untag_candidates": [
+        "DeleteTags"
+      ],
       "resource_arg": "ResourceId",
       "tags_arg": "Tags",
       "tags_shape": "list",
@@ -3554,6 +4228,10 @@
       "candidates": [
         "TagResource"
       ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
+      ],
       "resource_arg": "resourceArn",
       "tags_arg": "tags",
       "tags_shape": "list",
@@ -3573,6 +4251,10 @@
       "ambiguous": false,
       "candidates": [
         "TagResource"
+      ],
+      "untag_operation": "UntagResource",
+      "untag_candidates": [
+        "UntagResource"
       ],
       "resource_arg": "ResourceARN",
       "tags_arg": "Tags",

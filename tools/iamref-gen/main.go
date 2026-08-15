@@ -130,6 +130,9 @@ func run(refresh bool, out, errOut *os.File) error {
 	if err := renderResourceTagSpan(root, rows); err != nil {
 		return err
 	}
+	if err := renderSCPActionsSpan(root, rows); err != nil {
+		return err
+	}
 
 	c := art.Counts
 	fmt.Fprintf(errOut, "iamref-gen: wrote %s (%d services: %d resolved [%d unresolved, %d ambiguous]; "+
@@ -177,6 +180,17 @@ func buildRow(svc scopedService, index map[string]indexEntry, refresh bool) (Row
 	if svc.TagAction == "" {
 		row.Reason = "live/tag-verbs.json records no tagging verb for this service"
 		return row, nil
+	}
+
+	// The removal verb is resolved independently of the tagging one: a
+	// service whose tagging call is ambiguous can still have exactly one
+	// unambiguous untag action, and issue #152's SCP needs that one.
+	row.UntagAction = svc.UntagAction
+	if svc.UntagAction != "" {
+		if ua, found := doc.action(svc.UntagAction); found {
+			row.UntagActionFound = true
+			row.UntagListsTagKeys = ua.supports(tagKeysKey)
+		}
 	}
 
 	action, ok := doc.action(svc.TagAction)

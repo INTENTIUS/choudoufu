@@ -18,9 +18,10 @@ import (
 // scopedService is one service this artifact describes: the CFN service
 // segment, the IAM names it might go by, and its own tagging verb.
 type scopedService struct {
-	CFNService string
-	Candidates []string
-	TagAction  string
+	CFNService  string
+	Candidates  []string
+	TagAction   string
+	UntagAction string
 }
 
 // servicesInScope derives the roster - which services to fetch - rather than
@@ -68,9 +69,10 @@ func servicesInScope(root string) ([]scopedService, error) {
 			continue
 		}
 		out = append(out, scopedService{
-			CFNService: svc,
-			Candidates: row.Candidates,
-			TagAction:  row.Operation,
+			CFNService:  svc,
+			Candidates:  row.Candidates,
+			TagAction:   row.Operation,
+			UntagAction: row.UntagOperation,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CFNService < out[j].CFNService })
@@ -119,8 +121,9 @@ func cfnTypeByTFType(root string) (map[string]string, error) {
 }
 
 type tagVerbRow struct {
-	Operation  string
-	Candidates []string
+	Operation      string
+	UntagOperation string
+	Candidates     []string
 }
 
 func tagVerbRows(root string) (map[string]tagVerbRow, error) {
@@ -128,6 +131,7 @@ func tagVerbRows(root string) (map[string]tagVerbRow, error) {
 		Rows []struct {
 			Service             string   `json:"service"`
 			Operation           string   `json:"operation"`
+			UntagOperation      string   `json:"untag_operation"`
 			IAMPrefixCandidates []string `json:"iam_prefix_candidates"`
 		} `json:"rows"`
 	}
@@ -136,7 +140,7 @@ func tagVerbRows(root string) (map[string]tagVerbRow, error) {
 	}
 	out := make(map[string]tagVerbRow, len(art.Rows))
 	for _, r := range art.Rows {
-		out[r.Service] = tagVerbRow{Operation: r.Operation, Candidates: r.IAMPrefixCandidates}
+		out[r.Service] = tagVerbRow{Operation: r.Operation, UntagOperation: r.UntagOperation, Candidates: r.IAMPrefixCandidates}
 	}
 	return out, nil
 }
