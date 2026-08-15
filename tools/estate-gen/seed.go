@@ -81,9 +81,23 @@ import (
 //     settable. A page can name an argument this provider version renamed
 //     or made computed, and writing it produces a configuration that fails
 //     for a new reason.
-//   - The path's blocks are all single-instance. A list-nested block needs
-//     to know which element the value belongs to, which one page's example
-//     does not say.
+//   - Every block on the path holds at most one instance IN THE RENDERED
+//     BODY. "Which element does this value belong to" is a question about
+//     instances, not about the schema's cap: an unbounded list block the
+//     generic pass rendered zero or one of has exactly one possible
+//     answer, while two rendered instances have two and stop the walk.
+//     The schema's MaxItems said "at most one" for none of the four
+//     fixtures issue #174 names - aws_bedrock_inference_profile's
+//     model_source is an unbounded list in the wire schema even though
+//     the SDK requires exactly one - which is why the earlier
+//     schema-shaped version of this rule reached none of them.
+//   - The example set the argument's path once. importdocs-gen flattens
+//     repeated unlabelled blocks into one path, so a path that appears
+//     twice is two example elements merged, and which one wins is a
+//     guess. (Two elements setting DISJOINT argument names are still
+//     indistinguishable from one element in the artifact; recording an
+//     element index at extraction is the fix, and until then that case
+//     seeds a merged element.)
 //
 // Nothing here names a resource type. The moment this file needs to know
 // about aws_s3_bucket_versioning specifically, the override has been moved
@@ -143,26 +157,68 @@ func (g *generator) seedFromExample(body *hclwrite.Body, block *configschema.Blo
 
 	identityArg, _ := identityArgName(tfType)
 
+	// A path the example set twice is two repeated block elements merged
+	// flat by the extraction; which one wins is a guess, so neither does.
+	pathCount := map[string]int{}
+	for _, arg := range args {
+		pathCount[joinPath(arg.Path)]++
+	}
+
+	// completePaths is every path a complete, non-duplicated argument can
+	// write - the set the creation gate checks a new block's required
+	// members against.
+	completePaths := map[string]bool{}
+	// incompleteIn marks each block prefix that holds an incomplete
+	// argument: that block dropped a reference sibling, so no argument -
+	// not even a complete one nested deeper - may create it. This is the
+	// SSE guard extended to the block itself: creating the block plants
+	// the configuration with its reference half missing, whichever
+	// argument's path the walk arrived by.
+	incompleteIn := map[string]bool{}
+	for _, arg := range args {
+		if len(arg.Path) == 0 || pathCount[joinPath(arg.Path)] > 1 {
+			continue
+		}
+		if arg.Incomplete {
+			incompleteIn[joinPath(arg.Path[:len(arg.Path)-1])] = true
+		} else {
+			completePaths[joinPath(arg.Path)] = true
+		}
+	}
+
 	var applied []string
 	for _, arg := range args {
-		if len(arg.Path) == 0 {
+		if len(arg.Path) == 0 || pathCount[joinPath(arg.Path)] > 1 {
 			continue
 		}
-		// Naming arguments belong to the generator, not to the page. A
-		// documented example names things "example" and "test_role", and
-		// every cohort rendering the same type would then ask AWS for the
-		// same name - which either collides or silently adopts somebody
-		// else's resource. valueExpr already treats this class specially,
-		// and looksLikeName is its own predicate for it, so the seed defers
-		// to the same rule rather than inventing a second one.
+		// A TOP-LEVEL naming argument belongs to the generator, not to the
+		// page. A documented example names things "example" and
+		// "test_role", and every cohort rendering the same type would then
+		// ask AWS for the same name - which either collides or silently
+		// adopts somebody else's resource. valueExpr already treats this
+		// class specially, and looksLikeName is its own predicate for it,
+		// so the seed defers to the same rule rather than inventing a
+		// second one. (Found in review rather than by reasoning: the first
+		// version wrote name = "example" onto aws_secretsmanager_secret in
+		// the security cohort.)
 		//
-		// Found in review rather than by reasoning: the first version wrote
-		// name = "example" onto aws_secretsmanager_secret in the security
-		// cohort.
-		if leaf := arg.Path[len(arg.Path)-1]; leaf == identityArg || looksLikeName(leaf) {
-			continue
+		// A NESTED member named "name" is a different thing: a selector or
+		// key the provider validates against a closed set - ecs setting's
+		// name = "containerInsights", a parameter block's name - with no
+		// collision to cause. Skipping those left created blocks missing
+		// the very member the provider requires (issue #174).
+		if len(arg.Path) == 1 {
+			if leaf := arg.Path[0]; leaf == identityArg || looksLikeName(leaf) {
+				continue
+			}
 		}
-		target, attr, ok := resolveSeedPath(body, block, arg.Path, !arg.Incomplete)
+		mayCreate := func(prefix []string, nb *configschema.NestedBlock) bool {
+			if arg.Incomplete || incompleteIn[joinPath(prefix)] {
+				return false
+			}
+			return requiredCovered(prefix, &nb.Block, completePaths)
+		}
+		target, attr, ok := resolveSeedPath(body, block, arg.Path, mayCreate)
 		if !ok {
 			continue
 		}
@@ -186,35 +242,46 @@ func (g *generator) seedFromExample(body *hclwrite.Body, block *configschema.Blo
 	return applied
 }
 
-// resolveSeedPath walks a path's leading block names, creating each block if
-// the generic pass did not (only when create is true - an incomplete
-// argument may never add structure), and returns the body to write into
-// plus the schema attribute the last element names.
+// resolveSeedPath walks a path's leading block names, creating each block
+// the generic pass did not - when mayCreate allows it - and returns the
+// body to write into plus the schema attribute the last element names.
 //
-// A block that can hold more than one instance stops the walk. "which
-// element does this value belong to" is a question one page's example does
-// not answer, and picking the first is the kind of guess that produces a
-// configuration nobody can explain later.
-func resolveSeedPath(body *hclwrite.Body, block *configschema.Block, path []string, create bool) (*hclwrite.Body, *configschema.Attribute, bool) {
+// A block the body already holds two instances of stops the walk: "which
+// element does this value belong to" has two answers there, and picking the
+// first is the kind of guess that produces a configuration nobody can
+// explain later. Zero or one rendered instance has exactly one answer,
+// whatever the schema's cap says - the wire schema types
+// required-in-practice one-of blocks as unbounded all-optional lists
+// (issue #174), so a cap-shaped rule reaches none of them. A map-nested
+// block stops the walk either way: its instances are keyed, and the page's
+// path carries no key.
+func resolveSeedPath(body *hclwrite.Body, block *configschema.Block, path []string, mayCreate func(prefix []string, nb *configschema.NestedBlock) bool) (*hclwrite.Body, *configschema.Attribute, bool) {
 	cur := body
 	curBlock := block
 
-	for _, name := range path[:len(path)-1] {
+	for i, name := range path[:len(path)-1] {
 		nb, ok := curBlock.BlockTypes[name]
 		if !ok || nb == nil {
 			return nil, nil, false
 		}
-		if !singleInstance(nb) {
+		switch nb.Nesting {
+		case configschema.NestingSingle, configschema.NestingGroup,
+			configschema.NestingList, configschema.NestingSet:
+		default:
 			return nil, nil, false
 		}
-		existing := cur.FirstMatchingBlock(name, nil)
-		if existing == nil {
-			if !create {
+		instances := matchingBlocks(cur, name)
+		switch len(instances) {
+		case 0:
+			if !mayCreate(path[:i+1], nb) {
 				return nil, nil, false
 			}
-			existing = cur.AppendNewBlock(name, nil)
+			instances = append(instances, cur.AppendNewBlock(name, nil))
+		case 1:
+		default:
+			return nil, nil, false
 		}
-		cur = existing.Body()
+		cur = instances[0].Body()
 		curBlock = &nb.Block
 	}
 
@@ -225,25 +292,70 @@ func resolveSeedPath(body *hclwrite.Body, block *configschema.Block, path []stri
 	return cur, attr, true
 }
 
+// requiredCovered reports whether a block about to be created at prefix
+// would arrive complete: every attribute its schema marks Required has a
+// complete documented literal at prefix+name, and every required nested
+// block is itself reached and covered. An example that leaves a required
+// member out - a cross-resource reference the extraction dropped, a map
+// literal it cannot render - is evidence about the block, not a
+// configuration of it, and creating the block anyway is how the fixture
+// picked up setting { value = "enabled" } with no name, and an
+// advanced_backup_setting missing its required backup_options (issue
+// #174's review of this rule's first regeneration).
+func requiredCovered(prefix []string, b *configschema.Block, completePaths map[string]bool) bool {
+	for name, attr := range b.Attributes {
+		if attr == nil || !attr.Required {
+			continue
+		}
+		p := append(append([]string{}, prefix...), name)
+		if !completePaths[joinPath(p)] {
+			return false
+		}
+	}
+	for name, nb := range b.BlockTypes {
+		if nb == nil || !blockRequired(nb) {
+			continue
+		}
+		sub := append(append([]string{}, prefix...), name)
+		if !anyPathUnder(completePaths, joinPath(sub)) {
+			return false // nothing would create the required sub-block
+		}
+		if !requiredCovered(sub, &nb.Block, completePaths) {
+			return false
+		}
+	}
+	return true
+}
+
+// anyPathUnder reports whether any complete documented path sits inside the
+// given block prefix.
+func anyPathUnder(completePaths map[string]bool, prefix string) bool {
+	for p := range completePaths {
+		if strings.HasPrefix(p, prefix+".") {
+			return true
+		}
+	}
+	return false
+}
+
+// matchingBlocks is every unlabelled nested block of the given type in the
+// body - the instance count resolveSeedPath's ambiguity rule reads.
+func matchingBlocks(body *hclwrite.Body, name string) []*hclwrite.Block {
+	var out []*hclwrite.Block
+	for _, b := range body.Blocks() {
+		if b.Type() == name && len(b.Labels()) == 0 {
+			out = append(out, b)
+		}
+	}
+	return out
+}
+
 // isGenericPlaceholder reports whether an attribute still holds the value
 // genericExprText produces for its type, meaning valueExpr reached its
 // fallthrough and the generator has no opinion about this argument.
 func isGenericPlaceholder(attr *hclwrite.Attribute, ty cty.Type) bool {
 	got := strings.TrimSpace(string(attr.Expr().BuildTokens(nil).Bytes()))
 	return got == genericExprText(ty)
-}
-
-// singleInstance reports whether a nested block holds exactly one instance,
-// so a path through it is unambiguous.
-func singleInstance(nb *configschema.NestedBlock) bool {
-	switch nb.Nesting {
-	case configschema.NestingSingle, configschema.NestingGroup:
-		return true
-	case configschema.NestingList, configschema.NestingSet:
-		return nb.MinItems == 1 && nb.MaxItems == 1
-	default:
-		return false
-	}
 }
 
 // seedLiteral renders the value as HCL source.
