@@ -211,19 +211,46 @@ func (r *Roster) TFTypesForCFNType(cfnType string) []string {
 // ListResources and no required input (see the package doc's "What counts
 // as listable"). False for a type live/registry.json never saw.
 func (r *Roster) Listable(cfnType string) bool {
+	listable, _ := r.ListableKnown(cfnType)
+	return listable
+}
+
+// ListableKnown is [Roster.Listable] with the same found/not-found split
+// [Roster.TaggableKnown] carries, and for the same reason.
+func (r *Roster) ListableKnown(cfnType string) (listable, known bool) {
 	if r == nil {
-		return false
+		return false, false
 	}
-	return r.listable[cfnType]
+	listable, known = r.listable[cfnType]
+	return listable, known
 }
 
 // Taggable reports live/registry.json's tagging.taggable for cfnType. False
 // for a type live/registry.json never saw.
 func (r *Roster) Taggable(cfnType string) bool {
+	taggable, _ := r.TaggableKnown(cfnType)
+	return taggable
+}
+
+// TaggableKnown is [Roster.Taggable] with the question the bare bool cannot
+// answer: whether live/registry.json has a row for this CFN type at all.
+//
+// The two are different facts and the plain form collapses them, which is
+// issue #168. A caller that turns a false into an operator-facing sentence
+// naming the artifact ("live/registry.json records X as untaggable") is
+// claiming the artifact said something; when there is no row, it said
+// nothing, and what the operator needs to hear is that two artifacts have
+// drifted rather than that a resource type cannot carry a tag.
+//
+// Zero CFN types the roster maps are missing from the registry today. That
+// is a property of two artifacts regenerated from different upstreams at
+// different times, not a guarantee.
+func (r *Roster) TaggableKnown(cfnType string) (taggable, known bool) {
 	if r == nil {
-		return false
+		return false, false
 	}
-	return r.taggable[cfnType]
+	taggable, known = r.taggable[cfnType]
+	return taggable, known
 }
 
 // IdentifierArity is the number of "|"-joined segments a Cloud Control

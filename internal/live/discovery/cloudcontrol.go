@@ -65,15 +65,9 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 			typeName, cfnType),
 	}
 
-	if sweep && !req.Roster.Taggable(cfnType) {
+	if taggable, known := req.Roster.TaggableKnown(cfnType); sweep && !taggable {
 		res.Scans = append(res.Scans, scan)
-		return diags.Append(sweepGapDiag(res, SweepGap{
-			TypeName: typeName,
-			Reason:   SweepGapNotTaggable,
-			Detail: fmt.Sprintf(
-				"live/registry.json records %s (Cloud Control type %s) as untaggable, so it can carry no ownership marker and the sweep has nothing to search on.",
-				typeName, cfnType),
-		}))
+		return diags.Append(sweepGapDiag(res, noRegistryRowOrUntaggable(typeName, cfnType, known)))
 	}
 
 	descs, err := req.CloudControl.ListResources(ctx, cfnType)

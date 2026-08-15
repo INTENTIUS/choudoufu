@@ -452,6 +452,35 @@ func (o OwnedResource) String() string {
 
 // SweepGapReason is why one resource type could not be swept for this
 // estate's undeclared resources.
+// noRegistryRowOrUntaggable builds the gap for a type the sweep skips
+// because the roster reports it untaggable, choosing between the two facts a
+// bare false collapses (issue #168).
+//
+// known=false means live/registry.json has no row for the CFN type at all,
+// so it recorded nothing and the old message - "live/registry.json records X
+// as untaggable" - would have been claiming otherwise. That case is a skew
+// between two artifacts rather than a property of the resource, and it says
+// which commands fix it.
+func noRegistryRowOrUntaggable(typeName, cfnType string, known bool) SweepGap {
+	if !known {
+		return SweepGap{
+			TypeName: typeName,
+			Reason:   SweepGapNoRegistryRow,
+			Detail: fmt.Sprintf(
+				"live/registry.json has no row for %s (Cloud Control type %s), so whether it can carry an ownership marker is unknown and the sweep skipped it. "+
+					"That is a skew between live/mapping.json and live/registry.json, not a property of the type: regenerate both (`just registry`, `just mapping`).",
+				typeName, cfnType),
+		}
+	}
+	return SweepGap{
+		TypeName: typeName,
+		Reason:   SweepGapNotTaggable,
+		Detail: fmt.Sprintf(
+			"live/registry.json records %s (Cloud Control type %s) as untaggable, so it can carry no ownership marker and the sweep has nothing to search on.",
+			typeName, cfnType),
+	}
+}
+
 type SweepGapReason string
 
 const (
@@ -472,6 +501,15 @@ const (
 	// on. Its identity comes out of configuration, which means deleting its
 	// resource block deletes the only record of which resource it was.
 	SweepGapNotTaggable SweepGapReason = "TYPE_NOT_TAGGABLE"
+
+	// SweepGapNoRegistryRow is an admitted type whose CFN type
+	// live/mapping.json names and live/registry.json has no row for. It is
+	// a skew between two artifacts regenerated from different upstreams at
+	// different times, not a fact about the resource - which is why it is
+	// not [SweepGapNotTaggable]: that one says the registry recorded a
+	// false, and this one says it recorded nothing (issue #168). The fix is
+	// `just registry` and `just mapping`, not a change to the type.
+	SweepGapNoRegistryRow SweepGapReason = "NO_REGISTRY_ROW"
 
 	// SweepGapObjectUntagged is an admitted, schema-taggable type
 	// ([markerCapable] said yes) that nonetheless listed at least one live
