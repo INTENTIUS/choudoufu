@@ -64,12 +64,12 @@ go run ./tools/limits-gen   # expect "live/LIMITATIONS.md is already current";
 
 # 5. The cohort acceptance artifact's headline.
 python3 -c "import json; a=json.load(open('live/cohort-acceptance.json')); print(a['totals'])"
-# expect {'cohorts': 31, 'pass': 1, 'fail': 30}; s3 is the recorded pass.
-# aps and media ALSO pass as of 2026-08-14, but only against the floci fork
-# image built from feat/rest-misroute-and-media-services - the artifact
-# records them once that image is published and live/floci-image bumps
-# (see #124's status comment). The ratchet protects passes only after the
-# artifact records them.
+# expect {'cohorts': 31, 'pass': 3, 'fail': 28}; s3, aps and media are the
+# recorded passes (2026-08-14, against the published
+# feat/rest-misroute-and-media-services image the pin now names), and the
+# ratchet protects all three. A cohort's verdict is its "name: pass/fail
+# (phase ...)" line - NEVER the subtest checkmark, which only means
+# "behaved as the artifact records".
 ```
 
 If any of them disagrees with what is written here, trust the code and fix this
@@ -144,14 +144,14 @@ The gate users actually hit is **admission**, and above that the
 **A second instrument exists: `live/cohort-acceptance.json`** (#108). It
 measures the other end of the funnel - not "what refuses" but "what
 round-trips": apply a cohort estate against floci with stock terraform,
-delete the state, `live-plan` from markers, assert empty. First full run:
-**1 of 31 cohorts passes (s3)**, 30 fail at apply, and the failure detail
-per cohort names whether the emulator or the fixture refused. (2026-08-14:
-**aps and media now pass too**, against the floci fork image from
-`feat/rest-misroute-and-media-services` - the artifact records them once
-that image publishes; getting media through took the #47 Cloud Control
-wiring, two emulator features, one fixture override and two measured
-admission removals, all in #124's status comment.) Two things
+delete the state, `live-plan` from markers, assert empty. **3 of 31
+cohorts pass (s3, aps, media)** as of the 2026-08-14 artifact against the
+published media-services image; the rest fail at apply, and the failure
+detail per cohort names whether the emulator or the fixture refused.
+(Getting media and aps through took the #47 Cloud Control wiring, the #51
+tagging sweep, the roster's service-alias tier, the arn-vs-id identifier
+split, three emulator features and two measured admission removals - the
+full ledger is #124's status comments.) Two things
 it settled on day one: the marker round trip works end to end when the
 fixture applies, and #99's capability probe ("517/517 listable types
 implemented") does not transfer - list-support is not create-support, and
