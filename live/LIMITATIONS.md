@@ -960,14 +960,14 @@ refused, and each says so in its own entry.
 | 38 | 120 | lint | remote-state | `internal/live/lint` | "remote-state" |
 | 31 | 90 | lint | provisioner | `internal/live/lint` | "local-exec" / "remote-exec" |
 | 30 | 131 | identity | Non-static identity argument | `internal/live/identity` | "Non-static identity argument" |
-| 29 | 59 | identity | Not an identity attribute | `internal/live/identity` | "Not an identity attribute" |
 | 24 | 106 | identity | Non-static for_each expression | `internal/live/identity` | "Non-static for_each expression" |
 | 24 | 77 | identity | Null identity argument | `internal/live/identity` | "Null identity argument" |
 | 21 | 110 | lint | module-providers | `internal/live/lint` | "module-providers" |
+| 20 | 35 | identity | Identity argument not set | `internal/live/identity` | "Identity argument not set" |
 | 19 | 215 | lint | for-each-key | `internal/live/lint` | "foreach-dotted-key" |
 | 18 | 73 | identity | Non-static count expression | `internal/live/identity` | "Non-static count expression" |
-| 17 | 32 | identity | Identity argument not set | `internal/live/identity` | "Identity argument not set" |
 | 13 | 30 | lint | child-module | `internal/live/lint` | "child-module" |
+| 12 | 36 | identity | Not an identity attribute | `internal/live/identity` | "Not an identity attribute" |
 | 12 | 21 | identity | Invalid for_each set | `internal/live/identity` | "Invalid for_each set" |
 | 11 | 58 | identity | Identity not resolvable from configuration | `internal/live/identity` | "Identity not resolvable from configuration" |
 | 6 | 63 | lint | moved-block | `internal/live/lint` | "moved-block" |
@@ -1180,14 +1180,6 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 30 configurations in the measured corpus, at 131 sites.
 
-#### Not an identity attribute
-
-**What.** An identity argument reads an attribute of another resource that is not part of that resource's identity.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
-
-**How often.** Blocked 29 configurations in the measured corpus, at 59 sites.
-
 #### Non-static for_each expression
 
 **What.** A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.
@@ -1204,6 +1196,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 24 configurations in the measured corpus, at 77 sites.
 
+#### Identity argument not set
+
+**What.** The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 20 configurations in the measured corpus, at 35 sites.
+
 #### Non-static count expression
 
 **What.** A count expression evaluates to null, or to a value not knowable from configuration alone.
@@ -1212,13 +1212,13 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 18 configurations in the measured corpus, at 73 sites.
 
-#### Identity argument not set
+#### Not an identity attribute
 
-**What.** The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.
+**What.** An identity argument reads an attribute of another resource that is not part of that resource's identity.
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 17 configurations in the measured corpus, at 32 sites.
+**How often.** Blocked 12 configurations in the measured corpus, at 36 sites.
 
 #### Invalid for_each set
 
