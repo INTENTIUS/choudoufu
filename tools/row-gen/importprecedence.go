@@ -613,11 +613,17 @@ func tryDocNamedServerSegment(p *proposal, g importGrammarRow) bool {
 		return false
 	}
 	tokens := make([]string, len(g.IDParts))
+	phrasal := false
 	for i, part := range g.IDParts {
 		tokens[i] = strings.ToUpper(part.Token)
+		if strings.ContainsAny(part.Token, " \t") {
+			phrasal = true // a plain-prose part is a phrase, not a placeholder name
+		}
 	}
 	p.Bucket = bucketServerAssigned
-	p.DerivedImportSyntax = strings.Join(tokens, *g.Separator)
+	if !phrasal {
+		p.DerivedImportSyntax = strings.Join(tokens, *g.Separator)
+	}
 	p.Rule = "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration"
 	p.Notes = append(p.Notes, fmt.Sprintf("import docs name the ID's segments and attribute %s to the Attribute Reference, not the Argument Reference; a server-provided segment makes the identity server-assigned despite the registry's composite primaryIdentifier %s", serverSegmentTokens(g), quoteList(p.PrimaryIdentifier)))
 	return true

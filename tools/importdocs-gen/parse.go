@@ -795,10 +795,15 @@ type IDPart struct {
 	Source string `json:"source"`
 }
 
-// IDPart.Source's three values.
+// IDPart.Source's values. "own-id" is the plain-prose sibling of
+// "attribute": the part names the resource's own identifier on the
+// resource's own page ("IPSet ID" on aws_guardduty_ipset's page, "the
+// alias ID" on aws_bedrockagent_agent_alias's) - a server-minted value by
+// construction, since a resource does not configure its own ID.
 const (
 	idPartSourceArgument  = "argument"
 	idPartSourceAttribute = "attribute"
+	idPartSourceOwnID     = "own-id"
 	idPartSourceUnknown   = "unknown"
 )
 
@@ -816,10 +821,16 @@ const (
 // sep is the row's final Separator (after buildRow's own fallbacks), not
 // classifyGrammar's intermediate one, so a separator recovered from the
 // example string itself still gates the arity here.
-func idParts(section string, sep *string, example string, argNames, attrNames []string) []IDPart {
+func idParts(section, tfType string, sep *string, example string, args []ArgumentRefEntry, attrNames []string) []IDPart {
 	if sep == nil || example == "" {
 		return nil
 	}
+	argNames := make([]string, len(args))
+	for i, a := range args {
+		argNames[i] = a.Name
+	}
+	segCount := len(strings.Split(example, *sep))
+
 	tokens, _, ok := formatToken(section)
 	if !ok {
 		if _, clause, clauseOK := separatedByClause(section); clauseOK && len(clause) >= 2 {
@@ -829,14 +840,21 @@ func idParts(section string, sep *string, example string, argNames, attrNames []
 		}
 	}
 	if len(tokens) < 2 {
-		return nil
+		// No backticked token source names the segments; the plain-prose
+		// enumeration ("using the primary GuardDuty detector ID and IPSet
+		// ID") is the last one that can.
+		parts := plainEnumIDParts(section, tfType, args, attrNames)
+		if len(parts) < 2 || len(parts) != segCount {
+			return nil
+		}
+		return parts
 	}
-	if len(strings.Split(example, *sep)) != len(tokens) {
+	if segCount != len(tokens) {
 		return nil // the named segments do not account for the whole example
 	}
-	args := map[string]bool{}
+	argSet := map[string]bool{}
 	for _, a := range argNames {
-		args[normalize(a)] = true
+		argSet[normalize(a)] = true
 	}
 	attrs := map[string]bool{}
 	for _, a := range attrNames {
@@ -846,7 +864,7 @@ func idParts(section string, sep *string, example string, argNames, attrNames []
 	for i, t := range tokens {
 		n := normalize(t)
 		switch {
-		case args[n]:
+		case argSet[n]:
 			out[i] = IDPart{Token: t, Source: idPartSourceArgument}
 		case attrs[n]:
 			out[i] = IDPart{Token: t, Source: idPartSourceAttribute}

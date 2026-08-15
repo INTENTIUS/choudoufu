@@ -81,6 +81,10 @@ var parenRe = regexp.MustCompile(`\([^)]*\)`)
 // names the argument `name`.
 var proseMetaWords = map[string]bool{"attribute": true, "attributes": true, "argument": true, "arguments": true}
 
+// proseArticles are the leading words a plain part's own-noun check drops:
+// grammar, not name.
+var proseArticles = map[string]bool{"the": true, "a": true, "an": true, "its": true, "their": true}
+
 // proseNamedArgument resolves the Import section's own "using ..." sentences
 // to the single configuration argument the documented ID is, when the
 // prose names exactly one and the Argument Reference confirms it. The
@@ -163,6 +167,121 @@ func resolveBacktickAlias(token string, argNames, requiredNames, attrNames []str
 		}
 	}
 	return match, match != ""
+}
+
+// plainEnumSplitRe splits a plain-word enumeration on its commas and
+// "and"s: "the endpoint ID, target subnet ID, and destination CIDR block".
+var plainEnumSplitRe = regexp.MustCompile(`,\s*(?:and\s+)?|\s+and\s+`)
+
+// plainEnumIDParts reads the enumeration idiom the backtick sources cannot:
+// an Import sentence naming every segment in plain words ("using the
+// primary GuardDuty detector ID and IPSet ID"). Each part resolves the same
+// way resolvePlainWords does - longest word-suffix against Required
+// arguments, exact against exported attributes - plus one source only
+// plain prose carries: a part naming the resource's own noun with "ID"
+// ("IPSet ID" on aws_guardduty_ipset's own page) is the resource's own
+// server-minted identifier, idPartSourceOwnID. Parts nothing resolves stay
+// "unknown"; an enumeration that is all unknown proves nothing and
+// produces nothing. The caller holds the arity gate.
+func plainEnumIDParts(section, tfType string, args []ArgumentRefEntry, attrNames []string) []IDPart {
+	var requiredNames []string
+	for _, a := range args {
+		if a.Required {
+			requiredNames = append(requiredNames, a.Name)
+		}
+	}
+	for _, phrase := range usingPhrases(section) {
+		// Only the part list before any "separated by" clause names
+		// segments; the clause names the join character.
+		if i := strings.Index(strings.ToLower(phrase), "separated by"); i != -1 {
+			phrase = strings.TrimSpace(phrase[:i])
+		}
+		if strings.Contains(phrase, "`") {
+			continue // a backticked phrase belongs to the token sources
+		}
+		raw := plainEnumSplitRe.Split(phrase, -1)
+		var parts []string
+		for _, p := range raw {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				parts = append(parts, p)
+			}
+		}
+		if len(parts) < 2 {
+			continue
+		}
+		out := make([]IDPart, len(parts))
+		informative := false
+		for i, p := range parts {
+			out[i] = attributePlainPart(p, tfType, requiredNames, attrNames)
+			if out[i].Source != idPartSourceUnknown {
+				informative = true
+			}
+		}
+		if informative {
+			return out
+		}
+	}
+	return nil
+}
+
+// attributePlainPart attributes one plain-word part.
+func attributePlainPart(part, tfType string, requiredNames, attrNames []string) IDPart {
+	words := plainContentWords(part)
+	for k := len(words); k >= 1; k-- {
+		cand := normalize(strings.Join(words[len(words)-k:], ""))
+		if len(cand) < 3 {
+			continue
+		}
+		for _, a := range requiredNames {
+			if normalize(a) == cand {
+				return IDPart{Token: part, Source: idPartSourceArgument}
+			}
+		}
+		for _, a := range attrNames {
+			if normalize(a) == cand {
+				return IDPart{Token: part, Source: idPartSourceAttribute}
+			}
+		}
+	}
+	// The resource's own noun plus "ID": strip leading articles and the
+	// trailing "id", and match the remainder against the tail of the
+	// type's own name - "IPSet ID" -> "ipset" == aws_guardduty_ipset's
+	// last token, "PublishingDestinationID" ->
+	// aws_guardduty_publishing_destination's last two, "the alias ID" ->
+	// aws_bedrockagent_agent_alias's last one.
+	for len(words) > 0 && proseArticles[strings.ToLower(words[0])] {
+		words = words[1:]
+	}
+	base := strings.TrimSuffix(normalize(strings.Join(words, "")), "id")
+	if base != "" {
+		typeTokens := strings.Split(strings.TrimPrefix(tfType, "aws_"), "_")
+		tail := ""
+		for k := 1; k <= len(typeTokens); k++ {
+			tail = normalize(typeTokens[len(typeTokens)-k]) + tail
+			if tail == base {
+				return IDPart{Token: part, Source: idPartSourceOwnID}
+			}
+			if len(tail) > len(base) {
+				break
+			}
+		}
+	}
+	return IDPart{Token: part, Source: idPartSourceUnknown}
+}
+
+// plainContentWords splits a part into its content words: parenthesized
+// asides removed, the doc's meta words dropped, articles and qualifiers
+// left in place (the suffix scan skips them naturally).
+func plainContentWords(part string) []string {
+	part = parenRe.ReplaceAllString(part, " ")
+	var words []string
+	for _, w := range strings.Fields(part) {
+		if !proseMetaWords[strings.ToLower(w)] {
+			words = append(words, w)
+		}
+	}
+	return words
 }
 
 // resolvePlainWords resolves a phrase with no backticks at all ("repository

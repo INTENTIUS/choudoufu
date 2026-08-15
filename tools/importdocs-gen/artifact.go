@@ -241,7 +241,7 @@ func buildRow(tfType, doc string) (Row, bool) {
 			cr.ArgumentsInOrder = order
 		}
 	}
-	parts := idParts(section, cr.Separator, idExample, argNames, attrNames)
+	parts := idParts(section, tfType, cr.Separator, idExample, argEntries, attrNames)
 	return Row{
 		TFType:                 tfType,
 		ImportIDExample:        idExample,

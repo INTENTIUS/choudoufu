@@ -35,8 +35,8 @@ func sepPtr(s string) *string { return &s }
 // ID is not reconstructible from configuration.
 func TestIDParts_ConnectQueueShape(t *testing.T) {
 	section := "## Import\n\nimport Amazon Connect Queues using the `instance_id` and `queue_id` separated by a colon (`:`). For example:\n\n```console\n% terraform import aws_connect_queue.example f1288a1f:c1d4e5f6\n```\n"
-	got := idParts(section, sepPtr(":"), "f1288a1f:c1d4e5f6",
-		[]string{"instance_id", "name"}, []string{"arn", "queue_id"})
+	got := idParts(section, "aws_connect_queue", sepPtr(":"), "f1288a1f:c1d4e5f6",
+		opt("instance_id", "name"), []string{"arn", "queue_id"})
 	want := []IDPart{
 		{Token: "instance_id", Source: idPartSourceArgument},
 		{Token: "queue_id", Source: idPartSourceAttribute},
@@ -53,8 +53,8 @@ func TestIDParts_ConnectQueueShape(t *testing.T) {
 // "unknown" - no claim either way - never "attribute".
 func TestIDParts_LambdaAliasShape(t *testing.T) {
 	section := "## Import\n\nimport Lambda Function Aliases using the `function_name/alias`. For example:\n\n```console\n% terraform import aws_lambda_alias.example example/production\n```\n"
-	got := idParts(section, sepPtr("/"), "example/production",
-		[]string{"function_name", "name", "function_version"}, []string{"arn", "invoke_arn"})
+	got := idParts(section, "aws_lambda_alias", sepPtr("/"), "example/production",
+		opt("function_name", "name", "function_version"), []string{"arn", "invoke_arn"})
 	want := []IDPart{
 		{Token: "function_name", Source: idPartSourceArgument},
 		{Token: "alias", Source: idPartSourceUnknown},
@@ -70,8 +70,8 @@ func TestIDParts_LambdaAliasShape(t *testing.T) {
 // the attribute-sourced leading segment is named as such.
 func TestIDParts_FormatTokenCaseInsensitive(t *testing.T) {
 	section := "## Import\n\nimport WAFv2 Web ACLs using `ID/Name/Scope`. For example:\n\n```console\n% terraform import aws_wafv2_web_acl.example a1b2c3d4/example/REGIONAL\n```\n"
-	got := idParts(section, sepPtr("/"), "a1b2c3d4/example/REGIONAL",
-		[]string{"name", "scope", "default_action"}, []string{"id", "arn", "capacity"})
+	got := idParts(section, "aws_wafv2_web_acl", sepPtr("/"), "a1b2c3d4/example/REGIONAL",
+		opt("name", "scope", "default_action"), []string{"id", "arn", "capacity"})
 	want := []IDPart{
 		{Token: "ID", Source: idPartSourceAttribute},
 		{Token: "Name", Source: idPartSourceArgument},
@@ -87,7 +87,7 @@ func TestIDParts_FormatTokenCaseInsensitive(t *testing.T) {
 // aws_route discipline) and produce no attribution at all.
 func TestIDParts_ArityGate(t *testing.T) {
 	section := "## Import\n\nusing the `instance_id` and `queue_id` separated by a colon (`:`). For example:\n\n```console\n% terraform import aws_foo.example a:b:c\n```\n"
-	if got := idParts(section, sepPtr(":"), "a:b:c", []string{"instance_id"}, []string{"queue_id"}); got != nil {
+	if got := idParts(section, "aws_foo", sepPtr(":"), "a:b:c", opt("instance_id"), []string{"queue_id"}); got != nil {
 		t.Errorf("idParts = %v, want nil (two named segments cannot account for a three-segment example)", got)
 	}
 }
@@ -96,7 +96,7 @@ func TestIDParts_ArityGate(t *testing.T) {
 // check to pass, so no attribution is claimed.
 func TestIDParts_NoSeparator(t *testing.T) {
 	section := "## Import\n\nusing the `instance_id` and `queue_id` separated by a colon (`:`).\n"
-	if got := idParts(section, nil, "a:b", []string{"instance_id"}, []string{"queue_id"}); got != nil {
+	if got := idParts(section, "aws_foo", nil, "a:b", opt("instance_id"), []string{"queue_id"}); got != nil {
 		t.Errorf("idParts = %v, want nil", got)
 	}
 }
@@ -105,7 +105,51 @@ func TestIDParts_NoSeparator(t *testing.T) {
 // `analyzer_name`") has no per-segment story to tell.
 func TestIDParts_SingleTokenProse(t *testing.T) {
 	section := "## Import\n\nimport Access Analyzer Analyzers using the `analyzer_name`. For example:\n"
-	if got := idParts(section, sepPtr(":"), "a:b", []string{"analyzer_name"}, nil); got != nil {
+	if got := idParts(section, "aws_foo", sepPtr(":"), "a:b", opt("analyzer_name"), nil); got != nil {
 		t.Errorf("idParts = %v, want nil", got)
+	}
+}
+
+// TestIDParts_PlainEnumOwnID is the GuardDuty shape (issue #132): the
+// sentence names both segments in plain words, the first resolves to the
+// Required detector_id argument, and the second names the resource's own
+// noun plus ID on the resource's own page - the server-minted identifier a
+// resource cannot configure for itself.
+func TestIDParts_PlainEnumOwnID(t *testing.T) {
+	section := "## Import\n\nimport GuardDuty IPSet using the primary GuardDuty detector ID and IPSet ID. For example:\n\n```console\n% terraform import aws_guardduty_ipset.MyIPSet 00b00fd5aecc:123456789012\n```\n"
+	got := idParts(section, "aws_guardduty_ipset", sepPtr(":"), "00b00fd5aecc:123456789012",
+		req("activate", "detector_id", "format", "location", "name"), []string{"arn"})
+	want := []IDPart{
+		{Token: "the primary GuardDuty detector ID", Source: idPartSourceArgument},
+		{Token: "IPSet ID", Source: idPartSourceOwnID},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("idParts = %v, want %v", got, want)
+	}
+}
+
+// TestIDParts_PlainEnumLeadingArticle is the aws_bedrockagent_agent_alias
+// shape: the own-noun part carries a leading article ("the alias ID"), and
+// the phrase ends in a "separated by `,`" clause that names the join
+// character, not a segment.
+func TestIDParts_PlainEnumLeadingArticle(t *testing.T) {
+	section := "## Import\n\nimport Agents for Amazon Bedrock Agent Alias using the alias ID and the agent ID separated by `,`. For example:\n\n```console\n% terraform import aws_bedrockagent_agent_alias.example 66IVY0GUTF,GGRRAED6JP\n```\n"
+	got := idParts(section, "aws_bedrockagent_agent_alias", sepPtr(","), "66IVY0GUTF,GGRRAED6JP",
+		req("agent_alias_name", "agent_id"), []string{"agent_alias_arn"})
+	want := []IDPart{
+		{Token: "the alias ID", Source: idPartSourceOwnID},
+		{Token: "the agent ID", Source: idPartSourceArgument},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("idParts = %v, want %v", got, want)
+	}
+}
+
+// TestIDParts_PlainEnumAllUnknownProvesNothing: an enumeration none of
+// whose parts resolves is noise, not attribution.
+func TestIDParts_PlainEnumAllUnknownProvesNothing(t *testing.T) {
+	section := "## Import\n\nimport things using the frobnicator handle and widget token. For example:\n\n```console\n% terraform import aws_foo.example a:b\n```\n"
+	if got := idParts(section, "aws_foo", sepPtr(":"), "a:b", req("name"), []string{"id"}); got != nil {
+		t.Errorf("idParts = %v, want nil (no part resolves to anything)", got)
 	}
 }

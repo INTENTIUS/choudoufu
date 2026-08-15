@@ -4,12 +4,12 @@
     "admitted_total": 843,
     "compared": 822,
     "not_in_mapped_set": 21,
-    "adopted_unchanged": 698,
-    "adopted_unchanged_pct": 84.91,
-    "genuine_mismatches": 124,
+    "adopted_unchanged": 702,
+    "adopted_unchanged_pct": 85.4,
+    "genuine_mismatches": 120,
     "annotated": 0,
-    "unannotated_mismatches": 124,
-    "scrape_gap_mismatches": 40
+    "unannotated_mismatches": 120,
+    "scrape_gap_mismatches": 36
   },
   "by_service": {
     "ACMPCA": {
@@ -109,8 +109,8 @@
     },
     "Bedrock": {
       "compared": 7,
-      "adopted_unchanged": 5,
-      "adopted_unchanged_pct": 71.43
+      "adopted_unchanged": 6,
+      "adopted_unchanged_pct": 85.71
     },
     "BedrockAgentCore": {
       "compared": 14,
@@ -419,8 +419,8 @@
     },
     "GuardDuty": {
       "compared": 7,
-      "adopted_unchanged": 2,
-      "adopted_unchanged_pct": 28.57
+      "adopted_unchanged": 5,
+      "adopted_unchanged_pct": 71.43
     },
     "IAM": {
       "compared": 16,
@@ -1686,16 +1686,12 @@
     {
       "tf_type": "aws_bedrockagent_agent_alias",
       "service": "Bedrock",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "server-assigned"
-      ],
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -5006,17 +5002,13 @@
     {
       "tf_type": "aws_guardduty_ipset",
       "service": "GuardDuty",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "server-assigned"
-      ],
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -5047,33 +5039,25 @@
     {
       "tf_type": "aws_guardduty_publishing_destination",
       "service": "GuardDuty",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "server-assigned"
-      ],
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
       "tf_type": "aws_guardduty_threatintelset",
       "service": "GuardDuty",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "server-assigned"
-      ],
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {

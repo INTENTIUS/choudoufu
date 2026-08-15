@@ -3223,6 +3223,16 @@
           "name": "stage",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the API mapping identifier",
+          "source": "unknown"
+        },
+        {
+          "token": "domain name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -3900,6 +3910,16 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the API identifier",
+          "source": "unknown"
+        },
+        {
+          "token": "stage name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -3994,6 +4014,20 @@
         {
           "name": "region",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the ELB name",
+          "source": "argument"
+        },
+        {
+          "token": "port",
+          "source": "unknown"
+        },
+        {
+          "token": "policy name",
+          "source": "argument"
         }
       ]
     },
@@ -4302,6 +4336,16 @@
           "name": "validator",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the configuration profile ID",
+          "source": "attribute"
+        },
+        {
+          "token": "application ID",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -4364,6 +4408,20 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the application ID",
+          "source": "argument"
+        },
+        {
+          "token": "environment ID",
+          "source": "argument"
+        },
+        {
+          "token": "deployment number",
+          "source": "attribute"
         }
       ]
     },
@@ -4513,6 +4571,16 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the environment ID",
+          "source": "attribute"
+        },
+        {
+          "token": "application ID",
+          "source": "argument"
         }
       ]
     },
@@ -4672,6 +4740,20 @@
         {
           "name": "region",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the application ID",
+          "source": "argument"
+        },
+        {
+          "token": "configuration profile ID",
+          "source": "argument"
+        },
+        {
+          "token": "version number",
+          "source": "attribute"
         }
       ]
     },
@@ -7057,6 +7139,16 @@
           "name": "region",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the AppSync API ID",
+          "source": "argument"
+        },
+        {
+          "token": "key",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -9150,6 +9242,16 @@
         {
           "name": "propagate_at_launch",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the ASG name",
+          "source": "unknown"
+        },
+        {
+          "token": "key",
+          "source": "argument"
         }
       ]
     },
@@ -12184,6 +12286,20 @@
           "name": "skip_resource_in_use_check",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the action group ID",
+          "source": "attribute"
+        },
+        {
+          "token": "the agent ID",
+          "source": "argument"
+        },
+        {
+          "token": "the agent version",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -12236,6 +12352,16 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the alias ID",
+          "source": "own-id"
+        },
+        {
+          "token": "the agent ID",
+          "source": "argument"
         }
       ]
     },
@@ -12364,6 +12490,20 @@
           "required": false,
           "force_new": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the agent ID",
+          "source": "argument"
+        },
+        {
+          "token": "the agent version",
+          "source": "unknown"
+        },
+        {
+          "token": "the knowledge base ID",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -12440,6 +12580,16 @@
           "name": "vector_ingestion_configuration",
           "required": false,
           "force_new": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the data source ID",
+          "source": "attribute"
+        },
+        {
+          "token": "the knowledge base ID",
+          "source": "argument"
         }
       ]
     },
@@ -13754,6 +13904,16 @@
         {
           "name": "region",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the gateway identifier",
+          "source": "argument"
+        },
+        {
+          "token": "target ID",
+          "source": "attribute"
         }
       ]
     },
@@ -16592,6 +16752,20 @@
         {
           "name": "stack_set_instance_region",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the StackSet name",
+          "source": "argument"
+        },
+        {
+          "token": "target AWS account ID",
+          "source": "unknown"
+        },
+        {
+          "token": "target AWS Region",
+          "source": "unknown"
         }
       ]
     },
@@ -24311,6 +24485,16 @@
           "name": "use_defaults",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the Identity Pool ID",
+          "source": "argument"
+        },
+        {
+          "token": "provider name",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -24482,6 +24666,16 @@
         {
           "name": "provider_details",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "their User Pool ID",
+          "source": "argument"
+        },
+        {
+          "token": "Provider Name",
+          "source": "argument"
         }
       ]
     },
@@ -25585,6 +25779,20 @@
           "name": "utilization_preference",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the resource type",
+          "source": "argument"
+        },
+        {
+          "token": "scope name",
+          "source": "unknown"
+        },
+        {
+          "token": "scope value",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -26597,6 +26805,20 @@
         {
           "name": "lex_bot",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the Amazon Connect instance ID",
+          "source": "argument"
+        },
+        {
+          "token": "Lex (V1) bot name",
+          "source": "unknown"
+        },
+        {
+          "token": "Lex (V1) bot region",
+          "source": "unknown"
         }
       ]
     },
@@ -30330,6 +30552,20 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "a comma separated value of DomainIdentifier",
+          "source": "argument"
+        },
+        {
+          "token": "Name",
+          "source": "argument"
+        },
+        {
+          "token": "Revision",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -30394,6 +30630,20 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "a comma-delimited string combining the domain id",
+          "source": "unknown"
+        },
+        {
+          "token": "glossary id",
+          "source": "own-id"
+        },
+        {
+          "token": "the id of the project it's under",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -31363,6 +31613,16 @@
         {
           "name": "role_arn",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the DB Instance Identifier",
+          "source": "argument"
+        },
+        {
+          "token": "IAM Role ARN",
+          "source": "argument"
         }
       ]
     },
@@ -33085,6 +33345,16 @@
           "name": "remote_domain_name",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the directory id",
+          "source": "argument"
+        },
+        {
+          "token": "remote_domain_name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -33351,6 +33621,16 @@
           "name": "vpc_settings",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "directory ID",
+          "source": "argument"
+        },
+        {
+          "token": "Region name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -33484,6 +33764,16 @@
         {
           "name": "trust_type",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the directory ID",
+          "source": "argument"
+        },
+        {
+          "token": "remote domain name",
+          "source": "argument"
         }
       ]
     },
@@ -37525,6 +37815,16 @@
         "range_key_value",
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "the table name",
+          "source": "argument"
+        },
+        {
+          "token": "key values",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -37620,6 +37920,16 @@
         {
           "name": "value",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the DynamoDB resource identifier",
+          "source": "unknown"
+        },
+        {
+          "token": "key",
+          "source": "argument"
         }
       ]
     },
@@ -38687,6 +38997,16 @@
           "name": "region",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the EC2 Local Gateway Route Table identifier",
+          "source": "unknown"
+        },
+        {
+          "token": "destination CIDR block",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -39291,6 +39611,16 @@
         {
           "name": "value",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the EC2 resource identifier",
+          "source": "unknown"
+        },
+        {
+          "token": "key",
+          "source": "argument"
         }
       ]
     },
@@ -41539,6 +41869,16 @@
         {
           "name": "value",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the ECS resource identifier",
+          "source": "unknown"
+        },
+        {
+          "token": "key",
+          "source": "argument"
         }
       ]
     },
@@ -45841,6 +46181,16 @@
           "name": "volumes_per_instance",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "their EMR Cluster id",
+          "source": "argument"
+        },
+        {
+          "token": "Instance Group id",
+          "source": "own-id"
+        }
       ]
     },
     {
@@ -50122,6 +50472,20 @@
           "name": "view_original_text",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the catalog ID (usually AWS account ID)",
+          "source": "unknown"
+        },
+        {
+          "token": "database name",
+          "source": "argument"
+        },
+        {
+          "token": "table name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -51152,6 +51516,24 @@
           "name": "skewed_column_values",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the catalog ID (usually AWS account ID)",
+          "source": "unknown"
+        },
+        {
+          "token": "database name",
+          "source": "argument"
+        },
+        {
+          "token": "table name",
+          "source": "argument"
+        },
+        {
+          "token": "partition values",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -51191,6 +51573,24 @@
         {
           "name": "catalog_id",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the catalog ID (usually AWS account ID)",
+          "source": "unknown"
+        },
+        {
+          "token": "database name",
+          "source": "argument"
+        },
+        {
+          "token": "table name",
+          "source": "argument"
+        },
+        {
+          "token": "index name",
+          "source": "unknown"
         }
       ]
     },
@@ -52105,6 +52505,16 @@
           "name": "finding_criteria",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the detector ID",
+          "source": "argument"
+        },
+        {
+          "token": "filter's name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -52191,6 +52601,16 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the primary GuardDuty detector ID",
+          "source": "argument"
+        },
+        {
+          "token": "IPSet ID",
+          "source": "attribute"
         }
       ]
     },
@@ -52295,6 +52715,16 @@
         {
           "name": "disable_email_notification",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the primary GuardDuty detector ID",
+          "source": "argument"
+        },
+        {
+          "token": "member AWS account ID",
+          "source": "argument"
         }
       ]
     },
@@ -52435,6 +52865,16 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the master GuardDuty detector ID",
+          "source": "argument"
+        },
+        {
+          "token": "PublishingDestinationID",
+          "source": "own-id"
+        }
       ]
     },
     {
@@ -52497,6 +52937,16 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the primary GuardDuty detector ID",
+          "source": "argument"
+        },
+        {
+          "token": "ThreatIntelSetID",
+          "source": "attribute"
         }
       ]
     },
@@ -56022,6 +56472,16 @@
           "name": "override_dynamic_group",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the thing group name",
+          "source": "argument"
+        },
+        {
+          "token": "thing name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -58600,6 +59060,16 @@
           "name": "encryption_context_subset",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the Key ID",
+          "source": "argument"
+        },
+        {
+          "token": "Grant ID",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -61136,6 +61606,16 @@
           "name": "certificate_arn",
           "required": true,
           "force_new": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the listener arn",
+          "source": "argument"
+        },
+        {
+          "token": "certificate arn",
+          "source": "argument"
         }
       ]
     },
@@ -69171,6 +69651,16 @@
           "name": "network_interface_id",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the associated network interface ID",
+          "source": "argument"
+        },
+        {
+          "token": "security group ID",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -69907,6 +70397,16 @@
           "required": true,
           "force_new": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the core network ID",
+          "source": "argument"
+        },
+        {
+          "token": "attachment ID",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -70345,6 +70845,20 @@
           "name": "link_id",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the global network ID",
+          "source": "argument"
+        },
+        {
+          "token": "link ID",
+          "source": "argument"
+        },
+        {
+          "token": "device ID",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -70394,6 +70908,16 @@
       ],
       "identity_schema_optional": [
         "account_id"
+      ],
+      "id_parts": [
+        {
+          "token": "the core network ID",
+          "source": "argument"
+        },
+        {
+          "token": "prefix list ARN",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -70718,6 +71242,16 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the monitor name",
+          "source": "argument"
+        },
+        {
+          "token": "probe id",
+          "source": "own-id"
         }
       ]
     },
@@ -73337,6 +73871,16 @@
       ],
       "identity_schema_optional": [
         "account_id"
+      ],
+      "id_parts": [
+        {
+          "token": "the account ID",
+          "source": "argument"
+        },
+        {
+          "token": "its service principal",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -73508,6 +74052,16 @@
       ],
       "identity_schema_optional": [
         "account_id"
+      ],
+      "id_parts": [
+        {
+          "token": "the target ID",
+          "source": "argument"
+        },
+        {
+          "token": "policy ID",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -73580,6 +74134,16 @@
         {
           "name": "value",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the Organizations resource identifier",
+          "source": "unknown"
+        },
+        {
+          "token": "key",
+          "source": "argument"
         }
       ]
     },
@@ -75888,6 +76452,16 @@
           "name": "theme_arn",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the AWS account ID",
+          "source": "unknown"
+        },
+        {
+          "token": "analysis ID",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -76039,6 +76613,16 @@
           "name": "theme_arn",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the AWS account ID",
+          "source": "unknown"
+        },
+        {
+          "token": "dashboard ID",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -76181,6 +76765,16 @@
           "required": false,
           "force_new": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the AWS account ID",
+          "source": "unknown"
+        },
+        {
+          "token": "data set ID",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -76280,6 +76874,16 @@
           "name": "vpc_connection_properties",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the AWS account ID",
+          "source": "unknown"
+        },
+        {
+          "token": "data source ID",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -76340,6 +76944,16 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the AWS account ID",
+          "source": "unknown"
+        },
+        {
+          "token": "folder ID name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -76384,6 +76998,24 @@
           "name": "region",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the AWS account ID",
+          "source": "unknown"
+        },
+        {
+          "token": "folder ID",
+          "source": "argument"
+        },
+        {
+          "token": "member type",
+          "source": "argument"
+        },
+        {
+          "token": "member ID",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -76423,6 +77055,20 @@
         {
           "name": "region",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the aws account id",
+          "source": "unknown"
+        },
+        {
+          "token": "namespace",
+          "source": "unknown"
+        },
+        {
+          "token": "group name",
+          "source": "argument"
         }
       ]
     },
@@ -76470,6 +77116,24 @@
         {
           "name": "region",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the AWS account ID",
+          "source": "unknown"
+        },
+        {
+          "token": "namespace",
+          "source": "unknown"
+        },
+        {
+          "token": "group name",
+          "source": "argument"
+        },
+        {
+          "token": "member name",
+          "source": "argument"
         }
       ]
     },
@@ -76528,6 +77192,20 @@
           "name": "region",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the AWS account ID",
+          "source": "unknown"
+        },
+        {
+          "token": "namespace",
+          "source": "unknown"
+        },
+        {
+          "token": "assignment name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -76576,6 +77254,20 @@
         {
           "name": "region",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the AWS account ID",
+          "source": "unknown"
+        },
+        {
+          "token": "data set ID",
+          "source": "argument"
+        },
+        {
+          "token": "ingestion ID",
+          "source": "argument"
         }
       ]
     },
@@ -76694,6 +77386,16 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the AWS account ID",
+          "source": "unknown"
+        },
+        {
+          "token": "namespace",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -76759,6 +77461,20 @@
         {
           "name": "region",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the AWS account ID",
+          "source": "unknown"
+        },
+        {
+          "token": "data set ID",
+          "source": "argument"
+        },
+        {
+          "token": "schedule ID",
+          "source": "argument"
         }
       ]
     },
@@ -76922,6 +77638,16 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the AWS account ID",
+          "source": "unknown"
+        },
+        {
+          "token": "template ID",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -76964,6 +77690,20 @@
         {
           "name": "region",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the AWS account ID",
+          "source": "unknown"
+        },
+        {
+          "token": "template ID",
+          "source": "argument"
+        },
+        {
+          "token": "alias name",
+          "source": "argument"
         }
       ]
     },
@@ -77044,6 +77784,16 @@
         {
           "name": "version_description",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the AWS account ID",
+          "source": "unknown"
+        },
+        {
+          "token": "theme ID",
+          "source": "argument"
         }
       ]
     },
@@ -77143,6 +77893,16 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the AWS account ID",
+          "source": "unknown"
+        },
+        {
+          "token": "VPC connection ID",
+          "source": "argument"
         }
       ]
     },
@@ -77253,6 +78013,16 @@
         {
           "name": "resource_share_arn",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "their Resource Share ARN",
+          "source": "argument"
+        },
+        {
+          "token": "Resource ARN",
+          "source": "argument"
         }
       ]
     },
@@ -78204,6 +78974,16 @@
         {
           "name": "role_arn",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the DB Cluster Identifier",
+          "source": "argument"
+        },
+        {
+          "token": "IAM Role ARN",
+          "source": "argument"
         }
       ]
     },
@@ -81647,6 +82427,16 @@
           "name": "name",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "their the CIDR collection ID",
+          "source": "argument"
+        },
+        {
+          "token": "location name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -82400,6 +83190,16 @@
           "name": "q_type",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the Route 53 Resolver DNS Firewall rule group ID",
+          "source": "argument"
+        },
+        {
+          "token": "domain list ID (for standard rules) or threat protection ID (for advanced rules)",
+          "source": "unknown"
+        }
       ]
     },
     {
@@ -82810,6 +83610,16 @@
       ],
       "identity_schema_optional": [
         "account_id"
+      ],
+      "id_parts": [
+        {
+          "token": "the Hosted Zone ID",
+          "source": "argument"
+        },
+        {
+          "token": "VPC ID",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -82896,6 +83706,16 @@
       "identity_schema_optional": [
         "vpc_region",
         "account_id"
+      ],
+      "id_parts": [
+        {
+          "token": "the Hosted Zone ID",
+          "source": "argument"
+        },
+        {
+          "token": "VPC ID",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -82922,6 +83742,16 @@
         {
           "name": "signing_attributes",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the domain name",
+          "source": "argument"
+        },
+        {
+          "token": "DNSSEC key ID",
+          "source": "attribute"
         }
       ]
     },
@@ -83908,6 +84738,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "the associated resource ID",
+          "source": "unknown"
+        },
+        {
+          "token": "Route Table ID",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -90791,6 +91631,16 @@
           "name": "value",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the Organizations resource identifier",
+          "source": "unknown"
+        },
+        {
+          "token": "key",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -92513,6 +93363,16 @@
           "name": "attributes",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the service ID",
+          "source": "argument"
+        },
+        {
+          "token": "instance ID",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -92560,6 +93420,16 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the namespace ID",
+          "source": "own-id"
+        },
+        {
+          "token": "VPC ID",
+          "source": "unknown"
         }
       ]
     },
@@ -92734,6 +93604,16 @@
         {
           "name": "resource_id",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the budget name",
+          "source": "argument"
+        },
+        {
+          "token": "resource ID",
+          "source": "argument"
         }
       ]
     },
@@ -93095,6 +93975,20 @@
           "name": "source_portfolio_id",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the accept language",
+          "source": "unknown"
+        },
+        {
+          "token": "portfolio ID",
+          "source": "argument"
+        },
+        {
+          "token": "product ID",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -93276,6 +94170,16 @@
           "name": "type",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the provisioning artifact ID",
+          "source": "attribute"
+        },
+        {
+          "token": "product ID",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -93409,6 +94313,16 @@
         {
           "name": "tag_option_id",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the tag option ID",
+          "source": "argument"
+        },
+        {
+          "token": "resource ID",
+          "source": "argument"
         }
       ]
     },
@@ -93636,6 +94550,16 @@
         {
           "name": "value",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the service code",
+          "source": "argument"
+        },
+        {
+          "token": "quota code",
+          "source": "argument"
         }
       ]
     },
@@ -94069,6 +94993,16 @@
           "name": "region",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the identity",
+          "source": "argument"
+        },
+        {
+          "token": "policy name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -94323,6 +95257,16 @@
         {
           "name": "organization_arn",
           "required": true
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the ruleset name",
+          "source": "argument"
+        },
+        {
+          "token": "rule name",
+          "source": "argument"
         }
       ]
     },
@@ -101469,6 +102413,16 @@
           "name": "value",
           "required": true
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the Transfer Family resource identifier",
+          "source": "unknown"
+        },
+        {
+          "token": "key",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -103777,6 +104731,16 @@
           "name": "region",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "the associated resource ID",
+          "source": "unknown"
+        },
+        {
+          "token": "route table ID",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -103798,6 +104762,16 @@
         {
           "name": "region",
           "required": false
+        }
+      ],
+      "id_parts": [
+        {
+          "token": "the associated resource ID",
+          "source": "unknown"
+        },
+        {
+          "token": "VPC Id",
+          "source": "argument"
         }
       ]
     },

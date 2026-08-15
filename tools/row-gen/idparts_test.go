@@ -148,6 +148,35 @@ func TestTryDocNamedServerSegment_AllArgumentsRefuses(t *testing.T) {
 	}
 }
 
+// TestTryDocNamedServerSegment_OwnIDShape is the GuardDuty family: the
+// doc's plain prose names the second segment as the resource's own ID
+// ("IPSet ID" on the IPSet page), which is server-minted by construction -
+// the same promotion the Attribute Reference source earns, from the
+// prose-only sibling attribution.
+func TestTryDocNamedServerSegment_OwnIDShape(t *testing.T) {
+	sep := ":"
+	g := importGrammarRow{
+		TFType:          "aws_guardduty_ipset",
+		ImportIDExample: "00b00fd5aecc:123456789012",
+		Separator:       &sep,
+		IDParts: []idPart{
+			{Token: "the primary GuardDuty detector ID", Source: "argument"},
+			{Token: "IPSet ID", Source: idPartSourceOwnID},
+		},
+	}
+	p := proposal{
+		TFType:            "aws_guardduty_ipset",
+		Bucket:            bucketNeedsHandSeparator,
+		PrimaryIdentifier: []string{"Id", "DetectorId"},
+	}
+	if !tryDocNamedServerSegment(&p, g) {
+		t.Fatal("tryDocNamedServerSegment = false, want true")
+	}
+	if p.Bucket != bucketServerAssigned {
+		t.Errorf("bucket = %s, want %s", p.Bucket, bucketServerAssigned)
+	}
+}
+
 // TestTryDocNamedServerSegment_NoSeparatorRefuses: without a pinned
 // separator there is no placeholder to build and the scrape-side arity gate
 // could not have run against anything, so the rule declines.

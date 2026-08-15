@@ -56,11 +56,17 @@ type idPart struct {
 	Source string `json:"source"`
 }
 
-// idPartSourceAttribute is the Source value naming a segment the doc's own
-// Attribute Reference exports - a server-provided value no configuration
-// argument supplies. The other two values ("argument", "unknown") are only
-// ever tested for indirectly, so they carry no constant here.
-const idPartSourceAttribute = "attribute"
+// idPartSourceAttribute names a segment the doc's own Attribute Reference
+// exports; idPartSourceOwnID names a segment that is the resource's own
+// identifier, stated in plain prose on the resource's own page ("IPSet ID"
+// on aws_guardduty_ipset's) - both are server-provided values no
+// configuration argument supplies. The other two values ("argument",
+// "unknown") are only ever tested for indirectly, so they carry no
+// constant here.
+const (
+	idPartSourceAttribute = "attribute"
+	idPartSourceOwnID     = "own-id"
+)
 
 // docNamesServerSegment reports whether the grammar row's per-segment
 // attribution names at least one segment as the doc's own Attribute
@@ -75,7 +81,7 @@ const idPartSourceAttribute = "attribute"
 // check is needed here.
 func docNamesServerSegment(g importGrammarRow) bool {
 	for _, part := range g.IDParts {
-		if part.Source == idPartSourceAttribute {
+		if part.Source == idPartSourceAttribute || part.Source == idPartSourceOwnID {
 			return true
 		}
 	}
