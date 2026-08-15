@@ -1,124 +1,79 @@
 # Handoff
 
-Written 2026-08-15, at `7036d117cb`. Working tree clean, `just ci` green,
-nothing in flight.
+Written 2026-08-15 evening, at `7ee71441ae` plus this file. Working tree
+clean, `just ci` green, everything pushed, nothing in flight.
 
 This is a session handoff, not a second work queue. The work lives in the
-issue tracker (`gh issue list -R INTENTIUS/choudoufu`) and the operational
-brief lives in `.claude/agents/live-markers.md`, which is tracked now
-(#165) and is the file to read before touching the live-marker path. A
-previous HANDOFF.md accumulated four false load-bearing claims across three
-sessions and was retired into the tracker for that reason; this one records
-session state and the things that are true but written down nowhere else.
+issue tracker; the operational brief is `.claude/agents/live-markers.md`.
 If you find yourself copying issue content into here, stop.
 
 ## What landed this session
 
-Seven issues closed: #142 (estate grant policy), #171 (CI coverage of
-`internal/command`), #165 (the brief is tracked), #152 (generated SCP action
-list), #161 (live-check variable attribution), #155 (CFN schema facts),
-#145 (floci pin drift), #135 (separator scraping). #136 is part-done and
-open.
+Closed: #132 (extraction sweep 638→708 adopted, then the emit gate plus a
+135-ruling ledger with exits and two down-only ratchets), #139 (COVERAGE's
+layers table is a generated span; `live/rowgen-buckets.json` is new),
+#147 (the published-deployment corpus population; first honest rate: 144
+of 145 real deployment roots blocked), #149 (acceptance re-measured, split
+final at 26 emulator / 2 fixture), #162 (all six specs done).
 
-## The repository's history was rewritten
+Filed: #172 (ARN/URL-template proposal shape), #173 (unwired sibling
+references in estate-gen), #174 (schema-optional API-required members).
 
-An 8.9MB arm64 binary, `iamref-gen`, was committed in `d7ec51f6ec` and
-purged with `git-filter-repo` across all 34,268 commits. Every commit from
-that point forward has a new hash. `backup-pre-iamref-blob-purge` is the
-local pre-purge branch.
-
-Two consequences that are not obvious:
-
-- **The old objects are unreachable on GitHub but not gone.** They survive
-  until GitHub GCs them and stay fetchable by SHA until then. If the binary
-  genuinely must be unrecoverable, that needs GitHub Support.
-- **Any clone or worktree taken before 2026-08-15 has the old history.** A
-  rebase from one of those against the rewritten `main` will look like a
-  divergence of hundreds of commits. Re-clone or hard-reset rather than
-  merging your way out of it; that exact mistake put eight ancient Terraform
-  commits onto `main` mid-session.
-
-`backup-pre-blob-purge-reroot`, from the earlier 2026-08-14 rewrite, does
-not contain the purged commit and was untouched.
+Maintainer rulings, all recorded on the issues: #136's retirement bar
+stays byte-identical; #147 is option 1; #154 goes strictly last; #170
+stays untouched; full-tree verification is batched to the push boundary
+(targeted tests per landing, one fix pass before pushing).
 
 ## Where #136 stands
 
-Two commits in: `ded965af19` extracts each type's documented example into
-`live/import-grammar.json`, `d425a161c7` seeds `estate-gen` from it and
-retires the first override.
+410 override entries remain (batches 2 and 3 retired 17, measured, plus
+the incomplete-may-replace-a-placeholder seed rule). The complete
+classification of the 410 by blocking cause is on the issue; the ceiling
+for the doc-example line is roughly 180 types, and 141 are cross-resource
+wiring that is permanently hand per the issue's own scope. The kept
+measured-retirable override (`aws_dms_s3_endpoint`) is a deliberate
+ruling - read its entry before retiring it.
 
-- **585 override entries remain**, 229 of which have a clean documented
-  example and are the candidate pool.
-- **The retirement test is regenerate-and-diff, not validate.** An override
-  is safe to delete when the regenerated cohort is byte-identical apart from
-  its `# overrides:` provenance line. `terraform validate` passing is weaker:
-  it does not see apply-time requirements, and the acceptance tier cannot
-  discriminate either while #149 stands.
-- The seed is suppressed for any type that still has an override, so
-  retirement is one type at a time and each step is checkable.
-
-Run the drift and validate tiers with:
-
-```
-TF_FLOCI_TEST=1 env -u PWD go test -C "$(git rev-parse --show-toplevel)" ./tools/estate-gen/ -timeout 40m
-```
-
-Both were green at `d425a161c7`, with `knownDrift` and `regenGaps` empty.
-
-## Regenerating cohorts in bulk
-
-Use the drift test's own `recordedRegenTypes`, which prefers `GENERATED.md`
-over `README.md` and handles shell continuations. Do not grep `-types` out
-of the READMEs: doing that cut `compute-platforms` from 28 resources to 4,
-and the only reason it was caught is that the net diff was −431 lines for a
-pass that only adds. There is no `-regenerate-all` mode; the way to do it is
-a temporary in-package test that reuses that function, which is how the last
-sweep ran.
+An untracked measurement harness sits at
+`tools/estate-gen/retire_measure_test.go` (env-gated:
+`ESTATE_RETIRE_MEASURE=1` measures all overrides in ~30s;
+`ESTATE_REGEN_ALL=1` bulk-regenerates every cohort through
+`recordedRegenTypes`). Deliberately not committed, per the temporary-
+harness convention; re-create or reuse it for the next batch.
 
 ## Things measured this session that contradict what was written down
 
-Each of these was believed, is false, and would otherwise be believed again.
+- **The #132 issue comment's "82 extraction gaps" was 84** in the
+  artifact itself. Recompute before planning against any count.
+- **`grep -c FAIL log` after a green run exits 1** (zero matches), and a
+  compound command's exit is then grep's. The pipe rule's sibling: read a
+  verification's exit from its own `echo $?` line, never from a chained
+  grep. A green tier was nearly re-run as red this way.
+- **Crash cohorts' `failed_resources` lists are nondeterministic** -
+  whatever is in flight when the plugin dies gets cancelled. Do not diff
+  those lists as signal (recorded on #149).
+- **A background acceptance run reads the working tree as it goes.** One
+  was started, the fixtures changed under it, and it had to be killed and
+  re-run. Sequence tree-mutating work around any live measurement.
 
-- **`identity_schema_required` cannot disambiguate separators** for the rows
-  #135 was about. It is empty on 22 of those 23. The issue proposed it as
-  the mechanism.
-- **`additionalIdentifiers` was never discarded** by `registry-gen`. #155's
-  table listed it as one of four missing fields; it has been parsed and
-  emitted all along, on the 208 types the table itself counts.
-- **No upstream file is gofmt-dirty.** The CI comment said "a handful of
-  upstream OpenTofu files are gofmt-dirty as inherited" and used it to
-  justify a narrow gofmt scope. The measurement is one dirty file
-  repo-wide, and it was fork-added.
-- **`survey-gen` does not use `mdspan`.** The brief said it did. The four
-  that do are `estate-gen`, `iamref-gen`, `limits-gen`, `tagverbs-gen`.
-- **`live/plan-budget.json` was measured against a different emulator image**
-  than the current pin, and nothing said so. It is now a recorded exception
-  in `live/flociimage_test.go` rather than a silent one.
+## The acceptance conclusion, so nobody re-derives it
 
-## The one thing worth generalising
-
-Four separate defects this session were the same shape: a check whose unit
-was the directory guarding a fork whose unit is the file (#156, #164, #171),
-a caveat attached to a whole report rather than to the refusals it explained
-(#161), an override "winning" only on the arguments it happened to set
-(#136), and an ARN's internal `:` read as a join (#135). In each case the
-rule was correct about the case its author had in mind and silently wrong
-one level out.
-
-The habit that caught all four was the same: regenerate, then diff, then
-read the diff — and when a number moves the wrong way, find out why before
-explaining it. The ARN defect surfaced because `rowgen-convergence.json`
-flagged three rows, an artifact whose headline number is explicitly not
-worth optimising for. It is still a good change detector.
+26 of 28 failures are emulator-attributable; the two fixture ones are
+filed as rule classes (#173, #174). The cheapest large recoveries are on
+lex00/floci#50: router slash normalization (may recover IoT, API Gateway
+v2, Backup wholesale) and five real-Docker waiter hangs (OpenSearch,
+ElastiCache, ECR repository, RDS instance, MSK). Until some of that
+lands, the round-trip number (3 of 31) is a floci ceiling, not a fixture
+quality measure.
 
 ## What I would pick up next
 
-1. **#136's retirement batches** — the setup is done and the verification
-   loop is defined above. Highest value per unit of risk.
-2. **#139**, COVERAGE.md's generated spans. Bounded, and its PROPOSE section
-   is separately wrong today.
-3. **#162**, the `live/*.md` brevity pass, now that no other agent holds it.
-4. **#132** is the large one and is unchanged: 82 extraction gaps and 102
-   ratification judgments behind the emit gate.
+1. **#173** - highest product value: every instance also fails on real
+   AWS, and the fix is the sibling-reference rule estate-gen almost has.
+2. **#174** - pairs with #173; note its stated interaction with #136's
+   Incomplete gate before designing.
+3. **#172** - the one genuine extraction class behind the #132 ledger.
+4. **#136 batches** - re-run the harness after any seed/extractor change;
+   retire what newly clears the byte bar.
 
-#170 is deliberately untouched — the user asked for it to be left alone.
+#170 and #154 are the maintainer's, in that order, #154 strictly last.
