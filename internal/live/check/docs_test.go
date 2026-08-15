@@ -205,4 +205,3 @@ func TestPopulationsClaimNoRate(t *testing.T) {
 		t.Error("totals carries a corpus-wide blocked count again; that figure reads as a compatibility rate and was removed under #118")
 	}
 }
-

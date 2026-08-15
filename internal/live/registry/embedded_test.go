@@ -67,4 +67,3 @@ func TestEmbeddedRosterAnswersForMultiplex(t *testing.T) {
 		t.Fatalf("EnumerationSource(aws_prometheus_workspace) = %q, want AWS::APS::Workspace", cfnType)
 	}
 }
-
