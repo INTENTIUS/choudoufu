@@ -96,6 +96,16 @@ var typeOverridesEc2Networking = map[string]typeOverride{
 			body.SetAttributeRaw("rule_action", exprTokens(`"allow"`))
 		},
 	},
+	"aws_security_group_rule": {
+		Reasons: []string{
+			`#175's demand-head batch: aws_security_group_rule, ADMITTED despite provider deprecation under the type-parity ruling. type is Required and the provider validates it against a closed enum (validate: "expected type to be one of [\"egress\" \"ingress\"]"); protocol is Required and the provider validates it against its own protocol-number/name table, same as aws_network_acl_rule's own protocol above; cidr_blocks is a list of strings in the schema, but the provider validates each element is a well-formed CIDR (validate: "is not a valid CIDR block"); the generic pass's placeholder strings satisfy none of the three`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("type", exprTokens(`"ingress"`))
+			body.SetAttributeRaw("protocol", exprTokens(`"tcp"`))
+			body.SetAttributeRaw("cidr_blocks", exprTokens(`["10.0.3.0/24"]`))
+		},
+	},
 	"aws_vpc_dhcp_options": {
 		Reasons: []string{
 			`domain_name, domain_name_servers, ipv6_address_preferred_lease_time, netbios_name_servers, netbios_node_type and ntp_servers are all Optional in the schema, so the generic pass renders an empty body, but the provider requires at least one (validate: "Missing required argument": "one of ... must be specified")`,

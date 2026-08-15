@@ -1,21 +1,21 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 878,
-    "compared": 868,
+    "admitted_total": 879,
+    "compared": 869,
     "not_in_mapped_set": 10,
     "adopted_unchanged": 759,
-    "adopted_unchanged_pct": 87.44,
-    "genuine_mismatches": 109,
-    "annotated": 109,
+    "adopted_unchanged_pct": 87.34,
+    "genuine_mismatches": 110,
+    "annotated": 110,
     "unannotated_mismatches": 0,
     "scrape_gap_mismatches": 24
   },
   "by_service": {
     "(no CFN model)": {
-      "compared": 11,
+      "compared": 12,
       "adopted_unchanged": 7,
-      "adopted_unchanged_pct": 63.64
+      "adopted_unchanged_pct": 58.33
     },
     "ACMPCA": {
       "compared": 2,
@@ -8744,6 +8744,21 @@
       ],
       "matched": true,
       "annotated": false
+    },
+    {
+      "tf_type": "aws_security_group_rule",
+      "service": "(no CFN model)",
+      "proposed_bucket": "evidence-only",
+      "proposed_rule": "no CloudFormation model (live/mapping.json via=none); the provider's own import documentation is the only identity evidence there is",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "The classifier files this type evidence-only with no proposal at all (mapping-gen declined a CFN model: both AWS::EC2::SecurityGroupIngress/Egress are already claimed by the split per-direction successor types), and even a fresh evidence-driven attempt cannot reach a pastable composite: the documented import ID has a fixed five-argument prefix (security_group_id, type, protocol, from_port, to_port) followed by a VARIABLE number of trailing source/destination segments (one or more of cidr_blocks, ipv6_cidr_blocks, prefix_list_ids, self, source_security_group_id, joined by the same underscore). Every composite rule in tools/row-gen/importprecedence.go arity-checks the documented example's segment count against a FIXED argument list before accepting a shape (tryGrammarComposite's own doc comment: 'a wrongly-ordered [proposal] would be a worse regression'); this example splits into 6+ segments against a 5-argument grammar row, so every rule declines rather than guess how many trailing segments belong or which argument each maps to - exactly the discipline the aws_route trap exists to enforce, applied here to segment COUNT rather than order. The ratified row hand-derives only what is provably correct from the 6.59.0 cache: the five fixed scalar arguments as ordered, literal-underscore-joined Components (matching every trailing example in the type's own Import section), plus a source component whose Attrs name every non-boolean source argument in the Argument Reference's own order (cidr_blocks, ipv6_cidr_blocks, prefix_list_ids, source_security_group_id) with SoleElement set (Component.SoleElement, added alongside this batch): the identity resolves cleanly both for the scalar source_security_group_id case (verified against the doc's own 'sg-7472697374616e_ingress_all_0_65536_sg-6176657279' example) and for the common single-CIDR/single-ipv6/single-prefix-list case (verified against the doc's own 'sg-6e616f6d69_ingress_tcp_8000_8000_10.0.3.0/24' example - a one-element cidr_blocks list), since SoleElement unwraps a static one-element list/set construct before internal/live/identity/resolve.go's stringValue would otherwise hard-refuse the list-to-string conversion regardless of length. It still refuses cleanly - never silently truncates - for a multi-element or non-static list source (the doc's own multi-CIDR examples), which SoleElement's own arity check declines rather than pick an element order the AWS API, not the configuration, actually decides. The boolean self argument is deliberately left out of the source Attrs: its literal ID token is the word 'self', not the boolean's own string conversion ('true'), which Component has no vocabulary to substitute, so including it would silently emit a wrong import ID instead of refusing. IdentityAttrs is ratified empty: the type's own id is an undocumented computed value distinct from the AWS-assigned sgr-… rule ID its two successor types (aws_vpc_security_group_ingress_rule/_egress_rule, both admitted) use, and security_group_rule_id is documented empty whenever a rule carries more than one source, so neither attribute is a reliable cross-reference source."
     },
     {
       "tf_type": "aws_securityhub_account",

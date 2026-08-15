@@ -26,7 +26,7 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 3 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 878 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Admitted (the shipped table) | 879 types | Nothing at lint. Runtime support varies by type; see the layers below. |
 | Pastable proposals (server-assigned 582, client-named 474, composite 129, assembled 10) | 1195 types | A ratification batch: paste, fixture, test. |
 | Needs a hand separator | 82 types | One one-character import-separator decision each. |
 | Evidence-only | 345 types | An identity-argument name no current evidence source states. |
@@ -38,7 +38,7 @@ them moves. The prose on this page quotes none of the numbers.
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-878<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+879<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
   `aws_amplify_app`, `aws_amplify_branch`, `aws_api_gateway_account`,
@@ -412,7 +412,7 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_sagemaker_workteam`, `aws_scheduler_schedule_group`,
   `aws_schemas_discoverer`, `aws_secretsmanager_secret`,
   `aws_secretsmanager_secret_policy`, `aws_secretsmanager_secret_rotation`,
-  `aws_security_group`, `aws_securityhub_account`,
+  `aws_security_group`, `aws_security_group_rule`, `aws_securityhub_account`,
   `aws_securityhub_account_v2`, `aws_securityhub_aggregator_v2`,
   `aws_securityhub_automation_rule`, `aws_securityhub_automation_rule_v2`,
   `aws_securityhub_configuration_policy`,

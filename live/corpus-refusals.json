@@ -111,19 +111,19 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 134,
-      "sites": 354,
+      "instances": 219,
+      "sites": 312,
       "unresolved_modules": 17,
       "unset_variables": 4,
       "schemas": true,
-      "shadowed": 99,
+      "shadowed": 3,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 77
+            "sites": 88
           },
           {
             "layer": "identity",
@@ -139,8 +139,13 @@
           },
           {
             "layer": "identity",
+            "id": "Not an identity attribute",
+            "sites": 2
+          },
+          {
+            "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 13
+            "sites": 29
           },
           {
             "layer": "identity",
@@ -190,12 +195,11 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 72
+            "sites": 1
           }
         ],
         "unadmitted_types": [
-          "aws_default_route_table",
-          "aws_security_group_rule"
+          "aws_default_route_table"
         ]
       }
     },
@@ -204,15 +208,20 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 200,
-      "sites": 345,
+      "instances": 234,
+      "sites": 281,
       "unresolved_modules": 1,
       "unset_variables": 3,
       "schemas": true,
-      "shadowed": 57,
+      "shadowed": 9,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
+          {
+            "layer": "identity",
+            "id": "Ambiguous list-valued identity argument",
+            "sites": 1
+          },
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
@@ -235,8 +244,13 @@
           },
           {
             "layer": "identity",
+            "id": "Non-string identity argument",
+            "sites": 2
+          },
+          {
+            "layer": "identity",
             "id": "Not an identity attribute",
-            "sites": 19
+            "sites": 30
           },
           {
             "layer": "identity",
@@ -281,13 +295,12 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 86
+            "sites": 8
           }
         ],
         "unadmitted_types": [
           "aws_default_route_table",
           "aws_iam_access_key",
-          "aws_security_group_rule",
           "aws_vpc_peering_connection_options"
         ]
       }
@@ -365,11 +378,11 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 200,
+      "sites": 205,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 9
+      "shadowed": 3
     },
     {
       "name": ".corpus/eks/examples/irsa",
@@ -377,11 +390,11 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 183,
+      "sites": 188,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 8
+      "shadowed": 2
     },
     {
       "name": ".corpus/eks/examples/launch_templates",
@@ -389,11 +402,11 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 188,
+      "sites": 193,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 9
+      "shadowed": 3
     },
     {
       "name": ".corpus/eks/examples/managed_node_groups",
@@ -401,11 +414,11 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 184,
+      "sites": 189,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 9
+      "shadowed": 3
     },
     {
       "name": ".corpus/eks/examples/spot_instances",
@@ -413,11 +426,11 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 186,
+      "sites": 191,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 9
+      "shadowed": 3
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/app-elasticsearch6",
@@ -529,14 +542,14 @@
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
-      "shadowed": 14,
+      "shadowed": 11,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 2
+            "sites": 5
           },
           {
             "layer": "identity",
@@ -563,15 +576,7 @@
             "layer": "lint",
             "id": "state-backend",
             "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 3
           }
-        ],
-        "unadmitted_types": [
-          "aws_security_group_rule"
         ]
       }
     },
@@ -1508,11 +1513,11 @@
       "blocked": true,
       "loaded": true,
       "instances": 13,
-      "sites": 85,
+      "sites": 77,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
-      "shadowed": 5,
+      "shadowed": 2,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -1524,7 +1529,12 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 3
+            "sites": 4
+          },
+          {
+            "layer": "identity",
+            "id": "Identity argument not set",
+            "sites": 2
           },
           {
             "layer": "identity",
@@ -1559,7 +1569,7 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 24
+            "sites": 13
           }
         ],
         "unadmitted_types": [
@@ -1569,8 +1579,7 @@
           "aws_opensearch_domain_policy",
           "aws_opensearch_outbound_connection",
           "aws_opensearch_vpc_endpoint",
-          "aws_secretsmanager_secret_version",
-          "aws_security_group_rule"
+          "aws_secretsmanager_secret_version"
         ]
       }
     },
@@ -1618,19 +1627,19 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 25,
-      "sites": 26,
+      "instances": 27,
+      "sites": 24,
       "unresolved_modules": 0,
       "unset_variables": 6,
       "schemas": true,
-      "shadowed": 6,
+      "shadowed": 2,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 3
           },
           {
             "layer": "identity",
@@ -1661,12 +1670,11 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 6
+            "sites": 2
           }
         ],
         "unadmitted_types": [
-          "aws_bedrock_model_invocation_logging_configuration",
-          "aws_security_group_rule"
+          "aws_bedrock_model_invocation_logging_configuration"
         ]
       }
     },
@@ -1701,14 +1709,14 @@
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
-      "shadowed": 3,
+      "shadowed": 2,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 1
+            "sites": 2
           },
           {
             "layer": "identity",
@@ -1739,12 +1747,11 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 2
+            "sites": 1
           }
         ],
         "unadmitted_types": [
-          "aws_secretsmanager_secret_version",
-          "aws_security_group_rule"
+          "aws_secretsmanager_secret_version"
         ]
       }
     },
@@ -2039,14 +2046,14 @@
       "unresolved_modules": 2,
       "unset_variables": 1,
       "schemas": true,
-      "shadowed": 5,
+      "shadowed": 4,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 2
+            "sites": 3
           },
           {
             "layer": "identity",
@@ -2081,11 +2088,10 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 5
+            "sites": 4
           }
         ],
         "unadmitted_types": [
-          "aws_security_group_rule",
           "aws_wafv2_web_acl_association",
           "helm_release",
           "kubernetes_role_binding_v1"
@@ -2410,19 +2416,19 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 59,
-      "sites": 231,
+      "instances": 67,
+      "sites": 222,
       "unresolved_modules": 6,
       "unset_variables": 7,
       "schemas": true,
-      "shadowed": 54,
+      "shadowed": 33,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 17
+            "sites": 30
           },
           {
             "layer": "identity",
@@ -2487,7 +2493,7 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 41
+            "sites": 19
           }
         ],
         "unadmitted_types": [
@@ -2500,7 +2506,6 @@
           "aws_kms_key_policy",
           "aws_lambda_invocation",
           "aws_secretsmanager_secret_version",
-          "aws_security_group_rule",
           "aws_wafv2_web_acl_association"
         ]
       }
@@ -2614,7 +2619,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 14,
+      "sites": 13,
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
@@ -2640,13 +2645,12 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 3
+            "sites": 2
           }
         ],
         "unadmitted_types": [
           "aws_neptune_cluster",
-          "aws_neptune_cluster_instance",
-          "aws_security_group_rule"
+          "aws_neptune_cluster_instance"
         ]
       }
     },
@@ -2656,7 +2660,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 35,
+      "sites": 33,
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
@@ -2713,12 +2717,11 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 4
+            "sites": 2
           }
         ],
         "unadmitted_types": [
-          "aws_secretsmanager_secret_version",
-          "aws_security_group_rule"
+          "aws_secretsmanager_secret_version"
         ]
       }
     },
@@ -2841,11 +2844,11 @@
       "blocked": true,
       "loaded": true,
       "instances": 16,
-      "sites": 118,
+      "sites": 110,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
-      "shadowed": 5,
+      "shadowed": 2,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -2857,7 +2860,12 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 20
+            "sites": 21
+          },
+          {
+            "layer": "identity",
+            "id": "Identity argument not set",
+            "sites": 2
           },
           {
             "layer": "identity",
@@ -2892,7 +2900,7 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 24
+            "sites": 13
           }
         ],
         "unadmitted_types": [
@@ -2902,8 +2910,7 @@
           "aws_opensearch_domain_policy",
           "aws_opensearch_outbound_connection",
           "aws_opensearch_vpc_endpoint",
-          "aws_secretsmanager_secret_version",
-          "aws_security_group_rule"
+          "aws_secretsmanager_secret_version"
         ]
       }
     },
@@ -6349,7 +6356,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 8,
-      "sites": 806,
+      "sites": 804,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -6612,7 +6619,7 @@
       "origin": "in-repo fixture",
       "blocked": false,
       "loaded": true,
-      "instances": 43,
+      "instances": 44,
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
@@ -6854,7 +6861,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
       "raised_by": "internal/configs",
       "configs": 131,
-      "sites": 2336,
+      "sites": 2399,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:195",
         ".corpus/alb/examples/complete-alb/main.tf:195",
@@ -6870,13 +6877,9 @@
       "title": "Resource type is outside the live-markers subset",
       "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
       "raised_by": "internal/live/lint",
-      "configs": 114,
-      "sites": 1646,
+      "configs": 113,
+      "sites": 1404,
       "types": [
-        {
-          "type": "aws_security_group_rule",
-          "sites": 242
-        },
         {
           "type": "google_bigquery_table",
           "sites": 72
@@ -7747,7 +7750,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
       "raised_by": "internal/configs",
       "configs": 89,
-      "sites": 3674,
+      "sites": 3720,
       "examples": [
         ".corpus/alb/main.tf:88",
         ".corpus/alb/main.tf:231",
@@ -7978,6 +7981,24 @@
       "registered": true
     },
     {
+      "layer": "identity",
+      "id": "Identity argument not set",
+      "title": "Identity argument not set",
+      "what": "The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.",
+      "docs_ref": "live/LIMITATIONS.md, \"Identity argument not set\"",
+      "raised_by": "internal/live/identity",
+      "configs": 22,
+      "sites": 39,
+      "examples": [
+        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:41",
+        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:74",
+        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:100",
+        ".corpus/eks/cluster.tf:87",
+        ".corpus/eks/cluster.tf:87"
+      ],
+      "registered": true
+    },
+    {
       "layer": "lint",
       "id": "module-providers",
       "title": "Module provider mapping is not honoured",
@@ -7991,24 +8012,6 @@
         ".corpus/cool-assessment/email_sending_domain_certreadrole.tf:9",
         ".corpus/cool-assessment/gophish_ec2.tf:143",
         ".corpus/cool-assessment/guacamole_ec2.tf:104"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
-      "id": "Identity argument not set",
-      "title": "Identity argument not set",
-      "what": "The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.",
-      "docs_ref": "live/LIMITATIONS.md, \"Identity argument not set\"",
-      "raised_by": "internal/live/identity",
-      "configs": 20,
-      "sites": 35,
-      "examples": [
-        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:41",
-        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:74",
-        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:100",
-        ".corpus/eks/cluster.tf:87",
-        ".corpus/eks/cluster.tf:87"
       ],
       "registered": true
     },
@@ -8048,6 +8051,24 @@
       "registered": true
     },
     {
+      "layer": "identity",
+      "id": "Not an identity attribute",
+      "title": "Not an identity attribute",
+      "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
+      "docs_ref": "live/LIMITATIONS.md, \"Not an identity attribute\"",
+      "raised_by": "internal/live/identity",
+      "configs": 13,
+      "sites": 49,
+      "examples": [
+        ".corpus/cool-assessment/dynamodb_endpoint_client_sg.tf:16",
+        ".corpus/cool-assessment/s3_endpoint_client_sg.tf:16",
+        ".corpus/cyhy-amis/terraform/bod_bastion_route53.tf:17",
+        ".corpus/cyhy-amis/terraform/bod_bastion_security_group_rules.tf:23",
+        ".corpus/cyhy-amis/terraform/bod_bastion_security_group_rules.tf:23"
+      ],
+      "registered": true
+    },
+    {
       "layer": "lint",
       "id": "child-module",
       "title": "This module call cannot be expanded under live resource markers",
@@ -8061,24 +8082,6 @@
         ".corpus/cool-assessment/gophish_ec2.tf:139",
         ".corpus/cool-assessment/kali_ec2.tf:109",
         ".corpus/cool-assessment/nessus_ec2.tf:120"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
-      "id": "Not an identity attribute",
-      "title": "Not an identity attribute",
-      "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
-      "docs_ref": "live/LIMITATIONS.md, \"Not an identity attribute\"",
-      "raised_by": "internal/live/identity",
-      "configs": 12,
-      "sites": 36,
-      "examples": [
-        ".corpus/cyhy-amis/terraform/bod_bastion_route53.tf:17",
-        ".corpus/cyhy-amis/terraform/bod_docker_route53.tf:4",
-        ".corpus/cyhy-amis/terraform/bod_route53.tf:34",
-        ".corpus/cyhy-amis/terraform/bod_route53.tf:46",
-        ".corpus/cyhy-amis/terraform/bod_route53.tf:58"
       ],
       "registered": true
     },
@@ -8213,6 +8216,35 @@
       "examples": [
         ".corpus/govuk-infrastructure/terraform/deployments/github/main.tf:71",
         ".corpus/govuk-infrastructure/terraform/deployments/github/main.tf:71"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Non-string identity argument",
+      "title": "Non-string identity argument",
+      "what": "An identity argument evaluates to a value that is not a string.",
+      "docs_ref": "live/LIMITATIONS.md, \"Non-string identity argument\"",
+      "raised_by": "internal/live/identity",
+      "configs": 1,
+      "sites": 2,
+      "examples": [
+        ".corpus/cyhy-amis/terraform/bod_bastion_security_group_rules.tf:6",
+        ".corpus/cyhy-amis/terraform/cyhy_bastion_security_group_rules.tf:6"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Ambiguous list-valued identity argument",
+      "title": "Ambiguous list-valued identity argument",
+      "what": "A Component.SoleElement identity argument is a statically-written list or set construct with zero elements or more than one; the AWS API, not the configuration's own list order, decides how more than one value composes, so this package will not guess which one to use.",
+      "docs_ref": "live/LIMITATIONS.md, \"Ambiguous list-valued identity argument\"",
+      "raised_by": "internal/live/identity",
+      "configs": 1,
+      "sites": 1,
+      "examples": [
+        ".corpus/cyhy-amis/terraform/cyhy_private_security_group_rules.tf:58"
       ],
       "registered": true
     },
@@ -8694,17 +8726,6 @@
     },
     {
       "layer": "identity",
-      "id": "Non-string identity argument",
-      "title": "Non-string identity argument",
-      "what": "An identity argument evaluates to a value that is not a string.",
-      "docs_ref": "live/LIMITATIONS.md, \"Non-string identity argument\"",
-      "raised_by": "internal/live/identity",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "identity",
       "id": "Not enough function arguments",
       "title": "Not enough function arguments",
       "what": "A function inside a statically evaluated expression was called with too few arguments.",
@@ -9115,10 +9136,10 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 2646,
-    "sites": 14944,
-    "refusals_fired": 28,
-    "refusals_in_set": 109,
+    "instances": 2776,
+    "sites": 14831,
+    "refusals_fired": 30,
+    "refusals_in_set": 110,
     "configs_without_schemas": 0,
     "refusals_unregistered": 0
   },
@@ -9129,7 +9150,7 @@
       "loaded": 31,
       "blocked": 4,
       "clean": 27,
-      "instances": 683,
+      "instances": 684,
       "sites": 8,
       "reads_as": "ranking"
     },
@@ -9139,8 +9160,8 @@
       "loaded": 144,
       "blocked": 144,
       "clean": 0,
-      "instances": 1547,
-      "sites": 3499,
+      "instances": 1676,
+      "sites": 3363,
       "reads_as": "rate"
     },
     {
@@ -9150,7 +9171,7 @@
       "blocked": 72,
       "clean": 2,
       "instances": 416,
-      "sites": 11437,
+      "sites": 11460,
       "reads_as": "ranking"
     }
   ],
@@ -9185,10 +9206,6 @@
       }
     ],
     "unadmitted_demand": [
-      {
-        "type": "aws_security_group_rule",
-        "configs": 11
-      },
       {
         "type": "aws_secretsmanager_secret_version",
         "configs": 8

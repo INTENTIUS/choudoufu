@@ -66,6 +66,13 @@ var untaggableEc2Networking = []string{
 	"aws_vpc_endpoint_route_table_association",
 	"aws_vpc_endpoint_subnet_association",
 	"aws_vpc_endpoint_security_group_association",
+	// #175's demand-head batch: aws_security_group_rule, ADMITTED under the
+	// type-parity ruling despite provider deprecation. Untaggable per
+	// live/survey-full.json's signals.taggable=false for this type (the
+	// legacy resource carries no tags argument at all - the split
+	// per-direction successor types, aws_vpc_security_group_ingress_rule/
+	// _egress_rule, are the ones that gained tagging).
+	"aws_security_group_rule",
 }
 
 func init() {
@@ -117,6 +124,7 @@ func init() {
 			"aws_vpc_endpoint_route_table_association":         untaggedSchema("id", "vpc_endpoint_id", "route_table_id"),
 			"aws_vpc_endpoint_subnet_association":              untaggedSchema("id", "vpc_endpoint_id", "subnet_id"),
 			"aws_vpc_endpoint_security_group_association":      untaggedSchema("id", "vpc_endpoint_id", "security_group_id"),
+			"aws_security_group_rule":                          untaggedSchema("id", "security_group_rule_id", "security_group_id", "type", "protocol", "from_port", "to_port", "cidr_blocks", "source_security_group_id"),
 		})
 	})
 }

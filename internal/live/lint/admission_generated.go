@@ -718,6 +718,7 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_secretsmanager_secret_policy":                                      {},
 	"aws_secretsmanager_secret_rotation":                                    {},
 	"aws_security_group":                                                    {},
+	"aws_security_group_rule":                                               {},
 	"aws_securityhub_account":                                               {},
 	"aws_securityhub_account_v2":                                            {},
 	"aws_securityhub_aggregator_v2":                                         {},

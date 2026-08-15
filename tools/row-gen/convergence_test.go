@@ -133,7 +133,16 @@ const unannotatedMismatchRatchetMax = 0
 // express". tryDocumentedShorterForm (importprecedence.go rule 1b) makes it
 // expressible, and the classifier now reproduces all three ratified rows
 // without having been shown them.
-const annotationCountRatchetMax = 119
+//
+// 120 (2026-08-15): #175's demand-head batch admitted aws_security_group_rule.
+// mapping-gen assigns it no CFN model at all (both AWS::EC2::SecurityGroup
+// {Ingress,Egress} are already claimed by the split per-direction successor
+// types), and the documented import ID's fixed five-argument prefix is
+// followed by a variable-count trailing source/destination group every
+// composite rule's arity check declines rather than guess the shape of -
+// there is no proposal to reproduce and no vocabulary yet for a
+// one-or-more-of-a-named-set trailing component. See the ruling's own exit.
+const annotationCountRatchetMax = 120
 
 // TestAnnotationCountRatchet reads the committed ledger directly and fails
 // when it has grown past annotationCountRatchetMax - never when it shrinks:
