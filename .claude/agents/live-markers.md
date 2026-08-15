@@ -15,6 +15,19 @@ markers instead of a state file.
 extremely narrow exceptions.** Onboarding them from regular OpenTofu is the
 product. Judge your work against that, not against any internal tidiness.
 
+**Type parity is the bar (maintainer ruling, 2026-08-15): choudoufu must
+support every resource type stock OpenTofu supports.** A type in
+`tools/row-gen/rejected.json`, a needs-hand-separator or evidence-only
+bucket, an unadmitted cfn-unmodeled type, or plan-and-create-only
+schema-fallback support is DEBT carrying an obligation to build the missing
+vocabulary or extraction - never an acceptable residue. When a ledger entry
+records why a type could not be admitted, that is the work's address, not
+its conclusion. The one sanctioned exclusion is credential material
+(aws_iam_access_key, aws_iot_certificate, aws_ivs_playback_key_pair,
+aws_appstream_directory_config - client-supplied or minted secret material
+that would persist in config or state). Do not offer "leave it rejected" as
+an option.
+
 The invariant is "no state ops" (issue #73). Identity moves to cloud tags,
 receipts move to per-estate cloud records (`record_store`), and what remains in
 the state file is effects only — `null_resource`, `terraform_data`, `time_*`,
