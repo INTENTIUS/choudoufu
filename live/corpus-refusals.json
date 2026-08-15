@@ -783,7 +783,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 22,
+      "sites": 21,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
@@ -816,15 +816,7 @@
             "layer": "lint",
             "id": "state-backend",
             "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 1
           }
-        ],
-        "unadmitted_types": [
-          "aws_s3_bucket_replication_configuration"
         ]
       }
     },
@@ -1056,11 +1048,10 @@
       "blocked": true,
       "loaded": true,
       "instances": 19,
-      "sites": 17,
+      "sites": 15,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
-      "shadowed": 1,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -1078,22 +1069,13 @@
           {
             "layer": "identity",
             "id": "Unresolvable identity",
-            "sites": 9
+            "sites": 10
           },
           {
             "layer": "lint",
             "id": "state-backend",
             "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 3
           }
-        ],
-        "unadmitted_types": [
-          "aws_s3_bucket_object_lock_configuration",
-          "aws_s3_bucket_replication_configuration"
         ]
       }
     },
@@ -1526,7 +1508,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 13,
-      "sites": 89,
+      "sites": 85,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -1577,7 +1559,7 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 28
+            "sites": 24
           }
         ],
         "unadmitted_types": [
@@ -1587,8 +1569,6 @@
           "aws_opensearch_domain_policy",
           "aws_opensearch_outbound_connection",
           "aws_opensearch_vpc_endpoint",
-          "aws_s3_bucket_object_lock_configuration",
-          "aws_s3_bucket_replication_configuration",
           "aws_secretsmanager_secret_version",
           "aws_security_group_rule"
         ]
@@ -1722,7 +1702,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 21,
+      "sites": 19,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -1764,12 +1744,10 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 4
+            "sites": 2
           }
         ],
         "unadmitted_types": [
-          "aws_s3_bucket_object_lock_configuration",
-          "aws_s3_bucket_replication_configuration",
           "aws_secretsmanager_secret_version",
           "aws_security_group_rule"
         ]
@@ -1924,7 +1902,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 63,
+      "sites": 61,
       "unresolved_modules": 3,
       "unset_variables": 1,
       "schemas": true,
@@ -1991,12 +1969,10 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 25
+            "sites": 23
           }
         ],
         "unadmitted_types": [
-          "aws_s3_bucket_object_lock_configuration",
-          "aws_s3_bucket_replication_configuration",
           "helm_release",
           "kubectl_manifest",
           "kubernetes_annotations",
@@ -2012,7 +1988,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 27,
+      "sites": 25,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
@@ -2048,15 +2024,13 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 5
+            "sites": 3
           }
         ],
         "unadmitted_types": [
           "aws_apigatewayv2_api_mapping",
           "aws_apigatewayv2_integration",
-          "aws_apigatewayv2_route",
-          "aws_s3_bucket_object_lock_configuration",
-          "aws_s3_bucket_replication_configuration"
+          "aws_apigatewayv2_route"
         ]
       }
     },
@@ -2066,7 +2040,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 43,
+      "sites": 37,
       "unresolved_modules": 2,
       "unset_variables": 1,
       "schemas": true,
@@ -2112,12 +2086,10 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 11
+            "sites": 5
           }
         ],
         "unadmitted_types": [
-          "aws_s3_bucket_object_lock_configuration",
-          "aws_s3_bucket_replication_configuration",
           "aws_security_group_rule",
           "aws_wafv2_web_acl_association",
           "helm_release",
@@ -2444,11 +2416,11 @@
       "blocked": true,
       "loaded": true,
       "instances": 59,
-      "sites": 263,
+      "sites": 231,
       "unresolved_modules": 6,
       "unset_variables": 7,
       "schemas": true,
-      "shadowed": 55,
+      "shadowed": 54,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -2460,7 +2432,7 @@
           {
             "layer": "identity",
             "id": "Module output not supported in static context",
-            "sites": 3
+            "sites": 4
           },
           {
             "layer": "identity",
@@ -2520,7 +2492,7 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 74
+            "sites": 41
           }
         ],
         "unadmitted_types": [
@@ -2532,8 +2504,6 @@
           "aws_docdb_subnet_group",
           "aws_kms_key_policy",
           "aws_lambda_invocation",
-          "aws_s3_bucket_object_lock_configuration",
-          "aws_s3_bucket_replication_configuration",
           "aws_secretsmanager_secret_version",
           "aws_security_group_rule",
           "aws_wafv2_web_acl_association"
@@ -2567,7 +2537,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 11,
-      "sites": 16,
+      "sites": 14,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
@@ -2603,12 +2573,10 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 4
+            "sites": 2
           }
         ],
         "unadmitted_types": [
-          "aws_s3_bucket_object_lock_configuration",
-          "aws_s3_bucket_replication_configuration",
           "google_storage_bucket",
           "google_storage_bucket_access_control"
         ]
@@ -2620,7 +2588,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 10,
+      "sites": 8,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
@@ -2641,16 +2609,7 @@
             "layer": "lint",
             "id": "state-backend",
             "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 2
           }
-        ],
-        "unadmitted_types": [
-          "aws_s3_bucket_object_lock_configuration",
-          "aws_s3_bucket_replication_configuration"
         ]
       }
     },
@@ -2702,7 +2661,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 37,
+      "sites": 35,
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
@@ -2759,12 +2718,10 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 6
+            "sites": 4
           }
         ],
         "unadmitted_types": [
-          "aws_s3_bucket_object_lock_configuration",
-          "aws_s3_bucket_replication_configuration",
           "aws_secretsmanager_secret_version",
           "aws_security_group_rule"
         ]
@@ -2889,7 +2846,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 16,
-      "sites": 122,
+      "sites": 118,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -2940,7 +2897,7 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 28
+            "sites": 24
           }
         ],
         "unadmitted_types": [
@@ -2950,8 +2907,6 @@
           "aws_opensearch_domain_policy",
           "aws_opensearch_outbound_connection",
           "aws_opensearch_vpc_endpoint",
-          "aws_s3_bucket_object_lock_configuration",
-          "aws_s3_bucket_replication_configuration",
           "aws_secretsmanager_secret_version",
           "aws_security_group_rule"
         ]
@@ -3303,7 +3258,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 120,
+      "sites": 103,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3329,15 +3284,7 @@
             "layer": "lint",
             "id": "state-backend",
             "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 17
           }
-        ],
-        "unadmitted_types": [
-          "aws_s3_bucket_replication_configuration"
         ]
       }
     },
@@ -3712,11 +3659,10 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 64,
+      "sites": 56,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 1,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -3728,7 +3674,7 @@
           {
             "layer": "identity",
             "id": "Unresolvable identity",
-            "sites": 36
+            "sites": 37
           },
           {
             "layer": "lint",
@@ -3739,15 +3685,7 @@
             "layer": "lint",
             "id": "state-backend",
             "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 9
           }
-        ],
-        "unadmitted_types": [
-          "aws_s3_bucket_replication_configuration"
         ]
       }
     },
@@ -3757,7 +3695,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 120,
+      "sites": 103,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3783,15 +3721,7 @@
             "layer": "lint",
             "id": "state-backend",
             "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 17
           }
-        ],
-        "unadmitted_types": [
-          "aws_s3_bucket_replication_configuration"
         ]
       }
     },
@@ -5162,11 +5092,11 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 77,
+      "sites": 68,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 8
+      "shadowed": 7
     },
     {
       "name": ".corpus/s3-bucket/examples/directory-bucket",
@@ -5174,7 +5104,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 29,
+      "sites": 25,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -5185,7 +5115,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 28,
+      "sites": 26,
       "unresolved_modules": 4,
       "unset_variables": 0,
       "schemas": true
@@ -5196,11 +5126,10 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 31,
+      "sites": 28,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true,
-      "shadowed": 1
+      "schemas": true
     },
     {
       "name": ".corpus/s3-bucket/examples/s3-analytics",
@@ -5208,7 +5137,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 55,
+      "sites": 47,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -5219,7 +5148,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 42,
+      "sites": 36,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true
@@ -5230,7 +5159,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 33,
+      "sites": 29,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -5619,12 +5548,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 10,
-      "sites": 18,
+      "instances": 11,
+      "sites": 17,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 10,
+      "shadowed": 9,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -5661,12 +5590,11 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 9
+            "sites": 8
           }
         ],
         "unadmitted_types": [
           "aws_s3_bucket_inventory",
-          "aws_s3_bucket_replication_configuration",
           "fastly_configstore",
           "fastly_configstore_entries",
           "fastly_ngwaf_workspace",
@@ -6992,16 +6920,12 @@
       "title": "Resource type is outside the live-markers subset",
       "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
       "raised_by": "internal/live/lint",
-      "configs": 120,
-      "sites": 1791,
+      "configs": 114,
+      "sites": 1646,
       "types": [
         {
           "type": "aws_security_group_rule",
           "sites": 242
-        },
-        {
-          "type": "aws_s3_bucket_replication_configuration",
-          "sites": 95
         },
         {
           "type": "google_bigquery_table",
@@ -7022,10 +6946,6 @@
         {
           "type": "aws_lambda_provisioned_concurrency_config",
           "sites": 62
-        },
-        {
-          "type": "aws_s3_bucket_object_lock_configuration",
-          "sites": 50
         },
         {
           "type": "aws_vpn_gateway_route_propagation",
@@ -7895,7 +7815,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"Unresolvable identity\"",
       "raised_by": "internal/live/identity",
       "configs": 74,
-      "sites": 585,
+      "sites": 589,
       "examples": [
         ".corpus/autoscaling/main.tf:1463",
         ".corpus/cool-assessment/operations_routing.tf:21",
@@ -8009,7 +7929,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"Module output not supported in static context\"",
       "raised_by": "internal/configs",
       "configs": 45,
-      "sites": 279,
+      "sites": 280,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:55",
         ".corpus/alb/examples/complete-alb/main.tf:180",
@@ -9245,8 +9165,8 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 2625,
-    "sites": 15104,
+    "instances": 2626,
+    "sites": 14964,
     "refusals_fired": 28,
     "refusals_in_set": 109,
     "configs_without_schemas": 0,
@@ -9269,8 +9189,8 @@
       "loaded": 144,
       "blocked": 144,
       "clean": 0,
-      "instances": 1535,
-      "sites": 3614,
+      "instances": 1536,
+      "sites": 3510,
       "reads_as": "rate"
     },
     {
@@ -9280,7 +9200,7 @@
       "blocked": 72,
       "clean": 2,
       "instances": 416,
-      "sites": 11473,
+      "sites": 11437,
       "reads_as": "ranking"
     }
   ],
@@ -9315,14 +9235,6 @@
       }
     ],
     "unadmitted_demand": [
-      {
-        "type": "aws_s3_bucket_replication_configuration",
-        "configs": 16
-      },
-      {
-        "type": "aws_s3_bucket_object_lock_configuration",
-        "configs": 11
-      },
       {
         "type": "aws_security_group_rule",
         "configs": 11

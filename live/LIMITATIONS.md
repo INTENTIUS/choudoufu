@@ -951,12 +951,12 @@ refused, and each says so in its own entry.
 |---|---|---|---|---|---|
 | 142 | 142 | lint | state-backend | `internal/live/lint` | "backend-block" / "cloud-block" |
 | 131 | 2336 | identity | Dynamic value in static context | `internal/configs` | "Dynamic value in static context" |
-| 120 | 1791 | lint | unadmitted-type | `internal/live/lint` | "unadmitted-type" |
+| 114 | 1646 | lint | unadmitted-type | `internal/live/lint` | "unadmitted-type" |
 | 89 | 3674 | identity | Unable to compute static value | `internal/configs` | "Unable to compute static value" |
-| 74 | 585 | identity | Unresolvable identity | `internal/live/identity` | "Unresolvable identity" |
+| 74 | 589 | identity | Unresolvable identity | `internal/live/identity` | "Unresolvable identity" |
 | 66 | 482 | lint | logical-resource | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
 | 52 | 4587 | lint | count-index | `internal/live/lint` | "count-index-in-tag" |
-| 45 | 279 | identity | Module output not supported in static context | `internal/configs` | "Module output not supported in static context" |
+| 45 | 280 | identity | Module output not supported in static context | `internal/configs` | "Module output not supported in static context" |
 | 38 | 120 | lint | remote-state | `internal/live/lint` | "remote-state" |
 | 31 | 90 | lint | provisioner | `internal/live/lint` | "local-exec" / "remote-exec" |
 | 30 | 131 | identity | Non-static identity argument | `internal/live/identity` | "Non-static identity argument" |
@@ -1162,7 +1162,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 74 configurations in the measured corpus, at 585 sites.
+**How often.** Blocked 74 configurations in the measured corpus, at 589 sites.
 
 #### Module output not supported in static context
 
@@ -1170,7 +1170,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 45 configurations in the measured corpus, at 279 sites.
+**How often.** Blocked 45 configurations in the measured corpus, at 280 sites.
 
 #### Non-static identity argument
 
