@@ -125,6 +125,10 @@ mapping:
 importdocs:
     env -u PWD go run ./tools/importdocs-gen
 
+# AWS Service Authorization Reference -> live/iam-reference.json (#152). Network on a cold cache.
+iamref:
+    env -u PWD go run ./tools/iamref-gen
+
 # botocore -> live/tag-verbs.json, the tagging verb per admitted type.
 tagverbs:
     env -u PWD go run ./tools/tagverbs-gen

@@ -1,0 +1,2102 @@
+{
+  "source": "https://servicereference.us-east-1.amazonaws.com/",
+  "generated_by": "tools/iamref-gen (go run ./tools/iamref-gen)",
+  "index_modified": 1786737694,
+  "counts": {
+    "services": 177,
+    "resolved": 160,
+    "unresolved": 17,
+    "ambiguous": 0,
+    "tag_action_found": 136,
+    "tag_action_absent_from_reference": 0,
+    "no_tag_verb_recorded": 24,
+    "services_listing_resource_tag": 18,
+    "lists_resource_tag": 36,
+    "lists_tag_keys": 133
+  },
+  "rows": [
+    {
+      "service": "ACMPCA",
+      "iam_prefix": "acm-pca",
+      "candidates": [
+        "acm-pca"
+      ],
+      "tag_action": "TagCertificateAuthority",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 23
+    },
+    {
+      "service": "APS",
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "reason": "no candidate IAM prefix appears in the reference index"
+    },
+    {
+      "service": "ARCRegionSwitch",
+      "iam_prefix": "arc-region-switch",
+      "candidates": [
+        "arc-region-switch"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 24
+    },
+    {
+      "service": "ARCZonalShift",
+      "iam_prefix": "arc-zonal-shift",
+      "candidates": [
+        "arc-zonal-shift"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 15,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "AmazonMQ",
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "reason": "no candidate IAM prefix appears in the reference index"
+    },
+    {
+      "service": "Amplify",
+      "iam_prefix": "amplify",
+      "candidates": [
+        "amplify"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 41
+    },
+    {
+      "service": "ApiGateway",
+      "iam_prefix": "apigateway",
+      "candidates": [
+        "apigateway"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 44,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "ApiGatewayV2",
+      "iam_prefix": "apigateway",
+      "candidates": [
+        "apigatewayv2",
+        "apigateway"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 44,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "AppConfig",
+      "iam_prefix": "appconfig",
+      "candidates": [
+        "appconfig"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 58
+    },
+    {
+      "service": "AppFlow",
+      "iam_prefix": "appflow",
+      "candidates": [
+        "appflow"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 31
+    },
+    {
+      "service": "AppIntegrations",
+      "iam_prefix": "app-integrations",
+      "candidates": [
+        "appintegrations",
+        "app-integrations"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 35
+    },
+    {
+      "service": "AppRunner",
+      "iam_prefix": "apprunner",
+      "candidates": [
+        "apprunner"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 42
+    },
+    {
+      "service": "AppSync",
+      "iam_prefix": "appsync",
+      "candidates": [
+        "appsync"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 87
+    },
+    {
+      "service": "Athena",
+      "iam_prefix": "athena",
+      "candidates": [
+        "athena"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 81
+    },
+    {
+      "service": "AuditManager",
+      "iam_prefix": "auditmanager",
+      "candidates": [
+        "auditmanager"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 62,
+      "actions_listing_resource_tag": 1
+    },
+    {
+      "service": "AutoScaling",
+      "iam_prefix": "autoscaling",
+      "candidates": [
+        "autoscaling"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 68,
+      "actions_listing_resource_tag": 42,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "BCMDataExports",
+      "iam_prefix": "bcm-data-exports",
+      "candidates": [
+        "bcm-data-exports"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 12
+    },
+    {
+      "service": "Backup",
+      "iam_prefix": "backup",
+      "candidates": [
+        "backup"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 122
+    },
+    {
+      "service": "Batch",
+      "iam_prefix": "batch",
+      "candidates": [
+        "batch"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 45,
+      "actions_listing_resource_tag": 1
+    },
+    {
+      "service": "Bedrock",
+      "iam_prefix": "bedrock",
+      "candidates": [
+        "bedrock"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 260
+    },
+    {
+      "service": "BedrockAgentCore",
+      "iam_prefix": "bedrock-agentcore",
+      "candidates": [
+        "bedrock-agentcore"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 250,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "Billing",
+      "iam_prefix": "billing",
+      "candidates": [
+        "billing"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 32
+    },
+    {
+      "service": "CE",
+      "iam_prefix": "ce",
+      "candidates": [
+        "ce"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 59
+    },
+    {
+      "service": "CUR",
+      "iam_prefix": "cur",
+      "candidates": [
+        "cur"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 12,
+      "actions_listing_resource_tag": 1
+    },
+    {
+      "service": "Cassandra",
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "reason": "no candidate IAM prefix appears in the reference index"
+    },
+    {
+      "service": "CertificateManager",
+      "iam_prefix": "acm",
+      "candidates": [
+        "acm"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 41,
+      "actions_listing_resource_tag": 20,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "Chatbot",
+      "iam_prefix": "chatbot",
+      "candidates": [
+        "chatbot"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 39
+    },
+    {
+      "service": "CleanRooms",
+      "iam_prefix": "cleanrooms",
+      "candidates": [
+        "cleanrooms"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 107,
+      "actions_listing_resource_tag": 12
+    },
+    {
+      "service": "Cloud9",
+      "iam_prefix": "cloud9",
+      "candidates": [
+        "cloud9"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 29
+    },
+    {
+      "service": "CloudFront",
+      "iam_prefix": "cloudfront",
+      "candidates": [
+        "cloudfront"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 173
+    },
+    {
+      "service": "CloudTrail",
+      "iam_prefix": "cloudtrail",
+      "candidates": [
+        "cloudtrail"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 66,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "CloudWatch",
+      "iam_prefix": "cloudwatch",
+      "candidates": [
+        "cloudwatch",
+        "monitoring"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 67,
+      "actions_listing_resource_tag": 7
+    },
+    {
+      "service": "CodeArtifact",
+      "iam_prefix": "codeartifact",
+      "candidates": [
+        "codeartifact"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 51
+    },
+    {
+      "service": "CodeBuild",
+      "iam_prefix": "codebuild",
+      "candidates": [
+        "codebuild"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 67,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "CodeCommit",
+      "iam_prefix": "codecommit",
+      "candidates": [
+        "codecommit"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 90
+    },
+    {
+      "service": "CodeConnections",
+      "iam_prefix": "codeconnections",
+      "candidates": [
+        "codeconnections"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 38
+    },
+    {
+      "service": "CodeDeploy",
+      "iam_prefix": "codedeploy",
+      "candidates": [
+        "codedeploy"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 48,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "CodeGuruReviewer",
+      "iam_prefix": "codeguru-reviewer",
+      "candidates": [
+        "codeguru-reviewer"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 17
+    },
+    {
+      "service": "CodePipeline",
+      "iam_prefix": "codepipeline",
+      "candidates": [
+        "codepipeline"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 44
+    },
+    {
+      "service": "CodeStarConnections",
+      "iam_prefix": "codestar-connections",
+      "candidates": [
+        "codestar-connections"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 38
+    },
+    {
+      "service": "CodeStarNotifications",
+      "iam_prefix": "codestar-notifications",
+      "candidates": [
+        "codestar-notifications"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 13
+    },
+    {
+      "service": "Cognito",
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "reason": "no candidate IAM prefix appears in the reference index"
+    },
+    {
+      "service": "Comprehend",
+      "iam_prefix": "comprehend",
+      "candidates": [
+        "comprehend"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 85
+    },
+    {
+      "service": "Config",
+      "iam_prefix": "config",
+      "candidates": [
+        "config"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 102
+    },
+    {
+      "service": "Connect",
+      "iam_prefix": "connect",
+      "candidates": [
+        "connect"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 378,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "ControlTower",
+      "iam_prefix": "controltower",
+      "candidates": [
+        "controltower"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 65
+    },
+    {
+      "service": "DLM",
+      "iam_prefix": "dlm",
+      "candidates": [
+        "dlm"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 8
+    },
+    {
+      "service": "DMS",
+      "iam_prefix": "dms",
+      "candidates": [
+        "dms"
+      ],
+      "tag_action": "AddTagsToResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 125
+    },
+    {
+      "service": "DSQL",
+      "iam_prefix": "dsql",
+      "candidates": [
+        "dsql"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 30
+    },
+    {
+      "service": "DataPipeline",
+      "iam_prefix": "datapipeline",
+      "candidates": [
+        "datapipeline"
+      ],
+      "tag_action": "AddTags",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 21
+    },
+    {
+      "service": "DataSync",
+      "iam_prefix": "datasync",
+      "candidates": [
+        "datasync"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 66
+    },
+    {
+      "service": "DataZone",
+      "iam_prefix": "datazone",
+      "candidates": [
+        "datazone"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 247
+    },
+    {
+      "service": "Detective",
+      "iam_prefix": "detective",
+      "candidates": [
+        "detective",
+        "api.detective"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 36
+    },
+    {
+      "service": "DevOpsGuru",
+      "iam_prefix": "devops-guru",
+      "candidates": [
+        "devops-guru"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 31,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "DirectConnect",
+      "iam_prefix": "directconnect",
+      "candidates": [
+        "directconnect"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 64
+    },
+    {
+      "service": "DocDB",
+      "iam_prefix": "rds",
+      "candidates": [
+        "docdb",
+        "rds"
+      ],
+      "tag_action": "AddTagsToResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 169
+    },
+    {
+      "service": "DocDBElastic",
+      "iam_prefix": "docdb-elastic",
+      "candidates": [
+        "docdb-elastic"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 19
+    },
+    {
+      "service": "DynamoDB",
+      "iam_prefix": "dynamodb",
+      "candidates": [
+        "dynamodb"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 79
+    },
+    {
+      "service": "EC2",
+      "iam_prefix": "ec2",
+      "candidates": [
+        "ec2"
+      ],
+      "tag_action": "CreateTags",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 793,
+      "actions_listing_resource_tag": 495
+    },
+    {
+      "service": "ECR",
+      "iam_prefix": "ecr",
+      "candidates": [
+        "ecr",
+        "api.ecr"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 60
+    },
+    {
+      "service": "ECS",
+      "iam_prefix": "ecs",
+      "candidates": [
+        "ecs"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 81,
+      "actions_listing_resource_tag": 37
+    },
+    {
+      "service": "EFS",
+      "iam_prefix": "elasticfilesystem",
+      "candidates": [
+        "efs",
+        "elasticfilesystem"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 38,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "EKS",
+      "iam_prefix": "eks",
+      "candidates": [
+        "eks"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 69
+    },
+    {
+      "service": "EMR",
+      "iam_prefix": "elasticmapreduce",
+      "candidates": [
+        "emr",
+        "elasticmapreduce"
+      ],
+      "tag_action": "AddTags",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 88
+    },
+    {
+      "service": "EMRContainers",
+      "iam_prefix": "emr-containers",
+      "candidates": [
+        "emr-containers"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 25
+    },
+    {
+      "service": "EMRServerless",
+      "iam_prefix": "emr-serverless",
+      "candidates": [
+        "emr-serverless"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 25
+    },
+    {
+      "service": "ElastiCache",
+      "iam_prefix": "elasticache",
+      "candidates": [
+        "elasticache"
+      ],
+      "tag_action": "AddTagsToResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 77,
+      "actions_listing_resource_tag": 11
+    },
+    {
+      "service": "ElasticBeanstalk",
+      "iam_prefix": "elasticbeanstalk",
+      "candidates": [
+        "elasticbeanstalk"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 50,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "ElasticLoadBalancing",
+      "iam_prefix": "elasticloadbalancing",
+      "candidates": [
+        "elb",
+        "elasticloadbalancing"
+      ],
+      "tag_action": "AddTags",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 77
+    },
+    {
+      "service": "ElasticLoadBalancingV2",
+      "iam_prefix": "elasticloadbalancing",
+      "candidates": [
+        "elbv2",
+        "elasticloadbalancing"
+      ],
+      "tag_action": "AddTags",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 77
+    },
+    {
+      "service": "Elasticsearch",
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "reason": "no candidate IAM prefix appears in the reference index"
+    },
+    {
+      "service": "EventSchemas",
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "reason": "no candidate IAM prefix appears in the reference index"
+    },
+    {
+      "service": "Events",
+      "iam_prefix": "events",
+      "candidates": [
+        "events"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 60
+    },
+    {
+      "service": "Evidently",
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "reason": "no candidate IAM prefix appears in the reference index"
+    },
+    {
+      "service": "FIS",
+      "iam_prefix": "fis",
+      "candidates": [
+        "fis"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 29
+    },
+    {
+      "service": "FMS",
+      "iam_prefix": "fms",
+      "candidates": [
+        "fms"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 42,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "FSx",
+      "iam_prefix": "fsx",
+      "candidates": [
+        "fsx"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 56
+    },
+    {
+      "service": "GameLift",
+      "iam_prefix": "gamelift",
+      "candidates": [
+        "gamelift"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 120
+    },
+    {
+      "service": "GlobalAccelerator",
+      "iam_prefix": "globalaccelerator",
+      "candidates": [
+        "globalaccelerator"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 56
+    },
+    {
+      "service": "Glue",
+      "iam_prefix": "glue",
+      "candidates": [
+        "glue"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 304,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "Grafana",
+      "iam_prefix": "grafana",
+      "candidates": [
+        "grafana"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 25
+    },
+    {
+      "service": "GuardDuty",
+      "iam_prefix": "guardduty",
+      "candidates": [
+        "guardduty"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 91
+    },
+    {
+      "service": "IAM",
+      "iam_prefix": "iam",
+      "candidates": [
+        "iam"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 190,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "IVS",
+      "iam_prefix": "ivs",
+      "candidates": [
+        "ivs"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 77
+    },
+    {
+      "service": "IVSChat",
+      "iam_prefix": "ivschat",
+      "candidates": [
+        "ivschat"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 17
+    },
+    {
+      "service": "ImageBuilder",
+      "iam_prefix": "imagebuilder",
+      "candidates": [
+        "imagebuilder"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 77
+    },
+    {
+      "service": "Inspector",
+      "iam_prefix": "inspector",
+      "candidates": [
+        "inspector"
+      ],
+      "tag_action": "SetTagsForResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 37
+    },
+    {
+      "service": "InspectorV2",
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "reason": "no candidate IAM prefix appears in the reference index"
+    },
+    {
+      "service": "InternetMonitor",
+      "iam_prefix": "internetmonitor",
+      "candidates": [
+        "internetmonitor"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 17
+    },
+    {
+      "service": "Invoicing",
+      "iam_prefix": "invoicing",
+      "candidates": [
+        "invoicing"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 26
+    },
+    {
+      "service": "IoT",
+      "iam_prefix": "iot",
+      "candidates": [
+        "iot"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 293
+    },
+    {
+      "service": "KMS",
+      "iam_prefix": "kms",
+      "candidates": [
+        "kms"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 56
+    },
+    {
+      "service": "KafkaConnect",
+      "iam_prefix": "kafkaconnect",
+      "candidates": [
+        "kafkaconnect"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 18,
+      "actions_listing_resource_tag": 2
+    },
+    {
+      "service": "Kendra",
+      "iam_prefix": "kendra",
+      "candidates": [
+        "kendra"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 66
+    },
+    {
+      "service": "Kinesis",
+      "iam_prefix": "kinesis",
+      "candidates": [
+        "kinesis"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 40,
+      "actions_listing_resource_tag": 31,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "KinesisAnalytics",
+      "iam_prefix": "kinesisanalytics",
+      "candidates": [
+        "kinesisanalytics"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 34
+    },
+    {
+      "service": "KinesisFirehose",
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "reason": "no candidate IAM prefix appears in the reference index"
+    },
+    {
+      "service": "Lambda",
+      "iam_prefix": "lambda",
+      "candidates": [
+        "lambda"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 116
+    },
+    {
+      "service": "Lex",
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "reason": "no candidate IAM prefix appears in the reference index"
+    },
+    {
+      "service": "Lightsail",
+      "iam_prefix": "lightsail",
+      "candidates": [
+        "lightsail"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 161
+    },
+    {
+      "service": "Location",
+      "iam_prefix": "geo",
+      "candidates": [
+        "location",
+        "geo"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 64
+    },
+    {
+      "service": "Logs",
+      "iam_prefix": "logs",
+      "candidates": [
+        "logs"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 132,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "M2",
+      "iam_prefix": "m2",
+      "candidates": [
+        "m2"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 37
+    },
+    {
+      "service": "MSK",
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "reason": "no candidate IAM prefix appears in the reference index"
+    },
+    {
+      "service": "MWAA",
+      "iam_prefix": "airflow",
+      "candidates": [
+        "mwaa",
+        "airflow"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 12
+    },
+    {
+      "service": "Macie",
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "reason": "no candidate IAM prefix appears in the reference index"
+    },
+    {
+      "service": "MediaLive",
+      "iam_prefix": "medialive",
+      "candidates": [
+        "medialive"
+      ],
+      "tag_action": "CreateTags",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 125
+    },
+    {
+      "service": "MediaPackage",
+      "iam_prefix": "mediapackage",
+      "candidates": [
+        "mediapackage"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 19
+    },
+    {
+      "service": "MediaPackageV2",
+      "iam_prefix": "mediapackagev2",
+      "candidates": [
+        "mediapackagev2"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 34
+    },
+    {
+      "service": "MemoryDB",
+      "iam_prefix": "memorydb",
+      "candidates": [
+        "memorydb",
+        "memory-db"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 47
+    },
+    {
+      "service": "Neptune",
+      "iam_prefix": "rds",
+      "candidates": [
+        "neptune",
+        "rds"
+      ],
+      "tag_action": "AddTagsToResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 169
+    },
+    {
+      "service": "NetworkFirewall",
+      "iam_prefix": "network-firewall",
+      "candidates": [
+        "network-firewall"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 84
+    },
+    {
+      "service": "NetworkManager",
+      "iam_prefix": "networkmanager",
+      "candidates": [
+        "networkmanager"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 95
+    },
+    {
+      "service": "Notifications",
+      "iam_prefix": "notifications",
+      "candidates": [
+        "notifications"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 41
+    },
+    {
+      "service": "NotificationsContacts",
+      "iam_prefix": "notifications-contacts",
+      "candidates": [
+        "notificationscontacts",
+        "notifications-contacts"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 9
+    },
+    {
+      "service": "ODB",
+      "iam_prefix": "odb",
+      "candidates": [
+        "odb"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 90
+    },
+    {
+      "service": "Oam",
+      "iam_prefix": "oam",
+      "candidates": [
+        "oam"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 15
+    },
+    {
+      "service": "ObservabilityAdmin",
+      "iam_prefix": "observabilityadmin",
+      "candidates": [
+        "observabilityadmin"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 40
+    },
+    {
+      "service": "OpenSearchServerless",
+      "iam_prefix": "aoss",
+      "candidates": [
+        "opensearchserverless",
+        "aoss"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 49
+    },
+    {
+      "service": "OpenSearchService",
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "reason": "no candidate IAM prefix appears in the reference index"
+    },
+    {
+      "service": "Organizations",
+      "iam_prefix": "organizations",
+      "candidates": [
+        "organizations"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 63
+    },
+    {
+      "service": "PaymentCryptography",
+      "iam_prefix": "payment-cryptography",
+      "candidates": [
+        "payment-cryptography",
+        "controlplane.payment-cryptography"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 46
+    },
+    {
+      "service": "Pipes",
+      "iam_prefix": "pipes",
+      "candidates": [
+        "pipes"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 10
+    },
+    {
+      "service": "QBusiness",
+      "iam_prefix": "qbusiness",
+      "candidates": [
+        "qbusiness"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 93
+    },
+    {
+      "service": "QLDB",
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "reason": "no candidate IAM prefix appears in the reference index"
+    },
+    {
+      "service": "RAM",
+      "iam_prefix": "ram",
+      "candidates": [
+        "ram"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 35
+    },
+    {
+      "service": "RDS",
+      "iam_prefix": "rds",
+      "candidates": [
+        "rds"
+      ],
+      "tag_action": "AddTagsToResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 169
+    },
+    {
+      "service": "RUM",
+      "iam_prefix": "rum",
+      "candidates": [
+        "rum"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 20
+    },
+    {
+      "service": "Rbin",
+      "iam_prefix": "rbin",
+      "candidates": [
+        "rbin"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 10
+    },
+    {
+      "service": "Redshift",
+      "iam_prefix": "redshift",
+      "candidates": [
+        "redshift"
+      ],
+      "tag_action": "CreateTags",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 166
+    },
+    {
+      "service": "RedshiftServerless",
+      "iam_prefix": "redshift-serverless",
+      "candidates": [
+        "redshift-serverless"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 68
+    },
+    {
+      "service": "Rekognition",
+      "iam_prefix": "rekognition",
+      "candidates": [
+        "rekognition"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 76
+    },
+    {
+      "service": "ResilienceHub",
+      "iam_prefix": "resiliencehub",
+      "candidates": [
+        "resiliencehub"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 128,
+      "actions_listing_resource_tag": 57
+    },
+    {
+      "service": "ResilienceHubV2",
+      "iam_prefix": "resiliencehub",
+      "candidates": [
+        "resiliencehubv2",
+        "resiliencehub"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 128,
+      "actions_listing_resource_tag": 57
+    },
+    {
+      "service": "ResourceExplorer2",
+      "iam_prefix": "resource-explorer-2",
+      "candidates": [
+        "resource-explorer-2"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 37
+    },
+    {
+      "service": "ResourceGroups",
+      "iam_prefix": "resource-groups",
+      "candidates": [
+        "resource-groups"
+      ],
+      "tag_action": "Tag",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 29
+    },
+    {
+      "service": "RolesAnywhere",
+      "iam_prefix": "rolesanywhere",
+      "candidates": [
+        "rolesanywhere"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 30
+    },
+    {
+      "service": "Route53",
+      "iam_prefix": "route53",
+      "candidates": [
+        "route53"
+      ],
+      "tag_action": "ChangeTagsForResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 71
+    },
+    {
+      "service": "Route53Profiles",
+      "iam_prefix": "route53profiles",
+      "candidates": [
+        "route53profiles"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 18
+    },
+    {
+      "service": "Route53RecoveryControl",
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "reason": "no candidate IAM prefix appears in the reference index"
+    },
+    {
+      "service": "Route53RecoveryReadiness",
+      "iam_prefix": "route53-recovery-readiness",
+      "candidates": [
+        "route53-recovery-readiness"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 32
+    },
+    {
+      "service": "Route53Resolver",
+      "iam_prefix": "route53resolver",
+      "candidates": [
+        "route53resolver"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 69
+    },
+    {
+      "service": "S3",
+      "iam_prefix": "s3",
+      "candidates": [
+        "s3"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 180,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "S3Express",
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "reason": "no candidate IAM prefix appears in the reference index"
+    },
+    {
+      "service": "S3Files",
+      "iam_prefix": "s3files",
+      "candidates": [
+        "s3files"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 24
+    },
+    {
+      "service": "S3Outposts",
+      "iam_prefix": "s3-outposts",
+      "candidates": [
+        "s3outposts",
+        "s3-outposts"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 48,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "S3Tables",
+      "iam_prefix": "s3tables",
+      "candidates": [
+        "s3tables"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 53
+    },
+    {
+      "service": "S3Vectors",
+      "iam_prefix": "s3vectors",
+      "candidates": [
+        "s3vectors"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 19
+    },
+    {
+      "service": "SES",
+      "iam_prefix": "ses",
+      "candidates": [
+        "ses",
+        "email"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 228,
+      "actions_listing_resource_tag": 48,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "SMSVOICE",
+      "iam_prefix": "sms-voice",
+      "candidates": [
+        "sms-voice",
+        "sms-voice.pinpoint"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 114,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "SNS",
+      "iam_prefix": "sns",
+      "candidates": [
+        "sns"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 41
+    },
+    {
+      "service": "SQS",
+      "iam_prefix": "sqs",
+      "candidates": [
+        "sqs"
+      ],
+      "tag_action": "TagQueue",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 20
+    },
+    {
+      "service": "SSM",
+      "iam_prefix": "ssm",
+      "candidates": [
+        "ssm"
+      ],
+      "tag_action": "AddTagsToResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 162
+    },
+    {
+      "service": "SSMContacts",
+      "iam_prefix": "ssm-contacts",
+      "candidates": [
+        "ssm-contacts"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 40
+    },
+    {
+      "service": "SSMIncidents",
+      "iam_prefix": "ssm-incidents",
+      "candidates": [
+        "ssm-incidents"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 31
+    },
+    {
+      "service": "SSMQuickSetup",
+      "iam_prefix": "ssm-quicksetup",
+      "candidates": [
+        "ssm-quicksetup"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 14,
+      "actions_listing_resource_tag": 1
+    },
+    {
+      "service": "SSO",
+      "iam_prefix": "sso",
+      "candidates": [
+        "sso",
+        "awsssoportal",
+        "portal.sso"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 126,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "SageMaker",
+      "iam_prefix": "sagemaker",
+      "candidates": [
+        "sagemaker",
+        "api.sagemaker"
+      ],
+      "tag_action": "AddTags",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 444,
+      "actions_listing_resource_tag": 7
+    },
+    {
+      "service": "Scheduler",
+      "iam_prefix": "scheduler",
+      "candidates": [
+        "scheduler"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 13
+    },
+    {
+      "service": "SecretsManager",
+      "iam_prefix": "secretsmanager",
+      "candidates": [
+        "secretsmanager"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 23
+    },
+    {
+      "service": "SecurityHub",
+      "iam_prefix": "securityhub",
+      "candidates": [
+        "securityhub"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 129
+    },
+    {
+      "service": "SecurityLake",
+      "iam_prefix": "securitylake",
+      "candidates": [
+        "securitylake"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 31
+    },
+    {
+      "service": "ServiceCatalog",
+      "iam_prefix": "servicecatalog",
+      "candidates": [
+        "servicecatalog"
+      ],
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "actions_total": 117,
+      "reason": "live/tag-verbs.json records no tagging verb for this service"
+    },
+    {
+      "service": "ServiceCatalogAppRegistry",
+      "iam_prefix": "servicecatalog",
+      "candidates": [
+        "servicecatalog-appregistry",
+        "servicecatalog"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 117
+    },
+    {
+      "service": "ServiceDiscovery",
+      "iam_prefix": "servicediscovery",
+      "candidates": [
+        "servicediscovery"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 33
+    },
+    {
+      "service": "Shield",
+      "iam_prefix": "shield",
+      "candidates": [
+        "shield"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 39
+    },
+    {
+      "service": "StepFunctions",
+      "iam_prefix": "states",
+      "candidates": [
+        "stepfunctions",
+        "states"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 39
+    },
+    {
+      "service": "StorageGateway",
+      "iam_prefix": "storagegateway",
+      "candidates": [
+        "storagegateway"
+      ],
+      "tag_action": "AddTagsToResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 97
+    },
+    {
+      "service": "Synthetics",
+      "iam_prefix": "synthetics",
+      "candidates": [
+        "synthetics"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 22
+    },
+    {
+      "service": "Timestream",
+      "tag_action_found": false,
+      "lists_resource_tag": false,
+      "lists_tag_keys": false,
+      "reason": "no candidate IAM prefix appears in the reference index"
+    },
+    {
+      "service": "Transfer",
+      "iam_prefix": "transfer",
+      "candidates": [
+        "transfer"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 71
+    },
+    {
+      "service": "VerifiedPermissions",
+      "iam_prefix": "verifiedpermissions",
+      "candidates": [
+        "verifiedpermissions"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 31
+    },
+    {
+      "service": "VpcLattice",
+      "iam_prefix": "vpc-lattice",
+      "candidates": [
+        "vpc-lattice"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 75
+    },
+    {
+      "service": "WAFv2",
+      "iam_prefix": "wafv2",
+      "candidates": [
+        "wafv2"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "actions_total": 61
+    },
+    {
+      "service": "WorkSpaces",
+      "iam_prefix": "workspaces",
+      "candidates": [
+        "workspaces"
+      ],
+      "tag_action": "CreateTags",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 101,
+      "actions_listing_resource_tag": 7
+    },
+    {
+      "service": "WorkSpacesWeb",
+      "iam_prefix": "workspaces-web",
+      "candidates": [
+        "workspaces-web"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 75
+    },
+    {
+      "service": "XRay",
+      "iam_prefix": "xray",
+      "candidates": [
+        "xray"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "actions_total": 43
+    }
+  ]
+}
