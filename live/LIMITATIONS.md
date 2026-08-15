@@ -951,12 +951,12 @@ refused, and each says so in its own entry.
 |---|---|---|---|---|---|
 | 142 | 142 | lint | state-backend | `internal/live/lint` | "backend-block" / "cloud-block" |
 | 131 | 2336 | identity | Dynamic value in static context | `internal/configs` | "Dynamic value in static context" |
-| 120 | 1791 | lint | unadmitted-type | `internal/live/lint` | "unadmitted-type" |
+| 114 | 1646 | lint | unadmitted-type | `internal/live/lint` | "unadmitted-type" |
 | 89 | 3674 | identity | Unable to compute static value | `internal/configs` | "Unable to compute static value" |
-| 74 | 585 | identity | Unresolvable identity | `internal/live/identity` | "Unresolvable identity" |
+| 74 | 589 | identity | Unresolvable identity | `internal/live/identity` | "Unresolvable identity" |
 | 66 | 482 | lint | logical-resource | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
 | 52 | 4587 | lint | count-index | `internal/live/lint` | "count-index-in-tag" |
-| 45 | 279 | identity | Module output not supported in static context | `internal/configs` | "Module output not supported in static context" |
+| 45 | 280 | identity | Module output not supported in static context | `internal/configs` | "Module output not supported in static context" |
 | 38 | 120 | lint | remote-state | `internal/live/lint` | "remote-state" |
 | 31 | 90 | lint | provisioner | `internal/live/lint` | "local-exec" / "remote-exec" |
 | 30 | 131 | identity | Non-static identity argument | `internal/live/identity` | "Non-static identity argument" |
@@ -1162,7 +1162,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 74 configurations in the measured corpus, at 585 sites.
+**How often.** Blocked 74 configurations in the measured corpus, at 589 sites.
 
 #### Module output not supported in static context
 
@@ -1170,7 +1170,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 45 configurations in the measured corpus, at 279 sites.
+**How often.** Blocked 45 configurations in the measured corpus, at 280 sites.
 
 #### Non-static identity argument
 
@@ -2444,7 +2444,9 @@ undeclared instance is created through whichever configuration found it.
 `aws_route53profiles_resource_association`,
 `aws_route53recoverycontrolconfig_routing_control`,
 `aws_route_table_association`, `aws_s3_bucket_lifecycle_configuration`,
-`aws_s3_bucket_policy`, `aws_s3_bucket_public_access_block`,
+`aws_s3_bucket_object_lock_configuration`, `aws_s3_bucket_policy`,
+`aws_s3_bucket_public_access_block`,
+`aws_s3_bucket_replication_configuration`,
 `aws_s3_bucket_server_side_encryption_configuration`,
 `aws_s3_bucket_versioning`, `aws_s3control_bucket_policy`,
 `aws_s3control_multi_region_access_point`, `aws_s3files_file_system_policy`,
@@ -2581,8 +2583,10 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_route53_zone_association` | `aws_route53_zone` | no (report-only) |
 | `aws_route_table_association` | `aws_route_table` | no (report-only) |
 | `aws_s3_bucket_lifecycle_configuration` | `aws_s3_bucket` | no (report-only) |
+| `aws_s3_bucket_object_lock_configuration` | `aws_s3_bucket` | no (report-only) |
 | `aws_s3_bucket_policy` | `aws_s3_bucket` | yes |
 | `aws_s3_bucket_public_access_block` | `aws_s3_bucket` | no (report-only) |
+| `aws_s3_bucket_replication_configuration` | `aws_s3_bucket` | no (report-only) |
 | `aws_s3_bucket_server_side_encryption_configuration` | `aws_s3_bucket` | no (report-only) |
 | `aws_s3_bucket_versioning` | `aws_s3_bucket` | no (report-only) |
 | `aws_s3control_bucket_policy` | `aws_s3control_bucket` | no (report-only) |
@@ -2621,7 +2625,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_workspacesweb_user_access_logging_settings_association` | `aws_workspacesweb_user_access_logging_settings` | no (report-only) |
 | `aws_workspacesweb_user_settings_association` | `aws_workspacesweb_user_settings` | no (report-only) |
 
-**Total.** 105 types swept via a parent read.
+**Total.** 107 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child. Whether it

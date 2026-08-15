@@ -3563,6 +3563,12 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "exclusive_groups": [
+        [
+          "endpoint_access_mode",
+          "security_policy"
+        ]
       ]
     },
     {
@@ -10453,6 +10459,16 @@
           "name": "source_api_id",
           "required": false
         }
+      ],
+      "exclusive_groups": [
+        [
+          "merged_api_arn",
+          "merged_api_id"
+        ],
+        [
+          "source_api_arn",
+          "source_api_id"
+        ]
       ],
       "id_parts": [
         {
@@ -19448,6 +19464,12 @@
           "required": false
         }
       ],
+      "exclusive_groups": [
+        [
+          "namespace_templates",
+          "namespaces"
+        ]
+      ],
       "id_parts": [
         {
           "token": "memory_id",
@@ -27131,6 +27153,12 @@
       "omitted_fallbacks": {
         "event_bus_name": "default"
       },
+      "exclusive_groups": [
+        [
+          "event_pattern",
+          "schedule_expression"
+        ]
+      ],
       "id_parts": [
         {
           "token": "event_bus_name",
@@ -28234,6 +28262,12 @@
         "policy_name",
         "region",
         "resource_arn"
+      ],
+      "exclusive_groups": [
+        [
+          "policy_name",
+          "resource_arn"
+        ]
       ]
     },
     {
@@ -33061,6 +33095,12 @@
           "name": "write_attributes",
           "required": false
         }
+      ],
+      "exclusive_groups": [
+        [
+          "name_pattern",
+          "name_prefix"
+        ]
       ]
     },
     {
@@ -33535,6 +33575,14 @@
           "name": "web_authn_configuration",
           "required": false
         }
+      ],
+      "exclusive_groups": [
+        [
+          "email_mfa_configuration",
+          "mfa_configuration",
+          "sms_configuration",
+          "software_token_mfa_configuration"
+        ]
       ]
     },
     {
@@ -33799,6 +33847,12 @@
       "arguments_in_doc_order": [
         "user_pool_id",
         "client_id"
+      ],
+      "exclusive_groups": [
+        [
+          "css",
+          "image_file"
+        ]
       ],
       "id_parts": [
         {
@@ -36435,6 +36489,15 @@
           "name": "user_id",
           "required": true
         }
+      ],
+      "exclusive_groups": [
+        [
+          "phone_config",
+          "queue_config",
+          "quick_connect_config",
+          "quick_connect_type",
+          "user_config"
+        ]
       ],
       "id_parts": [
         {
@@ -50051,6 +50114,12 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "exclusive_groups": [
+        [
+          "size",
+          "snapshot_id"
+        ]
       ]
     },
     {
@@ -50449,6 +50518,12 @@
           "name": "description",
           "required": false
         }
+      ],
+      "exclusive_groups": [
+        [
+          "access_group_id",
+          "authorize_all_groups"
+        ]
       ]
     },
     {
@@ -50942,6 +51017,12 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "exclusive_groups": [
+        [
+          "instance_family",
+          "instance_type"
+        ]
       ]
     },
     {
@@ -54472,7 +54553,13 @@
             "attributed_by": "example-usage-value"
           }
         ]
-      }
+      },
+      "exclusive_groups": [
+        [
+          "auto_scaling_group_provider",
+          "managed_instances_provider"
+        ]
+      ]
     },
     {
       "tf_type": "aws_ecs_cluster",
@@ -59919,6 +60006,12 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "exclusive_groups": [
+        [
+          "availability_zones",
+          "subnets"
+        ]
       ]
     },
     {
@@ -63100,6 +63193,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "exclusive_groups": [
+        [
+          "eni_id",
+          "regional_nat_gateway_id",
+          "subnet_id",
+          "transit_gateway_attachment_id",
+          "transit_gateway_id",
+          "vpc_id"
+        ]
       ]
     },
     {
@@ -66860,6 +66963,15 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "exclusive_groups": [
+        [
+          "catalog_target",
+          "dynamodb_target",
+          "jdbc_target",
+          "mongodb_target",
+          "s3_target"
+        ]
       ]
     },
     {
@@ -81893,6 +82005,13 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "exclusive_groups": [
+        [
+          "filename",
+          "image_uri",
+          "s3_bucket"
+        ]
       ]
     },
     {
@@ -83585,7 +83704,13 @@
             "unattributed": "50dc6c495c0c9188"
           }
         ]
-      }
+      },
+      "exclusive_groups": [
+        [
+          "subnet_mapping",
+          "subnets"
+        ]
+      ]
     },
     {
       "tf_type": "aws_lb_cookie_stickiness_policy",
@@ -89770,6 +89895,12 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "exclusive_groups": [
+        [
+          "keywords",
+          "maximum_match_distance"
+        ]
       ]
     },
     {
@@ -103601,6 +103732,13 @@
         "account_id",
         "region"
       ],
+      "exclusive_groups": [
+        [
+          "cloudwatch_logs_destination",
+          "kinesis_firehose_destination",
+          "sns_destination"
+        ]
+      ],
       "id_parts": [
         {
           "token": "configuration_set_name",
@@ -109938,6 +110076,19 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "exclusive_groups": [
+        [
+          "manage_master_password",
+          "master_password",
+          "master_password_wo",
+          "snapshot_identifier"
+        ],
+        [
+          "manage_master_password",
+          "master_password",
+          "snapshot_identifier"
+        ]
       ]
     },
     {
@@ -113285,6 +113436,13 @@
         "destination_prefix_list_id",
         "region"
       ],
+      "exclusive_groups": [
+        [
+          "destination_cidr_block",
+          "destination_ipv6_cidr_block",
+          "destination_prefix_list_id"
+        ]
+      ],
       "id_parts": [
         {
           "token": "ROUTETABLEID",
@@ -113540,6 +113698,12 @@
           "name": "triggers",
           "required": false
         }
+      ],
+      "exclusive_groups": [
+        [
+          "fqdn",
+          "ip_address"
+        ]
       ]
     },
     {
@@ -113837,6 +114001,12 @@
       "identity_schema_optional": [
         "account_id",
         "set_identifier"
+      ],
+      "exclusive_groups": [
+        [
+          "alias",
+          "records"
+        ]
       ]
     },
     {
@@ -116233,6 +116403,12 @@
         "account_id",
         "region"
       ],
+      "exclusive_groups": [
+        [
+          "gateway_id",
+          "subnet_id"
+        ]
+      ],
       "id_parts": [
         {
           "token": "the associated resource ID",
@@ -116302,6 +116478,12 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "exclusive_groups": [
+        [
+          "domain",
+          "domain_list"
+        ]
       ]
     },
     {
@@ -121734,7 +121916,13 @@
             "attributed_by": "placeholder-names-argument"
           }
         ]
-      }
+      },
+      "exclusive_groups": [
+        [
+          "space_name",
+          "user_profile_name"
+        ]
+      ]
     },
     {
       "tf_type": "aws_sagemaker_app_image_config",
@@ -121788,6 +121976,13 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "exclusive_groups": [
+        [
+          "code_editor_app_image_config",
+          "jupyter_lab_image_config",
+          "kernel_gateway_image_config"
+        ]
       ]
     },
     {
@@ -126320,6 +126515,14 @@
           "name": "source_security_group_id",
           "required": false
         }
+      ],
+      "exclusive_groups": [
+        [
+          "cidr_blocks",
+          "ipv6_cidr_blocks",
+          "prefix_list_ids",
+          "source_security_group_id"
+        ]
       ],
       "id_parts": [
         {
@@ -133298,6 +133501,12 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "exclusive_groups": [
+        [
+          "launch_specification",
+          "launch_template_config"
+        ]
       ]
     },
     {
@@ -134665,6 +134874,21 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "exclusive_groups": [
+        [
+          "insecure_value",
+          "type",
+          "value",
+          "value_wo"
+        ],
+        [
+          "insecure_value",
+          "type",
+          "value",
+          "value_wo",
+          "value_wo_version"
+        ]
       ]
     },
     {
@@ -137538,7 +137762,13 @@
             "unattributed": "sgw-12345678"
           }
         ]
-      }
+      },
+      "exclusive_groups": [
+        [
+          "activation_key",
+          "gateway_ip_address"
+        ]
+      ]
     },
     {
       "tf_type": "aws_storagegateway_nfs_file_share",
@@ -140202,6 +140432,12 @@
           "required": false
         }
       ],
+      "exclusive_groups": [
+        [
+          "host_key_body",
+          "host_key_body_wo"
+        ]
+      ],
       "id_parts": [
         {
           "token": "server_id",
@@ -142164,6 +142400,13 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "exclusive_groups": [
+        [
+          "resource_configuration_arn",
+          "service_name",
+          "service_network_arn"
+        ]
       ]
     },
     {
@@ -142264,6 +142507,12 @@
           "name": "connection_events",
           "required": true
         }
+      ],
+      "exclusive_groups": [
+        [
+          "vpc_endpoint_id",
+          "vpc_endpoint_service_id"
+        ]
       ]
     },
     {
@@ -144261,6 +144510,12 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "exclusive_groups": [
+        [
+          "service_arn",
+          "service_identifier"
+        ]
       ]
     },
     {
@@ -148505,6 +148760,12 @@
           "name": "visibility_config",
           "required": false
         }
+      ],
+      "exclusive_groups": [
+        [
+          "managed_rule_group",
+          "rule_group_reference"
+        ]
       ],
       "id_parts": [
         {

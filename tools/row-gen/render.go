@@ -88,29 +88,38 @@ func renderReport(proposals []proposal, service string) string {
 func renderProposal(p proposal) string {
 	var b strings.Builder
 
+	// target is the "-> X" the header shows: the CFN type for a mapped row,
+	// and the honest "(no CFN model)" for a classifyUnmapped one, whose
+	// CFNType is empty because CloudFormation models no such type - not
+	// because anything failed to look it up.
+	target := p.CFNType
+	if p.NoCFNModel {
+		target = serviceUnmodeled
+	}
+
 	switch p.Bucket {
 	case bucketServerAssigned:
-		fmt.Fprintf(&b, "## %s -> %s [proposed: server-assigned]\n", p.TFType, p.CFNType)
+		fmt.Fprintf(&b, "## %s -> %s [proposed: server-assigned]\n", p.TFType, target)
 	case bucketClientNamed:
-		fmt.Fprintf(&b, "## %s -> %s [proposed: client-named]\n", p.TFType, p.CFNType)
+		fmt.Fprintf(&b, "## %s -> %s [proposed: client-named]\n", p.TFType, target)
 	case bucketNeedsHandSeparator:
-		fmt.Fprintf(&b, "## %s -> %s [needs hand separator]\n", p.TFType, p.CFNType)
+		fmt.Fprintf(&b, "## %s -> %s [needs hand separator]\n", p.TFType, target)
 	case bucketComposite:
-		fmt.Fprintf(&b, "## %s -> %s [proposed: composite]\n", p.TFType, p.CFNType)
+		fmt.Fprintf(&b, "## %s -> %s [proposed: composite]\n", p.TFType, target)
 	case bucketAssembled:
-		fmt.Fprintf(&b, "## %s -> %s [proposed: assembled template]\n", p.TFType, p.CFNType)
+		fmt.Fprintf(&b, "## %s -> %s [proposed: assembled template]\n", p.TFType, target)
 	case bucketFoldChild:
 		fmt.Fprintf(&b, "## %s -> (property-child of %s) [fold-child: parent %s]\n", p.TFType, p.FoldParent, p.ParentTFType)
 	case bucketEvidenceOnly:
 		if p.FoldParent != "" {
 			fmt.Fprintf(&b, "## %s -> (property-child of %s) [evidence-only]\n", p.TFType, p.FoldParent)
 		} else {
-			fmt.Fprintf(&b, "## %s -> %s [evidence-only]\n", p.TFType, p.CFNType)
+			fmt.Fprintf(&b, "## %s -> %s [evidence-only]\n", p.TFType, target)
 		}
 	}
 
 	fmt.Fprintf(&b, "rule: %s\n", p.Rule)
-	if p.FoldParent == "" {
+	if p.FoldParent == "" && !p.NoCFNModel {
 		fmt.Fprintf(&b, "registry fields read: primary_identifier=%s read_only_properties=%s create_only_properties=%s\n",
 			quoteList(p.PrimaryIdentifier), quoteList(p.ReadOnly), quoteList(p.CreateOnly))
 		if len(p.ParentInputs) > 0 {
@@ -321,11 +330,13 @@ func renderClientNamedEntry(p proposal) string {
 }
 
 // summaryCounts is the acceptance criterion's headline: the bucket totals
-// over the whole mapped set.
+// over every type live/mapping.json names - which, since loadMapping stopped
+// filtering by via, is the provider's whole type roster and not only the
+// CFN-modelled part of it.
 func summaryCounts(proposals []proposal) string {
 	counts := tally(proposals)
 	return fmt.Sprintf(
-		"summary (mapped set: %d types)\n  proposed server-assigned:  %d\n  proposed client-named:     %d\n  proposed composite:        %d\n  proposed assembled (#172): %d\n  needs hand separator:      %d\n  fold-child (issue #68):    %d\n  evidence-only:             %d\n",
+		"summary (%d types)\n  proposed server-assigned:  %d\n  proposed client-named:     %d\n  proposed composite:        %d\n  proposed assembled (#172): %d\n  needs hand separator:      %d\n  fold-child (issue #68):    %d\n  evidence-only:             %d\n",
 		len(proposals), counts.ServerAssigned, counts.ClientNamed, counts.Composite, counts.Assembled, counts.NeedsHandSeparator, counts.FoldChild, counts.EvidenceOnly)
 }
 
