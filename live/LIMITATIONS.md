@@ -346,12 +346,13 @@ named reason.
 **Construct.** `terraform { backend "..." { } }`.
 
 **Why banned.** A backend configures where authoritative state is stored and
-locked. A marker run has no state file to store and nothing for a lock to
-protect. Named explicitly in "Banned, and why".
+locked. Under markers the live system is that store, and concurrent writes
+to a record are settled by conditional write. Named explicitly in "Banned,
+and why".
 
-**Forwarding address.** None. Remove the block. The projection (rebuilt
-from the live system every run, discarded after) replaces what a backend
-would have stored, and there is nothing to point it at instead.
+**Forwarding address.** None. Remove the block. The projection, rebuilt
+from the live system every run and discarded after, is what a backend would
+otherwise have stored.
 
 **Enforcement.** `RuleStateBackend`, `internal/live/lint/lint.go`
 (`checkStateBackends`). Fixture at `live/e2e/limits/backend-block/`.

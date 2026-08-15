@@ -222,7 +222,7 @@ func statelessRejections(op *arguments.Operation, state *arguments.State, viewOp
 	}
 	if planOut != "" {
 		reject("Saved plan files are not available under live resource markers",
-			"A saved plan file records the state snapshot the plan was made against, and a live-markers run has no state snapshot: its prior state is rebuilt from the live system every time. Rerun without -out, and apply directly - a live-markers apply plans against the live system at the moment it runs.")
+			"A saved plan file records the state snapshot the plan was made against. Here prior state is rebuilt from the live system every time, so an apply plans against the live system at the moment it runs. Rerun without -out and apply directly.")
 	}
 	if planFile != "" {
 		diags = diags.Append(statelessRejectPlanFile(planFile))
@@ -237,7 +237,7 @@ func statelessRejections(op *arguments.Operation, state *arguments.State, viewOp
 		// (cmd/choudoufu/commands.go) and ParseApplyDestroy sets DestroyMode
 		// with no flag involved, so telling that user to "rerun without
 		// -destroy" names a flag they never typed. See #101.
-		detail := "Live resource markers produce and apply normal plans. -refresh-only compares a stored record against the live system, which is the comparison a live-markers run has no stored side for. Rerun without -refresh-only."
+		detail := "Live resource markers produce and apply normal plans. -refresh-only compares a stored record against the live system, and here both sides of that comparison are the live system. Rerun without -refresh-only."
 		if op.PlanMode == plans.DestroyMode {
 			detail = "Live resource markers produce and apply normal plans, and destroying a whole estate in one command is not verified against a live-markers apply yet. To tear down what this estate owns, delete the resource blocks from the configuration and run \"choudoufu apply\": the estate sweep plans an owned resource with no configuration as a destroy, which is the tested path."
 		}
@@ -245,7 +245,7 @@ func statelessRejections(op *arguments.Operation, state *arguments.State, viewOp
 	}
 	if state != nil && (state.StatePath != "" || state.StateOutPath != "" || state.BackupPath != "") {
 		reject("State file options are not available under live resource markers",
-			"There is no state file to read, write or back up: prior state is a projection built from the live system and discarded when the run ends. Rerun without -state, -state-out and -backup.")
+			"Prior state is a projection, built from the live system and discarded when the run ends, so these options have no file to act on. Rerun without -state, -state-out and -backup.")
 	}
 
 	return diags

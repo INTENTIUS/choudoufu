@@ -216,9 +216,9 @@ func checkStateBackends(mod *configs.Module, path addrs.Module, issues *[]Issue)
 			Construct: fmt.Sprintf("backend %q", backend.Type),
 			Module:    path,
 			Detail: "a backend configures where authoritative state is stored and locked. " +
-				"A live-markers run has no state file to store: prior state is a projection, " +
-				"rebuilt from the live system at the start of every operation and discarded " +
-				"at the end. Remove the backend block",
+				"Here the live system is that store. Prior state is a projection, rebuilt " +
+				"from it at the start of every operation and discarded at the end. Remove " +
+				"the backend block",
 			Subject: backend.DeclRange,
 		})
 	}
@@ -229,7 +229,8 @@ func checkStateBackends(mod *configs.Module, path addrs.Module, issues *[]Issue)
 			Construct: "cloud block",
 			Module:    path,
 			Detail: "a cloud block is a remote state backend under another name, with " +
-				"remote locking attached. A live-markers run has neither. Remove the cloud block",
+				"remote locking attached. Here the live system is the store, and concurrent " +
+				"writes to a record are settled by conditional write. Remove the cloud block",
 			Subject: cloud.DeclRange,
 		})
 	}
@@ -417,8 +418,8 @@ func checkDataResources(mod *configs.Module, path addrs.Module, issues *[]Issue)
 			Rule:      RuleRemoteState,
 			Construct: resource.Addr().String(),
 			Module:    path,
-			Detail: "this data source reads a state file, and a live-markers run has no state to " +
-				"read. Read the producer's own live resource with a data source of its own " +
+			Detail: "this data source reads a state file, and here prior state is rebuilt from " +
+				"the live system rather than stored. Read the producer's own live resource with a data source of its own " +
 				"type, filtered on its tofu-estate/tofu-address marker tags (live/OUTPUTS.md " +
 				"is the recorded decision and this pattern's spec), or pass values across " +
 				"explicitly as variables or outputs of a module call",

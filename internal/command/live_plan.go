@@ -1586,7 +1586,7 @@ func livePlanRejectUnsupported(args *arguments.Plan) tfdiags.Diagnostics {
 	}
 	if args.OutPath != "" {
 		reject("Saved plan files are not available under live resource markers",
-			"A saved plan file records the state snapshot the plan was made against so that apply can check the state has not moved since. A live-markers run has no state snapshot to record. Rerun without -out. Note that this configuration has no live block, so plain \"choudoufu plan\" and \"choudoufu apply\" here are ORDINARY state-backed commands, not live-markers ones - they would write a state file and propose creating resources this estate already owns. A live-markers apply exists only for a configuration carrying a live block, where plain plan and apply run on markers and an approval gate between them approves the intent rather than a frozen diff.")
+			"A saved plan file records the state snapshot the plan was made against so that apply can check the state has not moved since. Here prior state is rebuilt from the live system every run, and an apply re-plans against it at the moment it runs. Rerun without -out. Note that this configuration has no live block, so plain \"choudoufu plan\" and \"choudoufu apply\" here are ORDINARY state-backed commands rather than live-markers ones, and they would write a state file and propose creating resources this estate already owns. A live-markers apply exists only for a configuration carrying a live block, where plain plan and apply run on markers and an approval gate between them approves the intent rather than a frozen diff.")
 	}
 	if args.GenerateConfigPath != "" {
 		reject("Config generation is not available under live resource markers yet",
@@ -1594,11 +1594,11 @@ func livePlanRejectUnsupported(args *arguments.Plan) tfdiags.Diagnostics {
 	}
 	if args.Operation.PlanMode != plans.NormalMode {
 		reject("Only the normal planning mode is available under live resource markers yet",
-			"live-plan produces a normal plan. -destroy is not verified against a live-markers apply yet; deleting a resource block from the configuration is the tested way to have its live resource destroyed, since the estate sweep plans an owned-but-undeclared resource as a destroy. -refresh-only compares a stored record against the live system, which is the comparison a live-markers run has no stored side for. Rerun without -destroy and -refresh-only.")
+			"live-plan produces a normal plan. -destroy is not verified against a live-markers apply yet, and deleting a resource block from the configuration is the tested way to have its live resource destroyed, since the estate sweep plans an owned-but-undeclared resource as a destroy. -refresh-only compares a stored record against the live system, and here both sides of that comparison are the live system. Rerun without -destroy and -refresh-only.")
 	}
 	if args.State.StatePath != "" || args.State.StateOutPath != "" || args.State.BackupPath != "" {
 		reject("State file options are not available under live resource markers",
-			"There is no state file to read, write or back up: prior state is a projection built from the live system and discarded when the run ends. Rerun without -state, -state-out and -backup.")
+			"Prior state is a projection, built from the live system and discarded when the run ends, so these options have no file to act on. Rerun without -state, -state-out and -backup.")
 	}
 
 	return diags
@@ -1928,9 +1928,9 @@ func (c *LivePlanCommand) Help() string {
 	helpText := `
 Usage: choudoufu [global options] live-plan [options]
 
-  EXPERIMENTAL. Generates a plan with no authoritative state: no state file,
-  no backend, and no lock. Prior state is a projection, built by reading the
-  live system at the start of the run and discarded at the end.
+  EXPERIMENTAL. Plans against the live system rather than a stored record.
+  Prior state is a projection, built by reading the live system at the start
+  of the run and discarded at the end.
 
   A terraform.tfstate in the working directory is never read and never
   written. The working directory does still need "choudoufu init" to have
@@ -2036,5 +2036,5 @@ Options:
 }
 
 func (c *LivePlanCommand) Synopsis() string {
-	return "Show changes required by the configuration, with no state file (experimental)"
+	return "Show changes required by the configuration, read from the live system (experimental)"
 }
