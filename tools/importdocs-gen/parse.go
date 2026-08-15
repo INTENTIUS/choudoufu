@@ -559,17 +559,26 @@ func classifyGrammar(section string, argNames []string) composedResult {
 		}
 	}
 
-	// The separator is only meaningful once the ID is known to be
-	// composed; an opaque or unresolved ID reports no separator even if
-	// a stray candidate character showed up in its prose.
-	if result.Composed != nil && *result.Composed {
-		switch {
-		case sepOK:
-			result.Separator = &sep
-		case fmtOK:
-			s := fmtSep
-			result.Separator = &s
-		}
+	// A separator the doc STATES is evidence on its own, and is recorded
+	// whether or not the arguments resolved (issue #135).
+	//
+	// These are two different facts, and folding them together lost the
+	// stronger one. aws_bedrockagent_agent_alias's page says "using the
+	// alias ID and the agent ID separated by `,`" - it names the separator
+	// in backticks and names the parts in plain prose, so no argument
+	// matched, Composed stayed unresolved, and the sentence was thrown
+	// away. The doc could hardly be more explicit about the character.
+	//
+	// The inferred separator stays gated. fmtSep comes from splitting a
+	// format token, which is a guess about where the boundaries are, and a
+	// guess about an ID nothing else could resolve is what the old comment
+	// was right to refuse.
+	switch {
+	case sepOK:
+		result.Separator = &sep
+	case fmtOK && result.Composed != nil && *result.Composed:
+		s := fmtSep
+		result.Separator = &s
 	}
 
 	sort.Strings(result.Arguments)

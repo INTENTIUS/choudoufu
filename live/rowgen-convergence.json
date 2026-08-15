@@ -9,7 +9,7 @@
     "genuine_mismatches": 184,
     "annotated": 0,
     "unannotated_mismatches": 184,
-    "scrape_gap_mismatches": 82
+    "scrape_gap_mismatches": 84
   },
   "by_service": {
     "ACMPCA": {
@@ -945,14 +945,15 @@
     {
       "tf_type": "aws_amplify_branch",
       "service": "Amplify",
-      "proposed_bucket": "client-named",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "proposed_bucket": "evidence-only",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "mismatch_classes": [
         "components"
       ],
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
+      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -1776,11 +1777,10 @@
     {
       "tf_type": "aws_bedrockagentcore_agent_runtime_endpoint",
       "service": "BedrockAgentCore",
-      "proposed_bucket": "client-named",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "proposed_bucket": "evidence-only",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "mismatch_classes": [
-        "server-assigned",
-        "components"
+        "server-assigned"
       ],
       "cosmetic_notes": [
         "import-syntax-wording"
@@ -2698,8 +2698,8 @@
     {
       "tf_type": "aws_codedeploy_deployment_group",
       "service": "CodeDeploy",
-      "proposed_bucket": "client-named",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
       "mismatch_classes": [
         "components"
       ],
@@ -2858,8 +2858,8 @@
     {
       "tf_type": "aws_cognito_user",
       "service": "Cognito",
-      "proposed_bucket": "client-named",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
       "mismatch_classes": [
         "components"
       ],
@@ -2872,8 +2872,8 @@
     {
       "tf_type": "aws_cognito_user_group",
       "service": "Cognito",
-      "proposed_bucket": "client-named",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
       "mismatch_classes": [
         "components"
       ],
@@ -4940,8 +4940,8 @@
     {
       "tf_type": "aws_glue_connection",
       "service": "Glue",
-      "proposed_bucket": "client-named",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "proposed_bucket": "evidence-only",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "mismatch_classes": [
         "components"
       ],
@@ -4949,6 +4949,7 @@
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
+      "scrape_gap": true,
       "matched": false,
       "annotated": false
     },
@@ -9378,8 +9379,8 @@
     {
       "tf_type": "aws_timestreamwrite_table",
       "service": "Timestream",
-      "proposed_bucket": "client-named",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
       "mismatch_classes": [
         "components"
       ],
@@ -9664,8 +9665,8 @@
     {
       "tf_type": "aws_vpc_endpoint_security_group_association",
       "service": "EC2",
-      "proposed_bucket": "client-named",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::EC2::VPCEndpoint",
       "mismatch_classes": [
         "components"
       ],
@@ -9690,8 +9691,8 @@
     {
       "tf_type": "aws_vpc_endpoint_subnet_association",
       "service": "EC2",
-      "proposed_bucket": "client-named",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::EC2::VPCEndpoint",
       "mismatch_classes": [
         "components"
       ],

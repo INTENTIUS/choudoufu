@@ -166,8 +166,24 @@ enumeration: parent-input ["LayerVersionArn"]
 note: import docs show argument-composed ID: arn:aws:lambda:us-west-2:123456789012:layer:shared_utilities,1
 no pastable row.
 
-## aws_lambda_permission -> AWS::Lambda::Permission [needs hand separator]
-rule: len(primaryIdentifier) > 1 (composite; the separator is in no schema)
+## aws_lambda_permission -> AWS::Lambda::Permission [proposed: composite]
+rule: import-grammar precedence: composed_of_arguments, multi-argument, order taken from the provider's own Identity Schema and corroborated against the example's segments
 registry fields read: primary_identifier=["FunctionName", "Id"] read_only_properties=["Id"] create_only_properties=["FunctionName", "FunctionUrlAuthType", "InvokedViaFunctionUrl", "SourceAccount", "SourceArn", "Principal", "PrincipalOrgID", "Action", "EventSourceToken"]
 enumeration: parent-input ["FunctionName"]
-no pastable row: the composite separator is not registry evidence; a human chooses it.
+components: ["function_name", "statement_id"] joined by "/" (source: import grammar (live/import-grammar.json))
+note: import docs pin ["function_name", "statement_id"] joined by "/": my_test_lambda_function/AllowExecutionFromCloudWatch
+
+--- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
+"aws_lambda_permission": {},
+
+--- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
+TypeIdentity{
+	Type: "aws_lambda_permission",
+	Components: []Component{
+		attr("function_name"),
+		sep("/"),
+		attr("statement_id"),
+	},
+	ImportSyntax:  "FUNCTION_NAME/STATEMENT_ID",
+	IdentityAttrs: nil, // id-alias inference intentionally left to the ratifier; see issue #44 non-goals
+},

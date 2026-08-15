@@ -206,3 +206,84 @@ func TestGroundTruth_ECSCluster(t *testing.T) {
 		t.Errorf("Separator = %v, want nil", *row.Separator)
 	}
 }
+
+// The cases below are issue #135's. Each was a row whose separator sat
+// unscraped in its own documentation, and each is graded against the real
+// page rather than a fixture shaped to match the code.
+
+// TestGroundTruth_CognitoIdentityProvider: separator ":", from the example
+// alone. The page names its parts in prose ("using their User Pool ID and
+// Provider Name") and states no separator, so nothing but the example
+// 'us-west-2_abc123:CorpAD' decides. splitSegments declined it because
+// segmentRe requires a leading letter and this token's own shape defeated
+// that, not because the character was ambiguous.
+func TestGroundTruth_CognitoIdentityProvider(t *testing.T) {
+	row := mustRow(t, "aws_cognito_identity_provider", "cognito_identity_provider")
+	wantSeparator(t, row, ":")
+}
+
+// TestGroundTruth_BedrockAgentAlias: separator ",", stated in prose.
+//
+// The page says "using the alias ID and the agent ID separated by `,`" -
+// it names the character in backticks and the parts in plain words. The
+// separator was found all along and then discarded, because classifyGrammar
+// recorded one only once the ID was known to be composed, and no argument
+// had matched. Two different facts, folded together, losing the stronger.
+func TestGroundTruth_BedrockAgentAlias(t *testing.T) {
+	row := mustRow(t, "aws_bedrockagent_agent_alias", "bedrockagent_agent_alias")
+	wantSeparator(t, row, ",")
+}
+
+// TestGroundTruth_APIGatewayBasePathMapping: separator "/", with a
+// documented trailing separator.
+//
+// The example is 'example.com/' and the page explains it: "For an empty
+// base_path or, in other words, a root path". A rule requiring non-empty
+// segments would refuse the one example whose shape the doc goes out of its
+// way to describe.
+func TestGroundTruth_APIGatewayBasePathMapping(t *testing.T) {
+	row := mustRow(t, "aws_api_gateway_base_path_mapping", "api_gateway_base_path_mapping")
+	wantSeparator(t, row, "/")
+}
+
+// TestGroundTruth_EC2TransitGatewayRoute: separator "_", and the case that
+// proves prose has to outrank the example.
+//
+// The example is 'tgw-rtb-12345678_0.0.0.0/0'. Its only non-underscore
+// candidate is the '/' inside the CIDR, so a rule reading the example alone
+// answers "/" - confidently, and wrongly. The page says "using the EC2
+// Transit Gateway Route Table, an underscore, and the destination".
+func TestGroundTruth_EC2TransitGatewayRoute(t *testing.T) {
+	row := mustRow(t, "aws_ec2_transit_gateway_route", "ec2_transit_gateway_route")
+	wantSeparator(t, row, "_")
+}
+
+// TestGroundTruth_GuardDutyFilter: separator ":", from an example whose
+// segments are a hex detector ID and a name.
+func TestGroundTruth_GuardDutyFilter(t *testing.T) {
+	row := mustRow(t, "aws_guardduty_filter", "guardduty_filter")
+	wantSeparator(t, row, ":")
+}
+
+// TestGroundTruth_CognitoResourceServer records a row that stays
+// unresolved, on purpose.
+//
+// Issue #135 expected "|" here, and the character is right - the page's
+// example is 'us-west-2_abc123|https://example.com'. Nothing in the
+// evidence says so. The prose names the parts ("using their User Pool ID
+// and Identifier") without naming a separator, and in the example the ':'
+// of the URL scheme is as good a candidate as the '|', with '/' present
+// too. The issue proposed identity_schema_required's arity as the
+// tiebreak; this type carries none.
+//
+// So this asserts nil. Writing "|" here would be reading the answer off the
+// issue rather than off the page, and the next type with a URL in its ID
+// would get whatever the rule guessed. It is a stated extraction gap.
+func TestGroundTruth_CognitoResourceServer(t *testing.T) {
+	row := mustRow(t, "aws_cognito_resource_server", "cognito_resource_server")
+	if row.Separator != nil {
+		t.Errorf("aws_cognito_resource_server: Separator = %q, want nil.\n"+
+			"If this now resolves, the evidence for it must be in the page rather than in the issue - "+
+			"say which sentence supplies it.", *row.Separator)
+	}
+}

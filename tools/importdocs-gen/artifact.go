@@ -159,6 +159,19 @@ func buildRow(tfType, doc string) (Row, bool) {
 	cr := classifyGrammar(section, argNames)
 	idReq, _ := identitySchemaRequired(section)
 	idOpt := identitySchemaOptional(section)
+
+	// Last: the row's own documented example, when the prose settled
+	// nothing (issue #135). Only ever fills a gap - a separator the doc
+	// stated, or one classifyGrammar inferred from a format token, wins,
+	// because both are statements about the ID's grammar while this is an
+	// observation of one value.
+	if cr.Separator == nil {
+		if sep, ok := separatorFromProse(section); ok {
+			cr.Separator = &sep
+		} else if sep, ok := separatorFromExample(idExample); ok {
+			cr.Separator = &sep
+		}
+	}
 	return Row{
 		TFType:                 tfType,
 		ImportIDExample:        idExample,
