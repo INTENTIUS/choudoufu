@@ -42,6 +42,12 @@ var testParents = map[string]bool{
 	// group.
 }
 
+// testServiceOf is the ServiceOf these fixtures run under: nothing is
+// mapped, so sameServiceAffinity falls back to the Terraform-prefix test.
+// The CFN-service half is exercised against the real roster in
+// tools/survey-gen, which is where the mapping lives.
+var testServiceOf = ServiceOf(func(string) (string, bool) { return "", false })
+
 func TestParentOfNamedSingletonChildren(t *testing.T) {
 	cases := []struct {
 		typeName string
@@ -58,7 +64,7 @@ func TestParentOfNamedSingletonChildren(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.typeName, func(t *testing.T) {
-			links := ParentOf(c.typeName, testParents)
+			links := ParentOf(c.typeName, testParents, testServiceOf)
 			if len(links) != 1 {
 				t.Fatalf("ParentOf(%s) = %v, want exactly one link", c.typeName, links)
 			}
@@ -66,7 +72,7 @@ func TestParentOfNamedSingletonChildren(t *testing.T) {
 				t.Errorf("ParentOf(%s) = %+v, want {%s %s}", c.typeName, links[0], c.wantAttr, c.wantOf)
 			}
 
-			link, ok := SingleParentComponent(c.typeName, testParents)
+			link, ok := SingleParentComponent(c.typeName, testParents, testServiceOf)
 			if !ok {
 				t.Fatalf("SingleParentComponent(%s) = false, want true (named-singleton-child shape)", c.typeName)
 			}
@@ -83,7 +89,7 @@ func TestParentOfNamedSingletonChildren(t *testing.T) {
 // set - which excludes aws_iam_role_policy, itself untaggable - keeps the
 // longest-prefix rule from picking the wrong one.
 func TestParentOfDisambiguatesByEligibility(t *testing.T) {
-	links := ParentOf("aws_iam_role_policy_attachment", testParents)
+	links := ParentOf("aws_iam_role_policy_attachment", testParents, testServiceOf)
 	if len(links) != 1 || links[0].Parent != "aws_iam_role" {
 		t.Fatalf("ParentOf(aws_iam_role_policy_attachment) = %v, want exactly one link to aws_iam_role", links)
 	}
@@ -94,7 +100,7 @@ func TestParentOfDisambiguatesByEligibility(t *testing.T) {
 	// Two attribute-supplying components (role, policy_arn): the parent
 	// link exists, but the shape is not the single-component one a parent
 	// read alone fully settles.
-	if _, ok := SingleParentComponent("aws_iam_role_policy_attachment", testParents); ok {
+	if _, ok := SingleParentComponent("aws_iam_role_policy_attachment", testParents, testServiceOf); ok {
 		t.Error("aws_iam_role_policy_attachment reported as a single-parent-component type; it has a second free-standing argument (policy_arn)")
 	}
 }
@@ -114,7 +120,7 @@ func TestParentOfDisambiguatesByEligibility(t *testing.T) {
 // of aws_security_group/aws_eks_node_group Go's randomized map iteration
 // happened to visit first silently won.
 func TestParentOfRefusesUnrelatedSuffixMatch(t *testing.T) {
-	links := ParentOf("aws_iam_group_policy_attachment", testParents)
+	links := ParentOf("aws_iam_group_policy_attachment", testParents, testServiceOf)
 	if len(links) != 1 || links[0] != (ParentLink{Attr: "policy_arn", Parent: "aws_iam_policy"}) {
 		t.Fatalf("ParentOf(aws_iam_group_policy_attachment) = %v, want exactly one link, {policy_arn aws_iam_policy} - "+
 			"never aws_security_group or aws_eks_node_group by way of the unrelated \"group\" argument", links)
@@ -123,7 +129,7 @@ func TestParentOfRefusesUnrelatedSuffixMatch(t *testing.T) {
 	// Not a single-parent-component type either: "group" is a real,
 	// free-standing second component even though it resolves to no parent
 	// link, the same shape aws_route's own destination argument has.
-	if _, ok := SingleParentComponent("aws_iam_group_policy_attachment", testParents); ok {
+	if _, ok := SingleParentComponent("aws_iam_group_policy_attachment", testParents, testServiceOf); ok {
 		t.Error("aws_iam_group_policy_attachment reported as single-parent-component; it has a second free-standing argument (group)")
 	}
 }
@@ -134,16 +140,16 @@ func TestParentOfRefusesUnrelatedSuffixMatch(t *testing.T) {
 // aws_route53_zone's), so ParentOf has to fall back to the *_id naming
 // convention on an individual argument.
 func TestParentOfConventionFallback(t *testing.T) {
-	if links := ParentOf("aws_route", testParents); len(links) != 1 || links[0] != (ParentLink{Attr: "route_table_id", Parent: "aws_route_table"}) {
+	if links := ParentOf("aws_route", testParents, testServiceOf); len(links) != 1 || links[0] != (ParentLink{Attr: "route_table_id", Parent: "aws_route_table"}) {
 		t.Errorf("ParentOf(aws_route) = %v, want [{route_table_id aws_route_table}]", links)
 	}
-	if links := ParentOf("aws_route53_record", testParents); len(links) != 1 || links[0] != (ParentLink{Attr: "zone_id", Parent: "aws_route53_zone"}) {
+	if links := ParentOf("aws_route53_record", testParents, testServiceOf); len(links) != 1 || links[0] != (ParentLink{Attr: "zone_id", Parent: "aws_route53_zone"}) {
 		t.Errorf("ParentOf(aws_route53_record) = %v, want [{zone_id aws_route53_zone}]", links)
 	}
 	// Neither is a single-parent-component type: aws_route's destination is
 	// free-standing, and aws_route_table_association needs a subnet or
 	// gateway on top of the route table.
-	if _, ok := SingleParentComponent("aws_route", testParents); ok {
+	if _, ok := SingleParentComponent("aws_route", testParents, testServiceOf); ok {
 		t.Error("aws_route reported as single-parent-component; its destination argument is free-standing")
 	}
 
@@ -152,11 +158,11 @@ func TestParentOfConventionFallback(t *testing.T) {
 	// convention fallback ever runs, the same as the named-singleton
 	// children above - one link, to the route table, even though a second
 	// component (subnet or gateway) also feeds its import string.
-	links := ParentOf("aws_route_table_association", testParents)
+	links := ParentOf("aws_route_table_association", testParents, testServiceOf)
 	if len(links) != 1 || links[0] != (ParentLink{Attr: "route_table_id", Parent: "aws_route_table"}) {
 		t.Errorf("ParentOf(aws_route_table_association) = %v, want [{route_table_id aws_route_table}]", links)
 	}
-	if _, ok := SingleParentComponent("aws_route_table_association", testParents); ok {
+	if _, ok := SingleParentComponent("aws_route_table_association", testParents, testServiceOf); ok {
 		t.Error("aws_route_table_association reported as single-parent-component; it needs a subnet/gateway component beyond the route table")
 	}
 }
@@ -165,10 +171,10 @@ func TestParentOfConventionFallback(t *testing.T) {
 // identity does not depend on any other admitted type's at all.
 func TestParentOfNoParent(t *testing.T) {
 	for _, typeName := range []string{"aws_kms_alias", "aws_cloudwatch_dashboard"} {
-		if links := ParentOf(typeName, testParents); len(links) != 0 {
+		if links := ParentOf(typeName, testParents, testServiceOf); len(links) != 0 {
 			t.Errorf("ParentOf(%s) = %v, want none", typeName, links)
 		}
-		if _, ok := SingleParentComponent(typeName, testParents); ok {
+		if _, ok := SingleParentComponent(typeName, testParents, testServiceOf); ok {
 			t.Errorf("SingleParentComponent(%s) = true, want false", typeName)
 		}
 	}
@@ -179,7 +185,7 @@ func TestParentOfNoParent(t *testing.T) {
 // all, whatever set of eligible parents is offered.
 func TestParentOfServerAssignedHasNoComponents(t *testing.T) {
 	for _, typeName := range []string{"aws_ecr_registry_policy", "aws_lambda_layer_version"} {
-		if links := ParentOf(typeName, testParents); len(links) != 0 {
+		if links := ParentOf(typeName, testParents, testServiceOf); len(links) != 0 {
 			t.Errorf("ParentOf(%s) = %v, want none (ServerAssigned)", typeName, links)
 		}
 	}
@@ -188,10 +194,10 @@ func TestParentOfServerAssignedHasNoComponents(t *testing.T) {
 // TestParentOfUnknownType is the zero-value floor: a type absent from
 // DefaultTable entirely carries no parent link and does not panic.
 func TestParentOfUnknownType(t *testing.T) {
-	if links := ParentOf("aws_not_a_real_type", testParents); links != nil {
+	if links := ParentOf("aws_not_a_real_type", testParents, testServiceOf); links != nil {
 		t.Errorf("ParentOf(unknown type) = %v, want nil", links)
 	}
-	if _, ok := SingleParentComponent("aws_not_a_real_type", testParents); ok {
+	if _, ok := SingleParentComponent("aws_not_a_real_type", testParents, testServiceOf); ok {
 		t.Error("SingleParentComponent(unknown type) = true, want false")
 	}
 }

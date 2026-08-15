@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/registry"
 )
 
 // The two rendered spans, siblings of spanUntaggableAdmitted
@@ -73,8 +74,18 @@ func parentReadableRoster(root string) (readable []parentReadableType, residue [
 		eligibleParents[t] = true
 	}
 
+	// The CFN service each type belongs to, for rule 2's affinity test
+	// (issue #129). The embedded roster carries live/mapping.json, which is
+	// the only thing that knows aws_volume_attachment and aws_ebs_volume are
+	// both AWS::EC2 despite sharing no Terraform prefix.
+	roster, err := registry.Embedded()
+	if err != nil {
+		return nil, nil, fmt.Errorf("loading the embedded registry roster: %w", err)
+	}
+	serviceOf := identity.ServiceOf(roster.ServiceOf)
+
 	for _, t := range untaggable {
-		links := identity.ParentOf(t, eligibleParents)
+		links := identity.ParentOf(t, eligibleParents, serviceOf)
 		if len(links) == 0 {
 			residue = append(residue, t)
 			continue

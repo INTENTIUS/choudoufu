@@ -36,6 +36,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
+	"github.com/intentius/choudoufu/internal/live/registry"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -57,7 +58,7 @@ func parentReadSweep(ctx context.Context, req Request, schemas listclient.Schema
 			// already covers it and this leg has nothing to add.
 			continue
 		}
-		link, ok := identity.SingleParentComponent(typeName, eligibleParents)
+		link, ok := identity.SingleParentComponent(typeName, eligibleParents, rosterServiceOf(req.Roster))
 		if !ok {
 			// Either not parent-readable at all, or parent-readable in a
 			// shape this pass does not yet act on (a second free-standing
@@ -68,6 +69,18 @@ func parentReadSweep(ctx context.Context, req Request, schemas listclient.Schema
 		diags = diags.Append(parentReadSweepType(ctx, req, schemas, typeName, link, res))
 	}
 	return diags
+}
+
+// rosterServiceOf adapts the run's registry roster to [identity.ServiceOf],
+// so the parent derivation can tell whether a candidate belongs to the
+// child's own AWS service (issue #129). A run with no roster - Request.Roster
+// is optional, see its doc comment - supplies nil, and the derivation falls
+// back to Terraform-prefix affinity.
+func rosterServiceOf(r *registry.Roster) identity.ServiceOf {
+	if r == nil {
+		return nil
+	}
+	return r.ServiceOf
 }
 
 // taggableAdmittedTypes is the eligible-parent set [identity.ParentOf] and

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 )
 
 // The mapping artifact's via column vocabulary (tools/mapping-gen). Only
@@ -52,6 +53,14 @@ type registryEntry struct {
 		List              bool     `json:"list"`
 		ListRequiredInput []string `json:"list_required_input,omitempty"`
 	} `json:"handlers"`
+
+	// Relationships are the schema's own relationshipRef declarations
+	// (issue #151). Only the referenced type name is read here; the
+	// property that carries the reference stays in the artifact for a
+	// consumer that needs it.
+	Relationships []struct {
+		TypeName string `json:"type_name"`
+	} `json:"relationships,omitempty"`
 }
 
 // Roster is live/mapping.json joined against live/registry.json, held in
@@ -86,6 +95,17 @@ type Roster struct {
 	// arity is cfn_type -> len(primary_identifier), the number of "|"-joined
 	// segments a Cloud Control identifier for the type carries.
 	arity map[string]int
+
+	// service is the CFN service segment per TF type, from every mapping
+	// row naming a CFN type - wider than cfnType, see ServiceOf.
+	service map[string]string
+
+	// anyCFNType is that same wider join, keeping the whole CFN type name.
+	anyCFNType map[string]string
+
+	// relationships is each CFN type's declared relationshipRef targets
+	// (issue #151), by CFN type name.
+	relationships map[string][]string
 }
 
 // Load reads and parses the two artifacts from disk.
@@ -115,14 +135,32 @@ func Parse(mappingJSON, registryJSON []byte) (*Roster, error) {
 	}
 
 	r := &Roster{
-		cfnType:   make(map[string]string, len(m.Rows)),
-		tfTypeFor: make(map[string][]string, len(m.Rows)),
-		listable:  make(map[string]bool, len(reg.Types)),
-		taggable:  make(map[string]bool, len(reg.Types)),
-		arity:     make(map[string]int, len(reg.Types)),
+		cfnType:       make(map[string]string, len(m.Rows)),
+		service:       make(map[string]string, len(m.Rows)),
+		anyCFNType:    make(map[string]string, len(m.Rows)),
+		relationships: make(map[string][]string, len(reg.Types)),
+		tfTypeFor:     make(map[string][]string, len(m.Rows)),
+		listable:      make(map[string]bool, len(reg.Types)),
+		taggable:      make(map[string]bool, len(reg.Types)),
+		arity:         make(map[string]int, len(reg.Types)),
 	}
 	for _, row := range m.Rows {
-		if (row.Via != viaName && row.Via != viaAlias && row.Via != viaServiceAlias) || row.CFNType == nil || *row.CFNType == "" {
+		if row.CFNType == nil || *row.CFNType == "" {
+			continue
+		}
+		// The service map is deliberately wider than cfnType: every row
+		// naming a CFN type at all answers "which AWS service is this",
+		// including the former2-sourced ones Cloud Control enumeration
+		// excludes. aws_volume_attachment is via:former2 and is
+		// AWS::EC2::VolumeAttachment, which is exactly what tells
+		// identity's parent derivation it belongs with aws_ebs_volume
+		// (issue #129) - and it is not something CloudControlType may say,
+		// since its own contract is about enumerability.
+		r.anyCFNType[row.TFType] = *row.CFNType
+		if parts := strings.Split(*row.CFNType, "::"); len(parts) >= 2 && parts[1] != "" {
+			r.service[row.TFType] = parts[1]
+		}
+		if row.Via != viaName && row.Via != viaAlias && row.Via != viaServiceAlias {
 			continue
 		}
 		r.cfnType[row.TFType] = *row.CFNType
@@ -132,6 +170,9 @@ func Parse(mappingJSON, registryJSON []byte) (*Roster, error) {
 		r.listable[e.TypeName] = e.Handlers.List && len(e.Handlers.ListRequiredInput) == 0
 		r.taggable[e.TypeName] = e.Tagging.Taggable
 		r.arity[e.TypeName] = len(e.PrimaryIdentifier)
+		for _, rel := range e.Relationships {
+			r.relationships[e.TypeName] = append(r.relationships[e.TypeName], rel.TypeName)
+		}
 	}
 	return r, nil
 }
@@ -211,4 +252,77 @@ func (r *Roster) EnumerationSource(tfType string) (cfnType string, ok bool) {
 		return "", false
 	}
 	return cfnType, true
+}
+
+// ServiceOf reports the CloudFormation service segment of the type tfType
+// maps to - "EC2" for aws_volume_attachment, via AWS::EC2::VolumeAttachment -
+// and whether it is mapped at all.
+//
+// It exists for [identity.ServiceOf] (issue #129), whose parent derivation
+// needs to know whether two Terraform types belong to the same AWS service.
+// The Terraform name cannot answer that: aws_volume_attachment and
+// aws_ebs_volume share no prefix and are both AWS::EC2. Only the mapping
+// knows.
+//
+// Wider than [Roster.CloudControlType] on purpose. That one answers "can
+// Cloud Control enumerate this", so it keeps only name/alias/service-alias
+// rows; this one answers "which service is this", so a former2-sourced row
+// counts too - aws_volume_attachment is one, and excluding it is what sent
+// it to the residue in the first draft of this change.
+//
+// A type this roster has no CFN mapping for reports ok=false rather than an
+// empty service, so a caller can tell "unmapped" from "mapped to something
+// with no service segment", and fall back rather than treat two unmapped
+// types as sharing one.
+func (r *Roster) ServiceOf(tfType string) (string, bool) {
+	if r == nil {
+		return "", false
+	}
+	svc, ok := r.service[tfType]
+	return svc, ok
+}
+
+// RelatedTypes returns the set of CloudFormation types the schema for
+// tfType's own CFN type declares a relationshipRef to (issue #151), keyed by
+// CFN type name. Empty when the type is unmapped or its schema declares none,
+// which is the overwhelming majority: 26 of 1,683 schemas carry the
+// annotation at the pin this was written against.
+//
+// It is a set rather than a per-property map on purpose. A consumer asking
+// "is this derived parent one AWS declares a relationship to" does not need
+// to know which property carries it, and pairing a Terraform argument to a
+// CloudFormation property name would be a second inference on top of the one
+// being checked.
+func (r *Roster) RelatedTypes(tfType string) map[string]bool {
+	if r == nil {
+		return nil
+	}
+	cfnType, ok := r.CloudControlTypeOrService(tfType)
+	if !ok {
+		return nil
+	}
+	rels := r.relationships[cfnType]
+	if len(rels) == 0 {
+		return nil
+	}
+	out := make(map[string]bool, len(rels))
+	for _, t := range rels {
+		out[t] = true
+	}
+	return out
+}
+
+// CloudControlTypeOrService returns the CFN type tfType maps to under the
+// wider join [Roster.ServiceOf] uses - every mapping row naming a CFN type,
+// including the former2-sourced ones [Roster.CloudControlType] excludes
+// because they are not Cloud Control enumerable.
+//
+// Named for what it is: the CFN type, for a caller that wants identity or
+// relationship facts rather than enumerability.
+func (r *Roster) CloudControlTypeOrService(tfType string) (string, bool) {
+	if r == nil {
+		return "", false
+	}
+	cfn, ok := r.anyCFNType[tfType]
+	return cfn, ok
 }

@@ -40,6 +40,65 @@ type ParentLink struct {
 	Parent string
 }
 
+// ServiceOf reports the CloudFormation service a Terraform type maps to -
+// "EC2" for aws_volume_attachment, via AWS::EC2::VolumeAttachment - and
+// whether the type is mapped at all.
+//
+// Supplied by the caller rather than read here, the same way parents is, and
+// for the same reason: this package touches no artifact and no provider (see
+// the package doc). internal/live/discovery has a *registry.Roster in hand at
+// run time and tools/survey-gen loads the embedded one; both answer the same
+// question from live/mapping.json.
+//
+// A nil ServiceOf, or one reporting ok=false, is not an error. It narrows
+// rule 2 to the weaker Terraform-prefix affinity instead - see
+// sameServiceAffinity.
+type ServiceOf func(tfType string) (string, bool)
+
+// tfServicePrefix is the service segment of a Terraform type name:
+// "prometheus" for aws_prometheus_workspace. Empty for a non-aws_ type,
+// which is every logical type and is why they never satisfy affinity
+// against an AWS one.
+func tfServicePrefix(typeName string) string {
+	if !strings.HasPrefix(typeName, "aws_") {
+		return ""
+	}
+	rest := strings.TrimPrefix(typeName, "aws_")
+	if i := strings.Index(rest, "_"); i >= 0 {
+		return rest[:i]
+	}
+	return rest
+}
+
+// sameServiceAffinity reports whether a candidate parent is close enough to
+// the child for rule 2 to accept it (issue #129).
+//
+// The CloudFormation service is the real test, and it is the one that has to
+// be tried first, because it is the only one that gets aws_volume_attachment
+// -> aws_ebs_volume right: AWS::EC2::VolumeAttachment and AWS::EC2::Volume
+// are one service, while the Terraform names share no prefix at all. A rule
+// built on the Terraform prefix alone would drop that link and then need an
+// exception entry to get it back, which is the shape this whole change
+// exists to avoid.
+//
+// When either side is unmapped - 44 of the untaggable roster's children are,
+// and every logical type is - the Terraform prefix is what is left. It is
+// weaker but not weak: it still refuses aws_autoscaling_group ->
+// aws_api_gateway_domain_name, and it still lets
+// aws_prometheus_alert_manager_definition find aws_prometheus_workspace
+// instead of the shorter aws_grafana_workspace.
+func sameServiceAffinity(child, candidate string, service ServiceOf) bool {
+	if service != nil {
+		childSvc, childOK := service(child)
+		candSvc, candOK := service(candidate)
+		if childOK && candOK {
+			return childSvc == candSvc
+		}
+	}
+	childPrefix := tfServicePrefix(child)
+	return childPrefix != "" && childPrefix == tfServicePrefix(candidate)
+}
+
 // ParentOf reports every parent link typeName's identity Components carry,
 // restricted to the types named true in parents - the caller's answer to
 // "which admitted types are themselves taggable", since a parent that
@@ -71,10 +130,15 @@ type ParentLink struct {
 //     IdentityAttrs, or follows the naming convention in rule 2 for it.
 //  2. Failing that, an individual argument follows the *_id / *_arn / *_url
 //     naming convention against an eligible parent's name on its own
-//     (aws_route's route_table_id, aws_route53_record's zone_id) - the same
-//     rule tools/survey-gen/classify.go's parentRef applies to the whole
-//     provider roster, here narrowed to the admitted, eligible subset and
-//     to the shortest matching parent name.
+//     (aws_route's route_table_id, aws_route53_record's zone_id), AND the
+//     candidate shares the child's service (sameServiceAffinity). The
+//     affinity requirement is issue #129: without it the rule searched every
+//     admitted type and took the shortest name ending in the base, which
+//     made every plain "name" argument resolve to aws_api_gateway_domain_name
+//     and every "resource" one to null_resource. tools/survey-gen's own
+//     parentRef has the same shortest-wins tie-break and says why it is
+//     acceptable there - "the named parent is evidence prose, not a wiring
+//     claim, so a best-effort pick is enough". Discovery acts on this one.
 //
 // A literal identity-attribute match ("arn" naming both a component and an
 // eligible parent's IdentityAttrs) is deliberately never tried against every
@@ -82,7 +146,16 @@ type ParentLink struct {
 // admitted table that picking whichever type happens to sort first would be
 // a guess, not a derivation. It is only used, in rule 1, to confirm the
 // *argument* once the type-name convention has already named the *parent*.
-func ParentOf(typeName string, parents map[string]bool) []ParentLink {
+//
+// A child no rule resolves gets no link, and there is deliberately no
+// per-type table of links to add back. Three real cross-service links are
+// lost that way - aws_networkmanager_customer_gateway_association ->
+// aws_customer_gateway and its two NetworkManager siblings, which reach into
+// AWS::EC2 - and they become counted residue rather than hand-wired rows. A
+// number saying "N untaggable types have no derivable parent" is something
+// to act on; an allowlist of N entries is the same information with the
+// pressure removed.
+func ParentOf(typeName string, parents map[string]bool, service ServiceOf) []ParentLink {
 	self, ok := DefaultTable[typeName]
 	if !ok || self.ServerAssigned || len(self.Components) == 0 {
 		return nil
@@ -102,7 +175,7 @@ func ParentOf(typeName string, parents map[string]bool) []ParentLink {
 	var out []ParentLink
 	for _, c := range self.Components {
 		for _, attr := range c.Attrs {
-			parent, ok := parentByConvention(attr, typeName, parents)
+			parent, ok := parentByConvention(attr, typeName, parents, service)
 			if !ok || seen[parent] {
 				continue
 			}
@@ -128,7 +201,7 @@ func ParentOf(typeName string, parents map[string]bool) []ParentLink {
 // its components does link to a parent: reading the parent answers what the
 // child's parent-half is, not what its other, free-standing half is, so
 // existence still is not fully determined by the parent alone.
-func SingleParentComponent(typeName string, parents map[string]bool) (ParentLink, bool) {
+func SingleParentComponent(typeName string, parents map[string]bool, service ServiceOf) (ParentLink, bool) {
 	self, ok := DefaultTable[typeName]
 	if !ok || self.ServerAssigned {
 		return ParentLink{}, false
@@ -142,7 +215,7 @@ func SingleParentComponent(typeName string, parents map[string]bool) (ParentLink
 	if attrComponents != 1 {
 		return ParentLink{}, false
 	}
-	links := ParentOf(typeName, parents)
+	links := ParentOf(typeName, parents, service)
 	if len(links) != 1 {
 		return ParentLink{}, false
 	}
@@ -294,12 +367,37 @@ func attrFor(self TypeIdentity, parent string) (string, bool) {
 			if p.hasIdentityAttr(attr) {
 				return attr, true
 			}
-			if got, ok := parentByConvention(attr, self.Type, map[string]bool{parent: true}); ok && got == parent {
+			if namesParentByConvention(attr, parent) {
 				return attr, true
 			}
 		}
 	}
 	return "", false
+}
+
+// namesParentByConvention reports whether an argument name follows the
+// *_id / *_arn / *_url convention (or the bare-noun style) for one specific,
+// already-fixed parent.
+//
+// Deliberately not parentByConvention with a one-element map: that function
+// applies service affinity, and affinity has no business here. Rule 1 fixed
+// the parent by the type-name prefix chain, which is a stronger fact than
+// any service test - aws_s3_bucket_policy IS an aws_s3_bucket child by name.
+// This is only asking which of the child's arguments carries the value, and
+// re-litigating the parent would let affinity veto a link the prefix chain
+// proved.
+func namesParentByConvention(attr, parent string) bool {
+	base := attr
+	for _, suf := range []string{"_id", "_arn", "_url"} {
+		if trimmed, ok := strings.CutSuffix(attr, suf); ok {
+			base = trimmed
+			break
+		}
+	}
+	if base == "" {
+		return false
+	}
+	return parent == "aws_"+base || strings.HasSuffix(parent, "_"+base)
 }
 
 // parentByConvention reports the admitted type an argument name follows the
@@ -327,7 +425,7 @@ func attrFor(self TypeIdentity, parent string) (string, bool) {
 // parent link on that argument at all, never aws_security_group or
 // aws_eks_node_group, which only happen to share the "_group" suffix. See
 // [TestParentOfRefusesUnrelatedSuffixMatch].
-func parentByConvention(attr, self string, parents map[string]bool) (string, bool) {
+func parentByConvention(attr, self string, parents map[string]bool, service ServiceOf) (string, bool) {
 	base := attr
 	for _, suf := range []string{"_id", "_arn", "_url"} {
 		if trimmed, ok := strings.CutSuffix(attr, suf); ok {
@@ -341,6 +439,9 @@ func parentByConvention(attr, self string, parents map[string]bool) (string, boo
 
 	if exact := "aws_" + base; exact != self {
 		if _, ok := DefaultTable[exact]; ok {
+			if !sameServiceAffinity(self, exact, service) {
+				return "", false
+			}
 			return exact, parents[exact]
 		}
 	}
@@ -351,6 +452,9 @@ func parentByConvention(attr, self string, parents map[string]bool) (string, boo
 			continue
 		}
 		if !strings.HasSuffix(t, "_"+base) {
+			continue
+		}
+		if !sameServiceAffinity(self, t, service) {
 			continue
 		}
 		if best == "" || len(t) < len(best) || (len(t) == len(best) && t < best) {
