@@ -50,8 +50,10 @@ done
 
 # 3. The cohort corpus size, which two agents disagreed on (657 vs 649).
 grep -rhoE '^resource "aws_[a-z0-9_]+"' live/e2e/estates --include="*.tf" | sort -u | wc -l
-# expect 648 (649 until #125 removed aws_iam_access_key on 2026-08-14); if
-# you get something else, this document's corpus numbers are wrong
+# expect 646 (649 until #125 removed aws_iam_access_key on 2026-08-14; 648
+# until #124's acceptance measurement removed aws_ivs_playback_key_pair and
+# aws_medialive_multiplex_program the same day); if you get something else,
+# this document's corpus numbers are wrong
 
 # 4. The whole live path's refusal count, which two audits guessed at (77, 128)
 #    before it was enumerable.
@@ -60,9 +62,14 @@ go run ./tools/limits-gen   # expect "live/LIMITATIONS.md is already current";
                             # (164 + #70's module-provider-block; #109's removal
                             # and its tombstone error balanced out)
 
-# 5. The cohort acceptance artifact's headline: one cohort round-trips.
+# 5. The cohort acceptance artifact's headline.
 python3 -c "import json; a=json.load(open('live/cohort-acceptance.json')); print(a['totals'])"
-# expect {'cohorts': 31, 'pass': 1, 'fail': 30}; s3 is the pass
+# expect {'cohorts': 31, 'pass': 1, 'fail': 30}; s3 is the recorded pass.
+# aps and media ALSO pass as of 2026-08-14, but only against the floci fork
+# image built from feat/rest-misroute-and-media-services - the artifact
+# records them once that image is published and live/floci-image bumps
+# (see #124's status comment). The ratchet protects passes only after the
+# artifact records them.
 ```
 
 If any of them disagrees with what is written here, trust the code and fix this
@@ -139,7 +146,12 @@ measures the other end of the funnel - not "what refuses" but "what
 round-trips": apply a cohort estate against floci with stock terraform,
 delete the state, `live-plan` from markers, assert empty. First full run:
 **1 of 31 cohorts passes (s3)**, 30 fail at apply, and the failure detail
-per cohort names whether the emulator or the fixture refused. Two things
+per cohort names whether the emulator or the fixture refused. (2026-08-14:
+**aps and media now pass too**, against the floci fork image from
+`feat/rest-misroute-and-media-services` - the artifact records them once
+that image publishes; getting media through took the #47 Cloud Control
+wiring, two emulator features, one fixture override and two measured
+admission removals, all in #124's status comment.) Two things
 it settled on day one: the marker round trip works end to end when the
 fixture applies, and #99's capability probe ("517/517 listable types
 implemented") does not transfer - list-support is not create-support, and
