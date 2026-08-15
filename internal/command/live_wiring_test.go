@@ -30,3 +30,22 @@ func TestResidueWarningWiredIntoEveryLiveEntryPoint(t *testing.T) {
 		}
 	}
 }
+
+// TestCloudControlFallbackWiredIntoDiscovery pins the #47 fallback's command
+// wiring the same way. The engine tolerated a nil client for two issues'
+// worth of commits ("nil Request.CloudControl is 'the fallback does not
+// apply here', not an error"), so deleting this wiring fails no behavioral
+// test that does not also run a live emulator - exactly how the gap survived
+// until #124's media cohort hit it at replan. statelessDiscoverOne is the
+// one site every live entry point's discovery goes through.
+func TestCloudControlFallbackWiredIntoDiscovery(t *testing.T) {
+	src, err := os.ReadFile("live_plan.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"registry.Embedded()", "req.CloudControl = cloudcontrol.New("} {
+		if !strings.Contains(string(src), want) {
+			t.Errorf("live_plan.go no longer contains %q - the Cloud Control fallback (#47) is unwired and every type without a native list resource refuses again", want)
+		}
+	}
+}

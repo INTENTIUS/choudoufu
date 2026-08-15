@@ -26,12 +26,14 @@ import (
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/foreign"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/policy"
+	"github.com/intentius/choudoufu/internal/live/registry"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/stamp"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
@@ -653,9 +655,65 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 	}
 	statelessApplyGuidedDiscovery(config, hintStore, &req)
 
+	// The Cloud Control fallback (issue #47): a type with no native provider
+	// list resource can still be enumerated when its mapped CFN type is
+	// listable. The engine has carried this since #47 landed, but no command
+	// ever constructed the client or the roster, so every run kept the
+	// pre-#47 refusal - found when #124's media cohort cleared apply and
+	// then refused on aws_medialive_multiplex at replan.
+	//
+	// The client is built only when the run names an endpoint override
+	// (AWS_ENDPOINT_URL*, every emulator and acceptance run) or opts in
+	// explicitly for real AWS (cloudControlOptInEnvVar). An unconditional
+	// client turned every offline run into per-type network attempts -
+	// credential-chain IMDS probes plus a real HTTPS call for each
+	// roster-mapped type the mock provider cannot list - which is how the
+	// command package's own unit suite blew its 10-minute timeout the first
+	// time this wiring landed.
+	if ep, on := cloudControlTarget(); on {
+		if roster, err := registry.Embedded(); err != nil {
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Warning,
+				"Cloud Control fallback unavailable",
+				fmt.Sprintf("The embedded mapping/registry artifacts did not parse (%s), so types without a native list resource cannot fall back to Cloud Control enumeration this run.", err),
+			))
+		} else {
+			req.Roster = roster
+			req.CloudControl = cloudcontrol.New(cloudcontrol.Config{
+				Endpoint: ep,
+				Region:   provs.region(providerAddr),
+			})
+		}
+	}
+
 	res, discoDiags := discovery.Discover(ctx, req)
 	diags = diags.Append(discoDiags)
 	return res, diags
+}
+
+// cloudControlOptInEnvVar turns the Cloud Control enumeration fallback on
+// against real AWS, where no endpoint override names a target. Set it to
+// any non-empty value. Endpoint-override runs (emulators, the acceptance
+// tier) need no opt-in - the override itself is the signal that a Cloud
+// Control target exists.
+const cloudControlOptInEnvVar = "TOFU_LIVE_CLOUDCONTROL"
+
+// cloudControlTarget resolves where the Cloud Control fallback client
+// should point, and whether one should exist at all: the SDK's
+// service-specific override first, then the all-services override every
+// emulator run (floci, the acceptance tier) sets, then - only when
+// cloudControlOptInEnvVar opts in - real AWS. The AWS provider resolves
+// its own endpoints from the same variables, so a run pointed at an
+// emulator sends both the provider's list calls and the fallback's to the
+// same place without extra configuration.
+func cloudControlTarget() (endpoint string, on bool) {
+	if v := os.Getenv("AWS_ENDPOINT_URL_CLOUDCONTROL"); v != "" {
+		return v, true
+	}
+	if v := os.Getenv("AWS_ENDPOINT_URL"); v != "" {
+		return v, true
+	}
+	return "", os.Getenv(cloudControlOptInEnvVar) != ""
 }
 
 // guidedDiscoveryDisableEnvVar opts every estate this process plans or

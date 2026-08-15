@@ -28,6 +28,12 @@ const (
 	// defaultRetryMaxDelay caps any single retry's sleep, however many
 	// attempts have already doubled the curve past it.
 	defaultRetryMaxDelay = 5 * time.Second
+
+	// defaultHTTPTimeout bounds one HTTP attempt end to end (see
+	// Config.HTTPTimeout): generous against a slow real-AWS listing of a
+	// large estate, small against the alternative, which is a scan parked
+	// forever on an unresponsive host.
+	defaultHTTPTimeout = 30 * time.Second
 )
 
 // retrySleep waits for d, or returns ctx's error if ctx is canceled or

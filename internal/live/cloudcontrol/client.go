@@ -59,6 +59,12 @@ type Config struct {
 	// http.DefaultTransport.
 	RoundTripper http.RoundTripper
 
+	// HTTPTimeout bounds one HTTP attempt end to end - dial, send, response
+	// body. Zero means defaultHTTPTimeout (30s). Without a bound, one
+	// unresponsive host parks a discovery scan indefinitely: the ctx most
+	// callers pass has no deadline of its own.
+	HTTPTimeout time.Duration
+
 	// Now is the signing clock. Defaults to time.Now; tests inject it for a
 	// reproducible signature and a reproducible region-scope placeholder.
 	Now func() time.Time
@@ -156,7 +162,7 @@ func newClient(cfg Config) *Client {
 		region:               cfg.Region,
 		credentials:          cfg.Credentials,
 		signEndpointOverride: cfg.SignEndpointOverride,
-		httpClient:           &http.Client{Transport: transport},
+		httpClient:           &http.Client{Transport: transport, Timeout: positiveDurationOr(cfg.HTTPTimeout, defaultHTTPTimeout)},
 		now:                  cfg.Now,
 		maxAttempts:          positiveIntOr(cfg.MaxAttempts, defaultMaxAttempts),
 		retryBaseDelay:       positiveDurationOr(cfg.RetryBaseDelay, defaultRetryBaseDelay),
