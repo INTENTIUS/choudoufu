@@ -112,7 +112,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 134,
-      "sites": 354,
+      "sites": 351,
       "unresolved_modules": 17,
       "unset_variables": 4,
       "schemas": true,
@@ -140,7 +140,7 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 13
+            "sites": 10
           },
           {
             "layer": "identity",
@@ -320,7 +320,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 138,
+      "sites": 136,
       "unresolved_modules": 4,
       "unset_variables": 0,
       "schemas": true
@@ -331,7 +331,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 19,
+      "sites": 18,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -343,7 +343,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 14,
-      "sites": 55,
+      "sites": 53,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true
@@ -354,7 +354,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 109,
+      "sites": 107,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true
@@ -365,7 +365,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 200,
+      "sites": 196,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -377,7 +377,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 183,
+      "sites": 181,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true,
@@ -389,7 +389,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 188,
+      "sites": 184,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -401,7 +401,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 184,
+      "sites": 180,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -413,7 +413,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 186,
+      "sites": 182,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -1508,7 +1508,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 13,
-      "sites": 85,
+      "sites": 79,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -1519,7 +1519,7 @@
           {
             "layer": "identity",
             "id": "Attempt to get attribute from null value",
-            "sites": 15
+            "sites": 12
           },
           {
             "layer": "identity",
@@ -1534,7 +1534,7 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 19
+            "sites": 16
           },
           {
             "layer": "identity",
@@ -1619,7 +1619,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 25,
-      "sites": 26,
+      "sites": 25,
       "unresolved_modules": 0,
       "unset_variables": 6,
       "schemas": true,
@@ -1642,11 +1642,6 @@
             "layer": "identity",
             "id": "Two resources with the same identity",
             "sites": 2
-          },
-          {
-            "layer": "identity",
-            "id": "Unable to compute static value",
-            "sites": 1
           },
           {
             "layer": "identity",
@@ -2411,18 +2406,18 @@
       "blocked": true,
       "loaded": true,
       "instances": 59,
-      "sites": 231,
+      "sites": 228,
       "unresolved_modules": 6,
       "unset_variables": 7,
       "schemas": true,
-      "shadowed": 54,
+      "shadowed": 55,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 17
+            "sites": 16
           },
           {
             "layer": "identity",
@@ -2447,7 +2442,7 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 3
+            "sites": 1
           },
           {
             "layer": "identity",
@@ -2841,7 +2836,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 16,
-      "sites": 118,
+      "sites": 112,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -2852,7 +2847,7 @@
           {
             "layer": "identity",
             "id": "Attempt to get attribute from null value",
-            "sites": 15
+            "sites": 12
           },
           {
             "layer": "identity",
@@ -2867,7 +2862,7 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 35
+            "sites": 32
           },
           {
             "layer": "identity",
@@ -3726,7 +3721,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 46,
+      "sites": 44,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3738,7 +3733,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 23,
+      "sites": 21,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3750,7 +3745,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 62,
-      "sites": 386,
+      "sites": 384,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3762,7 +3757,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 25,
+      "sites": 23,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3774,7 +3769,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 23,
-      "sites": 284,
+      "sites": 263,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3786,7 +3781,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 56,
+      "sites": 50,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3798,7 +3793,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 8,
-      "sites": 34,
+      "sites": 31,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3810,7 +3805,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 50,
+      "sites": 48,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3822,7 +3817,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 56,
+      "sites": 52,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3834,7 +3829,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 81,
+      "sites": 73,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3846,7 +3841,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 22,
+      "sites": 20,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3858,7 +3853,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 22,
+      "sites": 20,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3870,7 +3865,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 27,
+      "sites": 25,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -3881,7 +3876,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 23,
+      "sites": 21,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3893,7 +3888,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 23,
+      "sites": 21,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3905,7 +3900,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 23,
+      "sites": 21,
       "unresolved_modules": 5,
       "unset_variables": 0,
       "schemas": true,
@@ -5042,7 +5037,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 68,
+      "sites": 63,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5054,7 +5049,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 25,
+      "sites": 19,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -5065,7 +5060,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 26,
+      "sites": 23,
       "unresolved_modules": 4,
       "unset_variables": 0,
       "schemas": true
@@ -5076,7 +5071,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 28,
+      "sites": 22,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -5087,7 +5082,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 47,
+      "sites": 42,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -5098,7 +5093,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 36,
+      "sites": 32,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true
@@ -5109,7 +5104,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 29,
+      "sites": 25,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -6218,24 +6213,15 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 35,
-      "sites": 40,
+      "instances": 51,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
+      "shadowed": 16,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
-            "sites": 36
-          },
-          {
-            "layer": "identity",
-            "id": "Unable to compute static value",
-            "sites": 2
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -6349,7 +6335,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 8,
-      "sites": 806,
+      "sites": 804,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -6853,8 +6839,8 @@
       "what": "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.",
       "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
       "raised_by": "internal/configs",
-      "configs": 131,
-      "sites": 2336,
+      "configs": 127,
+      "sites": 2231,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:195",
         ".corpus/alb/examples/complete-alb/main.tf:195",
@@ -7746,8 +7732,8 @@
       "what": "Something an identity argument, a count or a for_each depends on could not be computed. It is the trailing half of another refusal: the diagnostic before it names what actually failed, and this one names the chain that led there.",
       "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
       "raised_by": "internal/configs",
-      "configs": 89,
-      "sites": 3674,
+      "configs": 86,
+      "sites": 3539,
       "examples": [
         ".corpus/alb/main.tf:88",
         ".corpus/alb/main.tf:231",
@@ -7765,7 +7751,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"Unresolvable identity\"",
       "raised_by": "internal/live/identity",
       "configs": 74,
-      "sites": 589,
+      "sites": 593,
       "examples": [
         ".corpus/autoscaling/main.tf:1463",
         ".corpus/cool-assessment/operations_routing.tf:21",
@@ -7903,6 +7889,24 @@
         ".corpus/cool-assessment/remote_states.tf:41",
         ".corpus/cool-assessment/remote_states.tf:56",
         ".corpus/cool-assessment/remote_states.tf:71"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Not an identity attribute",
+      "title": "Not an identity attribute",
+      "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
+      "docs_ref": "live/LIMITATIONS.md, \"Not an identity attribute\"",
+      "raised_by": "internal/live/identity",
+      "configs": 32,
+      "sites": 84,
+      "examples": [
+        ".corpus/cyhy-amis/terraform/bod_bastion_route53.tf:17",
+        ".corpus/cyhy-amis/terraform/bod_docker_route53.tf:4",
+        ".corpus/cyhy-amis/terraform/bod_route53.tf:34",
+        ".corpus/cyhy-amis/terraform/bod_route53.tf:46",
+        ".corpus/cyhy-amis/terraform/bod_route53.tf:58"
       ],
       "registered": true
     },
@@ -8048,6 +8052,24 @@
       "registered": true
     },
     {
+      "layer": "identity",
+      "id": "Identity not resolvable from configuration",
+      "title": "Identity not resolvable from configuration",
+      "what": "An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.",
+      "docs_ref": "live/LIMITATIONS.md, \"Identity not resolvable from configuration\"",
+      "raised_by": "internal/live/identity",
+      "configs": 18,
+      "sites": 71,
+      "examples": [
+        ".corpus/autoscaling/main.tf:1116",
+        ".corpus/autoscaling/main.tf:1116",
+        ".corpus/autoscaling/main.tf:1116",
+        ".corpus/cool-assessment/guacamole_route53.tf:33",
+        ".corpus/cool-assessment/private_acl_rules.tf:449"
+      ],
+      "registered": true
+    },
+    {
       "layer": "lint",
       "id": "child-module",
       "title": "This module call cannot be expanded under live resource markers",
@@ -8066,24 +8088,6 @@
     },
     {
       "layer": "identity",
-      "id": "Not an identity attribute",
-      "title": "Not an identity attribute",
-      "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
-      "docs_ref": "live/LIMITATIONS.md, \"Not an identity attribute\"",
-      "raised_by": "internal/live/identity",
-      "configs": 12,
-      "sites": 36,
-      "examples": [
-        ".corpus/cyhy-amis/terraform/bod_bastion_route53.tf:17",
-        ".corpus/cyhy-amis/terraform/bod_docker_route53.tf:4",
-        ".corpus/cyhy-amis/terraform/bod_route53.tf:34",
-        ".corpus/cyhy-amis/terraform/bod_route53.tf:46",
-        ".corpus/cyhy-amis/terraform/bod_route53.tf:58"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
       "id": "Invalid for_each set",
       "title": "Invalid for_each set",
       "what": "A for_each set's element type is not a string.",
@@ -8097,24 +8101,6 @@
         ".corpus/rds/modules/db_instance/main.tf:168",
         ".corpus/rds/modules/db_instance/main.tf:168",
         ".corpus/rds/modules/db_instance/main.tf:168"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
-      "id": "Identity not resolvable from configuration",
-      "title": "Identity not resolvable from configuration",
-      "what": "An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.",
-      "docs_ref": "live/LIMITATIONS.md, \"Identity not resolvable from configuration\"",
-      "raised_by": "internal/live/identity",
-      "configs": 11,
-      "sites": 58,
-      "examples": [
-        ".corpus/autoscaling/main.tf:1116",
-        ".corpus/autoscaling/main.tf:1116",
-        ".corpus/autoscaling/main.tf:1116",
-        ".corpus/cool-assessment/guacamole_route53.tf:33",
-        ".corpus/cool-assessment/private_acl_rules.tf:449"
       ],
       "registered": true
     },
@@ -8158,13 +8144,13 @@
       "docs_ref": "live/LIMITATIONS.md, \"Attempt to get attribute from null value\"",
       "raised_by": "hcl",
       "configs": 2,
-      "sites": 30,
+      "sites": 24,
       "examples": [
         ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:45",
         ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:45",
         ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:77",
         ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:77",
-        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:80"
+        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:82"
       ],
       "registered": true
     },
@@ -9115,8 +9101,8 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 2646,
-    "sites": 14944,
+    "instances": 2662,
+    "sites": 14763,
     "refusals_fired": 28,
     "refusals_in_set": 109,
     "configs_without_schemas": 0,
@@ -9139,8 +9125,8 @@
       "loaded": 144,
       "blocked": 144,
       "clean": 0,
-      "instances": 1547,
-      "sites": 3499,
+      "instances": 1563,
+      "sites": 3442,
       "reads_as": "rate"
     },
     {
@@ -9150,7 +9136,7 @@
       "blocked": 72,
       "clean": 2,
       "instances": 416,
-      "sites": 11437,
+      "sites": 11313,
       "reads_as": "ranking"
     }
   ],
@@ -9173,11 +9159,11 @@
       },
       {
         "class": "admissions-only",
-        "configs": 10
+        "configs": 11
       },
       {
         "class": "language-blocked",
-        "configs": 114
+        "configs": 113
       },
       {
         "class": "unreadable",
