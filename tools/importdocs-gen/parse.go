@@ -479,6 +479,23 @@ func fuzzySegmentMatches(segment string, pool []string) []string {
 			out = append(out, p)
 		}
 	}
+	if len(out) > 0 {
+		return out
+	}
+	// Suffix fallback, only when equality and prefix found nothing: a
+	// format-string segment that spells a longer noun whose tail is the
+	// argument's own name - aws_api_gateway_usage_plan_key's
+	// "USAGE-PLAN-KEY-ID" against the `key_id` argument. The argument must
+	// be the segment's suffix (never the reverse: a short segment
+	// swallowing a long name is coincidence), and suffixes under four
+	// normalized characters are excluded for the same reason the prefix
+	// check excludes short segments - "id" ends nearly every identifier.
+	for _, p := range pool {
+		np := normalize(p)
+		if len(np) >= 4 && len(ns) > len(np) && strings.HasSuffix(ns, np) {
+			out = append(out, p)
+		}
+	}
 	return out
 }
 
@@ -491,14 +508,19 @@ type composedResult struct {
 	Arguments []string
 
 	// ArgumentsInOrder is Arguments' own left-to-right doc order, recovered
-	// only from the format-token signal ("using `REST-API-ID/RESPONSE-
-	// TYPE`") when every segment fuzzy-matches exactly one Argument
-	// Reference name - unlike Arguments (always alphabetized below), this
-	// preserves the order the doc's own prose states the segments in,
-	// independent of whatever the literal example value's own segments
-	// look like. Empty whenever that order could not be recovered
-	// unambiguously (no format token, or an ambiguous/partial segment
-	// match).
+	// from a signal where the doc itself states the order: the format-token
+	// signal ("using `REST-API-ID/RESPONSE-TYPE`") when every segment
+	// fuzzy-matches exactly one Argument Reference name; a separated-by
+	// clause whose backticked tokens all matched arguments ("using the
+	// `server_id` and `user_name` separated by `/`"); a two-token
+	// enumeration of Required arguments ("using `app_id` and
+	// `branch_name`", buildRow); or the identity-block example whose
+	// values, joined in block order, reproduce the documented ID
+	// (identityBlockOrder, buildRow). Unlike Arguments (always alphabetized
+	// below), this preserves the order the doc's own prose states the
+	// segments in, independent of whatever the literal example value's own
+	// segments look like. Empty whenever no source states the order
+	// unambiguously.
 	ArgumentsInOrder []string
 }
 
@@ -543,8 +565,8 @@ func classifyGrammar(section string, argNames []string) composedResult {
 		}
 	}
 
-	sep, clauseArgs, sepOK := separatedByClause(section)
-	clauseArgs = matchNames(clauseArgs, argNames)
+	sep, rawClauseArgs, sepOK := separatedByClause(section)
+	clauseArgs := matchNames(rawClauseArgs, argNames)
 	segs, fmtSep, fmtOK := formatToken(section)
 
 	if result.Composed == nil || *result.Composed {
@@ -553,6 +575,18 @@ func classifyGrammar(section string, argNames []string) composedResult {
 			t := true
 			result.Composed = &t
 			result.Arguments = unionStrings(result.Arguments, clauseArgs)
+			// The clause names its tokens in the doc's own left-to-right
+			// order, and when every one of them matched a real argument
+			// (none dropped by the filter above), that order is the ID's
+			// order - aws_transfer_user's "using the `server_id` and
+			// `user_name` separated by `/`". A partial match (Connect's
+			// "`instance_id` and `queue_id`", where queue_id is no
+			// argument) proves nothing about the whole ID and sets no
+			// order.
+			if len(clauseArgs) >= 2 && len(clauseArgs) == len(rawClauseArgs) &&
+				len(dedupeStrings(clauseArgs)) == len(clauseArgs) && result.ArgumentsInOrder == nil {
+				result.ArgumentsInOrder = append([]string(nil), clauseArgs...)
+			}
 		case fmtOK && len(segs) >= 2:
 			t := true
 			result.Composed = &t
@@ -616,6 +650,126 @@ func classifyGrammar(section string, argNames []string) composedResult {
 	return result
 }
 
+// usingEnumRe matches the two-token enumeration idiom, with an optional
+// parenthesized aside after the first token: "using `app_id` and
+// `branch_name`", "using the `CATALOG-ID` (AWS account ID if not custom)
+// and `NAME`".
+var usingEnumRe = regexp.MustCompile("(?i)using\\s+(?:the\\s+)?`([^`\n]+)`\\s*(?:\\([^)]*\\))?,?\\s+and\\s+(?:the\\s+)?`([^`\n]+)`")
+
+// enumeratedTokens returns the backticked segment names an Import
+// sentence's "X and Y" enumeration lists, in the doc's own order - the
+// idiom docs use when they name every segment but state no separator
+// (aws_amplify_branch's "using `app_id` and `branch_name`", whose "/" only
+// ever appears in the example value). Tokens that are themselves
+// multi-segment format strings are formatToken's business and produce
+// nothing here.
+func enumeratedTokens(section string) []string {
+	m := usingEnumRe.FindStringSubmatch(section)
+	if m == nil {
+		return nil
+	}
+	for _, tok := range m[1:] {
+		if _, _, ok := splitSegments(tok); ok {
+			return nil
+		}
+	}
+	return []string{m[1], m[2]}
+}
+
+// enumeratedRequiredArguments resolves an enumeration to argument names:
+// every token must land on a REQUIRED Argument Reference entry by
+// normalized-exact match. Required-only is the same discipline
+// resolvePlainWords holds and for the same reason: an Optional argument in
+// a composite is usually a server-defaulted value the ratified rows model
+// as a slot, not a component (aws_glue_connection's catalog_id, which
+// defaults to the account ID). Returns the arguments in the enumeration's
+// own order.
+func enumeratedRequiredArguments(section string, args []ArgumentRefEntry) ([]string, bool) {
+	tokens := enumeratedTokens(section)
+	if len(tokens) < 2 {
+		return nil, false
+	}
+	var required []string
+	for _, a := range args {
+		if a.Required {
+			required = append(required, a.Name)
+		}
+	}
+	out := make([]string, len(tokens))
+	for i, tok := range tokens {
+		matched := matchNames([]string{tok}, required)
+		if len(matched) != 1 {
+			return nil, false
+		}
+		// matchNames returns the token's spelling; recover the argument's.
+		n := normalize(tok)
+		for _, r := range required {
+			if normalize(r) == n {
+				out[i] = r
+				break
+			}
+		}
+	}
+	if len(dedupeStrings(out)) != len(out) {
+		return nil, false
+	}
+	return out, true
+}
+
+// identityBlockPairRe matches one attribute assignment inside an import
+// block's identity sub-block (four-space indent, per blockImportIDRe's
+// boundary; the key is occasionally quoted, as aws_sns_topic's
+// `"arn" = "..."` is).
+var identityBlockPairRe = regexp.MustCompile(`(?m)^    "?([A-Za-z0-9_]+)"?\s*=\s*"([^"]*)"\s*$`)
+
+// identityBlockOrder recovers a composite's argument order from the doc's
+// own two example forms shown side by side: the Terraform 1.12+ identity
+// block names each attribute with a literal value, and the legacy plain-id
+// example joins those same literal values. When the identity block's
+// values, joined in the block's own order by the resolved separator,
+// reproduce the legacy `id = "..."` string exactly, that order is proven
+// by value equality rather than guessed - aws_route53_record's
+//
+//	identity = { zone_id = "Z4KAPRWWNC7JR"  name = "dev.example.com"  type = "NS" }
+//	id = "Z4KAPRWWNC7JR_dev.example.com_NS"
+//
+// where no segment of the opaque example values echoes its argument's name,
+// so every token-matching pass necessarily declines.
+func identityBlockOrder(section, sep string, argNames []string) ([]string, bool) {
+	idx := strings.Index(section, "identity = {")
+	if idx == -1 {
+		return nil, false
+	}
+	rest := section[idx:]
+	if end := strings.Index(rest, "}"); end != -1 {
+		rest = rest[:end]
+	}
+	pairs := identityBlockPairRe.FindAllStringSubmatch(rest, -1)
+	if len(pairs) < 2 {
+		return nil, false
+	}
+	blockID, ok := "", false
+	if m := blockImportIDRe.FindStringSubmatch(section); m != nil {
+		blockID, ok = m[1], true
+	}
+	if !ok {
+		return nil, false
+	}
+	keys := make([]string, len(pairs))
+	values := make([]string, len(pairs))
+	for i, p := range pairs {
+		keys[i] = p[1]
+		values[i] = p[2]
+	}
+	if strings.Join(values, sep) != blockID {
+		return nil, false
+	}
+	if len(matchNames(keys, argNames)) != len(keys) {
+		return nil, false // an identity attribute that is no argument is not a component order
+	}
+	return keys, true
+}
+
 // IDPart is one segment of the documented import ID as the Import section's
 // own prose names it, attributed back to the section of the doc that owns
 // the name (issue #132's per-segment source attribution: the exit for the
@@ -670,6 +824,8 @@ func idParts(section string, sep *string, example string, argNames, attrNames []
 	if !ok {
 		if _, clause, clauseOK := separatedByClause(section); clauseOK && len(clause) >= 2 {
 			tokens = clause
+		} else {
+			tokens = enumeratedTokens(section)
 		}
 	}
 	if len(tokens) < 2 {
@@ -717,6 +873,26 @@ func unionStrings(a, b []string) []string {
 		}
 	}
 	return out
+}
+
+// subsetOf reports whether every string in a is also in b.
+func subsetOf(a, b []string) bool {
+	set := map[string]bool{}
+	for _, s := range b {
+		set[s] = true
+	}
+	for _, s := range a {
+		if !set[s] {
+			return false
+		}
+	}
+	return true
+}
+
+// sameSet reports whether a and b contain exactly the same strings,
+// ignoring order.
+func sameSet(a, b []string) bool {
+	return len(a) == len(b) && subsetOf(a, b) && subsetOf(b, a)
 }
 
 func dedupeStrings(in []string) []string {

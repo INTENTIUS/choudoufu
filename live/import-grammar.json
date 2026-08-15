@@ -218,6 +218,10 @@
           "name": "title",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "account_id",
+        "alternate_contact_type"
       ]
     },
     {
@@ -1002,7 +1006,8 @@
       "separator": "/",
       "composed_of_arguments": true,
       "arguments": [
-        "app_id"
+        "app_id",
+        "environment_name"
       ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Amplify backend environment using `app_id` and `environment_name`. For example:\n\n```terraform\nimport {\n  to = aws_amplify_backend_environment.example\n  id = \"d2ypk4k47z8u6/example\"\n}\n```\n\nUsing `terraform import`, import Amplify backend environment using `app_id` and `environment_name`. For example:\n\n```console\n% terraform import aws_amplify_backend_environment.example d2ypk4k47z8u6/example\n```",
       "example_arguments": [
@@ -1052,6 +1057,20 @@
           "name": "stack_name",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "app_id",
+        "environment_name"
+      ],
+      "id_parts": [
+        {
+          "token": "app_id",
+          "source": "argument"
+        },
+        {
+          "token": "environment_name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -1060,7 +1079,8 @@
       "separator": "/",
       "composed_of_arguments": true,
       "arguments": [
-        "app_id"
+        "app_id",
+        "branch_name"
       ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Amplify branch using `app_id` and `branch_name`. For example:\n\n```terraform\nimport {\n  to = aws_amplify_branch.master\n  id = \"d2ypk4k47z8u6/master\"\n}\n```\n\nUsing `terraform import`, import Amplify branch using `app_id` and `branch_name`. For example:\n\n```console\n% terraform import aws_amplify_branch.master d2ypk4k47z8u6/master\n```",
       "example_arguments": [
@@ -1166,6 +1186,20 @@
           "name": "ttl",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "app_id",
+        "branch_name"
+      ],
+      "id_parts": [
+        {
+          "token": "app_id",
+          "source": "argument"
+        },
+        {
+          "token": "branch_name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -1174,7 +1208,8 @@
       "separator": "/",
       "composed_of_arguments": true,
       "arguments": [
-        "app_id"
+        "app_id",
+        "domain_name"
       ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Amplify domain association using `app_id` and `domain_name`. For example:\n\n```terraform\nimport {\n  to = aws_amplify_domain_association.app\n  id = \"d2ypk4k47z8u6/example.com\"\n}\n```\n\nUsing `terraform import`, import Amplify domain association using `app_id` and `domain_name`. For example:\n\n```console\n% terraform import aws_amplify_domain_association.app d2ypk4k47z8u6/example.com\n```",
       "example_arguments": [
@@ -1249,6 +1284,20 @@
         {
           "name": "prefix",
           "required": true
+        }
+      ],
+      "arguments_in_doc_order": [
+        "app_id",
+        "domain_name"
+      ],
+      "id_parts": [
+        {
+          "token": "app_id",
+          "source": "argument"
+        },
+        {
+          "token": "domain_name",
+          "source": "argument"
         }
       ]
     },
@@ -2946,6 +2995,7 @@
       "separator": "/",
       "composed_of_arguments": true,
       "arguments": [
+        "key_id",
         "usage_plan_id"
       ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import AWS API Gateway Usage Plan Key using the `USAGE-PLAN-ID/USAGE-PLAN-KEY-ID`. For example:\n\n```terraform\nimport {\n  to = aws_api_gateway_usage_plan_key.key\n  id = \"12345abcde/zzz\"\n}\n```\n\nUsing `terraform import`, import AWS API Gateway Usage Plan Key using the `USAGE-PLAN-ID/USAGE-PLAN-KEY-ID`. For example:\n\n```console\n% terraform import aws_api_gateway_usage_plan_key.key 12345abcde/zzz\n```",
@@ -2976,6 +3026,10 @@
           "name": "usage_plan_id",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "usage_plan_id",
+        "key_id"
       ],
       "id_parts": [
         {
@@ -3633,6 +3687,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "api_id",
+          "source": "argument"
+        },
+        {
+          "token": "id",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -5125,7 +5189,8 @@
       "separator": "/",
       "composed_of_arguments": true,
       "arguments": [
-        "mesh_name"
+        "mesh_name",
+        "virtual_gateway_name"
       ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import App Mesh gateway routes using `mesh_name` and `virtual_gateway_name` together with the gateway route's `name`. For example:\n\n```terraform\nimport {\n  to = aws_appmesh_gateway_route.example\n  id = \"mesh/gw1/example-gateway-route\"\n}\n```\n\nUsing `terraform import`, import App Mesh gateway routes using `mesh_name` and `virtual_gateway_name` together with the gateway route's `name`. For example:\n\n```console\n% terraform import aws_appmesh_gateway_route.example mesh/gw1/example-gateway-route\n```",
       "example_arguments": [
@@ -5185,6 +5250,10 @@
           "name": "virtual_gateway_name",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "mesh_name",
+        "virtual_gateway_name"
       ]
     },
     {
@@ -5230,7 +5299,8 @@
       "separator": "/",
       "composed_of_arguments": true,
       "arguments": [
-        "mesh_name"
+        "mesh_name",
+        "virtual_router_name"
       ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import App Mesh virtual routes using `mesh_name` and `virtual_router_name` together with the route's `name`. For example:\n\n```terraform\nimport {\n  to = aws_appmesh_route.serviceb\n  id = \"simpleapp/serviceB/serviceB-route\"\n}\n```\n\nUsing `terraform import`, import App Mesh virtual routes using `mesh_name` and `virtual_router_name` together with the route's `name`. For example:\n\n```console\n% terraform import aws_appmesh_route.serviceb simpleapp/serviceB/serviceB-route\n```",
       "example_arguments": [
@@ -5304,6 +5374,10 @@
           "name": "virtual_router_name",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "mesh_name",
+        "virtual_router_name"
       ]
     },
     {
@@ -5722,6 +5796,10 @@
           "name": "service_arn",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "domain_name",
+        "service_arn"
       ],
       "id_parts": [
         {
@@ -6291,6 +6369,10 @@
           "required": true
         }
       ],
+      "arguments_in_doc_order": [
+        "fleet_name",
+        "stack_name"
+      ],
       "id_parts": [
         {
           "token": "fleet_name",
@@ -6733,6 +6815,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "user_name",
+        "authentication_type"
+      ],
       "id_parts": [
         {
           "token": "user_name",
@@ -6776,6 +6862,11 @@
           "name": "send_email_notification",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "user_name",
+        "authentication_type",
+        "stack_name"
       ],
       "id_parts": [
         {
@@ -7021,6 +7112,10 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "api_id",
+        "name"
       ],
       "id_parts": [
         {
@@ -8073,6 +8168,7 @@
       "separator": "/",
       "composed_of_arguments": true,
       "arguments": [
+        "name",
         "workgroup"
       ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Athena Prepared Statement using the `WORKGROUP-NAME/STATEMENT-NAME`. For example:\n\n```terraform\nimport {\n  to = aws_athena_prepared_statement.example\n  id = \"12345abcde/example\"\n}\n```\n\nUsing `terraform import`, import Athena Prepared Statement using the `WORKGROUP-NAME/STATEMENT-NAME`. For example:\n\n```console\n% terraform import aws_athena_prepared_statement.example 12345abcde/example \n```",
@@ -8107,6 +8203,10 @@
           "name": "description",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "workgroup",
+        "name"
       ],
       "id_parts": [
         {
@@ -9158,6 +9258,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "autoscaling_group_name",
+        "name"
+      ],
       "identity_schema_required": [
         "autoscaling_group_name",
         "name"
@@ -9301,6 +9405,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "autoscaling_group_name",
+        "name"
+      ],
       "identity_schema_required": [
         "autoscaling_group_name",
         "name"
@@ -9418,6 +9526,10 @@
           "name": "time_zone",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "autoscaling_group_name",
+        "scheduled_action_name"
       ],
       "identity_schema_required": [
         "autoscaling_group_name",
@@ -12642,7 +12754,8 @@
       "separator": ",",
       "composed_of_arguments": true,
       "arguments": [
-        "agent_runtime_id"
+        "agent_runtime_id",
+        "name"
       ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Bedrock AgentCore Agent Runtime Endpoint using the `agent_runtime_id` and `name` separated by a comma. For example:\n\n```terraform\nimport {\n  to = aws_bedrockagentcore_agent_runtime_endpoint.example\n  id = \"AGENTRUNTIME1234567890,example-endpoint\"\n}\n```\n\nUsing `terraform import`, import Bedrock AgentCore Agent Runtime Endpoint using the `agent_runtime_id` and `name` separated by a comma. For example:\n\n```console\n% terraform import aws_bedrockagentcore_agent_runtime_endpoint.example AGENTRUNTIME1234567890,example-endpoint\n```",
       "example_arguments": [
@@ -12687,6 +12800,20 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "arguments_in_doc_order": [
+        "agent_runtime_id",
+        "name"
+      ],
+      "id_parts": [
+        {
+          "token": "agent_runtime_id",
+          "source": "argument"
+        },
+        {
+          "token": "name",
+          "source": "argument"
         }
       ]
     },
@@ -14138,6 +14265,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "policy_engine_id",
+          "source": "argument"
+        },
+        {
+          "token": "policy_id",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -14384,7 +14521,8 @@
       "separator": ":",
       "composed_of_arguments": true,
       "arguments": [
-        "account_id"
+        "account_id",
+        "name"
       ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import budgets using `AccountID:BudgetName`. For example:\n\n```terraform\nimport {\n  to = aws_budgets_budget.myBudget\n  id = \"123456789012:myBudget\"\n}\n```\n\nUsing `terraform import`, import budgets using `AccountID:BudgetName`. For example:\n\n```console\n% terraform import aws_budgets_budget.myBudget 123456789012:myBudget\n```",
       "example_arguments": [
@@ -14550,6 +14688,10 @@
           "name": "time_period_start",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "account_id",
+        "name"
       ],
       "id_parts": [
         {
@@ -16383,6 +16525,10 @@
           "name": "template_url",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "name",
+        "call_as"
       ]
     },
     {
@@ -18614,6 +18760,10 @@
           "required": true
         }
       ],
+      "arguments_in_doc_order": [
+        "key_value_store_arn",
+        "key"
+      ],
       "identity_schema_required": [
         "key_value_store_arn",
         "key"
@@ -19387,6 +19537,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "resource_arn",
+        "template_name"
+      ],
       "identity_schema_required": [
         "resource_arn",
         "template_name"
@@ -20094,6 +20248,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "event_bus_name",
+        "name"
+      ],
       "identity_schema_required": [
         "name"
       ],
@@ -20308,6 +20466,10 @@
           "name": "selection_criteria",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "policy_name",
+        "policy_type"
       ],
       "identity_schema_required": [
         "policy_name",
@@ -20917,6 +21079,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "log_group_name",
+        "name"
+      ],
       "identity_schema_required": [
         "log_group_name",
         "name"
@@ -21111,6 +21277,10 @@
           "required": true
         }
       ],
+      "arguments_in_doc_order": [
+        "log_group_name",
+        "name"
+      ],
       "identity_schema_required": [
         "log_group_name",
         "name"
@@ -21211,6 +21381,10 @@
           "name": "role_arn",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "log_group_name",
+        "name"
       ],
       "identity_schema_required": [
         "log_group_name",
@@ -22707,6 +22881,10 @@
           "name": "repository_name",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "approval_rule_template_name",
+        "repository_name"
       ],
       "id_parts": [
         {
@@ -25105,6 +25283,10 @@
           "required": true
         }
       ],
+      "arguments_in_doc_order": [
+        "user_pool_id",
+        "client_id"
+      ],
       "id_parts": [
         {
           "token": "user_pool_id",
@@ -26956,6 +27138,10 @@
           "required": true
         }
       ],
+      "arguments_in_doc_order": [
+        "instance_id",
+        "function_arn"
+      ],
       "id_parts": [
         {
           "token": "instance_id",
@@ -27062,6 +27248,11 @@
           "name": "region",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "phone_number_id",
+        "instance_id",
+        "contact_flow_id"
       ],
       "id_parts": [
         {
@@ -29944,6 +30135,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "domain_id",
+        "environment_blueprint_id"
+      ],
       "identity_schema_required": [
         "domain_id",
         "environment_blueprint_id"
@@ -31717,6 +31912,10 @@
           "required": false,
           "force_new": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "db_proxy_name",
+        "target_group_name"
       ]
     },
     {
@@ -36759,6 +36958,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "table_name",
+        "index_name"
+      ],
       "identity_schema_required": [
         "index_name",
         "table_name"
@@ -36766,6 +36969,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "table_name",
+          "source": "argument"
+        },
+        {
+          "token": "index_name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -36859,6 +37072,10 @@
           "name": "table_name",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "table_name",
+        "stream_arn"
       ],
       "id_parts": [
         {
@@ -37315,7 +37532,9 @@
       "import_id_example": "TestTable:us-west-2",
       "separator": ":",
       "composed_of_arguments": true,
-      "arguments": null,
+      "arguments": [
+        "region"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import DynamoDB table replicas using the `table-name:main-region`. For example:\n\n~> **Note:** When importing, use the region where the initial or _main_ global table resides, _not_ the region of the replica.\n\n```terraform\nimport {\n  to = aws_dynamodb_table_replica.example\n  id = \"TestTable:us-west-2\"\n}\n```\n\nUsing `terraform import`, import DynamoDB table replicas using the `table-name:main-region`. For example:\n\n~> **Note:** When importing, use the region where the initial or _main_ global table resides, _not_ the region of the replica.\n\n```console\n% terraform import aws_dynamodb_table_replica.example TestTable:us-west-2\n```",
       "argument_reference": [
         {
@@ -37484,6 +37703,10 @@
           "name": "snapshot_id",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "availability_zone",
+        "snapshot_id"
       ],
       "id_parts": [
         {
@@ -38666,6 +38889,10 @@
           "name": "prefix_list_id",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "prefix_list_id",
+        "cidr"
       ],
       "id_parts": [
         {
@@ -42003,6 +42230,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "cluster_name",
+        "principal_arn"
+      ],
       "identity_schema_required": [
         "cluster_name",
         "principal_arn"
@@ -42143,6 +42374,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "cluster_name",
+        "addon_name"
+      ],
       "identity_schema_required": [
         "cluster_name",
         "addon_name"
@@ -42250,6 +42485,10 @@
           "name": "type",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "cluster_name",
+        "capability_name"
       ],
       "identity_schema_required": [
         "cluster_name",
@@ -42464,6 +42703,10 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "cluster_name",
+        "fargate_profile_name"
       ],
       "identity_schema_required": [
         "cluster_name",
@@ -42693,6 +42936,10 @@
           "name": "warm_pool_config",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "cluster_name",
+        "node_group_name"
       ],
       "identity_schema_required": [
         "cluster_name",
@@ -43886,7 +44133,8 @@
       "separator": ",",
       "composed_of_arguments": true,
       "arguments": [
-        "user_group_id"
+        "user_group_id",
+        "user_id"
       ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import ElastiCache user group associations using the `user_group_id` and `user_id`. For example:\n\n```terraform\nimport {\n  to = aws_elasticache_user_group_association.example\n  id = \"userGoupId1,userId\"\n}\n```\n\nUsing `terraform import`, import ElastiCache user group associations using the `user_group_id` and `user_id`. For example:\n\n```console\n% terraform import aws_elasticache_user_group_association.example userGoupId1,userId\n```",
       "argument_reference": [
@@ -43901,6 +44149,20 @@
         {
           "name": "user_id",
           "required": true
+        }
+      ],
+      "arguments_in_doc_order": [
+        "user_group_id",
+        "user_id"
+      ],
+      "id_parts": [
+        {
+          "token": "user_group_id",
+          "source": "argument"
+        },
+        {
+          "token": "user_id",
+          "source": "argument"
         }
       ]
     },
@@ -50144,6 +50406,16 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "CATALOG-ID",
+          "source": "argument"
+        },
+        {
+          "token": "NAME",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -51219,7 +51491,8 @@
       "composed_of_arguments": true,
       "arguments": [
         "catalog_id",
-        "database_name"
+        "database_name",
+        "name"
       ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Glue User Defined Functions using the `catalog_id:database_name:function_name`. If you have not set a Catalog ID specify the AWS Account ID that the database is in. For example:\n\n```terraform\nimport {\n  to = aws_glue_user_defined_function.func\n  id = \"123456789012:my_database:my_func\"\n}\n```\n\nUsing `terraform import`, import Glue User Defined Functions using the `catalog_id:database_name:function_name`. If you have not set a Catalog ID specify the AWS Account ID that the database is in. For example:\n\n```console\n% terraform import aws_glue_user_defined_function.func 123456789012:my_database:my_func\n```",
       "example_arguments": [
@@ -51305,6 +51578,11 @@
           "name": "resource_uris",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "catalog_id",
+        "database_name",
+        "name"
       ],
       "id_parts": [
         {
@@ -52501,6 +52779,10 @@
           "required": true
         }
       ],
+      "arguments_in_doc_order": [
+        "group",
+        "policy_arn"
+      ],
       "identity_schema_required": [
         "group",
         "policy_arn"
@@ -52862,6 +53144,10 @@
           "required": true
         }
       ],
+      "arguments_in_doc_order": [
+        "role",
+        "name"
+      ],
       "identity_schema_required": [
         "role",
         "name"
@@ -52899,6 +53185,10 @@
           "name": "policy_arn",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "role",
+        "policy_arn"
       ],
       "identity_schema_required": [
         "role",
@@ -53343,6 +53633,10 @@
           "name": "policy_arn",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "user",
+        "policy_arn"
       ],
       "identity_schema_required": [
         "user",
@@ -57019,6 +57313,10 @@
           "required": true
         }
       ],
+      "arguments_in_doc_order": [
+        "keyspace_name",
+        "table_name"
+      ],
       "id_parts": [
         {
           "token": "keyspace_name",
@@ -59435,6 +59733,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "function_name",
+        "qualifier"
+      ],
       "identity_schema_required": [
         "function_name",
         "qualifier"
@@ -59723,6 +60025,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "layer_name",
+        "version_number"
+      ],
       "id_parts": [
         {
           "token": "layer_name",
@@ -59832,6 +60138,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "function_name",
+        "statement_id"
+      ],
       "identity_schema_required": [
         "function_name",
         "statement_id"
@@ -59882,6 +60192,10 @@
           "name": "skip_destroy",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "function_name",
+        "qualifier"
       ],
       "id_parts": [
         {
@@ -61077,6 +61391,12 @@
           "name": "quic_server_id",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "target_group_arn",
+        "target_id",
+        "port",
+        "availability_zone"
       ],
       "identity_schema_required": [
         "target_group_arn",
@@ -66769,7 +67089,8 @@
       "separator": ",",
       "composed_of_arguments": true,
       "arguments": [
-        "cluster_arn"
+        "cluster_arn",
+        "secret_arn"
       ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import an MSK SCRAM Secret Association using the `cluster_arn` and `secret_arn`. For example:\n\n```terraform\nimport {\n  to = aws_msk_single_scram_secret_association.example\n  id = \"arn:aws:kafka:us-west-2:123456789012:cluster/example/279c0212-d057-4dba-9aa9-1c4e5a25bfc7-3,arn:aws:secretsmanager:us-east-1:123456789012:secret:example-123456\"\n}\n```\n\nUsing `terraform import`, import an MSK SCRAM Secret Association using the `cluster_arn` and `secret_arn`. For example:\n\n```console\n% terraform import aws_msk_single_scram_secret_association.example arn:aws:kafka:us-west-2:123456789012:cluster/example/279c0212-d057-4dba-9aa9-1c4e5a25bfc7-3,arn:aws:secretsmanager:us-east-1:123456789012:secret:example-123456\n```",
       "argument_reference": [
@@ -66786,6 +67107,20 @@
           "name": "secret_arn",
           "required": true,
           "force_new": true
+        }
+      ],
+      "arguments_in_doc_order": [
+        "cluster_arn",
+        "secret_arn"
+      ],
+      "id_parts": [
+        {
+          "token": "cluster_arn",
+          "source": "argument"
+        },
+        {
+          "token": "secret_arn",
+          "source": "argument"
         }
       ]
     },
@@ -66857,6 +67192,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "cluster_arn",
+        "name"
+      ],
       "identity_schema_required": [
         "cluster_arn",
         "name"
@@ -66864,6 +67203,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "cluster_arn",
+          "source": "argument"
+        },
+        {
+          "token": "name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -68299,6 +68648,10 @@
           "name": "vpc_security_group_ids",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "graph_identifier",
+        "vpc_id"
       ],
       "identity_schema_required": [
         "graph_identifier",
@@ -70030,6 +70383,10 @@
           "required": true,
           "force_new": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "core_network_id",
+        "prefix_list_arn"
       ],
       "identity_schema_required": [
         "core_network_id",
@@ -71896,6 +72253,7 @@
       "separator": ",",
       "composed_of_arguments": true,
       "arguments": [
+        "account",
         "domain_name"
       ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import OpenSearch Authorize Vpc Endpoint Access using the `domain_name` and `account` separated by a comma (,). For example:\n\n```terraform\nimport {\n  to = aws_opensearch_authorize_vpc_endpoint_access.example\n  id = \"authorize_vpc_endpoint_access-id-12345678,123456789012\"\n}\n```\n\nUsing `terraform import`, import OpenSearch Authorize Vpc Endpoint Access using the `domain_name` and `account` separated by a comma (,). For example:\n\n```console\n% terraform import aws_opensearch_authorize_vpc_endpoint_access.example authorize_vpc_endpoint_access-id-12345678,123456789012\n```",
@@ -71911,6 +72269,20 @@
         {
           "name": "region",
           "required": false
+        }
+      ],
+      "arguments_in_doc_order": [
+        "domain_name",
+        "account"
+      ],
+      "id_parts": [
+        {
+          "token": "domain_name",
+          "source": "argument"
+        },
+        {
+          "token": "account",
+          "source": "argument"
         }
       ]
     },
@@ -72366,6 +72738,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "name",
+        "type"
+      ],
       "identity_schema_required": [
         "name",
         "type"
@@ -72604,6 +72980,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "name",
+        "type"
+      ],
       "identity_schema_required": [
         "name",
         "type"
@@ -72750,6 +73130,10 @@
           "name": "description",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "name",
+        "type"
       ],
       "identity_schema_required": [
         "name",
@@ -73407,6 +73791,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "outpost_identifier",
+          "source": "argument"
+        },
+        {
+          "token": "capacity_task_id",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -74267,6 +74661,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "configuration_set_name",
+        "event_destination_name"
+      ],
       "identity_schema_required": [
         "configuration_set_name",
         "event_destination_name"
@@ -74274,6 +74672,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "configuration_set_name",
+          "source": "argument"
+        },
+        {
+          "token": "event_destination_name",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -74563,6 +74971,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "sender_id",
+        "iso_country_code"
+      ],
       "identity_schema_required": [
         "sender_id",
         "iso_country_code"
@@ -74570,6 +74982,16 @@
       "identity_schema_optional": [
         "account_id",
         "region"
+      ],
+      "id_parts": [
+        {
+          "token": "sender_id",
+          "source": "argument"
+        },
+        {
+          "token": "iso_country_code",
+          "source": "argument"
+        }
       ]
     },
     {
@@ -77947,6 +78369,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "engine",
+        "engine_version"
+      ],
       "id_parts": [
         {
           "token": "engine",
@@ -79844,6 +80270,7 @@
       "separator": ",",
       "composed_of_arguments": true,
       "arguments": [
+        "custom_domain_name",
         "workgroup_name"
       ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Redshift Serverless Custom Domain Association using the `workgroup_name` and `custom_domain_name`, separated by the coma. For example:\n\n```terraform\nimport {\n  to = aws_redshiftserverless_custom_domain_association.example\n  id = \"example-workgroup,example.com\"\n}\n```\n\nUsing `terraform import`, import Redshift Serverless Custom Domain Association using the `workgroup_name` and `custom_domain_name`, separated by the coma. For example:\n\n```console\n% terraform import aws_redshiftserverless_custom_domain_association.example example-workgroup,example.com\n```",
@@ -79873,6 +80300,20 @@
         {
           "name": "custom_domain_certificate_arn",
           "required": true
+        }
+      ],
+      "arguments_in_doc_order": [
+        "workgroup_name",
+        "custom_domain_name"
+      ],
+      "id_parts": [
+        {
+          "token": "workgroup_name",
+          "source": "argument"
+        },
+        {
+          "token": "custom_domain_name",
+          "source": "argument"
         }
       ]
     },
@@ -80905,6 +81346,10 @@
           "required": true
         }
       ],
+      "arguments_in_doc_order": [
+        "group_arn",
+        "resource_arn"
+      ],
       "id_parts": [
         {
           "token": "group_arn",
@@ -81541,6 +81986,11 @@
           "name": "allow_overwrite",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "zone_id",
+        "name",
+        "type"
       ],
       "identity_schema_required": [
         "zone_id",
@@ -82249,6 +82699,16 @@
           "name": "comment",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "id",
+          "source": "attribute"
+        },
+        {
+          "token": "version",
+          "source": "attribute"
+        }
       ]
     },
     {
@@ -82339,6 +82799,10 @@
           "name": "vpc_region",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "zone_id",
+        "vpc_id"
       ],
       "identity_schema_required": [
         "zone_id",
@@ -83604,6 +84068,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "account_id",
+        "name"
+      ],
       "id_parts": [
         {
           "token": "account_id",
@@ -83814,6 +84282,10 @@
           "name": "region",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "bucket",
+        "expected_bucket_owner"
       ]
     },
     {
@@ -83855,6 +84327,10 @@
           "name": "status",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "bucket",
+        "expected_bucket_owner"
       ]
     },
     {
@@ -83900,6 +84376,10 @@
           "name": "region",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "bucket",
+        "acl"
       ],
       "identity_schema_required": [
         "bucket"
@@ -83999,6 +84479,10 @@
           "name": "region",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "bucket",
+        "expected_bucket_owner"
       ],
       "identity_schema_required": [
         "bucket"
@@ -84244,6 +84728,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "bucket",
+        "expected_bucket_owner"
+      ],
       "identity_schema_required": [
         "bucket"
       ],
@@ -84312,6 +84800,10 @@
           "name": "target_prefix",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "bucket",
+        "expected_bucket_owner"
       ],
       "identity_schema_required": [
         "bucket"
@@ -84624,6 +85116,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "bucket",
+        "key"
+      ],
       "identity_schema_required": [
         "bucket",
         "key"
@@ -84690,6 +85186,10 @@
           "name": "token",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "bucket",
+        "expected_bucket_owner"
       ]
     },
     {
@@ -84949,6 +85449,10 @@
           "name": "region",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "bucket",
+        "expected_bucket_owner"
       ]
     },
     {
@@ -84992,6 +85496,10 @@
           "name": "rule",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "bucket",
+        "expected_bucket_owner"
       ],
       "identity_schema_required": [
         "bucket"
@@ -85044,6 +85552,10 @@
           "name": "versioning_configuration",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "bucket",
+        "expected_bucket_owner"
       ],
       "identity_schema_required": [
         "bucket"
@@ -85134,6 +85646,10 @@
           "name": "routing_rules",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "bucket",
+        "expected_bucket_owner"
       ],
       "identity_schema_required": [
         "bucket"
@@ -85349,6 +85865,10 @@
           "name": "website_redirect",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "bucket",
+        "key"
       ],
       "identity_schema_required": [
         "bucket",
@@ -85927,6 +86447,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "account_id",
+        "name"
+      ],
       "id_parts": [
         {
           "token": "account_id",
@@ -85965,6 +86489,10 @@
           "name": "region",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "account_id",
+        "name"
       ],
       "id_parts": [
         {
@@ -86074,6 +86602,10 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "account_id",
+        "config_id"
       ],
       "id_parts": [
         {
@@ -89755,6 +90287,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "group_name",
+        "name"
+      ],
       "identity_schema_required": [
         "group_name",
         "name"
@@ -89923,7 +90459,8 @@
       "separator": "/",
       "composed_of_arguments": true,
       "arguments": [
-        "name"
+        "name",
+        "registry_name"
       ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import EventBridge schema using the `name` and `registry_name`. For example:\n\n```terraform\nimport {\n  to = aws_schemas_schema.test\n  id = \"name/registry\"\n}\n```\n\nUsing `terraform import`, import EventBridge schema using the `name` and `registry_name`. For example:\n\n```console\n% terraform import aws_schemas_schema.test name/registry\n```",
       "example_arguments": [
@@ -89988,6 +90525,20 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "arguments_in_doc_order": [
+        "name",
+        "registry_name"
+      ],
+      "id_parts": [
+        {
+          "token": "name",
+          "source": "argument"
+        },
+        {
+          "token": "registry_name",
+          "source": "argument"
         }
       ]
     },
@@ -91434,6 +91985,10 @@
           "name": "updated_reason",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "security_control_id",
+        "standards_arn"
       ],
       "identity_schema_required": [
         "security_control_id",
@@ -92969,6 +93524,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "application_id",
+        "attribute_group_id"
+      ],
       "id_parts": [
         {
           "token": "application_id",
@@ -94366,6 +94925,10 @@
           "required": true
         }
       ],
+      "arguments_in_doc_order": [
+        "email_identity",
+        "policy_name"
+      ],
       "id_parts": [
         {
           "token": "email_identity",
@@ -94449,6 +95012,10 @@
           "name": "region",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "tenant_name",
+        "resource_arn"
       ],
       "id_parts": [
         {
@@ -94826,6 +95393,7 @@
       "separator": null,
       "composed_of_arguments": true,
       "arguments": [
+        "health_check_arn",
         "shield_protection_id"
       ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Shield protection health check association resources using the `shield_protection_id` and `health_check_arn`. For example:\n\n```terraform\nimport {\n  to = aws_shield_protection_health_check_association.example\n  id = \"ff9592dc-22f3-4e88-afa1-7b29fde9669a+arn:aws:route53:::healthcheck/3742b175-edb9-46bc-9359-f53e3b794b1b\"\n}\n```\n\nUsing `terraform import`, import Shield protection health check association resources using the `shield_protection_id` and `health_check_arn`. For example:\n\n```console\n% terraform import aws_shield_protection_health_check_association.example ff9592dc-22f3-4e88-afa1-7b29fde9669a+arn:aws:route53:::healthcheck/3742b175-edb9-46bc-9359-f53e3b794b1b\n```",
@@ -94838,6 +95406,10 @@
           "name": "shield_protection_id",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "shield_protection_id",
+        "health_check_arn"
       ]
     },
     {
@@ -96870,6 +97442,10 @@
           "required": true
         }
       ],
+      "arguments_in_doc_order": [
+        "patch_group",
+        "baseline_id"
+      ],
       "identity_schema_required": [
         "baseline_id",
         "patch_group"
@@ -97449,6 +98025,14 @@
           "force_new": true
         }
       ],
+      "arguments_in_doc_order": [
+        "principal_id",
+        "principal_type",
+        "target_id",
+        "target_type",
+        "permission_set_arn",
+        "instance_arn"
+      ],
       "identity_schema_required": [
         "instance_arn",
         "permission_set_arn",
@@ -97769,6 +98353,10 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "instance_arn",
+        "permission_set_arn"
+      ],
       "identity_schema_required": [
         "instance_arn",
         "permission_set_arn"
@@ -97873,6 +98461,11 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "managed_policy_arn",
+        "permission_set_arn",
+        "instance_arn"
+      ],
       "id_parts": [
         {
           "token": "managed_policy_arn",
@@ -97915,6 +98508,10 @@
           "name": "region",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "instance_arn",
+        "permission_set_arn"
       ],
       "identity_schema_required": [
         "instance_arn",
@@ -98051,6 +98648,10 @@
           "force_new": true
         }
       ],
+      "arguments_in_doc_order": [
+        "permission_set_arn",
+        "instance_arn"
+      ],
       "id_parts": [
         {
           "token": "permission_set_arn",
@@ -98105,6 +98706,10 @@
           "force_new": true
         }
       ],
+      "arguments_in_doc_order": [
+        "permission_set_arn",
+        "instance_arn"
+      ],
       "id_parts": [
         {
           "token": "permission_set_arn",
@@ -98149,6 +98754,10 @@
           "name": "region",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "instance_arn",
+        "region_name"
       ],
       "identity_schema_required": [
         "instance_arn",
@@ -99959,6 +100568,7 @@
       "separator": ":",
       "composed_of_arguments": true,
       "arguments": [
+        "database_name",
         "table_name"
       ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Timestream tables using the `table_name` and `database_name` separate by a colon (`:`). For example:\n\n```terraform\nimport {\n  to = aws_timestreamwrite_table.example\n  id = \"ExampleTable:ExampleDatabase\"\n}\n```\n\nUsing `terraform import`, import Timestream tables using the `table_name` and `database_name` separate by a colon (`:`). For example:\n\n```console\n% terraform import aws_timestreamwrite_table.example ExampleTable:ExampleDatabase\n```",
@@ -100000,6 +100610,20 @@
         {
           "name": "tags",
           "required": false
+        }
+      ],
+      "arguments_in_doc_order": [
+        "table_name",
+        "database_name"
+      ],
+      "id_parts": [
+        {
+          "token": "table_name",
+          "source": "argument"
+        },
+        {
+          "token": "database_name",
+          "source": "argument"
         }
       ]
     },
@@ -100224,6 +100848,7 @@
       "separator": "/",
       "composed_of_arguments": true,
       "arguments": [
+        "external_id",
         "server_id"
       ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Transfer Accesses using the `server_id` and `external_id`. For example:\n\n```terraform\nimport {\n  to = aws_transfer_access.example\n  id = \"s-12345678/S-1-1-12-1234567890-123456789-1234567890-1234\"\n}\n```\n\nUsing `terraform import`, import Transfer Accesses using the `server_id` and `external_id`. For example:\n\n```console\n% terraform import aws_transfer_access.example s-12345678/S-1-1-12-1234567890-123456789-1234567890-1234\n```",
@@ -100273,6 +100898,20 @@
         {
           "name": "server_id",
           "required": true
+        }
+      ],
+      "arguments_in_doc_order": [
+        "server_id",
+        "external_id"
+      ],
+      "id_parts": [
+        {
+          "token": "server_id",
+          "source": "argument"
+        },
+        {
+          "token": "external_id",
+          "source": "argument"
         }
       ]
     },
@@ -100769,6 +101408,10 @@
           "required": true
         }
       ],
+      "arguments_in_doc_order": [
+        "server_id",
+        "user_name"
+      ],
       "id_parts": [
         {
           "token": "server_id",
@@ -100913,6 +101556,10 @@
           "name": "user_name",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "server_id",
+        "user_name"
       ],
       "id_parts": [
         {
@@ -101332,6 +101979,10 @@
           "name": "verifiedaccess_trust_provider_id",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "verifiedaccess_instance_id",
+        "verifiedaccess_trust_provider_id"
       ],
       "id_parts": [
         {
@@ -102305,6 +102956,10 @@
           "name": "vpc_endpoint_id",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "vpc_endpoint_id",
+        "route_table_id"
       ],
       "identity_schema_required": [
         "route_table_id",
@@ -103400,6 +104055,10 @@
           "name": "vpc_id",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "security_group_id",
+        "vpc_id"
       ],
       "identity_schema_required": [
         "vpc_id",
@@ -106805,6 +107464,10 @@
           "name": "rule_label",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "web_acl_arn",
+        "name"
       ],
       "identity_schema_required": [
         "name",

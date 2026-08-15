@@ -234,7 +234,7 @@ func tryGrammarComposite(p *proposal, g importGrammarRow) bool {
 	if len(g.ArgumentsInOrder) == len(g.Arguments) && sameStringSet(g.ArgumentsInOrder, g.Arguments) &&
 		len(strings.Split(g.ImportIDExample, *g.Separator)) == len(g.ArgumentsInOrder) {
 		setClientNamedComposite(p, g.ArgumentsInOrder, *g.Separator, g)
-		p.Rule = "import-grammar precedence: composed_of_arguments, multi-argument, order recovered from the doc's format-string prose (the example's own segments were too opaque to match by value)"
+		p.Rule = "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)"
 		return true
 	}
 

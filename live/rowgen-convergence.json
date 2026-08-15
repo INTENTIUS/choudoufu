@@ -4,12 +4,12 @@
     "admitted_total": 843,
     "compared": 822,
     "not_in_mapped_set": 21,
-    "adopted_unchanged": 682,
-    "adopted_unchanged_pct": 82.97,
-    "genuine_mismatches": 140,
+    "adopted_unchanged": 698,
+    "adopted_unchanged_pct": 84.91,
+    "genuine_mismatches": 124,
     "annotated": 0,
-    "unannotated_mismatches": 140,
-    "scrape_gap_mismatches": 45
+    "unannotated_mismatches": 124,
+    "scrape_gap_mismatches": 40
   },
   "by_service": {
     "ACMPCA": {
@@ -39,13 +39,13 @@
     },
     "Amplify": {
       "compared": 2,
-      "adopted_unchanged": 1,
-      "adopted_unchanged_pct": 50
+      "adopted_unchanged": 2,
+      "adopted_unchanged_pct": 100
     },
     "ApiGateway": {
       "compared": 20,
-      "adopted_unchanged": 17,
-      "adopted_unchanged_pct": 85
+      "adopted_unchanged": 18,
+      "adopted_unchanged_pct": 90
     },
     "ApiGatewayV2": {
       "compared": 5,
@@ -134,8 +134,8 @@
     },
     "Cassandra": {
       "compared": 2,
-      "adopted_unchanged": 1,
-      "adopted_unchanged_pct": 50
+      "adopted_unchanged": 2,
+      "adopted_unchanged_pct": 100
     },
     "CertificateManager": {
       "compared": 1,
@@ -304,8 +304,8 @@
     },
     "EC2": {
       "compared": 87,
-      "adopted_unchanged": 68,
-      "adopted_unchanged_pct": 78.16
+      "adopted_unchanged": 70,
+      "adopted_unchanged_pct": 80.46
     },
     "ECR": {
       "compared": 11,
@@ -604,8 +604,8 @@
     },
     "OpenSearchServerless": {
       "compared": 5,
-      "adopted_unchanged": 2,
-      "adopted_unchanged_pct": 40
+      "adopted_unchanged": 5,
+      "adopted_unchanged_pct": 100
     },
     "OpenSearchService": {
       "compared": 1,
@@ -644,8 +644,8 @@
     },
     "RDS": {
       "compared": 17,
-      "adopted_unchanged": 14,
-      "adopted_unchanged_pct": 82.35
+      "adopted_unchanged": 15,
+      "adopted_unchanged_pct": 88.24
     },
     "RUM": {
       "compared": 1,
@@ -699,8 +699,8 @@
     },
     "Route53": {
       "compared": 7,
-      "adopted_unchanged": 4,
-      "adopted_unchanged_pct": 57.14
+      "adopted_unchanged": 5,
+      "adopted_unchanged_pct": 71.43
     },
     "Route53Profiles": {
       "compared": 3,
@@ -774,8 +774,8 @@
     },
     "SSM": {
       "compared": 7,
-      "adopted_unchanged": 6,
-      "adopted_unchanged_pct": 85.71
+      "adopted_unchanged": 7,
+      "adopted_unchanged_pct": 100
     },
     "SSMContacts": {
       "compared": 4,
@@ -794,8 +794,8 @@
     },
     "SSO": {
       "compared": 5,
-      "adopted_unchanged": 3,
-      "adopted_unchanged_pct": 60
+      "adopted_unchanged": 4,
+      "adopted_unchanged_pct": 80
     },
     "SageMaker": {
       "compared": 27,
@@ -829,8 +829,8 @@
     },
     "ServiceCatalogAppRegistry": {
       "compared": 3,
-      "adopted_unchanged": 2,
-      "adopted_unchanged_pct": 66.67
+      "adopted_unchanged": 3,
+      "adopted_unchanged_pct": 100
     },
     "ServiceDiscovery": {
       "compared": 3,
@@ -859,13 +859,13 @@
     },
     "Timestream": {
       "compared": 5,
-      "adopted_unchanged": 4,
-      "adopted_unchanged_pct": 80
+      "adopted_unchanged": 5,
+      "adopted_unchanged_pct": 100
     },
     "Transfer": {
       "compared": 9,
-      "adopted_unchanged": 7,
-      "adopted_unchanged_pct": 77.78
+      "adopted_unchanged": 8,
+      "adopted_unchanged_pct": 88.89
     },
     "VerifiedPermissions": {
       "compared": 1,
@@ -879,8 +879,8 @@
     },
     "WAFv2": {
       "compared": 5,
-      "adopted_unchanged": 4,
-      "adopted_unchanged_pct": 80
+      "adopted_unchanged": 5,
+      "adopted_unchanged_pct": 100
     },
     "WorkSpaces": {
       "compared": 4,
@@ -945,16 +945,12 @@
     {
       "tf_type": "aws_amplify_branch",
       "service": "Amplify",
-      "proposed_bucket": "evidence-only",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -1009,7 +1005,7 @@
       "tf_type": "aws_api_gateway_documentation_version",
       "service": "ApiGateway",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order recovered from the doc's format-string prose (the example's own segments were too opaque to match by value)",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
@@ -1043,7 +1039,7 @@
       "tf_type": "aws_api_gateway_gateway_response",
       "service": "ApiGateway",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order recovered from the doc's format-string prose (the example's own segments were too opaque to match by value)",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
@@ -1054,7 +1050,7 @@
       "tf_type": "aws_api_gateway_integration",
       "service": "ApiGateway",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order recovered from the doc's format-string prose (the example's own segments were too opaque to match by value)",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
@@ -1065,7 +1061,7 @@
       "tf_type": "aws_api_gateway_integration_response",
       "service": "ApiGateway",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order recovered from the doc's format-string prose (the example's own segments were too opaque to match by value)",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
@@ -1076,7 +1072,7 @@
       "tf_type": "aws_api_gateway_method",
       "service": "ApiGateway",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order recovered from the doc's format-string prose (the example's own segments were too opaque to match by value)",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
@@ -1087,7 +1083,7 @@
       "tf_type": "aws_api_gateway_method_response",
       "service": "ApiGateway",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order recovered from the doc's format-string prose (the example's own segments were too opaque to match by value)",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
@@ -1112,7 +1108,7 @@
       "tf_type": "aws_api_gateway_model",
       "service": "ApiGateway",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order recovered from the doc's format-string prose (the example's own segments were too opaque to match by value)",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
@@ -1145,7 +1141,7 @@
       "tf_type": "aws_api_gateway_stage",
       "service": "ApiGateway",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order recovered from the doc's format-string prose (the example's own segments were too opaque to match by value)",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
@@ -1166,17 +1162,13 @@
     {
       "tf_type": "aws_api_gateway_usage_plan_key",
       "service": "ApiGateway",
-      "proposed_bucket": "evidence-only",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -1745,10 +1737,11 @@
     {
       "tf_type": "aws_bedrockagentcore_agent_runtime_endpoint",
       "service": "BedrockAgentCore",
-      "proposed_bucket": "evidence-only",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "mismatch_classes": [
-        "server-assigned"
+        "server-assigned",
+        "components"
       ],
       "cosmetic_notes": [
         "import-syntax-wording"
@@ -2336,7 +2329,7 @@
       "tf_type": "aws_cloudwatch_log_account_policy",
       "service": "Logs",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order taken from the provider's own Identity Schema and corroborated against the example's segments",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "matched": true,
       "annotated": false
     },
@@ -2411,7 +2404,7 @@
       "tf_type": "aws_cloudwatch_log_metric_filter",
       "service": "Logs",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order taken from the provider's own Identity Schema and corroborated against the example's segments",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "matched": true,
       "annotated": false
     },
@@ -2433,7 +2426,7 @@
       "tf_type": "aws_cloudwatch_log_stream",
       "service": "Logs",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order taken from the provider's own Identity Schema and corroborated against the example's segments",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "matched": true,
       "annotated": false
     },
@@ -2441,7 +2434,7 @@
       "tf_type": "aws_cloudwatch_log_subscription_filter",
       "service": "Logs",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order taken from the provider's own Identity Schema and corroborated against the example's segments",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "matched": true,
       "annotated": false
     },
@@ -3399,7 +3392,7 @@
       "tf_type": "aws_db_proxy_endpoint",
       "service": "RDS",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order recovered from the doc's format-string prose (the example's own segments were too opaque to match by value)",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
@@ -3824,15 +3817,12 @@
     {
       "tf_type": "aws_ec2_managed_prefix_list_entry",
       "service": "EC2",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::EC2::PrefixList",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -4331,7 +4321,7 @@
       "tf_type": "aws_eks_addon",
       "service": "EKS",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order taken from the provider's own Identity Schema and corroborated against the example's segments",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
@@ -4343,7 +4333,7 @@
       "tf_type": "aws_eks_capability",
       "service": "EKS",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order taken from the provider's own Identity Schema and corroborated against the example's segments",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
@@ -4365,7 +4355,7 @@
       "tf_type": "aws_eks_fargate_profile",
       "service": "EKS",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order taken from the provider's own Identity Schema and corroborated against the example's segments",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
@@ -4377,7 +4367,7 @@
       "tf_type": "aws_eks_node_group",
       "service": "EKS",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order taken from the provider's own Identity Schema and corroborated against the example's segments",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
@@ -4807,7 +4797,7 @@
       "tf_type": "aws_glue_catalog_database",
       "service": "Glue",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order recovered from the doc's format-string prose (the example's own segments were too opaque to match by value)",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "mismatch_classes": [
         "components"
       ],
@@ -5177,7 +5167,7 @@
       "tf_type": "aws_iam_role_policy",
       "service": "IAM",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order taken from the provider's own Identity Schema and corroborated against the example's segments",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
@@ -5621,15 +5611,9 @@
     {
       "tf_type": "aws_keyspaces_table",
       "service": "Cassandra",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "components"
-      ],
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
-      "matched": false,
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
+      "matched": true,
       "annotated": false
     },
     {
@@ -6408,7 +6392,7 @@
       "tf_type": "aws_nat_gateway_eip_association",
       "service": "EC2",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order recovered from the doc's format-string prose (the example's own segments were too opaque to match by value)",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
@@ -6464,7 +6448,7 @@
       "tf_type": "aws_network_acl_rule",
       "service": "EC2",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order recovered from the doc's format-string prose (the example's own segments were too opaque to match by value)",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
@@ -6907,15 +6891,9 @@
     {
       "tf_type": "aws_opensearchserverless_access_policy",
       "service": "OpenSearchServerless",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "components"
-      ],
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
-      "matched": false,
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
+      "matched": true,
       "annotated": false
     },
     {
@@ -6943,29 +6921,17 @@
     {
       "tf_type": "aws_opensearchserverless_lifecycle_policy",
       "service": "OpenSearchServerless",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "components"
-      ],
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
-      "matched": false,
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
+      "matched": true,
       "annotated": false
     },
     {
       "tf_type": "aws_opensearchserverless_security_policy",
       "service": "OpenSearchServerless",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "components"
-      ],
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
-      "matched": false,
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
+      "matched": true,
       "annotated": false
     },
     {
@@ -7247,15 +7213,9 @@
     {
       "tf_type": "aws_rds_custom_db_engine_version",
       "service": "RDS",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "components"
-      ],
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
-      "matched": false,
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
+      "matched": true,
       "annotated": false
     },
     {
@@ -7519,16 +7479,12 @@
     {
       "tf_type": "aws_route53_record",
       "service": "Route53",
-      "proposed_bucket": "evidence-only",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -8680,16 +8636,12 @@
     {
       "tf_type": "aws_servicecatalogappregistry_attribute_group_association",
       "service": "ServiceCatalogAppRegistry",
-      "proposed_bucket": "evidence-only",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -8920,15 +8872,12 @@
     {
       "tf_type": "aws_ssm_patch_group",
       "service": "SSM",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::SSM::PatchBaseline",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -9034,15 +8983,9 @@
     {
       "tf_type": "aws_ssoadmin_account_assignment",
       "service": "SSO",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "components"
-      ],
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
-      "matched": false,
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
+      "matched": true,
       "annotated": false
     },
     {
@@ -9190,15 +9133,9 @@
     {
       "tf_type": "aws_timestreamwrite_table",
       "service": "Timestream",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "components"
-      ],
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
-      "matched": false,
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
+      "matched": true,
       "annotated": false
     },
     {
@@ -9261,16 +9198,12 @@
     {
       "tf_type": "aws_transfer_user",
       "service": "Transfer",
-      "proposed_bucket": "evidence-only",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "scrape_gap": true,
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -9346,7 +9279,7 @@
       "tf_type": "aws_volume_attachment",
       "service": "EC2",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order recovered from the doc's format-string prose (the example's own segments were too opaque to match by value)",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
@@ -9457,15 +9390,12 @@
     {
       "tf_type": "aws_vpc_endpoint_route_table_association",
       "service": "EC2",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::EC2::VPCEndpoint",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {
@@ -9850,15 +9780,12 @@
     {
       "tf_type": "aws_wafv2_web_acl_rule",
       "service": "WAFv2",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::WAFv2::WebACL",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
+      "matched": true,
       "annotated": false
     },
     {

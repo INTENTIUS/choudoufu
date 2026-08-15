@@ -159,15 +159,31 @@ serverAssigned("aws_lambda_layer_version",
 	// only after confirming it against the provider schema or docs.
 ),
 
-## aws_lambda_layer_version_permission -> AWS::Lambda::LayerVersionPermission [evidence-only]
-rule: primaryIdentifier ⊆ readOnlyProperties
+## aws_lambda_layer_version_permission -> AWS::Lambda::LayerVersionPermission [proposed: composite]
+rule: import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)
 registry fields read: primary_identifier=["Id"] read_only_properties=["Id"] create_only_properties=["OrganizationId", "Principal", "Action", "LayerVersionArn"]
 enumeration: parent-input ["LayerVersionArn"]
+components: ["layer_name", "version_number"] joined by "," (source: import grammar (live/import-grammar.json))
 note: import docs show argument-composed ID: arn:aws:lambda:us-west-2:123456789012:layer:shared_utilities,1
-no pastable row.
+note: import docs pin ["layer_name", "version_number"] joined by ",": arn:aws:lambda:us-west-2:123456789012:layer:shared_utilities,1
+
+--- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
+"aws_lambda_layer_version_permission": {},
+
+--- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
+TypeIdentity{
+	Type: "aws_lambda_layer_version_permission",
+	Components: []Component{
+		attr("layer_name"),
+		sep(","),
+		attr("version_number"),
+	},
+	ImportSyntax:  "LAYER_NAME,VERSION_NUMBER",
+	IdentityAttrs: nil, // id-alias inference intentionally left to the ratifier; see issue #44 non-goals
+},
 
 ## aws_lambda_permission -> AWS::Lambda::Permission [proposed: composite]
-rule: import-grammar precedence: composed_of_arguments, multi-argument, order taken from the provider's own Identity Schema and corroborated against the example's segments
+rule: import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)
 registry fields read: primary_identifier=["FunctionName", "Id"] read_only_properties=["Id"] create_only_properties=["FunctionName", "FunctionUrlAuthType", "InvokedViaFunctionUrl", "SourceAccount", "SourceArn", "Principal", "PrincipalOrgID", "Action", "EventSourceToken"]
 enumeration: parent-input ["FunctionName"]
 components: ["function_name", "statement_id"] joined by "/" (source: import grammar (live/import-grammar.json))

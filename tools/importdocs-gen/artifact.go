@@ -176,6 +176,23 @@ func buildRow(tfType, doc string) (Row, bool) {
 	idReq, _ := identitySchemaRequired(section)
 	idOpt := identitySchemaOptional(section)
 
+	// The enumeration idiom (issue #132): "using `app_id` and
+	// `branch_name`" names every segment in order but states no separator,
+	// so the clause and format-token signals both miss it. When every
+	// enumerated token is a Required argument and nothing already resolved
+	// disagrees, the enumeration is both the argument set and the doc's own
+	// order.
+	if cr.ArgumentsInOrder == nil && (cr.Composed == nil || *cr.Composed) {
+		if order, ok := enumeratedRequiredArguments(section, argEntries); ok && subsetOf(cr.Arguments, order) {
+			t := true
+			cr.Composed = &t
+			args := append([]string(nil), order...)
+			sort.Strings(args)
+			cr.Arguments = args
+			cr.ArgumentsInOrder = order
+		}
+	}
+
 	// The plain-prose family (issue #132): docs whose sentence names the
 	// one argument the ID is without the backticked spelling every signal
 	// in classifyGrammar keys on ("using repository name", "using the
@@ -209,6 +226,19 @@ func buildRow(tfType, doc string) (Row, bool) {
 			cr.Separator = &sep
 		} else if sep, ok := separatorFromExample(idExample); ok && !proseArg {
 			cr.Separator = &sep
+		}
+	}
+
+	// The identity-block order proof (issue #132): the doc's own two
+	// example forms, the 1.12+ identity block and the legacy plain id,
+	// carry the same literal values - when joining the block's values in
+	// its own order reproduces the plain id exactly, that order is proven,
+	// not matched. Last of the order sources because it needs the resolved
+	// separator, and only ever fills a gap the others left.
+	if cr.ArgumentsInOrder == nil && cr.Composed != nil && *cr.Composed &&
+		len(cr.Arguments) >= 2 && cr.Separator != nil {
+		if order, ok := identityBlockOrder(section, *cr.Separator, argNames); ok && sameSet(order, cr.Arguments) {
+			cr.ArgumentsInOrder = order
 		}
 	}
 	parts := idParts(section, cr.Separator, idExample, argNames, attrNames)
