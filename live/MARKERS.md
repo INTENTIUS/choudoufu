@@ -726,7 +726,7 @@ from the Service Authorization Reference.
 
 </details>
 
-**2 do not name it, and these are where the warning above actually bites:** `route53:ChangeTagsForResource` and `securityhub:UntagResource`. The reference is silent rather than negative here, so this is not proof the `Deny` fails - but it is the difference between a statement checked and a statement assumed, and these are the ones to verify against the service's own reference page before relying on them. `route53:ChangeTagsForResource` is the combined add-and-remove call this section already singled out as worth checking; the measurement agrees.
+**2 do not name it, and these are where the warning above actually bites:** `route53:ChangeTagsForResource` and `securityhub:UntagResource`. The reference is silent rather than negative here, so this is not proof the `Deny` fails - but it is the difference between a statement checked and a statement assumed, and these are the ones to verify against the service's own reference page before relying on them.
 
 27 further services have no removal verb resolved in `live/tag-verbs.json` at all, either because the service's model offers more than one candidate or none. They are absent from the list above rather than silently covered by it.
 <!-- iamref-gen:end scp-untag-actions -->

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -201,4 +202,68 @@ func TestSCPSpanSeparatesCheckedFromAssumed(t *testing.T) {
 				"dropping it silently narrows the policy without saying so", a)
 		}
 	}
+}
+
+// TestProseClaimsAboutUnlistedActionsAreTrue checks the hand-written
+// sentences that make claims about the artifact.
+//
+// The span is generated and cannot drift. The prose around it is not, and it
+// says things only the artifact knows: the route53 bullet asserts that
+// ChangeTagsForResource is "one of the two actions above the reference does
+// not name aws:TagKeys on". If AWS populates that key tomorrow, the span
+// silently drops route53 from the unlisted list and the bullet keeps
+// asserting it, which is worse than either alone - a caveat pointing at
+// nothing reads as a caveat that was checked.
+//
+// Deliberately narrow: it checks the claims that name a specific action and
+// a specific count, not the prose in general.
+func TestProseClaimsAboutUnlistedActionsAreTrue(t *testing.T) {
+	root := repoRootForTest(t)
+	raw, err := os.ReadFile(filepath.Join(root, "live", "iam-reference.json"))
+	if err != nil {
+		t.Fatalf("reading the artifact: %v", err)
+	}
+	var art Artifact
+	if err := json.Unmarshal(raw, &art); err != nil {
+		t.Fatalf("decoding the artifact: %v", err)
+	}
+	doc, err := os.ReadFile(filepath.Join(root, markersMDRel))
+	if err != nil {
+		t.Fatalf("reading %s: %v", markersMDRel, err)
+	}
+
+	unlisted := map[string]bool{}
+	for _, r := range art.Rows {
+		if r.IAMPrefix != "" && r.UntagAction != "" && r.UntagActionFound && !r.UntagListsTagKeys {
+			unlisted[r.IAMPrefix+":"+r.UntagAction] = true
+		}
+	}
+
+	// The prose singles out route53's combined call. That sentence is only
+	// true while the artifact agrees.
+	const singledOut = "route53:ChangeTagsForResource"
+	body := string(doc)
+	claims := strings.Contains(body, "one of the two actions above the reference does not")
+	if claims && !unlisted[singledOut] {
+		t.Errorf("%s still says %s is one of the actions the reference does not name aws:TagKeys on, "+
+			"but the artifact no longer agrees.\n"+
+			"Either AWS populated the key, or the untag verb resolved differently. Update the bullet: "+
+			"a caveat that points at nothing reads as a caveat that was checked.",
+			markersMDRel, singledOut)
+	}
+	if claims && len(unlisted) != 2 {
+		t.Errorf("%s says %q while the artifact now has %d such action(s): %v.\n"+
+			"The wording names a count; change it with the measurement.",
+			markersMDRel, "one of the two actions", len(unlisted), keysOf(unlisted))
+	}
+}
+
+// keysOf is a sorted key list, for a legible failure message.
+func keysOf(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }

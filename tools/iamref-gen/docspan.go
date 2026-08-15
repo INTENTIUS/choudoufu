@@ -187,9 +187,8 @@ func scpActionsSpanBody(rows []Row) string {
 		fmt.Fprintf(&b, "\n**%d do not name it, and these are where the warning above actually bites:** %s. "+
 			"The reference is silent rather than negative here, so this is not proof the `Deny` fails - "+
 			"but it is the difference between a statement checked and a statement assumed, and these are "+
-			"the ones to verify against the service's own reference page before relying on them. "+
-			"`route53:ChangeTagsForResource` is the combined add-and-remove call this section already "+
-			"singled out as worth checking; the measurement agrees.\n", len(unlisted), backticked(unlisted))
+			"the ones to verify against the service's own reference page before relying on them.\n",
+			len(unlisted), backticked(unlisted))
 	}
 	if len(noVerb) > 0 {
 		fmt.Fprintf(&b, "\n%d further services have no removal verb resolved in `live/tag-verbs.json` at all, "+
