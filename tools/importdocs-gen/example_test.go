@@ -173,6 +173,142 @@ resource "aws_s3_bucket_versioning" "b" {
 	}
 }
 
+// TestVariantScoreIgnoresALaterBlockElement is aws_secretsmanager_secret_rotation's
+// page, reduced. The Basic variant carries the one thing a consumer needs -
+// rotation_rules { automatically_after_days = 30 } - while the partner
+// variant's only complete literals are a SECOND
+// external_secret_rotation_metadata element, which no consumer can place:
+// only element zero has somewhere to land. Counting them ranked the partner
+// variant first and cost the security cohort its terraform validate pass
+// ("one of automatically_after_days, schedule_expression must be
+// specified", measured 2026-08-15).
+func TestVariantScoreIgnoresALaterBlockElement(t *testing.T) {
+	doc := "## Example Usage\n\n### Basic\n\n```terraform\n" + `
+resource "aws_secretsmanager_secret_rotation" "a" {
+  secret_id           = aws_secretsmanager_secret.example.id
+  rotation_lambda_arn = aws_lambda_function.example.arn
+
+  rotation_rules {
+    automatically_after_days = 30
+  }
+}
+` + "```\n\n### Managed External\n\n```terraform\n" + `
+resource "aws_secretsmanager_secret_rotation" "b" {
+  secret_id                         = aws_secretsmanager_secret.example.id
+  external_secret_rotation_role_arn = aws_iam_role.example.arn
+
+  external_secret_rotation_metadata {
+    key   = "adminSecretArn"
+    value = aws_secretsmanager_secret.example.arn
+  }
+
+  external_secret_rotation_metadata {
+    key   = "apiVersion"
+    value = "v65.0"
+  }
+
+  rotation_rules {
+    automatically_after_days = var.rotation_days
+  }
+}
+` + "```\n"
+
+	args := exampleArguments(doc, "aws_secretsmanager_secret_rotation")
+	got := argFor(args, "rotation_rules.automatically_after_days")
+	if got == nil || got.Reference || got.Value != "30" {
+		t.Fatalf("rotation_rules.automatically_after_days = %+v, want the Basic variant's literal 30", got)
+	}
+}
+
+// TestVariantScoreIgnoresALiteralInsideAnUnreachableBlock is
+// aws_ssm_maintenance_window_task's page, reduced. The Run Command variant
+// holds two complete literals, but they sit inside a parameter block nested
+// in run_command_parameters, which drops three references and so may never
+// be created - while the Automation variant's document_version is one level
+// down a block that drops nothing. Two beat one on the old count, and the
+// fixture lost the only member it could write.
+func TestVariantScoreIgnoresALiteralInsideAnUnreachableBlock(t *testing.T) {
+	doc := "## Example Usage\n\n### Automation Tasks\n\n```terraform\n" + `
+resource "aws_ssm_maintenance_window_task" "a" {
+  task_arn  = "AWS-RestartEC2Instance"
+  task_type = "AUTOMATION"
+  window_id = aws_ssm_maintenance_window.example.id
+
+  task_invocation_parameters {
+    automation_parameters {
+      document_version = "$LATEST"
+
+      parameter {
+        name   = "InstanceId"
+        values = [aws_instance.example.id]
+      }
+    }
+  }
+}
+` + "```\n\n### Run Command Tasks\n\n```terraform\n" + `
+resource "aws_ssm_maintenance_window_task" "b" {
+  task_arn  = "AWS-RunShellScript"
+  task_type = "RUN_COMMAND"
+  window_id = aws_ssm_maintenance_window.example.id
+
+  task_invocation_parameters {
+    run_command_parameters {
+      output_s3_bucket = aws_s3_bucket.example.id
+      service_role_arn = aws_iam_role.example.arn
+      timeout_seconds  = 600
+
+      parameter {
+        name   = "commands"
+        values = ["date"]
+      }
+    }
+  }
+}
+` + "```\n"
+
+	args := exampleArguments(doc, "aws_ssm_maintenance_window_task")
+	got := argFor(args, "task_invocation_parameters.automation_parameters.document_version")
+	if got == nil || got.Value != "$LATEST" {
+		t.Fatalf("automation_parameters.document_version = %+v, want the Automation variant's literal", got)
+	}
+}
+
+// TestVariantScoreStillPrefersMoreReachableLiterals: the rule this narrows
+// is still the rule. aws_sagemaker_workteam's page leads with an all-
+// reference Cognito variant and keeps the literal Oidc one second, and
+// nothing about reachability changes that.
+func TestVariantScoreStillPrefersMoreReachableLiterals(t *testing.T) {
+	doc := "## Example Usage\n\n### Cognito\n\n```terraform\n" + `
+resource "aws_sagemaker_workteam" "a" {
+  workforce_name = aws_sagemaker_workforce.example.id
+
+  member_definition {
+    cognito_member_definition {
+      client_id  = aws_cognito_user_pool_client.example.id
+      user_pool  = aws_cognito_user_pool_domain.example.user_pool_id
+      user_group = aws_cognito_user_group.example.id
+    }
+  }
+}
+` + "```\n\n### Oidc\n\n```terraform\n" + `
+resource "aws_sagemaker_workteam" "b" {
+  workforce_name = aws_sagemaker_workforce.example.id
+
+  member_definition {
+    oidc_member_definition {
+      groups = ["example"]
+    }
+  }
+}
+` + "```\n"
+
+	args := exampleArguments(doc, "aws_sagemaker_workteam")
+	got := argFor(args, "member_definition.oidc_member_definition.groups")
+	if got == nil || !got.IsList || got.Value != `["example"]` {
+		t.Fatalf("oidc_member_definition.groups = %+v, want the second variant's list literal", got)
+	}
+}
+
 // TestSubHeadingsStayInsideTheExampleSection. s3_bucket_versioning's example
 // lives under "### With Versioning Enabled", so a section parser that
 // stopped at any heading would find nothing at all.

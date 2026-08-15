@@ -164,13 +164,15 @@ func exampleSection(doc string) (string, bool) {
 // mutually exclusive settings, which is how a seed starts producing
 // configurations the provider rejects. WHICH fence (issue #177): the first
 // whose extraction is fully literal (no dropped reference, no incomplete
-// block); failing that, the fence with the MOST complete literals - a page
-// may lead with a wired-up variant and keep the self-contained one second,
-// which is exactly aws_sagemaker_workteam's shape: its "Cognito Usage"
-// members are all references while its "Oidc Usage" carries the literal
-// oidc_member_definition the seed wants, and both variants reference the
-// shared workforce, so neither is clean. Failing every literal, the first
-// fence with any entry - a reference-only extraction is still evidence.
+// block); failing that, the fence with the most REACHABLE literals
+// (reachableLiterals) - a page may lead with a wired-up variant and keep
+// the self-contained one second, which is exactly aws_sagemaker_workteam's
+// shape: its "Cognito Usage" members are all references while its "Oidc
+// Usage" carries the literal oidc_member_definition the seed wants, and
+// both variants reference the shared workforce, so neither is clean.
+// Failing every literal, the first fence with any entry - a reference-only
+// extraction is still evidence, and the reference rule in
+// tools/estate-gen/seed.go can wire it back up.
 func exampleArguments(doc, tfType string) []ExampleArgument {
 	section, ok := exampleSection(doc)
 	if !ok {
@@ -199,15 +201,13 @@ func exampleArguments(doc, tfType string) []ExampleArgument {
 			if len(args) == 0 {
 				continue
 			}
-			clean, complete := true, 0
+			clean := true
 			for _, a := range args {
 				if a.Reference || a.Incomplete {
 					clean = false
 				}
-				if !a.Reference && !a.Incomplete {
-					complete++
-				}
 			}
+			complete := reachableLiterals(args)
 			if clean && complete > 0 {
 				return args
 			}
@@ -223,6 +223,59 @@ func exampleArguments(doc, tfType string) []ExampleArgument {
 		return best
 	}
 	return firstAny
+}
+
+// reachableLiterals is the variant-preference score: how many of this
+// fence's literals a consumer could actually write, rather than how many it
+// contains.
+//
+// The two differ, and counting the wrong one picked the wrong variant twice
+// (found by regenerating the estate cohorts against the pinned 6.59.0 cache
+// and reading the diff, 2026-08-15). Three shapes are unreachable by this
+// artifact's own stated contract:
+//
+//   - A later block element. Only element zero has a place to land, so
+//     aws_secretsmanager_secret_rotation's partner-integration variant
+//     scored 2 on its second external_secret_rotation_metadata element and
+//     beat the Basic variant, whose rotation_rules {
+//     automatically_after_days = 30 } is the one thing the fixture needed.
+//   - A literal inside a block that dropped a reference. That block may not
+//     be created, so nothing inside it can be written:
+//     aws_ssm_maintenance_window_task's Run Command variant scored 2 on the
+//     parameter block nested inside run_command_parameters, which drops
+//     three references, and beat the Automation variant's reachable
+//     document_version.
+//   - A literal already marked Incomplete, or a reference, which were never
+//     counted.
+//
+// The resource's own body is not a block a consumer creates - it always
+// exists - so a reference at the root does not make the whole variant
+// unreachable. A root literal beside a dropped root reference is already
+// Incomplete and excluded on that ground.
+func reachableLiterals(args []ExampleArgument) int {
+	refIn := map[string]bool{}
+	for _, a := range args {
+		if a.Reference && len(a.Path) > 1 {
+			refIn[strings.Join(a.Path[:len(a.Path)-1], ".")] = true
+		}
+	}
+	n := 0
+	for _, a := range args {
+		if a.Reference || a.Incomplete || a.Element > 0 {
+			continue
+		}
+		reachable := true
+		for i := 1; i < len(a.Path); i++ {
+			if refIn[strings.Join(a.Path[:i], ".")] {
+				reachable = false
+				break
+			}
+		}
+		if reachable {
+			n++
+		}
+	}
+	return n
 }
 
 // literalArguments walks one block for arguments that are self-contained

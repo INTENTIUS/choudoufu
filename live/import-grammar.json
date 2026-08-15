@@ -13312,7 +13312,7 @@
           "path": [
             "name"
           ],
-          "value": "example-predictive-cost-optimization",
+          "value": "example-dynamic-cost-optimization",
           "is_string": true
         },
         {
@@ -13336,14 +13336,6 @@
         {
           "path": [
             "scaling_instruction",
-            "disable_dynamic_scaling"
-          ],
-          "value": "true",
-          "incomplete": true
-        },
-        {
-          "path": [
-            "scaling_instruction",
             "max_capacity"
           ],
           "value": "3",
@@ -13355,24 +13347,6 @@
             "min_capacity"
           ],
           "value": "0",
-          "incomplete": true
-        },
-        {
-          "path": [
-            "scaling_instruction",
-            "predictive_scaling_max_capacity_behavior"
-          ],
-          "value": "SetForecastCapacityToMaxCapacity",
-          "is_string": true,
-          "incomplete": true
-        },
-        {
-          "path": [
-            "scaling_instruction",
-            "predictive_scaling_mode"
-          ],
-          "value": "ForecastAndScale",
-          "is_string": true,
           "incomplete": true
         },
         {
@@ -13419,15 +13393,6 @@
             "predefined_scaling_metric_type"
           ],
           "value": "ASGAverageCPUUtilization",
-          "is_string": true
-        },
-        {
-          "path": [
-            "scaling_instruction",
-            "predefined_load_metric_specification",
-            "predefined_load_metric_type"
-          ],
-          "value": "ASGTotalCPUUtilization",
           "is_string": true
         }
       ],
@@ -18533,6 +18498,14 @@
       "example_arguments": [
         {
           "path": [
+            "description"
+          ],
+          "value": "Route all requests to the primary target",
+          "is_string": true,
+          "incomplete": true
+        },
+        {
+          "path": [
             "gateway_identifier"
           ],
           "value": "",
@@ -18544,7 +18517,7 @@
           "path": [
             "priority"
           ],
-          "value": "50",
+          "value": "100",
           "incomplete": true
         },
         {
@@ -18558,41 +18531,6 @@
           "reference": true,
           "ref_type": "aws_bedrockagentcore_gateway_target",
           "ref_attr": "name"
-        },
-        {
-          "path": [
-            "condition",
-            "match_principals",
-            "any_of",
-            "iam_principal",
-            "arn"
-          ],
-          "value": "",
-          "reference": true,
-          "ref_type": "data",
-          "ref_attr": "partition"
-        },
-        {
-          "path": [
-            "condition",
-            "match_principals",
-            "any_of",
-            "iam_principal",
-            "operator"
-          ],
-          "value": "StringLike",
-          "is_string": true,
-          "incomplete": true
-        },
-        {
-          "path": [
-            "condition",
-            "match_paths",
-            "any_of"
-          ],
-          "value": "[\"/api/*\"]",
-          "is_list": true,
-          "element": 1
         }
       ],
       "argument_reference": [
@@ -18653,7 +18591,7 @@
           "path": [
             "description"
           ],
-          "value": "Lambda function target for processing requests",
+          "value": "External API target with API key authentication",
           "is_string": true,
           "incomplete": true
         },
@@ -18670,9 +18608,45 @@
           "path": [
             "name"
           ],
-          "value": "example-target",
+          "value": "api-target",
           "is_string": true,
           "incomplete": true
+        },
+        {
+          "path": [
+            "credential_provider_configuration",
+            "api_key",
+            "credential_location"
+          ],
+          "value": "HEADER",
+          "is_string": true
+        },
+        {
+          "path": [
+            "credential_provider_configuration",
+            "api_key",
+            "credential_parameter_name"
+          ],
+          "value": "X-API-Key",
+          "is_string": true
+        },
+        {
+          "path": [
+            "credential_provider_configuration",
+            "api_key",
+            "credential_prefix"
+          ],
+          "value": "Bearer",
+          "is_string": true
+        },
+        {
+          "path": [
+            "credential_provider_configuration",
+            "api_key",
+            "provider_arn"
+          ],
+          "value": "arn:aws:iam::123456789012:oidc-provider/example.com",
+          "is_string": true
         },
         {
           "path": [
@@ -18695,7 +18669,7 @@
             "inline_payload",
             "description"
           ],
-          "value": "Process incoming requests",
+          "value": "External API integration tool",
           "is_string": true
         },
         {
@@ -18707,7 +18681,7 @@
             "inline_payload",
             "name"
           ],
-          "value": "process_request",
+          "value": "api_tool",
           "is_string": true
         },
         {
@@ -18720,7 +18694,7 @@
             "input_schema",
             "description"
           ],
-          "value": "Request processing schema",
+          "value": "Simple string input for API calls",
           "is_string": true
         },
         {
@@ -18731,260 +18705,10 @@
             "tool_schema",
             "inline_payload",
             "input_schema",
-            "type"
-          ],
-          "value": "object",
-          "is_string": true
-        },
-        {
-          "path": [
-            "target_configuration",
-            "mcp",
-            "lambda",
-            "tool_schema",
-            "inline_payload",
-            "input_schema",
-            "property",
-            "description"
-          ],
-          "value": "Message to process",
-          "is_string": true
-        },
-        {
-          "path": [
-            "target_configuration",
-            "mcp",
-            "lambda",
-            "tool_schema",
-            "inline_payload",
-            "input_schema",
-            "property",
-            "name"
-          ],
-          "value": "message",
-          "is_string": true
-        },
-        {
-          "path": [
-            "target_configuration",
-            "mcp",
-            "lambda",
-            "tool_schema",
-            "inline_payload",
-            "input_schema",
-            "property",
-            "required"
-          ],
-          "value": "true"
-        },
-        {
-          "path": [
-            "target_configuration",
-            "mcp",
-            "lambda",
-            "tool_schema",
-            "inline_payload",
-            "input_schema",
-            "property",
             "type"
           ],
           "value": "string",
           "is_string": true
-        },
-        {
-          "path": [
-            "target_configuration",
-            "mcp",
-            "lambda",
-            "tool_schema",
-            "inline_payload",
-            "input_schema",
-            "property",
-            "name"
-          ],
-          "value": "options",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "target_configuration",
-            "mcp",
-            "lambda",
-            "tool_schema",
-            "inline_payload",
-            "input_schema",
-            "property",
-            "type"
-          ],
-          "value": "object",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "target_configuration",
-            "mcp",
-            "lambda",
-            "tool_schema",
-            "inline_payload",
-            "input_schema",
-            "property",
-            "property",
-            "name"
-          ],
-          "value": "priority",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "target_configuration",
-            "mcp",
-            "lambda",
-            "tool_schema",
-            "inline_payload",
-            "input_schema",
-            "property",
-            "property",
-            "type"
-          ],
-          "value": "string",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "target_configuration",
-            "mcp",
-            "lambda",
-            "tool_schema",
-            "inline_payload",
-            "input_schema",
-            "property",
-            "property",
-            "name"
-          ],
-          "value": "tags",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "target_configuration",
-            "mcp",
-            "lambda",
-            "tool_schema",
-            "inline_payload",
-            "input_schema",
-            "property",
-            "property",
-            "type"
-          ],
-          "value": "array",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "target_configuration",
-            "mcp",
-            "lambda",
-            "tool_schema",
-            "inline_payload",
-            "input_schema",
-            "property",
-            "property",
-            "items",
-            "type"
-          ],
-          "value": "string",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "target_configuration",
-            "mcp",
-            "lambda",
-            "tool_schema",
-            "inline_payload",
-            "output_schema",
-            "type"
-          ],
-          "value": "object",
-          "is_string": true
-        },
-        {
-          "path": [
-            "target_configuration",
-            "mcp",
-            "lambda",
-            "tool_schema",
-            "inline_payload",
-            "output_schema",
-            "property",
-            "name"
-          ],
-          "value": "status",
-          "is_string": true
-        },
-        {
-          "path": [
-            "target_configuration",
-            "mcp",
-            "lambda",
-            "tool_schema",
-            "inline_payload",
-            "output_schema",
-            "property",
-            "required"
-          ],
-          "value": "true"
-        },
-        {
-          "path": [
-            "target_configuration",
-            "mcp",
-            "lambda",
-            "tool_schema",
-            "inline_payload",
-            "output_schema",
-            "property",
-            "type"
-          ],
-          "value": "string",
-          "is_string": true
-        },
-        {
-          "path": [
-            "target_configuration",
-            "mcp",
-            "lambda",
-            "tool_schema",
-            "inline_payload",
-            "output_schema",
-            "property",
-            "name"
-          ],
-          "value": "result",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "target_configuration",
-            "mcp",
-            "lambda",
-            "tool_schema",
-            "inline_payload",
-            "output_schema",
-            "property",
-            "type"
-          ],
-          "value": "string",
-          "is_string": true,
-          "element": 1
         }
       ],
       "argument_reference": [
@@ -20577,7 +20301,7 @@
           "path": [
             "name"
           ],
-          "value": "AWSServiceMonitor",
+          "value": "DAILYSUBSCRIPTION",
           "is_string": true,
           "incomplete": true
         },
@@ -20600,7 +20324,6 @@
         {
           "path": [
             "threshold_expression",
-            "and",
             "dimension",
             "key"
           ],
@@ -20610,7 +20333,6 @@
         {
           "path": [
             "threshold_expression",
-            "and",
             "dimension",
             "match_options"
           ],
@@ -20620,45 +20342,11 @@
         {
           "path": [
             "threshold_expression",
-            "and",
             "dimension",
             "values"
           ],
           "value": "[\"100\"]",
           "is_list": true
-        },
-        {
-          "path": [
-            "threshold_expression",
-            "and",
-            "dimension",
-            "key"
-          ],
-          "value": "ANOMALY_TOTAL_IMPACT_PERCENTAGE",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "threshold_expression",
-            "and",
-            "dimension",
-            "match_options"
-          ],
-          "value": "[\"GREATER_THAN_OR_EQUAL\"]",
-          "is_list": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "threshold_expression",
-            "and",
-            "dimension",
-            "values"
-          ],
-          "value": "[\"50\"]",
-          "is_list": true,
-          "element": 1
         }
       ],
       "argument_reference": [
@@ -21654,7 +21342,7 @@
           "path": [
             "name"
           ],
-          "value": "MyRealTimeAlertConfiguration",
+          "value": "MyCallAnalyticsConfiguration",
           "is_string": true,
           "incomplete": true
         },
@@ -21679,10 +21367,143 @@
           "path": [
             "elements",
             "amazon_transcribe_call_analytics_processor_configuration",
+            "call_analytics_stream_categories"
+          ],
+          "value": "[\"category_1\", \"category_2\"]",
+          "is_list": true
+        },
+        {
+          "path": [
+            "elements",
+            "amazon_transcribe_call_analytics_processor_configuration",
+            "content_redaction_type"
+          ],
+          "value": "PII",
+          "is_string": true
+        },
+        {
+          "path": [
+            "elements",
+            "amazon_transcribe_call_analytics_processor_configuration",
+            "enable_partial_results_stabilization"
+          ],
+          "value": "true"
+        },
+        {
+          "path": [
+            "elements",
+            "amazon_transcribe_call_analytics_processor_configuration",
+            "filter_partial_results"
+          ],
+          "value": "true"
+        },
+        {
+          "path": [
+            "elements",
+            "amazon_transcribe_call_analytics_processor_configuration",
             "language_code"
           ],
           "value": "en-US",
           "is_string": true
+        },
+        {
+          "path": [
+            "elements",
+            "amazon_transcribe_call_analytics_processor_configuration",
+            "language_model_name"
+          ],
+          "value": "MyLanguageModel",
+          "is_string": true
+        },
+        {
+          "path": [
+            "elements",
+            "amazon_transcribe_call_analytics_processor_configuration",
+            "partial_results_stability"
+          ],
+          "value": "high",
+          "is_string": true
+        },
+        {
+          "path": [
+            "elements",
+            "amazon_transcribe_call_analytics_processor_configuration",
+            "pii_entity_types"
+          ],
+          "value": "ADDRESS,BANK_ACCOUNT_NUMBER",
+          "is_string": true
+        },
+        {
+          "path": [
+            "elements",
+            "amazon_transcribe_call_analytics_processor_configuration",
+            "vocabulary_filter_method"
+          ],
+          "value": "mask",
+          "is_string": true
+        },
+        {
+          "path": [
+            "elements",
+            "amazon_transcribe_call_analytics_processor_configuration",
+            "vocabulary_filter_name"
+          ],
+          "value": "MyVocabularyFilter",
+          "is_string": true
+        },
+        {
+          "path": [
+            "elements",
+            "amazon_transcribe_call_analytics_processor_configuration",
+            "vocabulary_name"
+          ],
+          "value": "MyVocabulary",
+          "is_string": true
+        },
+        {
+          "path": [
+            "elements",
+            "amazon_transcribe_call_analytics_processor_configuration",
+            "post_call_analytics_settings",
+            "content_redaction_output"
+          ],
+          "value": "redacted",
+          "is_string": true,
+          "incomplete": true
+        },
+        {
+          "path": [
+            "elements",
+            "amazon_transcribe_call_analytics_processor_configuration",
+            "post_call_analytics_settings",
+            "data_access_role_arn"
+          ],
+          "value": "",
+          "reference": true,
+          "ref_type": "aws_iam_role",
+          "ref_attr": "arn"
+        },
+        {
+          "path": [
+            "elements",
+            "amazon_transcribe_call_analytics_processor_configuration",
+            "post_call_analytics_settings",
+            "output_encryption_kms_key_id"
+          ],
+          "value": "MyKmsKeyId",
+          "is_string": true,
+          "incomplete": true
+        },
+        {
+          "path": [
+            "elements",
+            "amazon_transcribe_call_analytics_processor_configuration",
+            "post_call_analytics_settings",
+            "output_location"
+          ],
+          "value": "s3://MyBucket",
+          "is_string": true,
+          "incomplete": true
         },
         {
           "path": [
@@ -21704,116 +21525,6 @@
           "ref_type": "aws_kinesis_stream",
           "ref_attr": "arn",
           "element": 1
-        },
-        {
-          "path": [
-            "real_time_alert_configuration",
-            "disabled"
-          ],
-          "value": "false"
-        },
-        {
-          "path": [
-            "real_time_alert_configuration",
-            "rules",
-            "type"
-          ],
-          "value": "IssueDetection",
-          "is_string": true
-        },
-        {
-          "path": [
-            "real_time_alert_configuration",
-            "rules",
-            "issue_detection_configuration",
-            "rule_name"
-          ],
-          "value": "MyIssueDetectionRule",
-          "is_string": true
-        },
-        {
-          "path": [
-            "real_time_alert_configuration",
-            "rules",
-            "type"
-          ],
-          "value": "KeywordMatch",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "real_time_alert_configuration",
-            "rules",
-            "keyword_match_configuration",
-            "keywords"
-          ],
-          "value": "[\"keyword1\", \"keyword2\"]",
-          "is_list": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "real_time_alert_configuration",
-            "rules",
-            "keyword_match_configuration",
-            "negate"
-          ],
-          "value": "false",
-          "element": 1
-        },
-        {
-          "path": [
-            "real_time_alert_configuration",
-            "rules",
-            "keyword_match_configuration",
-            "rule_name"
-          ],
-          "value": "MyKeywordMatchRule",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "real_time_alert_configuration",
-            "rules",
-            "type"
-          ],
-          "value": "Sentiment",
-          "is_string": true,
-          "element": 2
-        },
-        {
-          "path": [
-            "real_time_alert_configuration",
-            "rules",
-            "sentiment_configuration",
-            "rule_name"
-          ],
-          "value": "MySentimentRule",
-          "is_string": true,
-          "element": 2
-        },
-        {
-          "path": [
-            "real_time_alert_configuration",
-            "rules",
-            "sentiment_configuration",
-            "sentiment_type"
-          ],
-          "value": "NEGATIVE",
-          "is_string": true,
-          "element": 2
-        },
-        {
-          "path": [
-            "real_time_alert_configuration",
-            "rules",
-            "sentiment_configuration",
-            "time_period"
-          ],
-          "value": "60",
-          "element": 2
         }
       ],
       "argument_reference": [
@@ -23432,50 +23143,29 @@
       "example_arguments": [
         {
           "path": [
-            "aliases"
-          ],
-          "value": "",
-          "reference": true,
-          "ref_type": "local",
-          "ref_attr": "my_domain"
-        },
-        {
-          "path": [
             "comment"
           ],
           "value": "Some comment",
-          "is_string": true,
-          "incomplete": true
+          "is_string": true
         },
         {
           "path": [
             "default_root_object"
           ],
           "value": "index.html",
-          "is_string": true,
-          "incomplete": true
+          "is_string": true
         },
         {
           "path": [
             "enabled"
           ],
-          "value": "true",
-          "incomplete": true
+          "value": "true"
         },
         {
           "path": [
             "is_ipv6_enabled"
           ],
-          "value": "true",
-          "incomplete": true
-        },
-        {
-          "path": [
-            "price_class"
-          ],
-          "value": "PriceClass_200",
-          "is_string": true,
-          "incomplete": true
+          "value": "true"
         },
         {
           "path": [
@@ -23490,30 +23180,39 @@
         {
           "path": [
             "origin",
-            "origin_access_control_id"
+            "origin_id"
           ],
-          "value": "",
-          "reference": true,
-          "ref_type": "aws_cloudfront_origin_access_control",
-          "ref_attr": "id"
+          "value": "myS3Origin",
+          "is_string": true,
+          "incomplete": true
         },
         {
           "path": [
             "origin",
-            "origin_id"
+            "s3_origin_config",
+            "origin_access_identity"
           ],
           "value": "",
           "reference": true,
-          "ref_type": "local",
-          "ref_attr": "s3_origin_id"
+          "ref_type": "aws_cloudfront_origin_access_identity",
+          "ref_attr": "cloudfront_access_identity_path"
         },
         {
           "path": [
             "default_cache_behavior",
             "allowed_methods"
           ],
-          "value": "[\"DELETE\", \"GET\", \"HEAD\", \"OPTIONS\", \"PATCH\", \"POST\", \"PUT\"]",
+          "value": "[\"GET\", \"HEAD\", \"OPTIONS\"]",
           "is_list": true,
+          "incomplete": true
+        },
+        {
+          "path": [
+            "default_cache_behavior",
+            "cache_policy_id"
+          ],
+          "value": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+          "is_string": true,
           "incomplete": true
         },
         {
@@ -23523,30 +23222,6 @@
           ],
           "value": "[\"GET\", \"HEAD\"]",
           "is_list": true,
-          "incomplete": true
-        },
-        {
-          "path": [
-            "default_cache_behavior",
-            "default_ttl"
-          ],
-          "value": "3600",
-          "incomplete": true
-        },
-        {
-          "path": [
-            "default_cache_behavior",
-            "max_ttl"
-          ],
-          "value": "86400",
-          "incomplete": true
-        },
-        {
-          "path": [
-            "default_cache_behavior",
-            "min_ttl"
-          ],
-          "value": "0",
           "incomplete": true
         },
         {
@@ -23570,236 +23245,6 @@
         },
         {
           "path": [
-            "default_cache_behavior",
-            "forwarded_values",
-            "query_string"
-          ],
-          "value": "false"
-        },
-        {
-          "path": [
-            "default_cache_behavior",
-            "forwarded_values",
-            "cookies",
-            "forward"
-          ],
-          "value": "none",
-          "is_string": true
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "allowed_methods"
-          ],
-          "value": "[\"GET\", \"HEAD\", \"OPTIONS\"]",
-          "is_list": true,
-          "incomplete": true
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "cached_methods"
-          ],
-          "value": "[\"GET\", \"HEAD\", \"OPTIONS\"]",
-          "is_list": true,
-          "incomplete": true
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "compress"
-          ],
-          "value": "true",
-          "incomplete": true
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "default_ttl"
-          ],
-          "value": "86400",
-          "incomplete": true
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "max_ttl"
-          ],
-          "value": "31536000",
-          "incomplete": true
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "min_ttl"
-          ],
-          "value": "0",
-          "incomplete": true
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "path_pattern"
-          ],
-          "value": "/content/immutable/*",
-          "is_string": true,
-          "incomplete": true
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "target_origin_id"
-          ],
-          "value": "",
-          "reference": true,
-          "ref_type": "local",
-          "ref_attr": "s3_origin_id"
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "viewer_protocol_policy"
-          ],
-          "value": "redirect-to-https",
-          "is_string": true,
-          "incomplete": true
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "forwarded_values",
-            "headers"
-          ],
-          "value": "[\"Origin\"]",
-          "is_list": true
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "forwarded_values",
-            "query_string"
-          ],
-          "value": "false"
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "forwarded_values",
-            "cookies",
-            "forward"
-          ],
-          "value": "none",
-          "is_string": true
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "allowed_methods"
-          ],
-          "value": "[\"GET\", \"HEAD\", \"OPTIONS\"]",
-          "is_list": true,
-          "incomplete": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "cached_methods"
-          ],
-          "value": "[\"GET\", \"HEAD\"]",
-          "is_list": true,
-          "incomplete": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "compress"
-          ],
-          "value": "true",
-          "incomplete": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "default_ttl"
-          ],
-          "value": "3600",
-          "incomplete": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "max_ttl"
-          ],
-          "value": "86400",
-          "incomplete": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "min_ttl"
-          ],
-          "value": "0",
-          "incomplete": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "path_pattern"
-          ],
-          "value": "/content/*",
-          "is_string": true,
-          "incomplete": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "target_origin_id"
-          ],
-          "value": "",
-          "reference": true,
-          "ref_type": "local",
-          "ref_attr": "s3_origin_id",
-          "element": 1
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "viewer_protocol_policy"
-          ],
-          "value": "redirect-to-https",
-          "is_string": true,
-          "incomplete": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "forwarded_values",
-            "query_string"
-          ],
-          "value": "false",
-          "element": 1
-        },
-        {
-          "path": [
-            "ordered_cache_behavior",
-            "forwarded_values",
-            "cookies",
-            "forward"
-          ],
-          "value": "none",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
             "restrictions",
             "geo_restriction",
             "locations"
@@ -23819,21 +23264,9 @@
         {
           "path": [
             "viewer_certificate",
-            "acm_certificate_arn"
+            "cloudfront_default_certificate"
           ],
-          "value": "",
-          "reference": true,
-          "ref_type": "data",
-          "ref_attr": "arn"
-        },
-        {
-          "path": [
-            "viewer_certificate",
-            "ssl_support_method"
-          ],
-          "value": "sni-only",
-          "is_string": true,
-          "incomplete": true
+          "value": "true"
         }
       ],
       "argument_reference": [
@@ -32795,7 +32228,7 @@
             "log_configurations",
             "log_level"
           ],
-          "value": "INFO",
+          "value": "ERROR",
           "is_string": true
         },
         {
@@ -32808,36 +32241,6 @@
           "reference": true,
           "ref_type": "aws_cloudwatch_log_group",
           "ref_attr": "arn"
-        },
-        {
-          "path": [
-            "log_configurations",
-            "event_source"
-          ],
-          "value": "userAuthEvents",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "log_configurations",
-            "log_level"
-          ],
-          "value": "INFO",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "log_configurations",
-            "firehose_configuration",
-            "stream_arn"
-          ],
-          "value": "",
-          "reference": true,
-          "ref_type": "aws_kinesis_firehose_delivery_stream",
-          "ref_attr": "arn",
-          "element": 1
         }
       ],
       "argument_reference": [
@@ -44743,70 +44146,6 @@
             "count"
           ],
           "value": "14"
-        },
-        {
-          "path": [
-            "policy_details",
-            "schedule",
-            "cross_region_copy_rule",
-            "cmk_arn"
-          ],
-          "value": "",
-          "reference": true,
-          "ref_type": "aws_kms_key",
-          "ref_attr": "arn"
-        },
-        {
-          "path": [
-            "policy_details",
-            "schedule",
-            "cross_region_copy_rule",
-            "copy_tags"
-          ],
-          "value": "true",
-          "incomplete": true
-        },
-        {
-          "path": [
-            "policy_details",
-            "schedule",
-            "cross_region_copy_rule",
-            "encrypted"
-          ],
-          "value": "true",
-          "incomplete": true
-        },
-        {
-          "path": [
-            "policy_details",
-            "schedule",
-            "cross_region_copy_rule",
-            "target"
-          ],
-          "value": "us-west-2",
-          "is_string": true,
-          "incomplete": true
-        },
-        {
-          "path": [
-            "policy_details",
-            "schedule",
-            "cross_region_copy_rule",
-            "retain_rule",
-            "interval"
-          ],
-          "value": "30"
-        },
-        {
-          "path": [
-            "policy_details",
-            "schedule",
-            "cross_region_copy_rule",
-            "retain_rule",
-            "interval_unit"
-          ],
-          "value": "DAYS",
-          "is_string": true
         }
       ],
       "argument_reference": [
@@ -61398,9 +60737,9 @@
       "example_arguments": [
         {
           "path": [
-            "default_variation"
+            "description"
           ],
-          "value": "Variation2",
+          "value": "example description",
           "is_string": true,
           "incomplete": true
         },
@@ -61435,27 +60774,8 @@
             "value",
             "string_value"
           ],
-          "value": "exampleval1",
+          "value": "example",
           "is_string": true
-        },
-        {
-          "path": [
-            "variations",
-            "name"
-          ],
-          "value": "Variation2",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "variations",
-            "value",
-            "string_value"
-          ],
-          "value": "exampleval2",
-          "is_string": true,
-          "element": 1
         }
       ],
       "argument_reference": [
@@ -62420,77 +61740,6 @@
           "reference": true,
           "ref_type": "aws_ec2_transit_gateway",
           "ref_attr": "id"
-        },
-        {
-          "path": [
-            "transit_gateway_configuration",
-            "attachment_network_acl_configuration",
-            "cidr_block"
-          ],
-          "value": "0.0.0.0/0",
-          "is_string": true
-        },
-        {
-          "path": [
-            "transit_gateway_configuration",
-            "attachment_network_acl_configuration",
-            "protocol"
-          ],
-          "value": "6",
-          "is_string": true
-        },
-        {
-          "path": [
-            "transit_gateway_configuration",
-            "attachment_network_acl_configuration",
-            "rule_action"
-          ],
-          "value": "allow",
-          "is_string": true
-        },
-        {
-          "path": [
-            "transit_gateway_configuration",
-            "attachment_network_acl_configuration",
-            "rule_number"
-          ],
-          "value": "1"
-        },
-        {
-          "path": [
-            "transit_gateway_configuration",
-            "attachment_network_acl_configuration",
-            "port_range",
-            "from"
-          ],
-          "value": "53"
-        },
-        {
-          "path": [
-            "transit_gateway_configuration",
-            "attachment_network_acl_configuration",
-            "port_range",
-            "to"
-          ],
-          "value": "53"
-        },
-        {
-          "path": [
-            "transit_gateway_configuration",
-            "attachment_network_acl_configuration",
-            "icmp_type_code",
-            "code"
-          ],
-          "value": "-1"
-        },
-        {
-          "path": [
-            "transit_gateway_configuration",
-            "attachment_network_acl_configuration",
-            "icmp_type_code",
-            "type"
-          ],
-          "value": "-1"
         },
         {
           "path": [
@@ -77314,297 +76563,6 @@
           "value": "ASCENDING",
           "is_string": true,
           "element": 13
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "name"
-          ],
-          "value": "example-string-value",
-          "is_string": true,
-          "element": 14
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "type"
-          ],
-          "value": "STRING_VALUE",
-          "is_string": true,
-          "element": 14
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "search",
-            "displayable"
-          ],
-          "value": "true",
-          "element": 14
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "search",
-            "facetable"
-          ],
-          "value": "true",
-          "element": 14
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "search",
-            "searchable"
-          ],
-          "value": "true",
-          "element": 14
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "search",
-            "sortable"
-          ],
-          "value": "true",
-          "element": 14
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "relevance",
-            "importance"
-          ],
-          "value": "1",
-          "element": 14
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "name"
-          ],
-          "value": "example-long-value",
-          "is_string": true,
-          "element": 15
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "type"
-          ],
-          "value": "LONG_VALUE",
-          "is_string": true,
-          "element": 15
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "search",
-            "displayable"
-          ],
-          "value": "true",
-          "element": 15
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "search",
-            "facetable"
-          ],
-          "value": "true",
-          "element": 15
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "search",
-            "searchable"
-          ],
-          "value": "false",
-          "element": 15
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "search",
-            "sortable"
-          ],
-          "value": "true",
-          "element": 15
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "relevance",
-            "importance"
-          ],
-          "value": "1",
-          "element": 15
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "relevance",
-            "rank_order"
-          ],
-          "value": "ASCENDING",
-          "is_string": true,
-          "element": 15
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "name"
-          ],
-          "value": "example-string-list-value",
-          "is_string": true,
-          "element": 16
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "type"
-          ],
-          "value": "STRING_LIST_VALUE",
-          "is_string": true,
-          "element": 16
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "search",
-            "displayable"
-          ],
-          "value": "true",
-          "element": 16
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "search",
-            "facetable"
-          ],
-          "value": "true",
-          "element": 16
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "search",
-            "searchable"
-          ],
-          "value": "true",
-          "element": 16
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "search",
-            "sortable"
-          ],
-          "value": "false",
-          "element": 16
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "relevance",
-            "importance"
-          ],
-          "value": "1",
-          "element": 16
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "name"
-          ],
-          "value": "example-date-value",
-          "is_string": true,
-          "element": 17
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "type"
-          ],
-          "value": "DATE_VALUE",
-          "is_string": true,
-          "element": 17
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "search",
-            "displayable"
-          ],
-          "value": "true",
-          "element": 17
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "search",
-            "facetable"
-          ],
-          "value": "true",
-          "element": 17
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "search",
-            "searchable"
-          ],
-          "value": "false",
-          "element": 17
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "search",
-            "sortable"
-          ],
-          "value": "false",
-          "element": 17
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "relevance",
-            "duration"
-          ],
-          "value": "25920000s",
-          "is_string": true,
-          "element": 17
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "relevance",
-            "freshness"
-          ],
-          "value": "false",
-          "element": 17
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "relevance",
-            "importance"
-          ],
-          "value": "1",
-          "element": 17
-        },
-        {
-          "path": [
-            "document_metadata_configuration_updates",
-            "relevance",
-            "rank_order"
-          ],
-          "value": "ASCENDING",
-          "is_string": true,
-          "element": 17
         }
       ],
       "argument_reference": [
@@ -78380,19 +77338,59 @@
           "path": [
             "destination"
           ],
-          "value": "extended_s3",
+          "value": "splunk",
           "is_string": true
         },
         {
           "path": [
             "name"
           ],
-          "value": "terraform-kinesis-firehose-extended-s3-test-stream",
+          "value": "terraform-kinesis-firehose-test-stream",
           "is_string": true
         },
         {
           "path": [
-            "extended_s3_configuration",
+            "splunk_configuration",
+            "hec_acknowledgment_timeout"
+          ],
+          "value": "600"
+        },
+        {
+          "path": [
+            "splunk_configuration",
+            "hec_endpoint"
+          ],
+          "value": "https://http-inputs-mydomain.splunkcloud.com:443",
+          "is_string": true
+        },
+        {
+          "path": [
+            "splunk_configuration",
+            "hec_endpoint_type"
+          ],
+          "value": "Event",
+          "is_string": true
+        },
+        {
+          "path": [
+            "splunk_configuration",
+            "hec_token"
+          ],
+          "value": "51D4DA16-C61B-4F5F-8EC7-ED4301342A4A",
+          "is_string": true
+        },
+        {
+          "path": [
+            "splunk_configuration",
+            "s3_backup_mode"
+          ],
+          "value": "FailedEventsOnly",
+          "is_string": true
+        },
+        {
+          "path": [
+            "splunk_configuration",
+            "s3_configuration",
             "bucket_arn"
           ],
           "value": "",
@@ -78402,159 +77400,42 @@
         },
         {
           "path": [
-            "extended_s3_configuration",
+            "splunk_configuration",
+            "s3_configuration",
+            "buffering_interval"
+          ],
+          "value": "400",
+          "incomplete": true
+        },
+        {
+          "path": [
+            "splunk_configuration",
+            "s3_configuration",
             "buffering_size"
           ],
-          "value": "64",
+          "value": "10",
           "incomplete": true
         },
         {
           "path": [
-            "extended_s3_configuration",
-            "error_output_prefix"
+            "splunk_configuration",
+            "s3_configuration",
+            "compression_format"
           ],
-          "value": "errors/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/hour=!{timestamp:HH}/!{firehose:error-output-type}/",
+          "value": "GZIP",
           "is_string": true,
           "incomplete": true
         },
         {
           "path": [
-            "extended_s3_configuration",
-            "prefix"
-          ],
-          "value": "data/customer_id=!{partitionKeyFromQuery:customer_id}/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/hour=!{timestamp:HH}/",
-          "is_string": true,
-          "incomplete": true
-        },
-        {
-          "path": [
-            "extended_s3_configuration",
+            "splunk_configuration",
+            "s3_configuration",
             "role_arn"
           ],
           "value": "",
           "reference": true,
           "ref_type": "aws_iam_role",
           "ref_attr": "arn"
-        },
-        {
-          "path": [
-            "extended_s3_configuration",
-            "dynamic_partitioning_configuration",
-            "enabled"
-          ],
-          "value": "true",
-          "is_string": true
-        },
-        {
-          "path": [
-            "extended_s3_configuration",
-            "processing_configuration",
-            "enabled"
-          ],
-          "value": "true",
-          "is_string": true
-        },
-        {
-          "path": [
-            "extended_s3_configuration",
-            "processing_configuration",
-            "processors",
-            "type"
-          ],
-          "value": "RecordDeAggregation",
-          "is_string": true
-        },
-        {
-          "path": [
-            "extended_s3_configuration",
-            "processing_configuration",
-            "processors",
-            "parameters",
-            "parameter_name"
-          ],
-          "value": "SubRecordType",
-          "is_string": true
-        },
-        {
-          "path": [
-            "extended_s3_configuration",
-            "processing_configuration",
-            "processors",
-            "parameters",
-            "parameter_value"
-          ],
-          "value": "JSON",
-          "is_string": true
-        },
-        {
-          "path": [
-            "extended_s3_configuration",
-            "processing_configuration",
-            "processors",
-            "type"
-          ],
-          "value": "AppendDelimiterToRecord",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "extended_s3_configuration",
-            "processing_configuration",
-            "processors",
-            "type"
-          ],
-          "value": "MetadataExtraction",
-          "is_string": true,
-          "element": 2
-        },
-        {
-          "path": [
-            "extended_s3_configuration",
-            "processing_configuration",
-            "processors",
-            "parameters",
-            "parameter_name"
-          ],
-          "value": "JsonParsingEngine",
-          "is_string": true,
-          "element": 2
-        },
-        {
-          "path": [
-            "extended_s3_configuration",
-            "processing_configuration",
-            "processors",
-            "parameters",
-            "parameter_value"
-          ],
-          "value": "JQ-1.6",
-          "is_string": true,
-          "element": 2
-        },
-        {
-          "path": [
-            "extended_s3_configuration",
-            "processing_configuration",
-            "processors",
-            "parameters",
-            "parameter_name"
-          ],
-          "value": "MetadataExtractionQuery",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "extended_s3_configuration",
-            "processing_configuration",
-            "processors",
-            "parameters",
-            "parameter_value"
-          ],
-          "value": "{customer_id:.customer_id}",
-          "is_string": true,
-          "element": 1
         }
       ],
       "argument_reference": [
@@ -80517,6 +79398,15 @@
         {
           "path": [
             "table_data",
+            "column_names"
+          ],
+          "value": "[\"my_column\"]",
+          "is_list": true,
+          "incomplete": true
+        },
+        {
+          "path": [
+            "table_data",
             "database_name"
           ],
           "value": "",
@@ -80529,7 +79419,7 @@
             "table_data",
             "name"
           ],
-          "value": "marketing-filtered",
+          "value": "example",
           "is_string": true,
           "incomplete": true
         },
@@ -80556,19 +79446,10 @@
         {
           "path": [
             "table_data",
-            "column_wildcard",
-            "excluded_column_names"
-          ],
-          "value": "[\"salary\", \"bonus\"]",
-          "is_list": true
-        },
-        {
-          "path": [
-            "table_data",
             "row_filter",
             "filter_expression"
           ],
-          "value": "department = 'Marketing'",
+          "value": "my_column='example'",
           "is_string": true
         }
       ],
@@ -83785,27 +82666,18 @@
       "example_arguments": [
         {
           "path": [
-            "certificate_arn"
-          ],
-          "value": "",
-          "reference": true,
-          "ref_type": "aws_iam_server_certificate",
-          "ref_attr": "arn"
-        },
-        {
-          "path": [
             "load_balancer_arn"
           ],
           "value": "",
           "reference": true,
           "ref_type": "aws_lb",
-          "ref_attr": "id"
+          "ref_attr": "arn"
         },
         {
           "path": [
             "port"
           ],
-          "value": "443",
+          "value": "80",
           "is_string": true,
           "incomplete": true
         },
@@ -83813,127 +82685,44 @@
           "path": [
             "protocol"
           ],
+          "value": "HTTP",
+          "is_string": true,
+          "incomplete": true
+        },
+        {
+          "path": [
+            "default_action",
+            "type"
+          ],
+          "value": "redirect",
+          "is_string": true
+        },
+        {
+          "path": [
+            "default_action",
+            "redirect",
+            "port"
+          ],
+          "value": "443",
+          "is_string": true
+        },
+        {
+          "path": [
+            "default_action",
+            "redirect",
+            "protocol"
+          ],
           "value": "HTTPS",
-          "is_string": true,
-          "incomplete": true
-        },
-        {
-          "path": [
-            "ssl_policy"
-          ],
-          "value": "ELBSecurityPolicy-2016-08",
-          "is_string": true,
-          "incomplete": true
-        },
-        {
-          "path": [
-            "default_action",
-            "type"
-          ],
-          "value": "jwt-validation",
           "is_string": true
         },
         {
           "path": [
             "default_action",
-            "jwt_validation",
-            "issuer"
+            "redirect",
+            "status_code"
           ],
-          "value": "https://example.com",
+          "value": "HTTP_301",
           "is_string": true
-        },
-        {
-          "path": [
-            "default_action",
-            "jwt_validation",
-            "jwks_endpoint"
-          ],
-          "value": "https://example.com/.well-known/jwks.json",
-          "is_string": true
-        },
-        {
-          "path": [
-            "default_action",
-            "jwt_validation",
-            "additional_claim",
-            "format"
-          ],
-          "value": "string-array",
-          "is_string": true
-        },
-        {
-          "path": [
-            "default_action",
-            "jwt_validation",
-            "additional_claim",
-            "name"
-          ],
-          "value": "claim_name1",
-          "is_string": true
-        },
-        {
-          "path": [
-            "default_action",
-            "jwt_validation",
-            "additional_claim",
-            "values"
-          ],
-          "value": "[\"value1\", \"value2\"]",
-          "is_list": true
-        },
-        {
-          "path": [
-            "default_action",
-            "jwt_validation",
-            "additional_claim",
-            "format"
-          ],
-          "value": "single-string",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "default_action",
-            "jwt_validation",
-            "additional_claim",
-            "name"
-          ],
-          "value": "claim_name2",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "default_action",
-            "jwt_validation",
-            "additional_claim",
-            "values"
-          ],
-          "value": "[\"value1\"]",
-          "is_list": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "default_action",
-            "target_group_arn"
-          ],
-          "value": "",
-          "reference": true,
-          "ref_type": "aws_lb_target_group",
-          "ref_attr": "id",
-          "element": 1
-        },
-        {
-          "path": [
-            "default_action",
-            "type"
-          ],
-          "value": "forward",
-          "is_string": true,
-          "incomplete": true,
-          "element": 1
         }
       ],
       "argument_reference": [
@@ -84239,110 +83028,53 @@
             "action",
             "type"
           ],
-          "value": "jwt-validation",
+          "value": "redirect",
           "is_string": true
         },
         {
           "path": [
             "action",
-            "jwt_validation",
-            "issuer"
+            "redirect",
+            "port"
           ],
-          "value": "https://example.com",
+          "value": "443",
           "is_string": true
         },
         {
           "path": [
             "action",
-            "jwt_validation",
-            "jwks_endpoint"
+            "redirect",
+            "protocol"
           ],
-          "value": "https://example.com/.well-known/jwks.json",
+          "value": "HTTPS",
           "is_string": true
         },
         {
           "path": [
             "action",
-            "jwt_validation",
-            "additional_claim",
-            "format"
+            "redirect",
+            "status_code"
           ],
-          "value": "string-array",
+          "value": "HTTP_301",
           "is_string": true
         },
         {
           "path": [
-            "action",
-            "jwt_validation",
-            "additional_claim",
-            "name"
+            "condition",
+            "http_header",
+            "http_header_name"
           ],
-          "value": "claim_name1",
+          "value": "X-Forwarded-For",
           "is_string": true
         },
         {
           "path": [
-            "action",
-            "jwt_validation",
-            "additional_claim",
+            "condition",
+            "http_header",
             "values"
           ],
-          "value": "[\"value1\", \"value2\"]",
+          "value": "[\"192.168.1.*\"]",
           "is_list": true
-        },
-        {
-          "path": [
-            "action",
-            "jwt_validation",
-            "additional_claim",
-            "format"
-          ],
-          "value": "single-string",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "action",
-            "jwt_validation",
-            "additional_claim",
-            "name"
-          ],
-          "value": "claim_name2",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "action",
-            "jwt_validation",
-            "additional_claim",
-            "values"
-          ],
-          "value": "[\"value1\"]",
-          "is_list": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "action",
-            "target_group_arn"
-          ],
-          "value": "",
-          "reference": true,
-          "ref_type": "aws_lb_target_group",
-          "ref_attr": "arn",
-          "element": 1
-        },
-        {
-          "path": [
-            "action",
-            "type"
-          ],
-          "value": "forward",
-          "is_string": true,
-          "incomplete": true,
-          "element": 1
         }
       ],
       "argument_reference": [
@@ -91928,24 +90660,9 @@
       "example_arguments": [
         {
           "path": [
-            "apply_immediately"
-          ],
-          "value": "true",
-          "incomplete": true
-        },
-        {
-          "path": [
             "broker_name"
           ],
-          "value": "example_primary",
-          "is_string": true,
-          "incomplete": true
-        },
-        {
-          "path": [
-            "deployment_mode"
-          ],
-          "value": "ACTIVE_STANDBY_MULTI_AZ",
+          "value": "example",
           "is_string": true,
           "incomplete": true
         },
@@ -91969,17 +90686,9 @@
           "path": [
             "host_instance_type"
           ],
-          "value": "mq.m5.large",
+          "value": "mq.t2.micro",
           "is_string": true,
           "incomplete": true
-        },
-        {
-          "path": [
-            "provider"
-          ],
-          "value": "",
-          "reference": true,
-          "ref_type": "awsalternate"
         },
         {
           "path": [
@@ -91989,6 +90698,26 @@
           "reference": true,
           "ref_type": "aws_security_group",
           "ref_attr": "id"
+        },
+        {
+          "path": [
+            "configuration",
+            "id"
+          ],
+          "value": "",
+          "reference": true,
+          "ref_type": "aws_mq_configuration",
+          "ref_attr": "id"
+        },
+        {
+          "path": [
+            "configuration",
+            "revision"
+          ],
+          "value": "",
+          "reference": true,
+          "ref_type": "aws_mq_configuration",
+          "ref_attr": "latest_revision"
         },
         {
           "path": [
@@ -92005,32 +90734,6 @@
           ],
           "value": "example_user",
           "is_string": true
-        },
-        {
-          "path": [
-            "user",
-            "password"
-          ],
-          "value": "<password>",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "user",
-            "replication_user"
-          ],
-          "value": "true",
-          "element": 1
-        },
-        {
-          "path": [
-            "user",
-            "username"
-          ],
-          "value": "example_replication_user",
-          "is_string": true,
-          "element": 1
         }
       ],
       "argument_reference": [
@@ -99235,7 +97938,7 @@
           "path": [
             "rule_name"
           ],
-          "value": "advanced-centralization-rule",
+          "value": "example-centralization-rule",
           "is_string": true
         },
         {
@@ -99262,43 +97965,10 @@
         {
           "path": [
             "rule",
-            "destination",
-            "destination_logs_configuration",
-            "logs_encryption_configuration",
-            "encryption_strategy"
-          ],
-          "value": "AWS_OWNED",
-          "is_string": true
-        },
-        {
-          "path": [
-            "rule",
-            "destination",
-            "destination_logs_configuration",
-            "backup_configuration",
-            "region"
-          ],
-          "value": "us-west-1",
-          "is_string": true
-        },
-        {
-          "path": [
-            "rule",
-            "destination",
-            "destination_logs_configuration",
-            "log_group_name_configuration",
-            "log_group_name_pattern"
-          ],
-          "value": "/centralized-logs/${source.accountId}/${source.region}/${source.logGroup}",
-          "is_string": true
-        },
-        {
-          "path": [
-            "rule",
             "source",
             "regions"
           ],
-          "value": "[\"ap-southeast-1\", \"us-east-1\"]",
+          "value": "[\"ap-southeast-1\"]",
           "is_list": true,
           "incomplete": true
         },
@@ -99320,7 +97990,7 @@
             "source_logs_configuration",
             "encrypted_log_group_strategy"
           ],
-          "value": "ALLOW",
+          "value": "SKIP",
           "is_string": true
         },
         {
@@ -117228,24 +115898,25 @@
           "path": [
             "name"
           ],
-          "value": "EntireBucket",
+          "value": "ImportantBlueDocuments",
           "is_string": true,
           "incomplete": true
         },
         {
           "path": [
-            "tiering",
-            "access_tier"
+            "status"
           ],
-          "value": "DEEP_ARCHIVE_ACCESS",
-          "is_string": true
+          "value": "Disabled",
+          "is_string": true,
+          "incomplete": true
         },
         {
           "path": [
-            "tiering",
-            "days"
+            "filter",
+            "prefix"
           ],
-          "value": "180"
+          "value": "documents/",
+          "is_string": true
         },
         {
           "path": [
@@ -117253,16 +115924,14 @@
             "access_tier"
           ],
           "value": "ARCHIVE_ACCESS",
-          "is_string": true,
-          "element": 1
+          "is_string": true
         },
         {
           "path": [
             "tiering",
             "days"
           ],
-          "value": "125",
-          "element": 1
+          "value": "125"
         }
       ],
       "argument_reference": [
@@ -122746,26 +121415,25 @@
           ],
           "value": "",
           "reference": true,
-          "ref_type": "data",
-          "ref_attr": "region"
+          "ref_type": "aws_sagemaker_workteam",
+          "ref_attr": "arn"
         },
         {
           "path": [
-            "human_loop_config",
-            "public_workforce_task_price",
-            "amount_in_usd",
-            "cents"
+            "human_loop_request_source",
+            "aws_managed_human_loop_request_source"
           ],
-          "value": "1"
+          "value": "AWS/Textract/AnalyzeDocument/Forms/V1",
+          "is_string": true
         },
         {
           "path": [
-            "human_loop_config",
-            "public_workforce_task_price",
-            "amount_in_usd",
-            "tenth_fractions_of_a_cent"
+            "human_loop_activation_config",
+            "human_loop_activation_conditions_config",
+            "human_loop_activation_conditions"
           ],
-          "value": "2"
+          "value": "        {\n\t\t\t\"Conditions\": [\n\t\t\t  {\n\t\t\t\t\"ConditionType\": \"Sampling\",\n\t\t\t\t\"ConditionParameters\": {\n\t\t\t\t  \"RandomSamplingPercentage\": 5\n\t\t\t\t}\n\t\t\t  }\n\t\t\t]\n\t\t}\n",
+          "is_string": true
         },
         {
           "path": [
@@ -126024,11 +124692,11 @@
       "example_arguments": [
         {
           "path": [
-            "external_secret_rotation_role_arn"
+            "rotation_lambda_arn"
           ],
           "value": "",
           "reference": true,
-          "ref_type": "aws_iam_role",
+          "ref_type": "aws_lambda_function",
           "ref_attr": "arn"
         },
         {
@@ -126042,50 +124710,10 @@
         },
         {
           "path": [
-            "external_secret_rotation_metadata",
-            "key"
-          ],
-          "value": "adminSecretArn",
-          "is_string": true,
-          "incomplete": true
-        },
-        {
-          "path": [
-            "external_secret_rotation_metadata",
-            "value"
-          ],
-          "value": "",
-          "reference": true,
-          "ref_type": "aws_secretsmanager_secret",
-          "ref_attr": "arn"
-        },
-        {
-          "path": [
-            "external_secret_rotation_metadata",
-            "key"
-          ],
-          "value": "apiVersion",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "external_secret_rotation_metadata",
-            "value"
-          ],
-          "value": "v65.0",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
             "rotation_rules",
             "automatically_after_days"
           ],
-          "value": "",
-          "reference": true,
-          "ref_type": "var",
-          "ref_attr": "rotation_days"
+          "value": "30"
         }
       ],
       "argument_reference": [
@@ -127538,7 +126166,7 @@
           "path": [
             "group_by_attribute"
           ],
-          "value": "AwsAccountId",
+          "value": "ResourceTags",
           "is_string": true,
           "incomplete": true
         },
@@ -127553,7 +126181,7 @@
         {
           "path": [
             "filters",
-            "aws_account_id",
+            "resource_tags",
             "comparison"
           ],
           "value": "EQUALS",
@@ -127562,31 +126190,20 @@
         {
           "path": [
             "filters",
-            "aws_account_id",
-            "value"
+            "resource_tags",
+            "key"
           ],
-          "value": "1234567890",
+          "value": "Environment",
           "is_string": true
         },
         {
           "path": [
             "filters",
-            "aws_account_id",
-            "comparison"
-          ],
-          "value": "EQUALS",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "filters",
-            "aws_account_id",
+            "resource_tags",
             "value"
           ],
-          "value": "09876543210",
-          "is_string": true,
-          "element": 1
+          "value": "Production",
+          "is_string": true
         }
       ],
       "argument_reference": [
@@ -128539,27 +127156,8 @@
             "aws_log_source_resource",
             "source_name"
           ],
-          "value": "SH_FINDINGS",
-          "is_string": true
-        },
-        {
-          "path": [
-            "source",
-            "aws_log_source_resource",
-            "source_version"
-          ],
-          "value": "2.0",
-          "is_string": true
-        },
-        {
-          "path": [
-            "source",
-            "aws_log_source_resource",
-            "source_name"
-          ],
           "value": "ROUTE53",
-          "is_string": true,
-          "element": 1
+          "is_string": true
         },
         {
           "path": [
@@ -128567,9 +127165,8 @@
             "aws_log_source_resource",
             "source_version"
           ],
-          "value": "2.0",
-          "is_string": true,
-          "element": 1
+          "value": "1.0",
+          "is_string": true
         },
         {
           "path": [
@@ -134473,15 +133070,16 @@
           "path": [
             "task_arn"
           ],
-          "value": "AWS-RunShellScript",
-          "is_string": true,
-          "incomplete": true
+          "value": "",
+          "reference": true,
+          "ref_type": "aws_sfn_activity",
+          "ref_attr": "id"
         },
         {
           "path": [
             "task_type"
           ],
-          "value": "RUN_COMMAND",
+          "value": "STEP_FUNCTIONS",
           "is_string": true,
           "incomplete": true
         },
@@ -134516,97 +133114,20 @@
         {
           "path": [
             "task_invocation_parameters",
-            "run_command_parameters",
-            "output_s3_bucket"
+            "step_functions_parameters",
+            "input"
           ],
-          "value": "",
-          "reference": true,
-          "ref_type": "aws_s3_bucket",
-          "ref_attr": "id"
-        },
-        {
-          "path": [
-            "task_invocation_parameters",
-            "run_command_parameters",
-            "output_s3_key_prefix"
-          ],
-          "value": "output",
-          "is_string": true,
-          "incomplete": true
-        },
-        {
-          "path": [
-            "task_invocation_parameters",
-            "run_command_parameters",
-            "service_role_arn"
-          ],
-          "value": "",
-          "reference": true,
-          "ref_type": "aws_iam_role",
-          "ref_attr": "arn"
-        },
-        {
-          "path": [
-            "task_invocation_parameters",
-            "run_command_parameters",
-            "timeout_seconds"
-          ],
-          "value": "600",
-          "incomplete": true
-        },
-        {
-          "path": [
-            "task_invocation_parameters",
-            "run_command_parameters",
-            "notification_config",
-            "notification_arn"
-          ],
-          "value": "",
-          "reference": true,
-          "ref_type": "aws_sns_topic",
-          "ref_attr": "arn"
-        },
-        {
-          "path": [
-            "task_invocation_parameters",
-            "run_command_parameters",
-            "notification_config",
-            "notification_events"
-          ],
-          "value": "[\"All\"]",
-          "is_list": true,
-          "incomplete": true
-        },
-        {
-          "path": [
-            "task_invocation_parameters",
-            "run_command_parameters",
-            "notification_config",
-            "notification_type"
-          ],
-          "value": "Command",
-          "is_string": true,
-          "incomplete": true
-        },
-        {
-          "path": [
-            "task_invocation_parameters",
-            "run_command_parameters",
-            "parameter",
-            "name"
-          ],
-          "value": "commands",
+          "value": "{\"key1\":\"value1\"}",
           "is_string": true
         },
         {
           "path": [
             "task_invocation_parameters",
-            "run_command_parameters",
-            "parameter",
-            "values"
+            "step_functions_parameters",
+            "name"
           ],
-          "value": "[\"date\"]",
-          "is_list": true
+          "value": "example",
+          "is_string": true
         }
       ],
       "argument_reference": [
@@ -141148,6 +139669,14 @@
       "example_arguments": [
         {
           "path": [
+            "application_domain"
+          ],
+          "value": "example.com",
+          "is_string": true,
+          "incomplete": true
+        },
+        {
+          "path": [
             "attachment_type"
           ],
           "value": "vpc",
@@ -141164,9 +139693,26 @@
         },
         {
           "path": [
+            "domain_certificate_arn"
+          ],
+          "value": "",
+          "reference": true,
+          "ref_type": "aws_acm_certificate",
+          "ref_attr": "arn"
+        },
+        {
+          "path": [
+            "endpoint_domain_prefix"
+          ],
+          "value": "example",
+          "is_string": true,
+          "incomplete": true
+        },
+        {
+          "path": [
             "endpoint_type"
           ],
-          "value": "cidr",
+          "value": "load-balancer",
           "is_string": true,
           "incomplete": true
         },
@@ -141190,47 +139736,39 @@
         },
         {
           "path": [
-            "cidr_options",
-            "cidr"
+            "load_balancer_options",
+            "load_balancer_arn"
           ],
           "value": "",
           "reference": true,
-          "ref_type": "aws_subnet",
-          "ref_attr": "cidr_block"
+          "ref_type": "aws_lb",
+          "ref_attr": "arn"
         },
         {
           "path": [
-            "cidr_options",
+            "load_balancer_options",
+            "port"
+          ],
+          "value": "443",
+          "incomplete": true
+        },
+        {
+          "path": [
+            "load_balancer_options",
             "protocol"
           ],
-          "value": "tcp",
+          "value": "https",
           "is_string": true,
           "incomplete": true
         },
         {
           "path": [
-            "cidr_options",
+            "load_balancer_options",
             "subnet_ids"
           ],
           "value": "",
           "reference": true,
           "ref_type": "aws_subnet"
-        },
-        {
-          "path": [
-            "cidr_options",
-            "port_range",
-            "from_port"
-          ],
-          "value": "443"
-        },
-        {
-          "path": [
-            "cidr_options",
-            "port_range",
-            "to_port"
-          ],
-          "value": "443"
         }
       ],
       "argument_reference": [
@@ -146414,45 +144952,71 @@
       "example_arguments": [
         {
           "path": [
-            "logging_configuration",
-            "log_destination"
+            "depends_on"
           ],
           "value": "",
           "reference": true,
-          "ref_type": "aws_kinesis_firehose_delivery_stream",
-          "ref_attr": "arn"
+          "ref_type": "aws_waf_ipset"
         },
         {
           "path": [
-            "logging_configuration",
-            "redacted_fields",
-            "field_to_match",
+            "metric_name"
+          ],
+          "value": "tfWebACL",
+          "is_string": true,
+          "incomplete": true
+        },
+        {
+          "path": [
+            "name"
+          ],
+          "value": "tfWebACL",
+          "is_string": true,
+          "incomplete": true
+        },
+        {
+          "path": [
+            "default_action",
             "type"
           ],
-          "value": "URI",
+          "value": "ALLOW",
           "is_string": true
         },
         {
           "path": [
-            "logging_configuration",
-            "redacted_fields",
-            "field_to_match",
-            "data"
+            "rules",
+            "priority"
           ],
-          "value": "referer",
-          "is_string": true,
-          "element": 1
+          "value": "1",
+          "incomplete": true
         },
         {
           "path": [
-            "logging_configuration",
-            "redacted_fields",
-            "field_to_match",
+            "rules",
+            "rule_id"
+          ],
+          "value": "",
+          "reference": true,
+          "ref_type": "aws_waf_rule",
+          "ref_attr": "id"
+        },
+        {
+          "path": [
+            "rules",
             "type"
           ],
-          "value": "HEADER",
+          "value": "REGULAR",
           "is_string": true,
-          "element": 1
+          "incomplete": true
+        },
+        {
+          "path": [
+            "rules",
+            "action",
+            "type"
+          ],
+          "value": "BLOCK",
+          "is_string": true
         }
       ],
       "argument_reference": [
@@ -148348,7 +146912,7 @@
           "path": [
             "name"
           ],
-          "value": "block-suspicious",
+          "value": "captcha-with-headers",
           "is_string": true,
           "incomplete": true
         },
@@ -148356,7 +146920,7 @@
           "path": [
             "priority"
           ],
-          "value": "1",
+          "value": "4",
           "incomplete": true
         },
         {
@@ -148370,63 +146934,34 @@
         },
         {
           "path": [
-            "statement",
-            "and_statement",
+            "action",
+            "captcha",
+            "custom_request_handling",
+            "insert_header",
+            "name"
+          ],
+          "value": "x-captcha-rule",
+          "is_string": true
+        },
+        {
+          "path": [
+            "action",
+            "captcha",
+            "custom_request_handling",
+            "insert_header",
+            "value"
+          ],
+          "value": "triggered",
+          "is_string": true
+        },
+        {
+          "path": [
             "statement",
             "geo_match_statement",
             "country_codes"
           ],
-          "value": "[\"CN\"]",
+          "value": "[\"US\"]",
           "is_list": true
-        },
-        {
-          "path": [
-            "statement",
-            "and_statement",
-            "statement",
-            "byte_match_statement",
-            "positional_constraint"
-          ],
-          "value": "CONTAINS",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "statement",
-            "and_statement",
-            "statement",
-            "byte_match_statement",
-            "search_string"
-          ],
-          "value": "admin",
-          "is_string": true,
-          "element": 1
-        },
-        {
-          "path": [
-            "statement",
-            "and_statement",
-            "statement",
-            "byte_match_statement",
-            "text_transformation",
-            "priority"
-          ],
-          "value": "0",
-          "element": 1
-        },
-        {
-          "path": [
-            "statement",
-            "and_statement",
-            "statement",
-            "byte_match_statement",
-            "text_transformation",
-            "type"
-          ],
-          "value": "LOWERCASE",
-          "is_string": true,
-          "element": 1
         },
         {
           "path": [
@@ -148440,7 +146975,7 @@
             "visibility_config",
             "metric_name"
           ],
-          "value": "block-suspicious",
+          "value": "captcha-with-headers",
           "is_string": true
         },
         {
