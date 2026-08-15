@@ -29,8 +29,15 @@ jobs:
           fi
       - name: Build
         run: go build ./cmd/choudoufu
+      # Every fork-owned package. The glob used to be
+      # ./internal/live/... ./tools/survey-gen/, which left eight packages
+      # and 36 test files outside CI - including every drift and ratchet
+      # test over the generated tables, so a hand edit pointing a
+      # resource's identity at a nonexistent argument merged green
+      # (issue #164). TestCIRunsEveryForkOwnedTestPackage in ./live keeps
+      # this list honest; add a package here, or exclude it by name there.
       - name: Fast test tier
-        run: go test ./internal/live/... ./tools/survey-gen/
+        run: go test ./internal/live/... ./tools/... ./live/ ./cmd/...
       - name: Docs site build
         working-directory: site
         run: go run . -out public/

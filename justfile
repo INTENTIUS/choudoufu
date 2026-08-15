@@ -8,6 +8,26 @@ build:
 test:
     go test ./...
 
+# Exactly what .github/workflows/ci.yml runs, in order, so a red main is
+# something you find here rather than on GitHub. `env -u PWD` is needed for
+# the test step and only locally: /Users/alex/checkouts is a symlink and
+# os.Getwd() honours PWD, which the Linux runner does not have to care about.
+# TestCIRunsEveryForkOwnedTestPackage (live/ci_coverage_test.go) keeps the
+# package list here and in the workflow from drifting apart.
+ci:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "==> gofmt (fork-owned packages)"
+    out="$(gofmt -l internal/live cmd site)"
+    if [ -n "$out" ]; then echo "gofmt needed on:"; echo "$out"; exit 1; fi
+    echo "==> build"
+    go build ./cmd/choudoufu
+    echo "==> fast test tier"
+    env -u PWD go test ./internal/live/... ./tools/... ./live/ ./cmd/...
+    echo "==> docs site build"
+    (cd site && go run . -out public/)
+    echo "==> CI steps passed"
+
 # Floci integration tier: needs Docker and the AWS CLI.
 test-floci:
     make test-floci
