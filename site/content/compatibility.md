@@ -378,16 +378,18 @@ That measured ranking is why the static-evaluability rule leads this page.
 Several of the refusals that fire most often are that one rule, surfacing
 under different diagnostics.
 
-**Do not read the corpus as a compatibility rate.** Module `examples/`
-directories exist to demonstrate a module's full surface, so they lean much
-harder on variables, conditionals and `dynamic` blocks than a configuration
-describing one deployment, and they refuse almost across the board. For that
-reason the artifact marks each population as a ranking and carries no
-rate-like figure, which
+**Do not read the fixture or module-example populations as a compatibility
+rate.** Module `examples/` directories exist to demonstrate a module's full
+surface, so they lean much harder on variables, conditionals and `dynamic`
+blocks than a configuration describing one deployment, and they refuse
+almost across the board. For that reason those populations are marked as a
+ranking and the artifact carries no corpus-wide rate-like figure, which
 [#118](https://github.com/INTENTIUS/choudoufu/issues/118)
-settled. A number that could honestly be read as a rate waits on a
-population of whole single-deployment estates, which needs a source before it
-can exist.
+settled. A population that can honestly carry a rate exists since
+[#147](https://github.com/INTENTIUS/choudoufu/issues/147):
+whole deployment root modules published by their operators, pinned by
+commit in the manifest, whose artifact row is marked `reads_as: rate`.
+This page quotes no number from it; the artifact is the record.
 
 Run `choudoufu live-check` on your own configuration rather than inferring
 anything about it from the corpus.
