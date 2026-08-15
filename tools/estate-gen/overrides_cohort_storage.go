@@ -102,14 +102,6 @@ var typeOverridesStorage = map[string]typeOverride{
 			body.SetAttributeRaw("volume_id", exprTokens(`"fsvol-0123456789abcdef0"`))
 		},
 	},
-	"aws_fsx_openzfs_volume": {
-		Reasons: []string{
-			`parent_volume_id is a plain string in the schema, but the provider's ValidateFunc rejects any literal placeholder outright for a root-level volume (validate: "must specify a filesystem id i.e. fs-12345678", regardless of length or fs- shape) - a real cross-reference to aws_fsx_openzfs_file_system.app's own root_volume_id is an unknown value at validate time, which the ValidateFunc never runs against, so it is both more honest and the only value that passes`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("parent_volume_id", exprTokens(`aws_fsx_openzfs_file_system.app.root_volume_id`))
-		},
-	},
 	"aws_fsx_s3_access_point_attachment": {
 		Reasons: []string{
 			`type is a plain string in the schema but the provider validates it against the enum ["OPENZFS" "ONTAP"] (validate: "Invalid String Enum Value"); openzfs_configuration is a required block for type = "OPENZFS" that the schema does not mark required, its own volume_id is required with no schema-visible default, and its nested file_system_identity block is itself required with a required "type" of its own (validate: "Block ... must have a configuration value" at each level)`,

@@ -464,40 +464,6 @@ var typeOverridesNetworkingAdvanced = map[string]typeOverride{
 			body.SetAttributeRaw("name", exprTokens(`"tofu-na-service-network"`))
 		},
 	},
-	"aws_vpclattice_service_network_resource_association": {
-		Reasons: []string{
-			`resource_configuration_identifier and service_network_identifier are both Required but generic-string placeholders, not references - overridden to this cohort's own aws_vpclattice_resource_configuration.app.id and aws_vpclattice_service_network.app.id`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if rc, ok := g.byType["aws_vpclattice_resource_configuration"]; ok {
-				body.SetAttributeRaw("resource_configuration_identifier", exprTokens(fmt.Sprintf("%s.id", rc)))
-			} else {
-				body.SetAttributeRaw("resource_configuration_identifier", exprTokens(`"rcfg-0123456789abcdef0"`))
-			}
-			if sn, ok := g.byType["aws_vpclattice_service_network"]; ok {
-				body.SetAttributeRaw("service_network_identifier", exprTokens(fmt.Sprintf("%s.id", sn)))
-			} else {
-				body.SetAttributeRaw("service_network_identifier", exprTokens(`"sn-0123456789abcdef0"`))
-			}
-		},
-	},
-	"aws_vpclattice_service_network_service_association": {
-		Reasons: []string{
-			`service_identifier and service_network_identifier are both Required but generic-string placeholders, not references - overridden to this cohort's own aws_vpclattice_service.app.id and aws_vpclattice_service_network.app.id`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if svc, ok := g.byType["aws_vpclattice_service"]; ok {
-				body.SetAttributeRaw("service_identifier", exprTokens(fmt.Sprintf("%s.id", svc)))
-			} else {
-				body.SetAttributeRaw("service_identifier", exprTokens(`"svc-0123456789abcdef0"`))
-			}
-			if sn, ok := g.byType["aws_vpclattice_service_network"]; ok {
-				body.SetAttributeRaw("service_network_identifier", exprTokens(fmt.Sprintf("%s.id", sn)))
-			} else {
-				body.SetAttributeRaw("service_network_identifier", exprTokens(`"sn-0123456789abcdef0"`))
-			}
-		},
-	},
 	"aws_vpclattice_service_network_vpc_association": {
 		Reasons: []string{
 			`service_network_identifier is Required but a generic-string placeholder, not a reference - overridden to this cohort's own aws_vpclattice_service_network.app.id. vpc_identifier is Required with no ARN-format validate error surfaced, but the real target is an EC2 VPC, outside this batch's own scope, so it stays a literal placeholder id`,

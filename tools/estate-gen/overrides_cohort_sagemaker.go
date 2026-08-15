@@ -108,37 +108,6 @@ var typeOverridesSagemaker = map[string]typeOverride{
 			}
 		},
 	},
-	"aws_sagemaker_device_fleet": {
-		Reasons: []string{
-			`role_arn is Required and the provider validates it is a well-formed ARN (validate: "is an invalid ARN"); wired to the shared aws_iam_role`,
-		},
-		NeedsIAMRole: true,
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			ref, ok := g.iamRoleRefExpr()
-			if !ok {
-				ref = `"arn:aws:iam::000000000000:role/placeholder"`
-			}
-			body.SetAttributeRaw("role_arn", exprTokens(ref))
-		},
-	},
-	"aws_sagemaker_domain": {
-		Reasons: []string{
-			`auth_mode is Required and the provider validates it against a closed enum (validate: "expected auth_mode to be one of [...]"); default_user_settings.execution_role is Required and the provider validates it is a well-formed ARN (validate: "is an invalid ARN") - wired to the shared aws_iam_role`,
-		},
-		NeedsIAMRole: true,
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("auth_mode", exprTokens(`"IAM"`))
-			ref, ok := g.iamRoleRefExpr()
-			if !ok {
-				ref = `"arn:aws:iam::000000000000:role/placeholder"`
-			}
-			for _, blk := range body.Blocks() {
-				if blk.Type() == "default_user_settings" {
-					blk.Body().SetAttributeRaw("execution_role", exprTokens(ref))
-				}
-			}
-		},
-	},
 	"aws_sagemaker_endpoint": {
 		Reasons: []string{
 			`endpoint_config_name is Required but a generic-string placeholder, not a reference - overridden to point at this cohort's own aws_sagemaker_endpoint_configuration.app.name for the same cross-resource-reference reason as aws_eip_association's entry above (validate does not require this: endpoint_config_name carries no format check of its own)`,
@@ -170,19 +139,6 @@ var typeOverridesSagemaker = map[string]typeOverride{
 			body.SetAttributeRaw("role_arn", exprTokens(ref))
 			osc := body.AppendNewBlock("online_store_config", nil)
 			osc.Body().AppendNewBlock("security_config", nil)
-		},
-	},
-	"aws_sagemaker_image": {
-		Reasons: []string{
-			`role_arn is Required and the provider validates it is a well-formed ARN (validate: "is an invalid ARN"); wired to the shared aws_iam_role`,
-		},
-		NeedsIAMRole: true,
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			ref, ok := g.iamRoleRefExpr()
-			if !ok {
-				ref = `"arn:aws:iam::000000000000:role/placeholder"`
-			}
-			body.SetAttributeRaw("role_arn", exprTokens(ref))
 		},
 	},
 	"aws_sagemaker_mlflow_app": {

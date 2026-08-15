@@ -134,30 +134,6 @@ var typeOverridesIdentity = map[string]typeOverride{
   })`))
 		},
 	},
-	"aws_iam_group_policy_attachment": {
-		Reasons: []string{
-			`"policy_arn" is a required string the schema does not constrain, but the provider validates it is a well-formed ARN (validate: "is an invalid ARN"); the generic placeholder string is not one - resolved by hand to the sibling aws_iam_policy's own real arn attribute (aws_iam_policy is server-assigned, so identityArgName gives gen.go's parentRef nothing to link automatically) rather than a synthesized literal ARN no CreateOpenIDConnectProvider-style call ever minted, so an attach actually has a real policy on the other end during a floci apply`,
-		},
-		NeedsSupporting: []string{"aws_iam_group"},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("policy_arn", exprTokens(iamPolicyArnRef(g)))
-			if sup, ok := g.byType["aws_iam_group"]; ok {
-				body.SetAttributeRaw("group", exprTokens(sup.Type+"."+sup.Label+".name"))
-			}
-		},
-	},
-	"aws_iam_user_policy_attachment": {
-		Reasons: []string{
-			`"policy_arn" is a required string the schema does not constrain, but the provider validates it is a well-formed ARN; the generic placeholder string is not one - resolved to the sibling aws_iam_policy's own real arn attribute, same fix as aws_iam_group_policy_attachment above`,
-		},
-		NeedsSupporting: []string{"aws_iam_user"},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("policy_arn", exprTokens(iamPolicyArnRef(g)))
-			if sup, ok := g.byType["aws_iam_user"]; ok {
-				body.SetAttributeRaw("user", exprTokens(sup.Type+"."+sup.Label+".name"))
-			}
-		},
-	},
 	"aws_iam_openid_connect_provider": {
 		Reasons: []string{
 			`"url" is a required string the schema does not constrain, but the provider validates it parses as a URL with a host (validate: "expected \"url\" to have a host"); the generic placeholder string has none`,

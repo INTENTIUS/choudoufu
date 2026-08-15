@@ -138,21 +138,6 @@ var typeOverridesData = map[string]typeOverride{
 			}
 		},
 	},
-	"aws_glue_trigger": {
-		Reasons: []string{
-			`type is a required enum (validate: "expected type to be one of [...]"), and the generic string placeholder is not a member; actions is a required block but its own contents (job_name or crawler_name) are all optional in the schema while the provider requires one of them in practice`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("type", exprTokens(`"ON_DEMAND"`))
-			if job, ok := g.byType["aws_glue_job"]; ok {
-				for _, blk := range body.Blocks() {
-					if blk.Type() == "actions" {
-						blk.Body().SetAttributeRaw("job_name", exprTokens(fmt.Sprintf("%s.name", job)))
-					}
-				}
-			}
-		},
-	},
 	"aws_kinesis_firehose_delivery_stream": {
 		Reasons: []string{
 			`name coincidentally collides with aws_athena_data_catalog's own "name" identity argument in this cohort - see this file's data-plane batch header comment; destination is a required enum naming which optional *_configuration block the provider actually reads (validate: "expected destination to be one of [...]"), and the matching extended_s3_configuration block is itself optional in the schema while the provider requires it in practice once destination = "extended_s3"`,

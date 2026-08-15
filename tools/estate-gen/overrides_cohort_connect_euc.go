@@ -42,20 +42,6 @@ var typeOverridesConnectEuc = map[string]typeOverride{
 			body.SetAttributeRaw("identity_management_type", exprTokens(`"CONNECT_MANAGED"`))
 		},
 	},
-	"aws_connect_phone_number": {
-		Reasons: []string{
-			`country_code and type are both Required and validated against closed enums (validate: "expected country_code/type to be one of [...]"); target_arn is Required and validated as a well-formed ARN (validate: "is an invalid ARN"), wired to this cohort's own aws_connect_instance for a real one`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("country_code", exprTokens(`"US"`))
-			body.SetAttributeRaw("type", exprTokens(`"DID"`))
-			targetExpr := `"arn:aws:connect:us-east-1:000000000000:instance/00000000-0000-0000-0000-000000000000"`
-			if instance, ok := g.byType["aws_connect_instance"]; ok {
-				targetExpr = instance.String() + ".arn"
-			}
-			body.SetAttributeRaw("target_arn", exprTokens(targetExpr))
-		},
-	},
 	"aws_connect_quick_connect": {
 		Reasons: []string{
 			`quick_connect_config is a required block whose own quick_connect_type is Required and validated against a closed enum (validate: "expected quick_connect_type to be one of [...]"); the provider additionally requires exactly one of phone_config/queue_config/user_config depending on quick_connect_type (documented, not schema-Required) - PHONE_NUMBER chosen as the type needing the fewest nested fields, with phone_config.phone_number set to a well-formed E.164 number`,

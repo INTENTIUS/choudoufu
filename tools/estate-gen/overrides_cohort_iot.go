@@ -69,38 +69,12 @@ var typeOverridesIot = map[string]typeOverride{
   })`))
 		},
 	},
-	"aws_iot_role_alias": {
-		Reasons: []string{
-			`"role_arn" is a required string the schema does not constrain and (unlike aws_codepipeline's own "role_arn" above) the provider ships no ARN-format validator on this particular attribute, so the generic placeholder passes "terraform validate" unchanged - but it is still the same bare isRoleArg gap named on aws_codepipeline and aws_codebuild_project above ("role_arn" alone does not end "_role_arn"), and a non-ARN placeholder would fail at apply against a real IoT role_alias create, so this override wires the real cross-resource reference anyway rather than leaving a validate-clean but apply-broken row.`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			if roleRef, ok := g.iamRoleRefExpr(); ok {
-				body.SetAttributeRaw("role_arn", exprTokens(roleRef))
-			}
-		},
-	},
 	"aws_iot_topic_rule": {
 		Reasons: []string{
 			`"name" is this type's own identity argument (internal/live/identity/table.go), but the generic pass's tofu-<cohort>-<type> placeholder uses hyphens, and the provider validates topic rule names against ^[0-9A-Za-z_]+$ (validate: "Name must match the pattern ^[0-9A-Za-z_]+$") - hyphens are not in that set, unlike every other client-named IoT type in this cohort.`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu_%s_topic_rule"`, strings.ReplaceAll(g.cohort, "-", "_"))))
-		},
-	},
-	"aws_iot_topic_rule_destination": {
-		Reasons: []string{
-			`"vpc_configuration.role_arn" is a required string nested inside the vpc_configuration block; the schema does not constrain it, but the provider validates it is a well-formed ARN (validate: "is an invalid ARN") - isRoleArg's generic cross-reference only scans each type's top-level required arguments (planCohort's requiredArgNames pass), not nested block arguments, so this nested role_arn is never auto-wired the way aws_iot_provisioning_template's top-level provisioning_role_arn is.`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			roleRef, ok := g.iamRoleRefExpr()
-			if !ok {
-				return
-			}
-			for _, blk := range body.Blocks() {
-				if blk.Type() == "vpc_configuration" {
-					blk.Body().SetAttributeRaw("role_arn", exprTokens(roleRef))
-				}
-			}
 		},
 	},
 }

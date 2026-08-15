@@ -27,19 +27,6 @@ var typeOverridesRds = map[string]typeOverride{
 			body.SetAttributeRaw("skip_final_snapshot", exprTokens(`true`))
 		},
 	},
-	"aws_rds_cluster_instance": {
-		Reasons: []string{
-			`schema requires identifier, cluster_identifier, engine and instance_class; the provider validates engine against the same fixed enum as aws_rds_cluster (validate: "expected engine to be one of [aurora-mysql aurora-postgresql mysql postgres]"), and the documented example sets it from the parent cluster's own engine argument rather than an independent literal - instance_class also needs a real instance type, not an arbitrary string`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			engineExpr := `"aurora-mysql"`
-			if parent, ok := g.byType["aws_rds_cluster"]; ok {
-				engineExpr = parent.String() + ".engine"
-			}
-			body.SetAttributeRaw("engine", exprTokens(engineExpr))
-			body.SetAttributeRaw("instance_class", exprTokens(`"db.r4.large"`))
-		},
-	},
 	"aws_db_event_subscription": {
 		Reasons: []string{
 			`schema requires only name and sns_topic; the provider validates sns_topic is a well-formed ARN (validate: "is an invalid ARN"), and no aws_sns_topic is part of this cohort to reference`,

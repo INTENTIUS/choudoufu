@@ -223,14 +223,6 @@ var typeOverridesDatabases = map[string]typeOverride{
 			body.SetAttributeRaw("permissions_mode", exprTokens(`"STANDARD"`))
 		},
 	},
-	"aws_redshift_snapshot_schedule": {
-		Reasons: []string{
-			`"definitions" is a list of schedule expressions the schema types as unconstrained strings; the generic placeholder is neither a documented cron nor rate expression (not caught by validate, found by reading the provider's own documented example) - set to that same example's "rate(12 hours)"`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("definitions", exprTokens(`["rate(12 hours)"]`))
-		},
-	},
 	"aws_timestreaminfluxdb_db_cluster": {
 		Reasons: []string{
 			`"name" mis-wired the same way as aws_docdbelastic_cluster above (this type is also server-assigned); corrected to a literal name. "db_instance_type" is required and the plugin-framework schema validates it against a closed enum (validate: "Invalid String Enum Value" - db.influx.medium, db.influx.large, ...); the generic placeholder is not a member. "vpc_security_group_ids" and "vpc_subnet_ids" are both required lists of strings the framework schema validates by regular expression (^sg-[a-z0-9]+$ and ^subnet-[a-z0-9]+$ respectively); the generic placeholder string matches neither. "allocated_storage", "bucket", "organization", "password" and "username" are all Optional in the wire schema, so the generic required-only pass never sets them, but the provider's own plan-time business logic requires all five for a V2 cluster (not caught by validate; found by exercising a real apply against floci: "Missing Required Configuration for InfluxDB V2": "allocated_storage/bucket/organization/password/username is required for InfluxDB V2 clusters") - added by hand the same way aws_timestreaminfluxdb_db_instance's own allocated_storage already is. "password" also has its own regular-expression shape (validate: "Attribute password value must match regular expression '^[a-zA-Z0-9]+$'"), found the same apply-time way; the generic cohort-derived literal that would otherwise land here is hyphenated, so this one is alphanumeric-only instead`,
