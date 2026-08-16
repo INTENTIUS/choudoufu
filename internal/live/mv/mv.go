@@ -616,11 +616,17 @@ func (m *mover) sweep(ctx context.Context, ts listclient.TypeSchema) ([]listed, 
 	return mine, len(results), diags
 }
 
-// claimants returns the swept resources carrying one escaped address.
-func claimants(mine []listed, marker string) []listed {
+// claimants returns the swept resources carrying the address declared,
+// unescaped (addrs.AbsResourceInstance.String()). The comparison is
+// [discovery.AddressMatches] rather than a bare equality, so a live
+// resource still carrying a marker a prior run wrote before issue #178
+// widened the for_each key grammar is still found - see that function's
+// doc comment for which keys this can matter for (only ones containing
+// "@") and why.
+func claimants(mine []listed, declared string) []listed {
 	var out []listed
 	for _, l := range mine {
-		if l.marker == marker {
+		if discovery.AddressMatches(l.marker, declared) {
 			out = append(out, l)
 		}
 	}
@@ -637,7 +643,7 @@ func (m *mover) checkDestinationFree(ctx context.Context, ts listclient.TypeSche
 	if diags.HasErrors() {
 		return diags
 	}
-	return diags.Append(m.destinationDiags(claimants(mine, m.res.NewMarker)))
+	return diags.Append(m.destinationDiags(claimants(mine, m.res.New.String())))
 }
 
 // destinationDiags is the refusal itself, shared by both paths.
@@ -671,8 +677,8 @@ func (m *mover) locateByList(ctx context.Context, ts listclient.TypeSchema) (str
 		return "", cty.NilVal, diags
 	}
 
-	claimOld := claimants(mine, m.res.OldMarker)
-	claimNew := claimants(mine, m.res.NewMarker)
+	claimOld := claimants(mine, m.res.Old.String())
+	claimNew := claimants(mine, m.res.New.String())
 
 	switch len(claimOld) {
 	case 1:
@@ -771,7 +777,7 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 				"The live %s at %s carries a tofu-address marker whose continuation tags (tofu-address-2, tofu-address-3, ...) have a gap in them, so this run cannot tell what address it names. See live/MARKERS.md, \"tofu-address continuation tags\"; a human has to resolve this before it can be renamed.",
 				m.res.TypeName, m.res.LiveID),
 		))
-	case marker == m.res.OldMarker && estate == m.req.Estate:
+	case discovery.AddressMatches(marker, m.res.Old.String()) && estate == m.req.Estate:
 		// Found it.
 		return obj, diags
 	case estate != "" && estate != m.req.Estate:
@@ -782,7 +788,7 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 				"The live %s at %s carries tofu-estate = %q, and this rename is for estate %q. Moving a resource across estates is a transfer of ownership, not a rename; see live/MARKERS.md, \"Ownership semantics\".",
 				m.res.TypeName, m.res.LiveID, estate, m.req.Estate),
 		))
-	case marker == m.res.NewMarker:
+	case discovery.AddressMatches(marker, m.res.New.String()):
 		return nil, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"No live resource at the old address",

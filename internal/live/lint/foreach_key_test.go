@@ -10,9 +10,10 @@ import (
 )
 
 // TestForEachKeyRule is the regression for finding F-FE: a for_each key
-// carrying "." or ":" used to pass lint, stamp a marker, and apply, and only
-// then wedge every later run. Each of these keys must be a named
-// RuleForEachKey issue before anything is written anywhere.
+// outside the AWS tag-value set must be a named RuleForEachKey issue before
+// anything is written anywhere. "." and ":" moved out of this fixture in
+// issue #178, which admits them (escaped) rather than refusing them; see
+// TestForEachKeyRuleClean for their coverage now.
 func TestForEachKeyRule(t *testing.T) {
 	cfg := loadConfigDir(t, "testdata/foreach-key")
 	issues := CheckContext(t.Context(), cfg)
@@ -20,33 +21,27 @@ func TestForEachKeyRule(t *testing.T) {
 	assertIssues(t, issues, []wantIssue{
 		{
 			rule:      RuleForEachKey,
-			construct: `for_each key "a.b" in aws_subnet.dotted`,
+			construct: `for_each key "a;b" in aws_subnet.semicolon`,
 			file:      "testdata/foreach-key/main.tf",
-			line:      18,
+			line:      23,
 		},
 		{
 			rule:      RuleForEachKey,
-			construct: `for_each key "2001:db8::/64" in aws_subnet.colon`,
+			construct: `for_each key "a!b" in aws_subnet.bang`,
 			file:      "testdata/foreach-key/main.tf",
-			line:      26,
+			line:      31,
 		},
 		{
 			rule:      RuleForEachKey,
-			construct: `for_each key "10.0.0.0/24" in aws_subnet.from_local`,
+			construct: `for_each key "10.0.0.0/24;10.0.1.0/24" in aws_subnet.from_local`,
 			file:      "testdata/foreach-key/main.tf",
-			line:      32,
-		},
-		{
-			rule:      RuleForEachKey,
-			construct: `for_each key "10.0.1.0/24" in aws_subnet.from_local`,
-			file:      "testdata/foreach-key/main.tf",
-			line:      32,
+			line:      37,
 		},
 		{
 			rule:      RuleForEachKey,
 			construct: `for_each key "bad%key" in aws_s3_bucket.punctuation`,
 			file:      "testdata/foreach-key/main.tf",
-			line:      38,
+			line:      43,
 		},
 	})
 }
@@ -66,14 +61,19 @@ func TestForEachKeyRuleClean(t *testing.T) {
 }
 
 // TestValidForEachKey pins the character set itself, which is the part
-// live/LIMITATIONS.md and live/MARKERS.md quote: the AWS tag-value
-// set (letters, digits, space, and + - = . _ : / @) less the two characters
-// that separate the segments of an escaped address.
+// live/LIMITATIONS.md and live/MARKERS.md quote: the full AWS tag-value
+// set (letters, digits, space, and + - = . _ : / @). "." and ":" - the two
+// characters that separate the segments of an escaped address - are
+// admitted because internal/live/markers escapes a key's own instance of
+// either (and of "@") before it reaches an address, reversibly (issue
+// #178); everything else outside the AWS set is still refused, because
+// nothing escapes it.
 func TestValidForEachKey(t *testing.T) {
 	valid := []string{
 		"a", "web", "Web", "0", "007", "eu-west-1a", "team_one", "eu/west",
 		"size=1", "plus+one", "at@sign", "with space", "été", "日本",
 		"a-very-long-but-perfectly-ordinary-key",
+		"a.b", "2001:db8::/64", "user@example.com", "a:b.c@d",
 	}
 	for _, key := range valid {
 		if !ValidForEachKey(key) {
@@ -83,13 +83,11 @@ func TestValidForEachKey(t *testing.T) {
 	}
 
 	invalid := []string{
-		"",              // no key at all: an escaped address ending in ":"
-		"a.b",           // the segment separator
-		"2001:db8::/64", // the index introducer; AWS-legal, which is the trap
-		"a[0]",          // rewritten by the escaping rule
-		`a"b`,           // dropped by the escaping rule
-		`a\b`,           // backslash-escaped on the declared side only
-		"a\nb", "a\tb",  // ditto
+		"",             // no key at all: an escaped address ending in ":"
+		"a[0]",         // rewritten by the escaping rule
+		`a"b`,          // dropped by the escaping rule
+		`a\b`,          // backslash-escaped on the declared side only
+		"a\nb", "a\tb", // ditto
 		"a${b", "a%{b", // template introducers, doubled on the declared side
 		"bad%key", "50%", // outside the AWS tag-value set
 		"a,b", "a;b", "a!b", "a*b", "a#b", "a(b)",

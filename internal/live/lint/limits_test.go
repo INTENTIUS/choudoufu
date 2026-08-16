@@ -31,21 +31,21 @@ const limitationsDoc = "../../../live/LIMITATIONS.md"
 // rejected by lint today, paired with the exact rule that must fire. CheckContext()
 // must report that rule, and only that rule, for each of these directories.
 var enforcedLimits = map[string]Rule{
-	"local-exec":         RuleProvisioner,
-	"remote-exec":        RuleProvisioner,
-	"null-resource":      RuleLogicalResource,
-	"terraform-data":     RuleLogicalResource,
-	"local-file":         RuleLogicalResource,
-	"random-password":    RuleLogicalResource,
-	"time-sleep":         RuleLogicalResource,
-	"moved-block":        RuleMovedBlock,
-	"child-module":       RuleChildModule,
-	"backend-block":      RuleStateBackend,
-	"cloud-block":        RuleStateBackend,
-	"unadmitted-type":    RuleUnadmittedType,
-	"count-index-in-tag": RuleCountIndex,
-	"foreach-dotted-key": RuleForEachKey,
-	"overlong-address":   RuleOverlongAddress,
+	"local-exec":          RuleProvisioner,
+	"remote-exec":         RuleProvisioner,
+	"null-resource":       RuleLogicalResource,
+	"terraform-data":      RuleLogicalResource,
+	"local-file":          RuleLogicalResource,
+	"random-password":     RuleLogicalResource,
+	"time-sleep":          RuleLogicalResource,
+	"moved-block":         RuleMovedBlock,
+	"child-module":        RuleChildModule,
+	"backend-block":       RuleStateBackend,
+	"cloud-block":         RuleStateBackend,
+	"unadmitted-type":     RuleUnadmittedType,
+	"count-index-in-tag":  RuleCountIndex,
+	"foreach-invalid-key": RuleForEachKey,
+	"overlong-address":    RuleOverlongAddress,
 	// GitHub issue #103. Its fixture carries a fourth resource that must
 	// NOT be refused - ignore_changes on a single non-marker tag key - and
 	// TestIgnoreChangesAdmitsAForeignTagKey is what pins that half.
@@ -90,10 +90,11 @@ var enforcedLimits = map[string]Rule{
 // failing loudly (Check no longer returns zero issues), and the fix is to
 // move the directory into enforcedLimits and update LIMITATIONS.md in the
 // same change, not to relax the assertion.
-// RA.3 moved foreach-dotted-key out of this list and into enforcedLimits:
-// RuleForEachKey (internal/live/lint/foreach_key.go) now rejects a key
-// carrying "." or ":" or anything else outside the AWS tag-value set.
-// overlong-address followed the same path: RuleOverlongAddress
+// RA.3 moved foreach-dotted-key (issue #178: renamed foreach-invalid-key,
+// since "." and ":" are admitted now) out of this list and into
+// enforcedLimits: RuleForEachKey (internal/live/lint/foreach_key.go) rejects
+// a key carrying anything outside the AWS tag-value set. overlong-address
+// followed the same path: RuleOverlongAddress
 // (internal/live/lint/overlong_address.go) now measures the escaped
 // address against MARKERS.md's 256-character cap.
 var notYetEnforcedLimits = []string{

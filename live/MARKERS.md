@@ -115,17 +115,22 @@ see above: a `count` key on a `module.` segment, refused permanently.
 ### Escaping rule
 
 AWS tag values cannot contain `[`, `]`, or `"`. The escaping is a
-three-character substitution over the whole address string, applied before
-writing the tag and never reversed by any code path that only needs to
-*compare*. Comparison is always "escape the known config address, compare
-strings," never "decode the tag blind."
+substitution over the whole address string, applied before writing the tag
+and never reversed by any code path that only needs to *compare*.
+Comparison is always "escape the known config address, compare strings,"
+never "decode the tag blind."
 
-1. Replace every `[` with `:`.
-2. Delete every `]`.
-3. Delete every `"`.
+1. Escape the content of every instance key first (see "for_each key
+   escaping", directly below) - this is a no-op for a `count` index, which
+   is only ever digits.
+2. Replace every `[` with `:`.
+3. Delete every `]`.
+4. Delete every `"`.
 
 A `:` in an escaped value therefore always means an index starts there. The
-index runs to the next `.` or the end of the string.
+index runs to the next `.` or the end of the string - which step 1 is what
+guarantees: an instance key's own `.` and `:` are never raw by the time
+steps 2-4 run.
 
 | Unescaped | Escaped (`tofu-address` value) |
 |---|---|
@@ -133,6 +138,8 @@ index runs to the next `.` or the end of the string.
 | `aws_subnet.this["a"]` | `aws_subnet.this:a` |
 | `aws_eip.this[2]` | `aws_eip.this:2` |
 | `module.subnets["a"].aws_subnet.this` | `module.subnets:a.aws_subnet.this` |
+| `aws_subnet.this["alice.smith"]` | `aws_subnet.this:alice@dsmith` |
+| `aws_subnet.this["at@sign"]` | `aws_subnet.this:at@@sign` |
 
 A single tag value holds at most 256 characters (the AWS hard cap on tag
 values). An escaped address that does not fit is carried across several
@@ -141,6 +148,77 @@ a total of 1024 characters. Past that wider ceiling, the original rule
 still holds without exception: an address that does not fit is a lint-time
 error, not a truncation. Silently truncating an ownership key is worse than
 refusing to admit the resource.
+
+### for_each key escaping
+
+A `for_each` instance key may contain any character AWS allows in a tag
+value: letters and numbers representable in UTF-8, space, and
+`+ - = . _ : / @` (`internal/live/markerkey`, `RuleForEachKey`). Three of
+those characters - `@`, `.` and `:` - would collide with the address-level
+escaping above if embedded raw, so a key's own instance of any of them is
+substituted first, in this order:
+
+1. Every `@` becomes `@@`.
+2. Every `.` becomes `@d`.
+3. Every `:` becomes `@c`.
+
+The order is load-bearing: doubling `@` first guarantees that every `@`
+steps 2 and 3 introduce is never itself mistaken for one that needs
+doubling. Reading it back reverses the same three substitutions in a single
+left-to-right scan, not as three independent reverse replacements, because
+two adjacent escaped characters (an escaped `@` immediately followed by an
+escaped `.`, say) have to be read as two two-character units rather than
+reprocessed as if the first's output could be the second's input.
+
+Issue #178 introduced this: before it, `.` and `:` were excluded from a
+`for_each` key entirely rather than escaped, because they collided with the
+address-level rule and nothing decoded a key on its own to tell a literal
+`.` apart from a segment separator. `@` was always admitted and was never
+escaped - it is legal in a tag value and does not collide with anything the
+address-level rule touches on its own - which is exactly what makes it the
+one character both grammars admit but escape differently. See "for_each key
+migration", below, for what that means for a marker a run wrote before this
+issue landed.
+
+### for_each key migration
+
+Every candidate character this escaping could have used as its leader was
+already legal, unescaped, inside a `for_each` key before issue #178 - the
+whole admitted set before this issue was `+ - = _ / @`, and every one of
+those five was already legal on the wire. `@` is the character issue #178
+chose, which means a `for_each` key containing `@` is the one shape where a
+marker a prior run stamped differs from what this run would stamp for the
+same key: `aws_subnet.this["at@sign"]` escaped, before issue #178, to
+`aws_subnet.this:at@sign` (see the table above; `@` passed through
+untouched), and escapes now to `aws_subnet.this:at@@sign` (doubled). A key
+containing only `.` or `:` cannot have this problem, because both were
+refused by lint before this issue and so never reached a live marker.
+
+This fork's compatibility answer is not a spec version bump (see
+"Versioning", below, for why: every marker written under spec version 1
+still parses and still names the instance it always named). It is that the
+DECLARED side of every ownership comparison computes both the current
+escaping and the pre-#178 one for the same address, and accepts either as a
+match, while every write always uses the current escaping. A resource whose
+live marker still reads `aws_subnet.this:at@sign` binds to
+`aws_subnet.this["at@sign"]` exactly as it always did; the address a fresh
+`live-mv`, adoption, or stamp writes for that same instance is
+`aws_subnet.this:at@@sign`, and the next comparison recognizes that too.
+Nothing in this fork rewrites an existing marker to the new escaping on its
+own - a live resource carries whichever grammar last wrote it until
+something explicitly restamps it.
+
+**A residual ambiguity, not a guarantee both ways.** Decoding a marker back
+into an address (removal planning's display label, `markerTypeOf`'s
+best-effort type guess) is not the same operation as comparing it against a
+known declared address, and it cannot always tell which grammar produced
+the bytes it is reading: a pre-#178 key that happened to contain the
+literal two-character sequence `@d`, `@c` or `@@` is indistinguishable, in
+the tag text alone, from a post-#178 key whose escaping produced the same
+bytes. Nothing that identifies or acts on a live resource depends on
+resolving that ambiguity correctly - see `markers.UnescapeAddress`'s doc
+comment - so the worst it can do is mislabel a resource in a message, never
+bind, adopt, or destroy the wrong one.
 
 ### `tofu-address` continuation tags
 
@@ -188,24 +266,30 @@ normal and is not padded). A tool that only ever writes addresses under 256
 characters never has to think about this section at all.
 
 **Known limitation, left for the lint layer to enforce.** The escaping is
-lossy in two ways, both by design.
+lossy in one way, by design, and ambiguous in one further way as a residue
+of issue #178's migration.
 
 - A bare integer `for_each`/`count` index and a quoted string index with
   the same digits collide. `this[2]` and `this["2"]` both escape to
   `this:2`. This is harmless in practice because a single resource block
   uses either `count` or `for_each`, never both, so the two never compete
   for the same address.
-- A `for_each` key that itself contains `.` or `:` produces an address that
-  cannot be unambiguously split back into segments. The escaping rule does
-  not attempt to handle this case. `for_each` keys containing `.` or `:`
-  (or any character outside the AWS-allowed set enumerated above) are
-  outside the admitted subset and should be rejected by lint, the same way
-  banned constructs are.
+- A `for_each` key outside the AWS-allowed tag character set cannot be
+  written as a marker at all, escaping or not, and is rejected by lint. A
+  key inside that set - including one containing `.`, `:` or `@` - always
+  escapes, per "for_each key escaping" above; there is no character left
+  that the escaping rule refuses to handle.
+- Reading a marker's key back (rather than comparing it against a known
+  declared address) carries the narrow, coincidental ambiguity "for_each
+  key migration" describes: a pre-#178 key that happened to contain the
+  literal bytes `@d`, `@c` or `@@` decodes the same way a post-#178 key
+  whose escaping produced those bytes would. Nothing that binds, adopts, or
+  destroys a resource depends on resolving it.
 
 Unescaping. Removal planning turns a marker back into an address, which the
 escaping rule supports for every value a lint-clean configuration produces
-and refuses for two. A key containing `.` or `:` cannot be located, because
-those separate the segments of an escaped address. A key of all digits is
+today (the `.`/`:` refusal this paragraph used to describe retired with
+issue #178; see "for_each key escaping" above). A key of all digits is
 read as a count index. A quoted string key of the same digits escapes to
 the same value, and the reading cannot mislead, because the resource is
 identified by its live import ID and the address is only the label the plan
@@ -356,6 +440,22 @@ rewrite pass over every live estate before tools built against the new
 version can trust what they read, and the version number here is what lets
 a tool detect that an estate's markers predate what it understands, so it
 can refuse to guess instead of misreading them.
+
+**Issue #178 widened the escaping rule and did not bump the version.**
+"Changing the escaping rule" above is the general case, where a version
+bump is the only honest option because old markers would otherwise be
+misread. Issue #178 is the narrower case the additive definition already
+covers: it admits `.` and `:` into a `for_each` key rather than narrowing
+anything, and every marker written under spec version 1 - both before and
+after this issue - still parses under the current code and still names the
+instance it always named, per "for_each key migration" above. The one
+place the two escapings can disagree (a key containing `@`) is handled by
+comparing both on the declared side rather than by asking a reader to know
+which grammar wrote what it is looking at, which is what makes a version
+bump unnecessary rather than merely inconvenient to add. A future change
+that made a *reader* need to know which grammar wrote a marker - rather
+than a *writer* needing to compute both to find it - would not get the same
+pass.
 
 ## Interop
 

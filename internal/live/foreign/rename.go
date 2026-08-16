@@ -113,8 +113,18 @@ func (c *classifier) renameBlocks() map[string]*renameBlock {
 				// plan that destroys the resource and a hint that renames it.
 				continue
 			}
-			key := o.Normalized[len(prefix):]
-			b.orphans = append(b.orphans, renameSource{res: o, key: key, readable: readableKey(key)})
+			raw := o.Normalized[len(prefix):]
+			// raw is still escaped (issue #178: a key containing "@", "."
+			// or ":" carries "@@", "@d" or "@c" here, not the original
+			// character), and readableKey's malformed check has to run
+			// against that raw text - a genuinely unescapable marker
+			// (predating the escaping rule entirely) is exactly what would
+			// still contain a literal "." or ":" at this point. key itself
+			// has to be the decoded value: it is compared against
+			// renameTarget.key below, which addrs.StringKey supplies
+			// undecoded, and it is what candidate() rebuilds the old
+			// address's instance key from.
+			b.orphans = append(b.orphans, renameSource{res: o, key: discovery.UnescapeKey(raw), readable: readableKey(raw)})
 		}
 		if len(b.orphans) == 0 {
 			delete(blocks, name)
@@ -163,15 +173,23 @@ type renameBlock struct {
 type renameSource struct {
 	res *discovery.OwnedResource
 
-	// key is the instance key its marker names, as the escaped value carries
-	// it - the text between the block address and the end of the value.
+	// key is the instance key its marker names, decoded through
+	// [discovery.UnescapeKey] back to the value a for_each expression would
+	// have produced - not the escaped text on the wire (issue #178: a key
+	// containing "@", "." or ":" is not embedded raw). It has to be the
+	// true key, because it is compared against renameTarget.key below,
+	// which addrs.StringKey supplies undecoded, and because [candidate]
+	// rebuilds the rename's old address from it.
 	key string
 
-	// readable is false when that text is not a key this pass will turn back
-	// into an address: it carries a '.' or a ':', which the escaping rule in
-	// live/MARKERS.md cannot round-trip. Such a marker still counts
-	// against the one-to-one rule, because pretending it is not there would
-	// make two live resources look like one.
+	// readable is false when the RAW (still-escaped) text is not a key this
+	// pass will turn back into an address at all: it carries a literal '.'
+	// or ':', which cannot be a validly escaped key (see
+	// [discovery.EscapeKey]) and so means a marker from before the escaping
+	// rule existed at all -
+	// unparseable rather than merely old-grammar. Such a marker still
+	// counts against the one-to-one rule, because pretending it is not
+	// there would make two live resources look like one.
 	readable bool
 }
 
@@ -423,11 +441,14 @@ func (b *renameBlock) contentMismatch(ctx context.Context, c *classifier, o rena
 	return strings.Join(parts, " and ")
 }
 
-// readableKey reports whether an escaped instance key can be turned back into
-// an address. The escaping rule is lossy for keys carrying '.' or ':' - the
-// two characters that make an escaped address unsplittable - and lint keeps
-// them out of the stateless subset. A key that got in anyway is not decoded
-// on a hunch.
+// readableKey reports whether a RAW (still-escaped) instance key can be
+// turned back into an address at all. A validly escaped key - under either
+// the current grammar or the pre-issue-#178 one - never contains a literal
+// '.' or ':' at this point: both are always represented as "@d"/"@c" or, on
+// a pre-#178 marker, simply never occurred in the first place, since lint
+// refused the key before it could reach a marker. A raw '.' or ':' here
+// means the marker predates the escaping rule entirely (or was hand-edited
+// into an invalid shape), and is not decoded on a hunch.
 func readableKey(key string) bool {
 	return key != "" && !strings.ContainsAny(key, ".:")
 }

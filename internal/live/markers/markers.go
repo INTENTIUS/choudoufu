@@ -174,15 +174,148 @@ func ValidEstateName(s string) bool { return estateNamePattern.MatchString(s) }
 // this package ever turns the value back into an address.
 var escapedAddress = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*(:[^.:]+)?(\.[A-Za-z_][A-Za-z0-9_-]*(:[^.:]+)?)+$`)
 
-// EscapeAddress applies the marker spec's escaping rule to an address:
-// every '[' becomes ':', and every ']' and '"' is dropped.
+// EscapeKey applies the for_each-key half of the escaping rule to one raw
+// instance key: [markerkey.Extras] admits "." and ":" in a key (issue
+// #178), and those are also the two characters an escaped address uses to
+// separate its own segments, so a key carrying either has to be
+// transformed, not embedded raw, or it could not be split back out again.
+// The rule is a doubling substitution, applied in this order:
 //
-// It is idempotent: an already-escaped value contains none of the three
-// characters it rewrites, so escaping it again returns it unchanged. That
-// property is what lets [Discover] normalize an observed tag value with the
-// same function it uses on a declared address, without ever decoding
-// anything.
+//  1. every "@" becomes "@@"
+//  2. every "." becomes "@d"
+//  3. every ":" becomes "@c"
+//
+// The order is load-bearing: doubling "@" first guarantees that every "@"
+// steps 2 and 3 introduce is never itself mistaken for one that needs
+// doubling, because step 1 has already run and will not run again. Any key
+// [markerkey.Valid] admits round-trips through this and [UnescapeKey].
+//
+// This has to be the one implementation two other things reproduce
+// byte-for-byte: internal/live/stamp's addressExpr, which cannot call Go
+// code because it builds an HCL expression evaluated at apply time
+// (`replace(replace(replace(each.key,"@","@@"),".","@d"),":","@c")`), and
+// [EscapeAddress] below, which calls this directly. See
+// internal/live/stamp/foreach_escape_test.go for the proof the two agree.
+func EscapeKey(key string) string {
+	key = strings.ReplaceAll(key, "@", "@@")
+	key = strings.ReplaceAll(key, ".", "@d")
+	key = strings.ReplaceAll(key, ":", "@c")
+	return key
+}
+
+// UnescapeKey reverses [EscapeKey] for any value it produced, with a single
+// left-to-right scan rather than three reverse substitutions: "@@", "@d"
+// and "@c" have to be read as one unit each even where two of them sit
+// back to back in the output ("@@" immediately followed by "@d" is one
+// escaped "@" then one escaped "."), and a blind sequence of whole-string
+// replacements cannot make that guarantee once the first pass has already
+// introduced new "@" characters for the second to trip over.
+//
+// It never fails, on purpose. A "@" not immediately followed by "@", "d" or
+// "c" cannot appear in anything [EscapeKey] produced, but it is exactly
+// what a key legally written before issue #178 admitted "." and ":" looks
+// like on the wire: "@" was already in [markerkey.Extras] and was never
+// escaped before this issue, so an old marker's raw "@" is read back as
+// itself, the same character it always was. That is a best-effort reading,
+// not a guarantee both ways - a pre-#178 key that happened to contain the
+// literal two-character sequence "@d", "@c" or "@@" is indistinguishable,
+// in the tag text alone, from a post-#178 key whose escaping produced the
+// same bytes, and there is no way to tell the two apart from the marker
+// alone (see live/MARKERS.md, "for_each key migration"). Nothing that
+// identifies or acts on a live resource depends on this function picking
+// the right side of that coincidence: ownership is decided by
+// [AddressMatches] comparing computed strings, never by decoding an
+// observed one, and every caller of [UnescapeAddress] already treats its
+// output as a label rather than a selector (see that function's own doc
+// comment). The worst a coincidence like this can do is misdisplay a key in
+// a message.
+func UnescapeKey(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	runes := []rune(s)
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+		if r != '@' || i+1 >= len(runes) {
+			b.WriteRune(r)
+			continue
+		}
+		switch runes[i+1] {
+		case '@':
+			b.WriteRune('@')
+			i++
+		case 'd':
+			b.WriteRune('.')
+			i++
+		case 'c':
+			b.WriteRune(':')
+			i++
+		default:
+			// Not a recognized escape continuation: "@" is read as itself,
+			// and the next rune is left for the following iteration, which
+			// handles it exactly as it would anywhere else in the string.
+			b.WriteRune('@')
+		}
+	}
+	return b.String()
+}
+
+// EscapeAddress applies the marker spec's escaping rule to an address:
+// every "[...]" instance key becomes ":" followed by the key run through
+// [EscapeKey], and any "]" or '"' outside a key (there should never be one)
+// is dropped defensively rather than passed through. An address never
+// legally contains "[" except to open an instance key - resource types,
+// names and module names are HCL identifiers, which cannot contain it - so
+// a plain rune scan tracking bracket state cannot mistake structural text
+// for key content or the reverse.
+//
+// It is idempotent: an already-escaped value contains no "[", so escaping
+// it again returns it unchanged without ever looking inside what used to be
+// a key. That property is what lets [Discover] normalize an observed tag
+// value with the same function it uses on a declared address, without ever
+// decoding anything - and it is also why an already-escaped value written
+// under the pre-#178 grammar normalizes to itself here exactly as it always
+// did: this function only transforms text still inside a "[...]" pair, and
+// a marker already on a live resource has none left.
 func EscapeAddress(addr string) string {
+	if !strings.ContainsRune(addr, '[') {
+		return addr
+	}
+	var b strings.Builder
+	b.Grow(len(addr))
+	runes := []rune(addr)
+	for i := 0; i < len(runes); {
+		r := runes[i]
+		if r != '[' {
+			if r != ']' && r != '"' {
+				b.WriteRune(r)
+			}
+			i++
+			continue
+		}
+		j := i + 1
+		for j < len(runes) && runes[j] != ']' {
+			j++
+		}
+		inner := strings.Trim(string(runes[i+1:j]), `"`)
+		b.WriteRune(':')
+		b.WriteString(EscapeKey(inner))
+		if j < len(runes) {
+			j++ // step past the ']'
+		}
+		i = j
+	}
+	return b.String()
+}
+
+// LegacyEscapeAddress is what [EscapeAddress] computed before issue #178
+// admitted "." and ":" into a for_each key: "[" becomes ":", and "]" and
+// '"' are dropped, with nothing inside an instance key otherwise
+// transformed. It exists only for [AddressMatches], so that a marker a
+// prior run wrote for a key containing "@" - already legal, and never
+// escaped before this issue - is still recognized as naming the instance it
+// always named, even though a fresh stamp of the same key now writes
+// something different. See live/MARKERS.md, "for_each key migration".
+func LegacyEscapeAddress(addr string) string {
 	if !strings.ContainsAny(addr, `[]"`) {
 		return addr
 	}
@@ -198,6 +331,29 @@ func EscapeAddress(addr string) string {
 		}
 	}
 	return b.String()
+}
+
+// AddressMatches reports whether observed - an already-escaped marker value
+// read off a live resource, never decoded - names the same instance as
+// declared, the address before escaping (addr.String()). It tries
+// [EscapeAddress] first and [LegacyEscapeAddress] second, so a marker
+// written before issue #178 widened the for_each key grammar is still
+// recognized, even for a key whose current escaping differs from what a
+// prior run wrote (only possible for a key containing "@", the one
+// character both grammars admitted but escape differently). Every
+// declared-vs-observed comparison that decides ownership - "is this live
+// resource the one this instance address names" - should go through this
+// rather than a bare EscapeAddress equality, or a resource stamped under
+// the old grammar reads as unowned under the new code. See
+// live/MARKERS.md, "for_each key migration".
+func AddressMatches(observed, declared string) bool {
+	if observed == "" {
+		return false
+	}
+	if observed == EscapeAddress(declared) {
+		return true
+	}
+	return observed == LegacyEscapeAddress(declared)
 }
 
 // ValidMarkerAddress reports whether an escaped address is well-formed
@@ -220,22 +376,34 @@ func ValidMarkerAddress(escaped string) bool {
 // UnescapeAddress turns an escaped marker value back into a resource
 // instance address, and reports whether it could.
 //
-// The escaping rule in live/MARKERS.md is lossy in two ways, and this
-// function is honest about both rather than guessing through them:
+// It never identifies or selects a live resource on its own - every caller
+// uses its result as a label (removal planning's plan-printed address,
+// markerTypeOf's best-effort type guess) after the resource itself was
+// already found by its live import ID or by a direct marker comparison
+// ([AddressMatches]). That is what lets the two remaining ambiguities below
+// stay ambiguities instead of becoming refusals or, worse, silent
+// mis-selections:
 //
-//   - A key carrying a '.' or a ':' cannot be located, because those are the
-//     two characters that separate the segments of an escaped address. Such a
-//     value is refused.
 //   - An instance key of all digits could have been written as a count index
 //     or as a quoted string key of the same digits. It is decoded as a count
 //     index, which is the reading that is right in every estate a lint-clean
-//     configuration can produce, and which cannot mislead anything that acts
-//     on the result: the only consumer is removal planning, which identifies
-//     the resource to destroy by its live import ID and uses this address as
-//     the label the plan prints. A live resource whose declared instance
-//     really is the string key would have bound in the scan rather than
-//     reaching here, because the comparison discovery makes is between two
-//     escaped values and those two are the same string.
+//     configuration can produce. A live resource whose declared instance
+//     really is the string key would have bound during discovery, since the
+//     comparison discovery makes is between two escaped values and those two
+//     are the same string.
+//   - A key containing "." or ":" decodes as whatever [UnescapeKey] makes of
+//     it, which is exactly right for a key escaped under the current rule and
+//     a best-effort, possibly wrong reading for a key written before issue
+//     #178 that happened to contain "@d", "@c" or "@@" as literal bytes.
+//     [UnescapeKey]'s own doc comment has the full reasoning; the label this
+//     produces can be wrong in that one narrow, coincidental case, and
+//     nothing downstream trusts it enough for that to matter.
+//
+// A key literally containing an un-escaped "." or ":" - impossible for
+// anything [EscapeKey] produced, and equally impossible for a legal
+// pre-#178 key, which could never contain either - is refused rather than
+// guessed at: that shape means the value was never validly escaped in the
+// first place, by either grammar.
 //
 // A root-module address is the two trailing segments: type, then
 // name(+key). Anything before them has to be a run of "module", "<name>"
@@ -286,7 +454,7 @@ func UnescapeAddress(escaped string) (addrs.AbsResourceInstance, bool) {
 			if modKey == "" || strings.ContainsAny(modKey, ".:") {
 				return zero, false
 			}
-			step.InstanceKey = addrs.StringKey(modKey)
+			step.InstanceKey = addrs.StringKey(UnescapeKey(modKey))
 		}
 		modInst = append(modInst, step)
 	}
@@ -301,10 +469,11 @@ func UnescapeAddress(escaped string) (addrs.AbsResourceInstance, bool) {
 		if key == "" || strings.ContainsAny(key, ".:") {
 			return zero, false
 		}
-		if n, err := strconv.Atoi(key); err == nil && key == strconv.Itoa(n) && n >= 0 {
+		decoded := UnescapeKey(key)
+		if n, err := strconv.Atoi(decoded); err == nil && decoded == strconv.Itoa(n) && n >= 0 {
 			instKey = addrs.IntKey(n)
 		} else {
-			instKey = addrs.StringKey(key)
+			instKey = addrs.StringKey(decoded)
 		}
 	}
 	return addrs.AbsResourceInstance{

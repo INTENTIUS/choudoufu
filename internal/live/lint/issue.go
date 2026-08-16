@@ -173,7 +173,7 @@ var ruleInfo = map[Rule]struct {
 	},
 	RuleForEachKey: {
 		summary: "for_each key is outside the marker character set",
-		docsRef: `live/LIMITATIONS.md, "foreach-dotted-key"`,
+		docsRef: `live/LIMITATIONS.md, "foreach-invalid-key"`,
 	},
 	RuleChildModule: {
 		// Child modules ARE available: childModuleDetail admits a static call

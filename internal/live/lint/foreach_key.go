@@ -26,37 +26,31 @@ import (
 // of the resource's address, the address becomes the tofu-address marker on
 // the live resource, and the marker is the only record of ownership a
 // stateless run has. live/MARKERS.md therefore bounds what a key may
-// contain from two directions at once, and this rule is the enforcement it
-// asks for by name ("for_each keys containing `.` or `:` (or any character
-// outside the AWS-allowed set enumerated above) are outside the stateless
-// subset and should be rejected by lint").
-//
-// The two bounds:
+// contain from two directions at once:
 //
 //   - AWS-legal in a tag value. MARKERS.md's list: letters and numbers
 //     representable in UTF-8, space, and the characters `+ - = . _ : / @`.
 //     A key outside it cannot be written as a marker at all.
 //   - Escapable, and unescapable back. The escaped address uses `.` to
 //     separate segments and `:` to introduce an instance key, so a key
-//     carrying either one produces a value that cannot be split back into
-//     the address it came from. `.` and `:` are AWS-legal, which is exactly
-//     what made this class of key dangerous rather than merely invalid: it
-//     passed lint, stamped a marker, and applied, and only the NEXT run
-//     found the wedge (a `:` key reads as a malformed marker; a `.` key
-//     makes discovery.UnescapeAddress refuse on deletion), with no in-band
-//     way back out.
+//     carrying either one raw would produce a value that cannot be split
+//     back into the address it came from. Issue #178 closed that gap rather
+//     than excluding the two characters: [markerkey.Extras] admits both, and
+//     internal/live/markers escapes a key's own `.`, `:` and `@` before it
+//     ever reaches an address, reversibly, so the address-level separators
+//     stay unambiguous. See live/MARKERS.md, "for_each key escaping".
 //
-// The intersection is the set this rule admits: letters and numbers, space,
-// and `+ - = _ / @`.
+// The set this rule admits is therefore the full AWS-legal set: letters and
+// numbers, space, and `+ - = . _ : / @`.
 //
-// That set also happens to close the raw-each.key escaping gap in
-// internal/live/stamp. The declared side of the comparison renders an
-// instance key through addrs' toHCLQuotedString, which backslash-escapes
-// `"`, `\`, tab/CR/LF, `$`/`%` before `{`, and any non-printable rune, while
-// the stamped side interpolates each.key raw. Every character that makes
-// those two disagree is outside the set above, so for a lint-clean
-// configuration the two sides are the same string by construction. See
-// stamp.addressExpr.
+// The declared side of the comparison renders an instance key through
+// addrs' toHCLQuotedString, which backslash-escapes `"`, `\`, tab/CR/LF,
+// `$`/`%` before `{`, and any non-printable rune - none of which this set
+// admits - while the stamped side (internal/live/stamp's addressExpr)
+// interpolates each.key through the same three-substitution escaping this
+// package's set exists to bound. For a lint-clean configuration the two
+// sides are the same string by construction; see
+// internal/live/stamp/foreach_escape_test.go for the proof.
 
 // ValidForEachKey reports whether a for_each instance key survives the round
 // trip through a tofu-address marker: escapable to a marker value, and
@@ -164,8 +158,7 @@ func reportBadForEachKeys(keys []string, where, addr string, subject hcl.Range, 
 					"resource at or beneath %s, the address becomes the marker on the live "+
 					"resource, and that marker is the only record of ownership a live-markers "+
 					"run has (live/MARKERS.md). A key may contain letters, digits, space, and "+
-					"%s: the AWS tag-value character set, less \".\" and \":\", which separate the "+
-					"segments of an escaped address and so cannot appear inside one. This is "+
+					"%s: the AWS tag-value character set. This is "+
 					"caught here rather than at apply on purpose: a key like this applies cleanly and "+
 					"wedges every run after it, with no way back that does not go outside OpenTofu. "+
 					"Rename the key",

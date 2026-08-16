@@ -493,36 +493,44 @@ The count expression itself and the other meta-argument positions are out of
 scope by construction (see `internal/live/lint/doc.go`, "Scope of the
 count.index rule"). Fixture at `live/e2e/limits/count-index-in-tag/`.
 
-### foreach-dotted-key
+### foreach-invalid-key
 
-**Construct.** A `for_each` key containing `.` (e.g. `"a.b"`), or any other
-character outside the safe set named below.
+**Construct.** A `for_each` key containing a character outside the AWS
+tag-value set (e.g. `"a%b"`).
 
-**Why banned.** `live/MARKERS.md`'s escaping rule for `tofu-address`
-cannot unambiguously round-trip a key containing `.` or `:`. The escaped
-address format uses `.` as the segment separator and `:` to introduce an
-instance key, so either character inside a key collides with the escaping
-rule itself. Both are AWS-legal in a tag value, which is exactly what made
-this class of key dangerous before this rule existed. It passed lint,
-stamped a marker, and applied cleanly, and only the *next* run found the
-wedge (a `:` key reads back as a malformed marker, and a `.` key makes
-`discovery.UnescapeAddress` refuse on deletion), with no in-band way out.
+**Why banned.** A `for_each` instance key becomes part of the resource's
+`tofu-address` marker, which is written as an AWS resource tag, so a key
+containing anything AWS itself does not allow in a tag value can never be
+carried at all - no escaping rule can fix that.
 
-**Forwarding address.** Pick a `for_each` key drawn from the intersection of
-the AWS-allowed tag character set and the two escaping separators removed.
-That means letters, digits, space, and `+ - = _ / @`, the AWS tag-value set
-from `live/MARKERS.md` **minus** `.` and `:`. An empty key is also
-rejected, since an escaped address cannot end in a bare separator either.
+Before issue #178, `.` and `:` were banned here too, alongside everything
+truly outside the AWS set: `live/MARKERS.md`'s escaping rule used `.` to
+separate an escaped address's segments and `:` to introduce an instance key,
+and a key carrying either character raw collided with that rule. Both are
+AWS-legal in a tag value, which is what made this class of key dangerous
+rather than merely invalid: it passed lint, stamped a marker, and applied
+cleanly, and only the *next* run found the wedge (a `:` key read back as a
+malformed marker, and a `.` key made `discovery.UnescapeAddress` refuse on
+deletion), with no in-band way out. Issue #178 closed the gap instead of
+leaving it excluded: `internal/live/markers` now escapes a key's own `.`,
+`:` and `@` before it ever reaches an address - doubling `@`, then
+substituting `.` and `:` for two-character sequences that cannot collide
+with the address's own separators - and reverses the substitution on read,
+so both characters are admitted.
+
+**Forwarding address.** Pick a `for_each` key drawn from the AWS-allowed tag
+character set: letters, digits, space, and `+ - = . _ : / @`. An empty key
+is also rejected, since an escaped address cannot end in a bare separator.
 
 **Enforcement.** `RuleForEachKey`, `internal/live/lint/foreach_key.go`
 (`checkForEachKeys`). For every `for_each` expression it can evaluate
 statically, it rejects any key outside Unicode letters, Unicode digits,
-space, and `+ - = _ / @`, including the empty string. The same bound is
+space, and `+ - = . _ : / @`, including the empty string. The same bound is
 enforced a second time in `internal/live/identity`
 (`checkedForEachKeys` in `foreach_key.go`, which delegates the rune check
 back to lint), so a configuration that reaches identity resolution without
 passing lint still cannot mint a marker nothing can read back. Fixture at
-`live/e2e/limits/foreach-dotted-key/`.
+`live/e2e/limits/foreach-invalid-key/`.
 
 ### overlong-address
 
@@ -549,7 +557,7 @@ stamped marker would be escaped (per `live/MARKERS.md`, `[` becomes `:`
 and `]` and `"` are dropped) and rejects anything past the 1024-character
 budget. A plain resource is measured directly, a `for_each` resource is
 measured once per statically evaluable key under the same boundary as
-`foreach-dotted-key`, and a `count` resource is measured at its highest
+`foreach-invalid-key`, and a `count` resource is measured at its highest
 index when the count is statically evaluable. Fixture at
 `live/e2e/limits/overlong-address/`.
 
@@ -997,13 +1005,12 @@ refused, and each says so in its own entry.
 | 24 | 77 | identity | Null identity argument | `internal/live/identity` | "Null identity argument" |
 | 22 | 39 | identity | Identity argument not set | `internal/live/identity` | "Identity argument not set" |
 | 21 | 110 | lint | module-providers | `internal/live/lint` | "module-providers" |
-| 19 | 215 | lint | for-each-key | `internal/live/lint` | "foreach-dotted-key" |
 | 18 | 101 | identity | Identity not resolvable from configuration | `internal/live/identity` | "Identity not resolvable from configuration" |
 | 18 | 73 | identity | Non-static count expression | `internal/live/identity` | "Non-static count expression" |
 | 13 | 30 | lint | child-module | `internal/live/lint` | "child-module" |
-| 12 | 21 | identity | Invalid for_each set | `internal/live/identity` | "Invalid for_each set" |
+| 13 | 27 | identity | Invalid for_each set | `internal/live/identity` | "Invalid for_each set" |
+| 12 | 150 | dataread | Data source not readable before resolution | `internal/live/dataread` | "Data source not readable before resolution" |
 | 6 | 63 | lint | moved-block | `internal/live/lint` | "moved-block" |
-| 6 | 48 | dataread | Data source not readable before resolution | `internal/live/dataread` | "Data source not readable before resolution" |
 | 3 | 3 | lint | module-provider-block | `internal/live/lint` | "module-provider-block" |
 | 2 | 24 | identity | Attempt to get attribute from null value | `hcl` | "Attempt to get attribute from null value" |
 | 2 | 3 | identity | Two resources with the same identity | `internal/live/identity` | "duplicate-identity" |
@@ -1112,6 +1119,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | for_each key cannot be recorded as a marker | `internal/live/identity` | live/MARKERS.md, "Ownership semantics" |
 | 0 | 0 | identity | for_each over a resource that is not keyed | `internal/live/identity` | "for_each over a resource that is not keyed" |
 | 0 | 0 | lint | child-live-config | `internal/live/lint` | "child-live-config" |
+| 0 | 0 | lint | for-each-key | `internal/live/lint` | "foreach-invalid-key" |
 | 0 | 0 | lint | ignore-changes | `internal/live/lint` | "ignore-changes" |
 | 0 | 0 | lint | overlong-address | `internal/live/lint` | "overlong-address" |
 | 0 | 0 | lint | policy-scope | `internal/live/lint` | "policy-scope" |
@@ -1281,7 +1289,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 12 configurations in the measured corpus, at 21 sites.
+**How often.** Blocked 13 configurations in the measured corpus, at 27 sites.
 
 #### Data source not readable before resolution
 
@@ -1289,7 +1297,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 6 configurations in the measured corpus, at 48 sites.
+**How often.** Blocked 12 configurations in the measured corpus, at 150 sites.
 
 #### Attempt to get attribute from null value
 

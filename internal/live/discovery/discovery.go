@@ -565,7 +565,19 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 		if d.all[typeName] == nil {
 			d.all[typeName] = make(map[string]bool)
 		}
-		d.all[typeName][EscapeAddress(r.Addr.String())] = true
+		raw := r.Addr.String()
+		escaped := EscapeAddress(raw)
+		d.all[typeName][escaped] = true
+		if legacy := LegacyEscapeAddress(raw); legacy != escaped {
+			// A for_each key containing "@" - the one character both the
+			// pre- and post-issue-#178 grammars admit but escape
+			// differently - is also declared under the address a prior run
+			// would have written, so a client-named instance (the only
+			// consumer of d.all) that predates the widened grammar is still
+			// recognized as declared. See markers.AddressMatches's doc
+			// comment.
+			d.all[typeName][legacy] = true
+		}
 	}
 
 	// Sorting first makes both the scan order and the reported order
@@ -638,8 +650,27 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 			})
 			continue
 		}
-		d.types[typeName][escaped] = &declaredEntry{res: r, escaped: escaped}
+		entry := &declaredEntry{res: r, escaped: escaped}
+		d.types[typeName][escaped] = entry
 		d.order[typeName] = append(d.order[typeName], escaped)
+
+		if legacy := LegacyEscapeAddress(r.Addr.String()); legacy != escaped {
+			// A marker a prior run wrote for this instance's key - possible
+			// only for a key containing "@" - used this pre-issue-#178
+			// escaping. Filing the same entry under that value too is what
+			// lets an old-grammar marker still bind a live resource to this
+			// instance (see markers.AddressMatches's doc comment); d.order
+			// above carries only the canonical (current) key, so nothing
+			// about what this run itself stamps or reports changes. If the
+			// legacy value happens to already name a different declared
+			// instance - only possible by the same one-in-a-huge-space
+			// coincidence noted on markers.UnescapeKey - the alias is
+			// skipped rather than overwritten, so it can never misdirect a
+			// live resource that was never this instance's to begin with.
+			if _, taken := d.types[typeName][legacy]; !taken {
+				d.types[typeName][legacy] = entry
+			}
+		}
 
 		escapedBlock := EscapeAddress(r.Addr.ContainingResource().String())
 		blk := d.blocks[typeName][escapedBlock]

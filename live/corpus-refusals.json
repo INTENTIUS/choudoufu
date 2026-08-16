@@ -115,7 +115,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 219,
-      "sites": 290,
+      "sites": 289,
       "unresolved_modules": 17,
       "unset_variables": 6,
       "schemas": true,
@@ -178,11 +178,6 @@
           },
           {
             "layer": "lint",
-            "id": "for-each-key",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "logical-resource",
             "sites": 6
           },
@@ -217,12 +212,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 236,
-      "sites": 269,
+      "instances": 239,
+      "sites": 266,
       "unresolved_modules": 1,
       "unset_variables": 3,
       "schemas": true,
-      "shadowed": 9,
+      "shadowed": 6,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -288,11 +283,6 @@
             "layer": "lint",
             "id": "count-index",
             "sites": 150
-          },
-          {
-            "layer": "lint",
-            "id": "for-each-key",
-            "sites": 3
           },
           {
             "layer": "lint",
@@ -1512,19 +1502,14 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 8,
+      "sites": 6,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "shadowed": 6,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "for-each-key",
-            "sites": 2
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -1843,7 +1828,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 61,
+      "sites": 58,
       "unresolved_modules": 3,
       "unset_variables": 1,
       "schemas": true,
@@ -1893,11 +1878,6 @@
             "layer": "lint",
             "id": "child-module",
             "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "for-each-key",
-            "sites": 3
           },
           {
             "layer": "lint",
@@ -2178,7 +2158,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 320,
+      "sites": 297,
       "unresolved_modules": 6,
       "unset_variables": 4,
       "schemas": true,
@@ -2196,11 +2176,6 @@
             "layer": "lint",
             "id": "child-module",
             "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "for-each-key",
-            "sites": 23
           },
           {
             "layer": "lint",
@@ -2288,19 +2263,14 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 70,
+      "sites": 25,
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
       "shadowed": 66,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "for-each-key",
-            "sites": 45
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -2792,19 +2762,14 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 102,
+      "sites": 84,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
       "shadowed": 98,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "for-each-key",
-            "sites": 18
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -3036,19 +3001,14 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 18,
+      "sites": 15,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
       "shadowed": 16,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "for-each-key",
-            "sites": 3
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -3527,10 +3487,18 @@
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 100,
+      "shadowed": 20,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
+          {
+            "layer": "dataread",
+            "id": "Data source not readable before resolution",
+            "sites": 80,
+            "categories": {
+              "data_source": 80
+            }
+          },
           {
             "layer": "identity",
             "id": "Module output not supported in static context",
@@ -3538,11 +3506,6 @@
             "categories": {
               "module_output": 6
             }
-          },
-          {
-            "layer": "lint",
-            "id": "for-each-key",
-            "sites": 80
           },
           {
             "layer": "lint",
@@ -5393,10 +5356,18 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 15,
+      "shadowed": 14,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
+          {
+            "layer": "dataread",
+            "id": "Data source not readable before resolution",
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
+          },
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
@@ -5416,11 +5387,6 @@
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "for-each-key",
             "sites": 1
           },
           {
@@ -5457,16 +5423,16 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 6,
+      "shadowed": 5,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Data source not readable before resolution",
-            "sites": 1,
+            "sites": 2,
             "categories": {
-              "data_source": 1
+              "data_source": 2
             }
           },
           {
@@ -5494,11 +5460,6 @@
             "layer": "identity",
             "id": "Unable to compute static value",
             "sites": 4
-          },
-          {
-            "layer": "lint",
-            "id": "for-each-key",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -5568,20 +5529,14 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 27,
-      "sites": 4,
+      "instances": 35,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "backend-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "for-each-key",
-            "sites": 3
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -5685,23 +5640,30 @@
       "blocked": true,
       "loaded": true,
       "instances": 42,
-      "sites": 33,
+      "sites": 39,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 20,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
+            "layer": "dataread",
+            "id": "Data source not readable before resolution",
+            "sites": 14,
+            "categories": {
+              "data_source": 14
+            }
+          },
+          {
             "layer": "identity",
-            "id": "Non-static for_each expression",
+            "id": "Invalid for_each set",
             "sites": 6
           },
           {
-            "layer": "lint",
-            "id": "for-each-key",
-            "sites": 14
+            "layer": "identity",
+            "id": "Non-static for_each expression",
+            "sites": 6
           },
           {
             "layer": "lint",
@@ -5726,10 +5688,18 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 2,
+      "shadowed": 1,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
+          {
+            "layer": "dataread",
+            "id": "Data source not readable before resolution",
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
+          },
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
@@ -5754,11 +5724,6 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "for-each-key",
             "sites": 1
           },
           {
@@ -5849,16 +5814,16 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 7,
+      "shadowed": 6,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Data source not readable before resolution",
-            "sites": 1,
+            "sites": 2,
             "categories": {
-              "data_source": 1
+              "data_source": 2
             }
           },
           {
@@ -5886,11 +5851,6 @@
             "layer": "identity",
             "id": "Unable to compute static value",
             "sites": 4
-          },
-          {
-            "layer": "lint",
-            "id": "for-each-key",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -6146,16 +6106,16 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 6,
+      "shadowed": 5,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Data source not readable before resolution",
-            "sites": 1,
+            "sites": 2,
             "categories": {
-              "data_source": 1
+              "data_source": 2
             }
           },
           {
@@ -6183,11 +6143,6 @@
             "layer": "identity",
             "id": "Unable to compute static value",
             "sites": 4
-          },
-          {
-            "layer": "lint",
-            "id": "for-each-key",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -6223,10 +6178,18 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 4,
+      "shadowed": 3,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
+          {
+            "layer": "dataread",
+            "id": "Data source not readable before resolution",
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
+          },
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
@@ -6261,11 +6224,6 @@
           },
           {
             "layer": "lint",
-            "id": "for-each-key",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "module-providers",
             "sites": 1
           },
@@ -6296,10 +6254,18 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 5,
+      "shadowed": 3,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
+          {
+            "layer": "dataread",
+            "id": "Data source not readable before resolution",
+            "sites": 2,
+            "categories": {
+              "data_source": 2
+            }
+          },
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
@@ -6329,11 +6295,6 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 2
-          },
-          {
-            "layer": "lint",
-            "id": "for-each-key",
             "sites": 2
           },
           {
@@ -6441,19 +6402,14 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 15,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "shadowed": 30,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "for-each-key",
-            "sites": 12
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -8168,23 +8124,6 @@
       "registered": true
     },
     {
-      "layer": "lint",
-      "id": "for-each-key",
-      "title": "for_each key is outside the marker character set",
-      "docs_ref": "live/LIMITATIONS.md, \"foreach-dotted-key\"",
-      "raised_by": "internal/live/lint",
-      "configs": 19,
-      "sites": 215,
-      "examples": [
-        ".corpus/cool-assessment/email_sending_domain_certreadrole.tf:4",
-        ".corpus/cyhy-amis/terraform/cloudwatch_alarm_sns_topic.tf:12",
-        ".corpus/cyhy-amis/terraform/kevsync_failure_sns_topic.tf:12",
-        ".corpus/cyhy-amis/terraform/kevsync_failure_sns_topic.tf:12",
-        ".corpus/govuk-infrastructure/terraform/deployments/cdn-analytics/main.tf:29"
-      ],
-      "registered": true
-    },
-    {
       "layer": "identity",
       "id": "Identity not resolvable from configuration",
       "title": "Identity not resolvable from configuration",
@@ -8244,14 +8183,32 @@
       "what": "A for_each set's element type is not a string.",
       "docs_ref": "live/LIMITATIONS.md, \"Invalid for_each set\"",
       "raised_by": "internal/live/identity",
-      "configs": 12,
-      "sites": 21,
+      "configs": 13,
+      "sites": 27,
       "examples": [
         ".corpus/govuk-infrastructure/terraform/deployments/ecr/main.tf:105",
         ".corpus/rds/modules/db_instance/main.tf:168",
         ".corpus/rds/modules/db_instance/main.tf:168",
         ".corpus/rds/modules/db_instance/main.tf:168",
         ".corpus/rds/modules/db_instance/main.tf:168"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "dataread",
+      "id": "Data source not readable before resolution",
+      "title": "Data source not readable before resolution",
+      "what": "A data source's value is needed to resolve an identity, a count or a for_each, but the data source depends on a managed resource, names one in depends_on, or has an argument that is not statically evaluable, so it cannot be read before the plan.",
+      "docs_ref": "live/LIMITATIONS.md, \"Data source not readable before resolution\"",
+      "raised_by": "internal/live/dataread",
+      "configs": 12,
+      "sites": 150,
+      "examples": [
+        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/amazonmq_security_groups.tf:95",
+        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/amazonmq_security_groups.tf:106",
+        ".corpus/iam/modules/iam-role-for-service-accounts/main.tf:118",
+        ".corpus/iam/modules/iam-role-for-service-accounts/main.tf:118",
+        ".corpus/iam/modules/iam-role-for-service-accounts/main.tf:118"
       ],
       "registered": true
     },
@@ -8269,24 +8226,6 @@
         ".corpus/govuk-infrastructure/terraform/deployments/datagovuk-infrastructure/organogram_bucket.tf:64",
         ".corpus/govuk-infrastructure/terraform/deployments/datagovuk-infrastructure/organogram_bucket.tf:69",
         ".corpus/govuk-infrastructure/terraform/deployments/datagovuk-infrastructure/organogram_bucket.tf:74"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "dataread",
-      "id": "Data source not readable before resolution",
-      "title": "Data source not readable before resolution",
-      "what": "A data source's value is needed to resolve an identity, a count or a for_each, but the data source depends on a managed resource, names one in depends_on, or has an argument that is not statically evaluable, so it cannot be read before the plan.",
-      "docs_ref": "live/LIMITATIONS.md, \"Data source not readable before resolution\"",
-      "raised_by": "internal/live/dataread",
-      "configs": 6,
-      "sites": 48,
-      "examples": [
-        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/amazonmq_security_groups.tf:95",
-        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/amazonmq_security_groups.tf:106",
-        ".corpus/iam/modules/iam-role-for-service-accounts/main.tf:118",
-        ".corpus/iam/modules/iam-role-for-service-accounts/main.tf:118",
-        ".corpus/iam/modules/iam-role-for-service-accounts/main.tf:118"
       ],
       "registered": true
     },
@@ -9254,6 +9193,16 @@
     },
     {
       "layer": "lint",
+      "id": "for-each-key",
+      "title": "for_each key is outside the marker character set",
+      "docs_ref": "live/LIMITATIONS.md, \"foreach-invalid-key\"",
+      "raised_by": "internal/live/lint",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
       "id": "ignore-changes",
       "title": "Ownership markers would be ignored",
       "docs_ref": "live/LIMITATIONS.md, \"ignore-changes\"",
@@ -9346,9 +9295,9 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 2813,
-    "sites": 14462,
-    "refusals_fired": 32,
+    "instances": 2824,
+    "sites": 14355,
+    "refusals_fired": 31,
     "refusals_in_set": 116,
     "configs_without_schemas": 0,
     "refusals_unregistered": 0
@@ -9370,8 +9319,8 @@
       "loaded": 144,
       "blocked": 144,
       "clean": 0,
-      "instances": 1713,
-      "sites": 3148,
+      "instances": 1724,
+      "sites": 3041,
       "reads_as": "rate"
     },
     {
@@ -9396,11 +9345,11 @@
       },
       {
         "class": "backend-only",
-        "configs": 24
+        "configs": 25
       },
       {
         "class": "admissions-only",
-        "configs": 11
+        "configs": 16
       },
       {
         "class": "data-read-eligible",
@@ -9408,7 +9357,7 @@
       },
       {
         "class": "language-blocked",
-        "configs": 87
+        "configs": 81
       },
       {
         "class": "unreadable",

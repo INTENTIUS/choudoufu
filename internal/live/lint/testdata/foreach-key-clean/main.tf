@@ -1,5 +1,6 @@
 # The other side of the for_each key rule: every key here is inside the
-# admitted set (letters, digits, space, and + - = _ / @), and the three
+# admitted set (letters, digits, space, and + - = . _ : / @ - "." and ":"
+# included since issue #178, escaped rather than refused), and the three
 # for_each shapes below are the ones the rule must decline to guess at.
 #
 # aws_route_table_association.this iterates over another resource: its keys
@@ -23,6 +24,8 @@ locals {
     "with space" = "10.42.8.0/24"
     "0"          = "10.42.9.0/24"
     "été"        = "10.42.10.0/24"
+    "alice.smith" = "10.42.11.0/24"
+    "2001:db8::/64" = "10.42.12.0/24"
   }
 }
 

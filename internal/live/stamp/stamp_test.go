@@ -1043,6 +1043,13 @@ func tagFunctions() map[string]function.Function {
 		// calls (stamp.templateChunkMarkers). Same reasoning as the two
 		// above.
 		"substr": stdlib.SubstrFunc,
+		// replace is issue #178's addition: a for_each block's each.key is
+		// escaped through three nested replace() calls (stamp.addressExpr,
+		// stamp.eachKeyEscapedExpr) rather than through Go code, because it
+		// has to be evaluated at apply time with real repetition data. This
+		// is internal/lang/functions.go's own "replace", not a stand-in, so
+		// evaluating a stamped tag here is evaluating what the plan will.
+		"replace": funcs.ReplaceFunc,
 	}
 }
 

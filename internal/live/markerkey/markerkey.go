@@ -21,12 +21,16 @@ import (
 	"unicode"
 )
 
-// Extras is the punctuation a for_each instance key may contain, being the
-// AWS tag value set from live/MARKERS.md minus the two escaped-address
-// separators, "." and ":". Their absence is the whole rule: both are
-// AWS-legal in a tag value, and both would produce a marker that cannot be
-// split back into the address it came from.
-const Extras = "+-=_/@"
+// Extras is the punctuation a for_each instance key may contain: the full
+// AWS tag value set from live/MARKERS.md, "+ - = . _ : / @". "." and ":"
+// are the two characters an escaped address uses to separate its own
+// segments, so admitting them in a key depends on the key-escaping rule in
+// internal/live/markers ([markers.EscapeKey]/[markers.UnescapeKey]) rather
+// than on passing a key through unmodified the way the rest of this set
+// does (issue #178). This package only says which characters a key may
+// contain; it is markers, not this package, that says how "." and ":"
+// survive the trip.
+const Extras = "+-=_/@.:"
 
 // Valid reports whether a for_each instance key survives the round trip
 // through a tofu-address marker: escapable to a marker value, and

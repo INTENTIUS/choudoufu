@@ -10,6 +10,98 @@ import (
 	"testing"
 )
 
+// ---------------------------------------------------------------------------
+// Issue #178: the for_each key escaping grammar
+// ---------------------------------------------------------------------------
+
+// TestEscapeKey_KnownCases pins the substitution table itself: "@" doubles,
+// "." and ":" become two-character sequences built from letters the
+// doubling step never re-escapes, in the order that makes that true.
+func TestEscapeKey_KnownCases(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"", ""},
+		{"a", "a"},
+		{"a.b", "a@db"},
+		{"a:b", "a@cb"},
+		{"a@b", "a@@b"},
+		{"a.b@c:d", "a@db@@c@cd"},
+		{"@.:", "@@@d@c"},
+		{"...", "@d@d@d"},
+		{":::", "@c@c@c"},
+		{"@@@", "@@@@@@"},
+		{"@d", "@@d"}, // a literal "@d" is not mistaken for an escape on the way in
+		{"@c", "@@c"},
+	}
+	for _, c := range cases {
+		if got := EscapeKey(c.in); got != c.want {
+			t.Errorf("EscapeKey(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+// TestEscapeKey_UnescapeKey_RoundTrips is the property the whole grammar
+// depends on: every key built from the admitted alphabet, including runs
+// that put "@", "." and ":" directly next to each other (the case a naive
+// sequence of reverse substitutions gets wrong - see [UnescapeKey]'s doc
+// comment), decodes back to exactly the string that was encoded.
+func TestEscapeKey_UnescapeKey_RoundTrips(t *testing.T) {
+	alphabet := []string{"a", "Z", "9", " ", "+", "-", "=", "_", "/", "@", ".", ":"}
+
+	var keys []string
+	// Every length-1..4 combination of the alphabet, which is exhaustive
+	// over exactly the characters whose adjacency is where this grammar
+	// could go wrong (the plain, untouched characters cannot interact with
+	// the escape mechanism at all).
+	var gen func(prefix string, depth int)
+	gen = func(prefix string, depth int) {
+		if depth == 0 {
+			keys = append(keys, prefix)
+			return
+		}
+		for _, r := range alphabet {
+			gen(prefix+r, depth-1)
+		}
+	}
+	gen("", 4)
+
+	for _, key := range keys {
+		escaped := EscapeKey(key)
+		if strings.ContainsAny(escaped, ".:") {
+			t.Fatalf("EscapeKey(%q) = %q still contains a raw \".\" or \":\"", key, escaped)
+		}
+		back := UnescapeKey(escaped)
+		if back != key {
+			t.Fatalf("key %q: EscapeKey -> %q -> UnescapeKey -> %q, want %q", key, escaped, back, key)
+		}
+	}
+}
+
+// TestAddressMatches is issue #178's migration proof at the markers level:
+// AddressMatches accepts a marker written under either grammar for the one
+// key shape they escape differently ("@"), and still rejects an address
+// that plainly does not name the same instance.
+func TestAddressMatches(t *testing.T) {
+	declared := `aws_subnet.this["at@sign"]`
+	legacy := LegacyEscapeAddress(declared)
+	current := EscapeAddress(declared)
+
+	if legacy == current {
+		t.Fatalf("test premise is wrong: legacy and current escaping agree (%q)", legacy)
+	}
+	for _, observed := range []string{legacy, current} {
+		if !AddressMatches(observed, declared) {
+			t.Errorf("AddressMatches(%q, %q) = false, want true", observed, declared)
+		}
+	}
+
+	if AddressMatches("", declared) {
+		t.Error(`AddressMatches("", declared) = true, want false`)
+	}
+	if AddressMatches(`aws_subnet.other:at@sign`, declared) {
+		t.Error("AddressMatches matched an address that names a different instance")
+	}
+}
+
 // TestContinuationTag_AddressTagKey pins the naming scheme issue #71
 // introduces: TagAddress is chunk 0, tofu-address-2 is chunk 1, and so on.
 func TestContinuationTag_AddressTagKey(t *testing.T) {

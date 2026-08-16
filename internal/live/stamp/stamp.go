@@ -568,11 +568,11 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 		return nil, diags.Append(s.unstampable(rc, detail))
 	}
 
-	wantAddr, addrDisplay, perInstance := addressExpr(rc, modInst)
+	wantAddr, addrDisplay, perInstance, legacyAddr := addressExpr(rc, modInst)
 	markers := []marker{
 		{key: TagEstate, expr: &hclsyntax.LiteralValueExpr{Val: cty.StringVal(s.req.Estate), SrcRange: rc.DeclRange}, want: s.req.Estate},
 	}
-	markers = append(markers, s.splitAddressMarker(ctx, rc, modInst, wantAddr, addrDisplay, perInstance)...)
+	markers = append(markers, s.splitAddressMarker(ctx, rc, modInst, wantAddr, addrDisplay, perInstance, legacyAddr)...)
 	if slotExpr, slotDisplay, ok := s.slotExpr(rc); ok {
 		markers = append(markers, marker{key: TagSlot, expr: slotExpr, want: slotDisplay, perInstance: true})
 	}
@@ -778,6 +778,21 @@ type marker struct {
 	want string
 
 	perInstance bool
+
+	// legacyExpr, when set, is an alternate expression [verify] and
+	// [stamper.perInstanceVerdict] accept as equally correct, alongside
+	// expr: the tofu-address template a for_each block's single (unchunked)
+	// tag would have carried before issue #178 widened the for_each key
+	// grammar. It exists only so a configuration this pass (or an author,
+	// by hand) already stamped under the old grammar keeps verifying rather
+	// than reporting a marker conflict on its first run under the new code
+	// - the config-file-level twin of [markers.AddressMatches] on the live
+	// side. It differs from expr only for a key containing "@", the one
+	// character both grammars admit but escape differently; nil everywhere
+	// else, including a chunked (over one tag) for_each address, which is
+	// narrow enough in combination that this pass does not chase it (see
+	// [stamper.splitAddressMarker]).
+	legacyExpr hclsyntax.Expression
 }
 
 // markerItems is the object entries one marker contributes.
@@ -811,7 +826,7 @@ func (s *stamper) verify(ctx context.Context, rc *configs.Resource, m marker, cu
 	// does the author's expression build the same escaped address out of the
 	// same instance key this pass would have used.
 	if m.perInstance {
-		if sameExpr(cur, m.expr) {
+		if sameExpr(cur, m.expr) || (m.legacyExpr != nil && sameExpr(cur, m.legacyExpr)) {
 			return verifyOK, ""
 		}
 		// A constant first. An expression that evaluates with no repetition
@@ -1115,36 +1130,73 @@ func objectKeyLiteral(keyExpr hclsyntax.Expression) (string, bool) {
 // introduces an index - so the one implementation of MARKERS.md's escaping
 // rule is the one discovery compares with.
 //
-// The for_each branch interpolates each.key raw, which is correct exactly
-// because the key set is bounded elsewhere. OpenTofu renders an instance key
-// into an address through addrs' toHCLQuotedString, which adds backslash
-// escapes the raw interpolation does not; every character that makes the two
-// sides differ is outside the for_each key set the subset admits
-// (internal/live/lint, RuleForEachKey, enforced again at expansion time
-// in internal/live/identity). Escaping it here instead is not an
-// option: an HCL expression cannot reproduce toHCLQuotedString - replace()
-// cannot condition on what follows a "$", nor emit \uXXXX for a
-// non-printable rune. The invariant is asserted both ways in
-// foreach_escape_test.go; if the key rule is ever loosened, that test is
-// where it fails.
+// The for_each branch interpolates each.key through [eachKeyEscapedExpr],
+// the HCL form of [markers.EscapeKey] - three nested replace() calls
+// doubling "@" and substituting "." and ":" for the two characters that
+// would otherwise collide with an escaped address's own segment and index
+// separators. Every character the key set admits that this does NOT
+// transform (letters, digits, space, "+ - = _ /") is also a character
+// addrs' toHCLQuotedString - what OpenTofu itself uses to render an
+// instance key into the declared side of the comparison - passes through
+// unescaped, so [discovery.EscapeAddress] applied to the real address and
+// this HCL expression evaluated at apply time produce the same bytes for
+// every key [markerkey.Valid] admits. That agreement is proven, not
+// assumed, in internal/live/stamp/foreach_escape_test.go, which is also
+// where a widened key rule would first fail to hold.
+//
+// The fourth return is a legacy version of the same template, non-nil only
+// for the for_each branch: the plain each.key interpolation this function
+// used before issue #178 widened the for_each key grammar, with no
+// escaping of its own. [stamper.verify] and [stamper.perInstanceVerdict]
+// accept it as equally correct alongside the primary expression, which is
+// what lets a configuration already stamped under the old grammar (only
+// possible for a key containing "@", the one character both grammars admit
+// but escape differently) keep verifying under the new code instead of
+// reporting a conflict on its first run.
 //
 // The second return is the value in operator-readable form, and the third is
 // whether it varies per instance.
-func addressExpr(rc *configs.Resource, modInst addrs.ModuleInstance) (hclsyntax.Expression, string, bool) {
+func addressExpr(rc *configs.Resource, modInst addrs.ModuleInstance) (hclsyntax.Expression, string, bool, hclsyntax.Expression) {
 	base := addrs.ConfigResource{Module: modInst.Module(), Resource: rc.Addr()}.String()
 	rng := rc.DeclRange
 
 	switch {
 	case rc.Count != nil:
 		prefix := discovery.EscapeAddress(base + "[")
-		return instanceTemplate(prefix, countIndexTraversal(rng), rng), prefix + "count.index", true
+		return instanceTemplate(prefix, countIndexTraversal(rng), rng), prefix + "count.index", true, nil
 	case rc.ForEach != nil:
 		prefix := discovery.EscapeAddress(base + `["`)
-		return instanceTemplate(prefix, eachKeyTraversal(rng), rng), prefix + "each.key", true
+		want := instanceTemplateExpr(prefix, eachKeyEscapedExpr(rng), rng)
+		legacy := instanceTemplate(prefix, eachKeyTraversal(rng), rng)
+		return want, prefix + "each.key", true, legacy
 	default:
 		escaped := discovery.EscapeAddress(base)
-		return &hclsyntax.LiteralValueExpr{Val: cty.StringVal(escaped), SrcRange: rng}, escaped, false
+		return &hclsyntax.LiteralValueExpr{Val: cty.StringVal(escaped), SrcRange: rng}, escaped, false, nil
 	}
+}
+
+// eachKeyEscapedExpr builds
+// replace(replace(replace(each.key,"@","@@"),".","@d"),":","@c"), the HCL
+// form of [markers.EscapeKey]. See [addressExpr]'s doc comment for why this
+// has to be reproduced as an HCL expression rather than computed in Go: it
+// is evaluated at apply time, once per for_each instance, and the only
+// per-instance data (each.key) this pass has is the traversal itself, not a
+// string it could run through markers.EscapeKey directly.
+func eachKeyEscapedExpr(rng hcl.Range) hclsyntax.Expression {
+	each := &hclsyntax.ScopeTraversalExpr{Traversal: eachKeyTraversal(rng), SrcRange: rng}
+	lit := func(s string) hclsyntax.Expression {
+		return &hclsyntax.LiteralValueExpr{Val: cty.StringVal(s), SrcRange: rng}
+	}
+	replaceCall := func(arg hclsyntax.Expression, from, to string) hclsyntax.Expression {
+		return &hclsyntax.FunctionCallExpr{
+			Name:            "replace",
+			Args:            []hclsyntax.Expression{arg, lit(from), lit(to)},
+			NameRange:       rng,
+			OpenParenRange:  rng,
+			CloseParenRange: rng,
+		}
+	}
+	return replaceCall(replaceCall(replaceCall(each, "@", "@@"), ".", "@d"), ":", "@c")
 }
 
 // ---------------------------------------------------------------------------
@@ -1170,7 +1222,7 @@ func addressExpr(rc *configs.Resource, modInst addrs.ModuleInstance) (hclsyntax.
 // [templateChunkMarkers]. A shorter instance in the same block simply gets
 // empty-string continuations, which [discovery.GatherAddress] safely
 // contributes nothing to on read.
-func (s *stamper) splitAddressMarker(ctx context.Context, rc *configs.Resource, modInst addrs.ModuleInstance, full hclsyntax.Expression, display string, perInstance bool) []marker {
+func (s *stamper) splitAddressMarker(ctx context.Context, rc *configs.Resource, modInst addrs.ModuleInstance, full hclsyntax.Expression, display string, perInstance bool, legacyFull hclsyntax.Expression) []marker {
 	rng := rc.DeclRange
 
 	if !perInstance {
@@ -1185,8 +1237,16 @@ func (s *stamper) splitAddressMarker(ctx context.Context, rc *configs.Resource, 
 
 	n := s.chunkCount(ctx, rc, modInst)
 	if n <= 1 {
-		return []marker{{key: TagAddress, expr: full, want: display, perInstance: true}}
+		return []marker{{key: TagAddress, expr: full, want: display, perInstance: true, legacyExpr: legacyFull}}
 	}
+	// legacyFull does not travel into the chunked case: it would need its
+	// own substr()-windowed markers alongside templateChunkMarkers's, for a
+	// combination - a for_each key containing "@" AND an address long
+	// enough to need continuation tags - narrow enough that this pass
+	// leaves it undone rather than doubling that machinery for it. A
+	// configuration in exactly this combination, already stamped under the
+	// old grammar, reports a marker conflict here rather than verifying;
+	// see marker.legacyExpr's doc comment.
 	return templateChunkMarkers(full, display, n, rng)
 }
 
@@ -1276,7 +1336,11 @@ func (s *stamper) chunkCount(ctx context.Context, rc *configs.Resource, modInst 
 		}
 		prefix = discovery.EscapeAddress(base + `["`)
 		for _, k := range keys {
-			if l := len([]rune(k)); l > longest {
+			// The escaped key, not the raw one: a key containing "@", "."
+			// or ":" doubles under discovery.EscapeKey, so measuring the
+			// raw key here would underestimate how many tag chunks the
+			// stamped (escaped) value actually needs.
+			if l := len([]rune(discovery.EscapeKey(k))); l > longest {
 				longest = l
 			}
 		}
@@ -1500,10 +1564,18 @@ func indexOf(key, prefix string) (int, bool) {
 // what an author writes by hand today ("aws_eip.pool:${count.index}") and
 // therefore exactly what [sameExpr] recognizes as already correct.
 func instanceTemplate(prefix string, key hcl.Traversal, rng hcl.Range) hclsyntax.Expression {
+	return instanceTemplateExpr(prefix, &hclsyntax.ScopeTraversalExpr{Traversal: key, SrcRange: rng}, rng)
+}
+
+// instanceTemplateExpr is [instanceTemplate] generalized to an arbitrary
+// interpolated expression rather than a bare traversal - what the for_each
+// branch needs to interpolate [eachKeyEscapedExpr]'s replace() chain instead
+// of a plain each.key reference.
+func instanceTemplateExpr(prefix string, value hclsyntax.Expression, rng hcl.Range) hclsyntax.Expression {
 	return &hclsyntax.TemplateExpr{
 		Parts: []hclsyntax.Expression{
 			&hclsyntax.LiteralValueExpr{Val: cty.StringVal(prefix), SrcRange: rng},
-			&hclsyntax.ScopeTraversalExpr{Traversal: key, SrcRange: rng},
+			value,
 		},
 		SrcRange: rng,
 	}

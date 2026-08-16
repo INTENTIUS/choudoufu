@@ -42,8 +42,7 @@ func (r *resolver) checkedForEachKeys(rc *configs.Resource, exp *expansion) (*ex
 			"%s expands to an instance keyed %q, and that key contains %s. "+
 				"The key becomes part of the resource's address, the address becomes the tofu-address marker on the live resource, "+
 				"and that marker is the only record of ownership a live-markers run has (live/MARKERS.md). "+
-				"A key may contain letters, digits, space, and the characters + - = _ / @: the AWS tag-value character set, "+
-				"less \".\" and \":\", which separate the segments of an escaped address. Rename the key.",
+				"A key may contain letters, digits, space, and the characters + - = . _ : / @: the AWS tag-value character set. Rename the key.",
 			rc.Addr().String(), string(strKey), markerkey.DescribeRune(bad))
 	}
 	if !ok {

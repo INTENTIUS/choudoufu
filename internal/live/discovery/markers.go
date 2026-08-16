@@ -50,6 +50,25 @@ func ValidEstateName(s string) bool { return markers.ValidEstateName(s) }
 // EscapeAddress applies the marker spec's escaping rule to an address.
 func EscapeAddress(addr string) string { return markers.EscapeAddress(addr) }
 
+// LegacyEscapeAddress is [EscapeAddress] as it worked before issue #178
+// admitted "." and ":" into a for_each key. It exists only for
+// [AddressMatches].
+func LegacyEscapeAddress(addr string) string { return markers.LegacyEscapeAddress(addr) }
+
+// AddressMatches reports whether an observed marker value names the same
+// instance as declared (an unescaped address), trying both the current
+// escaping and the pre-issue-#178 one. See [markers.AddressMatches].
+func AddressMatches(observed, declared string) bool {
+	return markers.AddressMatches(observed, declared)
+}
+
+// EscapeKey applies the for_each-key half of the escaping rule to one raw
+// instance key. See [markers.EscapeKey].
+func EscapeKey(key string) string { return markers.EscapeKey(key) }
+
+// UnescapeKey reverses [EscapeKey]. See [markers.UnescapeKey].
+func UnescapeKey(s string) string { return markers.UnescapeKey(s) }
+
 // ValidMarkerAddress reports whether an escaped address is well-formed enough
 // to be compared.
 func ValidMarkerAddress(escaped string) bool { return markers.ValidMarkerAddress(escaped) }
