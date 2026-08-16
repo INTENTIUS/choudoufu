@@ -999,10 +999,11 @@ refused, and each says so in its own entry.
 | Configs | Sites | Layer | Refusal | Raised by | Documented at |
 |---|---|---|---|---|---|
 | 142 | 142 | lint | state-backend | `internal/live/lint` | "backend-block" / "cloud-block" |
-| 127 | 2253 | identity | Dynamic value in static context | `internal/configs` | "Dynamic value in static context" |
 | 113 | 1404 | lint | unadmitted-type | `internal/live/lint` | "unadmitted-type" |
 | 86 | 3546 | identity | Unable to compute static value | `internal/configs` | "Unable to compute static value" |
+| 81 | 1580 | dataread | Resolves at plan time via a data-source read | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
 | 74 | 593 | identity | Unresolvable identity | `internal/live/identity` | "Unresolvable identity" |
+| 68 | 625 | identity | Dynamic value in static context | `internal/configs` | "Dynamic value in static context" |
 | 66 | 482 | lint | logical-resource | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
 | 52 | 4587 | lint | count-index | `internal/live/lint` | "count-index-in-tag" |
 | 45 | 280 | identity | Module output not supported in static context | `internal/configs` | "Module output not supported in static context" |
@@ -1020,6 +1021,7 @@ refused, and each says so in its own entry.
 | 13 | 30 | lint | child-module | `internal/live/lint` | "child-module" |
 | 12 | 21 | identity | Invalid for_each set | `internal/live/identity` | "Invalid for_each set" |
 | 6 | 63 | lint | moved-block | `internal/live/lint` | "moved-block" |
+| 6 | 48 | dataread | Data source not readable before resolution | `internal/live/dataread` | "Data source not readable before resolution" |
 | 3 | 3 | lint | module-provider-block | `internal/live/lint` | "module-provider-block" |
 | 2 | 24 | identity | Attempt to get attribute from null value | `hcl` | "Attempt to get attribute from null value" |
 | 2 | 3 | identity | Two resources with the same identity | `internal/live/identity` | "duplicate-identity" |
@@ -1029,10 +1031,8 @@ refused, and each says so in its own entry.
 | 1 | 1 | identity | Ambiguous list-valued identity argument | `internal/live/identity` | "Ambiguous list-valued identity argument" |
 | 1 | 1 | identity | Resource type outside the live-markers subset | `internal/live/identity` | "unadmitted-type" |
 | 1 | 1 | identity | Unsupported attribute | `hcl` | "Unsupported attribute" |
-| - | - | dataread | Data source not readable before resolution | `internal/live/dataread` | "Data source not readable before resolution" |
-| - | - | dataread | Data source provider not configurable | `internal/live/dataread` | "Data source provider not configurable" |
-| - | - | dataread | Data source read failed | `internal/live/dataread` | "Data source read failed" |
-| - | - | dataread | Resolves at plan time via a data-source read | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
+| 0 | 0 | dataread | Data source provider not configurable | `internal/live/dataread` | "Data source provider not configurable" |
+| 0 | 0 | dataread | Data source read failed | `internal/live/dataread` | "Data source read failed" |
 | - | - | discovery | Address too long to carry an ownership marker | `internal/live/discovery` | "overlong-address" |
 | - | - | discovery | Cloud Control identifier could not be composed | `internal/live/discovery` | "Cloud Control identifier could not be composed" |
 | - | - | discovery | Failed to list a resource type | `internal/live/discovery` | "Failed to list a resource type" |
@@ -1123,7 +1123,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Undefined variable | `internal/configs` | "Undefined variable" |
 | 0 | 0 | identity | Unknown variable | `hcl` | "Unknown variable" |
 | 0 | 0 | identity | Unsupported each.value reference | `internal/live/identity` | "Unsupported each.value reference" |
-| - | - | identity | Unusable data-source result | `internal/live/identity` | "Unusable data-source result" |
+| 0 | 0 | identity | Unusable data-source result | `internal/live/identity` | "Unusable data-source result" |
 | 0 | 0 | identity | Variables not allowed | `hcl` | "Variables not allowed" |
 | 0 | 0 | identity | for_each key cannot be recorded as a marker | `internal/live/identity` | live/MARKERS.md, "Ownership semantics" |
 | 0 | 0 | identity | for_each over a resource that is not keyed | `internal/live/identity` | "for_each over a resource that is not keyed" |
@@ -1195,14 +1195,6 @@ reserved for the limits wing's fixture directories, and
 `TestLimitationsDocCoversDirs` requires one to exist for each.)
 
 <!-- limits-gen:begin refusal-entries -->
-#### Dynamic value in static context
-
-**What.** An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.
-
-**Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
-
-**How often.** Blocked 127 configurations in the measured corpus, at 2253 sites.
-
 #### Unable to compute static value
 
 **What.** Something an identity argument, a count or a for_each depends on could not be computed. It is the trailing half of another refusal: the diagnostic before it names what actually failed, and this one names the chain that led there.
@@ -1211,6 +1203,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 86 configurations in the measured corpus, at 3546 sites.
 
+#### Resolves at plan time via a data-source read
+
+**What.** Not a refusal: live-check's finding for a data-source reference in an identity-bearing position that a live-plan resolves by reading the data source before resolution. No edit to the configuration is needed, but the read itself has not been performed - it can still fail at plan time.
+
+**Where.** The dataread pass, raised by `internal/live/dataread`.
+
+**How often.** Blocked 81 configurations in the measured corpus, at 1580 sites.
+
 #### Unresolvable identity
 
 **What.** An identity could not be built because a reference it depends on failed; the reference's own error explains why.
@@ -1218,6 +1218,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked 74 configurations in the measured corpus, at 593 sites.
+
+#### Dynamic value in static context
+
+**What.** An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.
+
+**Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
+
+**How often.** Blocked 68 configurations in the measured corpus, at 625 sites.
 
 #### Module output not supported in static context
 
@@ -1291,6 +1299,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 12 configurations in the measured corpus, at 21 sites.
 
+#### Data source not readable before resolution
+
+**What.** A data source's value is needed to resolve an identity, a count or a for_each, but the data source depends on a managed resource, names one in depends_on, or has an argument that is not statically evaluable, so it cannot be read before the plan.
+
+**Where.** The dataread pass, raised by `internal/live/dataread`.
+
+**How often.** Blocked 6 configurations in the measured corpus, at 48 sites.
+
 #### Attempt to get attribute from null value
 
 **What.** An identity argument, a count or a for_each reads an attribute of something that evaluated to null.
@@ -1339,21 +1355,13 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 1 configuration in the measured corpus, at 1 site.
 
-#### Data source not readable before resolution
-
-**What.** A data source's value is needed to resolve an identity, a count or a for_each, but the data source depends on a managed resource, names one in depends_on, or has an argument that is not statically evaluable, so it cannot be read before the plan.
-
-**Where.** The dataread pass, raised by `internal/live/dataread`.
-
-**How often.** Not measured: absent from the corpus artifact this was generated against.
-
 #### Data source provider not configurable
 
 **What.** A data source the phase must read belongs to a provider configuration that cannot be built before the plan: its provider block needs full evaluation, or the provider's own configure call refused - bad or missing credentials land here, quoted.
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Data source read failed
 
@@ -1361,15 +1369,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
-
-#### Resolves at plan time via a data-source read
-
-**What.** Not a refusal: live-check's finding for a data-source reference in an identity-bearing position that a live-plan resolves by reading the data source before resolution. No edit to the configuration is needed, but the read itself has not been performed - it can still fail at plan time.
-
-**Where.** The dataread pass, raised by `internal/live/dataread`.
-
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Cloud Control identifier could not be composed
 
@@ -2081,7 +2081,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Variables not allowed
 

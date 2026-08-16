@@ -164,7 +164,7 @@ func (r Refusal) Passthrough() bool {
 // Documented reports whether any shipped document explains this refusal.
 func (r Refusal) Documented() bool { return r.DocsRef != "" }
 
-// Catalog is every refusal the two checked layers can produce, sorted by
+// Catalog is every refusal the checked layers can produce, sorted by
 // layer then ID.
 //
 // It is assembled from [lint.Rules], [identity.Refusals] and

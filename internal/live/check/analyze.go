@@ -38,12 +38,12 @@ type Context struct {
 	Schemas map[string]providers.Schema
 }
 
-// Analyze runs both configuration-only passes over one loaded configuration
+// Analyze runs the configuration-only passes over one loaded configuration
 // and returns what refused it.
 //
 // This is the whole of the shared instrument. "choudoufu live-check" renders
 // one of these for a human; tools/corpus-gen folds many into a ranking. Both
-// see the same findings from the same two passes, which is what keeps the
+// see the same findings from the same passes, which is what keeps the
 // project's published compatibility claim and a user's own verdict from
 // drifting apart.
 func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
@@ -77,7 +77,7 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	// Where lint already refused a construct, identity's verdict on the
 	// same construct is not a second refusal to count.
 	//
-	// The two passes ask the same question of some constructs on purpose -
+	// The lint and identity passes ask the same question of some constructs on purpose -
 	// lint's admission check and identity's resolution consult the same
 	// schemas so that "a lint refusal and a resolution refusal never
 	// disagree about the same type". In a live-plan run only one is ever
@@ -208,7 +208,7 @@ func Dir(ctx context.Context, dir string, actx Context) Report {
 // Report is one configuration's verdict.
 type Report struct {
 	// Findings are the refusals that fired, ranked by how many sites each
-	// blocks. Empty means both checked passes accepted the configuration.
+	// blocks. Empty means every checked pass accepted the configuration.
 	Findings []Finding
 
 	// Warnings are the non-fatal diagnostics, ranked the same way. They do
@@ -248,7 +248,7 @@ type Report struct {
 func (r Report) Readable() bool { return r.Load.Config != nil }
 
 // Blocked reports whether this configuration can move under live markers at
-// all, as far as the two checked passes can tell.
+// all, as far as the checked passes can tell.
 //
 // The rule is not this package's opinion: it is what LivePlanCommand already
 // does with the same two results. Any lint issue is fatal there, and any

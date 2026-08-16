@@ -268,8 +268,10 @@ Usage: choudoufu [global options] live-check [DIR]
   configuration under test. It is meant to be run on a repository that has
   never used this fork.
 
-  Two of the five live-path stages are checked: the configuration-subset
-  rules, and identity resolution. Stamping, discovery and projection all need
+  Three of the six live-path stages are checked: the configuration-subset
+  rules, identity resolution, and the data-read phase's eligibility analysis
+  (which data-source values a live-plan would read before resolution - the
+  analysis only, never the read). Stamping, discovery and projection all need
   a cloud and are not checked, which the report states. A clean result is
   therefore a narrow claim, not a promise that an apply succeeds.
 
