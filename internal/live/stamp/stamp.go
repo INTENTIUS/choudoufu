@@ -913,6 +913,17 @@ func UnmarkedDiscoveryDetail(addr addrs.ConfigResource, disco identity.BlockDisc
 		if prop == "" {
 			prop = "a property of the cloud it is pointed at"
 		}
+		// Entries past the first are the arguments the provider documents
+		// as defaulting to that cloud property, so setting one is a real
+		// next step and this cause is not the dead end the single sentence
+		// below implies. See [identity.DiscoveryCloudUnknown]; before #250
+		// the subjects stopped at the property and the sentence could not
+		// name catalog_id even where catalog_id was the entire fix.
+		if len(disco.Args) > 1 {
+			return fmt.Sprintf(
+				"%s has an identity this configuration would determine on its own except for the %s, which is a property of the cloud this run is pointed at and which nothing has told this run. The ownership marker is the only handle left. Setting %s in the resource block names the same thing from the configuration, which makes the identity computable and needs no marker at all; leaving it out and applying would create a resource this configuration can never see again, and every later plan would propose creating another one.",
+				addr, prop, orListBare(disco.Args[1:]))
+		}
 		return fmt.Sprintf(
 			"%s has an identity this configuration would determine on its own except for the %s, which is a property of the cloud this run is pointed at and which nothing has told this run. The ownership marker is the only handle left. %s",
 			addr, prop, lost)
@@ -939,6 +950,24 @@ func UnmarkedDiscoveryDetail(addr addrs.ConfigResource, disco identity.BlockDisc
 	return fmt.Sprintf(
 		"%s has an identity the provider assigns at create time, so the ownership marker is the only thing any later run can find it by. %s",
 		addr, lost)
+}
+
+// orListBare joins argument names the way the other sentences in
+// [UnmarkedDiscoveryDetail] name a single one: unquoted, because the
+// surrounding prose already reads as a reference to an argument, and with
+// "or" rather than "and" because any one of them settles the component.
+// Callers only reach it with a non-empty slice.
+func orListBare(names []string) string {
+	switch len(names) {
+	case 0:
+		return ""
+	case 1:
+		return names[0]
+	case 2:
+		return names[0] + " or " + names[1]
+	default:
+		return strings.Join(names[:len(names)-1], ", ") + ", or " + names[len(names)-1]
+	}
 }
 
 func (s *stamper) skip(addr addrs.ConfigResource, reason SkipReason, detail string) {
