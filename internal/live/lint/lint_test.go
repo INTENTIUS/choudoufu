@@ -1113,6 +1113,17 @@ func thingSchema() map[string]providers.Schema {
 			args:     map[string]string{"name": "req"},
 			identity: map[string]string{"name": "req", "account_id": "opt", "region": "opt"},
 		},
+		// aws_other_thing exists only to corroborate. #218 replaced the
+		// hardcoded {account_id, region} pair with a derived rule, and one
+		// clause of it is that a name is context only when a second,
+		// independently-authored type in the same provider treats it the
+		// same way - a name only one type marks this way is refused rather
+		// than trusted on that type's own word. A single-type fixture can
+		// no longer stand the shape up.
+		"aws_other_thing": {
+			args:     map[string]string{"label": "req"},
+			identity: map[string]string{"label": "req", "account_id": "opt", "region": "opt"},
+		},
 	})
 }
 

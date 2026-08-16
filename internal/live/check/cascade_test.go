@@ -133,7 +133,7 @@ func TestAnalyzeDoesNotCascadeAnUnrelatedFailure(t *testing.T) {
 		t.Errorf("an unrelated failure was reclassified as data-read-eligible: %+v", report.Findings)
 	}
 	if identityCount != 2 {
-		t.Fatalf("want two identity-layer sites (the log group's own failure and the log stream's cascade), got %d: %+v", identityCount, report.Findings)
+		t.Fatalf("want two identity-layer sites (the group's own failure and the policy's cascade), got %d: %+v", identityCount, report.Findings)
 	}
 
 	if got := ClassifyOnboarding(true, refusalIDs(report.Findings)); got != OnboardingLanguageBlocked {
