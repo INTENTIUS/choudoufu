@@ -22,6 +22,51 @@
 // publishes and the answer a user gets about their own repository would
 // eventually disagree.
 //
+// # Providers, honestly (#211)
+//
+// Every entry gets schemas for the providers ITS OWN configuration declares
+// or implies - never a single global map handed to every entry regardless
+// of what it actually uses. Before #211 this program acquired
+// hashicorp/aws once and passed that same map to every entry, so a
+// google_*, tfe_*, postgresql_*, elasticsearch_*, sentry_* or restapi_*
+// type could never reach the schema fallback
+// (identity.SynthesizeTypeIdentity, wired in at admission.go:26-35): it
+// read as unadmitted for a reason belonging to the run rather than to the
+// corpus, which is the exact outcome this file's own #102 exists to
+// prevent, one level up.
+//
+// "Which providers does this estate declare" is answered by
+// [*configs.Config.ProviderRequirements], the same recursive resolver a
+// real "tofu init" calls to decide what to install: it walks every module
+// in the tree the loader could read, folding in both explicit
+// required_providers entries and the implicit dependency every resource
+// creates from its type prefix. That is the honest source because it is
+// not this program's own idea of what a "declared" or "inferred" provider
+// is - it is what installing this exact configuration would already do.
+//
+// Acquisition is cached by (provider FQN, version constraint) across the
+// WHOLE corpus, not per entry: 250-odd entries share a much smaller set of
+// distinct provider requirements, and many entries need no fetch at all
+// because an earlier entry already satisfied the same one. One provider is
+// still exempted into an exact pin - not by name in any control flow, but
+// by whichever provider -provider-source/-provider-version name (default
+// hashicorp/aws, unchanged from before #211): that keeps the schema
+// fallback's view of that one provider locked to the same release
+// tools/survey-gen built the generated admission table's own evidence from
+// (#117), so the dominant AWS-heavy share of this corpus does not start
+// reading spurious provider-version-skew warnings against a table it never
+// moved. Every other required provider - there is no hardcoded list of
+// them, whatever [getproviders.Requirements] resolves is what gets tried -
+// is acquired using its own configuration's version constraint, or with no
+// constraint at all when the configuration named none, exactly the choice
+// "tofu init" would make for that same operator.
+//
+// A provider that cannot be fetched (no network, unpublished, a private
+// registry) is recorded as a third state, per entry, in
+// [check.CorpusEntry.ProviderSchemas]: distinct from both "schemas were off
+// for the whole run" and "the fallback ran and lost" - see
+// [check.EntryProviderSchema].
+//
 // # What the corpus is, and what it is not
 //
 // The corpus is whatever the manifest names. The manifest checked in here
@@ -47,6 +92,8 @@ import (
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/getproviders"
 	"github.com/intentius/choudoufu/internal/live/check"
 	"github.com/intentius/choudoufu/internal/live/pluginschema"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -64,9 +111,9 @@ func run() error {
 		manifestPath = flag.String("manifest", "live/corpus-manifest.json", "corpus manifest to read")
 		outPath      = flag.String("out", "live/corpus-refusals.json", "generated artifact to write")
 		root         = flag.String("root", ".", "repository root that relative manifest paths are resolved against")
-		initBin      = flag.String("init-bin", "", "binary used to install the provider for schema reading; empty runs without schemas")
-		provSource   = flag.String("provider-source", "hashicorp/aws", "provider to read schemas from")
-		provVersion  = flag.String("provider-version", pins.AWSProviderVersion, "exact provider version to pin (default: internal/live/pins.AWSProviderVersion, the same pin survey-gen builds the admission evidence from - #117)")
+		initBin      = flag.String("init-bin", "", "binary used to install providers for schema reading; empty runs without schemas")
+		pinSource    = flag.String("provider-source", "hashicorp/aws", "the one provider pinned to an exact version (see -provider-version) rather than acquired at whatever version each entry's own configuration constrains it to (#211); every other provider any entry declares or implies is still acquired, generically, from that entry's own required_providers")
+		pinVersion   = flag.String("provider-version", pins.AWSProviderVersion, "exact version pinned for -provider-source (default: internal/live/pins.AWSProviderVersion, the same pin survey-gen builds the admission evidence from - #117)")
 		noSchemas    = flag.Bool("no-schemas", false, "run without provider schemas, and say so in the artifact")
 		quiet        = flag.Bool("quiet", false, "suppress the progress log")
 	)
@@ -90,10 +137,15 @@ func run() error {
 		return fmt.Errorf("the manifest matched no directories; nothing to measure")
 	}
 
-	schemas, schemaNote, err := acquireSchemas(*initBin, *provSource, *provVersion, *noSchemas, logOut)
-	if err != nil {
-		return err
+	var pinned addrs.Provider
+	if *pinVersion != "" {
+		p, diags := addrs.ParseProviderSourceString(*pinSource)
+		if diags.HasErrors() {
+			return fmt.Errorf("parsing -provider-source %q: %w", *pinSource, diags.Err())
+		}
+		pinned = p
 	}
+	acquirer := newSchemaAcquirer(*initBin, *noSchemas, pinned, *pinVersion, logOut)
 
 	ctx := context.Background()
 	corpus := check.NewCorpus()
@@ -106,20 +158,37 @@ func run() error {
 		for _, vf := range entry.VarFiles {
 			varFiles = append(varFiles, underRoot(*root, vf))
 		}
-		report := check.Dir(ctx, entry.Dir, check.Context{Schemas: schemas}, varFiles...)
+
+		// Load first, analyze second - [check.Dir] does exactly these two
+		// calls in sequence, but this program needs the loaded configuration
+		// in between them to work out which providers IT declares, so the
+		// two steps are inlined here rather than hidden behind Dir.
+		load := check.Load(ctx, entry.Dir, varFiles...)
+
+		var schemas map[string]providers.Schema
+		var schemaRows []check.EntryProviderSchema
+		if load.Config != nil {
+			schemas, schemaRows = acquirer.schemasFor(providerNeeds(load.Config))
+		}
+
+		report := check.Analyze(ctx, load.Config, check.Context{Schemas: schemas})
+		report.Load = load
 		// Attribution before folding, so a rate-capable entry's profile can
 		// flag the refusals that are artifacts of running without the
 		// operator's tfvars (#161, #175). It only marks; it never changes a
 		// verdict or a count.
 		report.AttributeUnsetVariables(report.Load.UnsetVariables(), report.Load.Sources())
 		corpus.Add(entry.Name, entry.Origin, report, entry.VarFiles...)
+		if last := corpus.LastEntry(); last != nil {
+			last.ProviderSchemas = schemaRows
+		}
 		origins[entry.Origin]++
 	}
 	corpus.Finish()
 
 	artifact := Artifact{
 		Corpus:     corpus,
-		SchemaNote: schemaNote,
+		SchemaNote: acquirer.note(*noSchemas, *initBin),
 		Origins:    originRows(origins),
 	}
 
@@ -139,10 +208,13 @@ func run() error {
 type Artifact struct {
 	*check.Corpus
 
-	// SchemaNote says whether schemas were read and from what. Without
-	// them, types the provider's identity schema would have admitted read
-	// as refused, and "unadmitted-type" tops the ranking for a reason that
-	// is an artifact of the run rather than a property of the corpus.
+	// SchemaNote says whether schemas were read, and honestly records every
+	// provider any corpus entry actually needed (#211) - never a single
+	// global provider standing in for all of them. Without a provider's
+	// schemas, types absent from the generated admission table that ONLY
+	// that provider's own identity schema would have admitted read as
+	// refused, and "unadmitted-type" tops the ranking for a reason that is
+	// an artifact of the run rather than a property of the corpus.
 	SchemaNote SchemaNote `json:"schemas"`
 
 	// Origins counts the corpus by where its configurations came from.
@@ -151,17 +223,65 @@ type Artifact struct {
 	Origins []OriginCount `json:"origins"`
 }
 
-// SchemaNote records the schema situation behind a run.
+// SchemaNote records the schema situation behind a run: whether schemas
+// were attempted at all, and one row per distinct provider (by FQN and
+// version constraint) any corpus entry declared or implied.
 type SchemaNote struct {
-	Present  bool   `json:"present"`
-	Provider string `json:"provider,omitempty"`
-	Version  string `json:"version,omitempty"`
-	Types    int    `json:"resource_types,omitempty"`
+	Present bool `json:"present"`
+
+	// Providers is every distinct provider this run's corpus needed,
+	// across every entry, each acquired at most once (#211's caching unit).
+	// Ranked to a stable order: available first (most types first), then
+	// unavailable, ties broken by provider name.
+	Providers []ProviderSchemaResult `json:"providers,omitempty"`
 
 	// Caveat is the plain-language consequence, carried in the artifact so
 	// that a reader who opens the file without reading this program is
 	// told what the numbers are worth.
 	Caveat string `json:"caveat,omitempty"`
+}
+
+// ProviderSchemaResult is one provider's schema-acquisition outcome for the
+// whole run, keyed by (provider, constraint) - the same key
+// [schemaAcquirer] caches acquisition by.
+type ProviderSchemaResult struct {
+	// Provider is the FQN for display ("hashicorp/google").
+	Provider string `json:"provider"`
+
+	// Constraint is the version constraint this run resolved the provider
+	// under: the canonical form of whatever the requiring entry's own
+	// required_providers declared, or empty for "no constraint - whatever
+	// init resolves as latest", which is what an implicit-only dependency
+	// (no required_providers entry at all) gets.
+	Constraint string `json:"constraint,omitempty"`
+
+	// Version is the exact release this run actually acquired, when
+	// Available. For the one pinned provider (-provider-source /
+	// -provider-version) this is the pin itself; for every other provider
+	// it is read back from what "init" actually installed
+	// ([pluginschema.InstalledVersion]), since an unconstrained or ranged
+	// requirement does not by itself say which release that will be.
+	Version string `json:"version,omitempty"`
+
+	// Types is how many resource type schemas this provider contributed.
+	Types int `json:"resource_types,omitempty"`
+
+	// Pinned is true for the one provider -provider-source/-provider-version
+	// names (default hashicorp/aws) - see the package doc comment for why
+	// that one provider keeps an exact pin rather than floating with
+	// whatever a corpus entry's own constraint (or lack of one) resolves
+	// to.
+	Pinned bool `json:"pinned,omitempty"`
+
+	// Available is whether this run actually has this provider's resource
+	// type schemas to offer the schema fallback.
+	Available bool `json:"available"`
+
+	// Error is why not, when Available is false - #211's third state, told
+	// apart from "schemas were off for the whole run" (which never
+	// produces a row here at all: see [SchemaNote.Present]) and from "the
+	// fallback ran and the type still isn't admitted" (Available true).
+	Error string `json:"error,omitempty"`
 }
 
 // OriginCount is one origin's share of the corpus.
@@ -170,61 +290,60 @@ type OriginCount struct {
 	Configs int    `json:"configs"`
 }
 
-// acquireSchemas reads the provider's resource type schemas, or explains why
-// the run has none.
+// providerNeed is one provider this run must try to acquire schemas for,
+// and the version constraint (if any) the requiring configuration itself
+// declared.
+type providerNeed struct {
+	Provider   addrs.Provider
+	Constraint string
+}
+
+func (n providerNeed) key() string {
+	return n.Provider.String() + "@" + n.Constraint
+}
+
+// providerNeeds resolves the providers one loaded configuration declares or
+// implies, using [*configs.Config.ProviderRequirements] - the full-tree
+// resolver real "tofu init" itself calls, folding in both explicit
+// required_providers entries and the implicit dependency every resource's
+// type prefix creates. Built-in providers (only "terraform" today) are
+// excluded: they need no schema fetch, and every type they carry
+// (terraform_data) is already in the generated admission table directly.
 //
-// Running without them is supported and is worth less, in one specific
-// direction: every resource type absent from the generated admission table
-// reads as refused, so "unadmitted-type" tops the ranking for a reason that
-// belongs to the run rather than to the corpus. That is the single outcome
-// #102 exists to prevent, so the artifact carries the caveat rather than
-// leaving a reader to infer it.
-func acquireSchemas(initBin, source, pinnedVersion string, disabled bool, logOut *os.File) (map[string]providers.Schema, SchemaNote, error) {
-	note := SchemaNote{
-		Caveat: "Run without provider schemas. Resource types were judged from the generated admission table alone, so types the provider's own identity schema would have admitted are counted as refused here and the unadmitted-type rules are overstated.",
-	}
+// Diagnostics from ProviderRequirements (an invalid version constraint
+// string, for instance) are not fatal here: whatever the resolver DID
+// manage to populate is still worth trying to acquire, and the load-level
+// diagnostics this entry's report already carries are where a reader
+// learns the configuration itself has a problem.
+func providerNeeds(cfg *configs.Config) []providerNeed {
+	reqs, _, _ := cfg.ProviderRequirements()
 
-	if disabled || initBin == "" {
-		return nil, note, nil
+	out := make([]providerNeed, 0, len(reqs))
+	for provider, constraints := range reqs {
+		if provider.IsZero() || provider.IsBuiltIn() {
+			continue
+		}
+		out = append(out, providerNeed{
+			Provider:   provider,
+			Constraint: getproviders.VersionConstraintsString(constraints),
+		})
 	}
-	if pinnedVersion == "" {
-		return nil, note, fmt.Errorf("-provider-version is required with -init-bin")
-	}
+	sort.Slice(out, func(i, j int) bool { return out[i].key() < out[j].key() })
+	return out
+}
 
-	provider, diags := addrs.ParseProviderSourceString(source)
-	if diags.HasErrors() {
-		return nil, note, fmt.Errorf("parsing -provider-source %q: %w", source, diags.Err())
+func logf(out *os.File, format string, args ...any) {
+	if out == nil {
+		return
 	}
+	fmt.Fprintf(out, format, args...)
+}
 
-	workdir, err := os.MkdirTemp("", "corpus-gen-schemas")
-	if err != nil {
-		return nil, note, err
+func underRoot(root, path string) string {
+	if filepath.IsAbs(path) {
+		return path
 	}
-	defer os.RemoveAll(workdir)
-
-	var logWriter *os.File
-	if logOut != nil {
-		logWriter = logOut
-	}
-
-	schemas, err := pluginschema.ResourceTypes(context.Background(), pluginschema.Request{
-		InitBin:  initBin,
-		WorkDir:  workdir,
-		Source:   source,
-		Version:  pinnedVersion,
-		Provider: provider,
-		Log:      logWriter,
-	})
-	if err != nil {
-		return nil, note, fmt.Errorf("reading provider schemas: %w", err)
-	}
-
-	return schemas, SchemaNote{
-		Present:  true,
-		Provider: source,
-		Version:  pinnedVersion,
-		Types:    len(schemas),
-	}, nil
+	return filepath.Join(root, path)
 }
 
 func originRows(counts map[string]int) []OriginCount {
@@ -242,8 +361,12 @@ func originRows(counts map[string]int) []OriginCount {
 }
 
 // writeArtifact writes the JSON. Sorted lists, no timestamps: the same
-// corpus and the same provider release must produce a byte-identical file,
-// the property every other generated artifact in live/ holds.
+// corpus and the same provider releases must produce a byte-identical file
+// given the same acquisition results, the property every other generated
+// artifact in live/ holds. Unlike the fully derived artifacts under
+// live/tables, this one's own inputs (whatever version each unconstrained
+// provider resolves to "latest" as) can move between runs by design - see
+// the package doc comment - so byte-identity is not asserted by any test.
 func writeArtifact(path string, artifact Artifact) error {
 	encoded, err := json.MarshalIndent(artifact, "", "  ")
 	if err != nil {
@@ -311,6 +434,16 @@ func renderTable(artifact Artifact) string {
 
 	if !artifact.SchemaNote.Present {
 		fmt.Fprintf(&b, "\n%s\n", artifact.SchemaNote.Caveat)
+	} else {
+		b.WriteString("\nProviders acquired for this run:\n")
+		for _, p := range artifact.SchemaNote.Providers {
+			switch {
+			case p.Available:
+				fmt.Fprintf(&b, "    %-40s %-12s %d types\n", p.Provider, p.Version, p.Types)
+			default:
+				fmt.Fprintf(&b, "    %-40s UNAVAILABLE: %s\n", p.Provider, p.Error)
+			}
+		}
 	}
 
 	fmt.Fprintf(&b, "\nChecked: %s. Not checked: %s.\n",
@@ -321,15 +454,6 @@ func renderTable(artifact Artifact) string {
 	return b.String()
 }
 
-// underRoot resolves a path given on the command line against -root, leaving
-// an absolute path alone so that a caller can write the artifact anywhere.
-func underRoot(root, path string) string {
-	if filepath.IsAbs(path) {
-		return path
-	}
-	return filepath.Join(root, path)
-}
-
 func layerNames(layers []check.Layer) []string {
 	out := make([]string, 0, len(layers))
 	for _, layer := range layers {
@@ -338,9 +462,187 @@ func layerNames(layers []check.Layer) []string {
 	return out
 }
 
-func logf(out *os.File, format string, args ...any) {
-	if out == nil {
-		return
+// schemaAcquirer acquires provider resource-type schemas, memoized by
+// (provider, version constraint) across the whole corpus run (#211): many
+// entries share the same provider requirement, and the caching unit is that
+// requirement, not the entry - 250-odd entries collapse to however many
+// distinct (provider, constraint) pairs the corpus actually contains.
+type schemaAcquirer struct {
+	initBin  string
+	disabled bool
+
+	// pinned and pinnedVersion name the one provider given an exact-version
+	// override (-provider-source/-provider-version), matched structurally
+	// against whatever [providerNeed.Provider] a caller asks for - not by
+	// comparing any name in control flow. See the package doc comment for
+	// why AWS keeps this by default.
+	pinned        addrs.Provider
+	pinnedVersion string
+
+	logOut *os.File
+
+	cache map[string]acquireResult
+}
+
+// acquireResult is one (provider, constraint) pair's outcome, cached by
+// [schemaAcquirer.key].
+type acquireResult struct {
+	Provider   string
+	Constraint string
+	Version    string
+	Types      int
+	Pinned     bool
+	Available  bool
+	Error      string
+	Schemas    map[string]providers.Schema
+}
+
+func newSchemaAcquirer(initBin string, disabled bool, pinned addrs.Provider, pinnedVersion string, logOut *os.File) *schemaAcquirer {
+	return &schemaAcquirer{
+		initBin:       initBin,
+		disabled:      disabled,
+		pinned:        pinned,
+		pinnedVersion: pinnedVersion,
+		logOut:        logOut,
+		cache:         map[string]acquireResult{},
 	}
-	fmt.Fprintf(out, format, args...)
+}
+
+// schemasFor returns the merged resource-type schema map covering every
+// available provider in needs, plus one status row per provider - the
+// per-entry honesty #211 asks for, since a caller folding the merged map
+// alone back into [check.Report] loses which specific provider (if any)
+// came up short.
+func (a *schemaAcquirer) schemasFor(needs []providerNeed) (map[string]providers.Schema, []check.EntryProviderSchema) {
+	if a.disabled || a.initBin == "" || len(needs) == 0 {
+		return nil, nil
+	}
+
+	merged := map[string]providers.Schema{}
+	rows := make([]check.EntryProviderSchema, 0, len(needs))
+	for _, need := range needs {
+		res := a.acquire(need)
+		rows = append(rows, check.EntryProviderSchema{
+			Provider: res.Provider,
+			Present:  res.Available,
+			Error:    res.Error,
+		})
+		if res.Available {
+			for typeName, schema := range res.Schemas {
+				merged[typeName] = schema
+			}
+		}
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].Provider < rows[j].Provider })
+	if len(merged) == 0 {
+		merged = nil
+	}
+	return merged, rows
+}
+
+// acquire runs (or replays from cache) one provider's schema fetch.
+//
+// The pinned provider (-provider-source/-provider-version) is canonicalized
+// to one cache slot regardless of what version constraint the requiring
+// entry itself declared, before the cache key is computed: two
+// terraform-aws-modules examples with different ">= x.y" floors on the same
+// hashicorp/aws still both get the identical pinned release, so they must
+// not fragment into separate acquisitions (and separate "tofu init" runs)
+// just because their own constraint text differs. Every other provider
+// keeps its own entry's constraint as part of the key, since those really
+// can resolve to different releases.
+func (a *schemaAcquirer) acquire(need providerNeed) acquireResult {
+	pinned := a.pinnedVersion != "" && need.Provider == a.pinned
+	if pinned {
+		need.Constraint = ""
+	}
+
+	key := need.key()
+	if res, ok := a.cache[key]; ok {
+		return res
+	}
+
+	res := acquireResult{
+		Provider:   need.Provider.ForDisplay(),
+		Constraint: need.Constraint,
+		Pinned:     pinned,
+	}
+
+	req := pluginschema.Request{
+		InitBin:    a.initBin,
+		Source:     need.Provider.ForDisplay(),
+		Constraint: need.Constraint,
+		Provider:   need.Provider,
+		Log:        a.logOut,
+	}
+	if pinned {
+		req.Version = a.pinnedVersion
+		req.Constraint = ""
+	}
+
+	workdir, err := os.MkdirTemp("", "corpus-gen-schemas")
+	if err != nil {
+		res.Error = err.Error()
+		a.cache[key] = res
+		return res
+	}
+	defer os.RemoveAll(workdir)
+	req.WorkDir = workdir
+
+	schemas, err := pluginschema.ResourceTypes(context.Background(), req)
+	if err != nil {
+		res.Error = err.Error()
+		a.cache[key] = res
+		return res
+	}
+
+	res.Available = true
+	res.Schemas = schemas
+	res.Types = len(schemas)
+	res.Version = req.Version
+	if res.Version == "" {
+		if v, ok := pluginschema.InstalledVersion(workdir, need.Provider); ok {
+			res.Version = v
+		}
+	}
+
+	a.cache[key] = res
+	return res
+}
+
+// note builds the artifact-level [SchemaNote] from everything this
+// acquirer tried over the whole run.
+func (a *schemaAcquirer) note(noSchemas bool, initBin string) SchemaNote {
+	if noSchemas || initBin == "" {
+		return SchemaNote{
+			Caveat: "Run without provider schemas. Resource types were judged from the generated admission table alone, so types a provider's own identity schema would have admitted are counted as refused here and the unadmitted-type rules are overstated.",
+		}
+	}
+
+	note := SchemaNote{Present: true}
+	for _, res := range a.cache {
+		note.Providers = append(note.Providers, ProviderSchemaResult{
+			Provider:   res.Provider,
+			Constraint: res.Constraint,
+			Version:    res.Version,
+			Types:      res.Types,
+			Pinned:     res.Pinned,
+			Available:  res.Available,
+			Error:      res.Error,
+		})
+	}
+	sort.Slice(note.Providers, func(i, j int) bool {
+		a, b := note.Providers[i], note.Providers[j]
+		if a.Available != b.Available {
+			return a.Available
+		}
+		if a.Provider != b.Provider {
+			return a.Provider < b.Provider
+		}
+		return a.Constraint < b.Constraint
+	})
+	if len(note.Providers) == 0 {
+		note.Caveat = "No corpus entry declared or implied any provider, so nothing was acquired."
+	}
+	return note
 }
