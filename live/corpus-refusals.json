@@ -605,25 +605,15 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 10,
-      "sites": 13,
+      "instances": 15,
+      "sites": 8,
       "unresolved_modules": 0,
-      "unset_variables": 3,
+      "unset_variables": 1,
       "schemas": true,
+      "var_file": "live/corpus-vars/govuk-aws-app-related-links.tfvars",
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "backend-plus-remote-state",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Non-static identity argument",
-            "sites": 2,
-            "unset_var_only": true
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 3
-          },
           {
             "layer": "lint",
             "id": "remote-state",
@@ -859,25 +849,15 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 0,
-      "sites": 8,
+      "instances": 2,
+      "sites": 6,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 0,
       "schemas": true,
+      "var_file": "live/corpus-vars/govuk-aws-infra-athena-query-results.tfvars",
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "backend-plus-remote-state",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Non-static identity argument",
-            "sites": 1,
-            "unset_var_only": true
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "remote-state",
@@ -1125,25 +1105,15 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 3,
-      "sites": 7,
+      "instances": 8,
+      "sites": 2,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 0,
       "schemas": true,
+      "var_file": "live/corpus-vars/govuk-aws-infra-datagovuk-organogram-bucket.tfvars",
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "backend-plus-remote-state",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Non-static identity argument",
-            "sites": 1,
-            "unset_var_only": true
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 4
-          },
           {
             "layer": "lint",
             "id": "remote-state",
@@ -2693,25 +2663,15 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 5,
-      "sites": 8,
+      "instances": 12,
+      "sites": 1,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 0,
       "schemas": true,
+      "var_file": "live/corpus-vars/govuk-infrastructure-mobile-backend.tfvars",
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "backend-only",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Non-static identity argument",
-            "sites": 1,
-            "unset_var_only": true
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 6
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -8052,8 +8012,8 @@
       "what": "An identity could not be built because a reference it depends on failed; the reference's own error explains why.",
       "docs_ref": "live/LIMITATIONS.md, \"Unresolvable identity\"",
       "raised_by": "internal/live/identity",
-      "configs": 74,
-      "sites": 593,
+      "configs": 70,
+      "sites": 579,
       "examples": [
         ".corpus/autoscaling/main.tf:1463",
         ".corpus/cool-assessment/operations_routing.tf:21",
@@ -8236,8 +8196,8 @@
       "what": "An identity argument cannot be evaluated from configuration alone, including an impure call reached through a local or written in .tf.json.",
       "docs_ref": "live/LIMITATIONS.md, \"Non-static identity argument\"",
       "raised_by": "internal/live/identity",
-      "configs": 30,
-      "sites": 131,
+      "configs": 26,
+      "sites": 126,
       "examples": [
         ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:65",
         ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:70",
@@ -9424,8 +9384,8 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 2794,
-    "sites": 14601,
+    "instances": 2813,
+    "sites": 14582,
     "refusals_fired": 31,
     "refusals_in_set": 110,
     "configs_without_schemas": 0,
@@ -9448,8 +9408,8 @@
       "loaded": 144,
       "blocked": 144,
       "clean": 0,
-      "instances": 1694,
-      "sites": 3287,
+      "instances": 1713,
+      "sites": 3268,
       "reads_as": "rate"
     },
     {
@@ -9474,11 +9434,11 @@
       },
       {
         "class": "backend-only",
-        "configs": 19
+        "configs": 20
       },
       {
         "class": "backend-plus-remote-state",
-        "configs": 1
+        "configs": 4
       },
       {
         "class": "admissions-only",
@@ -9486,7 +9446,7 @@
       },
       {
         "class": "language-blocked",
-        "configs": 113
+        "configs": 109
       },
       {
         "class": "unreadable",

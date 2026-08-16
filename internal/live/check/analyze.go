@@ -144,8 +144,10 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 // a [Report.Load] carrying the diagnostics, which callers must check before
 // reading "no findings" as "nothing refused it". [Report.Readable] is that
 // check.
-func Dir(ctx context.Context, dir string, actx Context) Report {
-	load := Load(ctx, dir)
+//
+// varFiles is passed straight through to [Load]; see its doc comment.
+func Dir(ctx context.Context, dir string, actx Context, varFiles ...string) Report {
+	load := Load(ctx, dir, varFiles...)
 	report := Analyze(ctx, load.Config, actx)
 	report.Load = load
 	return report

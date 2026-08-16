@@ -49,6 +49,29 @@ type ManifestSource struct {
 	// Fetch, when set, is how a source outside this repository is
 	// obtained. Absent for in-repo sources.
 	Fetch *ManifestFetch `json:"fetch,omitempty"`
+
+	// VarFile, when set, names a tfvars file - relative to the repository
+	// root, like Glob - applied on top of whatever the matched directory
+	// itself holds, the corpus runner's equivalent of "-var-file" (#183).
+	//
+	// It is this project's own measurement input, not the estate's: #178's
+	// rule-2 scoping found that some estates carry no real language-wall
+	// blocker at all, only refusals that are artifacts of an unset root
+	// variable nobody supplied. A var file here answers "does the language
+	// subset accept this once the variable has a value", never "what was
+	// production's value" - see the comment at the top of each file this
+	// manifest points to for the value policy that keeps that distinction
+	// honest.
+	//
+	// Scoped to the one directory the source names, not to every directory
+	// its Glob matches: a wildcard source's var file would silently reach
+	// every sibling directory it happens to expand to. To aim a var file at
+	// one estate under a wildcarded source, add a second, narrower source
+	// for that one directory (Glob with no wildcard, same Origin, no
+	// Fetch) ahead of the wildcard source in this list - [Manifest.Resolve]
+	// dedupes by matched path in list order, so the narrow source's entry
+	// wins and the wildcard source fills in everything else unchanged.
+	VarFile string `json:"var_file,omitempty"`
 }
 
 // ManifestFetch pins one external source to an exact commit.
@@ -97,6 +120,12 @@ type CorpusEntryRef struct {
 
 	// Origin is its source's origin string.
 	Origin string
+
+	// VarFile is its source's [ManifestSource.VarFile], repository-root
+	// relative and unresolved - the caller joins it against whatever root
+	// it is itself running under, the same way it already does for Name.
+	// Empty when the source named none.
+	VarFile string
 }
 
 // ReadManifest reads and validates a corpus manifest.
@@ -171,9 +200,10 @@ func (m Manifest) Resolve(root string) ([]CorpusEntryRef, error) {
 				name = match
 			}
 			entries = append(entries, CorpusEntryRef{
-				Name:   filepath.ToSlash(name),
-				Dir:    match,
-				Origin: source.Origin,
+				Name:    filepath.ToSlash(name),
+				Dir:     match,
+				Origin:  source.Origin,
+				VarFile: source.VarFile,
 			})
 		}
 	}

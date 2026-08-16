@@ -92,6 +92,15 @@ type CorpusEntry struct {
 	// had already refused. See [Report.Shadowed].
 	Shadowed int `json:"shadowed,omitempty"`
 
+	// VarFile is the repository-root-relative tfvars file this entry was
+	// measured with, when [ManifestSource.VarFile] named one (#183). Empty
+	// means the entry was measured bare, with only whatever tfvars sit in
+	// its own directory - the ordinary case for every entry but the ones a
+	// var file was deliberately added for. Present so a reader of this
+	// artifact can never mistake a vars-supplied measurement for what a
+	// plain checkout of that directory produces.
+	VarFile string `json:"var_file,omitempty"`
+
 	// Profile is the per-estate section (#175): refusal IDs with site
 	// counts, unset-variable attribution, unadmitted types and the
 	// onboarding class. Present exactly when the entry's origin is in
@@ -220,7 +229,13 @@ func NewCorpus() *Corpus {
 }
 
 // Add folds one configuration's report in under the given name and origin.
-func (c *Corpus) Add(name, origin string, report Report) {
+//
+// varFile is optional and, when given, is recorded on the entry as the
+// tfvars file it was measured with (#183) - the caller's own record of what
+// it passed to [Dir], not anything this method reads itself. At most the
+// first element is used; it exists as a variadic purely so every existing
+// bare call site keeps compiling unchanged.
+func (c *Corpus) Add(name, origin string, report Report, varFile ...string) {
 	entry := CorpusEntry{
 		Name:              name,
 		Origin:            origin,
@@ -232,6 +247,9 @@ func (c *Corpus) Add(name, origin string, report Report) {
 		UnsetVariables:    len(report.Load.UnsetVariables()),
 		Schemas:           report.Schemas,
 		Shadowed:          report.Shadowed,
+	}
+	if len(varFile) > 0 {
+		entry.VarFile = varFile[0]
 	}
 	if !entry.Loaded && len(report.Load.Diags) > 0 {
 		entry.LoadError = report.Load.Diags[0].Error()
