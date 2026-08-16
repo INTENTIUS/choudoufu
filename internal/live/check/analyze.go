@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/dataread"
@@ -122,6 +123,22 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 		return dataAnalysis
 	}
 
+	// eligibleAddrs is the set of resource-instance addresses (in
+	// [addrs.AbsResourceInstance.String] form) whose own identity
+	// resolution failed for no reason other than a data-read-eligible
+	// site: the direct case below adds one the moment classifyDataSite
+	// says Eligible, and the cascade fixpoint after the main loop adds
+	// one for every downstream instance whose sole failure traces back to
+	// one already in the set. See [classifyCascadeSite].
+	eligibleAddrs := map[string]bool{}
+
+	// cascades holds every "Unresolvable identity" diagnostic whose
+	// parent could not be classified on this pass, because its own
+	// diagnostic - if it names a data read at all - has not been seen
+	// yet. They are resolved in one fixpoint pass after the loop, so
+	// finding order never matters.
+	var cascades []cascadeSite
+
 	for _, diag := range diags {
 		desc := diag.Description()
 		site := Site{
@@ -152,6 +169,24 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 				site.Detail = detail
 				f := findings.get(layer, id)
 				f.add(site)
+				if layer == LayerDataread && id == dataread.SummaryEligibleRead {
+					if addr := neededByResourceAddr(tfdiags.ExtraInfo[configs.RefusedReference](diag).NeededBy); addr != "" {
+						eligibleAddrs[addr] = true
+					}
+				}
+				continue
+			}
+			// "Unresolvable identity" is the one diagnostic
+			// [identity.ResolveWith] raises when a resource's failure is
+			// not its own: it depends on another instance whose identity
+			// could not be built (internal/live/identity/resolve.go's
+			// parentPart). That upstream instance's own diagnostic - the
+			// one that actually explains the failure - is elsewhere in
+			// this same slice and carries no reference back to this one,
+			// so it cannot be classified here; it is held for the
+			// fixpoint pass below instead of being resolved now.
+			if child, parent, ok := parseCascadeDetail(desc.Summary, desc.Detail); ok {
+				cascades = append(cascades, cascadeSite{site: site, child: child, parent: parent})
 				continue
 			}
 			f := findings.get(LayerIdentity, desc.Summary)
@@ -165,12 +200,153 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 		}
 	}
 
+	// Fixpoint: an instance whose only failure is depending on an
+	// eligible instance is itself eligible, and that makes anything
+	// depending on IT eligible too, transitively. Bounded by len(cascades)
+	// rounds - the underlying dependency graph is acyclic (identity
+	// refuses a real cycle as its own diagnostic, "Circular identity
+	// reference", which never matches parseCascadeDetail) - so this
+	// always terminates without needing a visited set.
+	resolved := make([]bool, len(cascades))
+	for pass := 0; pass < len(cascades)+1; pass++ {
+		changed := false
+		for i, c := range cascades {
+			if resolved[i] || !eligibleAddrs[c.parent] {
+				continue
+			}
+			resolved[i] = true
+			// c.child is [configs.StaticIdentifier.Subject] - the
+			// resource-instance address plus ".<attribute>", the same
+			// shape [neededByResourceAddr] strips down from NeededBy - so
+			// a THIRD instance that depends on THIS one's identity
+			// attribute (a chain more than one hop deep, e.g. a scaling
+			// policy that names a scaling target that names a service
+			// that reads a data source) can match it as a parent on the
+			// next round. Without stripping the attribute here, this key
+			// would carry ".<attribute>" while every [cascadeSite.parent]
+			// never does, and the two would never compare equal - the
+			// chain would stop propagating after exactly one hop.
+			if addr := stripAttrSuffix(c.child); addr != "" {
+				eligibleAddrs[addr] = true
+			}
+			changed = true
+		}
+		if !changed {
+			break
+		}
+	}
+	for i, c := range cascades {
+		if !resolved[i] {
+			// Default direction: a cascade this pass cannot trace to an
+			// eligible read stays exactly what it always was, a hard
+			// "Unresolvable identity" language refusal. An unrecognised
+			// or genuinely unrelated failure never reads as "fine".
+			f := findings.get(LayerIdentity, "Unresolvable identity")
+			f.add(c.site)
+			continue
+		}
+		c.site.Detail = fmt.Sprintf(
+			"%s. %s's own identity depends on a data source that a live-plan resolves by reading it from the provider before identity resolution, so this reference resolves too. "+
+				"No configuration edit is needed; the read itself was not performed by this check and can still fail at plan time.",
+			c.site.Detail, c.parent)
+		f := findings.get(LayerDataread, dataread.SummaryEligibleRead)
+		f.add(c.site)
+	}
+
 	for _, f := range findings {
 		report.Findings = append(report.Findings, *f)
 	}
 	rank(report.Findings)
 	rank(report.Warnings)
 	return report
+}
+
+// cascadeSite is one "Unresolvable identity" diagnostic parsed into the
+// child instance whose resolution failed and the parent instance it
+// blamed, both in [addrs.AbsResourceInstance.String] form - the shape
+// [parseCascadeDetail] recovers and the fixpoint loop in [Analyze]
+// consumes.
+type cascadeSite struct {
+	site   Site
+	child  string
+	parent string
+}
+
+// cascadeMiddle and cascadeSuffix bracket the one place
+// internal/live/identity/resolve.go's parentPart raises this diagnostic
+// (resolve.go's own errorf call, "Unresolvable identity"): the format
+// string is "%s depends on the identity of %s, which could not be resolved
+// (see the other error)." with the child's [configs.StaticIdentifier.Subject]
+// on the left and the parent's [addrs.AbsResourceInstance.String] on the
+// right. Both are fixed literals from that one call site, not derived from
+// any resource type.
+const (
+	cascadeMiddle = " depends on the identity of "
+	cascadeSuffix = ", which could not be resolved (see the other error)."
+)
+
+// parseCascadeDetail recovers the child and parent addresses from an
+// "Unresolvable identity" diagnostic's detail text. ok is false for any
+// summary other than that one, and for any detail that does not match the
+// fixed format - including a future wording change in resolve.go, which
+// this package cannot see coming. Either way, the caller's default path
+// (a hard language refusal, unchanged) is what fires, never a silent pass.
+func parseCascadeDetail(summary, detail string) (child, parent string, ok bool) {
+	if summary != "Unresolvable identity" {
+		return "", "", false
+	}
+	mid := strings.Index(detail, cascadeMiddle)
+	if mid < 0 || !strings.HasSuffix(detail, cascadeSuffix) {
+		return "", "", false
+	}
+	child = detail[:mid]
+	parent = detail[mid+len(cascadeMiddle) : len(detail)-len(cascadeSuffix)]
+	if child == "" || parent == "" {
+		return "", "", false
+	}
+	return child, parent, true
+}
+
+// neededByResourceAddr recovers the resource-instance address (in
+// [addrs.AbsResourceInstance.String] form, matching a cascade diagnostic's
+// parent text exactly) that a [configs.RefusedReference.NeededBy] string
+// names.
+//
+// NeededBy is [configs.StaticIdentifier.String]: "<module>:<subject>" when
+// the reference is inside a module, "<subject>" at the root - and Subject
+// itself, built by identity's own resolver.identifier, is already the full
+// dotted resource-instance address plus ".<attribute>" (an
+// [addrs.AbsResourceInstance.String] embeds its module path already, so
+// the module prefix StaticIdentifier.String adds is a second, redundant
+// one). Taking everything after the first colon - present or not - and
+// then dropping the final "."-delimited segment (the attribute name, which
+// is a bare HCL identifier and so never itself contains a ".") recovers
+// exactly the address [cascadeSite.parent] carries, in both the root and
+// nested-module cases; TestNeededByResourceAddr pins all three shapes
+// (root, nested-module, for_each) against what identity actually emits.
+func neededByResourceAddr(neededBy string) string {
+	if idx := strings.Index(neededBy, ":"); idx >= 0 {
+		neededBy = neededBy[idx+1:]
+	}
+	return stripAttrSuffix(neededBy)
+}
+
+// stripAttrSuffix drops the final "."-delimited segment of a
+// [configs.StaticIdentifier.Subject]-shaped string - "<resource-instance
+// address>.<attribute>" - leaving the bare resource-instance address. Safe
+// because an HCL attribute name is a single identifier and never itself
+// contains a ".", regardless of what the address portion contains (a
+// for_each key such as ["a.b"] included - the LAST "." in the whole string
+// is always the one just before the attribute name). Returns "" when there
+// is no "." to split on at all, which is not a shape either NeededBy or a
+// cascade's child ever produces, but which the caller must not treat as a
+// valid address.
+func stripAttrSuffix(subject string) string {
+	idx := strings.LastIndex(subject, ".")
+	if idx < 0 {
+		return ""
+	}
+	return subject[:idx]
 }
 
 // classifyDataSite maps one identity-layer refusal to the data-read pass's
