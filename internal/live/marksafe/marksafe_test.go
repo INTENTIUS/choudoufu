@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
@@ -81,6 +82,30 @@ func packageDirs(t *testing.T, names []string) []string {
 	return out
 }
 
+// moduleRoot is the repository root, relative to this package's directory.
+const moduleRoot = "../../.."
+
+// receiverIndex type-checks every package under internal/live once, so the
+// scanner can tell cty.Value.Range from hcl.Expression.Range. Built once per
+// process because the load is the expensive part of these tests.
+var (
+	sharedIndex     ReceiverIndex
+	sharedIndexErr  error
+	sharedIndexOnce sync.Once
+)
+
+func receiverIndex(t *testing.T) ReceiverIndex {
+	t.Helper()
+	sharedIndexOnce.Do(func() {
+		sharedIndex, sharedIndexErr = LoadReceiverIndex(moduleRoot, "./internal/live/...")
+	})
+	if sharedIndexErr != nil {
+		t.Fatalf("building the receiver index: %v\n"+
+			"Without it every Range() call in these packages is reported unproven, so this is fatal rather than a fallback.", sharedIndexErr)
+	}
+	return sharedIndex
+}
+
 // TestEveryLivePackageIsClassified is the guard against the failure mode
 // that has appeared three times in this repository already: a check whose
 // scope is a list nobody updates. A package added under internal/live must
@@ -124,14 +149,21 @@ func containsStr(hay []string, needle string) bool {
 
 // TestUnsafeMethodSetMatchesCty locks the derived set to what this file
 // records. The set itself is computed by calling cty, so the recorded list
-// is a record and cty is the authority: a cty upgrade that adds an
-// assertUnmarked to another accessor fails here, and the fix is to update
-// the list and re-run the scan, which will then have more sites to prove.
+// is a record and cty is the authority: a cty release that makes another
+// accessor behave differently on a marked receiver fails here, and the fix
+// is to update the list and re-run the scan, which will then have more sites
+// to prove.
 //
 // The list is here rather than in the scanner because the scanner must
 // never consult it: a hand list inside the derivation is exactly the thing
 // that missed False, which turned out to be three of issue #240's eight
 // sites.
+//
+// On its own this is a ratchet measuring agreement with itself - mutate the
+// derivation and this list together and it stays green.
+// [TestNewlyDerivedMethodsReallyPanic] is the external half, calling the four
+// methods this list gained in issue #247 as ordinary Go and asserting cty
+// panics.
 func TestUnsafeMethodSetMatchesCty(t *testing.T) {
 	want := []string{
 		"AsBigFloat",
@@ -140,14 +172,18 @@ func TestUnsafeMethodSetMatchesCty(t *testing.T) {
 		"AsValueSet",
 		"AsValueSlice",
 		"ElementIterator",
+		"Elements",
 		"EncapsulatedValue",
 		"False",
+		"ForEachElement",
+		"Hash",
 		"LengthInt",
+		"Range",
 		"True",
 	}
 	got := sortedKeys(UnsafeMethods())
 	if strings.Join(got, ",") != strings.Join(want, ",") {
-		t.Errorf("cty's mark-unsafe no-argument methods are now %v, recorded here as %v.\n"+
+		t.Errorf("cty's mark-unsafe methods are now %v, recorded here as %v.\n"+
 			"Update the recorded list and re-run TestNoUnprovenUnsafeCallSite: a method entering this set brings call sites with it.", got, want)
 	}
 }
@@ -237,7 +273,7 @@ func TestIteratorKeysAreNeverMarked(t *testing.T) {
 
 // TestNoUnprovenUnsafeCallSite is the check itself.
 func TestNoUnprovenUnsafeCallSite(t *testing.T) {
-	sites, err := Scan(packageDirs(t, guardedPackages), UnsafeMethods())
+	sites, err := Scan(packageDirs(t, guardedPackages), UnsafeMethods(), receiverIndex(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -267,7 +303,7 @@ func TestNoUnprovenUnsafeCallSite(t *testing.T) {
 // would bound who, not what - the shape that let a cohort allowlist accept
 // unlimited new drift.
 func TestDeferredSitesAreExact(t *testing.T) {
-	sites, err := Scan(packageDirs(t, deferredPackages), UnsafeMethods())
+	sites, err := Scan(packageDirs(t, deferredPackages), UnsafeMethods(), receiverIndex(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -318,7 +354,7 @@ var deferredSites = []string{
 
 	"liveimport/tags.go equivalent a.ElementIterator() x1",
 	"liveimport/tags.go equivalent a.LengthInt() x3",
-	"liveimport/tags.go equivalent b.HasIndex(...).False() x1",
+	"liveimport/tags.go equivalent b.HasIndex(k).False() x1",
 	"liveimport/tags.go equivalent b.LengthInt() x2",
 	"liveimport/tags.go mapElements val.ElementIterator() x2",
 	"liveimport/tags.go mapElements val.LengthInt() x1",
@@ -332,7 +368,7 @@ var deferredSites = []string{
 
 	"mv/rewrite.go equivalent a.ElementIterator() x1",
 	"mv/rewrite.go equivalent a.LengthInt() x3",
-	"mv/rewrite.go equivalent b.HasIndex(...).False() x1",
+	"mv/rewrite.go equivalent b.HasIndex(k).False() x1",
 	"mv/rewrite.go equivalent b.LengthInt() x2",
 	"mv/rewrite.go mapElements val.ElementIterator() x2",
 	"mv/rewrite.go mapElements val.LengthInt() x1",
@@ -343,7 +379,7 @@ var deferredSites = []string{
 
 	"untag/tags.go equivalent a.ElementIterator() x1",
 	"untag/tags.go equivalent a.LengthInt() x3",
-	"untag/tags.go equivalent b.HasIndex(...).False() x1",
+	"untag/tags.go equivalent b.HasIndex(k).False() x1",
 	"untag/tags.go equivalent b.LengthInt() x2",
 	"untag/tags.go mapElements val.ElementIterator() x2",
 	"untag/tags.go mapElements val.LengthInt() x1",
@@ -377,7 +413,7 @@ func alsoRead(v cty.Value) bool {
 	if err := os.WriteFile(filepath.Join(dir, "planted.go"), []byte(src), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	sites, err := Scan([]string{dir}, UnsafeMethods())
+	sites, err := Scan([]string{dir}, UnsafeMethods(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -398,7 +434,7 @@ func alsoRead(v cty.Value) bool {
 	if err := os.WriteFile(filepath.Join(dir, "planted.go"), []byte(guarded), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	sites, err = Scan([]string{dir}, UnsafeMethods())
+	sites, err = Scan([]string{dir}, UnsafeMethods(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -430,7 +466,7 @@ func backwards(v cty.Value) (string, bool) {
 	if err := os.WriteFile(filepath.Join(dir, "backwards.go"), []byte(src), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	sites, err := Scan([]string{dir}, UnsafeMethods())
+	sites, err := Scan([]string{dir}, UnsafeMethods(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

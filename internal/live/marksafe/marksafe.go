@@ -29,12 +29,14 @@
 //
 // # Nothing here is a hand list
 //
-// [UnsafeMethods] is derived by calling every no-argument method on
-// [cty.Value] against marked sample values of every kind and recording
-// which ones panic with cty's own assertUnmarked message. The set therefore
-// tracks the cty version in go.mod rather than someone's memory of it: the
-// first hand list written for this work missed False, which is the second
-// most common of the eight sites found.
+// [UnsafeMethods] is derived by calling every method on [cty.Value] twice -
+// once against a marked sample value, once against the same sample unmarked -
+// and recording the ones whose outcome the mark changed. The set therefore
+// tracks the cty version in go.mod rather than someone's memory of it. Each
+// narrower question that was asked here first missed something real: a hand
+// list missed False, matching cty's assertUnmarked message missed Hash and
+// Range, and calling only no-argument methods without driving their results
+// missed ForEachElement and Elements. See [UnsafeMethods] for which was which.
 //
 // [Scan] then finds every call of one of those methods in the packages it
 // is given and attaches the proof, if any, that the receiver cannot be
@@ -44,6 +46,13 @@
 // nothing, which is how the sibling scanner in internal/live/refusalscan
 // was defeated four ways in one sitting.
 //
+// The derivation yields method NAMES and the scanner matches names, so the
+// two disagree whenever another type has a method of the same name. That was
+// harmless until Range was derived, since hcl.Expression.Range is everywhere
+// in these packages. [ReceiverIndex] closes it with the Go type checker, and
+// only in the safe direction: a receiver resolved to something other than
+// cty.Value is proven, a receiver that cannot be resolved is not.
+//
 // # What counts as a proof
 //
 // [Proof] enumerates them. Each is a syntactic fact about the receiver
@@ -51,6 +60,30 @@
 // deliberately shallow, so that a site it cannot prove is a site a reader
 // cannot prove either. Widening it is how this check stops meaning
 // anything.
+//
+// A fact holds over a SPAN rather than from a position onwards, and the span
+// is the region the Go language says the test governs - an if body, an else
+// body, the rest of the enclosing block after a guard that returns, or the
+// right-hand operand of a && or || whose left operand did the testing. A
+// fact is void from the moment its name is assigned again.
+//
+// # What it still does not see
+//
+// These are gaps, not accepted proofs. Each makes the check refuse something
+// it cannot follow, so the cost is a call site someone has to write a
+// visible guard at:
+//
+//   - Nothing crosses a function boundary. A value returned already checked
+//     by its callee carries no proof here, and the fix is a test at the call
+//     site rather than a comment about the callee.
+//   - Dominance is approximated by the regions above. A guard in a shape
+//     outside them - a switch case, a goto, a boolean stored in a variable
+//     and tested later - proves nothing.
+//   - A method value, f := v.AsString, is not a call and is invisible.
+//   - Receivers are compared as rendered text, so two values that spell the
+//     same in one function are one value here. Assignment to the name voids
+//     the fact, but mutation reached another way - m["k"] after m is written
+//     through - is not tracked.
 package marksafe
 
 import (
@@ -67,11 +100,19 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-// markedPanicMessage is the panic cty raises from assertUnmarked. Matching
-// on it rather than on any panic keeps [UnsafeMethods] from recording a
-// method that panicked for an unrelated reason - "not bool", say, which
-// True raises on a string.
+// markedPanicMessage is the panic cty raises from assertUnmarked. Nothing in
+// the derivation matches on it - see [UnsafeMethods] for why - but the
+// dynamic half of this package's tests uses it to tell the crash class it
+// guards from an unrelated one.
 const markedPanicMessage = "value is marked, so must be unmarked first"
+
+// capsuleThing gives markSamples a capsule-typed value to mark. cty has one
+// accessor, EncapsulatedValue, that is reachable on no other kind, and
+// without a sample of the kind its behaviour on a marked receiver is
+// indistinguishable from its behaviour on a wrongly-typed one.
+type capsuleThing struct{ s string }
+
+var capsuleType = cty.Capsule("marksafe sample", reflect.TypeOf(capsuleThing{}))
 
 // markSamples are the value kinds a marked receiver can have. Every kind is
 // tried because the accessors are type-specific: AsString panics only on a
@@ -90,28 +131,48 @@ func markSamples() []cty.Value {
 		cty.ObjectVal(map[string]cty.Value{"a": cty.StringVal("b")}).Mark(mark),
 		cty.TupleVal([]cty.Value{cty.StringVal("a")}).Mark(mark),
 		cty.EmptyObjectVal.Mark(mark),
+		cty.CapsuleVal(capsuleType, &capsuleThing{s: "x"}).Mark(mark),
 	}
 }
 
-// UnsafeMethods are the no-argument [cty.Value] methods that panic rather
-// than error when the receiver is marked, derived by calling them.
+// UnsafeMethods are the [cty.Value] methods that panic rather than error
+// when the receiver is marked, derived by calling every one of them twice -
+// once on a marked sample, once on the same sample unmarked - and recording
+// the ones whose outcome the mark changed.
 //
-// Methods taking arguments are outside what reflection can drive without
-// inventing values for them, and are covered instead by the fact that every
-// one this repository calls - Index, GetAttr, HasIndex, Equals - either
-// handles marks itself or returns a value whose own accessor is in this
-// set.
+// The question asked is deliberately "did the mark change what happened",
+// not "did cty print its assertUnmarked message". Three earlier answers were
+// each narrower than the phenomenon:
+//
+//   - A hand-written list missed False, which was three of the eight sites
+//     issue #240 turned up.
+//   - Matching cty's assertUnmarked text missed Hash and Range, which raise
+//     their own wording from set_internals.go and value_range.go. Neither
+//     goes through assertUnmarked at all, so no amount of care with that
+//     one constant would have found them.
+//   - Calling only no-argument methods missed ForEachElement, which takes a
+//     callback and calls assertUnmarked itself, and calling without driving
+//     the result missed Elements, whose panic happens inside the iter.Seq2
+//     it returns and so only when a caller ranges over it. cty's own
+//     documentation on ElementIterator says "New code should prefer to use
+//     Value.Elements", so that is the accessor the next person reaches for.
+//
+// The comparison is on the panic MESSAGE, not merely on whether a panic
+// happened, because several accessors reject a wrong-typed receiver before
+// they would have returned: EncapsulatedValue panics either way on a string,
+// and only the wording says which reason. A method whose message legitimately
+// varied with the mark for some other reason would be a false positive here,
+// which costs one spurious entry in a recorded list a human reads; the
+// opposite error costs a crashed run.
 func UnsafeMethods() map[string]bool {
 	out := map[string]bool{}
 	rt := reflect.TypeOf(cty.Value{})
-	for _, sample := range markSamples() {
-		rv := reflect.ValueOf(sample)
+	for _, marked := range markSamples() {
+		plain, _ := marked.UnmarkDeep()
+		mv, uv := reflect.ValueOf(marked), reflect.ValueOf(plain)
 		for i := 0; i < rt.NumMethod(); i++ {
 			m := rt.Method(i)
-			if m.Type.NumIn() != 1 {
-				continue
-			}
-			if panicsMarked(rv.Method(i)) {
+			if callOutcome(mv.Method(i), syntheticArgs(m.Type)) != callOutcome(uv.Method(i), syntheticArgs(m.Type)) {
 				out[m.Name] = true
 			}
 		}
@@ -119,14 +180,81 @@ func UnsafeMethods() map[string]bool {
 	return out
 }
 
-func panicsMarked(m reflect.Value) (yes bool) {
+// noPanic is callOutcome's answer for a call that returned. It is not a
+// possible panic value, so it cannot collide with one.
+const noPanic = "\x00no panic"
+
+// callOutcome calls one method and reports what happened: the panic value,
+// or noPanic. Every returned value is driven in case the work has been
+// deferred into it.
+func callOutcome(m reflect.Value, in []reflect.Value) (outcome string) {
 	defer func() {
 		if r := recover(); r != nil {
-			yes = fmt.Sprint(r) == markedPanicMessage
+			outcome = fmt.Sprint(r)
 		}
 	}()
-	m.Call(nil)
-	return false
+	for _, r := range m.Call(in) {
+		driveIterator(r)
+	}
+	return noPanic
+}
+
+// driveIterator ranges over a returned range-over-func value, taking the
+// first element and stopping. A method that returns iter.Seq or iter.Seq2
+// has done nothing at all when it returns - the body runs inside the
+// closure - so calling it and looking at the result observes nothing.
+//
+// Recognised structurally rather than by naming iter.Seq2: any func taking
+// one argument, that argument itself being a func returning a single bool,
+// is a range-over-func by the language's own definition, so a future cty
+// method returning one is driven the day it lands.
+func driveIterator(v reflect.Value) {
+	t := v.Type()
+	if t.Kind() != reflect.Func || t.NumIn() != 1 || t.NumOut() != 0 || t.IsVariadic() {
+		return
+	}
+	yield := t.In(0)
+	if yield.Kind() != reflect.Func || yield.NumOut() != 1 || yield.Out(0).Kind() != reflect.Bool {
+		return
+	}
+	stop := reflect.MakeFunc(yield, func([]reflect.Value) []reflect.Value {
+		return []reflect.Value{reflect.ValueOf(false)}
+	})
+	v.Call([]reflect.Value{stop})
+}
+
+// syntheticArgs invents one argument per parameter so that methods taking
+// arguments are driven too. A zero value does for everything except a
+// callback, which has to be callable: ForEachElement invokes its argument
+// per element, and a nil func there would crash for a reason that has
+// nothing to do with marks.
+//
+// Inventing a zero argument makes several methods panic about the argument
+// rather than about the receiver - Index on a zero key, say. That costs
+// nothing: the same wrong argument is passed to the marked and the unmarked
+// call, so an argument-shaped complaint appears on both sides and cancels.
+func syntheticArgs(mt reflect.Type) []reflect.Value {
+	n := mt.NumIn()
+	out := make([]reflect.Value, 0, n-1)
+	for i := 1; i < n; i++ {
+		t := mt.In(i)
+		if mt.IsVariadic() && i == n-1 {
+			t = t.Elem()
+		}
+		if t.Kind() == reflect.Func {
+			ft := t
+			out = append(out, reflect.MakeFunc(ft, func([]reflect.Value) []reflect.Value {
+				res := make([]reflect.Value, ft.NumOut())
+				for j := range res {
+					res[j] = reflect.Zero(ft.Out(j))
+				}
+				return res
+			}))
+			continue
+		}
+		out = append(out, reflect.Zero(t))
+	}
+	return out
 }
 
 // Proof is why one call site cannot see a marked receiver. The empty string
@@ -136,13 +264,24 @@ type Proof string
 
 const (
 	// ProofGuarded is the receiver being tested with IsMarked,
-	// ContainsMarked, HasMark or marks.Contains EARLIER IN THE SAME
-	// FUNCTION than the read. Position rather than dominance: a control-flow
-	// analysis would be the only part of this anyone had to take on trust,
-	// while "the guard is written above the read" is a fact a reader
-	// checks in a second. A guard below its read does not count, which is
-	// the version of this that would otherwise have accepted "the function
-	// mentions IsMarked somewhere".
+	// ContainsMarked, HasMark or marks.Contains somewhere the Go language
+	// says the test governs the read: the body the test opens, the else it
+	// falls to, the rest of the enclosing block after a test whose body
+	// returns, or the operand a && or || only evaluates because the test
+	// came out the right way.
+	//
+	// The first version of this was position-ordering alone - any test
+	// written above the read, anywhere in the function - and it recorded
+	// this proof for four shapes where no test governs the read at all: an
+	// if with an empty body, an if that falls through, a test in a sibling
+	// branch, and a name reassigned between the test and the read. A
+	// recorded proof that does not hold is worse than an admitted gap,
+	// because the only thing this package sells is that a green result
+	// means something.
+	//
+	// It is still not a dominance analysis, and the regions above are the
+	// whole of what it understands. A guard in any other shape proves
+	// nothing, which costs a visible test at a call site and no more.
 	ProofGuarded Proof = "guarded by an IsMarked test on the same value"
 
 	// ProofUnmarked is the receiver coming out of Unmark, UnmarkDeep or
@@ -174,6 +313,27 @@ const (
 	// adds nor removes the question.
 	ProofConverted Proof = "converted from a value proven above"
 
+	// ProofNotCtyValue is the receiver having been resolved by the Go type
+	// checker to a type that is not cty.Value, so the method called is a
+	// different method that happens to share a name.
+	//
+	// This exists because the derivation and the scanner disagree about what
+	// a method IS. The derivation reflects over cty.Value and yields method
+	// NAMES; the scanner matches those names against selector expressions,
+	// which carry no type. That was accurate while every unsafe name was
+	// peculiar to cty - measured, and it was, for the ten the first version
+	// found. Deriving Range broke it: cty.Value.Range is mark-unsafe, and
+	// hcl.Expression.Range is the single most-called method in these
+	// packages, so name matching alone turns one real question into 97
+	// spurious ones and the check stops meaning anything.
+	//
+	// Resolution is one-directional on purpose. A receiver the type checker
+	// resolves to something else is proven; a receiver it cannot resolve at
+	// all is NOT, and stays a failure. A missing or broken index therefore
+	// makes this check louder rather than blind, which is the direction the
+	// sibling scanner in internal/live/refusalscan got wrong.
+	ProofNotCtyValue Proof = "the receiver is not a cty.Value"
+
 	// ProofRecovered is the enclosing function having a deferred recover.
 	// A panic there becomes the function's own not-ok answer rather than a
 	// crashed run, so the class this package guards cannot escape - but the
@@ -190,7 +350,11 @@ type Site struct {
 	Func   string
 	Method string
 	Recv   string
-	Proof  Proof
+	// RecvType is the receiver's type as the Go type checker resolved it,
+	// or empty when no [ReceiverIndex] covered this position. Empty means
+	// unknown, not safe.
+	RecvType string
+	Proof    Proof
 }
 
 // String renders a site the way a test failure should quote it.
@@ -209,7 +373,10 @@ func (s Site) String() string {
 // of one of these names - so it bought a blind spot and no accuracy. A
 // same-named method on an unrelated type would be reported here, and the
 // answer is to look at it rather than to stop looking.
-func Scan(dirs []string, unsafeMethods map[string]bool) ([]Site, error) {
+// recv may be nil, in which case no receiver is resolved and a site whose
+// method name collides with an unrelated type's is reported unproven. That is
+// the safe direction, and it is what the planted-file tests rely on.
+func Scan(dirs []string, unsafeMethods map[string]bool, recv ReceiverIndex) ([]Site, error) {
 	var out []Site
 	for _, dir := range dirs {
 		entries, err := os.ReadDir(dir)
@@ -227,7 +394,7 @@ func Scan(dirs []string, unsafeMethods map[string]bool) ([]Site, error) {
 			if err != nil {
 				return nil, fmt.Errorf("marksafe: parsing %s: %w", path, err)
 			}
-			out = append(out, scanFile(fset, path, file, unsafeMethods)...)
+			out = append(out, scanFile(fset, path, file, unsafeMethods, recv)...)
 		}
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -239,7 +406,7 @@ func Scan(dirs []string, unsafeMethods map[string]bool) ([]Site, error) {
 	return out, nil
 }
 
-func scanFile(fset *token.FileSet, path string, file *ast.File, unsafeMethods map[string]bool) []Site {
+func scanFile(fset *token.FileSet, path string, file *ast.File, unsafeMethods map[string]bool, recv ReceiverIndex) []Site {
 	var out []Site
 	for _, decl := range file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
@@ -253,17 +420,24 @@ func scanFile(fset *token.FileSet, path string, file *ast.File, unsafeMethods ma
 				return true
 			}
 			sel, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok || len(call.Args) != 0 || !unsafeMethods[sel.Sel.Name] {
+			if !ok || !unsafeMethods[sel.Sel.Name] {
 				return true
 			}
-			out = append(out, Site{
-				File:   path,
-				Line:   fset.Position(sel.Sel.Pos()).Line,
-				Func:   fn.Name.Name,
-				Method: sel.Sel.Name,
-				Recv:   exprString(sel.X),
-				Proof:  f.proofFor(sel.X, sel.Sel.Pos()),
-			})
+			pos := fset.Position(sel.Sel.Pos())
+			site := Site{
+				File:     path,
+				Line:     pos.Line,
+				Func:     fn.Name.Name,
+				Method:   sel.Sel.Name,
+				Recv:     exprString(sel.X),
+				RecvType: recv[receiverKey(path, pos)],
+			}
+			if site.RecvType != "" && !isCtyValue(site.RecvType) {
+				site.Proof = ProofNotCtyValue
+			} else {
+				site.Proof = f.proofFor(sel.X, sel.Sel.Pos())
+			}
+			out = append(out, site)
 			return true
 		})
 	}
@@ -271,50 +445,319 @@ func scanFile(fset *token.FileSet, path string, file *ast.File, unsafeMethods ma
 }
 
 // funcFacts is what one function body says about its own values.
+//
+// A fact is not a position but a SPAN: the region of the function over which
+// the fact holds. The first version of this recorded only the earliest
+// position at which each fact was established and accepted any read below it,
+// which is a rule with no notion of control flow at all - so an `if` that
+// tested a value and did nothing licensed every read under it, and so did a
+// test in a branch the read never runs in. Both of those recorded a proof
+// that does not hold, which is worse than an admitted gap: the whole value of
+// this package is that a green result means something.
+//
+// The spans are still shallow, and deliberately. They come from two shapes,
+// which between them are every mark guard written in this repository:
+//
+//   - `if X.IsMarked() { ...; return }` proves X unmarked from the END of the
+//     if statement to the end of the BLOCK CONTAINING IT. Not to the end of
+//     the function: a read in a later sibling branch, or after the block
+//     closes, is not something this if statement decided.
+//   - `if !X.IsMarked() { ... }` proves X unmarked INSIDE the if's body, and
+//     nowhere else.
+//
+// The terminating-body requirement is what makes the first sound. An `if`
+// whose body falls through has not established anything about the code after
+// it, and an `if` with an empty body has not established anything at all.
 type funcFacts struct {
-	// Each map holds the EARLIEST position at which the fact was
-	// established, so a proof written below the read it is supposed to
-	// license does not count. That is the difference between "this function
-	// mentions IsMarked somewhere" and "this value was tested before it was
-	// read", and only the second is a proof.
-	guarded   map[string]token.Pos
-	unmarked  map[string]token.Pos
-	literal   map[string]token.Pos
-	built     map[string]token.Pos
-	iterKey   map[string]token.Pos
-	converted map[string]convertedFrom
-	recovers  bool
+	guarded   map[string][]span
+	unmarked  map[string][]span
+	literal   map[string][]span
+	built     map[string][]span
+	iterKey   map[string][]span
+	converted map[string][]conversion
+	// assigned holds every position at which a name is written. A fact about
+	// a name is void from the moment the name is made to hold something else:
+	// after `a = b`, whatever was proven about the old `a` is a fact about a
+	// value this function no longer has under that name.
+	assigned map[string][]token.Pos
+	recovers bool
 }
 
-type convertedFrom struct {
-	src string
-	pos token.Pos
+// span is the half-open region [from, to) over which one fact holds.
+type span struct {
+	from token.Pos
+	to   token.Pos
+}
+
+type conversion struct {
+	src  string
+	span span
+}
+
+func newFuncFacts() *funcFacts {
+	return &funcFacts{
+		guarded:   map[string][]span{},
+		unmarked:  map[string][]span{},
+		literal:   map[string][]span{},
+		built:     map[string][]span{},
+		iterKey:   map[string][]span{},
+		converted: map[string][]conversion{},
+		assigned:  map[string][]token.Pos{},
+	}
 }
 
 func analyzeFunc(fn *ast.FuncDecl) *funcFacts {
-	f := &funcFacts{
-		guarded:   map[string]token.Pos{},
-		unmarked:  map[string]token.Pos{},
-		literal:   map[string]token.Pos{},
-		built:     map[string]token.Pos{},
-		iterKey:   map[string]token.Pos{},
-		converted: map[string]convertedFrom{},
-	}
+	f := newFuncFacts()
+	f.walkBlock(fn.Body)
+	return f
+}
 
-	ast.Inspect(fn.Body, func(n ast.Node) bool {
-		switch node := n.(type) {
-		case *ast.DeferStmt:
-			if containsRecover(node) {
-				f.recovers = true
+func (f *funcFacts) walkBlock(b *ast.BlockStmt) {
+	if b == nil {
+		return
+	}
+	for _, st := range b.List {
+		f.walkStmt(st, b.Rbrace)
+	}
+}
+
+// walkStmt records the facts one statement establishes. blockEnd is where the
+// enclosing block closes, which is how far a fact established here can reach.
+func (f *funcFacts) walkStmt(st ast.Stmt, blockEnd token.Pos) {
+	if st == nil {
+		return
+	}
+	// A function literal anywhere inside this statement is its own block. Its
+	// positions nest inside the statement's, so the span arithmetic scopes it
+	// correctly without a separate mechanism.
+	//
+	// The same pass records what Go's short-circuit evaluation proves WITHIN
+	// a single expression, which is where the most common guard in these
+	// packages lives:
+	//
+	//	if err != nil || ks.IsNull() || ks.IsMarked() || ks.AsString() != key {
+	//
+	// AsString runs only when every operand to its left was false, so the
+	// IsMarked test beside it is a proof for it - over the extent of the
+	// right operand and nowhere else. A rule that only looked at whole
+	// statements reported this line, which is itself one of issue #240's
+	// fixes, as unproven.
+	ast.Inspect(st, func(n ast.Node) bool {
+		switch x := n.(type) {
+		case *ast.FuncLit:
+			f.walkBlock(x.Body)
+		case *ast.BinaryExpr:
+			// A || B evaluates B only when A was false; A && B evaluates B
+			// only when A was true.
+			var known bool
+			switch x.Op {
+			case token.LOR:
+				known = false
+			case token.LAND:
+				known = true
+			default:
+				return true
 			}
-		case *ast.CallExpr:
-			f.noteGuard(node)
-		case *ast.AssignStmt:
-			f.noteAssign(node)
+			rhs := span{from: x.Y.Pos(), to: x.Y.End()}
+			for _, g := range guardsWhen(x.X, known) {
+				if !g.marked {
+					f.note(f.guarded, g.name, rhs)
+				}
+			}
 		}
 		return true
 	})
-	return f
+
+	switch node := st.(type) {
+	case *ast.DeferStmt:
+		if containsRecover(node) {
+			f.recovers = true
+		}
+	case *ast.AssignStmt:
+		f.noteAssign(node, blockEnd)
+	case *ast.BlockStmt:
+		f.walkBlock(node)
+	case *ast.IfStmt:
+		f.walkIf(node, blockEnd)
+	case *ast.ForStmt:
+		f.walkStmt(node.Init, node.Body.Rbrace)
+		f.walkStmt(node.Post, node.Body.Rbrace)
+		f.walkBlock(node.Body)
+	case *ast.RangeStmt:
+		if node.Tok == token.DEFINE || node.Tok == token.ASSIGN {
+			f.noteName(node.Key, node.Body.Lbrace)
+			f.noteName(node.Value, node.Body.Lbrace)
+		}
+		f.walkBlock(node.Body)
+	case *ast.SwitchStmt:
+		f.walkStmt(node.Init, node.Body.Rbrace)
+		f.walkBlock(node.Body)
+	case *ast.TypeSwitchStmt:
+		f.walkStmt(node.Init, node.Body.Rbrace)
+		f.walkStmt(node.Assign, node.Body.Rbrace)
+		f.walkBlock(node.Body)
+	case *ast.CaseClause:
+		for _, s := range node.Body {
+			f.walkStmt(s, node.End())
+		}
+	case *ast.CommClause:
+		for _, s := range node.Body {
+			f.walkStmt(s, node.End())
+		}
+	case *ast.SelectStmt:
+		f.walkBlock(node.Body)
+	case *ast.LabeledStmt:
+		f.walkStmt(node.Stmt, blockEnd)
+	}
+}
+
+// walkIf records what an if statement's condition proves, and where.
+//
+// Three regions, each with its own reason:
+//
+//	if C { body } else { alt }
+//	<after>
+//
+// In body, C is true. In alt, C is false. After the statement, C is false
+// only if body left - which is what bodyTerminates asks.
+func (f *funcFacts) walkIf(node *ast.IfStmt, blockEnd token.Pos) {
+	f.walkStmt(node.Init, node.End())
+
+	for _, g := range guardsWhen(node.Cond, true) {
+		if !g.marked {
+			f.note(f.guarded, g.name, span{from: node.Body.Lbrace, to: node.Body.Rbrace})
+		}
+	}
+	for _, g := range guardsWhen(node.Cond, false) {
+		if g.marked {
+			continue
+		}
+		if els, ok := node.Else.(*ast.BlockStmt); ok {
+			f.note(f.guarded, g.name, span{from: els.Lbrace, to: els.Rbrace})
+		}
+		if bodyTerminates(node.Body) {
+			f.note(f.guarded, g.name, span{from: node.End(), to: blockEnd})
+		}
+	}
+
+	f.walkBlock(node.Body)
+
+	// An `else if` inherits this block's reach only when the then-branch
+	// leaves. Otherwise control can arrive below the whole chain without the
+	// else's condition ever having been evaluated, and a guard in it proves
+	// nothing there - so the chain's own end is as far as the else can see.
+	elseEnd := blockEnd
+	if !bodyTerminates(node.Body) {
+		elseEnd = node.End()
+	}
+	f.walkStmt(node.Else, elseEnd)
+}
+
+// bodyTerminates reports whether control certainly leaves the block, which is
+// what makes the code AFTER the if statement dominated by the condition being
+// false. An empty body never terminates, which is the whole point: an if that
+// tests a value and does nothing proves nothing about anything.
+func bodyTerminates(b *ast.BlockStmt) bool {
+	if b == nil || len(b.List) == 0 {
+		return false
+	}
+	switch last := b.List[len(b.List)-1].(type) {
+	case *ast.ReturnStmt:
+		return true
+	case *ast.BranchStmt:
+		// break, continue and goto all leave the block.
+		return true
+	case *ast.ExprStmt:
+		if call, ok := last.X.(*ast.CallExpr); ok {
+			if id, ok := call.Fun.(*ast.Ident); ok && id.Name == "panic" {
+				return true
+			}
+		}
+	case *ast.BlockStmt:
+		return bodyTerminates(last)
+	case *ast.IfStmt:
+		// if/else where both arms leave.
+		if els, ok := last.Else.(*ast.BlockStmt); ok {
+			return bodyTerminates(last.Body) && bodyTerminates(els)
+		}
+	}
+	return false
+}
+
+// guard is one mark test together with the truth value the surrounding
+// condition forces on it.
+type guard struct {
+	name string
+	// marked is what X.IsMarked() must have returned. Only false is a proof.
+	marked bool
+}
+
+// guardsWhen returns the mark tests whose result is forced when cond
+// evaluates to want, following the boolean algebra rather than guessing at
+// it:
+//
+//	cond is TRUE   =>  every conjunct of an && chain is true
+//	cond is FALSE  =>  every disjunct of an || chain is false
+//
+// and nothing at all in the other two combinations, since either operand can
+// be the one that decided a false && or a true ||. Negation swaps want.
+//
+// Getting this backwards is not a theoretical worry. The refusal written most
+// often in these packages is
+//
+//	if diags.HasErrors() || val.IsNull() || val.IsMarked() { continue }
+//
+// where the guard sits in an || chain and is sound precisely because the
+// chain is false below the if. A rule that dropped guards reached through ||
+// reported 26 working call sites as unproven.
+func guardsWhen(cond ast.Expr, want bool) []guard {
+	var out []guard
+	var walk func(e ast.Expr, want bool)
+	walk = func(e ast.Expr, want bool) {
+		switch x := e.(type) {
+		case *ast.ParenExpr:
+			walk(x.X, want)
+		case *ast.UnaryExpr:
+			if x.Op == token.NOT {
+				walk(x.X, !want)
+			}
+		case *ast.BinaryExpr:
+			switch {
+			case x.Op == token.LAND && want:
+				walk(x.X, true)
+				walk(x.Y, true)
+			case x.Op == token.LOR && !want:
+				walk(x.X, false)
+				walk(x.Y, false)
+			}
+		case *ast.CallExpr:
+			if name, ok := guardName(x); ok {
+				out = append(out, guard{name: name, marked: want})
+			}
+		}
+	}
+	walk(cond, want)
+	return out
+}
+
+// guardName reports the value a mark test is asking about.
+func guardName(call *ast.CallExpr) (string, bool) {
+	fun, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return "", false
+	}
+	if markGuards[fun.Sel.Name] {
+		return exprString(fun.X), true
+	}
+	// marks.Contains(v, marks.Sensitive) and marks.Has(v, ...): the
+	// package-qualified form of the same question.
+	if pkg, ok := fun.X.(*ast.Ident); ok && pkg.Name == "marks" && len(call.Args) > 0 {
+		switch fun.Sel.Name {
+		case "Contains", "Has":
+			return exprString(call.Args[0]), true
+		}
+	}
+	return "", false
 }
 
 func containsRecover(n ast.Node) bool {
@@ -341,23 +784,6 @@ var markGuards = map[string]bool{
 	"HasSameMarks":   true,
 }
 
-func (f *funcFacts) noteGuard(call *ast.CallExpr) {
-	switch fun := call.Fun.(type) {
-	case *ast.SelectorExpr:
-		if markGuards[fun.Sel.Name] {
-			f.note(f.guarded, exprString(fun.X), call.Pos())
-		}
-		// marks.Contains(v, marks.Sensitive) and marks.Has(v, ...): the
-		// package-qualified form of the same question.
-		if pkg, ok := fun.X.(*ast.Ident); ok && pkg.Name == "marks" && len(call.Args) > 0 {
-			switch fun.Sel.Name {
-			case "Contains", "Has":
-				f.note(f.guarded, exprString(call.Args[0]), call.Pos())
-			}
-		}
-	}
-}
-
 // unmarkers produce a value with its top-level marks removed.
 var unmarkers = map[string]bool{
 	"Unmark":              true,
@@ -366,7 +792,15 @@ var unmarkers = map[string]bool{
 	"UnmarkDeepWithPaths": true,
 }
 
-func (f *funcFacts) noteAssign(as *ast.AssignStmt) {
+func (f *funcFacts) noteAssign(as *ast.AssignStmt, blockEnd token.Pos) {
+	// Every name written here loses whatever was proven about it, whatever
+	// the right-hand side is. Recorded before the new fact so that the
+	// assignment establishing a fact does not immediately void it: the void
+	// is at the same position the fact starts, and holdsAt is strict.
+	for _, lhs := range as.Lhs {
+		f.noteName(lhs, as.End())
+	}
+
 	if len(as.Rhs) != 1 {
 		return
 	}
@@ -378,49 +812,69 @@ func (f *funcFacts) noteAssign(as *ast.AssignStmt) {
 	if len(as.Lhs) > 0 {
 		first = exprString(as.Lhs[0])
 	}
-	second := ""
-	if len(as.Lhs) > 1 {
-		second = exprString(as.Lhs[1])
-	}
-	_ = second
+	live := span{from: as.End(), to: blockEnd}
 
-	switch fun := call.Fun.(type) {
-	case *ast.SelectorExpr:
-		switch {
-		case unmarkers[fun.Sel.Name]:
-			f.note(f.unmarked, first, as.End())
-		case fun.Sel.Name == "Value" && len(call.Args) == 1 && isNilIdent(call.Args[0]):
-			f.note(f.literal, first, as.End())
-		case fun.Sel.Name == "Element" && len(as.Lhs) == 2:
-			// k, v := it.Element(): the key is synthesized by cty and
-			// carries no mark; the value is whatever the collection held.
-			f.note(f.iterKey, first, as.End())
-		case isCtyConstructor(fun):
-			f.note(f.built, first, as.End())
-		case fun.Sel.Name == "Convert":
-			if pkg, ok := fun.X.(*ast.Ident); ok && (pkg.Name == "convert" || pkg.Name == "ctyconvert") && len(call.Args) > 0 && first != "" {
-				if prev, seen := f.converted[first]; !seen || as.End() < prev.pos {
-					f.converted[first] = convertedFrom{src: exprString(call.Args[0]), pos: as.End()}
-				}
-			}
+	fun, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return
+	}
+	switch {
+	case unmarkers[fun.Sel.Name]:
+		f.note(f.unmarked, first, live)
+	case fun.Sel.Name == "Value" && len(call.Args) == 1 && isNilIdent(call.Args[0]):
+		f.note(f.literal, first, live)
+	case fun.Sel.Name == "Element" && len(as.Lhs) == 2:
+		// k, v := it.Element(): the key is synthesized by cty and
+		// carries no mark; the value is whatever the collection held.
+		f.note(f.iterKey, first, live)
+	case isCtyConstructor(fun):
+		f.note(f.built, first, live)
+	case fun.Sel.Name == "Convert":
+		if pkg, ok := fun.X.(*ast.Ident); ok && (pkg.Name == "convert" || pkg.Name == "ctyconvert") && len(call.Args) > 0 && first != "" {
+			f.converted[first] = append(f.converted[first], conversion{src: exprString(call.Args[0]), span: live})
 		}
 	}
 }
 
-// note records the earliest position at which one fact holds.
-func (f *funcFacts) note(m map[string]token.Pos, name string, pos token.Pos) {
-	if name == "" {
+// noteName records that a name was written at pos.
+func (f *funcFacts) noteName(e ast.Expr, pos token.Pos) {
+	if e == nil {
 		return
 	}
-	if prev, seen := m[name]; !seen || pos < prev {
-		m[name] = pos
+	if name := exprString(e); name != "" && name != "_" {
+		f.assigned[name] = append(f.assigned[name], pos)
 	}
 }
 
-// holds reports whether a fact was established strictly before use.
-func holds(m map[string]token.Pos, name string, use token.Pos) bool {
-	pos, ok := m[name]
-	return ok && pos < use
+// note records one span over which a fact holds.
+func (f *funcFacts) note(m map[string][]span, name string, s span) {
+	if name == "" || s.to <= s.from {
+		return
+	}
+	m[name] = append(m[name], s)
+}
+
+// holds reports whether a fact about name covers the read at use, and whether
+// the name still holds the value the fact was about.
+func (f *funcFacts) holds(m map[string][]span, name string, use token.Pos) bool {
+	for _, s := range m[name] {
+		if f.holdsAt(name, s, use) {
+			return true
+		}
+	}
+	return false
+}
+
+func (f *funcFacts) holdsAt(name string, s span, use token.Pos) bool {
+	if use <= s.from || use >= s.to {
+		return false
+	}
+	for _, w := range f.assigned[name] {
+		if w > s.from && w < use {
+			return false
+		}
+	}
+	return true
 }
 
 func isNilIdent(e ast.Expr) bool {
@@ -452,45 +906,58 @@ func (f *funcFacts) proofFor(recv ast.Expr, use token.Pos) Proof {
 			}
 		}
 	}
-	if _, ok := recv.(*ast.SelectorExpr); ok {
+	if sel, ok := recv.(*ast.SelectorExpr); ok {
 		// cty.True.False(), and the like.
-		if pkg, ok := recv.(*ast.SelectorExpr).X.(*ast.Ident); ok && pkg.Name == "cty" {
+		if pkg, ok := sel.X.(*ast.Ident); ok && pkg.Name == "cty" {
 			return ProofConstructed
 		}
 	}
 
 	name := exprString(recv)
 	switch {
-	case holds(f.guarded, name, use):
+	case f.holds(f.guarded, name, use):
 		return ProofGuarded
-	case holds(f.unmarked, name, use):
+	case f.holds(f.unmarked, name, use):
 		return ProofUnmarked
-	case holds(f.literal, name, use):
+	case f.holds(f.literal, name, use):
 		return ProofLiteralEval
-	case holds(f.built, name, use):
+	case f.holds(f.built, name, use):
 		return ProofConstructed
-	case holds(f.iterKey, name, use):
+	case f.holds(f.iterKey, name, use):
 		return ProofIteratorKey
 	}
 	// convert.Convert carries the question through: the result is proven
 	// exactly when its source was. Followed to a fixed depth so a cycle in
 	// hand-written code cannot spin here.
-	from, ok := f.converted[name]
-	for depth := 0; ok && from.pos < use && depth < 8; depth++ {
-		if holds(f.guarded, from.src, from.pos) ||
-			holds(f.unmarked, from.src, from.pos) ||
-			holds(f.literal, from.src, from.pos) ||
-			holds(f.built, from.src, from.pos) ||
-			holds(f.iterKey, from.src, from.pos) {
-			return ProofConverted
-		}
-		from, ok = f.converted[from.src]
+	if f.provenConverted(name, use, 0) {
+		return ProofConverted
 	}
 
 	if f.recovers {
 		return ProofRecovered
 	}
 	return ""
+}
+
+func (f *funcFacts) provenConverted(name string, use token.Pos, depth int) bool {
+	if depth >= 8 {
+		return false
+	}
+	for _, c := range f.converted[name] {
+		if !f.holdsAt(name, c.span, use) {
+			continue
+		}
+		at := c.span.from
+		if f.holds(f.guarded, c.src, at) ||
+			f.holds(f.unmarked, c.src, at) ||
+			f.holds(f.literal, c.src, at) ||
+			f.holds(f.built, c.src, at) ||
+			f.holds(f.iterKey, c.src, at) ||
+			f.provenConverted(c.src, at, depth+1) {
+			return true
+		}
+	}
+	return false
 }
 
 // exprString renders an expression the way a human would write it, for
@@ -512,7 +979,17 @@ func exprString(e ast.Expr) string {
 	case *ast.BasicLit:
 		return x.Value
 	case *ast.CallExpr:
-		return exprString(x.Fun) + "(...)"
+		// The arguments are part of the identity. Rendering these as
+		// "fn(...)" made a guard on get(m, "safe") match a read of
+		// get(m, "danger") - two different values, one recorded proof.
+		args := make([]string, 0, len(x.Args))
+		for _, a := range x.Args {
+			args = append(args, exprString(a))
+		}
+		if x.Ellipsis.IsValid() {
+			args = append(args, "...")
+		}
+		return exprString(x.Fun) + "(" + strings.Join(args, ", ") + ")"
 	}
 	return fmt.Sprintf("<expr@%d>", e.Pos())
 }

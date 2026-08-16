@@ -453,7 +453,13 @@ func (r *reader) expansionKeys(src *Source, eval *configs.StaticEvaluator) ([]ad
 		for it := val.ElementIterator(); it.Next(); {
 			k, v := it.Element()
 			if ty.IsSetType() {
+				// A set's key IS its element, so k stops being the
+				// cty-synthesized key that is never marked and becomes
+				// whatever the configuration put in the set.
 				k = v
+			}
+			if k.IsMarked() {
+				return nil, nil, r.refuse(src, SummaryNotReadable, "%s's for_each reads a sensitive value, so its instance keys cannot be computed before the plan.", src.Resource.String())
 			}
 			if k.Type() != cty.String || k.IsNull() || !k.IsKnown() {
 				return nil, nil, r.refuse(src, SummaryNotReadable, "%s's for_each has a key that is not a string.", src.Resource.String())

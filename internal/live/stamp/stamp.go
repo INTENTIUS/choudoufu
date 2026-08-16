@@ -1100,7 +1100,10 @@ func (s *stamper) staticString(ctx context.Context, rc *configs.Resource, expr h
 		return val.AsString(), true
 	}
 	val, ok := s.staticValue(ctx, rc, expr)
-	if !ok || val.IsNull() || val.Type() != cty.String {
+	// staticValue already refuses a marked value, but this is a different
+	// val from the one the if above shadowed, and the test is what says so
+	// here rather than in another function's last line.
+	if !ok || val.IsNull() || val.IsMarked() || val.Type() != cty.String {
 		return "", false
 	}
 	return val.AsString(), true
