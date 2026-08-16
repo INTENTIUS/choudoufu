@@ -202,10 +202,11 @@ func checkCountIndex(resource *configs.Resource, addr string, path addrs.Module,
 //
 // The exprVariables call on an in-scope attribute still walks that
 // attribute's whole expression tree - conditionals, templates, function
-// calls, nested object keys - so a deep or indirect count.index reference
-// inside an identity-relevant argument is caught the same way it always was;
-// scope only decides which top-level attribute gets that treatment; it never
-// shortens the walk within one.
+// calls, nested object keys - looking for count.index used to index into a
+// collection at any depth (see unsafeCountIndexRanges); scope only decides
+// which top-level attribute gets that treatment, and within one it never
+// shortens the walk, only narrows which syntactic position - an
+// IndexExpr's Key, as opposed to a scalar position - counts as a hit.
 func countIndexCandidates(body *hclsyntax.Body, topLevel bool, scope countIndexScope) []hcl.Traversal {
 	var traversals []hcl.Traversal
 
@@ -255,17 +256,19 @@ var markerKeysExemptFromCountIndex = map[string]bool{
 	"tofu-address": true,
 }
 
-// exprVariables is expr.Variables(), except when expr is an object
-// constructor: then it looks at each entry individually and omits the
-// traversals of any entry whose key is in markerKeysExemptFromCountIndex,
-// rather than blanket-collecting every traversal the expression contains
-// (which is what expr.Variables() does, and is exactly right for every
-// other expression shape — conditionals, templates, tuples, function calls —
-// none of which carry a per-entry key to exempt anything by).
-func exprVariables(expr hcl.Expression) []hcl.Traversal {
+// exprVariables collects only the traversals reached through
+// [unsafeCountIndexRanges] — count.index used to index into a collection,
+// as opposed to being rendered as a pure scalar — except when expr is an
+// object constructor: then it looks at each entry individually, recurses
+// the same way into each entry's value, and omits any entry whose key is in
+// markerKeysExemptFromCountIndex outright (a tag-shaped map's marker key is
+// allowed to carry count.index in any shape, indexing included, because
+// carrying it is that key's specified job — see
+// markerKeysExemptFromCountIndex).
+func exprVariables(expr hclsyntax.Expression) []hcl.Traversal {
 	obj, ok := expr.(*hclsyntax.ObjectConsExpr)
 	if !ok {
-		return expr.Variables()
+		return unsafeCountIndexRanges(expr)
 	}
 
 	var traversals []hcl.Traversal
@@ -276,6 +279,147 @@ func exprVariables(expr hcl.Expression) []hcl.Traversal {
 		traversals = append(traversals, exprVariables(item.ValueExpr)...)
 	}
 	return traversals
+}
+
+// unsafeCountIndexRanges walks expr's syntax tree and returns every
+// variable traversal that appears in one of two shapes, neither of which
+// [checkCountIndex] can trust as a pure, injective function of the index
+// alone:
+//
+//   - Inside the Key position of an *hclsyntax.IndexExpr anywhere within
+//     it — count.index used to index into a collection
+//     (var.list[count.index], aws_x.y[count.index]), directly or through
+//     an arithmetic offset inside the Key (var.list[count.index + 1]) — or
+//     inside a call to one of countIndexAccessorFunctions, the built-in
+//     functions that pick a value out of a collection positionally or by
+//     key the same way `[]` does
+//     (element(aws_x.y.*.arn, count.index),
+//     lookup(var.instance_types, tostring(count.index), "default")). What
+//     sits at the picked position is controlled by the collection, not by
+//     the index itself, so two different indices are never guaranteed to
+//     pick distinct values the way two different indices always produce
+//     distinct results under a pure arithmetic or string transform of the
+//     index.
+//   - Inside the Condition of an *hclsyntax.ConditionalExpr (a `? :`)
+//     anywhere within it (count.index == 0 ? a : b) — not the True or
+//     False result, which stay subject to this same analysis on their own
+//     merits. A conditional's condition selects one of exactly two
+//     outcomes regardless of how large count.index's range is, so it is
+//     provably non-injective as soon as count exceeds two: with count = 3,
+//     `count.index == 0 ? 100 : 200` renders indices 1 and 2 to the
+//     identical value 200, so if this were left unrefused, two distinct
+//     config addresses could resolve to the same live-marker identity,
+//     which is a wrong marker, not merely an unrefined refusal - the one
+//     outcome every part of this rule exists to prevent.
+//
+// Everywhere else — a bare argument, a template ("name-${count.index}"),
+// arithmetic (100 + count.index), a result branch of a conditional whose
+// own condition does not depend on count.index, an argument to any other
+// function — count.index is rendered as a pure, injective function of the
+// index alone, with no external collection consulted and no branch
+// selection keyed on the index, so the mapping from index to value never
+// changes shape independently of the index itself: OpenTofu always
+// retires the highest count index first on scale-down, so a surviving
+// index's rendered value is exactly reproducible on every run regardless
+// of how many higher indices ever existed, and never collides with a
+// sibling index's value. Those positions are left alone here — see
+// doc.go's "Scope of the count.index rule".
+func unsafeCountIndexRanges(expr hclsyntax.Expression) []hcl.Traversal {
+	w := &countIndexKeyWalker{seen: make(map[hcl.Range]bool)}
+	hclsyntax.Walk(expr, w)
+	return w.found
+}
+
+// countIndexAccessorFunctions are the built-in functions whose result picks
+// one value out of a collection at a computed position or key — the same
+// hazard an IndexExpr's Key position carries, spelled as a function call
+// instead of `[]` syntax. Terraform/OpenTofu configurations use both
+// spellings interchangeably; this project's own reviewed corpus has real,
+// currently-refused sites using element() for a splat-expression collection
+// no `[]` syntax can index at all (element(aws_x.y.*.arn, count.index)) and
+// lookup() keyed on count.index's string form
+// (lookup(var.instance_types, tostring(count.index), "default")). slice()
+// and chunklist() carry the identical hazard in their bound arguments, with
+// no occurrence of either found there, so their inclusion here is the
+// conservative default for an unreviewed shape rather than evidence from
+// the corpus.
+//
+// Every argument position of a call to one of these is treated as unsafe,
+// not just the specific argument that is conventionally the index or key —
+// a traversal misclassified as unsafe here is a spurious refusal, and a
+// spurious refusal is the safe direction for this rule to fail in; a wrong
+// marker is not.
+var countIndexAccessorFunctions = map[string]bool{
+	"element":   true,
+	"lookup":    true,
+	"slice":     true,
+	"chunklist": true,
+}
+
+// countIndexKeyWalker implements hclsyntax.Walker. It walks the whole
+// expression tree looking for three node shapes: an *hclsyntax.IndexExpr,
+// where it collects every traversal referenced by the node's own Key
+// subexpression; a *hclsyntax.FunctionCallExpr naming one of
+// countIndexAccessorFunctions, where it collects every traversal
+// referenced by any of the call's arguments; and an
+// *hclsyntax.ConditionalExpr, where it collects every traversal referenced
+// by the node's own Condition subexpression (not its True/False results,
+// which the walk still reaches and examines independently, since Walk
+// descends into every child regardless of what Enter does at a parent).
+// All three collections use Variables(), which already walks its subtree
+// in full, nested occurrences of any of the three shapes included, so a
+// doubly-indexed key (var.list[var.other[count.index]]), a nested accessor
+// call (element(var.list, element(var.offsets, count.index))), or a
+// condition built from a nested conditional are each caught the same way a
+// single one is. It never collects a traversal from an IndexExpr's
+// Collection, a plain (non-accessor) function call's arguments, a
+// conditional's True or False result taken on its own, or anywhere else
+// outside these three shapes — a bare or arithmetic count.index reference
+// is left uncollected, exactly the scalar positions
+// [unsafeCountIndexRanges] documents as safe.
+//
+// seen dedupes by source range: because the normal depth-first walk also
+// visits a nested unsafe node directly (Walk descends into every child
+// regardless of what an outer Enter already collected), the same inner
+// traversal would otherwise be collected twice — once via the outer node's
+// own collection, and again when the walk reaches the inner node and Enter
+// fires for it too. A traversal's SourceRange is unique to that syntax
+// occurrence, so deduping by range is exact, not a heuristic.
+type countIndexKeyWalker struct {
+	found []hcl.Traversal
+	seen  map[hcl.Range]bool
+}
+
+func (w *countIndexKeyWalker) Enter(node hclsyntax.Node) hcl.Diagnostics {
+	switch n := node.(type) {
+	case *hclsyntax.IndexExpr:
+		w.collect(n.Key.Variables())
+	case *hclsyntax.FunctionCallExpr:
+		if !countIndexAccessorFunctions[n.Name] {
+			return nil
+		}
+		for _, arg := range n.Args {
+			w.collect(arg.Variables())
+		}
+	case *hclsyntax.ConditionalExpr:
+		w.collect(n.Condition.Variables())
+	}
+	return nil
+}
+
+func (w *countIndexKeyWalker) Exit(hclsyntax.Node) hcl.Diagnostics {
+	return nil
+}
+
+func (w *countIndexKeyWalker) collect(traversals []hcl.Traversal) {
+	for _, t := range traversals {
+		r := t.SourceRange()
+		if w.seen[r] {
+			continue
+		}
+		w.seen[r] = true
+		w.found = append(w.found, t)
+	}
 }
 
 // objectKeyLiteral extracts an object-constructor key's literal string, for
