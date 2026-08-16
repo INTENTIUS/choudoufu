@@ -31,7 +31,19 @@
     "checks the commit out directly. Licenses checked 2026-08-15: MIT",
     "(simpleinfra, govuk-aws, govuk-infrastructure, mastino,",
     "cloud-platform-infrastructure), CC0-1.0 (both cisagov repos),",
-    "Apache-2.0 (k8s.io)."
+    "Apache-2.0 (k8s.io).",
+    "",
+    "var_file (#183) is this project's own measurement input, never the",
+    "estate's: it supplies a value for a required variable the estate left",
+    "unset, so a refusal that is only an artifact of the missing value (see",
+    "unset_var_only in live/corpus-refusals.json and #178's rule-2 scoping)",
+    "can be told apart from a real one. The files it points at live under",
+    "live/corpus-vars/ and each carries its own provenance comment: which",
+    "unset variables it supplies and why that value, never a guess at the",
+    "estate's real environment. It is scoped to one directory, not to a",
+    "whole wildcarded source - see [ManifestSource.VarFile]'s doc comment",
+    "for how a narrow source aims one at a single estate under a glob that",
+    "also matches many others."
   ],
   "sources": [
     {
@@ -166,6 +178,21 @@
       }
     },
     {
+      "glob": ".corpus/govuk-aws/terraform/projects/app-related-links",
+      "origin": "published deployment",
+      "var_file": "live/corpus-vars/govuk-aws-app-related-links.tfvars"
+    },
+    {
+      "glob": ".corpus/govuk-aws/terraform/projects/infra-athena-query-results",
+      "origin": "published deployment",
+      "var_file": "live/corpus-vars/govuk-aws-infra-athena-query-results.tfvars"
+    },
+    {
+      "glob": ".corpus/govuk-aws/terraform/projects/infra-datagovuk-organogram-bucket",
+      "origin": "published deployment",
+      "var_file": "live/corpus-vars/govuk-aws-infra-datagovuk-organogram-bucket.tfvars"
+    },
+    {
       "glob": ".corpus/govuk-aws/terraform/projects/*",
       "origin": "published deployment",
       "fetch": {
@@ -186,6 +213,11 @@
     {
       "glob": ".corpus/mastino/global/*",
       "origin": "published deployment"
+    },
+    {
+      "glob": ".corpus/govuk-infrastructure/terraform/deployments/mobile-backend",
+      "origin": "published deployment",
+      "var_file": "live/corpus-vars/govuk-infrastructure-mobile-backend.tfvars"
     },
     {
       "glob": ".corpus/govuk-infrastructure/terraform/deployments/*",

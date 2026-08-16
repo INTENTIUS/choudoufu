@@ -101,7 +101,18 @@ func TestShippedManifestIsValid(t *testing.T) {
 	}
 
 	var thirdParty int
+	root := filepath.Join("..", "..", "..")
 	for _, source := range manifest.Sources {
+		if source.VarFile != "" {
+			// #183: a var_file that does not resolve to a real file would
+			// silently measure the estate bare while the artifact claimed
+			// otherwise - readVarsFile fails open (it skips what it cannot
+			// read), so nothing else in the pipeline would catch a typo
+			// here.
+			if _, err := os.Stat(filepath.Join(root, source.VarFile)); err != nil {
+				t.Errorf("%s: var_file %q does not exist: %s", source.Glob, source.VarFile, err)
+			}
+		}
 		if source.Fetch == nil {
 			continue
 		}

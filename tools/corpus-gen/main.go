@@ -101,13 +101,18 @@ func run() error {
 
 	for _, entry := range entries {
 		logf(logOut, "corpus-gen: %s\n", entry.Name)
-		report := check.Dir(ctx, entry.Dir, check.Context{Schemas: schemas})
+
+		var varFiles []string
+		if entry.VarFile != "" {
+			varFiles = append(varFiles, underRoot(*root, entry.VarFile))
+		}
+		report := check.Dir(ctx, entry.Dir, check.Context{Schemas: schemas}, varFiles...)
 		// Attribution before folding, so a rate-capable entry's profile can
 		// flag the refusals that are artifacts of running without the
 		// operator's tfvars (#161, #175). It only marks; it never changes a
 		// verdict or a count.
 		report.AttributeUnsetVariables(report.Load.UnsetVariables(), report.Load.Sources())
-		corpus.Add(entry.Name, entry.Origin, report)
+		corpus.Add(entry.Name, entry.Origin, report, entry.VarFile)
 		origins[entry.Origin]++
 	}
 	corpus.Finish()

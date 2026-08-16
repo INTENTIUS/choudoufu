@@ -48,10 +48,17 @@ import (
 // configurations would report a subset that had already passed the hardest
 // step. The cost of the choice is that a skipped module's contents are
 // unmeasured, which every report states.
-func Load(ctx context.Context, dir string) LoadResult {
+// varFiles, when given, name additional tfvars files applied on top of what
+// the directory holds, highest precedence, in the order given - the same
+// override order stock OpenTofu applies to repeated -var-file arguments.
+// tools/corpus-gen is the only caller that ever passes one: it is the
+// corpus's own opt-in measurement input (#183), read from
+// live/corpus-manifest.json, not the directory or anyone's real -var-file.
+// Every other caller passes none, and Load then behaves exactly as before.
+func Load(ctx context.Context, dir string, varFiles ...string) LoadResult {
 	var result LoadResult
 
-	vars := newVariableValues(dir)
+	vars := newVariableValues(dir, varFiles...)
 	result.vars = vars
 	parser := configs.NewParser(nil)
 
@@ -223,9 +230,9 @@ type variableValues struct {
 	missing   map[string]bool
 }
 
-func newVariableValues(dir string) *variableValues {
+func newVariableValues(dir string, varFiles ...string) *variableValues {
 	return &variableValues{
-		fromFiles: readVarsFiles(dir),
+		fromFiles: readVarsFiles(dir, varFiles...),
 		missing:   make(map[string]bool),
 	}
 }
@@ -275,14 +282,16 @@ func (v *variableValues) unset() []string {
 
 // readVarsFiles reads terraform.tfvars, terraform.tfvars.json and every
 // *.auto.tfvars(.json) in the directory, in the precedence tofu itself
-// applies.
+// applies, then layers extra on top in the order given.
 //
-// Command-line -var and -var-file are not read here: this loader is shared
-// by a corpus runner that has no command line to read them from. The
-// command front end that does accept them is free to pass them, and until
-// it does, a value given only on the command line reads as unset - which
-// [variableValues] records rather than hides.
-func readVarsFiles(dir string) map[string]cty.Value {
+// Command-line -var and -var-file are not read from the directory: this
+// loader is shared by a corpus runner that has no command line to read them
+// from. extra is that seam's one caller-supplied input - see [Load]'s doc
+// comment - applied last and therefore highest precedence, exactly where
+// -var-file sits relative to an ordinary tfvars file. A value given nowhere
+// at all still reads as unset, which [variableValues] records rather than
+// hides.
+func readVarsFiles(dir string, extra ...string) map[string]cty.Value {
 	out := make(map[string]cty.Value)
 
 	entries, err := os.ReadDir(dir)
@@ -306,6 +315,14 @@ func readVarsFiles(dir string) map[string]cty.Value {
 	for _, name := range append([]string{"terraform.tfvars", "terraform.tfvars.json"}, autoFiles...) {
 		path := filepath.Join(dir, name)
 		if _, err := os.Stat(path); err != nil {
+			continue
+		}
+		for key, val := range readVarsFile(path) {
+			out[key] = val
+		}
+	}
+	for _, path := range extra {
+		if path == "" {
 			continue
 		}
 		for key, val := range readVarsFile(path) {

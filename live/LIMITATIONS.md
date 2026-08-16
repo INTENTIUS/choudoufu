@@ -1002,7 +1002,7 @@ refused, and each says so in its own entry.
 | 113 | 1404 | lint | unadmitted-type | `internal/live/lint` | "unadmitted-type" |
 | 86 | 3546 | identity | Unable to compute static value | `internal/configs` | "Unable to compute static value" |
 | 81 | 1580 | dataread | Resolves at plan time via a data-source read | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
-| 74 | 593 | identity | Unresolvable identity | `internal/live/identity` | "Unresolvable identity" |
+| 70 | 579 | identity | Unresolvable identity | `internal/live/identity` | "Unresolvable identity" |
 | 68 | 625 | identity | Dynamic value in static context | `internal/configs` | "Dynamic value in static context" |
 | 66 | 482 | lint | logical-resource | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
 | 52 | 4587 | lint | count-index | `internal/live/lint` | "count-index-in-tag" |
@@ -1010,7 +1010,7 @@ refused, and each says so in its own entry.
 | 38 | 120 | lint | remote-state | `internal/live/lint` | "remote-state" |
 | 33 | 97 | identity | Not an identity attribute | `internal/live/identity` | "Not an identity attribute" |
 | 31 | 90 | lint | provisioner | `internal/live/lint` | "local-exec" / "remote-exec" |
-| 30 | 131 | identity | Non-static identity argument | `internal/live/identity` | "Non-static identity argument" |
+| 26 | 126 | identity | Non-static identity argument | `internal/live/identity` | "Non-static identity argument" |
 | 24 | 106 | identity | Non-static for_each expression | `internal/live/identity` | "Non-static for_each expression" |
 | 24 | 77 | identity | Null identity argument | `internal/live/identity` | "Null identity argument" |
 | 22 | 39 | identity | Identity argument not set | `internal/live/identity` | "Identity argument not set" |
@@ -1217,7 +1217,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 74 configurations in the measured corpus, at 593 sites.
+**How often.** Blocked 70 configurations in the measured corpus, at 579 sites.
 
 #### Dynamic value in static context
 
@@ -1249,7 +1249,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 30 configurations in the measured corpus, at 131 sites.
+**How often.** Blocked 26 configurations in the measured corpus, at 126 sites.
 
 #### Non-static for_each expression
 
