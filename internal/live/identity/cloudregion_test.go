@@ -178,3 +178,55 @@ func TestCloudRegionUnknownStillRefuses(t *testing.T) {
 		t.Errorf("aws_cloudwatch_log_group.known = %s, want CONCRETE", known.Class)
 	}
 }
+
+// TestCloudRegionComponentFromAChildModuleProviderBlock is the shape #250's
+// region half got wrong, and the reason it matters more now than it did
+// before: [resolver.providerRegionAttr] searched r.rootCfg.Module
+// unconditionally, on the written claim that "[providerscope.Resolve]
+// always anchors abs at the root module ... every return path sets Module:
+// addrs.RootModule". One return path does not - a module declaring its own
+// content-bearing `provider` block for the pair a resource in it names is
+// served by that block directly, at Module: cur.Path.
+//
+// While the effective region fed only collision detection that was a wrong
+// scope key. Once a {Cloud: "region"} component reads it, it is a wrong
+// RENDERED IDENTITY: the fixture's child module states eu-west-1 and the
+// root states us-east-1, and a marker built on the root's region names a
+// queue in a region the resource was never created in.
+//
+// Both directions are asserted, because the bug had two faces: with a root
+// block present the identity was silently wrong, and with none it refused
+// as region-unknown over a configuration that states the region plainly.
+func TestCloudRegionComponentFromAChildModuleProviderBlock(t *testing.T) {
+	cfg := loadConfigTree(t, "testdata/module-provider-region", nil)
+	result, diags := ResolveIn(context.Background(), cfg, CloudContext{AccountID: "000000000000"})
+	assertNoErrors(t, diags)
+
+	want := map[string]string{
+		"aws_arczonalshift_autoshift_observer_notification_status.root":                 "us-east-1",
+		"module.child.aws_arczonalshift_autoshift_observer_notification_status.inchild": "eu-west-1",
+		"aws_sqs_queue.root":                 "https://sqs.us-east-1.amazonaws.com/000000000000/jobs",
+		"module.child.aws_sqs_queue.inchild": "https://sqs.eu-west-1.amazonaws.com/000000000000/jobs",
+	}
+	for addr, wantID := range want {
+		res := resolutionAt(t, result, addr)
+		if res.Class != ClassConcrete {
+			t.Errorf("%s = %s, want CONCRETE (reason: %s)", addr, res.Class, res.Reason)
+			continue
+		}
+		if res.ImportID != wantID {
+			t.Errorf("%s import ID = %q, want %q - the region comes from the provider block the resource actually resolves to",
+				addr, res.ImportID, wantID)
+		}
+	}
+
+	// The two queues share a name and differ only by their provider block's
+	// region, so a lookup that read one region for both would render one URL
+	// twice and be refused as a duplicate identity. That it is not is the
+	// same fact as the assertion above, seen from the collision side.
+	for _, d := range diags {
+		if d.Description().Summary == "Two resources with the same identity" {
+			t.Errorf("the root and child queues were refused as duplicates, so both were given one region: %s", d.Description().Detail)
+		}
+	}
+}
