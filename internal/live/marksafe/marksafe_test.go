@@ -39,6 +39,7 @@ var guardedPackages = []string{
 	"lint",
 	"markerkey",
 	"mdspan",
+	"moved",
 	"passthrough",
 	"pins",
 	"pluginschema",
