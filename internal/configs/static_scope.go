@@ -27,7 +27,7 @@ func newStaticScope(eval *StaticEvaluator, stack0 StaticIdentifier, stack ...Sta
 	return &lang.Scope{
 		Data:        staticScopeData{eval, append([]StaticIdentifier{stack0}, stack...)},
 		ParseRef:    addrs.ParseRef,
-		BaseDir:     ".", // Always current working directory for now. (same as Evaluator.Scope())
+		BaseDir:     eval.baseDir(),
 		PureOnly:    eval.pureOnly,
 		ConsoleMode: false,
 	}
@@ -452,7 +452,7 @@ func (s staticScopeData) GetPathAttr(_ context.Context, addr addrs.PathAttr, rng
 		return cty.StringVal(filepath.ToSlash(wd)), diags
 
 	case "module":
-		return cty.StringVal(s.eval.cfg.SourceDir), diags
+		return cty.StringVal(s.eval.modulePath()), diags
 
 	case "root":
 		return cty.StringVal(s.eval.call.rootPath), diags

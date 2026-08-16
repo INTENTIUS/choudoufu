@@ -8,6 +8,7 @@ package configs
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -199,6 +200,127 @@ func NewStaticEvaluator(mod *Module, call StaticModuleCall) *StaticEvaluator {
 		call: call,
 		cfg:  mod,
 	}
+}
+
+// baseDir is the directory file(), fileexists(), fileset(), the filehash
+// functions, templatefile() and templatestring() resolve a bare relative
+// path against (see [lang.Scope.BaseDir] and makeBaseFunctionTable in
+// internal/lang/functions.go, which both this evaluator's scopes and
+// internal/tofu's dynamic-phase evaluator (internal/tofu/evaluate.go's
+// Evaluator.Scope) feed into the same function table).
+//
+// Upstream hardcodes this to the literal string "." for every module at
+// every phase - see internal/tofu/evaluate.go's Evaluator.Scope, which
+// carries the identical "Always current working directory for now" comment
+// this replaces. "." resolves through the standard library against the
+// process's actual working directory, which upstream never varies per
+// module: a child module's bare file("x") is resolved against the same
+// directory as the root's, not the child's own directory. Verified against
+// real `terraform plan` 1.15.8: a child module's file("data.txt") fails
+// unless the file sits next to the ROOT module's config, and file("child/
+// data.txt") succeeds from the root — i.e. relative paths in file() and
+// friends resolve against wherever the process's cwd was when the user
+// invoked terraform/tofu, which by convention is the root module's own
+// directory (the directory named by path.root), not path.module.
+//
+// This fork evaluates every module in a configuration tree - root and every
+// descendant - from one process invocation whose actual os.Getwd() is
+// wherever the calling tool started (a corpus sweep's repo root, a test
+// binary's package directory), never the config's own directory. "." is
+// therefore always wrong here in exactly the way it happens to be right
+// under upstream's single-directory-per-invocation assumption. The fix is
+// to make explicit what upstream leaves implicit: resolve against the root
+// module's own directory, call.rootPath - the same value GetPathAttr
+// already returns for path.root (see staticScopeData.GetPathAttr's "root"
+// case below), populated for the root call by every real construction site
+// (internal/command/meta_config.go's rootModuleCall, internal/live/check/
+// load.go's Load) and propagated to every descendant by
+// internal/configs/config_build.go's buildChildModules, which always passes
+// parent.Root.Module.SourceDir - never the child's own directory - as the
+// child's rootPath.
+//
+// call.rootPath is empty only for a StaticModuleCall built directly as a
+// zero value rather than through NewStaticModuleCall (some configload
+// tests do this to exercise LoadConfigDir alone, with no static evaluation
+// of file-reading functions in play). cfg.SourceDir - the module's own
+// directory - is the next best fallback for that case, since it is at
+// least the directory that was actually loaded; "." is the last resort,
+// preserving the old behaviour exactly when neither is available.
+func (s *StaticEvaluator) baseDir() string {
+	if s == nil {
+		return "."
+	}
+	if s.call.rootPath != "" {
+		return s.call.rootPath
+	}
+	if s.cfg != nil && s.cfg.SourceDir != "" {
+		return s.cfg.SourceDir
+	}
+	return "."
+}
+
+// modulePath is path.module's value: the calling module's own directory,
+// expressed relative to call.rootPath - the same anchor [baseDir] resolves
+// bare relative paths against - rather than cfg.SourceDir's literal value.
+//
+// cfg.SourceDir is a real, disk-resolvable path in this fork for every
+// module, root or descendant: internal/configs/config_build.go's
+// buildChildModules and internal/live/check/load.go's resolveModuleDir both
+// compute a descendant's SourceDir as filepath.Join(parent's own SourceDir,
+// the local module-call source), chained down from the root's SourceDir -
+// which, unlike stock, is never the literal ".". Stock computes a child's
+// path.module with the identical Join-chain, but because its root SourceDir
+// IS always "." (a real terraform/tofu invocation requires the process's
+// actual cwd to already be the root module's directory), the chain stays a
+// short, portable, root-relative string like "." or "modules/foo" - it
+// never accumulates the root's own real location as a literal prefix the
+// way this fork's does.
+//
+// That difference is invisible for a bare file("x") - baseDir already
+// supplies the real root location once - but it corrupts every
+// "${path.module}/x"-style call, which is how most real configurations use
+// file()/templatefile() specifically because a bare relative path is
+// unreliable (see baseDir's own doc). With cfg.SourceDir's literal value at
+// the root, file("${path.module}/x")'s argument is "rootPath/x"; joining
+// that against baseDir=rootPath produces "rootPath/rootPath/x" - a path
+// that happens not to exist is a loud refusal, exactly like today's bug,
+// but a directory that happens to nest itself (a module named the same as
+// its own parent, which real repositories do have) makes it silently read
+// a different real file. Verified by planting a file at the doubled
+// location and watching a "${path.module}/x"-style file() read it instead
+// of the correct one, before this fix; expressing path.module relative to
+// rootPath - "." at the root, "modules/foo" for a child two levels under a
+// root two levels of its own away from cfg.SourceDir - collapses the join
+// back to the single, correct path, matching stock's own chain exactly
+// once rootPath stands in for stock's implicit ".".
+//
+// path.root deliberately does NOT get this same relative treatment (see
+// GetPathAttr's "root" case): configurations across this fork's own corpus
+// use basename(abspath(path.root)) to recover the deployment directory's
+// own name for a tag value, which needs the real directory, not ".". No
+// corpus configuration combines path.root with a file()-family call, so
+// that combination stays exposed to the same doubling this fixes for
+// path.module - a documented, currently theoretical gap, not a silent one:
+// see internal/configs/static_evaluator_test.go.
+//
+// Falls back to cfg.SourceDir unchanged - this method's behaviour before
+// this fix - when there is no rootPath to make the value relative to, or
+// when SourceDir cannot be expressed relative to it (mismatched
+// absolute/relative-ness between the two, which every real construction
+// site avoids by chaining both from the same base, but a hand-built
+// StaticModuleCall in a test might not).
+func (s *StaticEvaluator) modulePath() string {
+	if s == nil || s.cfg == nil {
+		return ""
+	}
+	if s.call.rootPath == "" {
+		return s.cfg.SourceDir
+	}
+	rel, err := filepath.Rel(s.call.rootPath, s.cfg.SourceDir)
+	if err != nil {
+		return s.cfg.SourceDir
+	}
+	return rel
 }
 
 func (s *StaticEvaluator) scope(ident StaticIdentifier) *lang.Scope {
