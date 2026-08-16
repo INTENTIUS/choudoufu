@@ -720,12 +720,21 @@ docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >
 # curl. The response here is a small fixed JSON object well under one pipe
 # buffer in practice, but capturing it first costs nothing and removes the
 # live pipe entirely.
+#
+# "|| true" on the capture, not bare "HEALTH=$(curl ...)": under set -e, a
+# plain assignment command substitution's own exit status DOES trigger
+# errexit when it fails -- unlike the old "curl | grep -q ... && break",
+# which was exempt from -e as a non-final member of a "&&" list. Floci is
+# not up yet for most of this loop's early iterations (connection refused,
+# or a reset mid-response -- curl exit 56), and without "|| true" the very
+# first failed attempt killed the whole harness before the retry loop ever
+# got to retry (caught live: reproducible exit 56 at this exact step).
 for _ in $(seq 1 45); do
-  HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)"
+  HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
   grep -q '"ec2"' <<< "$HEALTH" && break
   sleep 2
 done
-HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)"
+HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
 grep -q '"ec2"' <<< "$HEALTH" \
   || fail "floci" "floci did not come up healthy (ec2) at $ENDPOINT"
 
