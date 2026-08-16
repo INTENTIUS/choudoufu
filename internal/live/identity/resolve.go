@@ -20,6 +20,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/lang"
+	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -292,7 +293,13 @@ func (r *resolver) checkCollisions(result *Result) {
 		default:
 			continue
 		}
-		key := res.Type() + "\x00" + ident
+		// cloudScope keeps two same-named resources that target different
+		// accounts or regions from colliding: see [Resolution.cloudScope]
+		// and [resolver.resourceCloudScope]. A blank scope (the ordinary
+		// single-region estate) is a no-op partition - every resource in
+		// such a configuration shares the same blank value, so the key
+		// collapses back to Type+ident exactly as before.
+		key := res.Type() + "\x00" + ident + "\x00" + res.cloudScope
 
 		first, exists := seen[key]
 		if !exists {
@@ -358,13 +365,17 @@ type resolver struct {
 	// [resolver.enterModuleFor].
 	rootCfg *configs.Config
 
-	// mod, modInst and eval are the module currently being worked on: the
-	// module whose resources [resolver.expansionFor] and
+	// mod, curCfg, modInst and eval are the module currently being worked
+	// on: the module whose resources [resolver.expansionFor] and
 	// [resolver.resolveInstance] are reading. They are mutated by
 	// [resolver.enterModule] as the walk moves between modules, so nothing
 	// in this package may cache them across a call that might change
-	// modules.
+	// modules. curCfg is mod's own *configs.Config node, kept alongside it
+	// only because [providerscope.Resolve] needs the Config (for its
+	// Parent/Path module-tree walk) rather than the bare Module - see
+	// [resolver.resourceCloudScope].
 	mod     *configs.Module
+	curCfg  *configs.Config
 	modInst addrs.ModuleInstance
 	eval    *configs.StaticEvaluator
 
@@ -428,6 +439,7 @@ func (r *resolver) enterModule(cfg *configs.Config) {
 // [ModuleInstance] would compute, through [resolver.enterModule].
 func (r *resolver) enterModuleAt(cfg *configs.Config, modInst addrs.ModuleInstance) {
 	r.mod = cfg.Module
+	r.curCfg = cfg
 	r.modInst = modInst
 	// Pure on purpose: an identity is a claim about which cloud object a
 	// block owns, and a function that answers differently every time it is
@@ -700,7 +712,9 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		addTo(comp.identityAttrFor(attr.Name), got)
 	}
 
-	return classify(addr, coalesce(parts), attrFormulas(byAttr, attrOrder), entry.IdentityObjectOnly), true
+	res := classify(addr, coalesce(parts), attrFormulas(byAttr, attrOrder), entry.IdentityObjectOnly)
+	res.cloudScope = r.resourceCloudScope(rc, scope)
+	return res, true
 }
 
 // attrFormulas turns the per-attribute part lists into the ordered form a
@@ -1383,6 +1397,91 @@ func (r *resolver) identifier(addr addrs.AbsResourceInstance, attrName string, r
 		Subject:   fmt.Sprintf("%s.%s", addr.String(), attrName),
 		DeclRange: rng,
 	}
+}
+
+// resourceCloudScope is [Resolution.cloudScope]'s whole implementation: a
+// string that is equal for two resources only when they plausibly target
+// the same account and region, so [resolver.checkCollisions] can tell a
+// genuine duplicate-identity collision from two same-named resources that
+// simply live in different places.
+//
+// It has two independent inputs, both general across every managed
+// resource type and every provider, not just AWS:
+//
+//   - The resource's resolved absolute provider configuration
+//     ([providerscope.ResolveResource]), which already walks every
+//     enclosing module call's own `providers = { ... }` mapping. Two
+//     module calls of the same child module, each remapping `aws` to a
+//     different aliased provider block, are exactly this: same resource
+//     address shape inside the module, different account or region
+//     outside it (found in the corpus: simpleinfra's dev-desktops calls
+//     ./aws-region once per region this way).
+//   - A literal `region` argument set directly on the resource body, read
+//     the same PartialContent-then-static-evaluate way every identity
+//     argument already is. This one is AWS-specific in practice - it is
+//     the per-resource region override the AWS provider has exposed on
+//     almost every resource type since it adopted the endpoints
+//     framework - but nothing here names a resource type to reach it: any
+//     resource in any provider that happens to declare a statically
+//     known `region` argument gets the same treatment. (Found in the
+//     corpus: govuk-infrastructure's chat estate declares the identical
+//     aws_cloudwatch_log_group name "/aws/bedrock" twice, once with
+//     region = "eu-west-1" and once with region = "eu-west-2" - the same
+//     provider configuration both times, since neither block uses a
+//     provider alias, so only the region argument tells them apart.)
+//
+// A resource that sets neither - the overwhelming majority, and every
+// resource in a single-region, single-account estate - gets back the bare
+// provider-configuration string, which is identical for every resource in
+// such an estate: the collision key in that case reduces to exactly what it
+// was before this existed, Type+identity, with no drop in sensitivity.
+//
+// This is deliberately best-effort: a `region` argument that fails to
+// evaluate statically (references something a plain identity argument
+// could not either) is silently treated as absent rather than refused,
+// because collision detection choosing not to disambiguate a resource pair
+// is strictly safer than a spurious refusal over an argument nothing else
+// in this run needed to read. See [resolver.staticRegionAttr].
+func (r *resolver) resourceCloudScope(rc *configs.Resource, scope instScope) string {
+	abs := providerscope.ResolveResource(r.curCfg, rc)
+	key := abs.String()
+	if region, ok := r.staticRegionAttr(rc, scope); ok {
+		key += "\x00region=" + region
+	}
+	return key
+}
+
+// staticRegionAttr reads a resource's own `region` argument, when the body
+// sets one and it evaluates to a known, non-null string from configuration
+// alone. It never records a diagnostic: unlike every other argument this
+// package reads, a `region` override is consulted only to sharpen
+// [resolver.checkCollisions], not to build the identity itself, so a
+// failure here must fall back to "no override", not refuse the run.
+func (r *resolver) staticRegionAttr(rc *configs.Resource, scope instScope) (string, bool) {
+	content, _, diags := rc.Config.PartialContent(&hcl.BodySchema{
+		Attributes: []hcl.AttributeSchema{{Name: "region"}},
+	})
+	if diags.HasErrors() {
+		return "", false
+	}
+	attr, ok := content.Attributes["region"]
+	if !ok || r.isSymbolic(attr.Expr, scope) {
+		return "", false
+	}
+	ident := configs.StaticIdentifier{
+		Module:    r.modInst.Module(),
+		Subject:   fmt.Sprintf("%s.region", rc.Addr().String()),
+		DeclRange: attr.Range,
+	}
+	val, evalDiags := r.evalPure(attr.Expr, scope, ident)
+	if evalDiags.HasErrors() || val.IsMarked() || val.IsNull() || !val.IsWhollyKnown() {
+		return "", false
+	}
+	str, err := convert.Convert(val, cty.String)
+	if err != nil {
+		return "", false
+	}
+	return str.AsString(), true
 }
 
 func (r *resolver) errorf(rng hcl.Range, summary, format string, args ...any) {

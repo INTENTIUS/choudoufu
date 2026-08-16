@@ -132,6 +132,20 @@ type Resolution struct {
 	// resolutions and the configuration, which is a bug worth failing on,
 	// into a silent destroy.
 	Undeclared bool
+
+	// cloudScope disambiguates two instances that would otherwise resolve to
+	// the same import identity string but do not name the same live object,
+	// because they are not pointed at the same account and region: a module
+	// called twice with a different `providers = { aws = aws.other }`
+	// mapping, or a resource that sets AWS provider's own per-resource
+	// `region` argument. Two resources named "example" in eu-west-1 and
+	// us-east-1 are not a collision - see [resolver.resourceCloudScope] and
+	// [resolver.checkCollisions].
+	//
+	// It carries no meaning outside this package (never rendered, never
+	// compared by a caller), and is set only for [ClassConcrete] and
+	// [ClassParentDerived], the two classes checkCollisions inspects.
+	cloudScope string
 }
 
 // Type returns the resource type name, e.g. "aws_route".
