@@ -70,7 +70,7 @@ func TestBuildSurveyAllRosterSupersedesCurated(t *testing.T) {
 	}
 	curatedRoster := []string{"aws_curated_one", "aws_curated_two"}
 
-	curated := buildSurvey(schemas, curatedRoster, testServiceOf)
+	curated := buildSurvey(schemas, curatedRoster, testServiceOf, noEnumeration)
 	if curated.Counts.Types != 2 {
 		t.Fatalf("curated survey has %d types, want 2", curated.Counts.Types)
 	}
@@ -80,7 +80,7 @@ func TestBuildSurveyAllRosterSupersedesCurated(t *testing.T) {
 		}
 	}
 
-	full := buildSurvey(schemas, allResourceTypeNames(schemas), testServiceOf)
+	full := buildSurvey(schemas, allResourceTypeNames(schemas), testServiceOf, noEnumeration)
 	if full.Counts.Types != 3 {
 		t.Fatalf("full survey has %d types, want 3", full.Counts.Types)
 	}

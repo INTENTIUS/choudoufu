@@ -39,6 +39,18 @@ var testServiceOf = func() identity.ServiceOf {
 	return r.ServiceOf
 }()
 
+// testEnumeration is testServiceOf's counterpart for the Cloud Control
+// listing question, and it is the real roster for the same reason: a stub
+// that answered "nothing is listable" would let the staleness tests below
+// pass against an artifact main.go's own run would never produce.
+var testEnumeration = func() cfnEnumeration {
+	r, err := registry.Embedded()
+	if err != nil {
+		panic("registry.Embedded: " + err.Error())
+	}
+	return rosterEnumeration(r)
+}()
+
 func TestEligibleParentsAreOnlyPositivelyTaggableTypes(t *testing.T) {
 	root, err := repoRoot()
 	if err != nil {

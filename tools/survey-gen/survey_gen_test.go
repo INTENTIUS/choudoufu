@@ -46,7 +46,7 @@ func TestSurveyJSONMatchesProviderSchemas(t *testing.T) {
 		t.Fatalf("acquiring the provider schemas: %v", err)
 	}
 
-	got, err := buildSurvey(schemas, rosterTypes(roster), testServiceOf).marshal()
+	got, err := buildSurvey(schemas, rosterTypes(roster), testServiceOf, testEnumeration).marshal()
 	if err != nil {
 		t.Fatalf("marshaling the regenerated survey: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestSurveyFullJSONMatchesProviderSchemas(t *testing.T) {
 		t.Fatalf("acquiring the provider schemas: %v", err)
 	}
 
-	full := buildSurvey(schemas, allResourceTypeNames(schemas), testServiceOf)
+	full := buildSurvey(schemas, allResourceTypeNames(schemas), testServiceOf, testEnumeration)
 	full.GeneratedBy = "tools/survey-gen (go run ./tools/survey-gen -all)"
 	got, err := full.marshal()
 	if err != nil {
@@ -323,11 +323,21 @@ var pathExceptions = map[string]pathException{
 	// All five wait on the same upstream fact as the name-prefix cohort: a
 	// first identity schema for the type. Tracked the same way,
 	// choudoufu#22.
-	"aws_ecs_cluster":                      {hand: pathClientNamed, generated: pathMarker, reason: "no identity schema; hand row read the documented import grammar (name), classifier falls back to taggability", cohort: cohortDocsTier, tracking: "choudoufu#22"},
-	"aws_key_pair":                         {hand: pathClientNamed, generated: pathMarker, reason: "no identity schema; hand row read the documented import grammar (key_name), classifier falls back to taggability", cohort: cohortDocsTier, tracking: "choudoufu#22"},
-	"aws_db_parameter_group":               {hand: pathClientNamed, generated: pathMarker, reason: "no identity schema; hand row read the documented import grammar (name), classifier falls back to taggability", cohort: cohortDocsTier, tracking: "choudoufu#22"},
-	"aws_iam_group":                        {hand: pathClientNamed, generated: pathOps, reason: "no identity schema, untaggable and no native list resource; hand row read the documented import grammar (name)", cohort: cohortDocsTier, tracking: "choudoufu#22"},
-	"aws_cloudfront_origin_access_control": {hand: pathListContent, generated: pathOps, reason: "no identity schema and no native list resource in this release; the hand row kept the original pass's list+content claim", cohort: cohortDocsTier, tracking: "choudoufu#22"},
+	"aws_ecs_cluster":        {hand: pathClientNamed, generated: pathMarker, reason: "no identity schema; hand row read the documented import grammar (name), classifier falls back to taggability", cohort: cohortDocsTier, tracking: "choudoufu#22"},
+	"aws_key_pair":           {hand: pathClientNamed, generated: pathMarker, reason: "no identity schema; hand row read the documented import grammar (key_name), classifier falls back to taggability", cohort: cohortDocsTier, tracking: "choudoufu#22"},
+	"aws_db_parameter_group": {hand: pathClientNamed, generated: pathMarker, reason: "no identity schema; hand row read the documented import grammar (name), classifier falls back to taggability", cohort: cohortDocsTier, tracking: "choudoufu#22"},
+	"aws_iam_group":          {hand: pathClientNamed, generated: pathListContent, reason: "no identity schema; hand row read the documented import grammar (name), classifier falls back to enumeration - Cloud Control lists AWS::IAM::Group", cohort: cohortDocsTier, tracking: "choudoufu#22"},
+
+	// aws_cloudfront_origin_access_control used to sit here as
+	// {hand: list+content, generated: moves to Ops}, tracked to
+	// choudoufu#22 as if a missing identity schema were the cause. It was
+	// not: the hand row was right and the classifier was wrong, because
+	// the classifier's enumeration question read only the provider's own
+	// native list resource while internal/live/discovery has consulted the
+	// mapped CFN type's Cloud Control list handler since #47. AWS::CloudFront::
+	// OriginAccessControl lists with no scoping input, so the two agree now
+	// and the entry is gone. No identity schema appeared to make that
+	// happen, which is why the tracking issue would never have retired it.
 
 	// --- wrinkles SURVEY.md or c02d492 already records ---
 	//

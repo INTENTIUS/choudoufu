@@ -87,8 +87,8 @@ path).
 | Client-named identity | 36 |
 | Marker (tags) | 23 |
 | Parent-derived | 5 |
-| List + content match | 1 |
-| Moves to Ops (excluded by the rule) | 3 |
+| List + content match | 2 |
+| Moves to Ops (excluded by the rule) | 2 |
 | Residue needing a store | 0 |
 <!-- survey-gen:end summary -->
 
@@ -157,7 +157,8 @@ token per row.
 | `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | <!-- survey-gen:begin wired-count -->954<!-- survey-gen:end wired-count --> |
 | `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 1 |
 | `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components | 0 |
-| `ops` | excluded by the rule, forwarded to the lifecycle layer | 3 |
+| `ops` | excluded by the rule, forwarded to the lifecycle layer | 2 |
+| `unadmitted` | not excluded by the rule and not yet admissible: the identity carries a server-minted component and the type is untaggable, so there is nowhere to write the ownership marker (#233) | 1 |
 | `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 3 |
 | `unknown` | path not determined | 0 |
 
@@ -300,7 +301,7 @@ identity argument were derived like every other row's.
 | aws_ecs_task_definition | parent-derived | wired | family + revision, the revision assigned server-side per registration Row corrected 2026-08-14: the type is in the admission and identity tables, so the status is wired regardless of what the emulator note describes - found by TestRosterStatusAgreesWithAdmission, the #91-class drift check (#100). | survey note; schema |
 | aws_cloudfront_origin_access_control | list + content match | wired | server-assigned OAC ID, recovered by listing and matching on the required, AWS-enforced-unique "name" argument, since the type carries no tags; registry-ratified (#40, #44, #65), outside this survey's provider-schema path; the pinned floci image creates and lists OACs cleanly, so the earlier blocked-emulator note no longer holds | survey note, registry; docs |
 | aws_iam_access_key | moves to Ops | ops | server-assigned access key ID (AKIA...), and the secret half is unreadable after create. The REMAINDER batch briefly admitted it against this rule; #125 ruled for the exclusion and the admission was removed 2026-08-14 | survey note; schema |
-| aws_secretsmanager_secret_version | moves to Ops | ops | secret_id + server-assigned version_id (a UUID) | survey note; schema |
+| aws_secretsmanager_secret_version | list + content match | unadmitted | secret_id + server-assigned version_id (a UUID). Row corrected 2026-08-16: the hand exclusion was withdrawn by ruling - the ownership marker goes into a tag, never into the secret, so nothing about marking a version reads or exposes it and the credential rationale never applied here. Unadmitted now for the ordinary reason instead, recorded in tools/row-gen/rejected.json: untaggable with a server-minted identity component, so there is nowhere to write the marker (#233) | survey note; schema |
 | aws_acm_certificate_validation | moves to Ops | ops | certificate_arn, recording only that the wait finished | survey note; schema |
 | aws_s3_bucket_versioning | client-named | wired | bucket (named singleton child) | roster fit; schema |
 | aws_s3_bucket_public_access_block | client-named | wired | bucket | roster fit; schema |
@@ -464,12 +465,26 @@ cohorts:
 |---|---|
 | Name-prefix idiom (Optional+Computed identifying argument) | 12 |
 | Account-derived import identity, not yet wired | 2 |
-| Docs tier (no identity schema in v6.58.0) | 5 |
+| Docs tier (no identity schema in v6.58.0) | 4 |
 | Fork-wiring wrinkle (deliberate, permanent) | 4 |
 | Parent component the survey keeps client-named | 1 |
-| **Total** | **24** |
+| **Total** | **23** |
 
-24 is the number to watch: it should shrink release by release as the
+The docs-tier cohort lost `aws_cloudfront_origin_access_control` on
+2026-08-16, and not to a new identity schema. Its entry read
+`{hand: list + content match, generated: moves to Ops}` and blamed
+opentofu#2854; the real cause was that the classifier asked only whether
+the PROVIDER ships a native list resource for the type, while
+`internal/live/discovery` has also read the mapped CloudFormation type's
+own Cloud Control list handler since issue #47. Cloud Control lists
+`AWS::CloudFront::OriginAccessControl` with no scoping input, the hand row
+had said `list + content match` all along, and the two agree once the
+classifier reads the same two signals the runtime does. A tracking issue
+that could never have retired the entry is worth recording, because
+`aws_iam_group`'s entry in the same cohort moved for exactly the same
+reason without closing.
+
+23 is the number to watch: it should shrink release by release as the
 provider adds the identity schemas opentofu#2854 tracks, and
 `TestExceptionCohortCounts` fails the moment `pathExceptions` moves without
 this table following it. The per-type detail (which attribute, which
@@ -478,9 +493,30 @@ tracking reference or an explicit `permanent` marker, so a reader can tell
 which exceptions should shrink the count and which are fork design that
 will not (`TestExceptionTracking`).
 
-## The three the rule excludes
+## The two the rule excludes
 
-Exactly three of the 68 fail the admission rule, and they fail it
+This section said "three" until 2026-08-16, and the type it lost is worth
+recording ahead of the two that remain, because it was excluded by a hand
+edit rather than by the rule.
+
+`aws_secretsmanager_secret_version` was in `tools/survey-gen`'s
+`opsExcluded` map reading "credential: secret_id plus a server-assigned
+version UUID, the secret unreadable after create". The maintainer withdrew
+it: the ownership marker goes into a **tag**, never into the secret, so
+nothing about marking a secret version reads or exposes its contents and
+the credential rationale never applied to this type at all. It was also
+never on the sanctioned exclusion list, which is exactly four types
+(`aws_iam_access_key`, `aws_iot_certificate`, `aws_ivs_playback_key_pair`,
+`aws_appstream_directory_config`) and does not grow. The type is therefore
+admission debt like any other. Classified from its own schema it lands on
+`list + content match` - untaggable, but the provider does ship a native
+list resource for it - and it stays unadmitted for the ordinary reason
+every other server-minted composite is: its identity needs the server's
+`version_id` beside the configuration's `secret_id`, and with no tags
+argument there is nowhere to write the ownership marker. That is issue
+#233, and `tools/row-gen/rejected.json` now records it in those words.
+
+Exactly two of the 68 fail the admission rule, and they fail it
 permanently: the rule itself excludes them, and no later scope change
 readmits them. This is a
 different kind of "not admitted" than the surveyed types that are merely
@@ -488,13 +524,13 @@ not wired yet (4 of them at the 61 types wired today: the `ready` and
 `blocked-emulator` rows above), and `live/LIMITATIONS.md`'s
 `unadmitted-type` entry draws the same distinction.
 
-`aws_iam_access_key` and `aws_secretsmanager_secret_version` are
-credentials: identity born server-side alongside a secret that can never be
-read again. The access key is the clearest case of true residue. Two active
+`aws_iam_access_key` is a credential: identity born server-side alongside a
+secret that can never be read again. It is the clearest case of true
+residue. Two active
 keys for a user are content-identical, but a third-party system holds one
 of them, so set semantics do not apply, and no marker, derivation, or list
 can say which is which. The forwarding address is the lifecycle layer: an
-Op creates the key pair or secret version and writes the secret to the
+Op creates the key pair and writes the secret to the
 secret store, with the key ID riding along in the same entry.
 Configuration references it by ARN or pointer, never by value. The secret
 store was already in the architecture, so no new store appears. This is
@@ -508,6 +544,6 @@ entry records only that the wait finished once. Waiting belongs to the
 lifecycle layer's sequencing, the same forwarding address `time_sleep`
 has in `live/LIMITATIONS.md`.
 
-The survey's main result is that the excluded set is credentials plus a
+The survey's main result is that the excluded set is one credential plus a
 waiter and the residue row is zero: after four admission
 paths and credentials-to-Ops, nothing in the AWS top set needs a store.
