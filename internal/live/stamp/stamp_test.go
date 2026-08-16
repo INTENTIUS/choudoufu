@@ -432,6 +432,17 @@ var (
 		"aws_lb",
 		"aws_lb_target_group",
 		"aws_lb_listener",
+		// aws_alb, aws_alb_target_group, aws_alb_listener: the provider's
+		// own documented aliases of the three rows just above ("`aws_alb`
+		// is known as `aws_lb`. The functionality is identical.", present
+		// verbatim on the aws_lb/aws_lb_target_group/aws_lb_listener doc
+		// pages) - same resource, same schema, so the same taggability.
+		// Cross-checked against live/survey-full.json's own
+		// signals.taggable for each (all true), the same source
+		// stamp_cohort_remainder_test.go's #175 batch comment cites.
+		"aws_alb",
+		"aws_alb_target_group",
+		"aws_alb_listener",
 		"aws_sns_topic",
 		"aws_vpc_security_group_ingress_rule",
 		"aws_vpc_security_group_egress_rule",
@@ -453,6 +464,18 @@ var (
 		"aws_kms_alias",
 		"aws_route53_record",
 		"aws_lb_target_group_attachment",
+		// aws_alb_target_group_attachment: the provider's documented alias
+		// of aws_lb_target_group_attachment just above, same reasoning as
+		// the taggable trio in taggableAdmittedTypes.
+		"aws_alb_target_group_attachment",
+		// aws_lb_listener_certificate and its own alias
+		// aws_alb_listener_certificate: newly admitted alongside the
+		// aws_alb* family (issue #184 batch); the doc's Argument Reference
+		// names only listener_arn and certificate_arn, no tags argument -
+		// confirmed against live/survey-full.json's signals.taggable
+		// (false for both).
+		"aws_lb_listener_certificate",
+		"aws_alb_listener_certificate",
 	}
 )
 
@@ -906,6 +929,9 @@ func testSchemas() Schemas {
 		"aws_lb":                                             taggedSchema("id", "arn", "name", "internal"),
 		"aws_lb_target_group":                                taggedSchema("id", "arn", "name", "port", "protocol", "vpc_id"),
 		"aws_lb_listener":                                    taggedSchema("id", "arn", "load_balancer_arn", "port", "protocol"),
+		"aws_alb":                                            taggedSchema("id", "arn", "name", "internal"),
+		"aws_alb_target_group":                               taggedSchema("id", "arn", "name", "port", "protocol", "vpc_id"),
+		"aws_alb_listener":                                   taggedSchema("id", "arn", "load_balancer_arn", "port", "protocol"),
 		"aws_sns_topic":                                      taggedSchema("id", "arn", "name"),
 		"aws_vpc_security_group_ingress_rule":                taggedSchema("id", "arn", "security_group_rule_id", "security_group_id", "cidr_ipv4", "from_port", "to_port", "ip_protocol"),
 		"aws_vpc_security_group_egress_rule":                 taggedSchema("id", "arn", "security_group_rule_id", "security_group_id", "cidr_ipv4", "ip_protocol"),
@@ -914,7 +940,10 @@ func testSchemas() Schemas {
 		"aws_sfn_state_machine":                              taggedSchema("id", "arn", "name", "role_arn", "definition"),
 		"aws_ebs_volume":                                     taggedSchema("id", "arn", "availability_zone", "size"),
 
-		"aws_lb_target_group_attachment": untaggedSchema("id", "target_group_arn", "target_id", "port"),
+		"aws_lb_target_group_attachment":  untaggedSchema("id", "target_group_arn", "target_id", "port"),
+		"aws_alb_target_group_attachment": untaggedSchema("id", "target_group_arn", "target_id", "port"),
+		"aws_lb_listener_certificate":     untaggedSchema("id", "listener_arn", "certificate_arn"),
+		"aws_alb_listener_certificate":    untaggedSchema("id", "listener_arn", "certificate_arn"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.

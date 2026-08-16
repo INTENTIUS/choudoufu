@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -246,6 +247,92 @@ func joinARNToCFNType(a cloudcontrol.ARN) (cfnType string, candidates []string) 
 	return "", got
 }
 
+// providerAliasNoteRe matches the exact substring the AWS provider's own
+// documentation states once per canonical type and importdocs-gen quotes
+// verbatim into the ratified identity table's Reason field when it clones
+// that canonical type's row onto the alias
+// (tools/importdocs-gen/alias.go's aliasDeclaredFor, tools/row-gen/
+// annotations.json's "the same alias relationship the doc note states"):
+//
+//	is known as `aws_lb`. The functionality is identical.
+//
+// This is deliberately the identical anchor aliasDeclaredFor's own knownAsRe
+// uses (backticked type name, "The functionality is identical." verbatim),
+// not a looser "alias" scan: [identity.TypeIdentity.Reason] is free-form
+// ratified prose everywhere else in the table (compare
+// aws_kms_external_key's "the same shape as aws_kms_key", which names a
+// sibling but makes no such claim), so only the provider's own sentence -
+// the one aliasDeclaredFor already required to exist verbatim on the
+// canonical type's doc page before cloning anything - counts as this
+// package's own alias signal. A Reason that merely mentions another type in
+// passing never matches.
+var providerAliasNoteRe = regexp.MustCompile("is known as `(aws_[a-z0-9_]+)`\\. The functionality is identical\\.")
+
+// resolveDocumentedAlias looks for a documented-alias relationship inside a
+// set of TF types the identity table admits for one CFN type - not a
+// generic "these look similar" guess, but the provider's own prose, quoted
+// verbatim into the alias's ratified Reason. It returns the canonical type
+// name and true only when every non-canonical candidate's Reason carries
+// [providerAliasNoteRe] naming another candidate in the same set, and
+// exactly one candidate is never itself named that way - the shape a
+// two-(or more-)name synonym family always has, canonical row cloned onto
+// every alias with nothing pointing anywhere else.
+//
+// This is what tells a documented alias pair (aws_alb/aws_lb: same object,
+// safe to pick either, so this package picks the canonical one to match
+// what every other join in this file already returns) apart from two
+// admitted TF types that both happen to map to one CFN type but are
+// genuinely different resources - aws_kms_external_key and aws_kms_key
+// (a customer-managed key vs. a BYOK one), aws_db_instance and
+// aws_rds_cluster_instance, and every other multi-candidate CFN type
+// live/mapping.json carries. None of those Reason strings contain the
+// provider's "is known as" sentence, so resolveDocumentedAlias returns
+// false for every one of them and the caller's existing ambiguity refusal
+// stands - see this package's tests for the full roster this was checked
+// against.
+//
+// A candidate set with no Reason at all (a composite-identity type never
+// carries one - see [identity.TypeIdentity.Reason]'s own doc comment) also
+// returns false: nothing here claims those pairs are safe, and none is
+// currently reachable through this file's ARN join (no arnJoinTable entry
+// resolves to AWS::ElasticLoadBalancingV2::ListenerCertificate, the one
+// admitted pair in that shape).
+func resolveDocumentedAlias(admitted []string) (canonical string, ok bool) {
+	aliasOf := make(map[string]string, len(admitted)) // candidate -> the other candidate its Reason names, if any
+	for _, tf := range admitted {
+		ti, found := identity.LookupType(tf)
+		if !found {
+			return "", false
+		}
+		m := providerAliasNoteRe.FindStringSubmatch(ti.Reason)
+		if m == nil {
+			continue
+		}
+		aliasOf[tf] = m[1]
+	}
+
+	var canonicals []string
+	for _, tf := range admitted {
+		if _, isAlias := aliasOf[tf]; !isAlias {
+			canonicals = append(canonicals, tf)
+		}
+	}
+	if len(canonicals) != 1 {
+		return "", false
+	}
+	canonical = canonicals[0]
+
+	for _, target := range aliasOf {
+		if target != canonical {
+			// Points somewhere other than this set's one non-aliased
+			// candidate - not the clean synonym-family shape, so this is
+			// not trusted as safe.
+			return "", false
+		}
+	}
+	return canonical, true
+}
+
 // resourceSegmentLabel renders an ARN's resource-type segment for a
 // message, naming the bare-id shape explicitly rather than leaving it
 // looking like an accidental empty string.
@@ -318,9 +405,22 @@ func joinTaggedResource(roster *registry.Roster, arnStr string) arnJoinOutcome {
 			}
 		}
 		if len(admitted) != 1 {
-			return arnJoinOutcome{cfnType: cfnType, reason: fmt.Sprintf(
-				"CFN type %s (from ARN service %q, resource segment %q) is mapped from more than one TF type in live/mapping.json (%s), and the ARN alone does not say which",
-				cfnType, a.Service, resourceSegmentLabel(a), strings.Join(tfTypes, ", "))}
+			if canonical, ok := resolveDocumentedAlias(admitted); ok {
+				// A genuine synonym pair, not a genuine ambiguity: the
+				// provider's own docs state (and this table's ratified
+				// Reason quotes verbatim) that the non-canonical name IS
+				// the canonical one under a second registered name, so
+				// binding either produces the same live object. See
+				// [resolveDocumentedAlias]'s own doc comment for why this
+				// is safe where aws_kms_external_key/aws_kms_key (also
+				// two admitted TF types over one CFN type, never aliases)
+				// is not.
+				admitted = []string{canonical}
+			} else {
+				return arnJoinOutcome{cfnType: cfnType, reason: fmt.Sprintf(
+					"CFN type %s (from ARN service %q, resource segment %q) is mapped from more than one TF type in live/mapping.json (%s), and the ARN alone does not say which",
+					cfnType, a.Service, resourceSegmentLabel(a), strings.Join(tfTypes, ", "))}
+			}
 		}
 		tfTypes = admitted
 	}

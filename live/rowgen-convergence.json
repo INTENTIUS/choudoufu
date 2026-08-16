@@ -1,13 +1,13 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 880,
-    "compared": 870,
+    "admitted_total": 887,
+    "compared": 877,
     "not_in_mapped_set": 10,
-    "adopted_unchanged": 760,
-    "adopted_unchanged_pct": 87.36,
-    "genuine_mismatches": 110,
-    "annotated": 110,
+    "adopted_unchanged": 771,
+    "adopted_unchanged_pct": 87.91,
+    "genuine_mismatches": 106,
+    "annotated": 106,
     "unannotated_mismatches": 0,
     "scrape_gap_mismatches": 24
   },
@@ -239,8 +239,8 @@
     },
     "Cognito": {
       "compared": 10,
-      "adopted_unchanged": 4,
-      "adopted_unchanged_pct": 40
+      "adopted_unchanged": 5,
+      "adopted_unchanged_pct": 50
     },
     "Comprehend": {
       "compared": 1,
@@ -378,9 +378,9 @@
       "adopted_unchanged_pct": 100
     },
     "ElasticLoadBalancingV2": {
-      "compared": 6,
-      "adopted_unchanged": 5,
-      "adopted_unchanged_pct": 83.33
+      "compared": 13,
+      "adopted_unchanged": 11,
+      "adopted_unchanged_pct": 84.62
     },
     "Elasticsearch": {
       "compared": 1,
@@ -439,8 +439,8 @@
     },
     "GuardDuty": {
       "compared": 7,
-      "adopted_unchanged": 5,
-      "adopted_unchanged_pct": 71.43
+      "adopted_unchanged": 7,
+      "adopted_unchanged_pct": 100
     },
     "IAM": {
       "compared": 16,
@@ -664,8 +664,8 @@
     },
     "RDS": {
       "compared": 17,
-      "adopted_unchanged": 15,
-      "adopted_unchanged_pct": 88.24
+      "adopted_unchanged": 17,
+      "adopted_unchanged_pct": 100
     },
     "RUM": {
       "compared": 1,
@@ -965,6 +965,73 @@
       ],
       "matched": true,
       "annotated": false
+    },
+    {
+      "tf_type": "aws_alb",
+      "service": "ElasticLoadBalancingV2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_alb_listener",
+      "service": "ElasticLoadBalancingV2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_alb_listener_certificate",
+      "service": "ElasticLoadBalancingV2",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_alb_listener_rule",
+      "service": "ElasticLoadBalancingV2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_alb_target_group",
+      "service": "ElasticLoadBalancingV2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_alb_target_group_attachment",
+      "service": "ElasticLoadBalancingV2",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::ElasticLoadBalancingV2::TargetGroup",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "aws_alb_target_group_attachment is the provider's documented alias of aws_lb_target_group_attachment (\"is known as ... The functionality is identical.\"), so its import-grammar row is importdocs-gen's own alias clone of that type's row - and the alias inherits the same fold-child gap the canonical type's own ruling already names: a fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example joins a target-group ARN, an instance id and a port; the ARN segment and the numeric port both defeat name-token attribution. The ratified row mirrors aws_lb_target_group_attachment's own Components verbatim, the same alias relationship the doc note states."
     },
     {
       "tf_type": "aws_amplify_app",
@@ -2942,17 +3009,13 @@
     {
       "tf_type": "aws_cognito_identity_provider",
       "service": "Cognito",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_cognito_resource_server",
@@ -3518,18 +3581,14 @@
     {
       "tf_type": "aws_db_instance_role_association",
       "service": "RDS",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::RDS::DBInstance",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example pairs a db identifier with a full IAM role ARN whose own separators defeat segmentation. The ratified row is the ratifiers' reading of the same page."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_db_option_group",
@@ -5215,17 +5274,13 @@
     {
       "tf_type": "aws_guardduty_filter",
       "service": "GuardDuty",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_guardduty_ipset",
@@ -5253,17 +5308,13 @@
     {
       "tf_type": "aws_guardduty_member",
       "service": "GuardDuty",
-      "proposed_bucket": "needs-hand-separator",
-      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_guardduty_organization_admin_account",
@@ -6087,6 +6138,17 @@
       "service": "ElasticLoadBalancingV2",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lb_listener_certificate",
+      "service": "ElasticLoadBalancingV2",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
@@ -6992,7 +7054,7 @@
       "tf_type": "aws_networkmanager_link_association",
       "service": "NetworkManager",
       "proposed_bucket": "composite",
-      "proposed_rule": "import-grammar precedence: Argument Reference's own Required arguments, separator and order recovered from the documented example string",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
@@ -7552,18 +7614,14 @@
     {
       "tf_type": "aws_rds_cluster_role_association",
       "service": "RDS",
-      "proposed_bucket": "fold-child",
-      "proposed_rule": "via==fold: property-child of AWS::RDS::DBCluster",
-      "mismatch_classes": [
-        "components"
-      ],
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example pairs a cluster identifier with a full IAM role ARN whose own separators defeat segmentation. The ratified row is the ratifiers' reading of the same page."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_rds_custom_db_engine_version",
