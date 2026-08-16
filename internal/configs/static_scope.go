@@ -290,6 +290,26 @@ func (s staticScopeData) StaticValidateReferences(_ context.Context, refs []*add
 				Subject:  ref.SourceRange.ToHCL().Ptr(),
 				Extra:    refused(subject),
 			})
+		case addrs.CountAttr, addrs.ForEachAttr:
+			// count.index, each.key and each.value are dynamic in the sense
+			// that plain static evaluation has no notion of a resource
+			// instance at all - but a caller resolving one specific
+			// instance's identity does, and hands the values in through
+			// [StaticEvaluator.WithRepetitionData]. Only the specific
+			// attribute that data covers passes; an evaluator with no
+			// repetition data, or one missing this particular attribute
+			// (each.value under a for_each whose values are not statically
+			// known, for instance), refuses exactly as it always has.
+			if _, ok := s.eval.repetitionAttr(subject); ok {
+				continue
+			}
+			diags = diags.Append(&hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Dynamic value in static context",
+				Detail:   fmt.Sprintf("Unable to use %s in static context, which is required by %s", subject.String(), top.String()),
+				Subject:  ref.SourceRange.ToHCL().Ptr(),
+				Extra:    refused(subject),
+			})
 		default:
 			// A data-resource reference the evaluator's data lookup covers
 			// is not dynamic anymore: a pre-resolution phase read the value
@@ -330,11 +350,28 @@ func dataResourceSubject(subject addrs.Referenceable) (addrs.Resource, bool) {
 	return addrs.Resource{}, false
 }
 
-func (s staticScopeData) GetCountAttr(context.Context, addrs.CountAttr, tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
+// GetCountAttr answers count.index from the evaluator's repetition data,
+// when it has one that covers it.
+// [staticScopeData.StaticValidateReferences] refuses every count.index
+// reference the repetition data does not cover before evaluation starts, so
+// the panic below is unreachable through this package's own scopes; it
+// stays as the same programming-error backstop the other unavailable
+// getters keep.
+func (s staticScopeData) GetCountAttr(_ context.Context, addr addrs.CountAttr, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
+	if val, ok := s.eval.repetitionAttr(addr); ok {
+		return val, nil
+	}
 	panic("Not Available in Static Context")
 }
 
-func (s staticScopeData) GetForEachAttr(context.Context, addrs.ForEachAttr, tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
+// GetForEachAttr answers each.key or each.value from the evaluator's
+// repetition data, when it has one that covers it. See
+// [staticScopeData.GetCountAttr] for why the panic below is unreachable
+// through this package's own scopes.
+func (s staticScopeData) GetForEachAttr(_ context.Context, addr addrs.ForEachAttr, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
+	if val, ok := s.eval.repetitionAttr(addr); ok {
+		return val, nil
+	}
 	panic("Not Available in Static Context")
 }
 

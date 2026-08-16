@@ -19,6 +19,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/instances"
 	"github.com/intentius/choudoufu/internal/lang"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -1296,16 +1297,30 @@ func (r *resolver) evalStatic(expr hcl.Expression, scope instScope, ident config
 // for_each'd ancestor call (59c, issue #59 phase 3) can resolve, several
 // layers down inside [configs.StaticEvaluator]'s own variable-resolution
 // machinery, to an expression that itself references the ancestor's own
-// each.key or each.value - and internal/configs' static scope has no
-// repetition data to answer that with; it panics ("Not Available in Static
-// Context") rather than erroring. This package never evaluates such an
-// expression on purpose (see [ChildModuleKeys]'s doc: a module call's own
-// for_each is evaluated in its parent's scope, never a child's variables),
-// but nothing stops a resource argument from referencing one anyway, and a
-// crash here would take the whole run down over one identity component this
-// package was always going to refuse. Degrading to a clean "cannot
-// evaluate" is the same choice [lint.evalStatic] already makes for the
-// class of panic it guards against.
+// each.key or each.value. That resolution runs through
+// cfg.Module.StaticEvaluator - built once by internal/configs when the
+// module tree is loaded, entirely independent of [resolver.eval]'s own
+// per-instance [configs.StaticEvaluator.WithRepetitionData] dup (see
+// [instScope.repetition]) - so it never receives repetition data at all and
+// panics ("Not Available in Static Context") rather than erroring. This
+// package never evaluates such an expression on purpose (see
+// [ChildModuleKeys]'s doc: a module call's own for_each is evaluated in its
+// parent's scope, never a child's variables), but nothing stops a resource
+// argument from referencing one anyway, and a crash here would take the
+// whole run down over one identity component this package was always going
+// to refuse. Degrading to a clean "cannot evaluate" is the same choice
+// [lint.evalStatic] already makes for the class of panic it guards against.
+//
+// #213 closed the sibling gap this comment used to describe alongside this
+// one: a local's own definition referencing each.value/each.key/count.index
+// directly, reached from an identity-bearing expression in the SAME
+// instance's own arguments. That case no longer reaches this recover at
+// all - [instScope.repetition] carries the instance's repetition data on
+// [resolver.eval] itself, so every nested [configs.StaticEvaluator] scope
+// this instance's own evaluation builds (a local's own definition among
+// them) sees the same each/count the instance's other arguments see, and a
+// reference outside what is actually known refuses cleanly through
+// [configs.StaticIdentifier]'s ordinary diagnostics instead of panicking.
 func (r *resolver) evalPure(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) (val cty.Value, diags tfdiags.Diagnostics) {
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -1323,19 +1338,15 @@ func (r *resolver) evalPure(expr hcl.Expression, scope instScope, ident configs.
 
 	var travs []hcl.Traversal
 	for _, trav := range expr.Variables() {
-		switch trav.RootName() {
-		case "each", "count":
-			// Supplied by the instance scope below; the static evaluator
-			// panics on repetition references, so they must not reach it.
-			continue
-		}
 		if _, bound := scope.vars[trav.RootName()]; bound {
-			// Anything else the scope already supplies a value for - a
-			// for-comprehension's own loop variable, bound by
-			// forEachOverComprehension below rather than by "each"/"count" -
-			// is a local binding too, for the same reason: the static
-			// evaluator has no notion of it and would either panic or
-			// misreport it as an undeclared reference.
+			// A for-comprehension's own loop variable, bound by
+			// forEachOverComprehension below - never "each" or "count",
+			// which are answered through [instScope.repetition] and
+			// [configs.StaticEvaluator.WithRepetitionData] below instead,
+			// at every depth a reference is resolved at, not only this top
+			// level. This is a local binding the static evaluator has no
+			// notion of, and would either panic on or misreport as an
+			// undeclared reference.
 			continue
 		}
 		travs = append(travs, trav)
@@ -1346,7 +1357,14 @@ func (r *resolver) evalPure(expr hcl.Expression, scope instScope, ident configs.
 		return cty.NilVal, diags.Append(refDiags)
 	}
 
-	hclCtx, ctxDiags := r.eval.EvalContext(r.ctx, ident, refs)
+	// scope.repetition is exactly the each.key/each.value/count.index this
+	// resource instance's own arguments already see (built once, in
+	// [expansion.scope], from the same expansion that decided this
+	// instance exists) - never re-derived here, so a local value reached
+	// through this expression sees the identical values, not a
+	// recomputation of them. See [configs.StaticEvaluator.WithRepetitionData].
+	eval := r.eval.WithRepetitionData(scope.repetition)
+	hclCtx, ctxDiags := eval.EvalContext(r.ctx, ident, refs)
 	if ctxDiags.HasErrors() {
 		return cty.NilVal, diags.Append(ctxDiags)
 	}
@@ -1518,10 +1536,12 @@ type expansion struct {
 	// object constructor whose keys are statically known but whose values
 	// are not - typically a managed resource's attribute reached through
 	// one of them - so eachValues is deliberately left nil rather than
-	// populated with a guess. each.key resolves normally; each.value, if a
-	// resource argument reads it, falls through to the same
-	// "not available in a static context" refusal any other out-of-scope
-	// repetition reference gets (see [resolver.evalPure]'s recover).
+	// populated with a guess. each.key resolves normally, at any depth
+	// (directly, or reached through a local's own definition - #213);
+	// each.value, wherever it is read, is not covered by
+	// [instances.RepetitionData.EachValue] and refuses cleanly with
+	// "Dynamic value in static context" ([configs.StaticEvaluator]'s own
+	// diagnostic, not a recovered panic - see [resolver.evalPure]).
 	// Resolving each.value symbolically in this position - the for_each
 	// half of the local-values fix, as opposed to the plain-reference half
 	// [resolver.namedLeaf] builds - is a further extension this fix does
@@ -1551,6 +1571,18 @@ func (e *expansion) describe(res addrs.Resource) string {
 	return fmt.Sprintf("%s expands to: %s.", res.String(), strings.Join(strs, ", "))
 }
 
+// scope builds the per-instance evaluation scope for key: the same
+// each.key/each.value/count.index this instance's own arguments already
+// see, carried as [instances.RepetitionData] so a local's own definition -
+// reached transitively, not only referenced directly - sees exactly the
+// same values (see [instScope.repetition] and #213). A field left at
+// cty.NilVal below is deliberate, not an oversight: each.value under
+// e.eachParent or e.keyOnly is symbolic (this package refuses to evaluate
+// it, and resolves each.value.<attr> structurally instead - see
+// [resolver.resolveTraversal]), so leaving RepetitionData.EachValue unset
+// makes a bare each.value reached through a local refuse exactly as a
+// direct one already does, rather than fabricate a value nothing here
+// actually knows.
 func (e *expansion) scope(key addrs.InstanceKey) instScope {
 	sc := instScope{key: key, eachParent: e.eachParent}
 	switch {
@@ -1559,44 +1591,32 @@ func (e *expansion) scope(key addrs.InstanceKey) instScope {
 		if !ok {
 			return sc
 		}
-		sc.vars = map[string]cty.Value{
-			"count": cty.ObjectVal(map[string]cty.Value{
-				"index": cty.NumberIntVal(int64(idx)),
-			}),
-		}
+		sc.repetition = instances.RepetitionData{CountIndex: cty.NumberIntVal(int64(idx))}
 	case e.eachValues != nil:
-		sc.vars = map[string]cty.Value{
-			"each": cty.ObjectVal(map[string]cty.Value{
-				"key":   keyValue(key),
-				"value": e.eachValues[key],
-			}),
-		}
+		sc.repetition = instances.RepetitionData{EachKey: keyValue(key), EachValue: e.eachValues[key]}
 	case e.eachParent != nil:
 		// each.value is symbolic here, so only each.key has a value; a
 		// reference to each.value is handled structurally instead.
-		sc.vars = map[string]cty.Value{
-			"each": cty.ObjectVal(map[string]cty.Value{
-				"key": keyValue(key),
-			}),
-		}
+		sc.repetition = instances.RepetitionData{EachKey: keyValue(key)}
 	case e.keyOnly:
 		// Same shape as the eachParent case above, for the same reason:
 		// only the key was ever knowable without evaluating a value this
 		// package refuses to evaluate.
-		sc.vars = map[string]cty.Value{
-			"each": cty.ObjectVal(map[string]cty.Value{
-				"key": keyValue(key),
-			}),
-		}
+		sc.repetition = instances.RepetitionData{EachKey: keyValue(key)}
 	}
 	return sc
 }
 
 // instScope is the per-instance evaluation scope: the instance key, the
-// repetition values that are known, and the parent resource that each.value
-// stands for when it is not known.
+// each.key/each.value/count.index values that are known (handed to
+// [configs.StaticEvaluator.WithRepetitionData] so they reach a local's own
+// definition, not only the top-level expression - see #213), any other
+// top-level binding this package's own for-comprehension handling supplies
+// (a loop variable name, never "each" or "count"), and the parent resource
+// that each.value stands for when it is not known.
 type instScope struct {
 	key        addrs.InstanceKey
+	repetition instances.RepetitionData
 	vars       map[string]cty.Value
 	eachParent *addrs.Resource
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/instances"
 	"github.com/intentius/choudoufu/internal/lang"
 	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/zclconf/go-cty/cty"
@@ -90,6 +91,11 @@ type StaticEvaluator struct {
 	// a caller read before evaluation began. See
 	// [StaticEvaluator.WithDataResults].
 	dataLookup StaticDataLookup
+
+	// repetition holds the each.key/each.value/count.index values the
+	// single resource instance whose arguments are being evaluated actually
+	// has. See [StaticEvaluator.WithRepetitionData].
+	repetition instances.RepetitionData
 }
 
 // StaticDataLookup answers a data-resource reference with a value read ahead
@@ -120,6 +126,71 @@ func (s *StaticEvaluator) WithDataResults(lookup StaticDataLookup) *StaticEvalua
 	dup := *s
 	dup.dataLookup = lookup
 	return &dup
+}
+
+// WithRepetitionData returns a copy of the evaluator whose scopes answer
+// each.key, each.value and count.index from rd, for every reference this
+// evaluator resolves at any depth - not only the expression a caller hands
+// straight to [StaticEvaluator.Evaluate], but also any local value or
+// module-call variable that expression reaches through [StaticEvaluator]'s
+// own reference resolution (a local's own defining expression evaluates
+// through a freshly built child scope, and that scope carries the same
+// [*StaticEvaluator], so it sees the same rd).
+//
+// rd is a value bag, not a source of truth: whatever the caller passes is
+// what a reference gets back, with no independent check that it matches the
+// resource instance actually being evaluated. The caller - identity
+// resolution's own per-instance expansion - is the party responsible for
+// that, because only it knows which instance's arguments it is asking this
+// evaluator to answer. A field of rd left at cty.NilVal (the zero value)
+// means "not known for this instance", which behaves exactly as an
+// evaluator built with no repetition data at all: an unset each.value under
+// a for_each whose values are not statically known must still refuse a
+// reference to it, not answer with something invented.
+//
+// The base evaluator refuses every each/count reference (see
+// [staticScopeData.GetCountAttr] and [staticScopeData.GetForEachAttr]),
+// because plain static evaluation - module source, backend configuration,
+// module call variables - has no notion of a resource instance at all. A
+// caller resolving one instance's identity is the first caller of this
+// package that does.
+func (s *StaticEvaluator) WithRepetitionData(rd instances.RepetitionData) *StaticEvaluator {
+	if s == nil {
+		return s
+	}
+	dup := *s
+	dup.repetition = rd
+	return &dup
+}
+
+// repetitionAttr answers a count.<name> or each.<name> reference from the
+// evaluator's repetition data, reporting whether it is covered. It is the
+// single place both [staticScopeData.StaticValidateReferences] (whether to
+// refuse) and [staticScopeData.GetCountAttr]/[staticScopeData.GetForEachAttr]
+// (what to return) consult, so the two can never disagree about which
+// references are answerable.
+func (s *StaticEvaluator) repetitionAttr(subject addrs.Referenceable) (cty.Value, bool) {
+	if s == nil {
+		return cty.NilVal, false
+	}
+	switch a := subject.(type) {
+	case addrs.CountAttr:
+		if a.Name == "index" && s.repetition.CountIndex != cty.NilVal {
+			return s.repetition.CountIndex, true
+		}
+	case addrs.ForEachAttr:
+		switch a.Name {
+		case "key":
+			if s.repetition.EachKey != cty.NilVal {
+				return s.repetition.EachKey, true
+			}
+		case "value":
+			if s.repetition.EachValue != cty.NilVal {
+				return s.repetition.EachValue, true
+			}
+		}
+	}
+	return cty.NilVal, false
 }
 
 // Creates a static evaluator based from the given module and module call
