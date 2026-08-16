@@ -65,16 +65,33 @@
 // for one, so a ref that cannot be resolved this way is a hard error, not a
 // guess.
 //
+//   - -mode=tagging (not part of the default "all" - it creates and deletes
+//     real resources through each recipe's own service API, so unlike the
+//     two probes above it is not safe to run against a floci instance
+//     mid-use): drives internal/live/discovery's estate-wide TaggingSweep
+//     path from the outside. tagging.go's taggingRecipes creates one
+//     minimal, tagged resource per curated type via the aws CLI directly
+//     (never through Cloud Control, never through terraform), confirms the
+//     tags landed through that same service's own native read call, then
+//     makes one unfiltered resourcegroupstaggingapi GetResources sweep -
+//     the same shape internal/live/discovery's SourceTagging path uses -
+//     and classifies each recipe's type by whether its ARN turns up there.
+//     Written under the "tagging-sweep" mechanism, replacing every existing
+//     row under that mechanism the same way -mode=cloudcontrol replaces
+//     "cloudcontrol-list" rows - this mode is what generates that bucket
+//     now, rather than it staying hand-curated indefinitely.
+//
 // Every run merges into the committed live/floci-capabilities.json rather
 // than replacing it: -mode=services rewrites only the resolved digest's own
 // services array, -mode=cloudcontrol rewrites only that digest's
-// mechanism="cloudcontrol-list" type rows, and every other row (every
-// mechanism="" and mechanism="tagging-sweep" entry, and every other
-// digest's own entries) is carried through untouched. Neither mode ever
-// writes anything for a digest it could not resolve or an endpoint it could
-// not reach - an honest "could not check" stays absent from the manifest,
-// which [FlociServiceCapability]/[FlociTypeCapability] already read as
-// "not yet investigated", never as a fabricated "implemented".
+// mechanism="cloudcontrol-list" type rows, -mode=tagging rewrites only that
+// digest's mechanism="tagging-sweep" type rows, and every other row (every
+// mechanism="" entry, and every other digest's own entries) is carried
+// through untouched. No mode ever writes anything for a digest it could not
+// resolve or an endpoint it could not reach - an honest "could not check"
+// stays absent from the manifest, which
+// [FlociServiceCapability]/[FlociTypeCapability] already read as "not yet
+// investigated", never as a fabricated "implemented".
 package main
 
 import (
@@ -105,7 +122,7 @@ func main() {
 	endpoint := flag.String("endpoint", "", "the running floci instance to probe, e.g. http://localhost:4566 (required)")
 	image := flag.String("image", "", "the floci image ref this endpoint is running: repo@sha256:... directly, or a mutable tag/name to resolve via `docker inspect` (required)")
 	region := flag.String("region", "us-east-1", "region for the Cloud Control sweep's SigV4 credential scope; floci does not verify signatures, so this rarely matters")
-	mode := flag.String("mode", "all", `which probe(s) to run: "services", "cloudcontrol", or "all"`)
+	mode := flag.String("mode", "all", `which probe(s) to run: "services", "cloudcontrol", "tagging", or "all"`)
 	watch := flag.String("watch", "", "comma-separated extra service ids to check for in -mode=services, beyond every service id already recorded for any digest in the manifest")
 	out := flag.String("out", "", "manifest path; empty defaults to live/floci-capabilities.json")
 	timeout := flag.Duration("timeout", 2*time.Minute, "overall timeout for the probe(s)")
@@ -125,9 +142,9 @@ func run(endpoint, image, region, mode, watch, out string, timeout time.Duration
 		return fmt.Errorf("-image is required")
 	}
 	switch mode {
-	case "services", "cloudcontrol", "all":
+	case "services", "cloudcontrol", "tagging", "all":
 	default:
-		return fmt.Errorf("-mode must be \"services\", \"cloudcontrol\" or \"all\", got %q", mode)
+		return fmt.Errorf("-mode must be \"services\", \"cloudcontrol\", \"tagging\" or \"all\", got %q", mode)
 	}
 
 	root, err := repoRoot()
@@ -176,6 +193,15 @@ func run(endpoint, image, region, mode, watch, out string, timeout time.Duration
 		}
 		img.replaceMechanism("cloudcontrol-list", rows)
 		fmt.Fprintf(os.Stderr, "floci-capability-gen: cloudcontrol-list: %d rows recorded (of %d listable types checked)\n", len(rows), checked)
+	}
+
+	if mode == "tagging" {
+		rows, checked, err := probeTagging(ctx, endpoint, region)
+		if err != nil {
+			return fmt.Errorf("running the tagging-index sweep: %w", err)
+		}
+		img.replaceMechanism("tagging-sweep", rows)
+		fmt.Fprintf(os.Stderr, "floci-capability-gen: tagging-sweep: %d rows recorded (of %d recipes that created cleanly)\n", len(rows), checked)
 	}
 
 	art.setImageEntry(digest, img)
