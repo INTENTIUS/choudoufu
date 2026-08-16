@@ -414,6 +414,20 @@ func TestTaggable(t *testing.T) {
 // same.
 var (
 	taggableAdmittedTypes = []string{
+		// Pinned when wall/rejected2 admitted 21 types whose rejections were
+		// re-derived against the v6.59.0 doc cache. Taggability for each was
+		// read from live/survey-full.json's own signals.taggable - the same
+		// external source this file's other ratification comments cite -
+		// rather than inferred from the type name.
+		"aws_comprehend_entity_recognizer",
+		"aws_inspector_resource_group",
+		"aws_iot_ca_certificate",
+		"aws_kinesisanalyticsv2_application",
+		"aws_mailmanager_ingress_point",
+		"aws_osis_pipeline",
+		"aws_resiliencehubv2_service",
+		"aws_resiliencehubv2_system",
+		"aws_verifiedaccess_group",
 		"aws_vpc",
 		"aws_subnet",
 		"aws_security_group",
@@ -452,6 +466,20 @@ var (
 		"aws_ebs_volume",
 	}
 	untaggableAdmittedTypes = []string{
+		// Same batch as the taggable additions above; survey-full.json reports
+		// signals.taggable false for each of these.
+		"aws_devopsguru_notification_channel",
+		"aws_dx_hosted_private_virtual_interface",
+		"aws_dx_hosted_public_virtual_interface",
+		"aws_dx_hosted_transit_virtual_interface",
+		"aws_dynamodb_global_secondary_index",
+		"aws_dynamodb_kinesis_streaming_destination",
+		"aws_elasticache_user_group_association",
+		"aws_lightsail_domain",
+		"aws_msk_single_scram_secret_association",
+		"aws_network_acl_association",
+		"aws_s3outposts_endpoint",
+		"aws_vpc_endpoint_connection_notification",
 		"aws_route",
 		"aws_route_table_association",
 		"aws_s3_bucket_policy",
@@ -930,6 +958,27 @@ func testSchemas() Schemas {
 		"aws_lb_target_group":                                taggedSchema("id", "arn", "name", "port", "protocol", "vpc_id"),
 		"aws_lb_listener":                                    taggedSchema("id", "arn", "load_balancer_arn", "port", "protocol"),
 		"aws_alb":                                            taggedSchema("id", "arn", "name", "internal"),
+		"aws_comprehend_entity_recognizer":                   taggedSchema("id", "arn", "name"),
+		"aws_inspector_resource_group":                       taggedSchema("id", "arn"),
+		"aws_iot_ca_certificate":                             taggedSchema("id", "arn"),
+		"aws_kinesisanalyticsv2_application":                 taggedSchema("id", "arn", "name"),
+		"aws_mailmanager_ingress_point":                      taggedSchema("id", "arn", "ingress_point_name"),
+		"aws_osis_pipeline":                                  taggedSchema("id", "arn", "pipeline_name"),
+		"aws_resiliencehubv2_service":                        taggedSchema("id", "arn", "name"),
+		"aws_resiliencehubv2_system":                         taggedSchema("id", "arn", "name"),
+		"aws_verifiedaccess_group":                           taggedSchema("id", "arn"),
+		"aws_devopsguru_notification_channel":                untaggedSchema("id"),
+		"aws_dx_hosted_private_virtual_interface":            untaggedSchema("id", "connection_id", "vlan"),
+		"aws_dx_hosted_public_virtual_interface":             untaggedSchema("id", "connection_id", "vlan"),
+		"aws_dx_hosted_transit_virtual_interface":            untaggedSchema("id", "connection_id", "vlan"),
+		"aws_dynamodb_global_secondary_index":                untaggedSchema("id", "table_name", "name"),
+		"aws_dynamodb_kinesis_streaming_destination":         untaggedSchema("id", "table_name", "stream_arn"),
+		"aws_elasticache_user_group_association":             untaggedSchema("id", "user_group_id", "user_id"),
+		"aws_lightsail_domain":                               untaggedSchema("id", "domain_name"),
+		"aws_msk_single_scram_secret_association":            untaggedSchema("id", "cluster_arn", "secret_arn"),
+		"aws_network_acl_association":                        untaggedSchema("id", "network_acl_id", "subnet_id"),
+		"aws_s3outposts_endpoint":                            untaggedSchema("id", "outpost_id", "security_group_id"),
+		"aws_vpc_endpoint_connection_notification":           untaggedSchema("id", "connection_notification_arn"),
 		"aws_alb_target_group":                               taggedSchema("id", "arn", "name", "port", "protocol", "vpc_id"),
 		"aws_alb_listener":                                   taggedSchema("id", "arn", "load_balancer_arn", "port", "protocol"),
 		"aws_sns_topic":                                      taggedSchema("id", "arn", "name"),

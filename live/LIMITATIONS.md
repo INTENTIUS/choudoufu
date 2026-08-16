@@ -2750,10 +2750,15 @@ undeclared instance is created through whichever configuration found it.
 `aws_connect_user_hierarchy_structure`, `aws_controltower_control`,
 `aws_datazone_environment_blueprint_configuration`,
 `aws_datazone_form_type`, `aws_db_instance_role_association`,
-`aws_db_proxy_default_target_group`, `aws_devopsguru_resource_collection`,
-`aws_dynamodb_global_table`, `aws_dynamodb_resource_policy`,
-`aws_ebs_snapshot_block_public_access`, `aws_ec2_client_vpn_route`,
-`aws_ec2_managed_prefix_list_entry`,
+`aws_db_proxy_default_target_group`, `aws_devopsguru_notification_channel`,
+`aws_devopsguru_resource_collection`,
+`aws_dx_hosted_private_virtual_interface`,
+`aws_dx_hosted_public_virtual_interface`,
+`aws_dx_hosted_transit_virtual_interface`,
+`aws_dynamodb_global_secondary_index`, `aws_dynamodb_global_table`,
+`aws_dynamodb_kinesis_streaming_destination`,
+`aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
+`aws_ec2_client_vpn_route`, `aws_ec2_managed_prefix_list_entry`,
 `aws_ec2_transit_gateway_metering_policy_entry`,
 `aws_ec2_transit_gateway_policy_table_association`,
 `aws_ec2_transit_gateway_route`,
@@ -2766,7 +2771,8 @@ undeclared instance is created through whichever configuration found it.
 `aws_ecr_repository_policy`, `aws_ecrpublic_repository_policy`,
 `aws_ecs_cluster_capacity_providers`, `aws_efs_mount_target`,
 `aws_eip_association`, `aws_eks_access_policy_association`,
-`aws_emr_security_configuration`, `aws_fsx_s3_access_point_attachment`,
+`aws_elasticache_user_group_association`, `aws_emr_security_configuration`,
+`aws_fsx_s3_access_point_attachment`,
 `aws_globalaccelerator_endpoint_group`, `aws_globalaccelerator_listener`,
 `aws_glue_catalog_table`, `aws_glue_classifier`,
 `aws_glue_data_catalog_encryption_settings`,
@@ -2782,13 +2788,15 @@ undeclared instance is created through whichever configuration found it.
 `aws_kinesis_resource_policy`, `aws_kms_alias`, `aws_lambda_layer_version`,
 `aws_lambda_permission`, `aws_launch_configuration`,
 `aws_lb_listener_certificate`, `aws_lb_target_group_attachment`,
-`aws_lexv2models_bot_locale`, `aws_lightsail_lb_certificate`,
-`aws_lightsail_static_ip`, `aws_location_tracker_association`,
-`aws_macie2_account`, `aws_macie2_organization_admin_account`,
-`aws_msk_cluster_policy`, `aws_msk_configuration`,
-`aws_msk_scram_secret_association`, `aws_msk_topic`,
-`aws_nat_gateway_eip_association`, `aws_network_acl_rule`,
-`aws_network_interface_attachment`, `aws_network_interface_permission`,
+`aws_lexv2models_bot_locale`, `aws_lightsail_domain`,
+`aws_lightsail_lb_certificate`, `aws_lightsail_static_ip`,
+`aws_location_tracker_association`, `aws_macie2_account`,
+`aws_macie2_organization_admin_account`, `aws_msk_cluster_policy`,
+`aws_msk_configuration`, `aws_msk_scram_secret_association`,
+`aws_msk_single_scram_secret_association`, `aws_msk_topic`,
+`aws_nat_gateway_eip_association`, `aws_network_acl_association`,
+`aws_network_acl_rule`, `aws_network_interface_attachment`,
+`aws_network_interface_permission`,
 `aws_networkfirewall_logging_configuration`,
 `aws_networkmanager_core_network_policy_attachment`,
 `aws_networkmanager_customer_gateway_association`,
@@ -2819,8 +2827,8 @@ undeclared instance is created through whichever configuration found it.
 `aws_s3_bucket_server_side_encryption_configuration`,
 `aws_s3_bucket_versioning`, `aws_s3control_bucket_policy`,
 `aws_s3control_multi_region_access_point`, `aws_s3files_file_system_policy`,
-`aws_s3files_mount_target`, `aws_s3tables_table_bucket_policy`,
-`aws_s3vectors_vector_bucket_policy`,
+`aws_s3files_mount_target`, `aws_s3outposts_endpoint`,
+`aws_s3tables_table_bucket_policy`, `aws_s3vectors_vector_bucket_policy`,
 `aws_sagemaker_model_package_group_policy`,
 `aws_secretsmanager_secret_policy`, `aws_secretsmanager_secret_rotation`,
 `aws_security_group_rule`, `aws_securityhub_account`,
@@ -2848,7 +2856,8 @@ undeclared instance is created through whichever configuration found it.
 `aws_ssoadmin_permissions_boundary_attachment`,
 `aws_transfer_web_app_customization`, `aws_verifiedpermissions_policy`,
 `aws_verifiedpermissions_policy_template`, `aws_volume_attachment`,
-`aws_vpc_dhcp_options_association`, `aws_vpc_endpoint_policy`,
+`aws_vpc_dhcp_options_association`,
+`aws_vpc_endpoint_connection_notification`, `aws_vpc_endpoint_policy`,
 `aws_vpc_endpoint_private_dns`, `aws_vpc_endpoint_route_table_association`,
 `aws_vpc_endpoint_security_group_association`,
 `aws_vpc_endpoint_subnet_association`, `aws_vpc_ipam_pool_cidr`,
@@ -2924,6 +2933,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_ecr_lifecycle_policy` | `aws_ecr_repository` | no (report-only) |
 | `aws_ecr_repository_policy` | `aws_ecr_repository` | no (report-only) |
 | `aws_ecrpublic_repository_policy` | `aws_ecrpublic_repository` | no (report-only) |
+| `aws_elasticache_user_group_association` | `aws_elasticache_user_group` | no (report-only) |
 | `aws_guardduty_member` | `aws_guardduty_detector` | no (report-only) |
 | `aws_guardduty_organization_configuration` | `aws_guardduty_detector` | no (report-only) |
 | `aws_iam_group_policy_attachment` | `aws_iam_policy` | no (report-only) |
@@ -2938,6 +2948,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_location_tracker_association` | `aws_location_tracker` | no (report-only) |
 | `aws_msk_cluster_policy` | `aws_msk_cluster` | no (report-only) |
 | `aws_msk_scram_secret_association` | `aws_msk_cluster` | no (report-only) |
+| `aws_msk_single_scram_secret_association` | `aws_msk_cluster` | no (report-only) |
 | `aws_msk_topic` | `aws_msk_cluster` | no (report-only) |
 | `aws_nat_gateway_eip_association` | `aws_nat_gateway` | no (report-only) |
 | `aws_network_acl_rule` | `aws_network_acl` | no (report-only) |
@@ -2999,7 +3010,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_workspacesweb_user_access_logging_settings_association` | `aws_workspacesweb_user_access_logging_settings` | no (report-only) |
 | `aws_workspacesweb_user_settings_association` | `aws_workspacesweb_user_settings` | no (report-only) |
 
-**Total.** 111 types swept via a parent read.
+**Total.** 113 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child. Whether it
@@ -3056,11 +3067,17 @@ per-type reasoning as it stands.
 `aws_connect_instance_storage_config`,
 `aws_connect_user_hierarchy_structure`, `aws_controltower_control`,
 `aws_datazone_form_type`, `aws_db_instance_role_association`,
-`aws_db_proxy_default_target_group`, `aws_devopsguru_resource_collection`,
-`aws_dynamodb_global_table`, `aws_dynamodb_resource_policy`,
-`aws_ebs_snapshot_block_public_access`, `aws_ec2_transit_gateway_route`,
-`aws_ecr_pull_through_cache_rule`, `aws_ecr_pull_time_update_exclusion`,
-`aws_ecr_registry_policy`, `aws_ecr_registry_scanning_configuration`,
+`aws_db_proxy_default_target_group`, `aws_devopsguru_notification_channel`,
+`aws_devopsguru_resource_collection`,
+`aws_dx_hosted_private_virtual_interface`,
+`aws_dx_hosted_public_virtual_interface`,
+`aws_dx_hosted_transit_virtual_interface`,
+`aws_dynamodb_global_secondary_index`, `aws_dynamodb_global_table`,
+`aws_dynamodb_kinesis_streaming_destination`,
+`aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
+`aws_ec2_transit_gateway_route`, `aws_ecr_pull_through_cache_rule`,
+`aws_ecr_pull_time_update_exclusion`, `aws_ecr_registry_policy`,
+`aws_ecr_registry_scanning_configuration`,
 `aws_ecr_replication_configuration`, `aws_ecr_repository_creation_template`,
 `aws_ecs_cluster_capacity_providers`, `aws_efs_mount_target`,
 `aws_eip_association`, `aws_eks_access_policy_association`,
@@ -3074,11 +3091,12 @@ per-type reasoning as it stands.
 `aws_inspector2_member_association`, `aws_inspector_assessment_target`,
 `aws_iot_thing`, `aws_iot_topic_rule_destination`,
 `aws_kinesis_resource_policy`, `aws_kms_alias`, `aws_lambda_layer_version`,
-`aws_lambda_permission`, `aws_launch_configuration`,
+`aws_lambda_permission`, `aws_launch_configuration`, `aws_lightsail_domain`,
 `aws_lightsail_static_ip`, `aws_macie2_account`,
 `aws_macie2_organization_admin_account`, `aws_msk_configuration`,
-`aws_network_interface_attachment`, `aws_network_interface_permission`,
-`aws_notifications_event_rule`, `aws_notifications_notification_hub`,
+`aws_network_acl_association`, `aws_network_interface_attachment`,
+`aws_network_interface_permission`, `aws_notifications_event_rule`,
+`aws_notifications_notification_hub`,
 `aws_opensearchserverless_access_policy`,
 `aws_opensearchserverless_lifecycle_policy`,
 `aws_opensearchserverless_security_policy`,
@@ -3091,7 +3109,8 @@ per-type reasoning as it stands.
 `aws_route53profiles_resource_association`,
 `aws_route53recoverycontrolconfig_routing_control`,
 `aws_s3control_multi_region_access_point`, `aws_s3files_mount_target`,
-`aws_securityhub_account`, `aws_securityhub_configuration_policy`,
+`aws_s3outposts_endpoint`, `aws_securityhub_account`,
+`aws_securityhub_configuration_policy`,
 `aws_securityhub_configuration_policy_association`,
 `aws_securityhub_finding_aggregator`, `aws_securityhub_insight`,
 `aws_securityhub_member`, `aws_securityhub_organization_admin_account`,
@@ -3105,7 +3124,8 @@ per-type reasoning as it stands.
 `aws_ssm_service_setting`, `aws_ssmcontacts_contact_channel`,
 `aws_ssmcontacts_plan`, `aws_ssoadmin_instance_access_control_attributes`,
 `aws_verifiedpermissions_policy`, `aws_verifiedpermissions_policy_template`,
-`aws_vpc_dhcp_options_association`, `aws_vpclattice_auth_policy`,
+`aws_vpc_dhcp_options_association`,
+`aws_vpc_endpoint_connection_notification`, `aws_vpclattice_auth_policy`,
 `aws_vpclattice_resource_policy`, `aws_wafv2_web_acl_logging_configuration`
 and `aws_xray_resource_policy`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
 parent-readable: the three ECR registry types are account-level singletons
