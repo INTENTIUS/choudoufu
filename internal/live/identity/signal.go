@@ -275,6 +275,31 @@ func (r *resolver) collectSignal(cfg *configs.Config) *ConfigSignal {
 // instance cfg is being visited as; see [resolver.walkModule]'s doc for why
 // it has to be threaded down explicitly once a for_each module (59c) is in
 // the tree rather than recomputed from cfg.Path.
+//
+// Two things are mirrored from [resolver.walkModule] on purpose, having
+// once been present there and not here:
+//
+//   - count is tried before for_each, exactly like a resource's own
+//     count/for_each split and like walkModule's own dispatch. Before this
+//     fix, a count-gated module call (count = var.x ? 1 : 0, never
+//     for_each) always fell through to ChildModuleKeys with a nil
+//     for_each expression, which "no for_each: a static module call"
+//     reads as a single always-present unkeyed instance - so a module
+//     whose count evaluated to 0 still had its resources visited and
+//     their own count/for_each expressions evaluated for the naming
+//     signal, reaching arguments a real 0-instance call never populates
+//     (issue #219: govuk-infrastructure's opensearch blue/green module,
+//     where the green domain's arguments dereference a variable that is
+//     only non-null when the green domain is actually launched).
+//   - r.enterModuleAt is called again at the top of every sibling
+//     iteration, not only once before the loop. The recursive
+//     r.collectSignalInto call below, for whichever sibling sorts before
+//     this one, ends by leaving r.mod/r.modInst/r.eval pointing at
+//     whatever ITS OWN deepest descendant left them, exactly the
+//     govuk-infrastructure opensearch blue/green shape walkModule's own
+//     doc comment describes finding for the identity walk proper -
+//     without this, a later sibling's own r.mod.ModuleCalls[name] lookup
+//     silently reads an unrelated module's call table.
 func (r *resolver) collectSignalInto(cfg *configs.Config, modInst addrs.ModuleInstance, signal *ConfigSignal) {
 	r.enterModuleAt(cfg, modInst)
 	for _, rc := range sortedResources(cfg.Module.ManagedResources) {
@@ -285,17 +310,25 @@ func (r *resolver) collectSignalInto(cfg *configs.Config, modInst addrs.ModuleIn
 		r.signalFor(signal, rc, exp)
 	}
 	for _, name := range SortedChildNames(cfg.Children) {
+		r.enterModuleAt(cfg, modInst)
 		child := cfg.Children[name]
-		var forEach hcl.Expression
+		var forEach, count hcl.Expression
 		if call, ok := r.mod.ModuleCalls[name]; ok && call != nil {
 			forEach = call.ForEach
+			count = call.Count
 		}
-		keys, diag := ChildModuleKeys(r.ctx, r.mod, childSubject(name), forEach)
+		var keys []addrs.InstanceKey
+		var diag *hcl.Diagnostic
+		if count != nil {
+			keys, diag = ChildModuleCountKeys(r.ctx, r.mod, childSubject(name), count)
+		} else {
+			keys, diag = ChildModuleKeys(r.ctx, r.mod, childSubject(name), forEach)
+		}
 		if diag != nil {
 			// Advisory, like every other diagnostic this collection produces
-			// (see the doc on [ScanConfig]): a module whose for_each this
-			// pass cannot enumerate contributes nothing to the signal rather
-			// than failing the scan.
+			// (see the doc on [ScanConfig]): a module whose count or for_each
+			// this pass cannot enumerate contributes nothing to the signal
+			// rather than failing the scan.
 			continue
 		}
 		for _, key := range keys {
