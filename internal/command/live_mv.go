@@ -177,11 +177,22 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 		log.Printf("[TRACE] live-mv: ownership policy: %s", statelessPolicy(config.Module.Live, estate))
 	}
 
+	// GitHub issue #179's data-read phase, exactly as a plan runs it, and
+	// for the same reason the resolution below matches a plan's: a rename
+	// computed over different data values than the plan's would rewrite a
+	// marker the plan then disputes.
+	dataResults, drDiags := statelessDataReads(ctx, config, provs, resourceSchemas)
+	diags = diags.Append(drDiags)
+	if drDiags.HasErrors() {
+		return nil, diags
+	}
+
 	// The same resolution a plan runs, with the same inputs, for the reason
 	// the comment above gives: a rename that derived the identity map
 	// differently from a plan would rewrite a marker a plan then disputes.
 	resolutions, idDiags := identity.ResolveWith(ctx, config, identity.Context{
-		Schemas: resourceSchemas,
+		Schemas:     resourceSchemas,
+		DataResults: dataResults,
 	})
 	diags = diags.Append(idDiags)
 	if idDiags.HasErrors() {
