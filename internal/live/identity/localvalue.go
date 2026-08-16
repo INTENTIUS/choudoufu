@@ -63,10 +63,24 @@ import (
 const maxStaticDecomposeDepth = 16
 
 // namedDef looks up what "local.name" or "var.name" refers to: the raw
-// defining expression, unevaluated, and whether reading it requires the
-// resolver to switch modules first - a module variable's value is the
-// module CALL's argument expression, which lives in and is evaluated
-// against the CALLING module, not the module that declares the variable.
+// defining expression, unevaluated; the [instScope] that expression must be
+// evaluated in (never necessarily the caller's own scope - see below); and
+// whether reading it requires the resolver to switch modules first - a
+// module variable's value is the module CALL's argument expression, which
+// lives in and is evaluated against the CALLING module, not the module that
+// declares the variable.
+//
+// scope is the caller's own evaluation scope - the each.key/each.value/
+// count.index of whatever resource instance (or, recursively, whatever
+// earlier module-call argument) is asking. For "local", the returned scope
+// is scope itself, unchanged: a local's own definition lives in the SAME
+// module and instance as the reference to it, so it sees exactly the same
+// repetition data (#213). For "var", the returned scope has nothing to do
+// with the caller's own repetition at all - it is a module CALL's argument
+// expression, evaluated in the CALLING module, against the CALL's OWN
+// count/for_each (or no repetition, for a plain call) - so scope is read
+// only to decide whether to switch modules, never propagated into the
+// result.
 //
 // The returned restore function must be called exactly once by the caller,
 // whatever else it does with the expression in between - typically via
@@ -79,80 +93,125 @@ const maxStaticDecomposeDepth = 16
 // was already correct), or a variable the caller left to its declared
 // default (a default is always configuration-authored, never a resource
 // reference, for the same reason).
-func (r *resolver) namedDef(root, name string) (hcl.Expression, func(), bool) {
+func (r *resolver) namedDef(root, name string, scope instScope) (hcl.Expression, instScope, func(), bool) {
 	noop := func() {}
 
 	switch root {
 	case "local":
 		local, ok := r.mod.Locals[name]
 		if !ok {
-			return nil, noop, false
+			return nil, instScope{}, noop, false
 		}
-		return local.Expr, noop, true
+		return local.Expr, scope, noop, true
 
 	case "var":
 		if len(r.modInst) == 0 {
-			return nil, noop, false
+			return nil, instScope{}, noop, false
 		}
-		parentInst, call := r.modInst.Call()
+		parentInst, callInst := r.modInst.CallInstance()
 		savedMod, savedInst, savedEval := r.mod, r.modInst, r.eval
 		if !r.enterModuleFor(parentInst) {
-			return nil, noop, false
+			return nil, instScope{}, noop, false
 		}
 		restore := func() { r.mod, r.modInst, r.eval = savedMod, savedInst, savedEval }
 
-		mc, ok := r.mod.ModuleCalls[call.Name]
+		mc, ok := r.mod.ModuleCalls[callInst.Call.Name]
 		if !ok || mc.Config == nil {
 			restore()
-			return nil, noop, false
+			return nil, instScope{}, noop, false
 		}
+		defScope := instScope{}
 		if mc.Count != nil || mc.ForEach != nil {
 			// The module call's own argument expression is evaluated in
 			// the scope of the call's OWN repetition (each.key/each.value
 			// or count.index of the module block, not of whatever resource
 			// asked for var.name) - the exact scope [resolver.walkModule]
-			// threads for a resource's own for_each, but there is no path
-			// from here to it: [resolver.instScope] belongs to one
-			// resource instance, and a module call's for_each is a
-			// property of the CALL, evaluated before any instance inside
-			// it exists (see [ChildModuleKeys]'s doc, and the 59c note on
-			// evalPure below). Evaluating the argument expression with the
-			// wrong scope, or none, does not fail loudly the way the
-			// caller's own attempt just did - it can misreport an
-			// undefined "each"/"count" as though the configuration never
-			// mentioned it. Declining here leaves the ordinary
-			// "Dynamic value in static context" diagnostic in place, the
-			// same answer this shape has always gotten.
-			restore()
-			return nil, noop, false
+			// threads for a resource's own for_each, reached here through
+			// [ChildModuleRepetitionData], which re-derives it from the
+			// call's own count/for_each expression exactly as
+			// [ChildModuleCountKeys]/[ChildModuleKeys] do, rather than
+			// trust callInst.Key blindly (see [ChildModuleKeys]'s doc, and
+			// the 59c note on evalPure below).
+			//
+			// callInst.Key - unlike [addrs.ModuleInstance.Call]'s plain
+			// ModuleCall, which discards it - is the key THIS instance of
+			// r.modInst was built with (see
+			// [addrs.ModuleInstance.CallInstance] and [resolver.walkModule]'s
+			// modInst.Child(name, key)), so two different instances of the
+			// same for_each'd call always resolve two different rd values
+			// here, never each other's.
+			//
+			// The result is carried in the RETURNED scope, not spliced into
+			// r.eval directly: [resolver.evalPure] always rebuilds its
+			// working evaluator as r.eval.WithRepetitionData(scope.repetition)
+			// from whatever scope the caller is threading at the point of
+			// actual evaluation, so a repetition value set on r.eval here
+			// would simply be overwritten the moment selectStatic's own
+			// resolveExpr call reaches evalStatic - the caller's scope is
+			// the only seam that survives that far.
+			//
+			// A false ok means the key could not be confirmed as this
+			// call's own - not only "not implemented" but "not safe to
+			// guess" - and declining here leaves the ordinary "Dynamic
+			// value in static context" diagnostic in place, the same
+			// answer this shape has always gotten.
+			rd, ok := ChildModuleRepetitionData(r.ctx, r.mod, childSubject(callInst.Call.Name), mc.Count, mc.ForEach, callInst.Key)
+			if !ok {
+				restore()
+				return nil, instScope{}, noop, false
+			}
+			defScope = instScope{repetition: rd}
 		}
 		attrs, diags := mc.Config.JustAttributes()
 		if diags.HasErrors() {
 			restore()
-			return nil, noop, false
+			return nil, instScope{}, noop, false
 		}
 		attr, ok := attrs[name]
 		if !ok {
 			restore()
-			return nil, noop, false
+			return nil, instScope{}, noop, false
 		}
-		return attr.Expr, restore, true
+		return attr.Expr, defScope, restore, true
 	}
-	return nil, noop, false
+	return nil, instScope{}, noop, false
 }
 
 // ---- the key-set fix ---------------------------------------------------
 
-// staticForEachKeys is #178's key-set fix: the key set of an object
-// constructor is knowable whatever its values are, and the key set is all
-// a for_each expansion needs to enumerate instances. It is tried only after
-// [resolver.evalStatic] has already failed to evaluate a for_each
-// expression as a whole (see [resolver.forEachExpansion]), and it succeeds
-// only when expr is, directly or through local/var aliasing or merge() of
-// several, an object constructor - never touching a single value
-// expression, which is the point: a resource reference in one of them must
-// not refuse the whole block the way evaluating the object as one value
-// does.
+// staticForEachKeys is #178's key-set fix, extended by #189's follow-up: the
+// key set of an object constructor - or of a for-comprehension that builds
+// one, or of a list of such things merged together - is knowable whatever
+// its VALUES are, and the key set is all a for_each expansion needs to
+// enumerate instances. It is tried only after [resolver.evalStatic] has
+// already failed to evaluate a for_each expression as a whole (see
+// [resolver.forEachExpansion]), and it succeeds only when expr is, through
+// any combination of the shapes below, ultimately built from object
+// constructors - never touching a single value expression, which is the
+// point: a resource reference in one of them must not refuse the whole
+// block the way evaluating the object as one value does.
+//
+// The shapes chased, at any depth and in any combination:
+//
+//   - local/var aliasing, through [resolver.namedDef].
+//   - An object constructor directly ([resolver.objectConsKeys]).
+//   - merge() of several arguments, each chased the same way and unioned -
+//     including merge(list...): the splatted argument is itself chased,
+//     and a list literal is handled by unioning ITS OWN elements the same
+//     way merge's separate arguments always were (see the TupleConsExpr
+//     case below), so merge(a, b) and merge([a, b]...) reach the same
+//     answer through the same code.
+//   - A tuple/list constructor, unioning every element's own key set - the
+//     shape merge(list...)'s splatted argument decomposes into once it is
+//     chased back to a literal list.
+//   - A for-comprehension producing an object ([resolver.forExprKeys]):
+//     chases the SOURCE collection's own key set, then evaluates the
+//     comprehension's KEY clause once per source key with ONLY the loop's
+//     key variable bound - never its value variable, never the source
+//     collection's actual values - so a key clause that turns out to need
+//     the value side fails to evaluate (an unbound reference) and refuses
+//     cleanly, rather than answer with something nothing here actually
+//     knows.
 //
 // It deliberately does not chase a selector before reaching the object
 // (for_each = local.foo.bar is not supported): the corpus shape this fix
@@ -169,7 +228,7 @@ func (r *resolver) staticForEachKeys(expr hcl.Expression, ident configs.StaticId
 	if trav, diags := hcl.AbsTraversalForExpr(expr); !diags.HasErrors() && len(trav) == 2 {
 		if root := trav.RootName(); root == "local" || root == "var" {
 			if nameStep, ok := trav[1].(hcl.TraverseAttr); ok {
-				defExpr, restore, defOk := r.namedDef(root, nameStep.Name)
+				defExpr, _, restore, defOk := r.namedDef(root, nameStep.Name, instScope{})
 				if defOk {
 					defer restore()
 					return r.staticForEachKeys(defExpr, ident, depth+1)
@@ -180,6 +239,28 @@ func (r *resolver) staticForEachKeys(expr hcl.Expression, ident configs.StaticId
 
 	if obj, ok := expr.(*hclsyntax.ObjectConsExpr); ok {
 		return r.objectConsKeys(obj, ident)
+	}
+
+	if fe, ok := expr.(*hclsyntax.ForExpr); ok {
+		return r.forExprKeys(fe, ident, depth)
+	}
+
+	if tuple, ok := expr.(*hclsyntax.TupleConsExpr); ok {
+		seen := map[string]bool{}
+		var keys []string
+		for _, elem := range tuple.Exprs {
+			got, ok := r.staticForEachKeys(elem, ident, depth+1)
+			if !ok {
+				return nil, false
+			}
+			for _, k := range got {
+				if !seen[k] {
+					seen[k] = true
+					keys = append(keys, k)
+				}
+			}
+		}
+		return keys, true
 	}
 
 	if call, ok := expr.(*hclsyntax.FunctionCallExpr); ok && call.Name == "merge" {
@@ -210,6 +291,68 @@ func (r *resolver) objectConsKeys(obj *hclsyntax.ObjectConsExpr, ident configs.S
 	var keys []string
 	for _, item := range obj.Items {
 		kv, diags := r.evalPure(item.KeyExpr, instScope{}, ident)
+		if diags.HasErrors() {
+			return nil, false
+		}
+		ks, err := convert.Convert(kv, cty.String)
+		if err != nil || ks.IsNull() || !ks.IsKnown() {
+			return nil, false
+		}
+		name := ks.AsString()
+		if !seen[name] {
+			seen[name] = true
+			keys = append(keys, name)
+		}
+	}
+	return keys, true
+}
+
+// forExprKeys is the for-comprehension half of #189's key-set extension: a
+// for_each source reached through a local or module variable is often not
+// an object constructor at all, but a for-comprehension BUILDING one -
+// { for k, v in SRC : <key clause> => <value clause> } - and the key
+// clause routinely needs nothing from the value side (team-members-datadog's
+// all_user_with_merged_roles is exactly "for name, user in SRC : name =>
+// {...}": the key clause is the bare key variable).
+//
+// The result's key set is knowable without ever evaluating a value clause
+// whenever the key clause itself is: chase SRC's own key set (recursively,
+// through [resolver.staticForEachKeys] again, so a further local/merge/
+// for chain underneath composes exactly the way it already does elsewhere
+// in this file), then evaluate the key clause once per source key, with
+// ONLY the loop's key variable bound in scope - deliberately never its
+// value variable, and never a value read out of SRC. [resolver.evalPure]
+// resolves an unbound reference as an ordinary evaluation failure (see its
+// own "for-comprehension's own loop variable" handling), so a key clause
+// that turns out to read the value variable - `name if user.active`-shaped,
+// or simply `user.id` instead of `name` - fails here and the whole
+// for-comprehension is refused, not answered with a guess.
+//
+// It also refuses outright, before evaluating anything, whenever:
+//
+//   - the comprehension has no key clause at all (a tuple-producing for,
+//     `for v in x : f(v)`, which is not what an object-typed for_each needs
+//     in the first place); or
+//   - it filters with an "if" clause: the filter itself might read the
+//     value side (`if user.active`, the very thing this fix exists to
+//     avoid needing), and there is no way to tell from the syntax alone
+//     that it does not, so this declines the whole comprehension rather
+//     than assume no filtered element is ever significant to the key set.
+func (r *resolver) forExprKeys(fe *hclsyntax.ForExpr, ident configs.StaticIdentifier, depth int) ([]string, bool) {
+	if fe.KeyExpr == nil || fe.KeyVar == "" || fe.CondExpr != nil {
+		return nil, false
+	}
+
+	srcKeys, ok := r.staticForEachKeys(fe.CollExpr, ident, depth+1)
+	if !ok {
+		return nil, false
+	}
+
+	seen := map[string]bool{}
+	var keys []string
+	for _, srcKey := range srcKeys {
+		scope := instScope{vars: map[string]cty.Value{fe.KeyVar: cty.StringVal(srcKey)}}
+		kv, diags := r.evalPure(fe.KeyExpr, scope, ident)
 		if diags.HasErrors() {
 			return nil, false
 		}
@@ -278,14 +421,16 @@ func (r *resolver) namedLeaf(expr hcl.Expression, scope instScope, ident configs
 // resolveNamed resolves "local.name<rest>" or "var.name<rest>": it looks up
 // what the local or the variable is defined as via [resolver.namedDef], then
 // selects into that definition the way rest says to, via
-// [resolver.selectStatic].
+// [resolver.selectStatic] - using the scope [resolver.namedDef] itself
+// says the definition must be evaluated in, which for "var" is the module
+// CALL's own repetition, not scope (the caller's).
 func (r *resolver) resolveNamed(root, name string, rest []hcl.Traverser, scope instScope, ident configs.StaticIdentifier) ([]Part, bool, bool) {
-	defExpr, restore, ok := r.namedDef(root, name)
+	defExpr, defScope, restore, ok := r.namedDef(root, name, scope)
 	if !ok {
 		return nil, false, false
 	}
 	defer restore()
-	return r.selectStatic(defExpr, rest, scope, ident, 0)
+	return r.selectStatic(defExpr, rest, defScope, ident, 0)
 }
 
 // selectStatic applies the traversal steps in rest against expr's own
