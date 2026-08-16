@@ -1188,16 +1188,16 @@ refused, and each says so in its own entry.
 <!-- limits-gen:begin refusal-table -->
 | Configs | Sites | Layer | Refusal | Severity | Raised by | Documented at |
 |---|---|---|---|---|---|---|
-| 112 | 1357 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
-| 106 | 2403 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
-| 73 | 3613 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
+| 111 | 1346 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
+| 106 | 2409 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
+| 74 | 3624 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
 | 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
 | 53 | 590 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
 | 49 | 200 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
 | 48 | 95 | stamp | Unmarked apply of a marker-only resource | error | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 | 43 | 1130 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
 | 35 | 108 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
-| 34 | 263 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
+| 34 | 271 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
 | 24 | 78 | identity | Null identity argument | error | `internal/live/identity` | "Null identity argument" |
 | 22 | 112 | identity | Identity not resolvable from configuration | error | `internal/live/identity` | "Identity not resolvable from configuration" |
 | 21 | 63 | identity | Non-static for_each expression | error | `internal/live/identity` | "Non-static for_each expression" |
@@ -1394,7 +1394,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 106 configurations in the measured corpus, at 2403 sites.
+**How often.** Blocked 106 configurations in the measured corpus, at 2409 sites.
 
 #### Unable to compute static value
 
@@ -1402,7 +1402,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 73 configurations in the measured corpus, at 3613 sites.
+**How often.** Blocked 74 configurations in the measured corpus, at 3624 sites.
 
 #### Dynamic value in static context
 
@@ -1442,7 +1442,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 34 configurations in the measured corpus, at 263 sites.
+**How often.** Blocked 34 configurations in the measured corpus, at 271 sites.
 
 #### Null identity argument
 
@@ -2706,6 +2706,7 @@ undeclared instance is created through whichever configuration found it.
 
 **Untaggable types carry no ownership marker of their own.** <!-- survey-gen:begin untaggable-admitted -->
 `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
+`aws_alb_listener_certificate`, `aws_alb_target_group_attachment`,
 `aws_api_gateway_account`, `aws_api_gateway_base_path_mapping`,
 `aws_api_gateway_documentation_version`, `aws_api_gateway_gateway_response`,
 `aws_api_gateway_integration`, `aws_api_gateway_integration_response`,
@@ -2780,12 +2781,13 @@ undeclared instance is created through whichever configuration found it.
 `aws_iot_thing`, `aws_iot_topic_rule_destination`,
 `aws_kinesis_resource_policy`, `aws_kms_alias`, `aws_lambda_layer_version`,
 `aws_lambda_permission`, `aws_launch_configuration`,
-`aws_lb_target_group_attachment`, `aws_lexv2models_bot_locale`,
-`aws_lightsail_lb_certificate`, `aws_lightsail_static_ip`,
-`aws_location_tracker_association`, `aws_macie2_account`,
-`aws_macie2_organization_admin_account`, `aws_msk_cluster_policy`,
-`aws_msk_configuration`, `aws_msk_scram_secret_association`,
-`aws_msk_topic`, `aws_nat_gateway_eip_association`, `aws_network_acl_rule`,
+`aws_lb_listener_certificate`, `aws_lb_target_group_attachment`,
+`aws_lexv2models_bot_locale`, `aws_lightsail_lb_certificate`,
+`aws_lightsail_static_ip`, `aws_location_tracker_association`,
+`aws_macie2_account`, `aws_macie2_organization_admin_account`,
+`aws_msk_cluster_policy`, `aws_msk_configuration`,
+`aws_msk_scram_secret_association`, `aws_msk_topic`,
+`aws_nat_gateway_eip_association`, `aws_network_acl_rule`,
 `aws_network_interface_attachment`, `aws_network_interface_permission`,
 `aws_networkfirewall_logging_configuration`,
 `aws_networkmanager_core_network_policy_attachment`,
@@ -2886,6 +2888,8 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | Type | Parent | Removed by this leg |
 |---|---|---|
 | `aws_acmpca_certificate_authority_certificate` | `aws_acmpca_certificate_authority` | no (report-only) |
+| `aws_alb_listener_certificate` | `aws_alb_listener` | no (report-only) |
+| `aws_alb_target_group_attachment` | `aws_alb_target_group` | no (report-only) |
 | `aws_api_gateway_base_path_mapping` | `aws_api_gateway_domain_name` | no (report-only) |
 | `aws_api_gateway_documentation_version` | `aws_api_gateway_rest_api` | no (report-only) |
 | `aws_api_gateway_gateway_response` | `aws_api_gateway_rest_api` | no (report-only) |
@@ -2927,6 +2931,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_iam_role_policy_attachment` | `aws_iam_role` | no (report-only) |
 | `aws_iam_user_policy` | `aws_iam_user` | no (report-only) |
 | `aws_iam_user_policy_attachment` | `aws_iam_user` | no (report-only) |
+| `aws_lb_listener_certificate` | `aws_lb_listener` | no (report-only) |
 | `aws_lb_target_group_attachment` | `aws_lb_target_group` | no (report-only) |
 | `aws_lexv2models_bot_locale` | `aws_lexv2models_bot` | no (report-only) |
 | `aws_lightsail_lb_certificate` | `aws_lightsail_lb` | no (report-only) |
@@ -2994,7 +2999,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_workspacesweb_user_access_logging_settings_association` | `aws_workspacesweb_user_access_logging_settings` | no (report-only) |
 | `aws_workspacesweb_user_settings_association` | `aws_workspacesweb_user_settings` | no (report-only) |
 
-**Total.** 108 types swept via a parent read.
+**Total.** 111 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child. Whether it
