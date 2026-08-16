@@ -672,7 +672,7 @@ func TagsOf(obj cty.Value) (map[string]string, bool) {
 
 // Taggable reports whether a resource type can carry an ownership marker: a
 // top-level "tags" attribute of a map type that configuration is allowed to
-// set.
+// set, whose keys the configuration is allowed to choose.
 //
 // Read from the schema, never from a list of type names. A list would be
 // wrong the day a provider adds tags to a type, and it would be wrong in the
@@ -681,28 +681,113 @@ func TagsOf(obj cty.Value) (map[string]string, bool) {
 // blocks) is not this, and is deliberately not stamped: those blocks are not
 // the tag map this package's spec describes.
 //
+// The last clause of the first sentence was missing until GitHub issue #243,
+// and its absence was the difference between the question this predicate
+// claims to answer and the one it actually answered. "Does this resource
+// have an attribute named tags of type map(string)" and "can this resource
+// carry a free-form key/value marker" coincide on AWS and come apart on
+// GCP, where the identically-shaped attribute holds resource-manager tag
+// bindings whose keys must name TagKey objects that already exist. Stamping
+// one wrote a marker the API rejects, into a field several types document as
+// forcing replacement when mutated. See [VocabularyRefusal] for how the
+// two are told apart, which is still from the schema and still not from a
+// list of type names.
+//
 // It lives here rather than in internal/live/stamp, where it was written,
 // because internal/live/lint needs the same answer and a second copy of a
 // fifteen-line predicate is a second answer waiting to happen. This package
 // is the one both can import: it is the marker vocabulary, and "which types
 // can carry a marker" is part of it.
 func Taggable(block *configschema.Block) bool {
+	_, ok := TagSurface(block)
+	return ok
+}
+
+// TagSurface is [Taggable] with its reasoning, for a caller that has to
+// explain a refusal rather than only make one. It returns the tag map's
+// attribute schema when the type can carry a marker.
+//
+// [NotAMarkerSurface] turns the failing case into a sentence.
+func TagSurface(block *configschema.Block) (*configschema.Attribute, bool) {
 	if block == nil {
-		return false
+		return nil, false
 	}
 	attr, ok := block.Attributes["tags"]
 	if !ok || attr == nil {
-		return false
+		return nil, false
 	}
 	if !attr.Optional && !attr.Required {
 		// Computed-only: the provider owns the value and configuration
 		// cannot set it.
-		return false
+		return nil, false
 	}
 	ty := attr.Type
 	if !ty.IsMapType() {
-		return false
+		return nil, false
 	}
-	et := ty.ElementType()
-	return et == cty.String || et == cty.DynamicPseudoType
+	if et := ty.ElementType(); et != cty.String && et != cty.DynamicPseudoType {
+		return nil, false
+	}
+	if _, refused := VocabularyRefusal(attr.Description); refused {
+		return nil, false
+	}
+	return attr, true
+}
+
+// NotAMarkerSurface explains, for a resource type that cannot carry a
+// marker, which of the two reasons applies: there is no settable tag map at
+// all, or there is one and its keys are the provider's to choose rather than
+// the configuration's.
+//
+// The distinction is worth a sentence because the two lead somewhere
+// different. The first is a type identified some other way, or one this
+// scheme cannot own. The second is a field that looks available and is not,
+// and a message that says "no tags map this configuration can set" about a
+// resource whose schema plainly has one sends the reader looking for a
+// typo.
+//
+// The returned string is a clause, not a sentence: a caller fits it after
+// naming the resource.
+func NotAMarkerSurface(block *configschema.Block, resourceType string) string {
+	if reason, refused := RefusedTagSurface(block); refused {
+		return fmt.Sprintf(
+			"%s has a tags map, but this fork's ownership markers cannot round-trip through it: %s. There is nowhere on this resource to carry a marker.",
+			resourceType, reason)
+	}
+	return fmt.Sprintf(
+		"%s has no tags map this configuration can set, so there is nowhere to carry an ownership marker.",
+		resourceType)
+}
+
+// RefusedTagSurface reports whether this type has a settable tag map that
+// the marker vocabulary cannot use, and why.
+//
+// It is the second of the two reasons [Taggable] can be false, separated out
+// because a caller deciding how loudly to speak needs to tell them apart. A
+// type with no tag surface at all is ordinary - hundreds of AWS resource
+// types are identified by an argument rather than a marker and always have
+// been - while a type whose tag surface exists and is unusable is a field
+// the author can see in their own configuration and reasonably expects this
+// fork to be using.
+//
+// The reason is a clause with no terminating punctuation, so a caller can
+// set it in a sentence of its own.
+func RefusedTagSurface(block *configschema.Block) (string, bool) {
+	if block == nil {
+		return "", false
+	}
+	attr, ok := block.Attributes["tags"]
+	if !ok || attr == nil {
+		return "", false
+	}
+	if !attr.Optional && !attr.Required {
+		return "", false
+	}
+	if !attr.Type.IsMapType() {
+		return "", false
+	}
+	if et := attr.Type.ElementType(); et != cty.String && et != cty.DynamicPseudoType {
+		return "", false
+	}
+	return VocabularyRefusal(attr.Description)
 }
