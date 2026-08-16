@@ -90,14 +90,86 @@ func (s staticScopeData) scope(ident StaticIdentifier) (*lang.Scope, tfdiags.Dia
 func (s staticScopeData) enhanceDiagnostics(ident StaticIdentifier, diags tfdiags.Diagnostics) tfdiags.Diagnostics {
 	if diags.HasErrors() {
 		top := s.stack[len(s.stack)-1]
-		diags = diags.Append(&hcl.Diagnostic{
+		d := &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Unable to compute static value",
 			Detail:   fmt.Sprintf("%s depends on %s which is not available", top, ident.String()),
 			Subject:  top.DeclRange.Ptr(),
-		})
+		}
+		if carried, ok := soleRefusedReference(diags); ok {
+			// Same reference, re-reported at this level of the chain: only
+			// NeededBy moves, because what needs it here is this frame's
+			// own identifier rather than the one the leader named.
+			carried.NeededBy = top.String()
+			d.Extra = carried
+		}
+		diags = diags.Append(d)
 	}
 	return diags
+}
+
+// soleRefusedReference reports the one [RefusedReference] that every error
+// in diags refused on, when there is exactly one.
+//
+// This is what lets the trailing "Unable to compute static value" be
+// classified rather than counted. The trailer is not a failure of its own:
+// enhanceDiagnostics only ever appends it on top of diagnostics that already
+// carry an error, so it always restates, at an outer frame, whatever refused
+// further in. A consumer that classifies by the structured extra - the
+// data-read phase's re-homing in internal/live/check, which turns a refusal
+// naming a data source the phase will read into "no configuration edit is
+// needed" - could see the leader and not the restatement, so one resource
+// whose identity argument reads a data source through a module variable was
+// reported as an eligible read at the module CALL and as a flat refusal at
+// the resource itself. Carrying the reference outward reports both the same
+// way.
+//
+// "Exactly one" is the whole safety condition, and it is why this returns a
+// single reference rather than a set. diags at this point is the accumulated
+// errors of a whole subtree, which may hold several independent refusals -
+// two different data sources, or a data source and a module output. The
+// trailer can carry only one extra, so carrying any of several would state
+// that the outer frame fails for that one reason when it in fact fails for
+// all of them, and a consumer that clears the carried one would clear the
+// trailer while the others still stand. Disagreement therefore carries
+// nothing, and the trailer stays exactly the opaque diagnostic it has always
+// been.
+//
+// A chain of trailers agrees with itself by construction: the innermost
+// trailer takes the leader's reference, so every frame above it sees one
+// reference repeated and keeps propagating.
+func soleRefusedReference(diags tfdiags.Diagnostics) (RefusedReference, bool) {
+	var found RefusedReference
+	for _, d := range diags {
+		if d.Severity() != tfdiags.Error {
+			continue
+		}
+		ref := tfdiags.ExtraInfo[RefusedReference](d)
+		if ref.Subject == nil {
+			// An error raised somewhere with no structured reference at
+			// all - an HCL evaluation error, a required variable not set.
+			// Nothing to carry, and carrying a sibling's reference past it
+			// would hide it.
+			return RefusedReference{}, false
+		}
+		if found.Subject == nil {
+			found = ref
+			continue
+		}
+		if !sameRefusedReference(found, ref) {
+			return RefusedReference{}, false
+		}
+	}
+	return found, found.Subject != nil
+}
+
+// sameRefusedReference reports whether two refusals name the same thing in
+// the same place. NeededBy is deliberately not compared: two frames of one
+// chain refuse the same reference and each names its own dependent.
+func sameRefusedReference(a, b RefusedReference) bool {
+	return a.Category == b.Category &&
+		a.Subject.String() == b.Subject.String() &&
+		a.Module.String() == b.Module.String()
 }
 
 // ReferenceCategory classifies the kind of object a reference site named,
