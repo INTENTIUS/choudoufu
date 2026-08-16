@@ -1194,6 +1194,12 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 		if parts, ok, applicable := r.resolveArityCollapse(e, scope, ident); applicable {
 			return parts, ok
 		}
+		// try(A, B, ...) resolved to whichever argument the language selects,
+		// when resource expansion settles which arguments raise an error -
+		// see fallback.go. Same not-applicable contract as above.
+		if parts, ok, applicable := r.resolveFallbackChain(e, scope, ident); applicable {
+			return parts, ok
+		}
 	}
 
 	trav, diags := hcl.AbsTraversalForExpr(expr)
