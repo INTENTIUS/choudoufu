@@ -82,12 +82,23 @@ var surveyExpectations = []surveyExpectation{
 			IdentitySchema int
 		}{Taggable: 847, ListResource: 195, IdentitySchema: 479},
 		Paths: map[string]int{
-			"marker":               790,
+			"marker":               789,
 			"moves to Ops":         702,
 			"client-named":         117,
 			"parent-derived":       47,
 			"list + content match": 24,
-			"account-derived":      19,
+			// aws_ecs_capacity_provider moved marker -> account-derived
+			// here: #150 (commit 0ca3115721) gave it IdentityAttrs whose
+			// ARN folds in the run's region and account-id, which
+			// classify.go reads as account-derived rather than a bare
+			// server-assigned identifier. That commit regenerated the
+			// identity table but not this artifact, so the two sat out of
+			// step at the same provider pin - exactly the #169 shape this
+			// test exists to catch, except this file's own expectations
+			// are hand-synced to the committed artifact rather than
+			// derived from a fresh run, so nothing caught it until a live
+			// regeneration was actually run and diffed against it.
+			"account-derived": 20,
 		},
 	},
 }

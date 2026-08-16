@@ -3,16 +3,16 @@
   "generated_by": "tools/iamref-gen (go run ./tools/iamref-gen)",
   "index_modified": 1786737694,
   "counts": {
-    "services": 177,
-    "resolved": 160,
+    "services": 180,
+    "resolved": 163,
     "unresolved": 17,
     "ambiguous": 0,
-    "tag_action_found": 136,
+    "tag_action_found": 139,
     "tag_action_absent_from_reference": 0,
     "no_tag_verb_recorded": 24,
     "services_listing_resource_tag": 18,
-    "lists_resource_tag": 36,
-    "lists_tag_keys": 133
+    "lists_resource_tag": 37,
+    "lists_tag_keys": 136
   },
   "rows": [
     {
@@ -183,6 +183,22 @@
       "actions_total": 42
     },
     {
+      "service": "AppStream",
+      "iam_prefix": "appstream",
+      "candidates": [
+        "appstream",
+        "appstream2"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": true,
+      "lists_tag_keys": true,
+      "untag_action": "UntagResource",
+      "untag_action_found": true,
+      "untag_lists_tag_keys": true,
+      "actions_total": 89
+    },
+    {
       "service": "AppSync",
       "iam_prefix": "appsync",
       "candidates": [
@@ -196,6 +212,21 @@
       "untag_action_found": true,
       "untag_lists_tag_keys": true,
       "actions_total": 87
+    },
+    {
+      "service": "ApplicationAutoScaling",
+      "iam_prefix": "application-autoscaling",
+      "candidates": [
+        "application-autoscaling"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "untag_action": "UntagResource",
+      "untag_action_found": true,
+      "untag_lists_tag_keys": true,
+      "actions_total": 14
     },
     {
       "service": "Athena",
@@ -332,6 +363,21 @@
       "untag_action_found": true,
       "untag_lists_tag_keys": true,
       "actions_total": 32
+    },
+    {
+      "service": "Budgets",
+      "iam_prefix": "budgets",
+      "candidates": [
+        "budgets"
+      ],
+      "tag_action": "TagResource",
+      "tag_action_found": true,
+      "lists_resource_tag": false,
+      "lists_tag_keys": true,
+      "untag_action": "UntagResource",
+      "untag_action_found": true,
+      "untag_lists_tag_keys": true,
+      "actions_total": 13
     },
     {
       "service": "CE",

@@ -7566,7 +7566,7 @@
     },
     {
       "type": "aws_ecs_capacity_provider",
-      "path": "marker",
+      "path": "account-derived",
       "signals": {
         "taggable": true,
         "list_resource": false,
@@ -7577,7 +7577,7 @@
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region and account-id"
     },
     {
       "type": "aws_ecs_cluster",
