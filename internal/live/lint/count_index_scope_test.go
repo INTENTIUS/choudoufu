@@ -10,6 +10,9 @@ import (
 	"path/filepath"
 	"sort"
 	"testing"
+
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 )
 
 // TestCountIndexScopeForType pins countIndexScopeForType's answer for a
@@ -180,5 +183,127 @@ resource "made_up_provider_made_up_type" "nested" {
 	}
 	if !found {
 		t.Fatalf("got no RuleCountIndex issue for count.index in a nested block of a type absent from identity.LookupType, want one (walkAll fallback): %v", issues)
+	}
+}
+
+// parseExprForAnalysisTest parses a bare HCL expression for a test that
+// exercises [analyzeCountIndexSafety] directly, without going through a
+// whole resource body.
+func parseExprForAnalysisTest(t *testing.T, src string) hclsyntax.Expression {
+	t.Helper()
+
+	expr, diags := hclsyntax.ParseExpression([]byte(src), "test.tf", hcl.InitialPos)
+	if diags.HasErrors() {
+		t.Fatalf("parsing %q: %s", src, diags.Error())
+	}
+	syn, ok := expr.(hclsyntax.Expression)
+	if !ok {
+		t.Fatalf("parsed %q as %T, not an hclsyntax.Expression", src, expr)
+	}
+	return syn
+}
+
+// TestAnalyzeCountIndexSafety is the direct, per-shape pin for #217's
+// inverted rule: analyzeCountIndexSafety is the sole authority over what
+// checkCountIndex treats as a provably injective, scale-down-stable
+// function of count.index, so every shape this rule's doc comment claims
+// safe - and every shape it claims unsafe - is asserted here against the
+// function itself, not against an end-to-end fixture that could pass for
+// the wrong reason.
+func TestAnalyzeCountIndexSafety(t *testing.T) {
+	tests := []struct {
+		name         string
+		src          string
+		wantHasIndex bool
+		wantSafe     bool
+	}{
+		{"no reference to count.index at all", `var.x`, false, false},
+		{"bare count.index", `count.index`, true, true},
+		{"template with count.index between literal text", `"name-${count.index}"`, true, true},
+		{"template wrap (sole interpolation)", `"${count.index}"`, true, true},
+		{"addition of a literal constant", `100 + count.index`, true, true},
+		{"subtraction of a literal constant", `count.index - 1`, true, true},
+		{"subtraction from a non-index operand", `var.base - count.index`, true, true},
+		{"multiplication by a nonzero literal constant", `2 * count.index`, true, true},
+		{"multiplication by -1 via the constant on the left", `count.index * -1`, true, true},
+		{"unary negation", `-count.index`, true, true},
+		{
+			"nested: injective operation wrapping a non-injective one stays unsafe",
+			`100 + (count.index % 3)`,
+			true, false,
+		},
+		{
+			"conditional whose condition does not depend on count.index, both branches safe",
+			`var.is_primary ? 100 + count.index : 200 + count.index`,
+			true, true,
+		},
+
+		// Unsafe: the shapes #217's audit found accepted before the rule
+		// was inverted, plus the ones the rule was already refusing.
+		{"modulo", `count.index % 3`, true, false},
+		{"integer division", `count.index / 2`, true, false},
+		{"multiplication by zero", `count.index * 0`, true, false},
+		{"multiplication by an unprovable (variable) operand", `count.index * var.n`, true, false},
+		{"both operands of a subtraction reference the index", `count.index - count.index`, true, false},
+		{"both operands of an addition reference the index", `count.index + count.index`, true, false},
+		{"min()", `min(count.index, 5)`, true, false},
+		{"max()", `max(count.index, 5)`, true, false},
+		{"floor()", `floor(count.index / 2)`, true, false},
+		{"format()", `format("id-%d", count.index)`, true, false},
+		{"tostring() alone, no other unsafe wrapper", `tostring(count.index)`, true, false},
+		{"comparison operator", `count.index > 2`, true, false},
+		{"collection indexing", `var.list[count.index]`, true, false},
+		{"offset collection indexing", `var.list[count.index + 1]`, true, false},
+		{"element() accessor", `element(var.list, count.index)`, true, false},
+		{"lookup() accessor", `lookup(var.m, tostring(count.index), "default")`, true, false},
+		{
+			"conditional whose own condition depends on count.index",
+			`count.index == 0 ? 100 : 200`,
+			true, false,
+		},
+
+		// The default-refuse proof: a node type analyzeCountIndexSafety has
+		// no case for at all - a for-expression - reached through an
+		// IndexExpr whose own Key does not reference count.index (a
+		// literal 0), so the only way this comes back unsafe is the
+		// default branch's generic containment check on the for-expression
+		// itself. If the default branch silently fell through as safe
+		// instead of refusing, this would report hasIndex=false or
+		// safe=true, and this is the test that would catch it.
+		{
+			"unrecognized node type (for-expression) inside an IndexExpr's Collection",
+			`[for i in [1] : count.index][0]`,
+			true, false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expr := parseExprForAnalysisTest(t, tt.src)
+			got := analyzeCountIndexSafety(expr)
+			if got.hasIndex != tt.wantHasIndex {
+				t.Errorf("%s: hasIndex = %v, want %v", tt.src, got.hasIndex, tt.wantHasIndex)
+			}
+			if got.hasIndex && got.safe != tt.wantSafe {
+				t.Errorf("%s: safe = %v, want %v", tt.src, got.safe, tt.wantSafe)
+			}
+		})
+	}
+}
+
+// TestAnalyzeCountIndexSafetyUnrecognizedNodeTypeNeverFallsThrough is a
+// second, narrower pin for the same default-refuse proof, using a node type
+// count.index can appear in without any wrapping IndexExpr or FunctionCall
+// at all: a splat expression's Each clause. This confirms the refusal
+// comes from analyzeCountIndexSafety's own default case, not incidentally
+// from some other case reached along the way.
+func TestAnalyzeCountIndexSafetyUnrecognizedNodeTypeNeverFallsThrough(t *testing.T) {
+	expr := parseExprForAnalysisTest(t, `[for x in var.list : count.index]`)
+	got := analyzeCountIndexSafety(expr)
+	if !got.hasIndex {
+		t.Fatalf("%T: hasIndex = false, want true (a for-expression referencing count.index must be detected as containing it)", expr)
+	}
+	if got.safe {
+		t.Fatalf("%T: safe = true, want false (a for-expression is not one of analyzeCountIndexSafety's enumerated safe shapes, so it must refuse, not fall through)", expr)
 	}
 }

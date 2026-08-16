@@ -494,28 +494,78 @@ description, or other non-identity property is no longer refused. What is
 still refused is `count.index` in one of the specific arguments a type's own
 identity is built from - see "Scope" below.
 
-**What is safe, and why.** A value built from the index *alone* - a bare
-argument, a template, arithmetic - is a pure injective function of the
-index. OpenTofu retires the highest `count` index first, so for any index
-that survives a scale-down the value is unchanged, and no two live indices
-can compute the same one. Those are not refused.
+**What is safe, and why.** GitHub issue #217 reopened this class after a
+narrowing landed that enumerated *unsafe* shapes - an index expression's key
+position, four named accessor functions, a conditional's own condition -
+and treated everything else as safe by default, `*hclsyntax.BinaryOpExpr`
+included. `100 + (count.index % 3)` fell straight through: at `count = 5`,
+indices 0 and 3 both render `rule_number = 100`, so two distinct config
+addresses resolved to the identical live identity - a wrong marker written
+onto a real cloud resource, not merely an unrefined refusal. The rule was
+inverted in response: it now enumerates the shapes it can *prove* injective
+and refuses everything else, a node type it has never seen included.
 
-Three shapes break that guarantee and are refused:
+A shape is safe only if the value it renders is guaranteed distinct for
+every index at every `count`, and unchanged for any index that survives a
+scale-down. Because OpenTofu always retires the highest `count` index
+first, the second half follows for free from the first: a scalar function
+of the index that is injective at every `count` cannot change for a
+surviving lower index just because a higher one disappeared. The shapes
+proved safe:
+
+- The bare index, `count.index` itself.
+- A string template with the index interpolated among literal text
+  (`"name-${count.index}"`). Decimal rendering of a non-negative integer is
+  injective, and concatenating that around a fixed prefix and suffix stays
+  injective.
+- Addition or subtraction where exactly one operand reads the index (itself
+  safely) and the other does not reference it at all - `100 + count.index`,
+  `var.base - count.index`. For any value fixed across the resource's
+  instances, `x -> x+c` and `x -> c-x` are both injective, regardless of
+  what `c` is, including zero. `count.index - count.index` - both operands
+  reading the index - is refused: nothing proves that combination stays
+  injective, and the degenerate case is identically zero for every
+  instance.
+- Multiplication where exactly one operand reads the index (itself safely)
+  and the other statically evaluates, with no variables at all, to a known
+  *nonzero* number - `2 * count.index`. `x -> c*x` is injective only for
+  `c != 0`; `count.index * var.n` is refused because this is a syntax-only
+  check with no evaluation context for `var.n`, so a zero value can never be
+  ruled out, and `count.index * 0` is refused because the constant is known
+  and known to be zero.
+- A conditional whose own condition does not read the index, with both
+  results independently safe or index-free. Every instance takes the same
+  branch, so the whole expression reduces to that branch's own proof.
+
+Refused, because none is proven to preserve injectivity - not because each
+was individually flagged as dangerous:
 
 - Indexing a collection: `count.index` in the key position of an index
-  expression (`var.list[count.index]`, `aws_subnet.this[count.index].id`).
-  The value consults something outside the index, so removing a higher
-  instance can change what a lower one names.
+  expression (`var.list[count.index]`, `aws_subnet.this[count.index].id`),
+  with any arithmetic inside the key position included - the value consults
+  something outside the index, so removing a higher instance can change
+  what a lower one names, regardless of how the key itself is built.
 - The same thing through a function: any argument to `element`, `lookup`,
-  `slice` or `chunklist`. These are collection accessors with no index
-  expression in the syntax tree, and treating them as safe was a real hole -
-  `element(aws_lb_listener.listener.*.arn, count.index)` and
-  `lookup(var.instance_types, tostring(count.index), ...)` are live in the
-  corpus.
+  `slice` or `chunklist`. `element(aws_lb_listener.listener.*.arn,
+  count.index)` and `lookup(var.instance_types, tostring(count.index),
+  ...)` are live in the corpus.
+- Modulo, integer division, `min`/`max`/`floor`/`ceil`/`abs`/`signum`/`pow`,
+  and every other function call, `format` and `tostring` included - none
+  preserves injectivity in general, and several (modulo, integer division,
+  `min`, `max`) actively collapse distinct indices onto the same value once
+  `count` grows past the modulus, divisor, or bound. `100 + (count.index %
+  3)` is the shape #217's audit found accepted.
 - A conditional whose own *condition* reads `count.index`
   (`count.index == 0 ? a : b`). It selects one of two outcomes however large
   `count` grows, so it stops being injective at `count > 2` and two
-  instances collide. The result branches are still walked on their own.
+  instances collide. The result branches are still checked on their own.
+- Comparison and logical operators (`==`, `<`, `&&`, and so on): the result
+  is always one of a small fixed set of values, which collides as soon as
+  `count` exceeds that set's size.
+
+Nesting is walked recursively: an injective operation wrapping a
+non-injective one is still refused, because safety is decided over the
+whole expression, not at the outermost node.
 
 **Forwarding address.** `for_each`. Key the resource by a stable string
 instead of a positional index.
@@ -551,13 +601,16 @@ specified job rather than leaking into an identity-bearing property.
 `tofu-slot` is deliberately not among the exempted keys.
 
 **Enforcement.** `RuleCountIndex`, `internal/live/lint/count_index.go`
-(`checkCountIndex`, `countIndexScopeForType`, `unsafeCountIndexRanges`,
-`countIndexAccessorFunctions`). Within an argument in scope for the
-resource's type, it walks the expression and rejects only the three
-selecting shapes above. The count expression itself and the other
-meta-argument positions are out of scope by construction, for every type
-(see `internal/live/lint/doc.go`, "Scope of the count.index rule"). Fixture
-at `live/e2e/limits/count-index-in-tag/`.
+(`checkCountIndex`, `countIndexScopeForType`, `analyzeCountIndexSafety`).
+Within an argument in scope for the resource's type, `analyzeCountIndexSafety`
+recurses over the whole expression and refuses anything it cannot prove
+injective, a node type with no case in that function included. The count
+expression itself and the other meta-argument positions are out of scope by
+construction, for every type (see `internal/live/lint/doc.go`, "Scope of
+the count.index rule"). Fixture at `live/e2e/limits/count-index-in-tag/`;
+`internal/live/lint/testdata/count-index-nonlinear` pins the modulo,
+integer-division, min/max, unprovable-multiplier, both-operands, function,
+and bare-comparison shapes #217 added.
 
 ### foreach-invalid-key
 

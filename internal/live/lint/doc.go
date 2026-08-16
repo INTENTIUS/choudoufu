@@ -100,10 +100,26 @@
 //     argument at every depth stays in scope, the conservative default for
 //     a type nobody has reviewed.
 //
-// Within an in-scope argument the walk is unchanged from before this
-// narrowing: a plain reference, a tag-shaped map value, a conditional, or a
-// template all get caught the same way, because [exprVariables] inspects
-// the expression's referenced variables rather than matching literal text.
+// Within an in-scope argument, whether count.index is refused turns on
+// whether it can be proven injective, not on the syntactic shape it
+// appears in: [analyzeCountIndexSafety] recurses over the whole expression
+// and enumerates the forms it can prove render a distinct, scale-down-
+// stable value for every index at every count — the bare index, a
+// template, addition or subtraction of anything that does not itself
+// depend on the index, multiplication by a statically-known nonzero
+// constant, and a conditional whose own condition does not read the index.
+// Everything else is refused, including a shape with no case in that
+// function at all: modulo, integer division, min/max and friends,
+// multiplication by a value this syntax-only check cannot prove nonzero,
+// any other function call, a comparison, and collection indexing (`[]` or
+// element/lookup/slice/chunklist) are all refused because none of them is
+// proven to preserve injectivity, not because each was individually
+// enumerated as dangerous. See analyzeCountIndexSafety's own doc comment in
+// count_index.go for the per-shape argument, and GitHub issue #217, which
+// reopened this rule after a narrowing that reasoned about the shapes it
+// happened to check but never proved the general case: it enumerated
+// unsafe shapes rather than safe ones, so 100 + (count.index % 3) fell
+// through as safe by default and wrote a duplicate live-resource marker.
 // The line is also still drawn at the resource body, not at the resource
 // block: the count expression itself, and the depends_on, provider,
 // lifecycle, connection, and provisioner positions, are meta-arguments that
