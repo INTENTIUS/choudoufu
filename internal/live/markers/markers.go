@@ -437,12 +437,50 @@ func LegacyEscapeAddress(addr string) string {
 // address names" - should go through this rather than a bare EscapeAddress
 // equality, or a resource stamped under an older grammar reads as unowned
 // under the new code.
+//
+// Before trusting a fallback grammar (pre210 or Legacy), it checks whether
+// observed is itself a well-formed CURRENT marker for some address - it
+// round-trips through [UnescapeAddress] and, re-escaped with [EscapeAddress],
+// reproduces observed exactly. When it is, that other address is the only
+// one observed can name: the two older grammars are strictly less specific
+// than the current one (neither escapes "@", "." or ":" the way
+// [EscapeKey] does), so a string that is unambiguously canonical for one
+// address can also coincide with an older-grammar encoding of a completely
+// different address with no exotic characters at all - two ordinary
+// for_each string keys in the same resource block, one like "a.b" and one
+// like "a@db", collide exactly this way (issue #225). Preferring the
+// canonical reading is what a live marker's own grammar promises: the
+// current escaping is the one this fork writes today, so a value that
+// parses as one address under it is that address's marker, full stop,
+// never a different address's leftover from a retired grammar. This check
+// can only fire once the canonical check just above it has already failed,
+// which proves the address it finds is not declared - so it is always safe
+// to reject the fallback match outright rather than compare the two
+// addresses.
+//
+// This does not weaken the fallback grammars for the marker they were each
+// added to widen: a genuine pre-#178 marker for a key containing "." or
+// ":" fails [UnescapeAddress] outright (that function refuses a key with an
+// un-escaped "." or ":" rather than guess), so it never reaches this check;
+// a genuine pre-#178 or pre-#210 marker for a key containing only "@" or
+// "+" round-trips back to the SAME address it was written for (its own
+// re-escaping under the current grammar necessarily differs, since that
+// difference is the only reason the fallback exists), so this check does
+// not fire for it either. It fires only when the fallback interpretation
+// and a genuine current-grammar interpretation disagree about which address
+// owns the string - exactly the case a fallback must lose.
 func AddressMatches(observed, declared string) bool {
 	if observed == "" {
 		return false
 	}
 	if observed == EscapeAddress(declared) {
 		return true
+	}
+	if inst, ok := UnescapeAddress(observed); ok && EscapeAddress(inst.String()) == observed {
+		// observed is somebody's genuine current-grammar marker - and, by
+		// the canonical check above having already failed, not declared's.
+		// No older grammar gets to override that.
+		return false
 	}
 	if observed == pre210EscapeAddress(declared) {
 		return true
