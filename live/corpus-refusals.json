@@ -115,7 +115,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 219,
-      "sites": 289,
+      "sites": 225,
       "unresolved_modules": 17,
       "unset_variables": 6,
       "schemas": true,
@@ -174,7 +174,7 @@
           {
             "layer": "lint",
             "id": "count-index",
-            "sites": 90
+            "sites": 26
           },
           {
             "layer": "lint",
@@ -213,7 +213,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 239,
-      "sites": 266,
+      "sites": 199,
       "unresolved_modules": 1,
       "unset_variables": 3,
       "schemas": true,
@@ -282,7 +282,7 @@
           {
             "layer": "lint",
             "id": "count-index",
-            "sites": 150
+            "sites": 83
           },
           {
             "layer": "lint",
@@ -385,7 +385,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 195,
+      "sites": 93,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -397,7 +397,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 180,
+      "sites": 78,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true,
@@ -409,7 +409,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 183,
+      "sites": 81,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -421,7 +421,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 179,
+      "sites": 77,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -433,7 +433,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 181,
+      "sites": 79,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -617,7 +617,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 13,
-      "sites": 31,
+      "sites": 28,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -658,7 +658,7 @@
           {
             "layer": "lint",
             "id": "count-index",
-            "sites": 5
+            "sites": 2
           },
           {
             "layer": "lint",
@@ -733,7 +733,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 5,
+      "sites": 4,
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
@@ -751,11 +751,6 @@
             "id": "Non-static identity argument",
             "sites": 1,
             "unset_var_only": true
-          },
-          {
-            "layer": "lint",
-            "id": "count-index",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -846,7 +841,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 9,
+      "sites": 7,
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
@@ -864,7 +859,7 @@
           {
             "layer": "lint",
             "id": "count-index",
-            "sites": 6
+            "sites": 4
           },
           {
             "layer": "lint",
@@ -1214,7 +1209,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 70,
+      "sites": 36,
       "unresolved_modules": 0,
       "unset_variables": 4,
       "schemas": true,
@@ -1238,7 +1233,7 @@
           {
             "layer": "lint",
             "id": "count-index",
-            "sites": 57
+            "sites": 23
           },
           {
             "layer": "lint",
@@ -1412,7 +1407,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 4,
       "schemas": true,
@@ -1424,11 +1419,6 @@
             "id": "Non-static count expression",
             "sites": 1,
             "unset_var_only": true
-          },
-          {
-            "layer": "lint",
-            "id": "count-index",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -1761,7 +1751,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 51,
-      "sites": 44,
+      "sites": 43,
       "unresolved_modules": 8,
       "unset_variables": 0,
       "schemas": true,
@@ -1817,7 +1807,7 @@
           {
             "layer": "lint",
             "id": "count-index",
-            "sites": 6
+            "sites": 5
           },
           {
             "layer": "lint",
@@ -2626,7 +2616,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 101,
-      "sites": 118,
+      "sites": 117,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2659,11 +2649,6 @@
           {
             "layer": "lint",
             "id": "child-module",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "count-index",
             "sites": 1
           },
           {
@@ -2726,7 +2711,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 2,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2735,13 +2720,8 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/root-dns.tfvars"
       ],
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "backend-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "count-index",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -3379,7 +3359,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 4,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3397,11 +3377,6 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "count-index",
             "sites": 1
           },
           {
@@ -3461,19 +3436,14 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
       "shadowed": 1,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "count-index",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -3749,7 +3719,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 44,
+      "sites": 43,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3761,7 +3731,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 21,
+      "sites": 20,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3773,7 +3743,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 62,
-      "sites": 384,
+      "sites": 355,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3785,7 +3755,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 23,
+      "sites": 22,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3797,7 +3767,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 23,
-      "sites": 263,
+      "sites": 249,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3809,7 +3779,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 50,
+      "sites": 48,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3821,7 +3791,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 8,
-      "sites": 31,
+      "sites": 30,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3833,7 +3803,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 48,
+      "sites": 47,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3845,7 +3815,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 52,
+      "sites": 50,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3857,7 +3827,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 73,
+      "sites": 69,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3869,7 +3839,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 20,
+      "sites": 19,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3881,7 +3851,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 20,
+      "sites": 19,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3893,7 +3863,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 25,
+      "sites": 24,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -3904,7 +3874,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 21,
+      "sites": 20,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3916,7 +3886,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 21,
+      "sites": 20,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3928,7 +3898,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 21,
+      "sites": 20,
       "unresolved_modules": 5,
       "unset_variables": 0,
       "schemas": true,
@@ -6446,7 +6416,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 348,
+      "sites": 185,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6458,7 +6428,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 8,
-      "sites": 802,
+      "sites": 639,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -6469,7 +6439,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 470,
+      "sites": 307,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -6481,7 +6451,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 11,
-      "sites": 712,
+      "sites": 386,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6493,7 +6463,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 567,
+      "sites": 404,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6505,7 +6475,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 252,
+      "sites": 89,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6517,7 +6487,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 24,
-      "sites": 777,
+      "sites": 288,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6529,7 +6499,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 232,
+      "sites": 69,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6541,7 +6511,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 531,
+      "sites": 368,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6553,7 +6523,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 16,
-      "sites": 452,
+      "sites": 289,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6565,7 +6535,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 524,
+      "sites": 361,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6577,7 +6547,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 784,
+      "sites": 621,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6589,7 +6559,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 348,
+      "sites": 185,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7979,14 +7949,14 @@
       "title": "count.index is not available in resource arguments",
       "docs_ref": "live/LIMITATIONS.md, \"count-index-in-tag\"",
       "raised_by": "internal/live/lint",
-      "configs": 52,
-      "sites": 4587,
+      "configs": 46,
+      "sites": 1230,
       "examples": [
-        ".corpus/cool-assessment/debiandesktop_ec2.tf:64",
-        ".corpus/cool-assessment/debiandesktop_ec2.tf:67",
-        ".corpus/cool-assessment/debiandesktop_ec2.tf:72",
         ".corpus/cool-assessment/debiandesktop_route53.tf:6",
-        ".corpus/cool-assessment/debiandesktop_route53.tf:7"
+        ".corpus/cool-assessment/egressassess_route53.tf:6",
+        ".corpus/cool-assessment/gophish_ec2.tf:133",
+        ".corpus/cool-assessment/gophish_ec2.tf:135",
+        ".corpus/cool-assessment/gophish_iam.tf:10"
       ],
       "registered": true
     },
@@ -9336,7 +9306,7 @@
     "configs": 250,
     "loaded": 249,
     "instances": 3276,
-    "sites": 14219,
+    "sites": 10862,
     "refusals_fired": 32,
     "refusals_in_set": 118,
     "configs_without_schemas": 0,
@@ -9360,7 +9330,7 @@
       "blocked": 144,
       "clean": 0,
       "instances": 2129,
-      "sites": 2911,
+      "sites": 2734,
       "reads_as": "rate"
     },
     {
@@ -9370,7 +9340,7 @@
       "blocked": 72,
       "clean": 2,
       "instances": 416,
-      "sites": 11300,
+      "sites": 8120,
       "reads_as": "ranking"
     }
   ],
@@ -9385,11 +9355,11 @@
       },
       {
         "class": "backend-only",
-        "configs": 24
+        "configs": 25
       },
       {
         "class": "admissions-only",
-        "configs": 16
+        "configs": 17
       },
       {
         "class": "data-read-eligible",
@@ -9397,7 +9367,7 @@
       },
       {
         "class": "language-blocked",
-        "configs": 81
+        "configs": 79
       },
       {
         "class": "unreadable",
