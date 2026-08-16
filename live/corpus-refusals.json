@@ -6,7 +6,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 62,
+      "sites": 61,
       "unresolved_modules": 6,
       "unset_variables": 0,
       "schemas": true,
@@ -29,7 +29,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 38,
+      "sites": 37,
       "unresolved_modules": 6,
       "unset_variables": 0,
       "schemas": true,
@@ -115,7 +115,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 219,
-      "sites": 225,
+      "sites": 190,
       "unresolved_modules": 17,
       "unset_variables": 6,
       "schemas": true,
@@ -138,12 +138,6 @@
             "categories": {
               "managed_resource": 72
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Identity not resolvable from configuration",
-            "sites": 17,
-            "unset_var_only": true
           },
           {
             "layer": "identity",
@@ -184,12 +178,7 @@
           {
             "layer": "lint",
             "id": "module-providers",
-            "sites": 19
-          },
-          {
-            "layer": "lint",
-            "id": "provisioner",
-            "sites": 1
+            "sites": 2
           },
           {
             "layer": "lint",
@@ -212,8 +201,8 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 239,
-      "sites": 199,
+      "instances": 241,
+      "sites": 185,
       "unresolved_modules": 1,
       "unset_variables": 3,
       "schemas": true,
@@ -261,11 +250,6 @@
           },
           {
             "layer": "identity",
-            "id": "Non-string identity argument",
-            "sites": 2
-          },
-          {
-            "layer": "identity",
             "id": "Not an identity attribute",
             "sites": 30
           },
@@ -291,11 +275,6 @@
           },
           {
             "layer": "lint",
-            "id": "provisioner",
-            "sites": 12
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           },
@@ -318,7 +297,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 657,
+      "sites": 656,
       "unresolved_modules": 4,
       "unset_variables": 0,
       "schemas": true
@@ -329,7 +308,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 4,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -384,8 +363,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 6,
-      "sites": 93,
+      "instances": 7,
+      "sites": 91,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -396,8 +375,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 7,
-      "sites": 78,
+      "instances": 11,
+      "sites": 73,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true,
@@ -408,8 +387,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 7,
-      "sites": 81,
+      "instances": 12,
+      "sites": 75,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -420,8 +399,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 3,
-      "sites": 77,
+      "instances": 4,
+      "sites": 75,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -432,8 +411,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 5,
-      "sites": 79,
+      "instances": 8,
+      "sites": 75,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -616,8 +595,8 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 13,
-      "sites": 28,
+      "instances": 14,
+      "sites": 27,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -625,11 +604,6 @@
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Identity argument not set",
-            "sites": 1
-          },
           {
             "layer": "identity",
             "id": "Module output not supported in static context",
@@ -687,8 +661,8 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 0,
-      "sites": 18,
+      "instances": 1,
+      "sites": 17,
       "unresolved_modules": 0,
       "unset_variables": 7,
       "schemas": true,
@@ -702,11 +676,6 @@
             "categories": {
               "data_source": 2
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Identity argument not set",
-            "sites": 1
           },
           {
             "layer": "identity",
@@ -1433,8 +1402,8 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 29,
-      "sites": 58,
+      "instances": 20,
+      "sites": 39,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -1457,14 +1426,14 @@
           {
             "layer": "identity",
             "id": "Attempt to get attribute from null value",
-            "sites": 10
+            "sites": 4
           },
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 2,
+            "sites": 3,
             "categories": {
-              "managed_resource": 2
+              "managed_resource": 3
             }
           },
           {
@@ -1474,18 +1443,8 @@
           },
           {
             "layer": "identity",
-            "id": "Two resources with the same identity",
-            "sites": 7
-          },
-          {
-            "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 14
-          },
-          {
-            "layer": "lint",
-            "id": "child-module",
-            "sites": 3
+            "sites": 10
           },
           {
             "layer": "lint",
@@ -1558,7 +1517,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 42,
-      "sites": 8,
+      "sites": 6,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -1568,7 +1527,7 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/chat.tfvars"
       ],
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
@@ -1577,11 +1536,6 @@
             "categories": {
               "tfe_outputs": 3
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Two resources with the same identity",
-            "sites": 2
           },
           {
             "layer": "lint",
@@ -1750,8 +1704,8 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 51,
-      "sites": 43,
+      "instances": 66,
+      "sites": 28,
       "unresolved_modules": 8,
       "unset_variables": 0,
       "schemas": true,
@@ -1778,11 +1732,6 @@
             "categories": {
               "managed_resource": 6
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Identity not resolvable from configuration",
-            "sites": 15
           },
           {
             "layer": "identity",
@@ -1838,7 +1787,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 12,
-      "sites": 46,
+      "sites": 44,
       "unresolved_modules": 3,
       "unset_variables": 0,
       "schemas": true,
@@ -1873,18 +1822,8 @@
           },
           {
             "layer": "lint",
-            "id": "child-module",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "logical-resource",
             "sites": 8
-          },
-          {
-            "layer": "lint",
-            "id": "provisioner",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -1962,7 +1901,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 32,
-      "sites": 15,
+      "sites": 14,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true,
@@ -1982,11 +1921,6 @@
               "data_source": 1,
               "tfe_outputs": 2
             }
-          },
-          {
-            "layer": "lint",
-            "id": "child-module",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -2017,7 +1951,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 8,
+      "sites": 7,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2046,11 +1980,6 @@
           {
             "layer": "identity",
             "id": "Identity argument not set",
-            "sites": 1
-          },
-          {
-            "layer": "identity",
-            "id": "Invalid for_each set",
             "sites": 1
           },
           {
@@ -2139,7 +2068,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 294,
+      "sites": 292,
       "unresolved_modules": 6,
       "unset_variables": 0,
       "schemas": true,
@@ -2149,22 +2078,12 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/gcp-gov-graph.tfvars"
       ],
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "child-module",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "logical-resource",
             "sites": 5
-          },
-          {
-            "layer": "lint",
-            "id": "provisioner",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -2338,7 +2257,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 203,
-      "sites": 144,
+      "sites": 139,
       "unresolved_modules": 6,
       "unset_variables": 4,
       "schemas": true,
@@ -2411,11 +2330,6 @@
           },
           {
             "layer": "lint",
-            "id": "child-module",
-            "sites": 3
-          },
-          {
-            "layer": "lint",
             "id": "count-index",
             "sites": 6
           },
@@ -2428,11 +2342,6 @@
             "layer": "lint",
             "id": "logical-resource",
             "sites": 5
-          },
-          {
-            "layer": "lint",
-            "id": "module-providers",
-            "sites": 2
           },
           {
             "layer": "lint",
@@ -2578,20 +2487,15 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/neptune.tfvars"
       ],
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 2,
+            "sites": 3,
             "categories": {
-              "tfe_outputs": 2
+              "tfe_outputs": 3
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Identity not resolvable from configuration",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -2615,8 +2519,8 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 101,
-      "sites": 117,
+      "instances": 157,
+      "sites": 60,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2626,30 +2530,15 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/rds.tfvars"
       ],
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 28,
+            "sites": 55,
             "categories": {
-              "tfe_outputs": 28
+              "tfe_outputs": 55
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Identity argument not set",
-            "sites": 28
-          },
-          {
-            "layer": "identity",
-            "id": "Identity not resolvable from configuration",
-            "sites": 55
-          },
-          {
-            "layer": "lint",
-            "id": "child-module",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -2790,7 +2679,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 35,
-      "sites": 64,
+      "sites": 67,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2813,9 +2702,9 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 2,
+            "sites": 4,
             "categories": {
-              "managed_resource": 2
+              "managed_resource": 4
             }
           },
           {
@@ -2826,12 +2715,7 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 20
-          },
-          {
-            "layer": "lint",
-            "id": "child-module",
-            "sites": 3
+            "sites": 24
           },
           {
             "layer": "lint",
@@ -3097,8 +2981,8 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 37,
-      "sites": 18,
+      "instances": 52,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3107,7 +2991,7 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/vpc.tfvars"
       ],
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
@@ -3116,11 +3000,6 @@
             "categories": {
               "data_source": 1
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Identity not resolvable from configuration",
-            "sites": 15
           },
           {
             "layer": "lint",
@@ -3200,7 +3079,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 17,
+      "sites": 16,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -3234,7 +3113,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 103,
+      "sites": 86,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3253,11 +3132,6 @@
             "layer": "identity",
             "id": "Unresolvable identity",
             "sites": 68
-          },
-          {
-            "layer": "lint",
-            "id": "module-providers",
-            "sites": 17
           },
           {
             "layer": "lint",
@@ -3393,19 +3267,14 @@
       "blocked": true,
       "loaded": true,
       "instances": 18,
-      "sites": 20,
+      "sites": 12,
       "unresolved_modules": 8,
       "unset_variables": 0,
       "schemas": true,
       "shadowed": 11,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "module-providers",
-            "sites": 8
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -3476,7 +3345,7 @@
         "refusals": [
           {
             "layer": "dataread",
-            "id": "Data source not readable before resolution",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 80,
             "categories": {
               "data_source": 80
@@ -3573,24 +3442,14 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 3,
-      "sites": 7,
+      "instances": 4,
+      "sites": 1,
       "unresolved_modules": 5,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "backend-only",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Identity argument not set",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "module-providers",
-            "sites": 5
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -3641,7 +3500,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 56,
+      "sites": 47,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3663,11 +3522,6 @@
           },
           {
             "layer": "lint",
-            "id": "module-providers",
-            "sites": 9
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           }
@@ -3680,7 +3534,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 103,
+      "sites": 86,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3702,11 +3556,6 @@
           },
           {
             "layer": "lint",
-            "id": "module-providers",
-            "sites": 17
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           }
@@ -3719,7 +3568,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 43,
+      "sites": 42,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3731,7 +3580,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 20,
+      "sites": 19,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3743,7 +3592,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 62,
-      "sites": 355,
+      "sites": 326,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3755,7 +3604,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 22,
+      "sites": 21,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3766,7 +3615,7 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 23,
+      "instances": 25,
       "sites": 249,
       "unresolved_modules": 1,
       "unset_variables": 0,
@@ -3779,7 +3628,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 48,
+      "sites": 46,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3791,7 +3640,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 8,
-      "sites": 30,
+      "sites": 28,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3803,7 +3652,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 47,
+      "sites": 46,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3815,7 +3664,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 50,
+      "sites": 47,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3827,7 +3676,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 69,
+      "sites": 65,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3839,7 +3688,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 19,
+      "sites": 18,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3851,7 +3700,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 19,
+      "sites": 18,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3863,7 +3712,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 24,
+      "sites": 23,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -3874,7 +3723,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 20,
+      "sites": 19,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3886,7 +3735,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 20,
+      "sites": 19,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3898,7 +3747,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 20,
+      "sites": 19,
       "unresolved_modules": 5,
       "unset_variables": 0,
       "schemas": true,
@@ -4960,7 +4809,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 9,
+      "sites": 5,
       "unresolved_modules": 3,
       "unset_variables": 0,
       "schemas": true
@@ -4971,7 +4820,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 12,
+      "sites": 6,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true,
@@ -4983,7 +4832,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 14,
+      "sites": 6,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true
@@ -4994,7 +4843,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 13,
+      "sites": 6,
       "unresolved_modules": 3,
       "unset_variables": 0,
       "schemas": true,
@@ -5006,7 +4855,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 19,
+      "sites": 9,
       "unresolved_modules": 3,
       "unset_variables": 0,
       "schemas": true,
@@ -5018,7 +4867,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 13,
+      "sites": 3,
       "unresolved_modules": 5,
       "unset_variables": 0,
       "schemas": true
@@ -5028,8 +4877,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 2,
-      "sites": 9,
+      "instances": 4,
+      "sites": 4,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true
@@ -5040,7 +4889,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 23,
+      "sites": 8,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -5051,7 +4900,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 12,
+      "sites": 6,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true
@@ -5062,7 +4911,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 10,
+      "sites": 4,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true
@@ -5073,7 +4922,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 6,
+      "sites": 4,
       "unresolved_modules": 5,
       "unset_variables": 0,
       "schemas": true
@@ -5083,8 +4932,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 1,
-      "sites": 9,
+      "instances": 3,
+      "sites": 4,
       "unresolved_modules": 3,
       "unset_variables": 0,
       "schemas": true
@@ -5130,7 +4979,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 23,
+      "sites": 22,
       "unresolved_modules": 4,
       "unset_variables": 0,
       "schemas": true
@@ -5174,7 +5023,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 25,
+      "sites": 24,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -5345,18 +5194,10 @@
         "refusals": [
           {
             "layer": "dataread",
-            "id": "Data source not readable before resolution",
-            "sites": 1,
-            "categories": {
-              "data_source": 1
-            }
-          },
-          {
-            "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 1,
+            "sites": 2,
             "categories": {
-              "data_source": 1
+              "data_source": 2
             }
           },
           {
@@ -5401,28 +5242,29 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 16,
+      "instances": 14,
       "sites": 20,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 5,
+      "shadowed": 4,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Data source not readable before resolution",
-            "sites": 2,
+            "sites": 1,
             "categories": {
-              "data_source": 2
+              "data_source": 1
             }
           },
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 2,
+            "sites": 3,
             "categories": {
+              "data_source": 1,
               "remote_state": 2
             }
           },
@@ -5474,12 +5316,12 @@
       "blocked": true,
       "loaded": true,
       "instances": 23,
-      "sites": 14,
+      "sites": 11,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
@@ -5488,16 +5330,6 @@
             "categories": {
               "data_source": 10
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Two resources with the same identity",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "module-providers",
-            "sites": 2
           },
           {
             "layer": "lint",
@@ -5563,7 +5395,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 11,
-      "sites": 16,
+      "sites": 15,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5587,11 +5419,6 @@
           {
             "layer": "lint",
             "id": "logical-resource",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "module-providers",
             "sites": 1
           },
           {
@@ -5623,7 +5450,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 42,
-      "sites": 39,
+      "sites": 21,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5632,7 +5459,7 @@
         "refusals": [
           {
             "layer": "dataread",
-            "id": "Data source not readable before resolution",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 14,
             "categories": {
               "data_source": 14
@@ -5640,18 +5467,8 @@
           },
           {
             "layer": "identity",
-            "id": "Invalid for_each set",
-            "sites": 6
-          },
-          {
-            "layer": "identity",
             "id": "Non-static for_each expression",
             "sites": 6
-          },
-          {
-            "layer": "lint",
-            "id": "module-providers",
-            "sites": 12
           },
           {
             "layer": "lint",
@@ -5677,17 +5494,10 @@
         "refusals": [
           {
             "layer": "dataread",
-            "id": "Data source not readable before resolution",
-            "sites": 1,
-            "categories": {
-              "data_source": 1
-            }
-          },
-          {
-            "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 1,
+            "sites": 2,
             "categories": {
+              "data_source": 1,
               "remote_state": 1
             }
           },
@@ -5792,28 +5602,29 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 17,
+      "instances": 15,
       "sites": 21,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 6,
+      "shadowed": 5,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Data source not readable before resolution",
-            "sites": 2,
+            "sites": 1,
             "categories": {
-              "data_source": 2
+              "data_source": 1
             }
           },
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 2,
+            "sites": 3,
             "categories": {
+              "data_source": 1,
               "remote_state": 2
             }
           },
@@ -5870,7 +5681,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 16,
-      "sites": 4,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5888,11 +5699,6 @@
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "module-providers",
             "sites": 1
           },
           {
@@ -5946,7 +5752,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 39,
-      "sites": 17,
+      "sites": 15,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5956,38 +5762,20 @@
         "refusals": [
           {
             "layer": "identity",
-            "id": "Dynamic value in static context",
-            "sites": 2,
-            "categories": {
-              "other": 2
-            }
-          },
-          {
-            "layer": "identity",
             "id": "Identity argument not set",
-            "sites": 4
-          },
-          {
-            "layer": "identity",
-            "id": "Identity not resolvable from configuration",
-            "sites": 2
+            "sites": 6
           },
           {
             "layer": "identity",
             "id": "Module output not supported in static context",
-            "sites": 2,
+            "sites": 4,
             "categories": {
-              "module_output": 2
+              "module_output": 4
             }
           },
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 2
-          },
-          {
-            "layer": "lint",
-            "id": "module-providers",
             "sites": 2
           },
           {
@@ -6046,7 +5834,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 5,
+      "sites": 4,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6068,11 +5856,6 @@
           },
           {
             "layer": "lint",
-            "id": "module-providers",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           }
@@ -6084,28 +5867,29 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 21,
+      "instances": 19,
       "sites": 21,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 5,
+      "shadowed": 4,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Data source not readable before resolution",
-            "sites": 2,
+            "sites": 1,
             "categories": {
-              "data_source": 2
+              "data_source": 1
             }
           },
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 2,
+            "sites": 3,
             "categories": {
+              "data_source": 1,
               "remote_state": 2
             }
           },
@@ -6157,7 +5941,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 28,
-      "sites": 19,
+      "sites": 18,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6167,18 +5951,10 @@
         "refusals": [
           {
             "layer": "dataread",
-            "id": "Data source not readable before resolution",
-            "sites": 1,
-            "categories": {
-              "data_source": 1
-            }
-          },
-          {
-            "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 5,
+            "sites": 6,
             "categories": {
-              "data_source": 4,
+              "data_source": 5,
               "remote_state": 1
             }
           },
@@ -6207,11 +5983,6 @@
           },
           {
             "layer": "lint",
-            "id": "module-providers",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           },
@@ -6232,8 +6003,8 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 69,
-      "sites": 36,
+      "instances": 83,
+      "sites": 20,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6243,24 +6014,11 @@
         "refusals": [
           {
             "layer": "dataread",
-            "id": "Data source not readable before resolution",
-            "sites": 2,
-            "categories": {
-              "data_source": 2
-            }
-          },
-          {
-            "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 4,
+            "sites": 6,
             "categories": {
-              "data_source": 4
+              "data_source": 6
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Identity not resolvable from configuration",
-            "sites": 14
           },
           {
             "layer": "identity",
@@ -6278,11 +6036,6 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 2
-          },
-          {
-            "layer": "lint",
-            "id": "module-providers",
             "sites": 2
           },
           {
@@ -6438,8 +6191,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 6,
-      "sites": 307,
+      "instances": 9,
+      "sites": 304,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -6450,12 +6203,12 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 11,
+      "instances": 12,
       "sites": 386,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 14
+      "shadowed": 13
     },
     {
       "name": ".corpus/vpc/examples/ipv6-dualstack",
@@ -6474,24 +6227,24 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 7,
+      "instances": 9,
       "sites": 89,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 11
+      "shadowed": 9
     },
     {
       "name": ".corpus/vpc/examples/issues",
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 24,
+      "instances": 27,
       "sites": 288,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 32
+      "shadowed": 29
     },
     {
       "name": ".corpus/vpc/examples/manage-default-vpc",
@@ -7799,8 +7552,8 @@
       "what": "Not a refusal: live-check's finding for a data-source reference in an identity-bearing position that a live-plan resolves by reading the data source before resolution. No edit to the configuration is needed, but the read itself has not been performed - it can still fail at plan time.",
       "docs_ref": "live/LIMITATIONS.md, \"Resolves at plan time via a data-source read\"",
       "raised_by": "internal/live/dataread",
-      "configs": 99,
-      "sites": 1701,
+      "configs": 101,
+      "sites": 1831,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:420",
         ".corpus/alb/examples/complete-alb/main.tf:425",
@@ -7817,8 +7570,8 @@
       "what": "Something an identity argument, a count or a for_each depends on could not be computed. It is the trailing half of another refusal: the diagnostic before it names what actually failed, and this one names the chain that led there.",
       "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
       "raised_by": "internal/configs",
-      "configs": 86,
-      "sites": 3532,
+      "configs": 74,
+      "sites": 3511,
       "examples": [
         ".corpus/alb/main.tf:88",
         ".corpus/alb/main.tf:231",
@@ -7914,8 +7667,8 @@
       "what": "An identity could not be built because a reference it depends on failed; the reference's own error explains why.",
       "docs_ref": "live/LIMITATIONS.md, \"Unresolvable identity\"",
       "raised_by": "internal/live/identity",
-      "configs": 64,
-      "sites": 403,
+      "configs": 62,
+      "sites": 402,
       "examples": [
         ".corpus/autoscaling/main.tf:1463",
         ".corpus/cool-assessment/operations_routing.tf:21",
@@ -7932,8 +7685,8 @@
       "what": "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.",
       "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
       "raised_by": "internal/configs",
-      "configs": 54,
-      "sites": 537,
+      "configs": 53,
+      "sites": 543,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:195",
         ".corpus/alb/examples/complete-alb/main.tf:195",
@@ -7967,8 +7720,8 @@
       "what": "An identity argument, a count or a for_each reads a child module's output. Module outputs are produced by evaluating the module, which has not happened yet.",
       "docs_ref": "live/LIMITATIONS.md, \"Module output not supported in static context\"",
       "raised_by": "internal/configs",
-      "configs": 45,
-      "sites": 280,
+      "configs": 33,
+      "sites": 256,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:55",
         ".corpus/alb/examples/complete-alb/main.tf:180",
@@ -7997,23 +7750,6 @@
       "registered": true
     },
     {
-      "layer": "lint",
-      "id": "provisioner",
-      "title": "Provisioners are not available under live resource markers",
-      "docs_ref": "live/LIMITATIONS.md, \"local-exec\" / \"remote-exec\"",
-      "raised_by": "internal/live/lint",
-      "configs": 31,
-      "sites": 90,
-      "examples": [
-        ".corpus/alb/examples/complete-alb/main.tf:452",
-        ".corpus/alb/examples/mutual-auth-alb/main.tf:244",
-        ".corpus/autoscaling/examples/complete/main.tf:882",
-        ".corpus/cool-assessment/transitgateway.tf:41",
-        ".corpus/cyhy-amis/terraform/bod_bastion_ec2.tf:72"
-      ],
-      "registered": true
-    },
-    {
       "layer": "identity",
       "id": "Null identity argument",
       "title": "Null identity argument",
@@ -8033,66 +7769,13 @@
     },
     {
       "layer": "identity",
-      "id": "Identity not resolvable from configuration",
-      "title": "Identity not resolvable from configuration",
-      "what": "An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.",
-      "docs_ref": "live/LIMITATIONS.md, \"Identity not resolvable from configuration\"",
-      "raised_by": "internal/live/identity",
-      "configs": 22,
-      "sites": 187,
-      "examples": [
-        ".corpus/autoscaling/main.tf:1116",
-        ".corpus/autoscaling/main.tf:1116",
-        ".corpus/autoscaling/main.tf:1116",
-        ".corpus/cool-assessment/guacamole_route53.tf:33",
-        ".corpus/cool-assessment/private_acl_rules.tf:449"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
-      "id": "Identity argument not set",
-      "title": "Identity argument not set",
-      "what": "The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.",
-      "docs_ref": "live/LIMITATIONS.md, \"Identity argument not set\"",
-      "raised_by": "internal/live/identity",
-      "configs": 22,
-      "sites": 66,
-      "examples": [
-        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:41",
-        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:74",
-        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:100",
-        ".corpus/eks/cluster.tf:87",
-        ".corpus/eks/cluster.tf:87"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "lint",
-      "id": "module-providers",
-      "title": "Module provider mapping is not honoured",
-      "docs_ref": "live/LIMITATIONS.md, \"module-providers\"",
-      "raised_by": "internal/live/lint",
-      "configs": 21,
-      "sites": 110,
-      "examples": [
-        ".corpus/cool-assessment/debiandesktop_ec2.tf:89",
-        ".corpus/cool-assessment/egressassess_ec2.tf:103",
-        ".corpus/cool-assessment/email_sending_domain_certreadrole.tf:9",
-        ".corpus/cool-assessment/gophish_ec2.tf:143",
-        ".corpus/cool-assessment/guacamole_ec2.tf:104"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
       "id": "Non-static for_each expression",
       "title": "Non-static for_each expression",
       "what": "A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.",
       "docs_ref": "live/LIMITATIONS.md, \"Non-static for_each expression\"",
       "raised_by": "internal/live/identity",
-      "configs": 19,
-      "sites": 62,
+      "configs": 21,
+      "sites": 63,
       "examples": [
         ".corpus/cool-assessment/efs.tf:22",
         ".corpus/cool-assessment/efs.tf:39",
@@ -8121,55 +7804,20 @@
       "registered": true
     },
     {
-      "layer": "lint",
-      "id": "child-module",
-      "title": "This module call cannot be expanded under live resource markers",
-      "docs_ref": "live/LIMITATIONS.md, \"child-module\"",
-      "raised_by": "internal/live/lint",
-      "configs": 13,
-      "sites": 30,
-      "examples": [
-        ".corpus/cool-assessment/debiandesktop_ec2.tf:85",
-        ".corpus/cool-assessment/egressassess_ec2.tf:99",
-        ".corpus/cool-assessment/gophish_ec2.tf:139",
-        ".corpus/cool-assessment/kali_ec2.tf:109",
-        ".corpus/cool-assessment/nessus_ec2.tf:120"
-      ],
-      "registered": true
-    },
-    {
       "layer": "identity",
-      "id": "Invalid for_each set",
-      "title": "Invalid for_each set",
-      "what": "A for_each set's element type is not a string.",
-      "docs_ref": "live/LIMITATIONS.md, \"Invalid for_each set\"",
+      "id": "Identity not resolvable from configuration",
+      "title": "Identity not resolvable from configuration",
+      "what": "An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.",
+      "docs_ref": "live/LIMITATIONS.md, \"Identity not resolvable from configuration\"",
       "raised_by": "internal/live/identity",
-      "configs": 13,
-      "sites": 27,
+      "configs": 15,
+      "sites": 68,
       "examples": [
-        ".corpus/govuk-infrastructure/terraform/deployments/ecr/main.tf:105",
-        ".corpus/rds/modules/db_instance/main.tf:168",
-        ".corpus/rds/modules/db_instance/main.tf:168",
-        ".corpus/rds/modules/db_instance/main.tf:168",
-        ".corpus/rds/modules/db_instance/main.tf:168"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "dataread",
-      "id": "Data source not readable before resolution",
-      "title": "Data source not readable before resolution",
-      "what": "A data source's value is needed to resolve an identity, a count or a for_each, but the data source depends on a managed resource, names one in depends_on, or has an argument that is not statically evaluable, so it cannot be read before the plan.",
-      "docs_ref": "live/LIMITATIONS.md, \"Data source not readable before resolution\"",
-      "raised_by": "internal/live/dataread",
-      "configs": 12,
-      "sites": 150,
-      "examples": [
-        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/amazonmq_security_groups.tf:95",
-        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/amazonmq_security_groups.tf:106",
-        ".corpus/iam/modules/iam-role-for-service-accounts/main.tf:118",
-        ".corpus/iam/modules/iam-role-for-service-accounts/main.tf:118",
-        ".corpus/iam/modules/iam-role-for-service-accounts/main.tf:118"
+        ".corpus/autoscaling/main.tf:1116",
+        ".corpus/autoscaling/main.tf:1116",
+        ".corpus/autoscaling/main.tf:1116",
+        ".corpus/cyhy-amis/terraform/bod_bastion_route53.tf:27",
+        ".corpus/cyhy-amis/terraform/bod_docker_route53.tf:14"
       ],
       "registered": true
     },
@@ -8192,6 +7840,24 @@
       "registered": true
     },
     {
+      "layer": "identity",
+      "id": "Identity argument not set",
+      "title": "Identity argument not set",
+      "what": "The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.",
+      "docs_ref": "live/LIMITATIONS.md, \"Identity argument not set\"",
+      "raised_by": "internal/live/identity",
+      "configs": 10,
+      "sites": 19,
+      "examples": [
+        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:41",
+        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:74",
+        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:100",
+        ".corpus/govuk-aws/terraform/projects/infra-csp-reporter/api_gateway.tf:72",
+        ".corpus/govuk-aws/terraform/projects/infra-fastly-logs/main.tf:870"
+      ],
+      "registered": true
+    },
+    {
       "layer": "lint",
       "id": "moved-block",
       "title": "moved blocks are not available under live resource markers",
@@ -8209,20 +7875,37 @@
       "registered": true
     },
     {
-      "layer": "identity",
-      "id": "Two resources with the same identity",
-      "title": "Two resources with the same identity",
-      "what": "Two resource blocks resolve to one identity, so one live object would have two owners.",
-      "docs_ref": "live/LIMITATIONS.md, \"duplicate-identity\"",
-      "raised_by": "internal/live/identity",
-      "configs": 3,
-      "sites": 10,
+      "layer": "dataread",
+      "id": "Data source not readable before resolution",
+      "title": "Data source not readable before resolution",
+      "what": "A data source's value is needed to resolve an identity, a count or a for_each, but the data source depends on a managed resource, names one in depends_on, or has an argument that is not statically evaluable, so it cannot be read before the plan.",
+      "docs_ref": "live/LIMITATIONS.md, \"Data source not readable before resolution\"",
+      "raised_by": "internal/live/dataread",
+      "configs": 6,
+      "sites": 48,
       "examples": [
-        ".corpus/govuk-infrastructure/terraform/shared-modules/s3/main.tf:7",
-        ".corpus/govuk-infrastructure/terraform/shared-modules/s3/main.tf:117",
-        ".corpus/govuk-infrastructure/terraform/shared-modules/s3/main.tf:128",
-        ".corpus/govuk-infrastructure/terraform/shared-modules/s3/main.tf:140",
-        ".corpus/govuk-infrastructure/terraform/shared-modules/s3/main.tf:181"
+        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/amazonmq_security_groups.tf:95",
+        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/amazonmq_security_groups.tf:106",
+        ".corpus/iam/modules/iam-role-for-service-accounts/main.tf:118",
+        ".corpus/iam/modules/iam-role-for-service-accounts/main.tf:118",
+        ".corpus/iam/modules/iam-role-for-service-accounts/main.tf:118"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "child-module",
+      "title": "This module call cannot be expanded under live resource markers",
+      "docs_ref": "live/LIMITATIONS.md, \"child-module\"",
+      "raised_by": "internal/live/lint",
+      "configs": 6,
+      "sites": 17,
+      "examples": [
+        ".corpus/cool-assessment/debiandesktop_ec2.tf:85",
+        ".corpus/cool-assessment/egressassess_ec2.tf:99",
+        ".corpus/cool-assessment/gophish_ec2.tf:139",
+        ".corpus/cool-assessment/kali_ec2.tf:109",
+        ".corpus/cool-assessment/nessus_ec2.tf:120"
       ],
       "registered": true
     },
@@ -8238,6 +7921,20 @@
         ".corpus/simpleinfra/terraform/shared/modules/gha-iam-user/main.tf:10",
         ".corpus/simpleinfra/terraform/shared/modules/gha-iam-user/main.tf:10",
         ".corpus/simpleinfra/terraform/shared/modules/gha-iam-user/main.tf:10"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "provisioner",
+      "title": "Provisioners are not available under live resource markers",
+      "docs_ref": "live/LIMITATIONS.md, \"local-exec\" / \"remote-exec\"",
+      "raised_by": "internal/live/lint",
+      "configs": 2,
+      "sites": 2,
+      "examples": [
+        ".corpus/autoscaling/examples/complete/main.tf:882",
+        ".corpus/rds/examples/s3-import-mysql/main.tf:191"
       ],
       "registered": true
     },
@@ -8266,13 +7963,12 @@
       "docs_ref": "live/LIMITATIONS.md, \"Attempt to get attribute from null value\"",
       "raised_by": "hcl",
       "configs": 1,
-      "sites": 10,
+      "sites": 4,
       "examples": [
         ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:77",
         ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:77",
-        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:82",
-        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:82",
-        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:82"
+        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:83",
+        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:83"
       ],
       "registered": true
     },
@@ -8309,17 +8005,16 @@
       "registered": true
     },
     {
-      "layer": "identity",
-      "id": "Non-string identity argument",
-      "title": "Non-string identity argument",
-      "what": "An identity argument evaluates to a value that is not a string.",
-      "docs_ref": "live/LIMITATIONS.md, \"Non-string identity argument\"",
-      "raised_by": "internal/live/identity",
+      "layer": "lint",
+      "id": "module-providers",
+      "title": "Module provider mapping is not honoured",
+      "docs_ref": "live/LIMITATIONS.md, \"module-providers\"",
+      "raised_by": "internal/live/lint",
       "configs": 1,
       "sites": 2,
       "examples": [
-        ".corpus/cyhy-amis/terraform/bod_bastion_security_group_rules.tf:6",
-        ".corpus/cyhy-amis/terraform/cyhy_bastion_security_group_rules.tf:6"
+        ".corpus/cool-assessment/read_terraform_state_role.tf:17",
+        ".corpus/cool-assessment/read_write_terraform_state_role.tf:17"
       ],
       "registered": true
     },
@@ -8730,6 +8425,17 @@
     },
     {
       "layer": "identity",
+      "id": "Invalid for_each set",
+      "title": "Invalid for_each set",
+      "what": "A for_each set's element type is not a string.",
+      "docs_ref": "live/LIMITATIONS.md, \"Invalid for_each set\"",
+      "raised_by": "internal/live/identity",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
       "id": "Invalid for_each value",
       "title": "Invalid for_each value",
       "what": "A for_each value is neither a map nor a set of strings.",
@@ -8888,6 +8594,17 @@
       "title": "Non-static lifecycle.enabled expression",
       "what": "A lifecycle.enabled expression cannot be resolved from configuration alone.",
       "docs_ref": "live/LIMITATIONS.md, \"Non-static lifecycle.enabled expression\"",
+      "raised_by": "internal/live/identity",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Non-string identity argument",
+      "title": "Non-string identity argument",
+      "what": "An identity argument evaluates to a value that is not a string.",
+      "docs_ref": "live/LIMITATIONS.md, \"Non-string identity argument\"",
       "raised_by": "internal/live/identity",
       "configs": 0,
       "sites": 0,
@@ -9087,6 +8804,17 @@
       "what": "A function inside a statically evaluated expression was called with too many arguments.",
       "docs_ref": "live/LIMITATIONS.md, \"Too many function arguments\"",
       "raised_by": "hcl",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Two resources with the same identity",
+      "title": "Two resources with the same identity",
+      "what": "Two resource blocks resolve to one identity, so one live object would have two owners.",
+      "docs_ref": "live/LIMITATIONS.md, \"duplicate-identity\"",
+      "raised_by": "internal/live/identity",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -9305,9 +9033,9 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 3276,
-    "sites": 10862,
-    "refusals_fired": 32,
+    "instances": 3395,
+    "sites": 10431,
+    "refusals_fired": 29,
     "refusals_in_set": 118,
     "configs_without_schemas": 0,
     "refusals_unregistered": 0
@@ -9329,8 +9057,8 @@
       "loaded": 144,
       "blocked": 144,
       "clean": 0,
-      "instances": 2129,
-      "sites": 2734,
+      "instances": 2219,
+      "sites": 2467,
       "reads_as": "rate"
     },
     {
@@ -9339,8 +9067,8 @@
       "loaded": 74,
       "blocked": 72,
       "clean": 2,
-      "instances": 416,
-      "sites": 8120,
+      "instances": 445,
+      "sites": 7956,
       "reads_as": "ranking"
     }
   ],
@@ -9355,19 +9083,19 @@
       },
       {
         "class": "backend-only",
-        "configs": 25
+        "configs": 26
       },
       {
         "class": "admissions-only",
-        "configs": 17
+        "configs": 19
       },
       {
         "class": "data-read-eligible",
-        "configs": 23
+        "configs": 28
       },
       {
         "class": "language-blocked",
-        "configs": 79
+        "configs": 71
       },
       {
         "class": "unreadable",
