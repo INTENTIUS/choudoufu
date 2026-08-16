@@ -375,11 +375,12 @@ comment_out_resource() {
 # all.
 plan_block() {
   local out="$1" addr="$2" start
-  start="$(printf '%s\n' "$out" | grep -n -F -- "# $addr will be" | head -n1 | cut -d: -f1)"
+  start="$(grep -n -F -- "# $addr will be" <<< "$out" | head -n1 | cut -d: -f1)"
   [ -n "$start" ] || return 0
-  printf '%s\n' "$out" | tail -n "+$start" | awk '
+  tail -n "+$start" <<< "$out" | awk '
     NR == 1 { print; next }
-    { print; if ($0 ~ /^    }$/) exit }
+    stopped { next }
+    { print; if ($0 ~ /^    }$/) stopped = 1 }
   '
 }
 
@@ -438,8 +439,9 @@ count_lines() {
 # as an omission.
 omission_section() {
   printf '%s\n' "$1" | awk '
+    stopped { next }
     /^Not read from the live system:/ { on = 1 }
-    on && /^─────/ { exit }
+    on && /^─────/ { stopped = 1; next }
     on { print }
   '
 }
@@ -504,7 +506,7 @@ assert_estate_plan() {
   local addr reason n_create n_change n_destroy
 
   [ -n "$out" ] || fail "$step" "$label: live-plan produced no output at all"
-  echo "$out" | grep -qE '^(Plan:|No changes\.)' \
+  grep -qE '^(Plan:|No changes\.)' <<< "$out" \
     || fail "$step" "$label: plan output carries neither a 'Plan:' line nor 'No changes.' — refusing to trust any assertion against it: $out"
 
   # 1. Omissions. #26 retired this fixture's standing unowned residue (the
@@ -564,12 +566,12 @@ assert_estate_plan() {
   n_create="$(count_lines "$creates")"
   n_change="$(count_lines "$changes")"
   n_destroy="$(count_lines "$destroys")"
-  if echo "$out" | grep -qE '^No changes\. Your infrastructure matches the configuration\.$'; then
+  if grep -qE '^No changes\. Your infrastructure matches the configuration\.$' <<< "$out"; then
     { [ "$n_create" -eq 0 ] && [ "$n_change" -eq 0 ] && [ "$n_destroy" -eq 0 ]; } \
       || fail "$step" "$label: the plan says 'No changes.' and prints $n_create create / $n_change change / $n_destroy destroy header(s): $out"
   else
-    echo "$out" | grep -qE "^Plan: $n_create to add, $n_change to change, $n_destroy to destroy\\.\$" \
-      || fail "$step" "$label: the plan summary disagrees with its own diff headers (headers: $n_create to add, $n_change to change, $n_destroy to destroy) — $(echo "$out" | grep -E '^Plan:' || echo 'no Plan: line at all')"
+    grep -qE "^Plan: $n_create to add, $n_change to change, $n_destroy to destroy\\.\$" <<< "$out" \
+      || fail "$step" "$label: the plan summary disagrees with its own diff headers (headers: $n_create to add, $n_change to change, $n_destroy to destroy) — $(grep -E '^Plan:' <<< "$out" || echo 'no Plan: line at all')"
   fi
 }
 
@@ -584,7 +586,7 @@ assert_full_estate_clean() {
   # be one of this call's (empty) tolerances, so reaching a non-"No changes."
   # plan here would mean it accepted a diff it should not have — a mechanism
   # failure in assert_estate_plan itself, not a residue to describe.
-  echo "$out" | grep -qE '^No changes\. Your infrastructure matches the configuration\.$' \
+  grep -qE '^No changes\. Your infrastructure matches the configuration\.$' <<< "$out" \
     || fail "$step" "full-estate plan: assert_estate_plan accepted a non-empty plan with no residue to explain it (mechanism failure): $out"
   echo "  fully empty plan"
 }
@@ -614,17 +616,17 @@ assert_drift_case() {
   assert_estate_plan "$out" "$step" "$addr" "" "the $label drift"
 
   header="  # ${addr} will be updated in-place"
-  echo "$out" | grep -qF "$header" \
+  grep -qF "$header" <<< "$out" \
     || fail "$step" "the $label drift is not visible in the plan (no '$header' line): $out"
 
   block="$(plan_block "$out" "$addr")"
   [ -n "$block" ] || fail "$step" "could not extract the diff block for $addr (mechanism failure)"
-  echo "$block" | grep -q "$attr" || fail "$step" "the $label diff does not mention $attr: $block"
+  grep -q "$attr" <<< "$block" || fail "$step" "the $label diff does not mention $attr: $block"
 
   allowed='tags|tags_all'
   [ "$nontags" = "1" ] && allowed="$allowed|$attr"
   for u in $unserved; do allowed="$allowed|$u"; done
-  bad="$(echo "$block" | grep -E '^ {6}[~+-] [A-Za-z0-9_]+' \
+  bad="$(grep -E '^ {6}[~+-] [A-Za-z0-9_]+' <<< "$block" \
     | sed -E "s/^ {6}[~+-] ([A-Za-z0-9_]+).*/\\1/" | grep -vE "^($allowed)\$")" || true
   [ -z "$bad" ] || fail "$step" "the $label diff touches attribute(s) beyond $allowed: $bad"
 
@@ -662,7 +664,7 @@ HAVE_LIVE_MV=0
 # HAVE_LIVE_PLAN alone, which only means the P1.4 command surface exists.
 LIVE_PLAN_HELP="$("$TOFU" live-plan -help 2>&1 || true)"
 HAVE_LIVE_ESTATE=0
-echo "$LIVE_PLAN_HELP" | grep -q -- '-estate' && HAVE_LIVE_ESTATE=1
+grep -q -- '-estate' <<< "$LIVE_PLAN_HELP" && HAVE_LIVE_ESTATE=1
 LIVE_E2E_EXACTNESS="${LIVE_E2E_EXACTNESS:-1}"
 
 # P4.3's probe: the "live" block that puts plain plan/apply into
@@ -685,7 +687,7 @@ PROBEEOF
 BLOCK_PROBE_OUT="$(cd "$BLOCK_PROBE_DIR" && "$TOFU" validate -no-color 2>&1)" || true
 rm -rf "$BLOCK_PROBE_DIR"
 HAVE_LIVE_BLOCK=1
-echo "$BLOCK_PROBE_OUT" | grep -q "Unsupported block type" && HAVE_LIVE_BLOCK=0
+grep -q "Unsupported block type" <<< "$BLOCK_PROBE_OUT" && HAVE_LIVE_BLOCK=0
 
 echo "  live-plan:        $([ "$HAVE_LIVE_PLAN" -eq 1 ] && echo present || echo absent)"
 echo "  live-plan -estate: $([ "$HAVE_LIVE_ESTATE" -eq 1 ] && echo present || echo absent)"
@@ -793,15 +795,15 @@ else
     ADDR="aws_eip.pool[$i]"
     BLOCK="$(plan_block "$OUT" "$ADDR")"
     [ -n "$BLOCK" ] || fail "slot-migration" "no diff for $ADDR in the pre-migration plan: $OUT"
-    echo "$BLOCK" | grep -q "will be created" \
+    grep -q "will be created" <<< "$BLOCK" \
       && fail "slot-migration" "$ADDR is proposed as a create -- the pre-slot compatibility path should bind it by address, not mint it: $BLOCK"
-    echo "$BLOCK" | grep -q "will be destroyed" \
+    grep -q "will be destroyed" <<< "$BLOCK" \
       && fail "slot-migration" "$ADDR is proposed as a destroy: $BLOCK"
 
-    SLOT="$(echo "$BLOCK" | grep -oE '"tofu-slot"[[:space:]]*=[[:space:]]*"[0-9]+"' | head -n1 | grep -oE '[0-9]+')"
+    SLOT="$(grep -oE '"tofu-slot"[[:space:]]*=[[:space:]]*"[0-9]+"' <<< "$BLOCK" | head -n1 | grep -oE '[0-9]+')"
     [ -n "$SLOT" ] || fail "slot-migration" "$ADDR's diff proposes no tofu-slot tag: $BLOCK"
 
-    ALLOC_ID="$(echo "$LIVE_EIPS" | awk -v est="stateless-e2e" -v want="aws_eip.pool:$i" '$2==est && $3==want {print $1; exit}')"
+    ALLOC_ID="$(awk -v est="stateless-e2e" -v want="aws_eip.pool:$i" '$2==est && $3==want {print $1; exit}' <<< "$LIVE_EIPS")"
     [ -n "$ALLOC_ID" ] \
       || fail "slot-migration" "no live EIP tagged tofu-estate=stateless-e2e tofu-address=aws_eip.pool:$i"
 
@@ -814,7 +816,7 @@ else
   REOUT="$TF_OUT"
   RC="$TF_RC"
   [ "$RC" -eq 0 ] || fail "slot-migration" "re-plan after migration exited $RC: $REOUT"
-  echo "$REOUT" | grep -qE '^  # aws_eip\.pool\[[0-9]+\] will be' \
+  grep -qE '^  # aws_eip\.pool\[[0-9]+\] will be' <<< "$REOUT" \
     && fail "slot-migration" "re-plan still proposes a change to the EIP pool after migration: $REOUT"
   echo "  re-plan proposes no further change to the EIP pool"
   record_step "slot-migration" pass
@@ -898,9 +900,9 @@ else
   live_plan "$MAIN" "receipt-adoption"
   ADOPT_OUT="$TF_OUT"
   for ADOPT_ADDR in aws_ssm_parameter.demo_effect aws_ssm_parameter.demo_existence; do
-    echo "$ADOPT_OUT" | grep -qF "  $ADOPT_ADDR [UNOWNED]" \
+    grep -qF "  $ADOPT_ADDR [UNOWNED]" <<< "$ADOPT_OUT" \
       && fail "receipt-adoption" "$ADOPT_ADDR is still reported unowned after its markers were written: $(omission_section "$ADOPT_OUT")"
-    echo "$ADOPT_OUT" | grep -qF "# $ADOPT_ADDR will be created" \
+    grep -qF "# $ADOPT_ADDR will be created" <<< "$ADOPT_OUT" \
       && fail "receipt-adoption" "$ADOPT_ADDR is still planned as a create after adoption: $ADOPT_OUT"
   done
 
@@ -1063,7 +1065,7 @@ else
   D_LIVE_EIPS="$(awsl ec2 describe-addresses \
     --query 'Addresses[].[AllocationId,Tags[?Key==`tofu-estate`]|[0].Value,Tags[?Key==`tofu-address`]|[0].Value]' \
     --output text 2>/dev/null)" || true
-  D_EIP_ID="$(echo "$D_LIVE_EIPS" | awk -v est="stateless-e2e" -v want="aws_eip.pool:0" '$2==est && $3==want {print $1; exit}')"
+  D_EIP_ID="$(awk -v est="stateless-e2e" -v want="aws_eip.pool:0" '$2==est && $3==want {print $1; exit}' <<< "$D_LIVE_EIPS")"
   [ -n "$D_EIP_ID" ] || fail "drift-exact" "could not find aws_eip.pool[0] via its tofu-address tag"
 
   DRIFT_NAMES=(vpc subnet sg eip bucket log-group-tag log-group-retention)
@@ -1191,28 +1193,28 @@ else
   # blank or garbled $OUT would make every negative grep below pass
   # vacuously -- the empty-pipe-is-a-pass shape the audit flagged.
   [ -n "$OUT" ] || fail "foreign-protected" "live-plan produced no output at all"
-  echo "$OUT" | grep -qE '^(Plan:|No changes\.)' \
+  grep -qE '^(Plan:|No changes\.)' <<< "$OUT" \
     || fail "foreign-protected" "plan output has none of the expected structural markers (Plan:/No changes.) -- refusing to trust any grep against it: $OUT"
 
   # Sanity check 2: the foreign SG id must actually appear somewhere in the
   # output before any assertion (positive or negative) built on it is
   # trustworthy -- otherwise a plan that never even considered the resource
   # would look identical to one that correctly protected it.
-  echo "$OUT" | grep -q "$FOREIGN_SG" \
+  grep -q "$FOREIGN_SG" <<< "$OUT" \
     || fail "foreign-protected" "the foreign security group id $FOREIGN_SG does not appear anywhere in plan output -- the plan never saw it: $OUT"
 
   # It must be reported, specifically, as foreign.
-  echo "$OUT" | grep -qi "foreign" || fail "foreign-protected" "the unmarked security group was not reported as foreign"
+  grep -qi "foreign" <<< "$OUT" || fail "foreign-protected" "the unmarked security group was not reported as foreign"
 
   # It must be reported specifically inside the Foreign section's item list
   # (views/live_plan.go's "  <type> <live-id>( (<display>))?" shape),
   # not merely somewhere in the output -- e.g. not only in the "Not swept"
   # or "Adoptable" sub-sections, whose item lines start differently.
-  FOREIGN_HEADER="$(echo "$OUT" | grep -E '^Foreign resources: [0-9]+ live resources? not owned by estate ')" || true
+  FOREIGN_HEADER="$(grep -E '^Foreign resources: [0-9]+ live resources? not owned by estate ' <<< "$OUT")" || true
   [ -n "$FOREIGN_HEADER" ] \
     || fail "foreign-protected" "no 'Foreign resources: N live resource(s) not owned by estate ...' header in plan output: $OUT"
   echo "  $FOREIGN_HEADER"
-  echo "$OUT" | grep -qE "^  aws_security_group ${FOREIGN_SG}( \(|\$)" \
+  grep -qE "^  aws_security_group ${FOREIGN_SG}( \(|\$)" <<< "$OUT" \
     || fail "foreign-protected" "the foreign security group id $FOREIGN_SG does not appear as a Foreign-section item line: $OUT"
 
   # Zero destroys anywhere in the plan, not merely a check that this one
@@ -1239,11 +1241,11 @@ else
   # real output is trusted: assert it finds the marker on a synthetic
   # destroy line first.
   SYNTHETIC_DESTROY_LINE="  - resource \"aws_security_group\" \"synthetic-$FOREIGN_SG\" {"
-  echo "$SYNTHETIC_DESTROY_LINE" | grep -qE '^[[:space:]]*-' \
+  grep -qE '^[[:space:]]*-' <<< "$SYNTHETIC_DESTROY_LINE" \
     || fail "foreign-protected" "destroy-line grep pattern '^[[:space:]]*-' does not even match a synthetic destroy line -- the assertion mechanism itself is broken, independent of what live-plan printed"
 
-  DESTROY_LINES="$(echo "$OUT" | grep -E '^[[:space:]]*-')" || true
-  echo "$DESTROY_LINES" | grep -q "$FOREIGN_SG" \
+  DESTROY_LINES="$(grep -E '^[[:space:]]*-' <<< "$OUT")" || true
+  grep -q "$FOREIGN_SG" <<< "$DESTROY_LINES" \
     && fail "foreign-protected" "the foreign security group was proposed for deletion: $DESTROY_LINES"
 
   # Cleanup: remove the out-of-band SG so a rerun of the harness (a fresh
@@ -1302,9 +1304,9 @@ else
 
   # 2. "Owned and undeclared" names the removal and the live ID - the
   # legitimacy claim, not merely the destroy header.
-  echo "$OUT" | grep -q "Owned and undeclared: 1 live resource will be destroyed" \
+  grep -q "Owned and undeclared: 1 live resource will be destroyed" <<< "$OUT" \
     || fail "removal-exact" "the plan does not say why destroying aws_ebs_volume.data is legitimate: $OUT"
-  echo "$OUT" | grep -q "$R_VOL_ID" \
+  grep -q "$R_VOL_ID" <<< "$OUT" \
     || fail "removal-exact" "the plan does not name the live resource $R_VOL_ID anywhere: $OUT"
 
   # 4. Apply it. No live-apply command exists - $MAIN carries no
@@ -1403,9 +1405,9 @@ else
   LIVE_SLOTS="$(awsl ec2 describe-addresses \
     --query 'Addresses[].[AllocationId,Tags[?Key==`tofu-estate`]|[0].Value,Tags[?Key==`tofu-slot`]|[0].Value]' \
     --output text 2>/dev/null)" || true
-  SLOT0_ID="$(echo "$LIVE_SLOTS" | awk -v est="stateless-e2e" '$2==est && $3=="0" {print $1; exit}')"
-  SLOT1_ID="$(echo "$LIVE_SLOTS" | awk -v est="stateless-e2e" '$2==est && $3=="1" {print $1; exit}')"
-  SLOT2_ID="$(echo "$LIVE_SLOTS" | awk -v est="stateless-e2e" '$2==est && $3=="2" {print $1; exit}')"
+  SLOT0_ID="$(awk -v est="stateless-e2e" '$2==est && $3=="0" {print $1; exit}' <<< "$LIVE_SLOTS")"
+  SLOT1_ID="$(awk -v est="stateless-e2e" '$2==est && $3=="1" {print $1; exit}' <<< "$LIVE_SLOTS")"
+  SLOT2_ID="$(awk -v est="stateless-e2e" '$2==est && $3=="2" {print $1; exit}' <<< "$LIVE_SLOTS")"
   [ -n "$SLOT0_ID" ] && [ -n "$SLOT1_ID" ] && [ -n "$SLOT2_ID" ] \
     || fail "count-scale-down" "could not find all three live slot-tagged EIPs (slots 0, 1, 2) for estate stateless-e2e -- the slot-migration sub-step must have run first"
 
@@ -1439,26 +1441,26 @@ else
   # read from the cloud above -- not merely whichever id the plan chose to
   # print.
   DESTROY_BLOCK="$(plan_block "$OUT" "aws_eip.pool[2]")"
-  echo "$DESTROY_BLOCK" | grep -q "$SLOT2_ID" \
+  grep -q "$SLOT2_ID" <<< "$DESTROY_BLOCK" \
     || fail "count-scale-down" "the destroy of aws_eip.pool[2] does not name $SLOT2_ID, the allocation the cloud says holds slot 2: $DESTROY_BLOCK"
 
   # 3. Zero churn: no header of any kind (create/destroy/update) for
   # pool[0] or pool[1].
-  echo "$OUT" | grep -qE '^  # aws_eip\.pool\[[01]\] will be' \
+  grep -qE '^  # aws_eip\.pool\[[01]\] will be' <<< "$OUT" \
     && fail "count-scale-down" "pool[0] or pool[1] has a diff header -- scale-down must not touch a survivor: $OUT"
 
   # 4. The survivors' allocation IDs appear on no removal line anywhere in
   # the plan.
-  REMOVAL_LINES="$(echo "$OUT" | grep -E '^[[:space:]]*-')" || true
+  REMOVAL_LINES="$(grep -E '^[[:space:]]*-' <<< "$OUT")" || true
   for SID in "$SLOT0_ID" "$SLOT1_ID"; do
-    echo "$REMOVAL_LINES" | grep -q "$SID" \
+    grep -q "$SID" <<< "$REMOVAL_LINES" \
       && fail "count-scale-down" "survivor $SID appears on a removal line: $REMOVAL_LINES"
   done
 
   # 5. A scale-down never creates an EIP. assert_estate_plan above already
   # required every create to be one this step declared (none), so this is
   # the check specific to this step: no member of the pool is minted.
-  echo "$OUT" | grep -qE '^  # aws_eip\.pool(\[[0-9]+\])? will be created$' \
+  grep -qE '^  # aws_eip\.pool(\[[0-9]+\])? will be created$' <<< "$OUT" \
     && fail "count-scale-down" "scale-down proposes creating an EIP: $OUT"
 
   echo "  3 -> 2 EIPs: exactly one delete ($SLOT2_ID, slot 2), zero churn on the survivors ($SLOT0_ID slot 0, $SLOT1_ID slot 1)"
@@ -1542,7 +1544,7 @@ else
   MV_OUT="$TF_OUT"
   RC="$TF_RC"
   [ "$RC" -eq 0 ] || fail "rename-no-churn" "live-mv $OLD_ADDR -> $NEW_ADDR exited $RC: $MV_OUT"
-  echo "$MV_OUT" | grep -q "This was a cloud write." \
+  grep -q "This was a cloud write." <<< "$MV_OUT" \
     || fail "rename-no-churn" "live-mv did not report a cloud write: $MV_OUT"
 
   # The check that does not trust this fork's own reads: the live tag, read
@@ -1631,7 +1633,7 @@ else
   APPLY_RC=$?
   set -e
   [ "$APPLY_RC" -eq 0 ] || fail "plain-plan-works" "plain choudoufu apply failed: $APPLY_OUT"
-  echo "$APPLY_OUT" | grep -qE '^Apply complete! Resources: 7 added, 0 changed, 0 destroyed\.$' \
+  grep -qE '^Apply complete! Resources: 7 added, 0 changed, 0 destroyed\.$' <<< "$APPLY_OUT" \
     || fail "plain-plan-works" "expected 'Apply complete! Resources: 7 added, 0 changed, 0 destroyed.' (vpc, subnet, sg, bucket, log group, 2 eips): $APPLY_OUT"
   [ ! -f "$WORK11/terraform.tfstate" ] \
     || fail "plain-plan-works" "terraform.tfstate exists after a plain choudoufu apply -- a live-block estate must never write one"
@@ -1669,7 +1671,7 @@ else
   BLOCK_EIPS="$(awsl ec2 describe-addresses \
     --query 'Addresses[].[AllocationId,Tags[?Key==`tofu-estate`]|[0].Value,Tags[?Key==`tofu-slot`]|[0].Value]' \
     --output text 2>/dev/null)" || true
-  BLOCK_EIP_SLOT0="$(echo "$BLOCK_EIPS" | awk -v est="stateless-e2e-block" '$2==est && $3=="0" {print $1; exit}')"
+  BLOCK_EIP_SLOT0="$(awk -v est="stateless-e2e-block" '$2==est && $3=="0" {print $1; exit}' <<< "$BLOCK_EIPS")"
   [ -n "$BLOCK_EIP_SLOT0" ] || fail "plain-plan-works" "no live EIP for estate-block carrying tofu-slot=0: $BLOCK_EIPS"
   echo "  live markers confirmed via aws CLI: VPC $BLOCK_VPC_ID (tofu-address=aws_vpc.main), EIP slot 0 -> $BLOCK_EIP_SLOT0"
 
@@ -1684,7 +1686,7 @@ else
   PLAN_RC=$?
   set -e
   [ "$PLAN_RC" -eq 0 ] || fail "plain-plan-works" "plain choudoufu plan failed: $PLAN_OUT"
-  echo "$PLAN_OUT" | grep -qE '^No changes\. Your infrastructure matches the configuration\.$' \
+  grep -qE '^No changes\. Your infrastructure matches the configuration\.$' <<< "$PLAN_OUT" \
     || fail "plain-plan-works" "expected a genuinely empty plan: $PLAN_OUT"
   [ ! -f "$WORK11/terraform.tfstate" ] \
     || fail "plain-plan-works" "terraform.tfstate exists after a plain choudoufu plan"
@@ -1701,7 +1703,7 @@ else
   set -e
   [ "$DRIFT_RC" -eq 2 ] \
     || fail "plain-plan-works" "-detailed-exitcode after the out-of-band tag write: want 2, got $DRIFT_RC: $DRIFT_OUT"
-  echo "$DRIFT_OUT" | grep -q "Owner" \
+  grep -q "Owner" <<< "$DRIFT_OUT" \
     || fail "plain-plan-works" "the drift plan does not mention the out-of-band tag: $DRIFT_OUT"
 
   set +e
@@ -1709,7 +1711,7 @@ else
   CORRECT_RC=$?
   set -e
   [ "$CORRECT_RC" -eq 0 ] || fail "plain-plan-works" "the corrective apply failed: $CORRECT_OUT"
-  echo "$CORRECT_OUT" | grep -qE '^Apply complete! Resources: 0 added, 1 changed, 0 destroyed\.$' \
+  grep -qE '^Apply complete! Resources: 0 added, 1 changed, 0 destroyed\.$' <<< "$CORRECT_OUT" \
     || fail "plain-plan-works" "expected the corrective apply to change exactly one resource: $CORRECT_OUT"
 
   set +e
@@ -1727,7 +1729,7 @@ else
   OUT_REJECT_RC=$?
   set -e
   [ "$OUT_REJECT_RC" -ne 0 ] || fail "plain-plan-works" "choudoufu plan -out=x should have been rejected, exited 0: $OUT_REJECT"
-  echo "$OUT_REJECT" | grep -q "Saved plan files are not available under live resource markers" \
+  grep -q "Saved plan files are not available under live resource markers" <<< "$OUT_REJECT" \
     || fail "plain-plan-works" "choudoufu plan -out=x did not name the expected error: $OUT_REJECT"
   [ ! -e "$WORK11/x" ] || fail "plain-plan-works" "choudoufu plan -out=x wrote a plan file despite being rejected"
 
@@ -1736,7 +1738,7 @@ else
   REFRESH_REJECT_RC=$?
   set -e
   [ "$REFRESH_REJECT_RC" -ne 0 ] || fail "plain-plan-works" "choudoufu refresh should have been rejected, exited 0: $REFRESH_REJECT"
-  echo "$REFRESH_REJECT" | grep -q "Refresh is not available under live resource markers" \
+  grep -q "Refresh is not available under live resource markers" <<< "$REFRESH_REJECT" \
     || fail "plain-plan-works" "choudoufu refresh did not name the expected error: $REFRESH_REJECT"
   echo "  rejected-flag spot check: plan -out and refresh both refused with their named errors"
 
@@ -1802,7 +1804,7 @@ else
   ORIG_VALUE="$(awsl ssm get-parameter --name "$RECEIPT_NAME" --query 'Parameter.Value' --output text 2>/dev/null || echo "")"
   [ -n "$ORIG_VALUE" ] && [ "$ORIG_VALUE" != "None" ] \
     || fail "receipt-cycle" "the receipt parameter $RECEIPT_NAME does not exist"
-  echo "$ORIG_VALUE" | grep -qE '^[0-9a-f]{64}$' \
+  grep -qE '^[0-9a-f]{64}$' <<< "$ORIG_VALUE" \
     || fail "receipt-cycle" "the receipt's value is not a 64-character hex sha256 hash: $ORIG_VALUE"
   echo "  receipt exists: $RECEIPT_NAME = $ORIG_VALUE (64-char hash: the HASH flavor)"
 
@@ -1839,18 +1841,18 @@ else
   assert_estate_plan "$ARMED" "receipt-cycle" "aws_ssm_parameter.demo_effect" "" "the broken-receipt plan"
 
   RECEIPT_HEADER="  # aws_ssm_parameter.demo_effect will be updated in-place"
-  echo "$ARMED" | grep -qF "$RECEIPT_HEADER" \
+  grep -qF "$RECEIPT_HEADER" <<< "$ARMED" \
     || fail "receipt-cycle" "the broken receipt did not re-arm a plan on aws_ssm_parameter.demo_effect: $ARMED"
 
   RECEIPT_BLOCK="$(plan_block "$ARMED" "aws_ssm_parameter.demo_effect")"
   [ -n "$RECEIPT_BLOCK" ] || fail "receipt-cycle" "could not extract the receipt's diff block"
-  echo "$RECEIPT_BLOCK" | grep -qE '(value|value_wo)' \
+  grep -qE '(value|value_wo)' <<< "$RECEIPT_BLOCK" \
     || fail "receipt-cycle" "the receipt's diff does not mention its value at all: $RECEIPT_BLOCK"
   # value's own companions: value_wo (a write-only attribute the provider
   # cannot read back and re-sends on any in-place update) and version, which
   # the AWS provider bumps as a side effect of any value write and which a
   # real value change therefore always carries with it.
-  RECEIPT_BAD="$(echo "$RECEIPT_BLOCK" | grep -E '^ {6}[~+-] [A-Za-z0-9_]+' \
+  RECEIPT_BAD="$(grep -E '^ {6}[~+-] [A-Za-z0-9_]+' <<< "$RECEIPT_BLOCK" \
     | sed -E 's/^ {6}[~+-] ([A-Za-z0-9_]+).*/\1/' | grep -vE '^(tags(_all)?|value|value_wo|version)$')" || true
   [ -z "$RECEIPT_BAD" ] \
     || fail "receipt-cycle" "the receipt's diff touches attribute(s) beyond value/version/tags: $RECEIPT_BAD"
@@ -1936,14 +1938,14 @@ else
   assert_estate_plan "$ARMED" "receipt-cycle-existence" "" "" "the deleted-receipt plan" "$EXISTENCE_ADDR"
 
   ARMED_HEADER="  # $EXISTENCE_ADDR will be created"
-  echo "$ARMED" | grep -qF "$ARMED_HEADER" \
+  grep -qF "$ARMED_HEADER" <<< "$ARMED" \
     || fail "receipt-cycle-existence" "the deleted receipt did not re-arm a create on $EXISTENCE_ADDR: $ARMED"
-  echo "$ARMED" | grep -qF "$EXISTENCE_ADDR [ABSENT]" \
+  grep -qF "$EXISTENCE_ADDR [ABSENT]" <<< "$ARMED" \
     || fail "receipt-cycle-existence" "$EXISTENCE_ADDR is not reported [ABSENT] after being deleted out of band: $(omission_section "$ARMED")"
 
   EXISTENCE_BLOCK="$(plan_block "$ARMED" "$EXISTENCE_ADDR")"
   [ -n "$EXISTENCE_BLOCK" ] || fail "receipt-cycle-existence" "could not extract the existence receipt's diff block"
-  echo "$EXISTENCE_BLOCK" | grep -qE '(value|value_wo)' \
+  grep -qE '(value|value_wo)' <<< "$EXISTENCE_BLOCK" \
     || fail "receipt-cycle-existence" "the existence receipt's create diff does not mention its value at all: $EXISTENCE_BLOCK"
   echo "  deleted receipt re-armed: $EXISTENCE_ADDR proposed as a create, nothing else"
 
@@ -2042,7 +2044,7 @@ DOEOF
   run_tf "$DO_DIR" apply -auto-approve -input=false -no-color
   BASE_APPLY_OUT="$TF_OUT"
   [ "$TF_RC" -eq 0 ] || fail "drift-reconverge" "the baseline apply against the standing estate failed: $BASE_APPLY_OUT"
-  echo "$BASE_APPLY_OUT" | grep -qE '^Apply complete! Resources: 0 added, 0 changed, 0 destroyed\.$' \
+  grep -qE '^Apply complete! Resources: 0 added, 0 changed, 0 destroyed\.$' <<< "$BASE_APPLY_OUT" \
     || fail "drift-reconverge" "the baseline apply should adopt the standing estate with no changes at all: $BASE_APPLY_OUT"
   echo "  baseline apply adopted the standing estate with no changes"
 
@@ -2090,10 +2092,10 @@ DOEOF
     || fail "drift-reconverge" "-detailed-exitcode after the three out-of-band drifts: want 2, got $DRIFT_PLAN_RC: $DRIFT_PLAN_OUT"
 
   # (a) in-place update naming the attribute the plan read back.
-  echo "$DRIFT_PLAN_OUT" | grep -qF "  # aws_cloudwatch_log_group.app will be updated in-place" \
+  grep -qF "  # aws_cloudwatch_log_group.app will be updated in-place" <<< "$DRIFT_PLAN_OUT" \
     || fail "drift-reconverge" "the log group retention drift is not visible in the plan: $DRIFT_PLAN_OUT"
   DRIFT_LOG_BLOCK="$(plan_block "$DRIFT_PLAN_OUT" "aws_cloudwatch_log_group.app")"
-  echo "$DRIFT_LOG_BLOCK" | grep -q "retention_in_days" \
+  grep -q "retention_in_days" <<< "$DRIFT_LOG_BLOCK" \
     || fail "drift-reconverge" "the log group diff does not mention retention_in_days: $DRIFT_LOG_BLOCK"
 
   # (b) current design, per drift-exact's own "vpc" case (step 6): a plain
@@ -2107,10 +2109,10 @@ DOEOF
   # are simply excluded from the diff (they are not part of any resource's
   # own declared tags to begin with — MARKERS.md), and everything else is
   # fair game like this one.
-  echo "$DRIFT_PLAN_OUT" | grep -qF "  # aws_vpc.main will be updated in-place" \
+  grep -qF "  # aws_vpc.main will be updated in-place" <<< "$DRIFT_PLAN_OUT" \
     || fail "drift-reconverge" "the VPC tag drift is not visible in the plan: $DRIFT_PLAN_OUT"
   DRIFT_VPC_BLOCK="$(plan_block "$DRIFT_PLAN_OUT" "aws_vpc.main")"
-  echo "$DRIFT_VPC_BLOCK" | grep -q "DriftObserved" \
+  grep -q "DriftObserved" <<< "$DRIFT_VPC_BLOCK" \
     || fail "drift-reconverge" "the VPC diff does not mention the out-of-band DriftObserved tag: $DRIFT_VPC_BLOCK"
 
   # (c) markers are the record, not the live resource: the alarm vanished,
@@ -2121,7 +2123,7 @@ DOEOF
   # under a live block has no broader "whole estate" reconciliation view to
   # omit anything FROM, so the resource simply reads as new, the same as
   # any resource's first apply.
-  echo "$DRIFT_PLAN_OUT" | grep -qF "  # aws_cloudwatch_metric_alarm.cpu will be created" \
+  grep -qF "  # aws_cloudwatch_metric_alarm.cpu will be created" <<< "$DRIFT_PLAN_OUT" \
     || fail "drift-reconverge" "the deleted alarm did not re-arm a create in the plan: $DRIFT_PLAN_OUT"
 
   # And nothing else moved: exactly these three addresses have a diff, and
@@ -2138,8 +2140,8 @@ DOEOF
     || fail "drift-reconverge" "expected exactly 1 create (the alarm), got: $DRIFT_CREATED"
   [ -z "$DRIFT_DESTROYED" ] \
     || fail "drift-reconverge" "expected no destroys, got: $DRIFT_DESTROYED"
-  echo "$DRIFT_PLAN_OUT" | grep -qE '^Plan: 1 to add, 2 to change, 0 to destroy\.$' \
-    || fail "drift-reconverge" "the plan summary disagrees with its own headers: $(echo "$DRIFT_PLAN_OUT" | grep -E '^Plan:' || echo 'no Plan: line at all')"
+  grep -qE '^Plan: 1 to add, 2 to change, 0 to destroy\.$' <<< "$DRIFT_PLAN_OUT" \
+    || fail "drift-reconverge" "the plan summary disagrees with its own headers: $(grep -E '^Plan:' <<< "$DRIFT_PLAN_OUT" || echo 'no Plan: line at all')"
   echo "  plan renders all three: log group retention in-place, VPC tags in-place, alarm re-armed as a create — nothing else"
 
   # ── Reconverge: a real, untargeted apply corrects all three drifts in one
@@ -2147,7 +2149,7 @@ DOEOF
   run_tf "$DO_DIR" apply -auto-approve -input=false -no-color
   CONVERGE_APPLY_OUT="$TF_OUT"
   [ "$TF_RC" -eq 0 ] || fail "drift-reconverge" "the reconverging apply failed: $CONVERGE_APPLY_OUT"
-  echo "$CONVERGE_APPLY_OUT" | grep -qE '^Apply complete! Resources: 1 added, 2 changed, 0 destroyed\.$' \
+  grep -qE '^Apply complete! Resources: 1 added, 2 changed, 0 destroyed\.$' <<< "$CONVERGE_APPLY_OUT" \
     || fail "drift-reconverge" "expected the reconverging apply to add 1 (the alarm) and change 2 (the log group, the VPC): $CONVERGE_APPLY_OUT"
 
   # ── Convergence, confirmed by a plan too, not only by the apply's own
@@ -2282,7 +2284,7 @@ overlong-address:overlong-address"
     LINT_RULES="${LINT_RULES% }"
     [ "$LINT_RULES" = "$LRULE" ] \
       || fail "lint-rejects" "$LDIR: expected exactly rule '$LRULE' and no other, got [$LINT_RULES]: $TF_OUT"
-    echo "$TF_OUT" | grep -qE '^Error: ' \
+    grep -qE '^Error: ' <<< "$TF_OUT" \
       || fail "lint-rejects" "$LDIR: rule '$LRULE' fired but nothing was reported as an Error: $TF_OUT"
 
     LINT_N=$((LINT_N + 1))
@@ -2304,7 +2306,7 @@ overlong-address:overlong-address"
 
     case "$LDIR" in
       duplicate-identity)
-        echo "$TF_OUT" | grep -q "Two resources with the same identity" \
+        grep -q "Two resources with the same identity" <<< "$TF_OUT" \
           || fail "lint-rejects" "$LDIR: expected the identity-resolution error naming the collision: $TF_OUT"
         echo "  $LDIR -> TODO (no lint rule; refused at identity resolution instead)" ;;
       *)
