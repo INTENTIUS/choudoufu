@@ -39,7 +39,9 @@ import (
 //   - staticForEachKeys asks only "what are the keys" of an object
 //     constructor (directly, through var/local aliasing, or through
 //     merge() of several) - the key set a for_each expansion needs, which
-//     is knowable whatever the values are.
+//     is knowable whatever the values are. It offers each key's own value
+//     alongside, but only where it evaluated that one expression itself;
+//     the key set never depends on a value, which is the whole point.
 //   - namedLeaf and selectStatic ask "what is the one value this specific
 //     selector names" - a plain literal, evaluated on its own; a managed
 //     resource's attribute, resolved through the exact same
@@ -213,7 +215,7 @@ func (r *resolver) namedDef(root, name string, scope instScope) (hcl.Expression,
 // The shapes chased, at any depth and in any combination:
 //
 //   - local/var aliasing, through [resolver.namedDef].
-//   - An object constructor directly ([resolver.objectConsKeys]).
+//   - An object constructor directly ([resolver.objectConsElems]).
 //   - merge() of several arguments, each chased the same way and unioned -
 //     including merge(list...): the splatted final argument is itself
 //     chased, and a list literal reached that way is handled by unioning
@@ -224,7 +226,7 @@ func (r *resolver) namedDef(root, name string, scope instScope) (hcl.Expression,
 //     ONLY when it stands where merge()'s splatted final argument stands,
 //     which is the sole position where a list's elements ARE the separate
 //     objects being unioned. See tupleIsArgs.
-//   - A for-comprehension producing an object ([resolver.forExprKeys]):
+//   - A for-comprehension producing an object ([resolver.forExprElems]):
 //     chases the SOURCE collection's own key set - a map's keys, a list's
 //     integer indices - then evaluates the comprehension's KEY clause once
 //     per source element with the loop's key variable bound, and its value
@@ -248,24 +250,33 @@ func (r *resolver) namedDef(root, name string, scope instScope) (hcl.Expression,
 //
 // #239 recovers the second of those, which is an ordinary idiom rather than
 // an invalid configuration, by making the chase SHAPE-AWARE instead of
-// declining: [resolver.staticCollKeys] answers with the key values cty
+// declining: [resolver.staticCollElems] answers with the key values cty
 // itself binds a loop variable to - a string for a map, an object or a set
 // of strings, a NUMBER for a list or a tuple - and this function, which
 // serves the for_each position, narrows that to the strings a for_each may
 // use as instance keys. A tuple therefore still refuses HERE (its keys are
-// numbers, which for_each does not accept), while [resolver.forExprKeys]
+// numbers, which for_each does not accept), while [resolver.forExprElems]
 // can range over it and get 0, 1, 2.
 //
 // It deliberately does not chase a selector before reaching the object
 // (for_each = local.foo.bar is not supported): the corpus shape this fix
 // exists for is always a bare local or module variable ranged over
 // directly.
-func (r *resolver) staticForEachKeys(expr hcl.Expression, ident configs.StaticIdentifier, depth int, tupleIsArgs bool) ([]string, bool) {
-	keys, ok := r.staticCollKeys(expr, ident, depth, tupleIsArgs)
+//
+// The second result is the value each key is bound to, parallel to the
+// first and cty.NilVal wherever this resolver did not evaluate one for
+// itself. See [resolver.staticCollElems] for what "did not evaluate one"
+// means and why an unproven value is left unbound rather than guessed.
+func (r *resolver) staticForEachKeys(expr hcl.Expression, ident configs.StaticIdentifier, depth int, tupleIsArgs bool) ([]string, []cty.Value, bool) {
+	keys, vals, ok := r.staticCollElems(expr, ident, depth, tupleIsArgs)
 	if !ok {
-		return nil, false
+		return nil, nil, false
 	}
-	return stringKeys(keys)
+	names, ok := stringKeys(keys)
+	if !ok {
+		return nil, nil, false
+	}
+	return names, vals, true
 }
 
 // stringKeys narrows a collection's key set to the strings a for_each
@@ -291,9 +302,10 @@ func stringKeys(keys []cty.Value) ([]string, bool) {
 	return out, true
 }
 
-// staticCollKeys is the shape-aware half of the key-set chase: it answers
+// staticCollElems is the shape-aware half of the key-set chase: it answers
 // with the key set of whatever collection expr denotes, each key carried as
-// the cty value HCL binds a for-expression's key variable to.
+// the cty value HCL binds a for-expression's key variable to, plus - where
+// this resolver evaluated one for itself - the value bound beside it.
 //
 // The typing is not decoration. cty's own element iterators synthesize a
 // StringVal for a map key or an object attribute name and a NumberIntVal
@@ -305,15 +317,30 @@ func stringKeys(keys []cty.Value) ([]string, bool) {
 // #239 defect; the caller that needs strings asks for them explicitly
 // through [stringKeys].
 //
-// Every shape chased is one whose key set is decided without evaluating a
-// single VALUE expression, which is the whole point: a managed resource's
-// attribute buried in a value must not refuse the block.
-func (r *resolver) staticCollKeys(expr hcl.Expression, ident configs.StaticIdentifier, depth int, tupleIsArgs bool) ([]cty.Value, bool) {
+// No key here is ever decided by evaluating a VALUE expression, which is
+// the whole point of the chase: a managed resource's attribute buried in a
+// value must not refuse the block. The values returned alongside are a
+// SEPARATE, strictly optional answer, and the two must not be confused:
+//
+//   - vals is parallel to keys and holds cty.NilVal wherever the value
+//     expression for that key did not evaluate on its own in the static
+//     scope - because it reaches a managed resource, a data source or a
+//     module output, because it is marked, or because it calls an impure
+//     function. An unproven value stays unproven; nothing here substitutes
+//     a guess, and a false ok is never traded for a partial answer.
+//   - a value is bound only where this resolver ACTUALLY EVALUATED that
+//     one expression. A collection whose shape is knowable while its
+//     contents are not - a tuple whose length is its literal's length, a
+//     merge() of comprehensions reaching a sibling - yields exact keys and
+//     no values at all, which is the boundary [resolver.forSourceElements]
+//     draws for a for-comprehension's source and the one
+//     [expansion.keyOnly] draws for each.value.
+func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIdentifier, depth int, tupleIsArgs bool) (keys, vals []cty.Value, ok bool) {
 	if depth > maxStaticDecomposeDepth {
-		return nil, false
+		return nil, nil, false
 	}
 	if paren, ok := expr.(*hclsyntax.ParenthesesExpr); ok {
-		return r.staticCollKeys(paren.Expression, ident, depth+1, tupleIsArgs)
+		return r.staticCollElems(paren.Expression, ident, depth+1, tupleIsArgs)
 	}
 
 	if trav, diags := hcl.AbsTraversalForExpr(expr); !diags.HasErrors() && len(trav) == 2 {
@@ -325,28 +352,28 @@ func (r *resolver) staticCollKeys(expr hcl.Expression, ident configs.StaticIdent
 					// tupleIsArgs propagates through the alias: the corpus
 					// shape is merge(local.teams...), where the splatted
 					// argument is a local naming the list.
-					return r.staticCollKeys(defExpr, ident, depth+1, tupleIsArgs)
+					return r.staticCollElems(defExpr, ident, depth+1, tupleIsArgs)
 				}
 			}
 		}
 	}
 
 	if obj, ok := expr.(*hclsyntax.ObjectConsExpr); ok {
-		names, ok := r.objectConsKeys(obj, ident)
+		names, itemVals, ok := r.objectConsElems(obj, ident)
 		if !ok {
-			return nil, false
+			return nil, nil, false
 		}
-		return stringVals(names), true
+		return stringVals(names), itemVals, true
 	}
 
 	if fe, ok := expr.(*hclsyntax.ForExpr); ok {
-		names, ok := r.forExprKeys(fe, ident, depth)
+		names, elemVals, ok := r.forExprElems(fe, ident, depth)
 		if !ok {
-			return nil, false
+			return nil, nil, false
 		}
 		// A for-comprehension with a key clause produces an OBJECT, whose
 		// keys are strings whatever it ranged over.
-		return stringVals(names), true
+		return stringVals(names), elemVals, true
 	}
 
 	if tuple, ok := expr.(*hclsyntax.TupleConsExpr); ok {
@@ -354,63 +381,96 @@ func (r *resolver) staticCollKeys(expr hcl.Expression, ident configs.StaticIdent
 			// A tuple anywhere but merge()'s splat is a list, and a list's
 			// keys are its integer indices: one per element, distinct by
 			// construction, and knowable from the literal's own length
-			// whatever its elements turn out to be.
+			// whatever its elements turn out to be. Each element's own
+			// expression is what a for-comprehension over this list binds
+			// its value variable to, so it is offered where it evaluates.
 			keys := make([]cty.Value, 0, len(tuple.Exprs))
-			for i := range tuple.Exprs {
+			vals := make([]cty.Value, 0, len(tuple.Exprs))
+			for i, elem := range tuple.Exprs {
 				keys = append(keys, cty.NumberIntVal(int64(i)))
+				vals = append(vals, r.provenValue(elem, instScope{}, ident))
 			}
-			return keys, true
+			return keys, vals, true
 		}
-		seen := map[string]bool{}
-		var keys []string
+		u := newKeyUnion()
 		for _, elem := range tuple.Exprs {
 			// An element of the splatted list is one of merge's arguments,
 			// an object in its own right - never itself a list of them, and
 			// never a list at all, which is why this asks for strings.
-			got, ok := r.staticForEachKeys(elem, ident, depth+1, false)
+			got, gotVals, ok := r.staticForEachKeys(elem, ident, depth+1, false)
 			if !ok {
-				return nil, false
+				return nil, nil, false
 			}
-			for _, k := range got {
-				if !seen[k] {
-					seen[k] = true
-					keys = append(keys, k)
-				}
-			}
+			u.add(got, gotVals)
 		}
-		return stringVals(keys), true
+		names, uVals := u.result()
+		return stringVals(names), uVals, true
 	}
 
 	if call, ok := expr.(*hclsyntax.FunctionCallExpr); ok && call.Name == "merge" {
-		seen := map[string]bool{}
-		var keys []string
+		u := newKeyUnion()
 		for i, arg := range call.Args {
 			// merge(a, b...) splats only its FINAL argument, and only when
 			// ExpandFinal is set: that is the one argument whose elements
 			// stand in for merge's own separate arguments.
 			argIsSplat := call.ExpandFinal && i == len(call.Args)-1
-			// staticForEachKeys, not staticCollKeys: merge takes maps and
+			// staticForEachKeys, not staticCollElems: merge takes maps and
 			// objects, so an argument whose key set is integer indices is
 			// not a merge argument at all and refuses here rather than
 			// contributing "0", "1" to the union.
-			got, ok := r.staticForEachKeys(arg, ident, depth+1, argIsSplat)
+			got, gotVals, ok := r.staticForEachKeys(arg, ident, depth+1, argIsSplat)
 			if !ok {
-				return nil, false
+				return nil, nil, false
 			}
-			for _, k := range got {
-				if !seen[k] {
-					seen[k] = true
-					keys = append(keys, k)
-				}
-			}
+			u.add(got, gotVals)
 		}
-		return stringVals(keys), true
+		names, uVals := u.result()
+		return stringVals(names), uVals, true
 	}
 
-	return nil, false
+	return nil, nil, false
 }
 
-// stringVals lifts a string key set into the typed form [staticCollKeys]
+// keyUnion accumulates the key sets of merge()'s arguments - or of the
+// elements of the list merge() splats - in argument order.
+//
+// Key ORDER is first-seen, which is what the union has always produced and
+// what the caller sorts anyway. Key VALUE is last-seen, which is merge()'s
+// own precedence rule: a key supplied by two arguments takes the later
+// argument's value. Getting that backwards would bind each.value to a value
+// the configuration overrode, so it is the one thing in this type that is
+// load-bearing rather than incidental.
+type keyUnion struct {
+	order []string
+	vals  map[string]cty.Value
+}
+
+func newKeyUnion() *keyUnion {
+	return &keyUnion{vals: map[string]cty.Value{}}
+}
+
+func (u *keyUnion) add(names []string, vals []cty.Value) {
+	for i, n := range names {
+		if _, seen := u.vals[n]; !seen {
+			u.order = append(u.order, n)
+		}
+		v := cty.NilVal
+		if i < len(vals) {
+			v = vals[i]
+		}
+		u.vals[n] = v
+	}
+}
+
+func (u *keyUnion) result() ([]string, []cty.Value) {
+	vals := make([]cty.Value, 0, len(u.order))
+	for _, n := range u.order {
+		vals = append(vals, u.vals[n])
+	}
+	return u.order, vals
+}
+
+// stringVals lifts a string key set into the typed form [resolver.staticCollElems]
 // hands back. cty.StringVal constructs, so nothing here can be marked.
 func stringVals(names []string) []cty.Value {
 	out := make([]cty.Value, 0, len(names))
@@ -420,15 +480,66 @@ func stringVals(names []string) []cty.Value {
 	return out
 }
 
-// objectConsKeys reads every key of an object constructor, evaluating only
-// the key expressions - never an item's value.
-func (r *resolver) objectConsKeys(obj *hclsyntax.ObjectConsExpr, ident configs.StaticIdentifier) ([]string, bool) {
-	seen := map[string]bool{}
+// provenValue evaluates one value expression on its own and answers with
+// what it evaluated to, or cty.NilVal when it did not evaluate - which is
+// the ordinary case this whole file exists for, because a value is exactly
+// where a managed resource's attribute is allowed to sit.
+//
+// cty.NilVal is the only "unproven" signal, and every caller treats it as
+// "leave the binding out" rather than "refuse": a value nothing here can
+// read must not decide whether a KEY exists.
+//
+// Three things are refused rather than returned:
+//
+//   - an impure call, for the reason [resolver.evalStatic] refuses one on an
+//     identity argument outright: uuid() or timestamp() would make each.value
+//     a different value on the next run, and an identity derived from it
+//     names a live object nothing can compute again.
+//   - a marked value, because each.value reaches identity arguments and an
+//     identity becomes a tofu-address marker written to a cloud tag in
+//     plaintext. ContainsMarked rather than IsMarked, and BEFORE
+//     IsWhollyKnown, which itself iterates and panics on a marked element -
+//     a mark hoists to the containing value only for a set, which is cty's
+//     asymmetry and is asserted in internal/live/marksafe's
+//     TestOnlySetsHoistElementMarks.
+//   - an unknown or null value, which is not something an instance's
+//     each.value can be read from.
+func (r *resolver) provenValue(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) cty.Value {
+	if expr == nil {
+		return cty.NilVal
+	}
+	if len(impureCallsIn(expr)) > 0 {
+		return cty.NilVal
+	}
+	val, diags := r.evalPure(expr, scope, ident)
+	if diags.HasErrors() || val == cty.NilVal {
+		return cty.NilVal
+	}
+	if val.ContainsMarked() || val.IsNull() || !val.IsWhollyKnown() {
+		return cty.NilVal
+	}
+	return val
+}
+
+// objectConsElems reads every key of an object constructor, evaluating only
+// the key expressions to decide the key set - never an item's value. Each
+// item's value expression is then offered separately through
+// [resolver.provenValue], which is allowed to fail: the key set does not
+// depend on it.
+//
+// A key written twice in one constructor keeps the first item's key, which
+// is what this function has always done, and binds NO value: HCL itself
+// errors on a duplicate object key, so there is no "correct" answer to copy,
+// and folding two items into one binding is the shape that made two
+// count.index instances share one live marker in #178.
+func (r *resolver) objectConsElems(obj *hclsyntax.ObjectConsExpr, ident configs.StaticIdentifier) ([]string, []cty.Value, bool) {
+	seen := map[string]int{}
 	var keys []string
+	var vals []cty.Value
 	for _, item := range obj.Items {
 		kv, diags := r.evalPure(item.KeyExpr, instScope{}, ident)
 		if diags.HasErrors() {
-			return nil, false
+			return nil, nil, false
 		}
 		ks, err := convert.Convert(kv, cty.String)
 		// IsMarked: cty.Value.AsString panics on a marked value, and a key
@@ -437,18 +548,21 @@ func (r *resolver) objectConsKeys(obj *hclsyntax.ObjectConsExpr, ident configs.S
 		// value; this one did not, so `{ "${var.secret}-a" = ... }` as a
 		// for_each source crashed the run rather than refusing it.
 		if err != nil || ks.IsNull() || !ks.IsKnown() || ks.IsMarked() {
-			return nil, false
+			return nil, nil, false
 		}
 		name := ks.AsString()
-		if !seen[name] {
-			seen[name] = true
-			keys = append(keys, name)
+		if at, dup := seen[name]; dup {
+			vals[at] = cty.NilVal
+			continue
 		}
+		seen[name] = len(keys)
+		keys = append(keys, name)
+		vals = append(vals, r.provenValue(item.ValueExpr, instScope{}, ident))
 	}
-	return keys, true
+	return keys, vals, true
 }
 
-// forExprKeys is the for-comprehension half of #189's key-set extension: a
+// forExprElems is the for-comprehension half of #189's key-set extension: a
 // for_each source reached through a local or module variable is often not
 // an object constructor at all, but a for-comprehension BUILDING one -
 // { for k, v in SRC : <key clause> => <value clause> } - and the key
@@ -458,7 +572,7 @@ func (r *resolver) objectConsKeys(obj *hclsyntax.ObjectConsExpr, ident configs.S
 //
 // The result's key set is knowable without ever evaluating a value clause
 // whenever the key clause itself is: chase SRC's own key set (recursively,
-// through [resolver.staticCollKeys] again, so a further local/merge/for
+// through [resolver.staticCollElems] again, so a further local/merge/for
 // chain underneath composes exactly the way it already does elsewhere in
 // this file), then evaluate the key clause once per source element.
 // [resolver.evalPure] resolves an unbound reference as an ordinary
@@ -476,7 +590,7 @@ func (r *resolver) objectConsKeys(obj *hclsyntax.ObjectConsExpr, ident configs.S
 //     three-element list HCL binds it to 0, 1, 2, so `"item-${i}"` is
 //     item-0/1/2 - three instances, which is what OpenTofu creates. The
 //     pre-#239 chase read the same list as the union of its elements'
-//     object keys and answered two, silently. [resolver.staticCollKeys]
+//     object keys and answered two, silently. [resolver.staticCollElems]
 //     now carries the type, so this binds what HCL binds.
 //   - When the source collection evaluates whole in the static scope, the
 //     VALUE variable is bound too, exactly as HCL binds it, and a key
@@ -507,24 +621,37 @@ func (r *resolver) objectConsKeys(obj *hclsyntax.ObjectConsExpr, ident configs.S
 // count.index instances share one live marker in #178. Grouping mode
 // (`k => v...`) is the one place a repeated key legitimately means one
 // entry, and is deduplicated instead.
-func (r *resolver) forExprKeys(fe *hclsyntax.ForExpr, ident configs.StaticIdentifier, depth int) ([]string, bool) {
+// The value clause is evaluated the same way and under the same bindings,
+// but only ever as an OFFER: it decides nothing about the key set, and a
+// value clause that does not evaluate - which is the ordinary case, since a
+// value is exactly where a managed resource's attribute is allowed to sit -
+// leaves that key's value unbound instead of refusing the comprehension.
+// Grouping mode (`k => v...`) collects a tuple of every matching element's
+// value rather than one value, so it offers nothing.
+func (r *resolver) forExprElems(fe *hclsyntax.ForExpr, ident configs.StaticIdentifier, depth int) ([]string, []cty.Value, bool) {
 	if fe.KeyExpr == nil {
-		return nil, false
+		return nil, nil, false
 	}
 
 	srcKeys, srcVals, ok := r.forSourceElements(fe.CollExpr, ident, depth)
 	if !ok {
-		return nil, false
+		return nil, nil, false
 	}
 
 	seen := map[string]bool{}
 	var keys []string
+	var vals []cty.Value
 	for i, srcKey := range srcKeys {
 		vars := map[string]cty.Value{}
 		if fe.KeyVar != "" {
 			vars[fe.KeyVar] = srcKey
 		}
-		if srcVals != nil && fe.ValVar != "" {
+		// srcVals may be nil (nothing proven at all) or hold cty.NilVal for
+		// this one element (a source whose other elements proved but this
+		// one did not). Both mean the same thing here: leave the value
+		// variable unbound, so a key clause that reads it fails to evaluate
+		// and the comprehension refuses, rather than binding a stand-in.
+		if fe.ValVar != "" && i < len(srcVals) && srcVals[i] != cty.NilVal {
 			vars[fe.ValVar] = srcVals[i]
 		}
 		scope := instScope{vars: vars}
@@ -532,7 +659,7 @@ func (r *resolver) forExprKeys(fe *hclsyntax.ForExpr, ident configs.StaticIdenti
 		if fe.CondExpr != nil {
 			include, condOK := r.forCondIncludes(fe.CondExpr, scope, ident)
 			if !condOK {
-				return nil, false
+				return nil, nil, false
 			}
 			if !include {
 				continue
@@ -541,38 +668,46 @@ func (r *resolver) forExprKeys(fe *hclsyntax.ForExpr, ident configs.StaticIdenti
 
 		kv, diags := r.evalPure(fe.KeyExpr, scope, ident)
 		if diags.HasErrors() {
-			return nil, false
+			return nil, nil, false
 		}
 		ks, err := convert.Convert(kv, cty.String)
-		// IsMarked for the same reason [resolver.objectConsKeys] tests it:
+		// IsMarked for the same reason [resolver.objectConsElems] tests it:
 		// AsString panics on a marked value, and a key clause reading a
 		// sensitive variable produces one.
 		if err != nil || ks.IsNull() || !ks.IsKnown() || ks.IsMarked() {
-			return nil, false
+			return nil, nil, false
 		}
 		name := ks.AsString()
 		if seen[name] {
 			if fe.Group {
 				continue
 			}
-			return nil, false
+			return nil, nil, false
 		}
 		seen[name] = true
 		keys = append(keys, name)
+		if fe.Group {
+			vals = append(vals, cty.NilVal)
+		} else {
+			vals = append(vals, r.provenValue(fe.ValExpr, scope, ident))
+		}
 	}
-	return keys, true
+	return keys, vals, true
 }
 
 // forSourceElements reports what a for-comprehension's SOURCE collection
 // binds its loop variables to, one entry per element in iteration order.
 //
-// vals is non-nil only when the source evaluated as a whole value, which is
-// the only circumstance under which the value variable may be bound: the
-// values are then ordinary configuration data this resolver read for
-// itself, not a guess standing in for something it refused to read. When
-// the source is only structurally knowable - a list literal whose elements
-// mention a managed resource, merge() of comprehensions - keys are still
-// exact and vals is nil.
+// A vals entry is set only where this resolver evaluated that element's own
+// value for itself, which is the only circumstance under which the value
+// variable may be bound: the value is then ordinary configuration data it
+// read, not a guess standing in for something it refused to read. That
+// holds two ways - the whole source evaluated (every entry set), or the
+// source's shape was chased and some element expressions evaluated on their
+// own (those entries set, the rest cty.NilVal). Where nothing about an
+// element's contents is knowable - it mentions a managed resource, a data
+// source or a module output - the key is still exact and the value stays
+// cty.NilVal.
 //
 // Evaluation is tried first because it yields strictly more: the same keys
 // plus the values beside them.
@@ -584,11 +719,17 @@ func (r *resolver) forSourceElements(coll hclsyntax.Expression, ident configs.St
 	// a list here is a list, and its keys are its integer indices - never
 	// the union of its elements' own object keys, which is only ever what
 	// merge()'s splatted argument means.
-	keys, ok = r.staticCollKeys(coll, ident, depth+1, false)
+	//
+	// The values this returns are per-element and may be cty.NilVal: a
+	// source whose shape is knowable while one element's contents are not
+	// still binds the value variable for the elements it DID evaluate. Each
+	// binding is one expression this resolver evaluated itself, never an
+	// inference from a neighbouring element.
+	keys, vals, ok = r.staticCollElems(coll, ident, depth+1, false)
 	if !ok {
 		return nil, nil, false
 	}
-	return keys, nil, true
+	return keys, vals, true
 }
 
 // evaluatedCollElements reads a collection that evaluates whole under the
