@@ -466,16 +466,50 @@ types the rule excludes: the lifecycle layer, per their entries in
 
 ### count-index-in-tag
 
-**Construct.** `count.index` interpolated into a tag value
-(`tags = { Name = "vpc-${count.index}" }`).
+**Construct.** `count.index` reaching an argument that helps build a
+resource's live identity - the original motivating case was a tag
+(`tags = { Name = "vpc-${count.index}" }`), and the rule still catches that
+shape, but the construct is broader: any argument a resource type's own
+import identity is built from, however count.index reaches it (a direct
+reference, a template, a conditional).
 
 **Why banned.** Per "Banned, and why", `count.index` in an identity-bearing
 property is banned, because a marker written from an index has no
 correspondence once instances are added, removed, or reordered. The
 replacement is a `for_each` key, which is stable by construction.
 
+This anchor kept its name after the rule was narrowed to only the arguments
+that could plausibly carry identity (GitHub issue #187): a tag is the
+easiest case to picture, but for the great majority of AWS resource types no
+tag ever feeds import identity at all, so `count.index` in an ordinary tag,
+description, or other non-identity property is no longer refused. What is
+still refused is `count.index` in one of the specific arguments a type's own
+identity is built from - see "Scope" below.
+
 **Forwarding address.** `for_each`. Key the resource by a stable string
 instead of a positional index.
+
+**Scope.** Whether an argument is in scope is read from the same table
+`internal/live/identity` uses to resolve identity from configuration, not
+asserted independently:
+
+- A logical, record-backed type (`null_resource`, `terraform_data`, and the
+  `random_*`/`time_*` families this fork admits) has no argument-derived
+  identity at all - its whole existence is a persisted record addressed by
+  the resource's own instance address - so nothing in its body is in scope.
+- A server-assigned type (most AWS resources whose ID the provider mints at
+  create time - `aws_instance`, `aws_vpc`, `aws_security_group`, and
+  hundreds more) is matched to the live object by its `tofu-address` marker
+  alone; identity resolution never reads a single configuration argument for
+  such a type, so nothing in its body is in scope either.
+- Otherwise, the type's own import-identity components name exactly which
+  top-level arguments are in scope (for `aws_network_acl_rule`:
+  `network_acl_id`, `rule_number`, `protocol`, `egress`). A nested block can
+  never be in scope this way, because import identity is never built from
+  one.
+- A type this fork has no identity data for gets no narrowing: every
+  argument stays in scope, the conservative default for a type nobody has
+  reviewed.
 
 **Deliberate carve-out.** The `tofu-address` marker tag value (see
 `live/MARKERS.md`) is exempt from this rule.
@@ -486,12 +520,12 @@ specified job rather than leaking into an identity-bearing property.
 `tofu-slot` is deliberately not among the exempted keys.
 
 **Enforcement.** `RuleCountIndex`, `internal/live/lint/count_index.go`
-(`checkCountIndex`). It rejects `count.index` anywhere it is reachable from a
-managed resource's own configuration body (arguments, tag values, nested
-blocks, and conditional/template expressions that reference it indirectly).
-The count expression itself and the other meta-argument positions are out of
-scope by construction (see `internal/live/lint/doc.go`, "Scope of the
-count.index rule"). Fixture at `live/e2e/limits/count-index-in-tag/`.
+(`checkCountIndex`, `countIndexScopeForType`). It rejects `count.index`
+wherever it is reachable, however indirectly, from an argument in scope for
+the resource's type. The count expression itself and the other
+meta-argument positions are out of scope by construction, for every type
+(see `internal/live/lint/doc.go`, "Scope of the count.index rule"). Fixture
+at `live/e2e/limits/count-index-in-tag/`.
 
 ### foreach-dotted-key
 
@@ -988,7 +1022,7 @@ refused, and each says so in its own entry.
 | 66 | 482 | lint | logical-resource | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
 | 64 | 403 | identity | Unresolvable identity | `internal/live/identity` | "Unresolvable identity" |
 | 54 | 537 | identity | Dynamic value in static context | `internal/configs` | "Dynamic value in static context" |
-| 52 | 4587 | lint | count-index | `internal/live/lint` | "count-index-in-tag" |
+| 46 | 1230 | lint | count-index | `internal/live/lint` | "count-index-in-tag" |
 | 45 | 280 | identity | Module output not supported in static context | `internal/configs` | "Module output not supported in static context" |
 | 33 | 97 | identity | Not an identity attribute | `internal/live/identity` | "Not an identity attribute" |
 | 31 | 90 | lint | provisioner | `internal/live/lint` | "local-exec" / "remote-exec" |
