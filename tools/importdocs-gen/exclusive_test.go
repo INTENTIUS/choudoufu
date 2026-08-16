@@ -98,8 +98,14 @@ var exclusiveExpectations = struct {
 	rowsWithGroups int
 	totalGroups    int
 }{
-	rowsWithGroups: 37,
-	totalGroups:    40,
+	// 38/41 (2026-08-16): aliasDeclaredFor clones aws_lb's whole row,
+	// exclusive_groups included, onto its provider-documented alias
+	// aws_alb ("is known as ... The functionality is identical."). +1 row,
+	// +1 group, both the same [subnet_mapping, subnets] pair aws_lb already
+	// carried - not a new derivation, the same evidence under a second
+	// registered type name.
+	rowsWithGroups: 38,
+	totalGroups:    41,
 }
 
 // TestShippedExclusiveGroups is the drift tripwire: a scrape change that

@@ -26,11 +26,11 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 3 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 880 types | Nothing at lint. Runtime support varies by type; see the layers below. |
-| Pastable proposals (server-assigned 582, client-named 474, composite 129, assembled 10) | 1195 types | A ratification batch: paste, fixture, test. |
-| Needs a hand separator | 82 types | One one-character import-separator decision each. |
-| Evidence-only | 345 types | An identity-argument name no current evidence source states. |
-| Fold-children | 77 types | Nothing of their own; identity is the parent's. |
+| Admitted (the shipped table) | 887 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Pastable proposals (server-assigned 578, client-named 474, composite 151, assembled 10) | 1213 types | A ratification batch: paste, fixture, test. |
+| Needs a hand separator | 78 types | One one-character import-separator decision each. |
+| Evidence-only | 336 types | An identity-argument name no current evidence source states. |
+| Fold-children | 72 types | Nothing of their own; identity is the parent's. |
 | Classified in total | 1699 of 1699 provider types | The layers above partition this set. |
 | Of those, with no CloudFormation model | 303 cfn-unmodeled, 116 tf-only, 7 deprecated-service, 13 unclassified | Classified from the provider's own import documentation alone, not from the CFN registry. See `live/LIMITATIONS.md`'s exclusion cohorts. |<!-- survey-gen:end coverage-layers -->
 
@@ -38,12 +38,14 @@ them moves. The prose on this page quotes none of the numbers.
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-880<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+887<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
-  `aws_amplify_app`, `aws_amplify_branch`, `aws_api_gateway_account`,
-  `aws_api_gateway_api_key`, `aws_api_gateway_base_path_mapping`,
-  `aws_api_gateway_client_certificate`,
+  `aws_alb`, `aws_alb_listener`, `aws_alb_listener_certificate`,
+  `aws_alb_listener_rule`, `aws_alb_target_group`,
+  `aws_alb_target_group_attachment`, `aws_amplify_app`, `aws_amplify_branch`,
+  `aws_api_gateway_account`, `aws_api_gateway_api_key`,
+  `aws_api_gateway_base_path_mapping`, `aws_api_gateway_client_certificate`,
   `aws_api_gateway_documentation_version`, `aws_api_gateway_domain_name`,
   `aws_api_gateway_domain_name_access_association`,
   `aws_api_gateway_gateway_response`, `aws_api_gateway_integration`,
@@ -277,12 +279,13 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_lambda_code_signing_config`, `aws_lambda_event_source_mapping`,
   `aws_lambda_function`, `aws_lambda_layer_version`, `aws_lambda_permission`,
   `aws_launch_configuration`, `aws_launch_template`, `aws_lb`,
-  `aws_lb_listener`, `aws_lb_listener_rule`, `aws_lb_target_group`,
-  `aws_lb_target_group_attachment`, `aws_lb_trust_store`,
-  `aws_lexv2models_bot`, `aws_lexv2models_bot_locale`, `aws_lightsail_bucket`,
-  `aws_lightsail_certificate`, `aws_lightsail_container_service`,
-  `aws_lightsail_database`, `aws_lightsail_disk`,
-  `aws_lightsail_distribution`, `aws_lightsail_instance`, `aws_lightsail_lb`,
+  `aws_lb_listener`, `aws_lb_listener_certificate`, `aws_lb_listener_rule`,
+  `aws_lb_target_group`, `aws_lb_target_group_attachment`,
+  `aws_lb_trust_store`, `aws_lexv2models_bot`, `aws_lexv2models_bot_locale`,
+  `aws_lightsail_bucket`, `aws_lightsail_certificate`,
+  `aws_lightsail_container_service`, `aws_lightsail_database`,
+  `aws_lightsail_disk`, `aws_lightsail_distribution`,
+  `aws_lightsail_instance`, `aws_lightsail_lb`,
   `aws_lightsail_lb_certificate`, `aws_lightsail_static_ip`,
   `aws_location_geofence_collection`, `aws_location_map`,
   `aws_location_place_index`, `aws_location_route_calculator`,
