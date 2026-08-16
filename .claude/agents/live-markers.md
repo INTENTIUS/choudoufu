@@ -251,6 +251,61 @@ things here:
   block, the ownership-policy matrix, provider version-skew detection, bulk
   migration off a state file, and resource-level `count`/`for_each` all ship.
 
+## The verification budget
+
+Measured 2026-08-16 across sixteen agents. An implementer's median run was
+26 minutes, of which about 13 were mechanical verification: `just corpus` at
+roughly 2 minutes a run and `just ci` at roughly 3 minutes a run, each fired
+one to three times. Two of those were buying nothing, so:
+
+- **Do not run a baseline `just corpus`.** The orchestrator hands you the
+  ladder for your base. Assert the base itself with `git log --oneline -1`.
+  The baseline run never proved the number, only that your tree was the tree
+  the orchestrator thought it was, and one git command does that.
+- **Do not run `just ci` before committing.** Run `env -u PWD go build ./...`
+  and the tests for the packages you touched. The orchestrator runs full CI
+  after every merge, so a pre-commit run moves no gate; `internal/command`
+  alone costs 61 seconds and most agents never touch it.
+- **The after-fix `just corpus` is mandatory.** It is the measurement, and it
+  is the number the merge is made on. Run it, read the ladder out of
+  `live/corpus-refusals.json`, then `git checkout -- live/` before you commit.
+
+Read-only auditors finished in 6 to 15 minutes against 25 to 47 for
+implementers, entirely because they run no generators. If a task does not
+need to write, it should not be paying generator time.
+
+## Tests here are a regression gate, not a defect-finder
+
+Every defect that mattered on 2026-08-16 was green, committed and believed
+finished when it was found, and CI caught none of them:
+
+- `count.index % 3` in an identity-bearing argument, where indices 0 and 3
+  both render the same value and two instances resolve to one live identity.
+  The walker enumerated unsafe shapes and defaulted to safe, so any
+  `BinaryOpExpr` fell through.
+- A provisioner admitted on a record-backed type on the claim that the record
+  store carried the tainted bit. `recordPayload` had no status field at all.
+- A data-read cascade reporting "no configuration edit is needed" over a
+  dependent whose second identity component was missing entirely, because
+  `resolveInstance` returns at the first failing component.
+- A 234-site figure that could not exist, because a bare `locals` block
+  referencing `each` or `count` is not valid OpenTofu.
+
+All four came from adversarial reading or a corpus scan. Budget the time
+accordingly: an extra audit pass buys more than an extra CI run.
+
+## Your brief is a lead, not a fact
+
+Three briefs written with confident scoping on 2026-08-16 were each partly
+wrong, and in every case the agent that scanned the corpus instead of
+trusting its brief is what caught it. One found `element`/`lookup` doing the
+same job as an index expression with no `IndexExpr` in the tree; one proved
+its issue's central premise impossible; one found that the "all thirteen are
+single-component" claim it was handed held for four.
+
+Verify the claims in your brief against the code and the corpus. Refuting one
+is a success and should lead your report, not be buried in it.
+
 ## Where the work lives
 
 The issue tracker, and nowhere else. `gh issue list -R INTENTIUS/choudoufu`.
