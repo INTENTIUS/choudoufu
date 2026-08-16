@@ -276,23 +276,6 @@ external readiness check), not as a resource in the graph.
 store, still refused). The admitted path is exercised by
 `live/e2e/record-store/`.
 
-### remote-state
-
-**Construct.** `data "terraform_remote_state"`.
-
-**Why banned.** It reads a state file, and a marker run has no state file
-to read. Named explicitly in "Banned, and why".
-
-**Forwarding address.** Live data sources. Read the producer estate's own
-live resource with a data source of its own type, filtered on its
-`tofu-estate`/`tofu-address` marker tags, or pass values across explicitly
-as variables or module outputs. `live/OUTPUTS.md` is this pattern's spec:
-issue #62's recorded decision, weighed against a first-class SSM-parameter
-output surface and declined in favor of this, plus the live demonstration.
-
-**Enforcement.** `RuleRemoteState`, `internal/live/lint/lint.go`
-(`checkDataResources`). Fixture at `live/e2e/limits/remote-state/`.
-
 ### moved-block
 
 **Construct.** A `moved` block.
@@ -1000,14 +983,13 @@ refused, and each says so in its own entry.
 |---|---|---|---|---|---|
 | 142 | 142 | lint | state-backend | `internal/live/lint` | "backend-block" / "cloud-block" |
 | 113 | 1404 | lint | unadmitted-type | `internal/live/lint` | "unadmitted-type" |
+| 97 | 1668 | dataread | Resolves at plan time via a data-source read | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
 | 86 | 3546 | identity | Unable to compute static value | `internal/configs` | "Unable to compute static value" |
-| 81 | 1580 | dataread | Resolves at plan time via a data-source read | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
 | 70 | 579 | identity | Unresolvable identity | `internal/live/identity` | "Unresolvable identity" |
 | 66 | 482 | lint | logical-resource | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
-| 61 | 568 | identity | Dynamic value in static context | `internal/configs` | "Dynamic value in static context" |
+| 54 | 537 | identity | Dynamic value in static context | `internal/configs` | "Dynamic value in static context" |
 | 52 | 4587 | lint | count-index | `internal/live/lint` | "count-index-in-tag" |
 | 45 | 280 | identity | Module output not supported in static context | `internal/configs` | "Module output not supported in static context" |
-| 38 | 120 | lint | remote-state | `internal/live/lint` | "remote-state" |
 | 33 | 97 | identity | Not an identity attribute | `internal/live/identity` | "Not an identity attribute" |
 | 31 | 90 | lint | provisioner | `internal/live/lint` | "local-exec" / "remote-exec" |
 | 26 | 126 | identity | Non-static identity argument | `internal/live/identity` | "Non-static identity argument" |
@@ -1019,7 +1001,6 @@ refused, and each says so in its own entry.
 | 18 | 101 | identity | Identity not resolvable from configuration | `internal/live/identity` | "Identity not resolvable from configuration" |
 | 18 | 73 | identity | Non-static count expression | `internal/live/identity` | "Non-static count expression" |
 | 13 | 30 | lint | child-module | `internal/live/lint` | "child-module" |
-| 12 | 57 | dataread | Cross-stack outputs unavailable | `internal/live/dataread` | "Cross-stack outputs unavailable" |
 | 12 | 21 | identity | Invalid for_each set | `internal/live/identity` | "Invalid for_each set" |
 | 6 | 63 | lint | moved-block | `internal/live/lint` | "moved-block" |
 | 6 | 48 | dataread | Data source not readable before resolution | `internal/live/dataread` | "Data source not readable before resolution" |
@@ -1032,6 +1013,8 @@ refused, and each says so in its own entry.
 | 1 | 1 | identity | Ambiguous list-valued identity argument | `internal/live/identity` | "Ambiguous list-valued identity argument" |
 | 1 | 1 | identity | Resource type outside the live-markers subset | `internal/live/identity` | "unadmitted-type" |
 | 1 | 1 | identity | Unsupported attribute | `hcl` | "Unsupported attribute" |
+| 0 | 0 | dataread | Cross-stack outputs unavailable | `internal/live/dataread` | "Cross-stack outputs unavailable" |
+| 0 | 0 | dataread | Cross-stack state unavailable | `internal/live/dataread` | "Cross-stack state unavailable" |
 | 0 | 0 | dataread | Data source provider not configurable | `internal/live/dataread` | "Data source provider not configurable" |
 | 0 | 0 | dataread | Data source read failed | `internal/live/dataread` | "Data source read failed" |
 | - | - | discovery | Address too long to carry an ownership marker | `internal/live/discovery` | "overlong-address" |
@@ -1196,6 +1179,14 @@ reserved for the limits wing's fixture directories, and
 `TestLimitationsDocCoversDirs` requires one to exist for each.)
 
 <!-- limits-gen:begin refusal-entries -->
+#### Resolves at plan time via a data-source read
+
+**What.** Not a refusal: live-check's finding for a data-source reference in an identity-bearing position that a live-plan resolves by reading the data source before resolution. No edit to the configuration is needed, but the read itself has not been performed - it can still fail at plan time.
+
+**Where.** The dataread pass, raised by `internal/live/dataread`.
+
+**How often.** Blocked 97 configurations in the measured corpus, at 1668 sites.
+
 #### Unable to compute static value
 
 **What.** Something an identity argument, a count or a for_each depends on could not be computed. It is the trailing half of another refusal: the diagnostic before it names what actually failed, and this one names the chain that led there.
@@ -1203,14 +1194,6 @@ reserved for the limits wing's fixture directories, and
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
 **How often.** Blocked 86 configurations in the measured corpus, at 3546 sites.
-
-#### Resolves at plan time via a data-source read
-
-**What.** Not a refusal: live-check's finding for a data-source reference in an identity-bearing position that a live-plan resolves by reading the data source before resolution. No edit to the configuration is needed, but the read itself has not been performed - it can still fail at plan time.
-
-**Where.** The dataread pass, raised by `internal/live/dataread`.
-
-**How often.** Blocked 81 configurations in the measured corpus, at 1580 sites.
 
 #### Unresolvable identity
 
@@ -1226,7 +1209,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 61 configurations in the measured corpus, at 568 sites.
+**How often.** Blocked 54 configurations in the measured corpus, at 537 sites.
 
 #### Module output not supported in static context
 
@@ -1292,14 +1275,6 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 18 configurations in the measured corpus, at 73 sites.
 
-#### Cross-stack outputs unavailable
-
-**What.** A tfe_outputs value the phase must read has no auth surface available: no token argument, no TFE_TOKEN environment variable, and no credentials entry for its host in the CLI configuration (checked offline, before any read is attempted); or the read itself failed - workspace not found, no current state version, insufficient permissions - quoted from the provider.
-
-**Where.** The dataread pass, raised by `internal/live/dataread`.
-
-**How often.** Blocked 12 configurations in the measured corpus, at 57 sites.
-
 #### Invalid for_each set
 
 **What.** A for_each set's element type is not a string.
@@ -1363,6 +1338,22 @@ reserved for the limits wing's fixture directories, and
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
 **How often.** Blocked 1 configuration in the measured corpus, at 1 site.
+
+#### Cross-stack outputs unavailable
+
+**What.** A tfe_outputs value the phase must read has no auth surface available: no token argument, no TFE_TOKEN environment variable, and no credentials entry for its host in the CLI configuration (checked offline, at read time, before any read is attempted); or the read itself failed - workspace not found, no current state version, insufficient permissions - quoted from the provider.
+
+**Where.** The dataread pass, raised by `internal/live/dataread`.
+
+**How often.** Blocked no configuration in the measured corpus.
+
+#### Cross-stack state unavailable
+
+**What.** A terraform_remote_state value the phase must read could not be read from its backend: the backend type is not one this binary links, the backend could not be configured or reached, no state exists for the named key or workspace, or the state snapshot could not be decoded (a newer format, or encryption this fork cannot open) - quoted from the backend at read time.
+
+**Where.** The dataread pass, raised by `internal/live/dataread`.
+
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Data source provider not configurable
 
@@ -2379,6 +2370,45 @@ reserved for the limits wing's fixture directories, and
 The entries above are lint matters. Each has a fixture directory and an
 asserted rule. The limits below are runtime behaviors of the implemented
 mode, documented here and asserted by the integration tests named in each.
+
+**`terraform_remote_state` is read from its own backend before resolution
+needs it, with backend credentials assumed present.** #179 stage 3 gives it
+the same eligibility and read pipeline stage 1 gives an ordinary provider
+data source and stage 2 gives `tfe_outputs`: its own arguments (`backend`,
+`config`, `workspace`) must be statically evaluable - the same rule any data
+source's own arguments draw - and the maintainer's ruling on #181 treats the
+backend's actual reachability and credentials as a fact about this run, not
+about the configuration, exactly as stage 1 already treats the `aws`
+provider block. A backend this binary does not link, one that cannot be
+reached, a missing key or workspace, or a state snapshot this fork cannot
+decode (a newer format, or encryption it cannot open) all refuse under
+"Cross-stack state unavailable", quoted from the backend, never guessed at.
+(`internal/live/dataread/read.go`, `reader.readSource`'s `RemoteState`
+branch; `internal/builtin/providers/tf/provider.go`'s
+`ReadDataSourceEncrypted` is the actual entry point a plain `ReadDataSource`
+call has no room for, since it needs the resource's own address and this
+run's encryption setup.)
+
+**A foreign stack's remote state can go stale with no way to detect it.**
+The read above is honest about what the backend holds right now, but
+nothing in a state file marks that its own stack has moved off state
+entirely. Once a producer estate adopts live markers itself, it stops
+writing that state file - `terraform_remote_state` pointed at it then keeps
+reading a snapshot frozen at migration time: real-looking values, silently
+stale, the same wrong-marker shape #178 calls data loss, reached through a
+foreign stack instead of a local one. This is not mechanically detectable
+from this side of the read: a state file carries no "abandoned as of"
+marker, and a live-markers estate has no reason to keep writing one just so
+a consumer elsewhere can tell. The eventual native answer is an estate
+publishing its own outputs into its `record_store` and cross-stack reads
+pointed there instead of at a state file that may no longer be truthful;
+that is its own design, filed when stage 3's experience says what it needs
+(#179's design issue, "Staleness is the honest limitation"). Until then, the
+forwarding address for a producer estate that has already adopted live
+markers is the same one `terraform_remote_state` itself has always had for
+any other cross-stack situation: pass the value across explicitly, or read
+the producer's own live resource with a data source of its own type
+filtered on its `tofu-estate`/`tofu-address` marker tags (`live/OUTPUTS.md`).
 
 **Removal coverage is the admission table.** A resource block deleted from
 the configuration is planned as a destroy because the estate-wide sweep

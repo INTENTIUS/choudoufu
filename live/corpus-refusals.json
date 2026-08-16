@@ -115,21 +115,28 @@
       "blocked": true,
       "loaded": true,
       "instances": 219,
-      "sites": 300,
+      "sites": 290,
       "unresolved_modules": 17,
-      "unset_variables": 4,
+      "unset_variables": 6,
       "schemas": true,
       "shadowed": 3,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
+            "sites": 16,
+            "categories": {
+              "remote_state": 16
+            }
+          },
+          {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 88,
+            "sites": 72,
             "categories": {
-              "managed_resource": 72,
-              "remote_state": 16
+              "managed_resource": 72
             }
           },
           {
@@ -191,11 +198,6 @@
           },
           {
             "layer": "lint",
-            "id": "remote-state",
-            "sites": 10
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           },
@@ -216,7 +218,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 236,
-      "sites": 270,
+      "sites": 269,
       "unresolved_modules": 1,
       "unset_variables": 3,
       "schemas": true,
@@ -227,9 +229,10 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 1,
+            "sites": 3,
             "categories": {
-              "data_source": 1
+              "data_source": 1,
+              "remote_state": 2
             }
           },
           {
@@ -240,10 +243,9 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 7,
+            "sites": 5,
             "categories": {
-              "managed_resource": 5,
-              "remote_state": 2
+              "managed_resource": 5
             }
           },
           {
@@ -301,11 +303,6 @@
             "layer": "lint",
             "id": "provisioner",
             "sites": 12
-          },
-          {
-            "layer": "lint",
-            "id": "remote-state",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -458,7 +455,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 16,
+      "sites": 10,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -483,11 +480,6 @@
             "layer": "identity",
             "id": "Unresolvable identity",
             "sites": 2
-          },
-          {
-            "layer": "lint",
-            "id": "remote-state",
-            "sites": 6
           },
           {
             "layer": "lint",
@@ -518,7 +510,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 9,
+      "sites": 6,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -530,11 +522,6 @@
             "layer": "lint",
             "id": "count-index",
             "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "remote-state",
-            "sites": 3
           },
           {
             "layer": "lint",
@@ -561,9 +548,9 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 16,
+      "sites": 11,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 2,
       "schemas": true,
       "shadowed": 11,
       "profile": {
@@ -572,16 +559,9 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 1,
+            "sites": 5,
             "categories": {
-              "data_source": 1
-            }
-          },
-          {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
-            "sites": 4,
-            "categories": {
+              "data_source": 1,
               "remote_state": 4
             }
           },
@@ -603,11 +583,6 @@
           },
           {
             "layer": "lint",
-            "id": "remote-state",
-            "sites": 5
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           }
@@ -620,19 +595,14 @@
       "blocked": true,
       "loaded": true,
       "instances": 15,
-      "sites": 8,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
       "var_file": "live/corpus-vars/govuk-aws-app-related-links.tfvars",
       "profile": {
-        "onboarding_class": "backend-plus-remote-state",
+        "onboarding_class": "backend-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "remote-state",
-            "sites": 7
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -647,7 +617,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 13,
-      "sites": 37,
+      "sites": 31,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -697,11 +667,6 @@
           },
           {
             "layer": "lint",
-            "id": "remote-state",
-            "sites": 6
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           },
@@ -723,7 +688,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 24,
+      "sites": 18,
       "unresolved_modules": 0,
       "unset_variables": 7,
       "schemas": true,
@@ -756,11 +721,6 @@
           },
           {
             "layer": "lint",
-            "id": "remote-state",
-            "sites": 6
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           }
@@ -773,7 +733,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 11,
+      "sites": 5,
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
@@ -804,11 +764,6 @@
           },
           {
             "layer": "lint",
-            "id": "remote-state",
-            "sites": 6
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           }
@@ -821,7 +776,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 21,
+      "sites": 15,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
@@ -847,11 +802,6 @@
           },
           {
             "layer": "lint",
-            "id": "remote-state",
-            "sites": 6
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           }
@@ -864,19 +814,14 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 6,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "var_file": "live/corpus-vars/govuk-aws-infra-athena-query-results.tfvars",
       "profile": {
-        "onboarding_class": "backend-plus-remote-state",
+        "onboarding_class": "backend-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "remote-state",
-            "sites": 5
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -891,7 +836,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 10,
+      "sites": 9,
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
@@ -913,11 +858,6 @@
           },
           {
             "layer": "lint",
-            "id": "remote-state",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           }
@@ -930,7 +870,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 9,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
@@ -942,11 +882,6 @@
             "id": "Non-static identity argument",
             "sites": 2,
             "unset_var_only": true
-          },
-          {
-            "layer": "lint",
-            "id": "remote-state",
-            "sites": 6
           },
           {
             "layer": "lint",
@@ -962,7 +897,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 8,
-      "sites": 14,
+      "sites": 8,
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
@@ -983,11 +918,6 @@
           },
           {
             "layer": "lint",
-            "id": "remote-state",
-            "sites": 6
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           }
@@ -1000,17 +930,17 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 25,
+      "sites": 19,
       "unresolved_modules": 0,
-      "unset_variables": 2,
+      "unset_variables": 4,
       "schemas": true,
       "shadowed": 3,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "remote_state": 1
@@ -1031,11 +961,6 @@
             "layer": "identity",
             "id": "Unresolvable identity",
             "sites": 8
-          },
-          {
-            "layer": "lint",
-            "id": "remote-state",
-            "sites": 6
           },
           {
             "layer": "lint",
@@ -1120,19 +1045,14 @@
       "blocked": true,
       "loaded": true,
       "instances": 8,
-      "sites": 2,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "var_file": "live/corpus-vars/govuk-aws-infra-datagovuk-organogram-bucket.tfvars",
       "profile": {
-        "onboarding_class": "backend-plus-remote-state",
+        "onboarding_class": "backend-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "remote-state",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -1147,7 +1067,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 20,
-      "sites": 17,
+      "sites": 11,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
@@ -1172,11 +1092,6 @@
           },
           {
             "layer": "lint",
-            "id": "remote-state",
-            "sites": 6
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           }
@@ -1189,7 +1104,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 5,
+      "sites": 4,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -1197,11 +1112,6 @@
       "profile": {
         "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "remote-state",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -1284,7 +1194,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 72,
+      "sites": 70,
       "unresolved_modules": 0,
       "unset_variables": 4,
       "schemas": true,
@@ -1312,11 +1222,6 @@
           },
           {
             "layer": "lint",
-            "id": "remote-state",
-            "sites": 2
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           }
@@ -1329,7 +1234,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 13,
-      "sites": 11,
+      "sites": 4,
       "unresolved_modules": 0,
       "unset_variables": 4,
       "schemas": true,
@@ -1341,11 +1246,6 @@
             "id": "Non-static identity argument",
             "sites": 3,
             "unset_var_only": true
-          },
-          {
-            "layer": "lint",
-            "id": "remote-state",
-            "sites": 7
           },
           {
             "layer": "lint",
@@ -1361,18 +1261,13 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 2,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "backend-plus-remote-state",
+        "onboarding_class": "backend-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "remote-state",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -1441,7 +1336,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 9,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
@@ -1453,11 +1348,6 @@
             "id": "Non-static identity argument",
             "sites": 2,
             "unset_var_only": true
-          },
-          {
-            "layer": "lint",
-            "id": "remote-state",
-            "sites": 6
           },
           {
             "layer": "lint",
@@ -1473,7 +1363,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
@@ -1490,11 +1380,6 @@
           },
           {
             "layer": "lint",
-            "id": "remote-state",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           }
@@ -1507,7 +1392,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 4,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 4,
       "schemas": true,
@@ -1523,11 +1408,6 @@
           {
             "layer": "lint",
             "id": "count-index",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "remote-state",
             "sites": 1
           },
           {
@@ -1554,7 +1434,7 @@
         "refusals": [
           {
             "layer": "dataread",
-            "id": "Cross-stack outputs unavailable",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 2,
             "categories": {
               "tfe_outputs": 2
@@ -1681,7 +1561,7 @@
         "refusals": [
           {
             "layer": "dataread",
-            "id": "Cross-stack outputs unavailable",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 3,
             "categories": {
               "tfe_outputs": 3
@@ -1756,7 +1636,7 @@
         "refusals": [
           {
             "layer": "dataread",
-            "id": "Cross-stack outputs unavailable",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 2,
             "categories": {
               "tfe_outputs": 2
@@ -1889,7 +1769,7 @@
         "refusals": [
           {
             "layer": "dataread",
-            "id": "Cross-stack outputs unavailable",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "tfe_outputs": 1
@@ -1973,7 +1853,7 @@
         "refusals": [
           {
             "layer": "dataread",
-            "id": "Cross-stack outputs unavailable",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 4,
             "categories": {
               "tfe_outputs": 4
@@ -2066,7 +1946,7 @@
         "refusals": [
           {
             "layer": "dataread",
-            "id": "Cross-stack outputs unavailable",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "tfe_outputs": 1
@@ -2122,18 +2002,11 @@
         "refusals": [
           {
             "layer": "dataread",
-            "id": "Cross-stack outputs unavailable",
-            "sites": 2,
-            "categories": {
-              "tfe_outputs": 2
-            }
-          },
-          {
-            "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 1,
+            "sites": 3,
             "categories": {
-              "data_source": 1
+              "data_source": 1,
+              "tfe_outputs": 2
             }
           },
           {
@@ -2196,7 +2069,7 @@
         "refusals": [
           {
             "layer": "dataread",
-            "id": "Cross-stack outputs unavailable",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "tfe_outputs": 1
@@ -2525,14 +2398,6 @@
         "refusals": [
           {
             "layer": "dataread",
-            "id": "Cross-stack outputs unavailable",
-            "sites": 20,
-            "categories": {
-              "tfe_outputs": 20
-            }
-          },
-          {
-            "layer": "dataread",
             "id": "Data source not readable before resolution",
             "sites": 2,
             "categories": {
@@ -2542,9 +2407,10 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 6,
+            "sites": 26,
             "categories": {
-              "data_source": 6
+              "data_source": 6,
+              "tfe_outputs": 20
             }
           },
           {
@@ -2870,11 +2736,11 @@
       "unset_variables": 1,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
-            "id": "Cross-stack outputs unavailable",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "tfe_outputs": 1
@@ -2991,7 +2857,7 @@
         "refusals": [
           {
             "layer": "dataread",
-            "id": "Cross-stack outputs unavailable",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 19,
             "categories": {
               "tfe_outputs": 19
@@ -3146,11 +3012,11 @@
       "unset_variables": 1,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
-            "id": "Cross-stack outputs unavailable",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "tfe_outputs": 1
@@ -5465,7 +5331,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5479,11 +5345,6 @@
             "categories": {
               "data_source": 1
             }
-          },
-          {
-            "layer": "lint",
-            "id": "remote-state",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -5528,7 +5389,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 22,
-      "sites": 18,
+      "sites": 17,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5564,11 +5425,6 @@
           },
           {
             "layer": "lint",
-            "id": "remote-state",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           },
@@ -5597,7 +5453,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 16,
-      "sites": 21,
+      "sites": 20,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5614,8 +5470,8 @@
             }
           },
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 2,
             "categories": {
               "remote_state": 2
@@ -5651,11 +5507,6 @@
           },
           {
             "layer": "lint",
-            "id": "remote-state",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           },
@@ -5679,7 +5530,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 23,
-      "sites": 15,
+      "sites": 14,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5703,11 +5554,6 @@
             "layer": "lint",
             "id": "module-providers",
             "sites": 2
-          },
-          {
-            "layer": "lint",
-            "id": "remote-state",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -5750,7 +5596,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 7,
+      "sites": 6,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5767,11 +5613,6 @@
           },
           {
             "layer": "lint",
-            "id": "remote-state",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           }
@@ -5784,7 +5625,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 11,
-      "sites": 17,
+      "sites": 16,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5813,11 +5654,6 @@
           {
             "layer": "lint",
             "id": "module-providers",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "remote-state",
             "sites": 1
           },
           {
@@ -5886,7 +5722,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 11,
-      "sites": 8,
+      "sites": 7,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5895,8 +5731,8 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "remote_state": 1
@@ -5923,11 +5759,6 @@
           {
             "layer": "lint",
             "id": "for-each-key",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "remote-state",
             "sites": 1
           },
           {
@@ -6014,7 +5845,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 17,
-      "sites": 22,
+      "sites": 21,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6031,8 +5862,8 @@
             }
           },
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 2,
             "categories": {
               "remote_state": 2
@@ -6073,11 +5904,6 @@
           },
           {
             "layer": "lint",
-            "id": "remote-state",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           },
@@ -6101,7 +5927,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 16,
-      "sites": 5,
+      "sites": 4,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6128,11 +5954,6 @@
           },
           {
             "layer": "lint",
-            "id": "remote-state",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           }
@@ -6145,7 +5966,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 8,
+      "sites": 7,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6157,11 +5978,6 @@
             "layer": "lint",
             "id": "logical-resource",
             "sites": 2
-          },
-          {
-            "layer": "lint",
-            "id": "remote-state",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -6187,7 +6003,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 39,
-      "sites": 18,
+      "sites": 17,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6233,11 +6049,6 @@
           },
           {
             "layer": "lint",
-            "id": "remote-state",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           },
@@ -6258,7 +6069,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 4,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6276,11 +6087,6 @@
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "remote-state",
             "sites": 1
           },
           {
@@ -6336,7 +6142,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 21,
-      "sites": 22,
+      "sites": 21,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6353,8 +6159,8 @@
             }
           },
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 2,
             "categories": {
               "remote_state": 2
@@ -6390,11 +6196,6 @@
           },
           {
             "layer": "lint",
-            "id": "remote-state",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "state-backend",
             "sites": 1
           },
@@ -6418,7 +6219,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 28,
-      "sites": 20,
+      "sites": 19,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6429,16 +6230,9 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 4,
+            "sites": 5,
             "categories": {
-              "data_source": 4
-            }
-          },
-          {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
-            "sites": 1,
-            "categories": {
+              "data_source": 4,
               "remote_state": 1
             }
           },
@@ -6473,11 +6267,6 @@
           {
             "layer": "lint",
             "id": "module-providers",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "remote-state",
             "sites": 1
           },
           {
@@ -8069,6 +7858,24 @@
       "registered": true
     },
     {
+      "layer": "dataread",
+      "id": "Resolves at plan time via a data-source read",
+      "title": "Resolves at plan time via a data-source read",
+      "what": "Not a refusal: live-check's finding for a data-source reference in an identity-bearing position that a live-plan resolves by reading the data source before resolution. No edit to the configuration is needed, but the read itself has not been performed - it can still fail at plan time.",
+      "docs_ref": "live/LIMITATIONS.md, \"Resolves at plan time via a data-source read\"",
+      "raised_by": "internal/live/dataread",
+      "configs": 97,
+      "sites": 1668,
+      "examples": [
+        ".corpus/alb/examples/complete-alb/main.tf:420",
+        ".corpus/alb/examples/complete-alb/main.tf:425",
+        ".corpus/alb/examples/complete-nlb/main.tf:12",
+        ".corpus/alb/examples/mutual-auth-alb/main.tf:151",
+        ".corpus/alb/examples/mutual-auth-alb/main.tf:156"
+      ],
+      "registered": true
+    },
+    {
       "layer": "identity",
       "id": "Unable to compute static value",
       "title": "Unable to compute static value",
@@ -8083,24 +7890,6 @@
         ".corpus/alb/main.tf:243",
         ".corpus/alb/main.tf:460",
         ".corpus/alb/main.tf:477"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "dataread",
-      "id": "Resolves at plan time via a data-source read",
-      "title": "Resolves at plan time via a data-source read",
-      "what": "Not a refusal: live-check's finding for a data-source reference in an identity-bearing position that a live-plan resolves by reading the data source before resolution. No edit to the configuration is needed, but the read itself has not been performed - it can still fail at plan time.",
-      "docs_ref": "live/LIMITATIONS.md, \"Resolves at plan time via a data-source read\"",
-      "raised_by": "internal/live/dataread",
-      "configs": 81,
-      "sites": 1580,
-      "examples": [
-        ".corpus/alb/examples/complete-alb/main.tf:420",
-        ".corpus/alb/examples/complete-alb/main.tf:425",
-        ".corpus/alb/examples/complete-nlb/main.tf:12",
-        ".corpus/alb/examples/mutual-auth-alb/main.tf:151",
-        ".corpus/alb/examples/mutual-auth-alb/main.tf:156"
       ],
       "registered": true
     },
@@ -8208,8 +7997,8 @@
       "what": "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.",
       "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
       "raised_by": "internal/configs",
-      "configs": 61,
-      "sites": 568,
+      "configs": 54,
+      "sites": 537,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:195",
         ".corpus/alb/examples/complete-alb/main.tf:195",
@@ -8251,23 +8040,6 @@
         ".corpus/alb/examples/complete-alb/main.tf:180",
         ".corpus/alb/examples/complete-alb/main.tf:180",
         ".corpus/alb/examples/complete-alb/main.tf:181"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "lint",
-      "id": "remote-state",
-      "title": "terraform_remote_state is not available under live resource markers",
-      "docs_ref": "live/LIMITATIONS.md, \"remote-state\"",
-      "raised_by": "internal/live/lint",
-      "configs": 38,
-      "sites": 120,
-      "examples": [
-        ".corpus/cool-assessment/remote_states.tf:7",
-        ".corpus/cool-assessment/remote_states.tf:22",
-        ".corpus/cool-assessment/remote_states.tf:41",
-        ".corpus/cool-assessment/remote_states.tf:56",
-        ".corpus/cool-assessment/remote_states.tf:71"
       ],
       "registered": true
     },
@@ -8466,24 +8238,6 @@
       "registered": true
     },
     {
-      "layer": "dataread",
-      "id": "Cross-stack outputs unavailable",
-      "title": "Cross-stack outputs unavailable",
-      "what": "A tfe_outputs value the phase must read has no auth surface available: no token argument, no TFE_TOKEN environment variable, and no credentials entry for its host in the CLI configuration (checked offline, before any read is attempted); or the read itself failed - workspace not found, no current state version, insufficient permissions - quoted from the provider.",
-      "docs_ref": "live/LIMITATIONS.md, \"Cross-stack outputs unavailable\"",
-      "raised_by": "internal/live/dataread",
-      "configs": 12,
-      "sites": 57,
-      "examples": [
-        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/route53.tf:10",
-        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/security_groups.tf:14",
-        ".corpus/govuk-infrastructure/terraform/deployments/chat/main.tf:38",
-        ".corpus/govuk-infrastructure/terraform/deployments/chat/security.tf:37",
-        ".corpus/govuk-infrastructure/terraform/deployments/chat/security.tf:61"
-      ],
-      "registered": true
-    },
-    {
       "layer": "identity",
       "id": "Invalid for_each set",
       "title": "Invalid for_each set",
@@ -8672,6 +8426,28 @@
       "examples": [
         ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/security.tf:82"
       ],
+      "registered": true
+    },
+    {
+      "layer": "dataread",
+      "id": "Cross-stack outputs unavailable",
+      "title": "Cross-stack outputs unavailable",
+      "what": "A tfe_outputs value the phase must read has no auth surface available: no token argument, no TFE_TOKEN environment variable, and no credentials entry for its host in the CLI configuration (checked offline, at read time, before any read is attempted); or the read itself failed - workspace not found, no current state version, insufficient permissions - quoted from the provider.",
+      "docs_ref": "live/LIMITATIONS.md, \"Cross-stack outputs unavailable\"",
+      "raised_by": "internal/live/dataread",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "dataread",
+      "id": "Cross-stack state unavailable",
+      "title": "Cross-stack state unavailable",
+      "what": "A terraform_remote_state value the phase must read could not be read from its backend: the backend type is not one this binary links, the backend could not be configured or reached, no state exists for the named key or workspace, or the state snapshot could not be decoded (a newer format, or encryption this fork cannot open) - quoted from the backend at read time.",
+      "docs_ref": "live/LIMITATIONS.md, \"Cross-stack state unavailable\"",
+      "raised_by": "internal/live/dataread",
+      "configs": 0,
+      "sites": 0,
       "registered": true
     },
     {
@@ -9571,8 +9347,8 @@
     "configs": 250,
     "loaded": 249,
     "instances": 2813,
-    "sites": 14582,
-    "refusals_fired": 34,
+    "sites": 14462,
+    "refusals_fired": 32,
     "refusals_in_set": 116,
     "configs_without_schemas": 0,
     "refusals_unregistered": 0
@@ -9595,7 +9371,7 @@
       "blocked": 144,
       "clean": 0,
       "instances": 1713,
-      "sites": 3268,
+      "sites": 3148,
       "reads_as": "rate"
     },
     {
@@ -9620,11 +9396,7 @@
       },
       {
         "class": "backend-only",
-        "configs": 20
-      },
-      {
-        "class": "backend-plus-remote-state",
-        "configs": 4
+        "configs": 24
       },
       {
         "class": "admissions-only",
@@ -9632,11 +9404,11 @@
       },
       {
         "class": "data-read-eligible",
-        "configs": 20
+        "configs": 22
       },
       {
         "class": "language-blocked",
-        "configs": 89
+        "configs": 87
       },
       {
         "class": "unreadable",
