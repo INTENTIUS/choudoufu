@@ -674,8 +674,25 @@ OpenTofu retires the highest index first, and every value is rendered from
 the index alone against a configuration that is otherwise fixed, so a
 surviving index renders after a scale-down what it rendered before. What
 this does not promise - and the shape analysis never promised either - is
-stability across an edit to the configuration itself; that is a
-configuration change, and drift and `live-mv` are what answer it.
+stability across an edit to the configuration itself. Deleting a middle
+element of `var.availability_zones` renumbers every index above it, so
+`aws_x.r[1]`'s identity moves onto the object `aws_x.r[2]` used to name.
+
+The ownership check catches that, and what it does about it is refuse. A
+live object carrying this estate's `tofu-estate` marker and a `tofu-address`
+naming a different instance is left out of the prior state, with the
+resource's own refusal (`Live resource marked for another address`) naming
+both addresses. It is not adopted, and no plan rewrites one instance's
+address marker onto another instance's object. From there `live-mv`, or a
+`moved` block, is how a human says which object is which - and both are
+honoured: a `moved` block's old address is one of the markers the check
+accepts, precisely so a pending move is not mistaken for a renumbering.
+
+The half of this that is still open is the displaced object. Object
+`aws_x.r[2]`, still carrying its marker after the address it names has been
+taken over by a different live object, is dropped by discovery's scan
+rather than reported (GitHub issue #244, half 2). Nothing proposes to
+destroy it, and nothing tells you it is there.
 
 A module call's arguments are deliberately excluded from this second
 question and keep the shape analysis alone. Proving a call's own arguments
@@ -1446,6 +1463,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Cyclic parent-derived identities | error | `internal/live/projection` | "Cyclic parent-derived identities" |
 | - | - | projection | Empty import identity | error | `internal/live/projection` | "Empty import identity" |
 | - | - | projection | Ignoring an additional imported object | error | `internal/live/projection` | "Ignoring an additional imported object" |
+| - | - | projection | Live resource marked for another address | error | `internal/live/projection` | "Live resource marked for another address" |
 | - | - | projection | Live resource outside this estate | error | `internal/live/projection` | "Live resource outside this estate" |
 | - | - | projection | No configuration to project | error | `internal/live/projection` | "No configuration to project" |
 | - | - | projection | No identity resolutions to project | error | `internal/live/projection` | "No identity resolutions to project" |
@@ -1467,7 +1485,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker could not be checked | error | `internal/live/stamp` | "Ownership marker could not be checked" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**175 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning` - today only a lint rule can declare `warning`, GitHub issue #214's `state-backend`; every other layer's refusal is `error`.
+**176 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning` - today only a lint rule can declare `warning`, GitHub issue #214's `state-backend`; every other layer's refusal is `error`.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -2526,6 +2544,14 @@ reserved for the limits wing's fixture directories, and
 #### Ignoring an additional imported object
 
 **What.** An import returned more than one object where one was expected; the extra objects are dropped and this says so rather than choosing silently.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Live resource marked for another address
+
+**What.** A live object at the identity a declared instance names carries this estate's marker under a different resource address, or under no address at all, so it is another instance's object (or a malformed marker) and is not projected.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

@@ -57,6 +57,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/markers"
 )
 
 // maxOrigins bounds one declared instance's prior-address set. A chain long
@@ -251,6 +252,74 @@ func Origins(stmts []Statement, declared addrs.AbsResourceInstance) []addrs.AbsR
 		}
 	}
 	return out
+}
+
+// Aliases is [Origins] narrowed to the origins a marker could actually carry:
+// the ones naming a resource of declared's own type. A marker names the
+// resource it is written on, so its leading segment is that resource's type
+// (internal/live/discovery, markerTypeOf); an origin of another type could
+// never match a marker on this resource, and honouring it would only widen
+// what the caller claims to know. [Honourable] already refuses a statement
+// whose two endpoints name different resource types, so this filter fires
+// only for a chain that changes type in the middle - two statements each
+// type-consistent whose composition is not.
+//
+// declared itself is not included, exactly as [Origins] does not include it.
+func Aliases(stmts []Statement, declared addrs.AbsResourceInstance) []addrs.AbsResourceInstance {
+	origins := Origins(stmts, declared)
+	if len(origins) == 0 {
+		return nil
+	}
+	typeName := declared.Resource.Resource.Type
+	out := make([]addrs.AbsResourceInstance, 0, len(origins))
+	for _, origin := range origins {
+		if origin.Resource.Resource.Type != typeName {
+			continue
+		}
+		out = append(out, origin)
+	}
+	return out
+}
+
+// Accepts reports whether observed - an escaped tofu-address marker value
+// read off a live object, never decoded - names declared: either declared's
+// own address, or an address a honoured `moved` block says moved here.
+//
+// This is the whole definition of "this marker names this instance", and it
+// is deliberately the only one. Both sides of the ownership question go
+// through it or through [Aliases], which it is defined in terms of:
+// internal/live/discovery builds its marker index from [Aliases], and
+// internal/live/projection asks this directly for a client-named instance
+// whose live object it read by the identity the configuration gave it. Two
+// independent implementations would disagree about what an address marker
+// means, and that disagreement is exactly what GitHub issue #244 was - one
+// layer deferring the check to the other, in a comment, while neither
+// performed it.
+//
+// The comparison is [markers.AddressMatches] rather than a bare equality
+// against [markers.EscapeAddress], so a marker a prior run wrote under an
+// older escaping grammar still names the instance it always named. A bare
+// comparison reintroduces the cross-grammar hole that produced 107 false
+// positives earlier in this campaign.
+//
+// A pending move legitimately leaves the live object carrying the OLD
+// address until the marker rewrite lands, which is the ordinary tags diff
+// the provider plans (see this package's doc comment). That is why a bare
+// equality against declared alone is wrong and would break every `moved`
+// block: the aliases are not a courtesy, they are the mechanism.
+func Accepts(stmts []Statement, declared addrs.AbsResourceInstance, observed string) bool {
+	if observed == "" {
+		return false
+	}
+	if markers.AddressMatches(observed, declared.String()) {
+		return true
+	}
+	for _, alias := range Aliases(stmts, declared) {
+		if markers.AddressMatches(observed, alias.String()) {
+			return true
+		}
+	}
+	return false
 }
 
 // ---------------------------------------------------------------------------

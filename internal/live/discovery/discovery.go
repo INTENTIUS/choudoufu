@@ -641,19 +641,17 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 		raw := r.Addr.String()
 		escaped := EscapeAddress(raw)
 		d.all[typeName][escaped] = true
-		for _, origin := range moved.Origins(movedStmts, r.Addr) {
+		for _, origin := range moved.Aliases(movedStmts, r.Addr) {
 			// A pending move: this instance's live resource may still be
 			// carrying the address it had before the moved block was
 			// written. Recording it here is what keeps the sweep from
 			// reading that resource as an orphan and planning to destroy
 			// it - the whole reason a rule downgraded without this index
-			// would be unsafe. The type key is checked because a marker
-			// names the type of the resource it is written on: an alias
-			// filed under another type could never match anything and would
-			// only widen what this set claims to know.
-			if origin.Resource.Resource.Type != typeName {
-				continue
-			}
+			// would be unsafe. [moved.Aliases] is what applies the type
+			// filter a marker's own grammar requires, and it is the same
+			// function internal/live/projection's ownership check reads
+			// through [moved.Accepts], so the two layers cannot come to
+			// disagree about which markers a moved block makes acceptable.
 			d.all[typeName][EscapeAddress(origin.String())] = true
 		}
 		if legacy := LegacyEscapeAddress(raw); legacy != escaped {
@@ -778,10 +776,7 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 		// away from an address the configuration still declares - a shape
 		// moved.Honourable refuses outright, checked again here because a
 		// silent misdirection is the one outcome worth two guards.
-		for _, origin := range moved.Origins(movedStmts, r.Addr) {
-			if origin.Resource.Resource.Type != typeName {
-				continue
-			}
+		for _, origin := range moved.Aliases(movedStmts, r.Addr) {
 			alias := EscapeAddress(origin.String())
 			if _, canonical := d.types[typeName][alias]; canonical {
 				continue
@@ -813,10 +808,7 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 		// that gave it for_each would leave its live members as orphans - a
 		// proposed destroy - rather than as the "which instance is which"
 		// question they actually are.
-		for _, origin := range moved.Origins(movedStmts, r.Addr) {
-			if origin.Resource.Resource.Type != typeName {
-				continue
-			}
+		for _, origin := range moved.Aliases(movedStmts, r.Addr) {
 			aliasBlock := EscapeAddress(origin.ContainingResource().String())
 			if _, taken := d.blocks[typeName][aliasBlock]; taken {
 				continue
@@ -864,10 +856,7 @@ func (d *declared) aliasMovedCountBlocks(stmts []moved.Statement) {
 
 		for _, addr := range names {
 			cb := blocks[addr]
-			for _, origin := range moved.Origins(stmts, cb.instanceAddr(0)) {
-				if origin.Resource.Resource.Type != typeName {
-					continue
-				}
+			for _, origin := range moved.Aliases(stmts, cb.instanceAddr(0)) {
 				alias := EscapeAddress(origin.ContainingResource().String())
 				if _, declared := blocks[alias]; declared {
 					continue
