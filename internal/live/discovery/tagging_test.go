@@ -122,6 +122,20 @@ func TestJoinTaggedResourceRealArtifacts(t *testing.T) {
 			wantOK:           true,
 		},
 		{
+			// aws_alb_listener joined identity.DefaultTable alongside
+			// aws_lb_listener (issue #184 batch, the same aws_alb* alias
+			// family as the load balancer and target group cases above),
+			// so this ARN is exactly as ambiguous by TF-type count as
+			// those two - and resolves the same way, by
+			// [resolveDocumentedAlias] picking the canonical name.
+			name:             "elasticloadbalancing listener: alias family's third arnJoinTable entry",
+			arn:              "arn:aws:elasticloadbalancing:us-east-1:123456789012:listener/app/main/50dc6c495c0c9188/f2f7dc8efc522ab2",
+			wantTypeName:     "aws_lb_listener",
+			wantIdentityAttr: "arn",
+			wantImportIsARN:  true,
+			wantOK:           true,
+		},
+		{
 			name:          "elasticloadbalancing classic load balancer: 1-part id, unmapped CFN type",
 			arn:           "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/classic-name",
 			wantOK:        false,
@@ -272,6 +286,86 @@ func TestJoinTaggedResourceAmbiguousRosterMapping(t *testing.T) {
 		if !strings.Contains(got.reason, frag) {
 			t.Errorf("reason %q does not mention %q", got.reason, frag)
 		}
+	}
+}
+
+// TestResolveDocumentedAlias exercises [resolveDocumentedAlias] directly
+// against the real identity table (issue #184's follow-up: two TF types
+// admitted for one CFN type is not automatically safe to disambiguate - see
+// the load balancer/target group/listener cases above, which are, and the
+// kms case in TestJoinTaggedResourceRealArtifacts, which is not).
+func TestResolveDocumentedAlias(t *testing.T) {
+	tests := []struct {
+		name          string
+		admitted      []string
+		wantCanonical string
+		wantOK        bool
+	}{
+		{
+			name:          "aws_alb/aws_lb: the documented alias pair itself",
+			admitted:      []string{"aws_alb", "aws_lb"},
+			wantCanonical: "aws_lb",
+			wantOK:        true,
+		},
+		{
+			name:          "order does not matter",
+			admitted:      []string{"aws_lb", "aws_alb"},
+			wantCanonical: "aws_lb",
+			wantOK:        true,
+		},
+		{
+			name:          "aws_alb_listener/aws_lb_listener: a second alias pair",
+			admitted:      []string{"aws_alb_listener", "aws_lb_listener"},
+			wantCanonical: "aws_lb_listener",
+			wantOK:        true,
+		},
+		{
+			name:          "aws_alb_target_group/aws_lb_target_group: a third alias pair",
+			admitted:      []string{"aws_alb_target_group", "aws_lb_target_group"},
+			wantCanonical: "aws_lb_target_group",
+			wantOK:        true,
+		},
+		{
+			name:     "aws_kms_external_key/aws_kms_key: structurally identical, never declared aliases",
+			admitted: []string{"aws_kms_external_key", "aws_kms_key"},
+			wantOK:   false,
+		},
+		{
+			name:     "aws_db_instance/aws_rds_cluster_instance: another genuine multi-candidate CFN type",
+			admitted: []string{"aws_db_instance", "aws_rds_cluster_instance"},
+			wantOK:   false,
+		},
+		{
+			name: "a candidate's alias note names something outside this candidate set: not trusted",
+			// aws_alb's Reason names aws_lb, which is not offered here - so
+			// the one remaining "no marker" candidate (aws_kms_key) is not
+			// trusted as what aws_alb is an alias of.
+			admitted: []string{"aws_alb", "aws_kms_key"},
+			wantOK:   false,
+		},
+		{
+			name: "three candidates, only two of which agree on a canonical: refused",
+			admitted: []string{
+				"aws_alb_listener", "aws_lb_listener", "aws_kms_key",
+			},
+			wantOK: false,
+		},
+		{
+			name:     "a type absent from the identity table at all: refused, not a panic",
+			admitted: []string{"aws_alb", "aws_this_type_does_not_exist"},
+			wantOK:   false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotCanonical, gotOK := resolveDocumentedAlias(tt.admitted)
+			if gotOK != tt.wantOK {
+				t.Fatalf("resolveDocumentedAlias(%v) ok = %v, want %v", tt.admitted, gotOK, tt.wantOK)
+			}
+			if gotOK && gotCanonical != tt.wantCanonical {
+				t.Errorf("resolveDocumentedAlias(%v) = %q, want %q", tt.admitted, gotCanonical, tt.wantCanonical)
+			}
+		})
 	}
 }
 

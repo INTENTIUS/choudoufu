@@ -86,6 +86,12 @@ var taggableRemainder = []string{
 	"aws_invoicing_invoice_unit",
 	"aws_kinesis_analytics_application",
 	"aws_lb_listener_rule",
+	// aws_alb_listener_rule: the provider's documented alias of
+	// aws_lb_listener_rule just above ("`aws_alb_listener_rule` is known
+	// as `aws_lb_listener_rule`. The functionality is identical."), same
+	// resource, same taggability - live/survey-full.json's
+	// signals.taggable agrees (true).
+	"aws_alb_listener_rule",
 	"aws_lb_trust_store",
 	"aws_m2_application",
 	"aws_m2_environment",
@@ -304,6 +310,7 @@ func init() {
 			"aws_invoicing_invoice_unit":                                            taggedSchema("id", "arn"),
 			"aws_kinesis_analytics_application":                                     taggedSchema("id", "arn"),
 			"aws_lb_listener_rule":                                                  taggedSchema("id", "arn"),
+			"aws_alb_listener_rule":                                                 taggedSchema("id", "arn"),
 			"aws_lb_trust_store":                                                    taggedSchema("id", "arn"),
 			"aws_m2_application":                                                    taggedSchema("id", "arn"),
 			"aws_m2_environment":                                                    taggedSchema("id", "arn"),
