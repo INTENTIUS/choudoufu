@@ -111,13 +111,10 @@ var typeOverridesEcsEks = map[string]typeOverride{
 	},
 	"aws_ecs_daemon": {
 		Reasons: []string{
-			`the generic pass's same-name parent search matches this type's own client-chosen "name" argument against aws_eks_cluster (an unrelated EKS type whose single-component identity also happens to be named "name"), producing a cross-service reference where a plain placeholder string belongs; overridden back to a placeholder. capacity_provider_arns is a required, list-typed argument the provider validates as well-formed ARNs (validate: "cannot be parsed as an ARN"); the generic pass's siblingRef only recognizes a singular "<base>_arn" suffix, not this plural "_arns" shape, so it is wired here by hand to the cohort's own aws_ecs_capacity_provider.app - the #150 veto reversal admitted that type with IdentityAttrs ["arn"], so this is a real sibling reference, not a placeholder. daemon_task_definition_arn is singular and the generic pass's siblingRef already wires it correctly to aws_ecs_daemon_task_definition.app.arn now that type is part of this cohort's roster, so it is left unset here`,
+			`the generic pass's same-name parent search matches this type's own client-chosen "name" argument against aws_eks_cluster (an unrelated EKS type whose single-component identity also happens to be named "name"), producing a cross-service reference where a plain placeholder string belongs; overridden back to a placeholder. capacity_provider_arns and daemon_task_definition_arn are left unset here: the generic pass's siblingRef now recognizes both the singular "<base>_arn" shape and its plural "<base>_arns" counterpart over a list/set(string) argument, so both wire on their own to the cohort's own aws_ecs_capacity_provider.app.arn and aws_ecs_daemon_task_definition.app.arn respectively - no hand wiring left to do`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-ecs-daemon"`, g.cohort)))
-			if cp, ok := g.byType["aws_ecs_capacity_provider"]; ok {
-				body.SetAttributeRaw("capacity_provider_arns", exprTokens(fmt.Sprintf("[%s.%s.arn]", cp.Type, cp.Label)))
-			}
 		},
 	},
 	"aws_eks_cluster": {
