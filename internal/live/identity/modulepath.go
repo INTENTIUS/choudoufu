@@ -170,6 +170,18 @@ func childModuleForEachElements(ctx context.Context, mod *configs.Module, subjec
 			if v.Type() != cty.String || v.IsNull() {
 				return nil, invalidForEachDiag(expr.Range(), subject, ty)
 			}
+			// A marked element panics in AsString. cty hoists a set
+			// element's marks to the set itself, so the whole-value test
+			// above already covers this branch - tested anyway so the
+			// safety is stated rather than inherited from a cty detail.
+			if v.IsMarked() {
+				return nil, &hcl.Diagnostic{
+					Severity: hcl.DiagError,
+					Summary:  "Sensitive for_each expression",
+					Detail:   fmt.Sprintf("The for_each value for %s contains a sensitive element, so it cannot become part of the addresses inside the module.", subject),
+					Subject:  expr.Range().Ptr(),
+				}
+			}
 			elems[v.AsString()] = v
 		}
 	default:

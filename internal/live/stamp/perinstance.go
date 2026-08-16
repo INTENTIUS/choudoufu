@@ -254,7 +254,11 @@ func (s *stamper) forEachInstanceKeys(ctx context.Context, rc *configs.Resource)
 		case ty.IsSetType(), ty.IsListType(), ty.IsTupleType():
 			for it := val.ElementIterator(); it.Next(); {
 				_, v := it.Element()
-				if v.Type() == cty.String && !v.IsNull() {
+				// !IsMarked for the reason [stamper.staticForEachKeys]
+				// tests it: a list or tuple keeps its elements' marks
+				// rather than hoisting them to itself, so the whole-value
+				// test above does not cover them and AsString panics.
+				if v.Type() == cty.String && !v.IsNull() && !v.IsMarked() {
 					values[v.AsString()] = v
 				}
 			}

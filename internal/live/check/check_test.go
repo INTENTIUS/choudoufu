@@ -100,6 +100,7 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		"liveimport":      true, // the bulk migration command's engine
 		"markerkey":       true,
 		"markers":         true, // the marker vocabulary itself
+		"marksafe":        true, // issue #240's lockstep scanner over mark-unsafe cty accessors, plus its mark-injection sweep
 		"mdspan":          true, // rewrites generated regions of a markdown doc
 		"mv":              true, // the rename command's engine
 		"passthrough":     true, // a registry of upstream diagnostics, not a pass

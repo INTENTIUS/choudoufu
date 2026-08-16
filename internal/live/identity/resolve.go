@@ -1121,6 +1121,18 @@ func (r *resolver) soleElementFromValue(expr hcl.Expression, scope instScope, at
 	if val.IsNull() || !val.IsWhollyKnown() {
 		return nil, false, false
 	}
+	// IsMarked before ElementIterator, which panics on a marked value: a
+	// list-typed sensitive variable used as an identity argument -
+	// `variable "cidrs" { type = list(string), sensitive = true }` set on
+	// aws_security_group_rule.cidr_blocks - reaches here as a marked list
+	// and crashed the run. Reported not-applicable rather than diagnosed
+	// here, so the whole expression carries on to [resolver.resolveExpr]
+	// and refuses through [resolver.stringValue]'s "Identity derived from a
+	// sensitive value", which is the message this value deserves whether or
+	// not it happens to be a one-element collection.
+	if val.IsMarked() {
+		return nil, false, false
+	}
 	n := 0
 	var only cty.Value
 	for it := val.ElementIterator(); it.Next(); {
@@ -2532,6 +2544,18 @@ func (r *resolver) forEachExpansion(rc *configs.Resource) (*expansion, bool) {
 		var names []string
 		for it := val.ElementIterator(); it.Next(); {
 			_, v := it.Element()
+			// cty hoists an element's marks to the containing SET, so the
+			// whole-value IsMarked test above already covers this branch -
+			// but a list, map, object and tuple do NOT hoist, and the same
+			// three lines appear over those elsewhere. Tested here so the
+			// safe case is safe for a stated reason rather than by
+			// accident, and so a future edit that widens this branch to
+			// another collection kind cannot silently start panicking.
+			if v.IsMarked() {
+				r.errorf(expr.Range(), "Sensitive for_each expression",
+					"The for_each value for %s contains a sensitive element, so it cannot become part of resource addresses.", addr.String())
+				return nil, false
+			}
 			names = append(names, v.AsString())
 		}
 		sort.Strings(names)
@@ -2700,6 +2724,18 @@ func (r *resolver) forEachOverComprehension(rc *configs.Resource, fe *hclsyntax.
 					"The if clause of %s's for_each comprehension did not evaluate to a known boolean.", subject)
 				return nil, false, true
 			}
+			// cty.Value.False calls True, which asserts the value is
+			// unmarked and panics when it is not: `if var.flag` with
+			// `variable "flag" { type = bool, sensitive = true }` is all it
+			// takes. Refused for the same reason the key clause below is -
+			// which instances exist decides which addresses this run writes
+			// into cloud tags, so it cannot be decided by a value this run
+			// must not record.
+			if include.IsMarked() {
+				r.errorf(fe.CondExpr.Range(), "Sensitive for_each expression",
+					"The if clause of %s's for_each comprehension is sensitive, so it cannot decide which resource addresses exist.", subject)
+				return nil, false, true
+			}
 			if include.False() {
 				continue
 			}
@@ -2809,6 +2845,18 @@ func (r *resolver) comprehensionOverSiblingAttr(rc *configs.Resource, fe *hclsyn
 			"The for_each value for %s iterates over %s, which cannot be determined from configuration alone.", subject, traversalString(trav))
 		return nil, false, true
 	}
+	// IsMarked before the iterator below, which panics on a marked value:
+	// the sibling's own literal argument may be a sensitive variable, and
+	// then this collection is marked. Refused rather than read, for the
+	// reason [resolver.forEachExpansion] refuses a marked for_each value
+	// outright - the instance keys become resource addresses written to
+	// cloud tags.
+	if collVal.IsMarked() {
+		r.errorf(fe.CollExpr.Range(), "Sensitive for_each expression",
+			"The for_each value for %s iterates over %s, which is sensitive, so it cannot become part of resource addresses.", subject, traversalString(trav))
+		return nil, false, true
+	}
+
 	ty := collVal.Type()
 	if !ty.IsListType() && !ty.IsSetType() && !ty.IsTupleType() && !ty.IsMapType() && !ty.IsObjectType() {
 		r.errorf(fe.CollExpr.Range(), "Non-static for_each expression",
@@ -2833,6 +2881,18 @@ func (r *resolver) comprehensionOverSiblingAttr(rc *configs.Resource, fe *hclsyn
 			if err != nil || include.IsNull() || !include.IsKnown() {
 				r.errorf(fe.CondExpr.Range(), "Invalid for_each condition",
 					"The if clause of %s's for_each comprehension did not evaluate to a known boolean.", subject)
+				return nil, false, true
+			}
+			// cty.Value.False calls True, which asserts the value is
+			// unmarked and panics when it is not: `if var.flag` with
+			// `variable "flag" { type = bool, sensitive = true }` is all it
+			// takes. Refused for the same reason the key clause below is -
+			// which instances exist decides which addresses this run writes
+			// into cloud tags, so it cannot be decided by a value this run
+			// must not record.
+			if include.IsMarked() {
+				r.errorf(fe.CondExpr.Range(), "Sensitive for_each expression",
+					"The if clause of %s's for_each comprehension is sensitive, so it cannot decide which resource addresses exist.", subject)
 				return nil, false, true
 			}
 			if include.False() {
@@ -2924,6 +2984,16 @@ func (r *resolver) forEachOverTupleComprehension(rc *configs.Resource, fe *hclsy
 			"The for_each value for %s cannot be determined from configuration alone.", subject)
 		return nil, false, true
 	}
+	// IsMarked before the iterator below, for the reason
+	// [resolver.comprehensionOverSiblingAttr] tests it: cty panics on a
+	// marked value there, and a comprehension over a sensitive local or
+	// variable is an ordinary way to produce one.
+	if collVal.IsMarked() {
+		r.errorf(fe.CollExpr.Range(), "Sensitive for_each expression",
+			"The for_each value for %s iterates over a sensitive value, so it cannot become part of resource addresses.", subject)
+		return nil, false, true
+	}
+
 	ty := collVal.Type()
 	if !ty.IsListType() && !ty.IsSetType() && !ty.IsTupleType() {
 		r.errorf(fe.CollExpr.Range(), "Invalid for_each value",
@@ -2948,6 +3018,18 @@ func (r *resolver) forEachOverTupleComprehension(rc *configs.Resource, fe *hclsy
 			if err != nil || include.IsNull() || !include.IsKnown() {
 				r.errorf(fe.CondExpr.Range(), "Invalid for_each condition",
 					"The if clause of %s's for_each comprehension did not evaluate to a known boolean.", subject)
+				return nil, false, true
+			}
+			// cty.Value.False calls True, which asserts the value is
+			// unmarked and panics when it is not: `if var.flag` with
+			// `variable "flag" { type = bool, sensitive = true }` is all it
+			// takes. Refused for the same reason the key clause below is -
+			// which instances exist decides which addresses this run writes
+			// into cloud tags, so it cannot be decided by a value this run
+			// must not record.
+			if include.IsMarked() {
+				r.errorf(fe.CondExpr.Range(), "Sensitive for_each expression",
+					"The if clause of %s's for_each comprehension is sensitive, so it cannot decide which resource addresses exist.", subject)
 				return nil, false, true
 			}
 			if include.False() {

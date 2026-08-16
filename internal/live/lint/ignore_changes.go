@@ -173,7 +173,11 @@ func ignoredTagKey(traversal hcl.Traversal) (key string, whole, ok bool) {
 		// such as tags[0], which names the tag key "0" - not a marker, and
 		// not the whole argument either.
 		str, err := convert.Convert(step.Key, cty.String)
-		if err != nil || str.IsNull() {
+		if err != nil || str.IsNull() || str.IsMarked() {
+			// IsMarked before AsString, which panics on a marked value.
+			// Unreachable while hcl only builds a TraverseIndex from a
+			// source constant, as the comment above says; tested so that
+			// stops being load-bearing.
 			return "", false, false
 		}
 		return str.AsString(), false, true
