@@ -266,6 +266,43 @@ const (
 	// inert inside keyed modules; fixing the key made it fire on the wrong
 	// half. Keep the two reasons distinct.
 	SkipModuleKeyedTrusted SkipReason = "MODULE_KEYED_TRUSTED"
+
+	// SkipDataForEachKey is a for_each expression that transitively
+	// references a data source (issue #227). [stamper.staticForEachKeys]
+	// cannot evaluate it - the module's static evaluator here is never
+	// wired with the data-read phase's results, unlike the scoped copy
+	// [identity]'s own resolver builds for exactly this shape (see
+	// resolve.go's enterModuleAt) - so this pass has no way to learn the
+	// block's actual instance keys.
+	//
+	// That would only cost a lookup-table optimization ([forEachNeedsKeyLookup]
+	// staying unreachable) if the per-instance fallback template
+	// ([eachKeyEscapedExpr]) were still correct for every possible key, but
+	// it is not: that template reproduces only the pre-#210 grammar (it
+	// escapes "@", ".", and ":"), not the general [markerkey.Encode] a key
+	// outside that narrower set needs.
+	//
+	// [identity]'s own resolver already refuses a resolved key outside
+	// [markerkey.Valid] (checkedForEachKeys, run against the real value once
+	// its evaluator has the data-read phase's results - not against the
+	// for_each expression's text the way this check and lint's pre-filter
+	// do), so the six [markerkey.Excluded] characters this comment's
+	// earlier revision worried about are already caught one layer up, and a
+	// data-rooted for_each carrying one of them never reaches this pass at
+	// all in a real live-plan/live-mode run (proved in
+	// TestIdentityRefusesBadDataForEachKey). The gap this check actually
+	// closes is narrower and easy to miss for exactly that reason: a key
+	// that needs [markerkey.Encode]'s hex-escape help WITHOUT being one of
+	// the six Excluded - a parenthesis, a semicolon, a non-ASCII rune, any
+	// of issue #210's own widened admissions - is still [markerkey.Valid],
+	// so identity resolves it with no refusal at all (proved in
+	// TestIdentityAcceptsEncodableButNonLegalKey), and only this pass's own
+	// inability to build the lookup table for an unknowable data-rooted
+	// for_each stands between it and a silent, byte-for-byte wrong marker.
+	// A plural data-source attribute - an S3 object-key listing, most of
+	// all - returns exactly this shape of key in practice. See this
+	// package's own foreach_data_test.go for both halves of the proof.
+	SkipDataForEachKey SkipReason = "DATA_FOR_EACH_KEY"
 )
 
 // Unknown reports whether this skip means the pass could not TELL whether the
@@ -626,6 +663,39 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 			// apply time.
 			wantAddr, addrDisplay = s.forEachLookupAddressExpr(rc, modInst, keys)
 			legacyAddr = nil
+		} else if !ok && forEachRootedAtData(rc.ForEach) {
+			// staticForEachKeys came back empty for the same reason it does
+			// for a for_each over another resource's own for_each - the
+			// traversal pre-filter turns away anything not rooted at
+			// var/local/path/terraform/tofu - but a resource-rooted for_each
+			// is safe to fall through anyway: that other block's own keys
+			// get lint's [markerkey.Valid] check in their own right, and a
+			// bad one there refuses the whole run before this pass ever
+			// sees it. A data-rooted for_each gets no equivalent check from
+			// EITHER of this repo's two static passes (lint's own
+			// pre-filter shares this exact blind spot), and only a PARTIAL
+			// one from identity resolution - checkedForEachKeys refuses the
+			// six markerkey.Excluded characters once it has resolved the
+			// real value, but a key that needs markerkey.Encode's help
+			// without being one of those six (a parenthesis, a semicolon,
+			// non-ASCII - see SkipDataForEachKey's own doc comment) is
+			// still markerkey.Valid and sails through resolution untouched.
+			// So this pass cannot tell a safe key from an unsafe one either
+			// way, and the per-instance fallback this resource would
+			// otherwise get only reproduces the narrower pre-#210 escaping.
+			// See [SkipDataForEachKey].
+			detail := fmt.Sprintf(
+				"%s expands with a for_each expression that reads a data source, whose actual instance keys this pass has no way to inspect statically. "+
+					"The %s marker this pass would otherwise write for each instance uses an escaping template that is only proven correct for keys drawn "+
+					"from the pre-#210 marker charset (letters, digits, space, and %q); a key containing any other character - which a plural data-source "+
+					"attribute such as an S3 object-key listing legally can - would be stamped wrong, silently, with no warning from lint either. "+
+					"Write tags.%s (and tags.%s) by hand for every instance instead of leaving them to this pass.",
+				addr, TagAddress, markerkey.Extras, TagAddress, TagEstate)
+			s.skip(addr, SkipDataForEachKey, detail)
+			if !s.mustStamp(rc) {
+				return nil, diags
+			}
+			return nil, diags.Append(s.unstampable(rc, detail))
 		}
 	}
 	markers := []marker{
@@ -1273,6 +1343,23 @@ func eachKeyEscapedExpr(rng hcl.Range) hclsyntax.Expression {
 // ---------------------------------------------------------------------------
 // Out-of-charset for_each keys (issue #210)
 // ---------------------------------------------------------------------------
+
+// forEachRootedAtData reports whether a for_each expression transitively
+// references a data source. See [SkipDataForEachKey]'s doc comment for why
+// this earns a refusal rather than the silent per-instance fallback every
+// other "not computable here" for_each ([stamper.staticForEachKeys]
+// returning false) gets - a for_each over another managed resource's own
+// for_each, most of all, which is exactly as unreadable to
+// staticForEachKeys but stays safe because that OTHER resource's own for_each
+// gets lint's [markerkey.Valid] check in its own right.
+func forEachRootedAtData(expr hcl.Expression) bool {
+	for _, trav := range expr.Variables() {
+		if trav.RootName() == "data" {
+			return true
+		}
+	}
+	return false
+}
 
 // forEachNeedsKeyLookup reports whether any of a for_each block's own
 // (statically known) keys needs [markerkey.Encode]'s help to become a
