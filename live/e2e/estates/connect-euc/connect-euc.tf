@@ -40,7 +40,7 @@ resource "aws_appstream_user" "app" {
 # overrides: doc example: content, description, type
 resource "aws_connect_contact_flow" "app" {
   instance_id = aws_connect_user_hierarchy_structure.app.instance_id
-  name        = aws_appstream_stack.app.name
+  name        = "tofu-connect-euc-cohort-connect-contact-flow"
   content     = "{\"Actions\":[{\"Identifier\":\"12345678-1234-1234-1234-123456789012\",\"Parameters\":{\"Text\":\"Thanks for calling the sample flow!\"},\"Transitions\":{\"Conditions\":[],\"Errors\":[],\"NextAction\":\"abcdef-abcd-abcd-abcd-abcdefghijkl\"},\"Type\":\"MessageParticipant\"},{\"Identifier\":\"abcdef-abcd-abcd-abcd-abcdefghijkl\",\"Parameters\":{},\"Transitions\":{},\"Type\":\"DisconnectParticipant\"}],\"StartAction\":\"12345678-1234-1234-1234-123456789012\",\"Version\":\"2019-10-30\"}"
   description = "Test Contact Flow Description"
   type        = "CONTACT_FLOW"
@@ -54,7 +54,7 @@ resource "aws_connect_contact_flow" "app" {
 # overrides: doc example: content, description
 resource "aws_connect_contact_flow_module" "app" {
   instance_id = aws_connect_user_hierarchy_structure.app.instance_id
-  name        = aws_appstream_stack.app.name
+  name        = "tofu-connect-euc-cohort-connect-contact-flow-module"
   content     = "{\"Actions\":[{\"Identifier\":\"12345678-1234-1234-1234-123456789012\",\"Parameters\":{\"Text\":\"Hello contact flow module\"},\"Transitions\":{\"Conditions\":[],\"Errors\":[],\"NextAction\":\"abcdef-abcd-abcd-abcd-abcdefghijkl\"},\"Type\":\"MessageParticipant\"},{\"Identifier\":\"abcdef-abcd-abcd-abcd-abcdefghijkl\",\"Parameters\":{},\"Transitions\":{},\"Type\":\"DisconnectParticipant\"}],\"Settings\":{\"InputParameters\":[],\"OutputParameters\":[],\"Transitions\":[{\"Description\":\"\",\"DisplayName\":\"Success\",\"ReferenceName\":\"Success\"},{\"Description\":\"\",\"DisplayName\":\"Error\",\"ReferenceName\":\"Error\"}]},\"StartAction\":\"12345678-1234-1234-1234-123456789012\",\"Version\":\"2019-10-30\"}"
   description = "Example Contact Flow Module Description"
   tags = {
@@ -67,7 +67,7 @@ resource "aws_connect_contact_flow_module" "app" {
 # overrides: config.day is Required and the provider validates it against a closed enum (validate: "expected day to be one of [SUNDAY MONDAY ...]"); the generic pass's "placeholder" string is not a member
 resource "aws_connect_hours_of_operation" "app" {
   instance_id = aws_connect_user_hierarchy_structure.app.instance_id
-  name        = aws_appstream_stack.app.name
+  name        = "tofu-connect-euc-cohort-connect-hours-of-operation"
   time_zone   = "placeholder"
   config {
     day = "MONDAY"
@@ -129,7 +129,7 @@ resource "aws_connect_phone_number" "app" {
 resource "aws_connect_queue" "app" {
   hours_of_operation_id = aws_connect_hours_of_operation.app.hours_of_operation_id
   instance_id           = aws_connect_user_hierarchy_structure.app.instance_id
-  name                  = aws_appstream_stack.app.name
+  name                  = "tofu-connect-euc-cohort-connect-queue"
   description           = "Example Description"
   tags = {
     tofu-estate  = local.estate_tag
@@ -141,7 +141,7 @@ resource "aws_connect_queue" "app" {
 # overrides: quick_connect_config is a required block whose own quick_connect_type is Required and validated against a closed enum (validate: "expected quick_connect_type to be one of [...]"); the provider additionally requires exactly one of phone_config/queue_config/user_config depending on quick_connect_type (documented, not schema-Required) - PHONE_NUMBER chosen as the type needing the fewest nested fields, with phone_config.phone_number set to a well-formed E.164 number
 resource "aws_connect_quick_connect" "app" {
   instance_id = aws_connect_user_hierarchy_structure.app.instance_id
-  name        = aws_appstream_stack.app.name
+  name        = "tofu-connect-euc-cohort-connect-quick-connect"
   quick_connect_config {
     quick_connect_type = "PHONE_NUMBER"
     phone_config {
@@ -160,7 +160,7 @@ resource "aws_connect_routing_profile" "app" {
   default_outbound_queue_id = "placeholder"
   description               = "placeholder"
   instance_id               = aws_connect_user_hierarchy_structure.app.instance_id
-  name                      = aws_appstream_stack.app.name
+  name                      = "tofu-connect-euc-cohort-connect-routing-profile"
   media_concurrencies {
     channel     = "VOICE"
     concurrency = 1
@@ -175,7 +175,7 @@ resource "aws_connect_routing_profile" "app" {
 # overrides: doc example: description, permissions
 resource "aws_connect_security_profile" "app" {
   instance_id = aws_connect_user_hierarchy_structure.app.instance_id
-  name        = aws_appstream_stack.app.name
+  name        = "tofu-connect-euc-cohort-connect-security-profile"
   description = "example description"
   permissions = ["BasicAgentAccess", "OutboundCallAccess"]
   tags = {
@@ -188,7 +188,7 @@ resource "aws_connect_security_profile" "app" {
 # overrides: phone_config.phone_type is Required and validated against a closed enum (validate: "expected phone_type to be one of [SOFT_PHONE DESK_PHONE]"); the generic placeholder string is not a member
 resource "aws_connect_user" "app" {
   instance_id          = aws_connect_user_hierarchy_structure.app.instance_id
-  name                 = aws_appstream_stack.app.name
+  name                 = "tofu-connect-euc-cohort-connect-user"
   routing_profile_id   = aws_connect_routing_profile.app.routing_profile_id
   security_profile_ids = [aws_connect_security_profile.app.id]
   phone_config {
@@ -204,7 +204,7 @@ resource "aws_connect_user" "app" {
 # overrides: none
 resource "aws_connect_user_hierarchy_group" "app" {
   instance_id = aws_connect_user_hierarchy_structure.app.instance_id
-  name        = aws_appstream_stack.app.name
+  name        = "tofu-connect-euc-cohort-connect-user-hierarchy-group"
   tags = {
     tofu-estate  = local.estate_tag
     tofu-address = "aws_connect_user_hierarchy_group.app"
@@ -235,7 +235,7 @@ resource "aws_workspaces_connection_alias" "app" {
 # Coverage: generated by estate-gen from hashicorp/aws 6.59.0 and the identity table (internal/live/identity/table.go).
 # overrides: doc example: description, rules.description, rules.source
 resource "aws_workspaces_ip_group" "app" {
-  name        = aws_appstream_stack.app.name
+  name        = "tofu-connect-euc-cohort-workspaces-ip-group"
   description = "Contractors IP access control group"
   rules {
     description = "NY"

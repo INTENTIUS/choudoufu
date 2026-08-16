@@ -764,6 +764,28 @@ func looksLikeName(argName string) bool {
 // aws_iam_role and aws_lambda_capacity_provider - neither a prefix of the
 // other - both keeping their own "name" placeholder instead of an
 // arbitrary, cycle-prone pick between them.
+//
+// # Bare "name" carries no target hint at all
+//
+// "function_name", "cluster_name", "event_bus_name" each spell out WHICH
+// kind of sibling they mean, which is why a type that does not itself
+// compete for the identity argument can safely take the lexicographically-
+// first same-named candidate: at most one type in a cohort self-identifies
+// by "function_name", so there is nothing to pick between. Bare "name" has
+// no such property - 151 types in hashicorp/aws 6.59.0 self-identify by
+// plain "name" alone (aws_iam_group, aws_athena_workgroup,
+// aws_cloudwatch_event_bus among them), so a type that merely HAS a
+// required "name" argument without itself being one of those 151 (a
+// server-assigned type like aws_cognito_user_pool, whose real identity is
+// its minted id) collided with whichever self-named type happened to sort
+// first in the same cohort - aws_cognito_user_pool.name was wired to
+// aws_iam_group.name, an unrelated resource that only shares the word
+// "name" (found retiring #136's overrides: the override existed to give
+// the type back its own placeholder). The fix is not a new tiebreak but
+// dropping the case bare "name" has no business being in: unlike
+// "function_name", it never singles out a target type, so it takes the
+// same path as any other unmatched argument - selfType's own placeholder
+// (valueExpr's later tiers).
 func (g *generator) parentRef(selfType, argName string) (parent resourceAddr, attrName string, ok bool) {
 	var candidates []string
 	for t := range g.byType {
@@ -781,9 +803,19 @@ func (g *generator) parentRef(selfType, argName string) (parent resourceAddr, at
 
 	selfIdArg, selfOwnsIt := identityArgName(selfType)
 	if !selfOwnsIt || selfIdArg != argName {
-		// selfType has no competing claim on argName: any candidate is
-		// safely a parent, and the lexicographically-first one is the
-		// deterministic pick when more than one type happens to share it.
+		if argName == "name" {
+			// No prefix relation to fall back on, and no target hint in
+			// the argument name either: selfType is not one of the 151
+			// types bare "name" identifies, so accepting a same-named
+			// candidate here has no evidence behind it beyond the word
+			// "name" occurring twice.
+			return resourceAddr{}, "", false
+		}
+		// selfType has no competing claim on argName, and argName itself
+		// names its target ("function_name" can only mean a Lambda
+		// function): any candidate is safely a parent, and the
+		// lexicographically-first one is the deterministic pick when more
+		// than one type happens to share it.
 		return g.byType[candidates[0]], argName, true
 	}
 

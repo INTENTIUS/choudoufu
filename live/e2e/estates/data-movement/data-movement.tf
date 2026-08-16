@@ -2,7 +2,7 @@
 # overrides: source_uri is a required string the schema does not constrain, but the provider validates it against a fixed pattern (validate: "invalid value for source_uri (should be a valid source uri)"), documented as a connector-profile scheme like "Salesforce://AppFlow/example"; the generic placeholder string does not match it
 resource "aws_appintegrations_data_integration" "app" {
   kms_key    = "placeholder"
-  name       = aws_appintegrations_event_integration.app.name
+  name       = "tofu-data-movement-cohort-appintegrations-data-integration"
   source_uri = "Salesforce://AppFlow/tofu-data-movement-cohort"
   schedule_config {
     first_execution_from = "placeholder"

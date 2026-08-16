@@ -15,25 +15,33 @@ import (
 // Registered by init below; see contributing/LIVE-TABLES.md.
 var typeOverridesData = map[string]typeOverride{
 	// Registry-ratified data-plane batch (Kinesis, KinesisFirehose, Glue,
-	// Athena; issue #65's recipe). Several of these types share the generic
-	// pass's own "name" argument with other resources in this cohort that
-	// self-identify by "name" too (aws_athena_data_catalog,
+	// Athena; issue #65's recipe). Several of these types used to share the
+	// generic pass's own "name" argument with other resources in this
+	// cohort that self-identify by "name" too (aws_athena_data_catalog,
 	// aws_athena_workgroup, aws_glue_classifier, aws_glue_crawler,
 	// aws_glue_job, aws_glue_trigger, aws_kinesis_stream all have a
 	// single-component, self-named identity per internal/live/identity's
 	// table) - none of these six is a real parent of any of them, but
-	// parentRef's own tiebreaker (see its doc comment) only guards the case
-	// where selfType owns argName as its own identity too; every type below
-	// has either no identity argument of its own (server-assigned) or an
-	// account-derived composite identity (len(Components) != 1, so
-	// identityArgName returns ok=false), so parentRef treats any same-named
-	// candidate as fair game and picks the lexicographically-first one,
-	// aws_athena_data_catalog, for all of them. Every "name" override below
-	// exists only to give that argument this type's own placeholder instead
-	// of a coincidental, meaningless cross-reference.
+	// parentRef's old tiebreaker only guarded the case where selfType owned
+	// argName as its own identity too; every type below has either no
+	// identity argument of its own (server-assigned) or an account-derived
+	// composite identity (len(Components) != 1, so identityArgName returns
+	// ok=false), so parentRef treated any same-named candidate as fair game
+	// and picked the lexicographically-first one, aws_athena_data_catalog,
+	// for all of them.
+	//
+	// #136's cohort/type-fix rule closed this class outright: a bare "name"
+	// argument carries no hint of which sibling it could mean (unlike
+	// "function_name" or "cluster_name"), so parentRef (gen.go) no longer
+	// treats it as a same-named sibling's parent at all, self-owned or not.
+	// The "name" overrides below are kept only where the type also needs a
+	// literal different from the generic pass's own tofu-<cohort>-cohort-<type>
+	// placeholder for an independent reason (a length or charset limit, or
+	// simple readability) - each says which.
 	//
 	// (This is the "data-plane batch header comment" the Reasons below cite;
-	// a merge dropped it and #127's census restored it.)
+	// a merge dropped it once already and #127's census restored it - keep
+	// citing it by name rather than duplicating it per entry.)
 	"aws_athena_data_catalog": {
 		Reasons: []string{
 			`type is a required enum (validate: "expected type to be one of [...]"), and the generic string placeholder is not a member`,
@@ -45,7 +53,7 @@ var typeOverridesData = map[string]typeOverride{
 	},
 	"aws_glue_catalog_database": {
 		Reasons: []string{
-			`name coincidentally collides with aws_athena_data_catalog's own "name" identity argument in this cohort - see this file's data-plane batch header comment - so the generic pass's parentRef wiring points it at that unrelated resource instead of giving it its own placeholder`,
+			`"name" no longer needs a fix for the accidental cross-type collision this Reasons string used to describe (see this file's data-plane batch header comment); kept set to its own literal for the underscore-only spelling database names conventionally use, rather than the generic pass's own hyphenated placeholder`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu_%s_cohort_glue_catalog_database"`, g.cohort)))
@@ -53,21 +61,13 @@ var typeOverridesData = map[string]typeOverride{
 	},
 	"aws_glue_catalog_table": {
 		Reasons: []string{
-			`name coincidentally collides with aws_athena_data_catalog's own "name" identity argument in this cohort - see this file's data-plane batch header comment; database_name is a plain required string argument the schema does not mark as any other type's identity, so parentRef never connects it to the sibling aws_glue_catalog_database (whose own identity is the account-derived catalog_id:name composite, not a single "database_name"-named argument) and the generic pass gives it an unrelated placeholder instead`,
+			`"name" no longer needs a fix for the accidental cross-type collision this Reasons string used to describe (see this file's data-plane batch header comment); kept set to its own literal here for symmetry with aws_glue_catalog_database's name above. database_name is a plain required string argument the schema does not mark as any other type's identity, so parentRef never connects it to the sibling aws_glue_catalog_database (whose own identity is the account-derived catalog_id:name composite, not a single "database_name"-named argument) and the generic pass gives it an unrelated placeholder instead - this half is unaffected by #136's cohort/type-fix rule, since it was never a same-name coincidence to begin with`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu_%s_cohort_glue_catalog_table"`, g.cohort)))
 			if database, ok := g.byType["aws_glue_catalog_database"]; ok {
 				body.SetAttributeRaw("database_name", exprTokens(fmt.Sprintf("%s.name", database)))
 			}
-		},
-	},
-	"aws_glue_connection": {
-		Reasons: []string{
-			`name coincidentally collides with aws_athena_data_catalog's own "name" identity argument in this cohort - see this file's data-plane batch header comment`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-glue-connection"`, g.cohort)))
 		},
 	},
 	"aws_glue_crawler": {
@@ -114,7 +114,7 @@ var typeOverridesData = map[string]typeOverride{
 	},
 	"aws_glue_ml_transform": {
 		Reasons: []string{
-			`name coincidentally collides with aws_athena_data_catalog's own "name" identity argument in this cohort - see this file's data-plane batch header comment; role_arn does not match isRoleArg's alias, the same gap as aws_glue_job above; parameters.transform_type is a required enum (validate: "expected transform_type to be one of [...]") the generic placeholder does not satisfy`,
+			`"name" no longer needs a fix for the accidental cross-type collision this Reasons string used to describe (see this file's data-plane batch header comment); kept set to its own literal, matching its siblings above. role_arn does not match isRoleArg's alias, the same gap as aws_glue_job above; parameters.transform_type is a required enum (validate: "expected transform_type to be one of [...]") the generic placeholder does not satisfy`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-glue-ml-transform"`, g.cohort)))
@@ -140,7 +140,7 @@ var typeOverridesData = map[string]typeOverride{
 	},
 	"aws_kinesis_firehose_delivery_stream": {
 		Reasons: []string{
-			`name coincidentally collides with aws_athena_data_catalog's own "name" identity argument in this cohort - see this file's data-plane batch header comment; destination is a required enum naming which optional *_configuration block the provider actually reads (validate: "expected destination to be one of [...]"), and the matching extended_s3_configuration block is itself optional in the schema while the provider requires it in practice once destination = "extended_s3"`,
+			`"name" no longer needs a fix for the accidental cross-type collision this Reasons string used to describe (see this file's data-plane batch header comment); kept set to its own literal, matching its siblings above. destination is a required enum naming which optional *_configuration block the provider actually reads (validate: "expected destination to be one of [...]"), and the matching extended_s3_configuration block is itself optional in the schema while the provider requires it in practice once destination = "extended_s3"`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-firehose"`, g.cohort)))
@@ -158,17 +158,6 @@ var typeOverridesData = map[string]typeOverride{
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("shard_count", exprTokens(`1`))
-		},
-	},
-	"aws_kinesis_stream_consumer": {
-		Reasons: []string{
-			`name coincidentally collides with aws_athena_data_catalog's own "name" identity argument in this cohort - see this file's data-plane batch header comment; stream_arn is a required argument the schema alone cannot wire to the sibling aws_kinesis_stream (its identity is "name", not "stream_arn", so parentRef never connects the two)`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-kinesis-stream-consumer"`, g.cohort)))
-			if stream, ok := g.byType["aws_kinesis_stream"]; ok {
-				body.SetAttributeRaw("stream_arn", exprTokens(fmt.Sprintf("%s.arn", stream)))
-			}
 		},
 	},
 }

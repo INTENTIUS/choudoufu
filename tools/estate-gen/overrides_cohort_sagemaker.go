@@ -120,7 +120,7 @@ var typeOverridesSagemaker = map[string]typeOverride{
 	},
 	"aws_sagemaker_endpoint_configuration": {
 		Reasons: []string{
-			`the generic pass's same-name parent search matches this type's own "name" argument against aws_sagemaker_endpoint (an unrelated sibling type that also self-identifies by a plain "name" argument), the same collision class as aws_glue_catalog_database's entry above; overridden back to a real placeholder name of its own`,
+			`"name" no longer needs a fix for the accidental cross-type collision this Reasons string used to describe (#136's cohort/type-fix rule: a bare "name" argument is never treated as a same-named sibling's parent); kept set to its own literal, matching its siblings below`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-endpoint-configuration"`, g.cohort)))
@@ -143,7 +143,7 @@ var typeOverridesSagemaker = map[string]typeOverride{
 	},
 	"aws_sagemaker_mlflow_app": {
 		Reasons: []string{
-			`the generic pass's same-name parent search matches this type's own "name" argument against the shared aws_iam_role (which also self-identifies by a plain "name" argument), the same collision class as aws_sagemaker_endpoint_configuration above; overridden back to a real placeholder name of its own. artifact_store_uri is Required and the provider validates it is an HTTPS or S3 URI (validate: "invalid value for artifact_store_uri (must be HTTPS or Amazon S3 URI)"); role_arn is Required and the provider validates it is a well-formed ARN (validate: "Invalid ARN Value") - wired to the shared aws_iam_role`,
+			`"name" no longer needs a fix for the accidental cross-type collision this Reasons string used to describe (#136's cohort/type-fix rule: a bare "name" argument is never treated as a same-named sibling's parent); kept set to its own literal. artifact_store_uri is Required and the provider validates it is an HTTPS or S3 URI (validate: "invalid value for artifact_store_uri (must be HTTPS or Amazon S3 URI)"); role_arn is Required and the provider validates it is a well-formed ARN (validate: "Invalid ARN Value") - wired to the shared aws_iam_role`,
 		},
 		NeedsIAMRole: true,
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
@@ -222,7 +222,7 @@ var typeOverridesSagemaker = map[string]typeOverride{
 	},
 	"aws_sagemaker_notebook_instance_lifecycle_configuration": {
 		Reasons: []string{
-			`the generic pass's same-name parent search matches this type's own "name" argument against aws_sagemaker_notebook_instance (an unrelated sibling type that also self-identifies by a plain "name" argument), the same collision class as aws_sagemaker_endpoint_configuration above; overridden back to a real placeholder name of its own`,
+			`"name" no longer needs a fix for the accidental cross-type collision this Reasons string used to describe (#136's cohort/type-fix rule: a bare "name" argument is never treated as a same-named sibling's parent); kept set to its own literal, matching its siblings above`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-notebook-instance-lifecycle-configuration"`, g.cohort)))

@@ -6,8 +6,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/hashicorp/hcl/v2/hclwrite"
 )
 
@@ -56,15 +54,6 @@ var typeOverridesIamEcr = map[string]typeOverride{
 			dest.Body().SetAttributeRaw("registry_id", exprTokens(`"000000000000"`))
 		},
 	},
-	"aws_iam_instance_profile": {
-		Reasons: []string{
-			`"role" is Optional in the wire schema, so neither isRoleArg's alias nor the generic required-only pass wires it - but an instance profile exists to carry a role (the hand-written cohort's aws_iam_role.support existed only so this resource had one), so the shared supporting role is requested (NeedsIAMRole) and referenced by its name attribute: the argument takes the role's name, not the ARN iamRoleRefExpr's "role"/"*_role_arn" callers want`,
-		},
-		NeedsIAMRole: true,
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("role", exprTokens(iamRoleNameRef(g)))
-		},
-	},
 	"aws_iam_service_linked_role": {
 		Reasons: []string{
 			`aws_service_name is a required argument the provider validates by shape (validate: "must be a full service hostname e.g. elasticbeanstalk.amazonaws.com"); set to elasticbeanstalk.amazonaws.com, the provider's own documented example service, as the hand-written cohort chose`,
@@ -73,18 +62,6 @@ var typeOverridesIamEcr = map[string]typeOverride{
 			body.SetAttributeRaw("aws_service_name", exprTokens(`"elasticbeanstalk.amazonaws.com"`))
 		},
 	},
-}
-
-// iamRoleNameRef is the shared supporting aws_iam_role's name attribute as
-// HCL source when this run renders one, or a literal placeholder name
-// otherwise - the sibling of iamRoleRefExpr for the arguments that take a
-// role's name rather than its ARN (aws_iam_instance_profile's "role").
-func iamRoleNameRef(g *generator) string {
-	addr, ok := g.byType["aws_iam_role"]
-	if !ok {
-		return `"placeholder"`
-	}
-	return fmt.Sprintf("%s.name", addr)
 }
 
 func init() { registerCohortOverrides(typeOverridesIamEcr) }

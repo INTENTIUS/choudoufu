@@ -61,7 +61,7 @@ var typeOverridesAiLocation = map[string]typeOverride{
 	},
 	"aws_bedrockagentcore_agent_runtime_endpoint": {
 		Reasons: []string{
-			`name was mis-wired to aws_iam_role.<cohort>.name by the generic pass's same-name parentRef search, the same shape aws_bedrockagentcore_code_interpreter's own override above explains - this type's own name pattern (^[a-zA-Z][a-zA-Z0-9_]{0,47}$) surfaced only at apply time (terraform validate does not evaluate cross-resource references), against the pinned floci image during this batch's verification`,
+			`"name" must match ^[a-zA-Z][a-zA-Z0-9_]{0,47}$ - no hyphens, unlike the generic pass's own tofu-<cohort>-cohort-<type> placeholder - surfaced only at apply time (terraform validate does not check this pattern), against the pinned floci image during this batch's verification`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu_%s_runtime_endpoint"`, strings.ReplaceAll(g.cohort, "-", "_"))))
@@ -77,7 +77,7 @@ var typeOverridesAiLocation = map[string]typeOverride{
 	},
 	"aws_bedrockagentcore_browser": {
 		Reasons: []string{
-			`network_configuration is Required-in-shape but the generic pass never visits it (validate: "Block network_configuration must have a configuration value"); network_mode = "PUBLIC" is the minimal valid choice (vpc_config is Optional, only needed for network_mode = "VPC"). name is also mis-wired to aws_iam_role.<cohort>.name by the generic pass's same-name parentRef search (this type is server-assigned, so identityArgName never supplies its own name); left as-is rather than overridden, since aws_bedrockagentcore_browser's own "name" argument carries no format pattern in the provider's docs and the IAM role's name string is a harmless, if confusing, valid value here — unlike its siblings below, which do enforce ^[a-zA-Z][a-zA-Z0-9_]{0,47}$`,
+			`network_configuration is Required-in-shape but the generic pass never visits it (validate: "Block network_configuration must have a configuration value"); network_mode = "PUBLIC" is the minimal valid choice (vpc_config is Optional, only needed for network_mode = "VPC"). "name" is left to the generic pass's own placeholder: this type's docs carry no format pattern for it, unlike its siblings below, which enforce ^[a-zA-Z][a-zA-Z0-9_]{0,47}$`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			netCfg := body.AppendNewBlock("network_configuration", nil)
@@ -86,7 +86,7 @@ var typeOverridesAiLocation = map[string]typeOverride{
 	},
 	"aws_bedrockagentcore_browser_profile": {
 		Reasons: []string{
-			`name was mis-wired to aws_iam_role.<cohort>.name by the generic pass's same-name parentRef search, the same shape aws_bedrockagentcore_code_interpreter's own override below explains - this type's own name pattern (^[a-zA-Z][a-zA-Z0-9_]{0,47}$) surfaced only at apply time (terraform validate does not evaluate cross-resource references), against the pinned floci image during this batch's verification`,
+			`"name" must match ^[a-zA-Z][a-zA-Z0-9_]{0,47}$ - no hyphens, unlike the generic pass's own tofu-<cohort>-cohort-<type> placeholder - surfaced only at apply time (terraform validate does not check this pattern), against the pinned floci image during this batch's verification`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu_%s_browser_profile"`, strings.ReplaceAll(g.cohort, "-", "_"))))
@@ -94,7 +94,7 @@ var typeOverridesAiLocation = map[string]typeOverride{
 	},
 	"aws_bedrockagentcore_code_interpreter": {
 		Reasons: []string{
-			`same network_configuration gap as aws_bedrockagentcore_browser above. name was also mis-wired to aws_iam_role.<cohort>.name by the generic pass's same-name parentRef search (this type is server-assigned, so identityArgName never supplies its own name, and parentRef's fallback then matches any sibling that owns a "name" argument) - the same "mis-wired to a same-named sibling" shape the streaming batch's own aws_appsync_graphql_api needed corrected, except here the sibling it lands on happens to be an IAM role whose own name contains hyphens the ^[a-zA-Z][a-zA-Z0-9_]{0,47}$ pattern (validate: "must start with a letter and contain only letters, numbers, and underscores") rejects`,
+			`same network_configuration gap as aws_bedrockagentcore_browser above. "name" must match ^[a-zA-Z][a-zA-Z0-9_]{0,47}$ (validate: "must start with a letter and contain only letters, numbers, and underscores") - no hyphens, unlike the generic pass's own tofu-<cohort>-cohort-<type> placeholder`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu_%s_code_interpreter"`, strings.ReplaceAll(g.cohort, "-", "_"))))
@@ -148,7 +148,7 @@ var typeOverridesAiLocation = map[string]typeOverride{
 	},
 	"aws_bedrockagentcore_memory": {
 		Reasons: []string{
-			`event_expiry_duration must be 7-365 (validate: "value must be between 7 and 365"); the generic numeric placeholder is 0. name was also mis-wired to aws_iam_role.<cohort>.name by the generic pass's same-name parentRef search, the same shape aws_bedrockagentcore_code_interpreter's own override above explains - this type's own name pattern surfaced only at apply time (terraform validate does not evaluate cross-resource references), against the pinned floci image during this batch's verification`,
+			`event_expiry_duration must be 7-365 (validate: "value must be between 7 and 365"); the generic numeric placeholder is 0. "name" must match ^[a-zA-Z][a-zA-Z0-9_]{0,47}$ - no hyphens, unlike the generic pass's own tofu-<cohort>-cohort-<type> placeholder - surfaced only at apply time (terraform validate does not check this pattern), against the pinned floci image during this batch's verification`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu_%s_memory"`, strings.ReplaceAll(g.cohort, "-", "_"))))
@@ -184,7 +184,7 @@ var typeOverridesAiLocation = map[string]typeOverride{
 	},
 	"aws_bedrockagentcore_policy_engine": {
 		Reasons: []string{
-			`name was mis-wired to aws_iam_role.<cohort>.name by the generic pass's same-name parentRef search, the same shape aws_bedrockagentcore_code_interpreter's own override above explains - this type's own name pattern (^[a-zA-Z][a-zA-Z0-9_]{0,47}$) surfaced only at apply time (terraform validate does not evaluate cross-resource references), against the pinned floci image during this batch's verification`,
+			`"name" must match ^[a-zA-Z][a-zA-Z0-9_]{0,47}$ - no hyphens, unlike the generic pass's own tofu-<cohort>-cohort-<type> placeholder - surfaced only at apply time (terraform validate does not check this pattern), against the pinned floci image during this batch's verification`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu_%s_policy_engine"`, strings.ReplaceAll(g.cohort, "-", "_"))))
