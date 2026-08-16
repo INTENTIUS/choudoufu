@@ -471,6 +471,18 @@ var _ StatelessPlan = (*StatelessPlanHuman)(nil)
 // plain: no section header, no word wrap, one line that a scrolling
 // terminal simply carries away - the throttling that keeps this from
 // becoming a log is the caller's job, not this method's.
+//
+// The wording says "so far" and names the type still being scanned rather
+// than reading as a finished tally (issue #229): the caller's throttle
+// (statelessProgress) always lets the very first event through
+// unconditionally, and a fast run - a small emulator estate finishes well
+// under the 500ms throttle window - can end up printing only that one
+// event. Before this fix that line was "discovering: 1 type scanned, 1 live
+// resource found (aws_acm_certificate)", which reads exactly like a final
+// count and sent a #229 investigation down the wrong path chasing why
+// discovery only looked at one type, when in fact hundreds more had been
+// scanned by the time the plan finished - this is the running count as of
+// one type partway through, not the total.
 func (v *StatelessPlanHuman) Progress(p StatelessProgress) {
 	noun := "resource"
 	if p.ResourcesFound != 1 {
@@ -481,7 +493,7 @@ func (v *StatelessPlanHuman) Progress(p StatelessProgress) {
 		typeNoun = "types"
 	}
 	v.view.streams.Eprint(v.view.colorize.Color(fmt.Sprintf(
-		"[dark_gray]discovering: %d %s scanned, %d live %s found (%s)[reset]\n",
+		"[dark_gray]discovering: %d %s scanned so far, %d live %s found so far (currently on %s)[reset]\n",
 		p.TypesScanned, typeNoun, p.ResourcesFound, noun, p.TypeName,
 	)))
 }

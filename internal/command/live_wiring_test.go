@@ -51,9 +51,16 @@ func TestCloudControlFallbackWiredIntoDiscovery(t *testing.T) {
 	// The tagging sweep (#51, wired by #128) rides the same gate; losing
 	// either line silently reverts to the per-type sweep, which no
 	// behavioral test without a live emulator can tell apart.
-	for _, want := range []string{"req.Tagging = cloudcontrol.NewTagging(", "req.TaggingSweep = true"} {
+	//
+	// TaggingSweep's assignment is conditional since #229 - see
+	// isEmulatorEndpoint - rather than an unconditional "= true": pinning
+	// the conditional form here (rather than reverting to the pin's older
+	// unconditional string) is what keeps a regression back to "always on
+	// against a loopback endpoint" from passing silently the way #229
+	// itself did.
+	for _, want := range []string{"req.Tagging = cloudcontrol.NewTagging(", "req.TaggingSweep = !isEmulatorEndpoint(ep)"} {
 		if !strings.Contains(string(src), want) {
-			t.Errorf("live_plan.go no longer contains %q - the #51 tagging sweep is unwired (see #128)", want)
+			t.Errorf("live_plan.go no longer contains %q - the #51 tagging sweep is unwired (see #128) or #229's emulator gate regressed", want)
 		}
 	}
 }

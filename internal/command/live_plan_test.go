@@ -1720,6 +1720,47 @@ func TestStatelessProgress_throttlesButAlwaysShowsTheFirstEvent(t *testing.T) {
 	}
 }
 
+// TestIsEmulatorEndpoint pins the loopback detection issue #229 gates
+// [discovery.Request.TaggingSweep] on: on, only for the shape every
+// emulator in this repo's own tooling actually uses
+// ("http://localhost:<port>", live/e2e/run.sh and
+// internal/live/flocitest.Endpoint alike), plus the loopback IP literals
+// that shape resolves to. Everything a real AWS custom-endpoint
+// configuration could plausibly set - a VPC endpoint, a PrivateLink DNS
+// name, a GovCloud or China-region endpoint, a bare hostname with no
+// scheme - must come back false, because TaggingSweep going off for any of
+// those would silently remove estate-wide removal detection for a working
+// configuration.
+func TestIsEmulatorEndpoint(t *testing.T) {
+	tests := []struct {
+		name     string
+		endpoint string
+		want     bool
+	}{
+		{"empty", "", false},
+		{"floci convention", "http://localhost:4601", true},
+		{"bare localhost, no port", "http://localhost", true},
+		{"loopback IPv4", "http://127.0.0.1:4566", true},
+		{"loopback IPv4 alternate", "http://127.5.5.5:4566", true},
+		{"loopback IPv6", "http://[::1]:4566", true},
+		{"real AWS regional endpoint", "https://ec2.us-east-1.amazonaws.com", false},
+		{"GovCloud endpoint", "https://ec2.us-gov-west-1.amazonaws.com", false},
+		{"China region endpoint", "https://ec2.cn-north-1.amazonaws.com.cn", false},
+		{"VPC interface endpoint", "https://vpce-0123456789abcdef0-abcd1234.ec2.us-east-1.vpce.amazonaws.com", false},
+		{"private DNS custom endpoint", "https://ec2.internal.example.com", false},
+		{"routable private IP", "https://10.0.0.5:4566", false},
+		{"malformed URL", "://not a url", false},
+		{"unparseable host", "http://[bad", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isEmulatorEndpoint(tt.endpoint); got != tt.want {
+				t.Errorf("isEmulatorEndpoint(%q) = %v, want %v", tt.endpoint, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestStatelessNeedsDiscovery_keyedModuleKeyForm is GitHub issue #111's
 // regression guard.
 //

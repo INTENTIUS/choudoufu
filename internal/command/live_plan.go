@@ -9,6 +9,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -713,7 +715,27 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 				Endpoint: ep,
 				Region:   provs.region(providerAddr),
 			})
-			req.TaggingSweep = true
+			// TaggingSweep itself stays off against a loopback endpoint
+			// (issue #229): floci's resourcegroupstaggingapi GetResources
+			// returns an empty list for every filter, tagged or not - the
+			// same gap live/floci-capabilities.json:1724-1727 already
+			// records for aws_iam_role, reproduced here with the raw AWS
+			// CLI and zero choudoufu code involved (tagged EBS volume,
+			// describe-volumes shows the tags, get-resources returns []).
+			// Leaving TaggingSweep on on such an endpoint does not degrade
+			// removal detection, it silently disables it: every type the
+			// sweep would have covered comes back with zero candidates and
+			// no diagnostic says so.
+			//
+			// isEmulatorEndpoint is deliberately narrower than "a custom
+			// endpoint is set" - see its doc comment - so a real AWS run
+			// through a VPC endpoint, PrivateLink, or a GovCloud/China
+			// region still gets TaggingSweep exactly as before. The Cloud
+			// Control client above is untouched: its own per-candidate
+			// GetResource refinement does not go through
+			// resourcegroupstaggingapi at all, and #47's fallback for
+			// types with no native list resource is unaffected.
+			req.TaggingSweep = !isEmulatorEndpoint(ep)
 		}
 	}
 
@@ -752,6 +774,39 @@ func cloudControlTarget() (endpoint string, on bool) {
 		return v, true
 	}
 	return os.Getenv("AWS_ENDPOINT_URL"), true
+}
+
+// isEmulatorEndpoint reports whether endpoint's host is the loopback
+// interface - "localhost", 127.0.0.0/8, or ::1 - rather than a routable
+// network address. An empty or unparseable endpoint is not loopback.
+//
+// This is the gate issue #229 needs for [Request.TaggingSweep]: narrower
+// than "a custom endpoint is set," because that is also true of every
+// legitimate real-AWS AWS_ENDPOINT_URL override - a VPC endpoint, a
+// PrivateLink DNS name, a GovCloud or China-region endpoint - and disabling
+// estate-wide removal detection for any of those would be a regression for
+// a real user, not a fix. None of them is ever loopback: AWS does not host
+// any service on the local machine's own network interface, on a real
+// account or on GovCloud alike. Loopback is, by contrast, exactly the
+// convention this repo's own emulator tooling uses throughout -
+// live/e2e/run.sh sets AWS_ENDPOINT_URL="http://localhost:$FLOCI_PORT", and
+// internal/live/flocitest.Endpoint (and its docker-based standup) return the
+// same "http://localhost:<port>" shape - so it identifies the one case this
+// gate exists for with no false positive against a working configuration.
+func isEmulatorEndpoint(endpoint string) bool {
+	if endpoint == "" {
+		return false
+	}
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // guidedDiscoveryDisableEnvVar opts every estate this process plans or
