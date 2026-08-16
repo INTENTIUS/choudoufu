@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/hashicorp/hcl/v2/hclsyntax"
+
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -23,11 +25,31 @@ import (
 // "module.a.aws_x.y" exactly as soundly as it binds to a root address, and
 // there is nothing left to refuse.
 //
-//   - count on a module block is refused for keeps. Expansion by count
-//     renumbers every instance below it positionally, and a tofu-address
-//     marker records an address, not a position - a renumbering that leaves
-//     every marker pointing at the wrong instance is not a gap this mode
-//     intends to close.
+//   - count on a module block is admitted (issue #195) under exactly the
+//     same two-part test a resource's own count is already held to: the
+//     count expression itself has to be statically evaluable (the same
+//     var/local/path/terraform/tofu scope [staticCount] and
+//     [identity.ChildModuleKeys] hold for_each to), and count.index must not
+//     appear anywhere in the module call's own arguments. A plain integer
+//     count is not positionally fragile the way the old comment here
+//     claimed: module.name[i] is exactly as stable an address as
+//     resource.name[i], and shrinking count from N to N-1 only ever retires
+//     the highest index, never renumbers a survivor - see [childModuleDetail]
+//     for the corpus evidence (every static module count found there is the
+//     count = cond ? 1 : 0 optional-instance idiom, or a plain literal/var
+//     integer, never a filtered list count relies on to derive an index).
+//     The real hazard is count.index reaching into an identity-bearing
+//     value - by indexing a sibling resource, or an argument passed into the
+//     module - the same hazard [checkCountIndex] (count_index.go, issue
+//     #192) already guards a resource's own body against; this check is
+//     that same guard applied to a module call's arguments, with no
+//     type-specific narrowing available (a module has no identity schema of
+//     its own), so any count.index reference anywhere in the call's body
+//     refuses it, matching [countIndexScope]'s walkAll default for an
+//     unreviewed resource type. A count expression this pass cannot
+//     statically evaluate is refused exactly as it always was, since a
+//     dynamic module count is exactly as unaddressable up front as a
+//     dynamic resource count (identity's countExpansion, resolve.go).
 //   - for_each on a module block is admitted (59c, issue #59 phase 3) when
 //     its keys are statically evaluable - a literal collection, or one
 //     built from variables, locals, path and terraform values, exactly the
@@ -91,13 +113,34 @@ func checkChildModules(ctx context.Context, mod *configs.Module, path addrs.Modu
 func childModuleDetail(ctx context.Context, mod *configs.Module, call *configs.ModuleCall) (string, bool) {
 	switch {
 	case call.Count != nil:
-		return "count on a module block expands it positionally, renumbering every " +
-			"resource address inside it on every insertion or removal above the changed " +
-			"index. A tofu-address marker records an address, and a renumbering that moves " +
-			"addresses out from under their markers is not a gap this mode intends to " +
-			"close - count-expanded modules are refused permanently. Move the module's " +
-			"resources into the root module, or split the module into an estate of its own " +
-			"with its own live block", true
+		if _, ok := staticCount(ctx, mod, call.Count); !ok {
+			return fmt.Sprintf(
+				"count on a module block is admitted only when it is statically "+
+					"evaluable - a literal, or an expression built from variables, locals, "+
+					"path and terraform values - the same scope a resource's own count is "+
+					"evaluated in, because the instance count has to be knowable before "+
+					"anything is read from the cloud. count for module %q is not. Move the "+
+					"module's resources into the root module, or split the module into an "+
+					"estate of its own with its own live block, until the count expression "+
+					"is statically evaluable",
+				call.Name,
+			), true
+		}
+		if moduleCallHasCountIndex(call) {
+			return fmt.Sprintf(
+				"module %q's own arguments read count.index: the lexical index of a count "+
+					"instance is not stable across scale-up, scale-down, or reordering, so a "+
+					"property built from it - directly, or by indexing a sibling resource's "+
+					"own count-expanded collection - cannot be recovered from the live "+
+					"system with no memory, the same reason a resource's own count.index is "+
+					`refused wherever it can reach identity (live/LIMITATIONS.md, `+
+					`"count-index-in-tag"). Replace count.index here with a value that does `+
+					"not depend on this instance's position - a for_each key, or an argument "+
+					"that is the same for every instance",
+				call.Name,
+			), true
+		}
+		return "", false
 	case call.ForEach != nil:
 		if _, diag := identity.ChildModuleKeys(ctx, mod, fmt.Sprintf("module %q", call.Name), call.ForEach); diag != nil {
 			return fmt.Sprintf(
@@ -115,4 +158,38 @@ func childModuleDetail(ctx context.Context, mod *configs.Module, call *configs.M
 	default:
 		return "", false
 	}
+}
+
+// moduleCallHasCountIndex reports whether a count-carrying module call's own
+// arguments reference count.index anywhere - the module-call analogue of
+// [checkCountIndex]'s walk over a resource's own body. A module has no
+// identity schema of its own to narrow the walk with (identity.LookupType's
+// Components describe a resource type's arguments, not a module's), so this
+// always walks every attribute at every depth, the same [countIndexScope]
+// walkAll default [countIndexScopeForType] falls back to for a resource type
+// this pass has no table row for.
+//
+// call.Config is the leftover body after decodeModuleBlock has already
+// extracted source, version, providers, count, for_each and depends_on
+// (module_call.go), so nothing more needs to be skipped at the top level the
+// way checkCountIndex skips a resource's own meta-arguments.
+func moduleCallHasCountIndex(call *configs.ModuleCall) bool {
+	body, ok := call.Config.(*hclsyntax.Body)
+	if !ok {
+		// JSON-syntax module call (*.tf.json): no schema-less way to walk
+		// nested blocks, the same documented gap [checkCountIndex] has (see
+		// doc.go). Refusing rather than silently admitting is the safe
+		// direction to fail in when this pass cannot see the body at all.
+		return true
+	}
+	for _, traversal := range countIndexCandidates(body, false, countIndexScope{walkAll: true}) {
+		ref, refDiags := addrs.ParseRef(traversal)
+		if refDiags.HasErrors() || ref == nil {
+			continue
+		}
+		if countAttr, ok := ref.Subject.(addrs.CountAttr); ok && countAttr.Name == "index" {
+			return true
+		}
+	}
+	return false
 }

@@ -50,10 +50,12 @@ const (
 	// "." and ":" within it. See foreach_key.go.
 	RuleForEachKey Rule = "for-each-key"
 
-	// RuleChildModule covers a module call this mode cannot expand: count,
-	// or a for_each whose keys it cannot pin down. Static calls and
-	// statically-keyed for_each calls are admitted and never reach it (#59).
-	// See child_module.go.
+	// RuleChildModule covers a module call this mode cannot expand: a count
+	// or for_each expression it cannot statically evaluate, or a static
+	// count whose module body reads count.index (issue #195). Static
+	// calls, statically-keyed for_each calls, and statically-evaluated
+	// count calls with no count.index leak are admitted and never reach
+	// it. See child_module.go.
 	RuleChildModule Rule = "child-module"
 
 	// RuleOverlongAddress covers a resource instance whose escaped
