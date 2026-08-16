@@ -19,6 +19,12 @@ resource "aws_accessanalyzer_analyzer" "web" {
 resource "null_resource" "trigger" {
 }
 
+resource "aws_s3_bucket" "old" {
+  bucket = "tofu-stateless-lint-old"
+}
+
+# Refused because the address it moves from is still declared above; a moved
+# block markers can follow is reported by nobody (GitHub issue #198).
 moved {
   from = aws_s3_bucket.old
   to   = aws_s3_bucket.new

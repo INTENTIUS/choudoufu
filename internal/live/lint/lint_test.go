@@ -70,6 +70,16 @@ func TestCheck(t *testing.T) {
 			},
 		},
 		{
+			// GitHub issue #198: the shapes an ownership marker can follow
+			// are carried by internal/live/discovery, so lint says nothing
+			// about them. The count-expanded destination is in the fixture
+			// on purpose - it is what every moved block shipped inside a
+			// terraform-aws-modules module lands on.
+			name: "moved blocks the markers carry",
+			dir:  "testdata/moved-honoured",
+			want: nil,
+		},
+		{
 			name: "moved block",
 			dir:  "testdata/moved",
 			want: []wantIssue{
@@ -77,7 +87,7 @@ func TestCheck(t *testing.T) {
 					rule:      RuleMovedBlock,
 					construct: "moved block",
 					file:      "testdata/moved/main.tf",
-					line:      8,
+					line:      18,
 				},
 			},
 		},
@@ -428,7 +438,7 @@ func TestCheck(t *testing.T) {
 					rule:      RuleMovedBlock,
 					construct: "moved block",
 					file:      "testdata/multiple/main.tf",
-					line:      22,
+					line:      28,
 				},
 			},
 		},
@@ -701,7 +711,7 @@ func TestDiagnostics(t *testing.T) {
 	if src.Subject == nil {
 		t.Fatalf("diagnostic has no source subject")
 	}
-	if got, want := src.Subject.Start.Line, 8; got != want {
+	if got, want := src.Subject.Start.Line, 18; got != want {
 		t.Errorf("subject line = %d, want %d", got, want)
 	}
 }

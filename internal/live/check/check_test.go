@@ -102,6 +102,7 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		"markers":         true, // the marker vocabulary itself
 		"mdspan":          true, // rewrites generated regions of a markdown doc
 		"mv":              true, // the rename command's engine
+		"moved":           true, // the moved-block relation lint and discovery share; a pure function over addresses
 		"passthrough":     true, // a registry of upstream diagnostics, not a pass
 		"pins":            true, // the shared provider-version pin (#117), one constant
 		"pluginschema":    true, // provider schema reading

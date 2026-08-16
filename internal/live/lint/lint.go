@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/providers"
 	residue "github.com/intentius/choudoufu/live"
 )
@@ -161,7 +162,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	checkModuleProviderBlocks(mod, path, noProviderConfigRange, issues)
 	checkUndeclaredProviderAlias(mod, path, issues)
 	checkChildLiveConfig(mod, path, issues)
-	checkMovedBlocks(mod, path, issues)
+	checkMovedBlocks(cfg, mod, path, issues)
 	checkLivePolicy(mod, path, issues)
 	checkManagedResources(ctx, mod, path, schemas, signal, recordStoreConfigured, issues)
 	checkForEachKeys(ctx, mod, path, issues)
@@ -256,21 +257,43 @@ func checkStateBackends(mod *configs.Module, path addrs.Module, issues *[]Issue)
 	}
 }
 
-// checkMovedBlocks rejects moved blocks. A moved block edits a stored record
-// of which address owns which object; stateless mode keeps that record on the
-// object itself, as a tag.
-func checkMovedBlocks(mod *configs.Module, path addrs.Module, issues *[]Issue) {
-	for _, moved := range mod.Moved {
+// checkMovedBlocks reports the moved blocks the live path cannot carry, and
+// stays silent about the ones it can (GitHub issue #198).
+//
+// A moved block edits a stored record of which address owns which object.
+// Stateless mode keeps that record on the object itself, as a tag, so the
+// same statement reads as "a live resource carrying the old address is the
+// object the new address names" - and internal/live/discovery indexes the
+// marker under both addresses, after which the ordinary tags diff rewrites
+// the tag to the new address in place. Nothing needs deleting and nothing
+// needs a separate command, which is what makes the moved blocks published
+// modules ship permanently as upgrade aids (terraform-aws-modules writes
+// them under a "Migrations: vX -> vY" header, and a consumer cannot delete
+// upstream source) work rather than wall a consumer off.
+//
+// The refusal that remains is [moved.Honourable]'s, and lint must not have
+// its own: a shape lint admits and discovery does not alias is the dangerous
+// direction, because the live resource then reads as an orphan at the old
+// address while the new address reads as absent - one cloud object, a
+// proposed destroy and a proposed create. Sharing the predicate is what makes
+// that impossible rather than merely unlikely.
+func checkMovedBlocks(cfg *configs.Config, mod *configs.Module, path addrs.Module, issues *[]Issue) {
+	for _, stmt := range moved.StatementsIn(mod, path) {
+		reason, ok := moved.Honourable(cfg, stmt)
+		if ok {
+			continue
+		}
 		*issues = append(*issues, Issue{
 			Rule:      RuleMovedBlock,
 			Construct: "moved block",
 			Module:    path,
-			Detail: "a moved block rewrites which state entry belongs to which address, and " +
-				"there is no state to rewrite. Ownership lives on the resource itself, in its " +
-				"tofu-address marker (live/MARKERS.md), so renaming a resource means " +
-				`rewriting that marker: run "choudoufu live-mv <old-address> <new-address>" ` +
-				"(phase 3) and delete this block",
-			Subject: moved.DeclRange,
+			Detail: "ownership lives on the resource itself, in its tofu-address marker " +
+				"(live/MARKERS.md), so a moved block is carried by binding the live resource " +
+				"under both addresses and letting the plan rewrite the tag. This one cannot " +
+				"be carried that way: " + reason + `. Run "choudoufu live-mv <old-address> ` +
+				`<new-address>" to rewrite the marker directly, or change the block so its ` +
+				"endpoints describe a move the marker can follow",
+			Subject: stmt.DeclRange,
 		})
 	}
 }

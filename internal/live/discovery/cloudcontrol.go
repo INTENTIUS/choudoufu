@@ -204,14 +204,14 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 			noIdentity:   importID == "",
 		}
 
-		if entry, ok := decl.types[typeName][escaped]; ok {
+		if entry, ok := decl.entryFor(typeName, escaped); ok {
 			entry.claimants = append(entry.claimants, c)
 			continue
 		}
 		if decl.declares(typeName, escaped) {
 			continue
 		}
-		if cb := countBlockFor(decl.counts[typeName], escaped); cb != nil {
+		if cb := decl.countBlockFor(typeName, escaped); cb != nil {
 			cb.extra = append(cb.extra, c)
 			continue
 		}
