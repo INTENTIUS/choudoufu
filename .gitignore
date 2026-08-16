@@ -100,4 +100,8 @@ site/public/
 # and materialized by tools/corpus-fetch. Reproducible from the pins, so not
 # committed - vendoring it would add weight and third-party licenses for no
 # measurement value.
-/.corpus/
+# No trailing slash: agents working in git worktrees symlink the corpus in
+# rather than re-fetching 250 repositories, and a directory pattern does not
+# match a symlink. Three hit this in one session and each caught it by hand
+# before committing; the fourth would not have.
+/.corpus
