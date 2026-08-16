@@ -157,7 +157,7 @@ func applyImportGrammarPrecedence(proposals []proposal, importGrammar map[string
 		case p.Bucket == bucketEvidenceOnly && tryArgumentReferenceConfirmedGuess(p, g):
 		case p.Bucket != bucketClientNamed && p.Bucket != bucketComposite && tryArgumentReferenceValueMatch(p, g):
 		case p.Bucket == bucketNeedsHandSeparator && tryDocNamedServerSegment(p, g):
-		case p.Bucket == bucketNeedsHandSeparator && tryArgumentReferenceComposite(p, g):
+		case (p.Bucket == bucketNeedsHandSeparator || p.Bucket == bucketServerAssigned) && tryArgumentReferenceComposite(p, g):
 		case p.Bucket == bucketNeedsHandSeparator && tryRegistryComposite(p, g):
 		case p.Bucket == bucketNeedsHandSeparator && tryOpaqueOverride(p, g):
 		case p.Bucket == bucketServerAssigned && tryArnVsIDOverride(p, g):
@@ -1155,9 +1155,9 @@ func namesOwnType(words []string, tfType string) bool {
 	return false
 }
 
-// tryArgumentReferenceComposite is rule 4: the still-needs-hand-separator
-// sibling of rule 3, for a documented example that does split into more than
-// one segment. Tries every candidateSeparators entry against the Required
+// tryArgumentReferenceComposite is rule 4: the multi-segment sibling of rule
+// 3, for a documented example that does split into more than one segment.
+// Tries every candidateSeparators entry against the Required
 // Argument Reference names (rather than the registry's primaryIdentifier
 // names, which rule 5/tryRegistryComposite already tried and which do not
 // always match the provider's own TF argument spelling - CFN's MemberId
@@ -1166,6 +1166,23 @@ func namesOwnType(words []string, tfType string) bool {
 // same way: an example whose segments carry no recognizable argument token
 // (a generic placeholder ID, not a name-prefixed or ARN-shaped value) simply
 // does not resolve, rather than guessing an order.
+//
+// It reaches a bucketServerAssigned proposal as well as a still-needs-hand-
+// separator one, which rule 3 - its own single-segment sibling, drawing from
+// the same Required Argument Reference pool with the same fail-closed
+// matching - already did and this rule did not. There was never a stated
+// reason for the two to disagree about that: a registry primaryIdentifier
+// that is one read-only opaque handle is CloudFormation's view of its own
+// object, not a statement that the provider's documented import ID is
+// unreconstructible, and where the doc's own example spells every segment as
+// a Required argument of the resource the doc outranks the registry - the
+// same precedence rules 1 and 3 already apply. Measured over the full mapped
+// set at the time the gate widened, exactly one type moves
+// (aws_wafregional_web_acl_association, documented import ID
+// "web_acl_id:resource_arn", both plain Required arguments), because a
+// documented example that literally spells its own argument names is rare;
+// the value of the widening is that the ladder no longer has a hole a future
+// scrape can fall into, not the one row it fixes today.
 func tryArgumentReferenceComposite(p *proposal, g importGrammarRow) bool {
 	if g.ImportIDExample == "" {
 		return false

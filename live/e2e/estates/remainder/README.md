@@ -335,6 +335,23 @@ Independent verification confirmed a real, documented, importable identity
 for these 27 types — every one would otherwise have been ratified — but
 each is held back for a reason outside what a docs check alone catches:
 
+> **Superseded in part, 2026-08-16 (the `wall/rejected4` batch).** The type-parity
+> ruling makes credential material the only sanctioned permanent exclusion, so
+> the "standing policy exclusion" paragraph below no longer holds for the
+> seventeen WAF Classic and WAF Classic Regional types named in it, nor for
+> `aws_wafregional_web_acl_association` (rejected further up as a composite
+> row-gen proposed wrong; the classifier derives its `web_acl_id:resource_arn`
+> composite on its own now). All eighteen are admitted in
+> `internal/live/identity/table_generated.go`, on exactly the evidence this
+> section already recorded, re-verified against the pinned v6.59.0 doc cache.
+> The `DeprecatedServices` roster itself stays — it is what `residue.Lookup`
+> uses to explain an unadmitted type's refusal, and it never gated admission
+> (`aws_appstream_*` was admitted while AppStream 2.0 sat in the same roster).
+> `aws_pinpoint_app` and `aws_appstream_image_builder` in that paragraph have
+> also since been settled elsewhere: the latter is admitted, the former is
+> still held, now with its own reason in `tools/row-gen/rejected.json`. The
+> headings' counts below are historical and were not rewritten.
+
 **Standing policy exclusion** (`live/residue.go`'s `DeprecatedServices` —
 a service AWS itself is retiring, superseding, or winding down; this
 fork's policy is to admit none of it regardless of technical cleanliness):

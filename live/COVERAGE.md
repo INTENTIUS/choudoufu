@@ -26,8 +26,8 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 4 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 936 types | Nothing at lint. Runtime support varies by type; see the layers below. |
-| Pastable proposals (server-assigned 578, client-named 474, composite 151, assembled 10) | 1213 types | A ratification batch: paste, fixture, test. |
+| Admitted (the shipped table) | 954 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Pastable proposals (server-assigned 577, client-named 474, composite 152, assembled 10) | 1213 types | A ratification batch: paste, fixture, test. |
 | Needs a hand separator | 78 types | One one-character import-separator decision each. |
 | Evidence-only | 335 types | An identity-argument name no current evidence source states. |
 | Fold-children | 73 types | Nothing of their own; identity is the parent's. |
@@ -38,7 +38,7 @@ them moves. The prose on this page quotes none of the numbers.
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-936<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+954<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
   `aws_alb`, `aws_alb_listener`, `aws_alb_listener_certificate`,
@@ -516,12 +516,20 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_vpclattice_service_network_service_association`,
   `aws_vpclattice_service_network_vpc_association`,
   `aws_vpclattice_target_group`, `aws_vpn_concentrator`, `aws_vpn_connection`,
-  `aws_vpn_gateway`, `aws_wafv2_ip_set`, `aws_wafv2_regex_pattern_set`,
-  `aws_wafv2_rule_group`, `aws_wafv2_web_acl`,
-  `aws_wafv2_web_acl_logging_configuration`, `aws_wafv2_web_acl_rule`,
-  `aws_workspaces_connection_alias`, `aws_workspaces_ip_group`,
-  `aws_workspaces_pool`, `aws_workspaces_workspace`,
-  `aws_workspacesweb_browser_settings`,
+  `aws_vpn_gateway`, `aws_waf_byte_match_set`, `aws_waf_ipset`,
+  `aws_waf_rule`, `aws_waf_size_constraint_set`,
+  `aws_waf_sql_injection_match_set`, `aws_waf_web_acl`,
+  `aws_waf_xss_match_set`, `aws_wafregional_byte_match_set`,
+  `aws_wafregional_geo_match_set`, `aws_wafregional_ipset`,
+  `aws_wafregional_rate_based_rule`, `aws_wafregional_regex_pattern_set`,
+  `aws_wafregional_rule`, `aws_wafregional_size_constraint_set`,
+  `aws_wafregional_sql_injection_match_set`, `aws_wafregional_web_acl`,
+  `aws_wafregional_web_acl_association`, `aws_wafregional_xss_match_set`,
+  `aws_wafv2_ip_set`, `aws_wafv2_regex_pattern_set`, `aws_wafv2_rule_group`,
+  `aws_wafv2_web_acl`, `aws_wafv2_web_acl_logging_configuration`,
+  `aws_wafv2_web_acl_rule`, `aws_workspaces_connection_alias`,
+  `aws_workspaces_ip_group`, `aws_workspaces_pool`,
+  `aws_workspaces_workspace`, `aws_workspacesweb_browser_settings`,
   `aws_workspacesweb_browser_settings_association`,
   `aws_workspacesweb_data_protection_settings`,
   `aws_workspacesweb_data_protection_settings_association`,

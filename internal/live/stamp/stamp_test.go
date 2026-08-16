@@ -414,6 +414,17 @@ func TestTaggable(t *testing.T) {
 // same.
 var (
 	taggableAdmittedTypes = []string{
+		// wall/rejected4 admitted the eighteen mapped WAF Classic and WAF
+		// Classic Regional types the remainder batch had held out under
+		// live/residue.go's DeprecatedServices roster. Taggability from two
+		// sources that agree: live/survey-full.json's signals.taggable, and
+		// each doc page's own Attribute Reference, where exactly these five
+		// export tags_all.
+		"aws_waf_rule",
+		"aws_waf_web_acl",
+		"aws_wafregional_rate_based_rule",
+		"aws_wafregional_rule",
+		"aws_wafregional_web_acl",
 		// wall/rejected3 admitted 28 more types after verifying 65 against the
 		// v6.59.0 doc cache - a check that caught 22 further bad classifier
 		// proposals. Taggability read from live/survey-full.json signals.taggable
@@ -478,6 +489,23 @@ var (
 		"aws_ebs_volume",
 	}
 	untaggableAdmittedTypes = []string{
+		// The other thirteen of wall/rejected4's WAF batch: no tags argument
+		// in the pinned v6.59.0 Argument Reference, no tags_all in the
+		// Attribute Reference, signals.taggable false in
+		// live/survey-full.json.
+		"aws_waf_byte_match_set",
+		"aws_waf_ipset",
+		"aws_waf_size_constraint_set",
+		"aws_waf_sql_injection_match_set",
+		"aws_waf_xss_match_set",
+		"aws_wafregional_byte_match_set",
+		"aws_wafregional_geo_match_set",
+		"aws_wafregional_ipset",
+		"aws_wafregional_regex_pattern_set",
+		"aws_wafregional_size_constraint_set",
+		"aws_wafregional_sql_injection_match_set",
+		"aws_wafregional_web_acl_association",
+		"aws_wafregional_xss_match_set",
 		"aws_amplify_domain_association",
 		"aws_backup_restore_testing_selection",
 		"aws_bedrockagentcore_workload_identity",
@@ -1048,6 +1076,29 @@ func testSchemas() Schemas {
 		"aws_acm_certificate":                                taggedSchema("id", "arn", "domain_name", "validation_method"),
 		"aws_sfn_state_machine":                              taggedSchema("id", "arn", "name", "role_arn", "definition"),
 		"aws_ebs_volume":                                     taggedSchema("id", "arn", "availability_zone", "size"),
+
+		// The WAF Classic and WAF Classic Regional batch (wall/rejected4).
+		// Attribute shapes follow each doc page's own Argument/Attribute
+		// Reference: every one exports id, the five taggable ones also
+		// export arn and carry tags.
+		"aws_waf_rule":                            taggedSchema("id", "arn", "name", "metric_name"),
+		"aws_waf_web_acl":                         taggedSchema("id", "arn", "name", "metric_name"),
+		"aws_wafregional_rate_based_rule":         taggedSchema("id", "arn", "name", "metric_name", "rate_key", "rate_limit"),
+		"aws_wafregional_rule":                    taggedSchema("id", "arn", "name", "metric_name"),
+		"aws_wafregional_web_acl":                 taggedSchema("id", "arn", "name", "metric_name"),
+		"aws_waf_byte_match_set":                  untaggedSchema("id", "arn", "name"),
+		"aws_waf_ipset":                           untaggedSchema("id", "arn", "name"),
+		"aws_waf_size_constraint_set":             untaggedSchema("id", "arn", "name"),
+		"aws_waf_sql_injection_match_set":         untaggedSchema("id", "arn", "name"),
+		"aws_waf_xss_match_set":                   untaggedSchema("id", "arn", "name"),
+		"aws_wafregional_byte_match_set":          untaggedSchema("id", "name"),
+		"aws_wafregional_geo_match_set":           untaggedSchema("id", "name"),
+		"aws_wafregional_ipset":                   untaggedSchema("id", "arn", "name"),
+		"aws_wafregional_regex_pattern_set":       untaggedSchema("id", "name"),
+		"aws_wafregional_size_constraint_set":     untaggedSchema("id", "name"),
+		"aws_wafregional_sql_injection_match_set": untaggedSchema("id", "name"),
+		"aws_wafregional_xss_match_set":           untaggedSchema("id", "name"),
+		"aws_wafregional_web_acl_association":     untaggedSchema("id", "web_acl_id", "resource_arn"),
 
 		"aws_lb_target_group_attachment":  untaggedSchema("id", "target_group_arn", "target_id", "port"),
 		"aws_alb_target_group_attachment": untaggedSchema("id", "target_group_arn", "target_id", "port"),
