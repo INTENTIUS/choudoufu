@@ -2,6 +2,4329 @@
   "generated_by": "tools/floci-capability-gen (go run ./tools/floci-capability-gen); see its package doc for the probe/merge workflow",
   "images": [
     {
+      "digest": "sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933",
+      "ref": "ghcr.io/lex00/floci@sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933",
+      "services": [
+        {
+          "service": "ecr",
+          "status": "implemented",
+          "evidence": "present in /_localstack/health, reported status \"running\"",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "networkmanager",
+          "status": "unimplemented",
+          "evidence": "absent from /_localstack/health's service list entirely",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "storagegateway",
+          "status": "unimplemented",
+          "evidence": "absent from /_localstack/health's service list entirely",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "transfer",
+          "status": "implemented",
+          "evidence": "present in /_localstack/health, reported status \"running\"",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        }
+      ],
+      "types": [
+        {
+          "type": "aws_acm_certificate",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CertificateManager::Certificate) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_acmpca_certificate_authority",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ACMPCA::CertificateAuthority) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_amplify_app",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Amplify::App) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_api_gateway_api_key",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ApiGateway::ApiKey) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_api_gateway_client_certificate",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ApiGateway::ClientCertificate) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_api_gateway_domain_name",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ApiGateway::DomainName) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_api_gateway_domain_name_access_association",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ApiGateway::DomainNameAccessAssociation) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_api_gateway_rest_api",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ApiGateway::RestApi) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_api_gateway_usage_plan",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ApiGateway::UsagePlan) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_api_gateway_vpc_link",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ApiGateway::VpcLink) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_apigatewayv2_api",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ApiGatewayV2::Api) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_apigatewayv2_domain_name",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ApiGatewayV2::DomainName) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_apigatewayv2_vpc_link",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ApiGatewayV2::VpcLink) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_appautoscaling_target",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ApplicationAutoScaling::ScalableTarget) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_appconfig_application",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AppConfig::Application) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_appconfig_deployment_strategy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AppConfig::DeploymentStrategy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_appconfig_extension",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AppConfig::Extension) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_appconfig_extension_association",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AppConfig::ExtensionAssociation) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_appflow_connector_profile",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AppFlow::ConnectorProfile) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_appflow_flow",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AppFlow::Flow) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_appintegrations_data_integration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AppIntegrations::DataIntegration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_appintegrations_event_integration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AppIntegrations::EventIntegration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_apprunner_auto_scaling_configuration_version",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AppRunner::AutoScalingConfiguration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_apprunner_observability_configuration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AppRunner::ObservabilityConfiguration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_apprunner_service",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AppRunner::Service) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_apprunner_vpc_connector",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AppRunner::VpcConnector) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_apprunner_vpc_ingress_connection",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AppRunner::VpcIngressConnection) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_appstream_stack",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AppStream::Stack) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_appstream_user",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AppStream::User) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_appsync_api",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AppSync::Api) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_appsync_domain_name",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AppSync::DomainName) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_appsync_graphql_api",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AppSync::GraphQLApi) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_arcregionswitch_plan",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ARCRegionSwitch::Plan) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_arczonalshift_autoshift_observer_notification_status",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ARCZonalShift::AutoshiftObserverNotificationStatus) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_arczonalshift_zonal_autoshift_configuration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ARCZonalShift::ZonalAutoshiftConfiguration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_athena_data_catalog",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Athena::DataCatalog) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_athena_named_query",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Athena::NamedQuery) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_athena_workgroup",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Athena::WorkGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_auditmanager_assessment",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AuditManager::Assessment) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_auditmanager_framework",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AuditManager::AssessmentFramework) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_autoscaling_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AutoScaling::AutoScalingGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_backup_framework",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Backup::Framework) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_backup_logically_air_gapped_vault",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Backup::LogicallyAirGappedBackupVault) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_backup_plan",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Backup::BackupPlan) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_backup_report_plan",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Backup::ReportPlan) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_backup_restore_testing_plan",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Backup::RestoreTestingPlan) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_backup_vault",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Backup::BackupVault) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_batch_compute_environment",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Batch::ComputeEnvironment) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_batch_job_definition",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Batch::JobDefinition) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_batch_job_queue",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Batch::JobQueue) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_batch_scheduling_policy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Batch::SchedulingPolicy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_bcmdataexports_export",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::BCMDataExports::Export) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_bedrock_guardrail",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Bedrock::Guardrail) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_bedrock_inference_profile",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Bedrock::ApplicationInferenceProfile) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_bedrockagent_agent",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Bedrock::Agent) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_bedrockagent_flow",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Bedrock::Flow) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_bedrockagent_knowledge_base",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Bedrock::KnowledgeBase) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_bedrockagent_prompt",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Bedrock::Prompt) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_bedrockagentcore_agent_runtime",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::BedrockAgentCore::Runtime) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_bedrockagentcore_api_key_credential_provider",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::BedrockAgentCore::ApiKeyCredentialProvider) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_bedrockagentcore_browser",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::BedrockAgentCore::BrowserCustom) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_bedrockagentcore_browser_profile",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::BedrockAgentCore::BrowserProfile) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_bedrockagentcore_code_interpreter",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::BedrockAgentCore::CodeInterpreterCustom) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_bedrockagentcore_evaluator",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::BedrockAgentCore::Evaluator) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_bedrockagentcore_gateway",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::BedrockAgentCore::Gateway) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_bedrockagentcore_harness",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::BedrockAgentCore::Harness) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_bedrockagentcore_memory",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::BedrockAgentCore::Memory) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_bedrockagentcore_oauth2_credential_provider",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::BedrockAgentCore::OAuth2CredentialProvider) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_bedrockagentcore_online_evaluation_config",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::BedrockAgentCore::OnlineEvaluationConfig) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_bedrockagentcore_policy_engine",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::BedrockAgentCore::PolicyEngine) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_billing_view",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Billing::BillingView) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_budgets_budget_action",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Budgets::BudgetsAction) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ce_anomaly_monitor",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CE::AnomalyMonitor) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ce_anomaly_subscription",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CE::AnomalySubscription) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ce_cost_category",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CE::CostCategory) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_chatbot_slack_channel_configuration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Chatbot::SlackChannelConfiguration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cleanrooms_collaboration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CleanRooms::Collaboration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cleanrooms_configured_table",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CleanRooms::ConfiguredTable) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cleanrooms_membership",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CleanRooms::Membership) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudfront_anycast_ip_list",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudFront::AnycastIpList) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudfront_cache_policy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudFront::CachePolicy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudfront_connection_function",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudFront::ConnectionFunction) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudfront_connection_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudFront::ConnectionGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudfront_continuous_deployment_policy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudFront::ContinuousDeploymentPolicy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudfront_distribution",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudFront::Distribution) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudfront_distribution_tenant",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudFront::DistributionTenant) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudfront_function",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudFront::Function) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudfront_key_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudFront::KeyGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudfront_key_value_store",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudFront::KeyValueStore) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudfront_multitenant_distribution",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudFront::Distribution) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudfront_origin_access_control",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudFront::OriginAccessControl) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudfront_origin_access_identity",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudFront::CloudFrontOriginAccessIdentity) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudfront_origin_request_policy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudFront::OriginRequestPolicy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudfront_public_key",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudFront::PublicKey) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudfront_realtime_log_config",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudFront::RealtimeLogConfig) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudfront_response_headers_policy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudFront::ResponseHeadersPolicy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudfront_trust_store",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudFront::TrustStore) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudfront_vpc_origin",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudFront::VpcOrigin) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudtrail_event_data_store",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudTrail::EventDataStore) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_alarm_mute_rule",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudWatch::AlarmMuteRule) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_composite_alarm",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudWatch::CompositeAlarm) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_contributor_insight_rule",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudWatch::InsightRule) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_dashboard",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudWatch::Dashboard) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_event_api_destination",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Events::ApiDestination) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_event_archive",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Events::Archive) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_event_bus",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Events::EventBus) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_event_connection",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Events::Connection) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_event_endpoint",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Events::Endpoint) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_event_permission",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Events::EventBusPolicy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_event_rule",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Events::Rule) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_log_anomaly_detector",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Logs::LogAnomalyDetector) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_log_delivery",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Logs::Delivery) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_log_delivery_destination",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Logs::DeliveryDestination) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_log_delivery_source",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Logs::DeliverySource) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_log_destination",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Logs::Destination) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_log_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Logs::LogGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_log_metric_filter",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Logs::MetricFilter) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_log_resource_policy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Logs::ResourcePolicy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_log_transformer",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Logs::Transformer) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_metric_alarm",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudWatch::Alarm) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_metric_stream",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudWatch::MetricStream) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_otel_enrichment",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CloudWatch::OTelEnrichment) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cloudwatch_query_definition",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Logs::QueryDefinition) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_codeartifact_domain",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CodeArtifact::Domain) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_codeartifact_repository",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CodeArtifact::Repository) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_codebuild_fleet",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CodeBuild::Fleet) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_codeconnections_connection",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CodeConnections::Connection) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_codedeploy_deployment_config",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CodeDeploy::DeploymentConfig) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_codegurureviewer_repository_association",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CodeGuruReviewer::RepositoryAssociation) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_codepipeline_custom_action_type",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CodePipeline::CustomActionType) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_codepipeline_webhook",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CodePipeline::Webhook) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_codestarconnections_connection",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CodeStarConnections::Connection) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_codestarnotifications_notification_rule",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CodeStarNotifications::NotificationRule) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cognito_identity_pool",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Cognito::IdentityPool) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cognito_user_pool",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Cognito::UserPool) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_comprehend_document_classifier",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Comprehend::DocumentClassifier) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_config_config_rule",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Config::ConfigRule) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_config_configuration_aggregator",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Config::ConfigurationAggregator) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_config_conformance_pack",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Config::ConformancePack) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_config_organization_conformance_pack",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Config::OrganizationConformancePack) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_config_remediation_configuration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Config::RemediationConfiguration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_connect_instance",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Connect::Instance) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_connect_instance_storage_config",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Connect::InstanceStorageConfig) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_controltower_baseline",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ControlTower::EnabledBaseline) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_controltower_control",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ControlTower::EnabledControl) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_controltower_landing_zone",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ControlTower::LandingZone) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_cur_report_definition",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::CUR::ReportDefinition) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_datapipeline_pipeline",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DataPipeline::Pipeline) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_datasync_agent",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DataSync::Agent) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_datasync_location_azure_blob",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DataSync::LocationAzureBlob) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_datasync_location_efs",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DataSync::LocationEFS) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_datasync_location_fsx_lustre_file_system",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DataSync::LocationFSxLustre) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_datasync_location_fsx_ontap_file_system",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DataSync::LocationFSxONTAP) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_datasync_location_fsx_openzfs_file_system",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DataSync::LocationFSxOpenZFS) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_datasync_location_fsx_windows_file_system",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DataSync::LocationFSxWindows) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_datasync_location_hdfs",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DataSync::LocationHDFS) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_datasync_location_nfs",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DataSync::LocationNFS) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_datasync_location_object_storage",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DataSync::LocationObjectStorage) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_datasync_location_s3",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DataSync::LocationS3) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_datasync_location_smb",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DataSync::LocationSMB) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_datasync_task",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DataSync::Task) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_datazone_domain",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DataZone::Domain) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_db_event_subscription",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::RDS::EventSubscription) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_db_instance",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::RDS::DBInstance) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_db_option_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::RDS::OptionGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_db_parameter_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::RDS::DBParameterGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_db_proxy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::RDS::DBProxy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_db_proxy_default_target_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::RDS::DBProxyTargetGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_db_proxy_endpoint",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::RDS::DBProxyEndpoint) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_db_subnet_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::RDS::DBSubnetGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_detective_graph",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Detective::Graph) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_devopsguru_resource_collection",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DevOpsGuru::ResourceCollection) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_dms_certificate",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DMS::Certificate) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_dms_endpoint",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DMS::Endpoint) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_dms_event_subscription",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DMS::EventSubscription) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_dms_replication_config",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DMS::ReplicationConfig) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_dms_s3_endpoint",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DMS::Endpoint) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_docdb_event_subscription",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DocDB::EventSubscription) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_docdbelastic_cluster",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DocDBElastic::Cluster) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_dsql_cluster",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DSQL::Cluster) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_dx_connection",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DirectConnect::Connection) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_dx_gateway",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DirectConnect::DirectConnectGateway) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_dx_lag",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DirectConnect::Lag) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_dx_private_virtual_interface",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DirectConnect::PrivateVirtualInterface) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_dx_public_virtual_interface",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DirectConnect::PublicVirtualInterface) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_dx_transit_virtual_interface",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DirectConnect::TransitVirtualInterface) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_dynamodb_global_table",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DynamoDB::GlobalTable) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_dynamodb_table",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::DynamoDB::Table) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ebs_snapshot_block_public_access",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::SnapshotBlockPublicAccess) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ebs_volume",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::Volume) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ec2_capacity_reservation",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::CapacityReservation) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ec2_fleet",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::EC2Fleet) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ec2_host",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::Host) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ec2_instance_connect_endpoint",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::InstanceConnectEndpoint) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ec2_local_gateway_route_table",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::LocalGatewayRouteTable) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ec2_local_gateway_route_table_virtual_interface_group_association",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::LocalGatewayRouteTableVirtualInterfaceGroupAssociation) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ec2_local_gateway_route_table_vpc_association",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::LocalGatewayRouteTableVPCAssociation) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ec2_network_insights_access_scope",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::NetworkInsightsAccessScope) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ec2_network_insights_analysis",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::NetworkInsightsAnalysis) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ec2_network_insights_path",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::NetworkInsightsPath) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ec2_traffic_mirror_filter",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::TrafficMirrorFilter) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ec2_traffic_mirror_session",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::TrafficMirrorSession) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ec2_traffic_mirror_target",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::TrafficMirrorTarget) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ec2_transit_gateway",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::TransitGateway) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ec2_transit_gateway_connect",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::TransitGatewayConnect) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ec2_transit_gateway_connect_peer",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::TransitGatewayConnectPeer) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ec2_transit_gateway_metering_policy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::TransitGatewayMeteringPolicy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ec2_transit_gateway_multicast_domain",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::TransitGatewayMulticastDomain) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ec2_transit_gateway_peering_attachment",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::TransitGatewayPeeringAttachment) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ec2_transit_gateway_policy_table",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::TransitGatewayPolicyTable) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ec2_transit_gateway_route_table",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::TransitGatewayRouteTable) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ec2_transit_gateway_vpc_attachment",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::TransitGatewayVpcAttachment) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ecr_pull_through_cache_rule",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ECR::PullThroughCacheRule) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ecr_pull_time_update_exclusion",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ECR::PullTimeUpdateExclusion) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ecr_registry_policy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ECR::RegistryPolicy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ecr_registry_scanning_configuration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ECR::RegistryScanningConfiguration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ecr_replication_configuration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ECR::ReplicationConfiguration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ecr_repository",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ECR::Repository) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ecr_repository_creation_template",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ECR::RepositoryCreationTemplate) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ecrpublic_repository",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ECR::PublicRepository) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ecs_capacity_provider",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ECS::CapacityProvider) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ecs_cluster",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ECS::Cluster) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ecs_cluster_capacity_providers",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ECS::ClusterCapacityProviderAssociations) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ecs_daemon",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ECS::Daemon) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ecs_daemon_task_definition",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ECS::DaemonTaskDefinition) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ecs_service",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ECS::Service) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ecs_task_definition",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ECS::TaskDefinition) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_efs_access_point",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EFS::AccessPoint) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_efs_file_system",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EFS::FileSystem) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_eip",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::EIP) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_eks_cluster",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EKS::Cluster) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_elastic_beanstalk_application",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ElasticBeanstalk::Application) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_elastic_beanstalk_environment",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ElasticBeanstalk::Environment) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_elasticache_parameter_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ElastiCache::ParameterGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_elasticache_replication_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ElastiCache::ReplicationGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_elasticache_serverless_cache",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ElastiCache::ServerlessCache) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_elasticache_subnet_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ElastiCache::SubnetGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_elasticache_user",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ElastiCache::User) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_elasticache_user_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ElastiCache::UserGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_emr_security_configuration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EMR::SecurityConfiguration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_emr_studio",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EMR::Studio) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_emrcontainers_virtual_cluster",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EMRContainers::VirtualCluster) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_emrserverless_application",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EMRServerless::Application) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_evidently_segment",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Evidently::Segment) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_fis_experiment_template",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::FIS::ExperimentTemplate) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_fms_resource_set",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::FMS::ResourceSet) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_fsx_data_repository_association",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::FSx::DataRepositoryAssociation) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_fsx_s3_access_point_attachment",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::FSx::S3AccessPointAttachment) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_gamelift_alias",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::GameLift::Alias) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_gamelift_build",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::GameLift::Build) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_gamelift_fleet",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::GameLift::Fleet) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_gamelift_script",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::GameLift::Script) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_globalaccelerator_accelerator",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::GlobalAccelerator::Accelerator) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_globalaccelerator_cross_account_attachment",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::GlobalAccelerator::CrossAccountAttachment) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_globalaccelerator_endpoint_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::GlobalAccelerator::EndpointGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_globalaccelerator_listener",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::GlobalAccelerator::Listener) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_glue_catalog_database",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Glue::Database) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_glue_classifier",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Glue::Classifier) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_glue_crawler",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Glue::Crawler) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_glue_data_quality_ruleset",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Glue::DataQualityRuleset) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_glue_job",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Glue::Job) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_glue_registry",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Glue::Registry) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_glue_schema",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Glue::Schema) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_glue_security_configuration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Glue::SecurityConfiguration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_glue_trigger",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Glue::Trigger) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_glue_workflow",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Glue::Workflow) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_grafana_workspace",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Grafana::Workspace) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_guardduty_detector",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::GuardDuty::Detector) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_guardduty_filter",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::GuardDuty::Filter) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_guardduty_ipset",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::GuardDuty::IPSet) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_guardduty_malware_protection_plan",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::GuardDuty::MalwareProtectionPlan) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_guardduty_member",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::GuardDuty::Member) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_guardduty_publishing_destination",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::GuardDuty::PublishingDestination) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_guardduty_threatintelset",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::GuardDuty::ThreatIntelSet) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_iam_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IAM::Group) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_iam_instance_profile",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IAM::InstanceProfile) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_iam_openid_connect_provider",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IAM::OIDCProvider) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_iam_role",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IAM::Role) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_iam_saml_provider",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IAM::SAMLProvider) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_iam_server_certificate",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IAM::ServerCertificate) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_iam_user",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IAM::User) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_iam_virtual_mfa_device",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IAM::VirtualMFADevice) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_imagebuilder_component",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ImageBuilder::Component) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_imagebuilder_container_recipe",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ImageBuilder::ContainerRecipe) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_imagebuilder_distribution_configuration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ImageBuilder::DistributionConfiguration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_imagebuilder_image",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ImageBuilder::Image) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_imagebuilder_image_pipeline",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ImageBuilder::ImagePipeline) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_imagebuilder_image_recipe",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ImageBuilder::ImageRecipe) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_imagebuilder_infrastructure_configuration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ImageBuilder::InfrastructureConfiguration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_imagebuilder_lifecycle_policy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ImageBuilder::LifecyclePolicy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_imagebuilder_workflow",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ImageBuilder::Workflow) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_inspector2_filter",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::InspectorV2::Filter) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_inspector_assessment_target",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Inspector::AssessmentTarget) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_inspector_assessment_template",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Inspector::AssessmentTemplate) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_instance",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::Instance) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_internet_gateway",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::InternetGateway) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_internetmonitor_monitor",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::InternetMonitor::Monitor) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_invoicing_invoice_unit",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Invoicing::InvoiceUnit) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_iot_authorizer",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IoT::Authorizer) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_iot_billing_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IoT::BillingGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_iot_domain_configuration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IoT::DomainConfiguration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_iot_policy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IoT::Policy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_iot_provisioning_template",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IoT::ProvisioningTemplate) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_iot_role_alias",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IoT::RoleAlias) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_iot_thing",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IoT::Thing) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_iot_thing_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IoT::ThingGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_iot_thing_type",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IoT::ThingType) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_iot_topic_rule",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IoT::TopicRule) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_iot_topic_rule_destination",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IoT::TopicRuleDestination) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ivs_channel",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IVS::Channel) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ivs_recording_configuration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IVS::RecordingConfiguration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ivschat_logging_configuration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IVSChat::LoggingConfiguration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ivschat_room",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::IVSChat::Room) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_kendra_index",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Kendra::Index) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_key_pair",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::KeyPair) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_keyspaces_keyspace",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Cassandra::Keyspace) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_keyspaces_table",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Cassandra::Table) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_kinesis_firehose_delivery_stream",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::KinesisFirehose::DeliveryStream) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_kinesis_stream",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Kinesis::Stream) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_kinesis_stream_consumer",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Kinesis::StreamConsumer) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_kms_alias",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::KMS::Alias) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_kms_external_key",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::KMS::Key) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_kms_key",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::KMS::Key) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_kms_replica_key",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::KMS::ReplicaKey) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_lambda_capacity_provider",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Lambda::CapacityProvider) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_lambda_code_signing_config",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Lambda::CodeSigningConfig) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_lambda_event_source_mapping",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Lambda::EventSourceMapping) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_lambda_function",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Lambda::Function) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_launch_template",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::LaunchTemplate) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_lb",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ElasticLoadBalancingV2::LoadBalancer) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_lb_listener",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ElasticLoadBalancingV2::Listener) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_lb_listener_rule",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ElasticLoadBalancingV2::ListenerRule) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_lb_target_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ElasticLoadBalancingV2::TargetGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_lb_trust_store",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ElasticLoadBalancingV2::TrustStore) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_lexv2models_bot",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Lex::Bot) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_lightsail_bucket",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Lightsail::Bucket) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_lightsail_certificate",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Lightsail::Certificate) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_lightsail_container_service",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Lightsail::Container) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_lightsail_database",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Lightsail::Database) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_lightsail_disk",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Lightsail::Disk) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_lightsail_distribution",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Lightsail::Distribution) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_lightsail_instance",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Lightsail::Instance) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_lightsail_lb",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Lightsail::LoadBalancer) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_lightsail_lb_certificate",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Lightsail::LoadBalancerTlsCertificate) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_lightsail_static_ip",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Lightsail::StaticIp) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_location_geofence_collection",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Location::GeofenceCollection) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_location_map",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Location::Map) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_location_place_index",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Location::PlaceIndex) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_location_route_calculator",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Location::RouteCalculator) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_location_tracker",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Location::Tracker) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_location_tracker_association",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Location::TrackerConsumer) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_m2_application",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::M2::Application) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_m2_environment",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::M2::Environment) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_macie2_account",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Macie::Session) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_macie2_custom_data_identifier",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Macie::CustomDataIdentifier) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_macie2_findings_filter",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Macie::FindingsFilter) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_mailmanager_rule_set",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SES::MailManagerRuleSet) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_mailmanager_traffic_policy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SES::MailManagerTrafficPolicy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_media_package_channel",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::MediaPackage::Channel) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_media_packagev2_channel_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::MediaPackageV2::ChannelGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_medialive_multiplex",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::MediaLive::Multiplex) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_memorydb_acl",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::MemoryDB::ACL) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_memorydb_cluster",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::MemoryDB::Cluster) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_memorydb_multi_region_cluster",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::MemoryDB::MultiRegionCluster) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_memorydb_parameter_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::MemoryDB::ParameterGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_memorydb_subnet_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::MemoryDB::SubnetGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_memorydb_user",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::MemoryDB::User) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_mq_broker",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AmazonMQ::Broker) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_mq_configuration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::AmazonMQ::Configuration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_msk_cluster",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::MSK::Cluster) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_msk_configuration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::MSK::Configuration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_msk_replicator",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::MSK::Replicator) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_msk_serverless_cluster",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::MSK::ServerlessCluster) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_msk_topic",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::MSK::Topic) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_msk_vpc_connection",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::MSK::VpcConnection) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_mskconnect_connector",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::KafkaConnect::Connector) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_mskconnect_custom_plugin",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::KafkaConnect::CustomPlugin) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_mskconnect_worker_configuration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::KafkaConnect::WorkerConfiguration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_mwaa_environment",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::MWAA::Environment) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_nat_gateway",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::NatGateway) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_networkfirewall_firewall",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::NetworkFirewall::Firewall) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_networkfirewall_firewall_policy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::NetworkFirewall::FirewallPolicy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_networkfirewall_rule_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::NetworkFirewall::RuleGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_networkfirewall_tls_inspection_configuration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::NetworkFirewall::TLSInspectionConfiguration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_networkfirewall_vpc_endpoint_association",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::NetworkFirewall::VpcEndpointAssociation) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_networkmanager_connect_attachment",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::NetworkManager::ConnectAttachment) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_networkmanager_connect_peer",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::NetworkManager::ConnectPeer) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_networkmanager_core_network",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::NetworkManager::CoreNetwork) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_networkmanager_dx_gateway_attachment",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::NetworkManager::DirectConnectGatewayAttachment) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_networkmanager_global_network",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::NetworkManager::GlobalNetwork) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_networkmanager_site_to_site_vpn_attachment",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::NetworkManager::SiteToSiteVpnAttachment) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_networkmanager_transit_gateway_peering",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::NetworkManager::TransitGatewayPeering) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_networkmanager_transit_gateway_route_table_attachment",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::NetworkManager::TransitGatewayRouteTableAttachment) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_networkmanager_vpc_attachment",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::NetworkManager::VpcAttachment) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_notifications_notification_configuration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Notifications::NotificationConfiguration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_notifications_notification_hub",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Notifications::NotificationHub) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_notificationscontacts_email_contact",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::NotificationsContacts::EmailContact) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_oam_link",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Oam::Link) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_oam_sink",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Oam::Sink) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_observabilityadmin_s3_table_integration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ObservabilityAdmin::S3TableIntegration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_observabilityadmin_telemetry_pipeline",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ObservabilityAdmin::TelemetryPipelines) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_odb_cloud_autonomous_vm_cluster",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ODB::CloudAutonomousVmCluster) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_odb_cloud_exadata_infrastructure",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ODB::CloudExadataInfrastructure) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_odb_cloud_vm_cluster",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ODB::CloudVmCluster) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_odb_network",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ODB::OdbNetwork) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_odb_network_peering_connection",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ODB::OdbPeeringConnection) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_opensearchserverless_collection",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::OpenSearchServerless::Collection) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_opensearchserverless_collection_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::OpenSearchServerless::CollectionGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_organizations_account",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Organizations::Account) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_organizations_resource_policy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Organizations::ResourcePolicy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_paymentcryptography_key",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::PaymentCryptography::Key) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_paymentcryptography_key_alias",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::PaymentCryptography::Alias) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_pinpointsmsvoicev2_configuration_set",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SMSVOICE::ConfigurationSet) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_pinpointsmsvoicev2_opt_out_list",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SMSVOICE::OptOutList) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_pinpointsmsvoicev2_phone_number",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SMSVOICE::PhoneNumber) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_pinpointsmsvoicev2_pool",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SMSVOICE::Pool) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_pipes_pipe",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Pipes::Pipe) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_prometheus_scraper",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::APS::Scraper) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_prometheus_workspace",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::APS::Workspace) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_qbusiness_application",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::QBusiness::Application) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ram_permission",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::RAM::Permission) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ram_resource_share",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::RAM::ResourceShare) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_rds_cluster_instance",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::RDS::DBInstance) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_rds_custom_db_engine_version",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::RDS::CustomDBEngineVersion) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_rds_global_cluster",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::RDS::GlobalCluster) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_rds_integration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::RDS::Integration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_rds_shard_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::RDS::DBShardGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_redshift_cluster",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Redshift::Cluster) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_redshift_endpoint_access",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Redshift::EndpointAccess) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_redshift_snapshot_schedule",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Redshift::SnapshotSchedule) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_redshiftserverless_namespace",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::RedshiftServerless::Namespace) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_redshiftserverless_workgroup",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::RedshiftServerless::Workgroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_rekognition_collection",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Rekognition::Collection) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_rekognition_project",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Rekognition::Project) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_rekognition_stream_processor",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Rekognition::StreamProcessor) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_resiliencehub_resiliency_policy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ResilienceHub::ResiliencyPolicy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_resiliencehubv2_policy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ResilienceHubV2::Policy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_resourceexplorer2_index",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ResourceExplorer2::Index) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_resourceexplorer2_view",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ResourceExplorer2::View) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_resourcegroups_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ResourceGroups::Group) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_rolesanywhere_profile",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::RolesAnywhere::Profile) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_rolesanywhere_trust_anchor",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::RolesAnywhere::TrustAnchor) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route53_cidr_collection",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Route53::CidrCollection) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route53_health_check",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Route53::HealthCheck) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route53_hosted_zone_dnssec",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Route53::DNSSEC) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route53_key_signing_key",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Route53::KeySigningKey) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route53_resolver_dnssec_config",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Route53Resolver::ResolverDNSSECConfig) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route53_resolver_endpoint",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Route53Resolver::ResolverEndpoint) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route53_resolver_firewall_domain_list",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Route53Resolver::FirewallDomainList) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route53_resolver_firewall_rule_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Route53Resolver::FirewallRuleGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route53_resolver_firewall_rule_group_association",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Route53Resolver::FirewallRuleGroupAssociation) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route53_resolver_query_log_config",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Route53Resolver::ResolverQueryLoggingConfig) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route53_resolver_query_log_config_association",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Route53Resolver::ResolverQueryLoggingConfigAssociation) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route53_resolver_rule",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Route53Resolver::ResolverRule) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route53_resolver_rule_association",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Route53Resolver::ResolverRuleAssociation) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route53_zone",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Route53::HostedZone) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route53profiles_association",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Route53Profiles::ProfileAssociation) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route53profiles_profile",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Route53Profiles::Profile) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route53recoverycontrolconfig_cluster",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Route53RecoveryControl::Cluster) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route53recoverycontrolconfig_control_panel",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Route53RecoveryControl::ControlPanel) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route53recoveryreadiness_cell",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Route53RecoveryReadiness::Cell) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route53recoveryreadiness_readiness_check",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Route53RecoveryReadiness::ReadinessCheck) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route53recoveryreadiness_recovery_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Route53RecoveryReadiness::RecoveryGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route53recoveryreadiness_resource_set",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Route53RecoveryReadiness::ResourceSet) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route_table",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::RouteTable) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_route_table_association",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::SubnetRouteTableAssociation) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_rum_app_monitor",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::RUM::AppMonitor) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_s3_bucket",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::S3::Bucket) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_s3_bucket_policy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::S3::BucketPolicy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_s3_directory_bucket",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::S3Express::DirectoryBucket) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_s3control_multi_region_access_point",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::S3::MultiRegionAccessPoint) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_s3files_file_system",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::S3Files::FileSystem) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_s3files_file_system_policy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::S3Files::FileSystemPolicy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_s3tables_table_bucket",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::S3Tables::TableBucket) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_s3tables_table_bucket_policy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::S3Tables::TableBucketPolicy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_s3vectors_index",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::S3Vectors::Index) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_s3vectors_vector_bucket",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::S3Vectors::VectorBucket) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_s3vectors_vector_bucket_policy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::S3Vectors::VectorBucketPolicy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sagemaker_algorithm",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SageMaker::Algorithm) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sagemaker_app",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SageMaker::App) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sagemaker_app_image_config",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SageMaker::AppImageConfig) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sagemaker_data_quality_job_definition",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SageMaker::DataQualityJobDefinition) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sagemaker_domain",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SageMaker::Domain) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sagemaker_endpoint",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SageMaker::Endpoint) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sagemaker_feature_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SageMaker::FeatureGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sagemaker_hub",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SageMaker::Hub) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sagemaker_image",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SageMaker::Image) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sagemaker_mlflow_app",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SageMaker::MlflowApp) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sagemaker_mlflow_tracking_server",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SageMaker::MlflowTrackingServer) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sagemaker_model",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SageMaker::Model) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sagemaker_model_card",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SageMaker::ModelCard) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sagemaker_model_package_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SageMaker::ModelPackageGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sagemaker_monitoring_schedule",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SageMaker::MonitoringSchedule) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sagemaker_pipeline",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SageMaker::Pipeline) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sagemaker_project",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SageMaker::Project) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sagemaker_space",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SageMaker::Space) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sagemaker_studio_lifecycle_config",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SageMaker::StudioLifecycleConfig) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sagemaker_user_profile",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SageMaker::UserProfile) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_scheduler_schedule_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Scheduler::ScheduleGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_schemas_discoverer",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EventSchemas::Discoverer) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_secretsmanager_secret",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SecretsManager::Secret) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_secretsmanager_secret_policy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SecretsManager::ResourcePolicy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_secretsmanager_secret_rotation",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SecretsManager::RotationSchedule) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_security_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::SecurityGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_securityhub_account_v2",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SecurityHub::HubV2) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_securityhub_aggregator_v2",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SecurityHub::AggregatorV2) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_securityhub_automation_rule",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SecurityHub::AutomationRule) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_securityhub_automation_rule_v2",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SecurityHub::AutomationRuleV2) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_securityhub_configuration_policy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SecurityHub::ConfigurationPolicy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_securityhub_configuration_policy_association",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SecurityHub::PolicyAssociation) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_securityhub_connector_v2",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SecurityHub::ConnectorV2) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_securityhub_finding_aggregator",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SecurityHub::FindingAggregator) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_securityhub_insight",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SecurityHub::Insight) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_securityhub_organization_admin_account",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SecurityHub::DelegatedAdmin) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_securityhub_organization_configuration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SecurityHub::OrganizationConfiguration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_securityhub_standards_subscription",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SecurityHub::Standard) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_securitylake_data_lake",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SecurityLake::DataLake) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_securitylake_subscriber",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SecurityLake::Subscriber) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_service_discovery_public_dns_namespace",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ServiceDiscovery::PublicDnsNamespace) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_service_discovery_service",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ServiceDiscovery::Service) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_servicecatalog_portfolio",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ServiceCatalog::Portfolio) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_servicecatalog_product",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ServiceCatalog::CloudFormationProduct) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_servicecatalogappregistry_application",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ServiceCatalogAppRegistry::Application) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_servicecatalogappregistry_attribute_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::ServiceCatalogAppRegistry::AttributeGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sesv2_configuration_set",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SES::ConfigurationSet) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sesv2_contact_list",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SES::ContactList) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sesv2_dedicated_ip_pool",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SES::DedicatedIpPool) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sesv2_email_identity",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SES::EmailIdentity) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sesv2_tenant",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SES::Tenant) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sfn_state_machine",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::StepFunctions::StateMachine) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_shield_proactive_engagement",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Shield::ProactiveEngagement) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_shield_protection",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Shield::Protection) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sns_topic",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SNS::Topic) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sns_topic_subscription",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SNS::Subscription) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_spot_fleet_request",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::SpotFleet) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sqs_queue",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SQS::Queue) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ssm_association",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SSM::Association) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ssm_maintenance_window",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SSM::MaintenanceWindow) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ssm_parameter",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SSM::Parameter) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ssm_patch_baseline",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SSM::PatchBaseline) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ssm_resource_data_sync",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SSM::ResourceDataSync) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ssmcontacts_contact",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SSMContacts::Contact) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ssmcontacts_contact_channel",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SSMContacts::ContactChannel) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ssmcontacts_plan",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SSMContacts::Plan) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ssmcontacts_rotation",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SSMContacts::Rotation) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ssmincidents_replication_set",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SSMIncidents::ReplicationSet) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ssmincidents_response_plan",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SSMIncidents::ResponsePlan) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ssmquicksetup_configuration_manager",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SSMQuickSetup::ConfigurationManager) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ssoadmin_application_assignment",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::SSO::ApplicationAssignment) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_storagegateway_tape_pool",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::StorageGateway::TapePool) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_subnet",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::Subnet) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_synthetics_canary",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Synthetics::Canary) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_synthetics_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Synthetics::Group) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_timestreaminfluxdb_db_cluster",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Timestream::InfluxDBCluster) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_timestreaminfluxdb_db_instance",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Timestream::InfluxDBInstance) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_timestreamquery_scheduled_query",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Timestream::ScheduledQuery) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_timestreamwrite_database",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Timestream::Database) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_timestreamwrite_table",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Timestream::Table) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_transfer_certificate",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Transfer::Certificate) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_transfer_connector",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Transfer::Connector) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_transfer_profile",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Transfer::Profile) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_transfer_server",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Transfer::Server) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_transfer_web_app",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Transfer::WebApp) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_transfer_workflow",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::Transfer::Workflow) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_verifiedaccess_endpoint",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::VerifiedAccessEndpoint) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_verifiedaccess_instance",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::VerifiedAccessInstance) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_verifiedaccess_trust_provider",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::VerifiedAccessTrustProvider) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_verifiedpermissions_policy_store",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::VerifiedPermissions::PolicyStore) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpc",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::VPC) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpc_block_public_access_exclusion",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::VPCBlockPublicAccessExclusion) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpc_dhcp_options",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::DHCPOptions) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpc_dhcp_options_association",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::VPCDHCPOptionsAssociation) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpc_encryption_control",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::VPCEncryptionControl) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpc_endpoint",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::VPCEndpoint) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpc_endpoint_service",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::VPCEndpointService) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpc_ipam",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::IPAM) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpc_ipam_pool",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::IPAMPool) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpc_ipam_resource_discovery",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::IPAMResourceDiscovery) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpc_ipam_resource_discovery_association",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::IPAMResourceDiscoveryAssociation) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpc_ipam_scope",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::IPAMScope) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpc_peering_connection",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::VPCPeeringConnection) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpc_route_server",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::RouteServer) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpc_route_server_endpoint",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::RouteServerEndpoint) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpc_route_server_peer",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::RouteServerPeer) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpc_security_group_egress_rule",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::SecurityGroupEgress) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpc_security_group_ingress_rule",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::SecurityGroupIngress) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpclattice_domain_verification",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::VpcLattice::DomainVerification) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpclattice_resource_configuration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::VpcLattice::ResourceConfiguration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpclattice_resource_gateway",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::VpcLattice::ResourceGateway) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpclattice_service",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::VpcLattice::Service) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpclattice_service_network",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::VpcLattice::ServiceNetwork) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpclattice_service_network_resource_association",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::VpcLattice::ServiceNetworkResourceAssociation) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpclattice_service_network_service_association",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::VpcLattice::ServiceNetworkServiceAssociation) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpclattice_service_network_vpc_association",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::VpcLattice::ServiceNetworkVpcAssociation) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpclattice_target_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::VpcLattice::TargetGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_vpn_concentrator",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::EC2::VPNConcentrator) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_wafv2_web_acl_logging_configuration",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::WAFv2::LoggingConfiguration) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_workspaces_connection_alias",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::WorkSpaces::ConnectionAlias) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_workspaces_ip_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::WorkSpaces::WorkspaceIpGroup) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_workspaces_pool",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::WorkSpaces::WorkspacesPool) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_workspaces_workspace",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::WorkSpaces::Workspace) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_workspacesweb_browser_settings",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::WorkSpacesWeb::BrowserSettings) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_workspacesweb_data_protection_settings",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::WorkSpacesWeb::DataProtectionSettings) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_workspacesweb_ip_access_settings",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::WorkSpacesWeb::IpAccessSettings) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_workspacesweb_network_settings",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::WorkSpacesWeb::NetworkSettings) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_workspacesweb_portal",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::WorkSpacesWeb::Portal) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_workspacesweb_session_logger",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::WorkSpacesWeb::SessionLogger) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_workspacesweb_trust_store",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::WorkSpacesWeb::TrustStore) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_workspacesweb_user_access_logging_settings",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::WorkSpacesWeb::UserAccessLoggingSettings) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_workspacesweb_user_settings",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::WorkSpacesWeb::UserSettings) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_xray_group",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::XRay::Group) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_xray_resource_policy",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::XRay::ResourcePolicy) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_xray_sampling_rule",
+          "mechanism": "cloudcontrol-list",
+          "status": "implemented",
+          "evidence": "ListResources(AWS::XRay::SamplingRule) succeeded",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        }
+      ]
+    },
+    {
       "digest": "sha256:4753246c0260a22af1056c65993f4d73b0a907729a9580b9baba5d628b6dad34",
       "ref": "ghcr.io/lex00/floci@sha256:4753246c0260a22af1056c65993f4d73b0a907729a9580b9baba5d628b6dad34",
       "services": [
