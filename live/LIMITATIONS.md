@@ -996,16 +996,16 @@ refused, and each says so in its own entry.
 | 22 | 187 | identity | Identity not resolvable from configuration | `internal/live/identity` | "Identity not resolvable from configuration" |
 | 22 | 66 | identity | Identity argument not set | `internal/live/identity` | "Identity argument not set" |
 | 21 | 110 | lint | module-providers | `internal/live/lint` | "module-providers" |
-| 20 | 265 | lint | for-each-key | `internal/live/lint` | "foreach-dotted-key" |
 | 20 | 65 | identity | Non-static for_each expression | `internal/live/identity` | "Non-static for_each expression" |
 | 18 | 63 | identity | Non-static identity argument | `internal/live/identity` | "Non-static identity argument" |
 | 13 | 30 | lint | child-module | `internal/live/lint` | "child-module" |
-| 12 | 21 | identity | Invalid for_each set | `internal/live/identity` | "Invalid for_each set" |
+| 13 | 27 | identity | Invalid for_each set | `internal/live/identity` | "Invalid for_each set" |
+| 12 | 150 | dataread | Data source not readable before resolution | `internal/live/dataread` | "Data source not readable before resolution" |
 | 10 | 51 | identity | Non-static count expression | `internal/live/identity` | "Non-static count expression" |
 | 6 | 63 | lint | moved-block | `internal/live/lint` | "moved-block" |
-| 6 | 48 | dataread | Data source not readable before resolution | `internal/live/dataread` | "Data source not readable before resolution" |
 | 3 | 10 | identity | Two resources with the same identity | `internal/live/identity` | "duplicate-identity" |
 | 3 | 3 | lint | module-provider-block | `internal/live/lint` | "module-provider-block" |
+| 1 | 50 | lint | for-each-key | `internal/live/lint` | "foreach-invalid-key" |
 | 1 | 10 | identity | Attempt to get attribute from null value | `hcl` | "Attempt to get attribute from null value" |
 | 1 | 4 | identity | Invalid operand | `hcl` | "Invalid operand" |
 | 1 | 2 | identity | Invalid function argument | `hcl` | "Invalid function argument" |
@@ -1273,7 +1273,15 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 12 configurations in the measured corpus, at 21 sites.
+**How often.** Blocked 13 configurations in the measured corpus, at 27 sites.
+
+#### Data source not readable before resolution
+
+**What.** A data source's value is needed to resolve an identity, a count or a for_each, but the data source depends on a managed resource, names one in depends_on, or has an argument that is not statically evaluable, so it cannot be read before the plan.
+
+**Where.** The dataread pass, raised by `internal/live/dataread`.
+
+**How often.** Blocked 12 configurations in the measured corpus, at 150 sites.
 
 #### Non-static count expression
 
@@ -1282,14 +1290,6 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked 10 configurations in the measured corpus, at 51 sites.
-
-#### Data source not readable before resolution
-
-**What.** A data source's value is needed to resolve an identity, a count or a for_each, but the data source depends on a managed resource, names one in depends_on, or has an argument that is not statically evaluable, so it cannot be read before the plan.
-
-**Where.** The dataread pass, raised by `internal/live/dataread`.
-
-**How often.** Blocked 6 configurations in the measured corpus, at 48 sites.
 
 #### Attempt to get attribute from null value
 
