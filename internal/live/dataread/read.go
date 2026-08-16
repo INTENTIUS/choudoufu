@@ -11,6 +11,7 @@ import (
 	"sort"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/ext/dynblock"
 	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
@@ -184,8 +185,20 @@ func (r *reader) readSource(src *Source) bool {
 		}
 	}
 
-	lookup := r.lookupFor(src.Module)
-	eval := node.Module.StaticEvaluator.Pure().WithDataResults(lookup)
+	// liveModuleEvaluator, not node.Module.StaticEvaluator directly: a
+	// module-call variable reaching this source's own for_each/count/
+	// arguments may resolve back into an ancestor module's own expression,
+	// which needs that ancestor's own data lookup attached to see its own
+	// data sources as coverage (issue #212) - the frozen evaluator
+	// [configs.ModuleCall.decodeStaticVariables] captured at load time
+	// never has one. r.lookupFor is already correctly scoped per module
+	// (see its own doc), so passing it straight through keeps every
+	// module's coverage bounded to that module's own reads, at every level
+	// of the chain.
+	eval := liveModuleEvaluator(r.ctx, r.cfg, src.Module, r.lookupFor)
+	if eval == nil {
+		return r.refuse(src, SummaryReadFailed, "%s's module is no longer in the configuration tree; this is a defect in the calling code.", src.Resource.String())
+	}
 
 	keys, eachVals, ok := r.expansionKeys(src, eval)
 	if !ok {
@@ -559,6 +572,44 @@ func (r *reader) decodeConfigForInstance(src *Source, eval *configs.StaticEvalua
 		selfRoots["each"] = true
 	}
 
+	ident := configs.StaticIdentifier{
+		Module:    src.Module,
+		Subject:   src.Resource.String(),
+		DeclRange: rc.DeclRange,
+	}
+
+	// Expand any "dynamic" block first, the same two-phase split
+	// [configs.StaticEvaluator.DecodeBlock] now uses for the non-per-instance
+	// path ([reader.decodeConfig]) - this function cannot reuse DecodeBlock
+	// itself because it also needs this instance's own count.index/
+	// each.key/each.value bound, which DecodeBlock's static scope refuses
+	// unconditionally. A dynamic block's own for_each reading this source's
+	// own each/count is not supported here (it would need those bound
+	// during expansion too); it refuses cleanly through the same "not
+	// statically evaluable" path below rather than doing anything with a
+	// wrong or guessed value.
+	var expandTravs []hcl.Traversal
+	for _, trav := range dynblock.ExpandVariablesHCLDec(body, spec) {
+		if selfRoots[trav.RootName()] {
+			continue
+		}
+		expandTravs = append(expandTravs, trav)
+	}
+	expandRefs, expandRefDiags := lang.References(addrs.ParseRef, expandTravs)
+	if expandRefDiags.HasErrors() {
+		return cty.NilVal, r.refuse(src, SummaryNotReadable,
+			"%s's arguments are not statically evaluable: %s.", src.Resource.String(), expandRefDiags.Err())
+	}
+	expandCtx, expandCtxDiags := eval.EvalContextWithParent(r.ctx, nil, ident, expandRefs)
+	if expandCtxDiags.HasErrors() {
+		return cty.NilVal, r.refuse(src, SummaryNotReadable,
+			"%s's arguments are not statically evaluable: %s.", src.Resource.String(), expandCtxDiags.Error())
+	}
+	if expandCtx == nil {
+		expandCtx = &hcl.EvalContext{}
+	}
+	body = dynblock.Expand(body, expandCtx)
+
 	var travs []hcl.Traversal
 	for _, trav := range hcldec.Variables(body, spec) {
 		if selfRoots[trav.RootName()] {
@@ -572,11 +623,6 @@ func (r *reader) decodeConfigForInstance(src *Source, eval *configs.StaticEvalua
 			"%s's arguments are not statically evaluable: %s.", src.Resource.String(), refDiags.Err())
 	}
 
-	ident := configs.StaticIdentifier{
-		Module:    src.Module,
-		Subject:   src.Resource.String(),
-		DeclRange: rc.DeclRange,
-	}
 	hclCtx, ctxDiags := eval.EvalContextWithParent(r.ctx, nil, ident, refs)
 	if ctxDiags.HasErrors() {
 		return cty.NilVal, r.refuse(src, SummaryNotReadable,

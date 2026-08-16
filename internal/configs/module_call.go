@@ -284,9 +284,26 @@ func (mc *ModuleCall) decodeStaticVersion(ctx context.Context, eval *StaticEvalu
 }
 
 func (mc *ModuleCall) decodeStaticVariables(ctx context.Context, eval *StaticEvaluator) {
+	mc.Variables = mc.VariablesUsing(ctx, eval)
+}
+
+// VariablesUsing returns the [StaticModuleVariables] closure that evaluates
+// this module call's own variable-assignment expressions - the `X = <expr>`
+// arguments inside `module "name" { ... }` - through eval, the SAME
+// construction [ModuleCall.decodeStaticVariables] uses to freeze
+// mc.Variables once, when the module tree is first built.
+//
+// Exposed so a caller resolving a reference that reaches back into this
+// call's own module can rebuild the closure against an evaluator that
+// actually carries that module's own per-request coverage - a data lookup,
+// most concretely (issue #212) - rather than the frozen evaluator
+// decodeStaticVariables captured at load time, before any caller had a
+// chance to attach one. See [StaticEvaluator.WithVariables], the seam that
+// installs the result this method returns.
+func (mc *ModuleCall) VariablesUsing(ctx context.Context, eval *StaticEvaluator) StaticModuleVariables {
 	attr, _ := mc.Config.JustAttributes()
 
-	mc.Variables = func(variable *Variable) (cty.Value, hcl.Diagnostics) {
+	return func(variable *Variable) (cty.Value, hcl.Diagnostics) {
 		v, ok := attr[variable.Name]
 		if !ok {
 			if variable.Required() {

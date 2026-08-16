@@ -105,11 +105,25 @@ type Source struct {
 	ReasonSummary string
 	ReasonDetail  string
 
-	// Deps are the same-module data sources this one references, directly,
-	// through locals, or in depends_on - the edges the topological read
-	// order follows. Sorted.
-	Deps []addrs.Resource
+	// Deps are the data sources this one references, directly, through
+	// locals, in depends_on, or - since #212 - through a module-call
+	// variable that reaches back into an ancestor module's own data source:
+	// Dep.Module names the DECLARING module, which is this Source's own
+	// Module for an ordinary same-module reference and an ancestor's for a
+	// cross-module one. These are the edges the topological read order
+	// follows. Sorted.
+	Deps []SourceDep
 }
+
+// SourceDep is one dependency edge: the module and resource of a data
+// source [Source.Deps]'s owner references. Module can differ from the
+// referencing Source's own Module - see [Source.Deps]'s doc.
+type SourceDep struct {
+	Module   addrs.Module
+	Resource addrs.Resource
+}
+
+func (d SourceDep) key() string { return sourceKey(d.Module, d.Resource) }
 
 // Analysis is [Analyze]'s result: every demanded data source, classified,
 // with the readable ones in an order that reads dependencies first.
@@ -146,6 +160,15 @@ func (a *Analysis) SourceFor(module addrs.Module, res addrs.Resource) (*Source, 
 
 func sourceKey(module addrs.Module, res addrs.Resource) string {
 	return module.String() + "\x00" + res.String()
+}
+
+// moduleLabel names a module for a refusal sentence: "the root module" or
+// "module.a.b", matching how a user would name it in configuration.
+func moduleLabel(module addrs.Module) string {
+	if len(module) == 0 {
+		return "the root module"
+	}
+	return module.String()
 }
 
 // Analyze derives which data sources identity resolution demands and
@@ -355,7 +378,7 @@ func (an *analyzer) classify(module addrs.Module, res addrs.Resource, neededBy s
 	an.visiting[key] = true
 	defer delete(an.visiting, key)
 
-	deps := make(map[string]addrs.Resource)
+	deps := make(map[string]SourceDep)
 	refuse := func(clause string) {
 		if src.ReasonSummary != "" {
 			return // first reason wins; one sentence, not a pile
@@ -369,6 +392,9 @@ func (an *analyzer) classify(module addrs.Module, res addrs.Resource, neededBy s
 	// Rule 4, the depends_on half: naming a managed resource defers the
 	// read until the dependency is planned, and there is nothing honest to
 	// read before that. Naming another data source is an ordering edge.
+	// depends_on's traversal is always resolved in this block's own module -
+	// there is no module-crossing syntax for it - so every edge it
+	// contributes is same-module.
 	for _, trav := range rc.DependsOn {
 		ref, refDiags := addrs.ParseRef(trav)
 		if refDiags.HasErrors() {
@@ -380,7 +406,8 @@ func (an *analyzer) classify(module addrs.Module, res addrs.Resource, neededBy s
 			continue
 		default:
 			if dep, ok := DataSubject(ref.Subject); ok {
-				deps[dep.String()] = dep
+				d := SourceDep{Module: module, Resource: dep}
+				deps[d.key()] = d
 				continue
 			}
 			refuse(fmt.Sprintf("it names %s in depends_on; in stock OpenTofu such a read is deferred until the dependency is planned or applied", ref.Subject.String()))
@@ -388,16 +415,23 @@ func (an *analyzer) classify(module addrs.Module, res addrs.Resource, neededBy s
 	}
 
 	// Rules 1 and 2: every expression - the block's own arguments plus its
-	// count/for_each - must evaluate statically, with other same-stack data
-	// sources standing in as coverage so that a reference to one is an
-	// ordering edge rather than a failure.
-	record := func(dep addrs.Resource) {
-		if dep.String() != res.String() {
-			deps[dep.String()] = dep
+	// count/for_each - must evaluate statically, with every same-stack data
+	// source this evaluation can reach - this block's own module's, AND (by
+	// #212) an ancestor's own, when a module-call variable carries the
+	// reference there - standing in as coverage so that a reference to one
+	// is an ordering edge rather than a failure. depModule is the
+	// DECLARING module of the dependency, never assumed to be this block's
+	// own - see [liveModuleEvaluator]'s doc for why a lookup scoped to one
+	// module can never answer for another.
+	record := func(depModule addrs.Module, dep addrs.Resource) {
+		d := SourceDep{Module: depModule, Resource: dep}
+		if d.key() == sourceKey(module, res) {
+			return // this block's own reference to itself, not a dependency
 		}
+		deps[d.key()] = d
 	}
 	for _, ne := range an.sourceExpressions(rc) {
-		errDetail, category, usedSelf, ok := an.evalRecorded(node, module, res, rc, ne, record)
+		errDetail, category, usedSelf, ok := an.evalRecorded(module, res, rc, ne, record)
 		if ok {
 			if usedSelf {
 				src.PerInstance = true
@@ -446,12 +480,12 @@ func (an *analyzer) classify(module addrs.Module, res addrs.Resource, neededBy s
 	for _, dk := range depKeys {
 		dep := deps[dk]
 		src.Deps = append(src.Deps, dep)
-		depSrc := an.classify(module, dep, res.String())
+		depSrc := an.classify(dep.Module, dep.Resource, res.String())
 		switch {
 		case depSrc == nil:
-			refuse(fmt.Sprintf("it references %s, which this module does not declare", dep.String()))
+			refuse(fmt.Sprintf("it references %s, which %s does not declare", dep.Resource.String(), moduleLabel(dep.Module)))
 		case depSrc.ReasonSummary != "":
-			refuse(fmt.Sprintf("it depends on %s, which cannot be read before the plan (%s)", dep.String(), depSrc.ReasonDetail))
+			refuse(fmt.Sprintf("it depends on %s, which cannot be read before the plan (%s)", dep.Resource.String(), depSrc.ReasonDetail))
 		}
 	}
 
@@ -466,6 +500,19 @@ func (an *analyzer) classify(module addrs.Module, res addrs.Resource, neededBy s
 type namedExpr struct {
 	label string
 	expr  hcl.Expression
+
+	// dynamicIterators names every "dynamic" block's own iterator that
+	// legitimately encloses this expression - "statement" for
+	// `dynamic "statement" { content { ... } }`, or whatever
+	// `iterator = foo` names instead - innermost and outermost alike, the
+	// same stacking a nested `dynamic "condition"` inside a
+	// `dynamic "statement"` gets from HCL's own dynblock extension
+	// (github.com/hashicorp/hcl/v2/ext/dynblock) and stock OpenTofu's
+	// plan-time evaluator (internal/lang/eval.go's Scope.ExpandBlock).
+	// [analyzer.evalRecorded] binds each one to an unknown key/value
+	// placeholder, the same shape [selfRepetitionRoots] gives each/count,
+	// rather than refusing it as an undeclared reference (issue #212).
+	dynamicIterators map[string]bool
 }
 
 // sourceExpressions collects a data block's evaluable expressions: its
@@ -476,10 +523,10 @@ type namedExpr struct {
 func (an *analyzer) sourceExpressions(rc *configs.Resource) []namedExpr {
 	var out []namedExpr
 	if rc.Count != nil {
-		out = append(out, namedExpr{"count", rc.Count})
+		out = append(out, namedExpr{label: "count", expr: rc.Count})
 	}
 	if rc.ForEach != nil {
-		out = append(out, namedExpr{"for_each", rc.ForEach})
+		out = append(out, namedExpr{label: "for_each", expr: rc.ForEach})
 	}
 	body, ok := rc.Config.(*hclsyntax.Body)
 	if !ok {
@@ -502,6 +549,16 @@ var metaArguments = map[string]bool{
 }
 
 func collectBodyExpressions(body *hclsyntax.Body, label string, out *[]namedExpr) {
+	collectBodyExpressionsBound(body, label, nil, out)
+}
+
+// collectBodyExpressionsBound is [collectBodyExpressions] with bound
+// carried down: the set of "dynamic" block iterator names legitimately in
+// scope for every expression collected at or under body, from every
+// "dynamic" block already enclosing it. nil (the top-level call's value)
+// means none - the overwhelmingly common case, and the only one before
+// issue #212.
+func collectBodyExpressionsBound(body *hclsyntax.Body, label string, bound map[string]bool, out *[]namedExpr) {
 	names := make([]string, 0, len(body.Attributes))
 	for name := range body.Attributes {
 		names = append(names, name)
@@ -511,14 +568,99 @@ func collectBodyExpressions(body *hclsyntax.Body, label string, out *[]namedExpr
 		if metaArguments[name] {
 			continue
 		}
-		*out = append(*out, namedExpr{fmt.Sprintf("%s %q", label, name), body.Attributes[name].Expr})
+		*out = append(*out, namedExpr{
+			label:            fmt.Sprintf("%s %q", label, name),
+			expr:             body.Attributes[name].Expr,
+			dynamicIterators: bound,
+		})
 	}
 	for _, block := range body.Blocks {
-		if block.Type == "lifecycle" {
+		switch block.Type {
+		case "lifecycle":
+			continue
+		case "dynamic":
+			collectDynamicBlockExpressions(block, label, bound, out)
+		default:
+			collectBodyExpressionsBound(block.Body, fmt.Sprintf("%s block's %s", block.Type, label), bound, out)
+		}
+	}
+}
+
+// collectDynamicBlockExpressions models a `dynamic "NAME" { ... }` block the
+// way HCL's own dynblock extension (github.com/hashicorp/hcl/v2/ext/dynblock)
+// and stock OpenTofu's plan-time evaluator both do (internal/lang/eval.go's
+// Scope.ExpandBlock): for_each and labels evaluate in the ENCLOSING scope,
+// with whatever iterators already enclose this dynamic block bound exactly
+// like any other argument there; the block's own iterator - NAME, or
+// whatever `iterator = foo` names instead - is a NEW binding that applies
+// only inside "content", stacked on top of (never replacing) the iterators
+// already bound there, so a nested dynamic block's content can still reach
+// an outer one's iterator. Before this, the block's own for_each was
+// silently skipped (its name, "for_each", collides with [metaArguments],
+// meant for the enclosing block's OWN repetition meta-argument, never
+// checked for a nested "dynamic" block at all) and "content" was walked as
+// an ordinary nested block, so a reference like statement.value evaluated
+// as an undefined variable rather than the iterator it names (issue #212;
+// concretely, terraform-aws-modules/iam's aws_iam_policy_document data
+// sources, which nest a `dynamic "condition"` inside a
+// `dynamic "statement"` and read the outer iterator from the inner
+// block's own content).
+func collectDynamicBlockExpressions(block *hclsyntax.Block, label string, bound map[string]bool, out *[]namedExpr) {
+	if len(block.Labels) == 0 {
+		// A "dynamic" block with no label is invalid - OpenTofu's own schema
+		// decode refuses it long before this phase ever sees the body - but
+		// "cannot analyze" must never silently read as "eligible" (the same
+		// rule [sourceExpressions]'s own sentinel enforces at the top
+		// level), so an expression-less sentinel refuses rather than this
+		// block's content simply vanishing from the walk.
+		*out = append(*out, namedExpr{label: fmt.Sprintf("%s dynamic block with no label", label)})
+		return
+	}
+	dynLabel := fmt.Sprintf("%s dynamic %q's", label, block.Labels[0])
+	body := block.Body
+
+	iterName := block.Labels[0]
+	if attr, ok := body.Attributes["iterator"]; ok {
+		if trav, travDiags := hcl.AbsTraversalForExpr(attr.Expr); !travDiags.HasErrors() && len(trav) > 0 {
+			iterName = trav.RootName()
+		}
+	}
+
+	names := make([]string, 0, len(body.Attributes))
+	for name := range body.Attributes {
+		if name == "iterator" {
 			continue
 		}
-		collectBodyExpressions(block.Body, fmt.Sprintf("%s block's %s", block.Type, label), out)
+		names = append(names, name)
 	}
+	sort.Strings(names)
+	for _, name := range names {
+		*out = append(*out, namedExpr{
+			label:            fmt.Sprintf("%s %s", dynLabel, name),
+			expr:             body.Attributes[name].Expr,
+			dynamicIterators: bound,
+		})
+	}
+
+	var contentBody *hclsyntax.Body
+	for _, inner := range body.Blocks {
+		if inner.Type == "content" {
+			contentBody = inner.Body
+		}
+	}
+	if contentBody == nil {
+		// A "dynamic" block with no "content" sub-block is invalid for the
+		// identical reason a missing label is - refuse rather than let this
+		// block's (nonexistent) content read as trivially eligible.
+		*out = append(*out, namedExpr{label: fmt.Sprintf("%s block with no content block", dynLabel)})
+		return
+	}
+	childBound := make(map[string]bool, len(bound)+1)
+	for k := range bound {
+		childBound[k] = true
+	}
+	childBound[iterName] = true
+	collectBodyExpressionsBound(contentBody, fmt.Sprintf("%s content", dynLabel), childBound, out)
 }
 
 // selfRepetitionRoots names the traversal roots this data block's own
@@ -561,9 +703,21 @@ func selfRepetitionRoots(rc *configs.Resource, label string) map[string]bool {
 // [Source.PerInstance] only when at least one argument genuinely varies per
 // instance - the common case, where every instance shares one answer,
 // keeps its existing one-call cost.
-func (an *analyzer) evalRecorded(node *configs.Config, module addrs.Module, res addrs.Resource, rc *configs.Resource, ne namedExpr, record func(addrs.Resource)) (errDetail string, category configs.ReferenceCategory, usedSelf bool, ok bool) {
+//
+// module is the module DECLARING res - the block being classified, never
+// assumed to be the same module as any dependency this evaluation reaches:
+// [liveModuleEvaluator] builds this block's own module's evaluator, with
+// its own data lookup, its own ancestor chain, and nothing borrowed from
+// any other module's coverage (issue #212 - see that function's doc for
+// the adversarial case this guards against).
+func (an *analyzer) evalRecorded(module addrs.Module, res addrs.Resource, rc *configs.Resource, ne namedExpr, record func(addrs.Module, addrs.Resource)) (errDetail string, category configs.ReferenceCategory, usedSelf bool, ok bool) {
 	if ne.expr == nil {
-		return "the block is not written in native syntax, and this phase enumerates arguments only there", configs.CategoryOther, false, false
+		// A namedExpr with no expression is always a sentinel: either the
+		// whole block is not written in native syntax ([sourceExpressions]),
+		// or a "dynamic" block this phase found was malformed in a way
+		// OpenTofu's own schema decode would refuse anyway
+		// ([collectDynamicBlockExpressions]). ne.label already names which.
+		return fmt.Sprintf("%s cannot be analyzed", ne.label), configs.CategoryOther, false, false
 	}
 	defer func() {
 		// The same guard identity's evalPure carries: static evaluation can
@@ -578,18 +732,30 @@ func (an *analyzer) evalRecorded(node *configs.Config, module addrs.Module, res 
 		}
 	}()
 
-	eval := node.Module.StaticEvaluator.Pure().WithDataResults(func(addr addrs.Resource) (cty.Value, bool) {
-		dep := node.Module.DataResources[addr.String()]
-		// Both cross-stack flavors are covered exactly like a same-stack
-		// source now - stage 2 (tfe_outputs) and stage 3
-		// (terraform_remote_state) give them the same pipeline, recorded as
-		// a dependency below.
-		if dep == nil {
-			return cty.NilVal, false
+	eval := liveModuleEvaluator(an.ctx, an.cfg, module, func(m addrs.Module) configs.StaticDataLookup {
+		return func(addr addrs.Resource) (cty.Value, bool) {
+			depNode := an.cfg.Descendent(m)
+			if depNode == nil || depNode.Module == nil {
+				return cty.NilVal, false
+			}
+			dep := depNode.Module.DataResources[addr.String()]
+			// Both cross-stack flavors are covered exactly like a same-stack
+			// source now - stage 2 (tfe_outputs) and stage 3
+			// (terraform_remote_state) give them the same pipeline, recorded
+			// as a dependency below. m is exactly the module this closure
+			// was built for - never the module that happened to trigger the
+			// lookup - so a same-named data source declared in a different
+			// module never answers here.
+			if dep == nil {
+				return cty.NilVal, false
+			}
+			record(m, addr)
+			return cty.DynamicVal, true
 		}
-		record(addr)
-		return cty.DynamicVal, true
 	})
+	if eval == nil {
+		return "its own module is no longer in the configuration tree; this is a defect in the calling code", configs.CategoryOther, false, false
+	}
 	ident := configs.StaticIdentifier{
 		Module:    module,
 		Subject:   fmt.Sprintf("%s's %s", res.String(), ne.label),
@@ -599,8 +765,12 @@ func (an *analyzer) evalRecorded(node *configs.Config, module addrs.Module, res 
 	selfRoots := selfRepetitionRoots(rc, ne.label)
 	var travs []hcl.Traversal
 	for _, trav := range ne.expr.Variables() {
-		if selfRoots[trav.RootName()] {
+		root := trav.RootName()
+		if selfRoots[root] {
 			usedSelf = true
+			continue
+		}
+		if ne.dynamicIterators[root] {
 			continue
 		}
 		travs = append(travs, trav)
@@ -620,8 +790,8 @@ func (an *analyzer) evalRecorded(node *configs.Config, module addrs.Module, res 
 	if hclCtx == nil {
 		hclCtx = &hcl.EvalContext{}
 	}
-	if len(selfRoots) > 0 {
-		hclCtx = withRepetitionPlaceholders(hclCtx, selfRoots)
+	if len(selfRoots) > 0 || len(ne.dynamicIterators) > 0 {
+		hclCtx = withPlaceholders(hclCtx, selfRoots, ne.dynamicIterators)
 	}
 
 	_, valDiags := ne.expr.Value(hclCtx)
@@ -632,15 +802,18 @@ func (an *analyzer) evalRecorded(node *configs.Config, module addrs.Module, res 
 	return "", "", usedSelf, true
 }
 
-// withRepetitionPlaceholders returns a child of hclCtx with "each" and/or
-// "count" bound to unknown placeholders, present exactly where selfRoots
-// says the block's own count/for_each makes them legitimate. Analysis only
-// needs to know whether the rest of the expression validates - the concrete
-// per-instance value is bound later, in [reader], once an actual instance
-// key is in hand.
-func withRepetitionPlaceholders(hclCtx *hcl.EvalContext, selfRoots map[string]bool) *hcl.EvalContext {
+// withPlaceholders returns a child of hclCtx with "each"/"count" bound to
+// unknown placeholders exactly where selfRoots says the block's own
+// count/for_each makes them legitimate, and every name in iterators (a
+// "dynamic" block's own iterator - see [namedExpr.dynamicIterators]) bound
+// the same key/value shape each gets, since HCL's dynblock extension gives
+// a dynamic block's iterator the identical object shape as each. Analysis
+// only needs to know whether the rest of the expression validates - the
+// concrete per-instance value is bound later, in [reader], once an actual
+// instance key (and, for a dynamic block, an actual iteration) is in hand.
+func withPlaceholders(hclCtx *hcl.EvalContext, selfRoots, iterators map[string]bool) *hcl.EvalContext {
 	child := hclCtx.NewChild()
-	vars := make(map[string]cty.Value, len(selfRoots))
+	vars := make(map[string]cty.Value, len(selfRoots)+len(iterators))
 	if selfRoots["count"] {
 		vars["count"] = cty.ObjectVal(map[string]cty.Value{
 			"index": cty.UnknownVal(cty.Number),
@@ -648,6 +821,12 @@ func withRepetitionPlaceholders(hclCtx *hcl.EvalContext, selfRoots map[string]bo
 	}
 	if selfRoots["each"] {
 		vars["each"] = cty.ObjectVal(map[string]cty.Value{
+			"key":   cty.UnknownVal(cty.String),
+			"value": cty.UnknownVal(cty.DynamicPseudoType),
+		})
+	}
+	for name := range iterators {
+		vars[name] = cty.ObjectVal(map[string]cty.Value{
 			"key":   cty.UnknownVal(cty.String),
 			"value": cty.UnknownVal(cty.DynamicPseudoType),
 		})
@@ -770,7 +949,7 @@ func collectProviderExpressions(body *hclsyntax.Body, out *[]namedExpr) {
 		if name == "alias" || name == "version" {
 			continue
 		}
-		*out = append(*out, namedExpr{fmt.Sprintf("argument %q", name), body.Attributes[name].Expr})
+		*out = append(*out, namedExpr{label: fmt.Sprintf("argument %q", name), expr: body.Attributes[name].Expr})
 	}
 	for _, block := range body.Blocks {
 		collectProviderExpressions(block.Body, out)

@@ -63,6 +63,25 @@ func testProviderSchema() *providers.GetProviderSchemaResponse {
 					"secret": {Type: cty.String, Computed: true, Sensitive: true},
 				},
 			}},
+			// test_policy exercises a schema with a nested block type, the
+			// shape a "dynamic" block generates instances of - see
+			// testdata/dynamic-block-read and
+			// TestReadDynamicBlockExpandsIntoRealSchemaBlocks.
+			"test_policy": {Block: &configschema.Block{
+				Attributes: map[string]*configschema.Attribute{
+					"id": {Type: cty.String, Computed: true},
+				},
+				BlockTypes: map[string]*configschema.NestedBlock{
+					"statement": {
+						Nesting: configschema.NestingList,
+						Block: configschema.Block{
+							Attributes: map[string]*configschema.Attribute{
+								"sid": {Type: cty.String, Optional: true},
+							},
+						},
+					},
+				},
+			}},
 		},
 		ResourceTypes: map[string]providers.Schema{},
 	}
@@ -136,6 +155,130 @@ func TestReadOrdersAndFeedsDependencies(t *testing.T) {
 	}
 	if want := "/records/rec-77"; resolution.ImportID != want {
 		t.Errorf("resolved to %q, want %q", resolution.ImportID, want)
+	}
+}
+
+// TestReadCrossModuleLookupDoesNotLeakBetweenSameNamedSources is issue
+// #212's adversarial case: two modules each declare a data source at the
+// SAME address, data.test_zone.shared - the root's with name
+// "root-real.com.", the child's own (never referenced by anything) with
+// "child-wrong.com.". The child's data.test_record.b reads var.zone_name,
+// which the module call sets to the ROOT's data.test_zone.shared.name.
+//
+// [liveModuleEvaluator] builds a SEPARATE data lookup closure for every
+// module, each closed over that module's own [*configs.Config] node (see
+// its doc); a lookup that instead got reused across modules, or that
+// resolved "the asking module" from the wrong side of the reference, could
+// answer the root's var.zone_name evaluation out of the CHILD's own
+// DataResources map instead - same resource address, wrong module, wrong
+// value - silently. This test reads the actual value the provider is
+// asked for and fails if it is anything but the root's own.
+func TestReadCrossModuleLookupDoesNotLeakBetweenSameNamedSources(t *testing.T) {
+	cfg := loadConfigTree(t, filepath.Join("testdata", "cross-module-no-leak"), nil)
+	analysis := Analyze(context.Background(), cfg, Options{})
+
+	var zoneReads []string
+	mock := &tofu.MockProvider{
+		GetProviderSchemaResponse: testProviderSchema(),
+		ConfigureProviderCalled:   true,
+		ReadDataSourceFn: func(req providers.ReadDataSourceRequest) providers.ReadDataSourceResponse {
+			switch req.TypeName {
+			case "test_zone":
+				name := req.Config.GetAttr("name")
+				zoneReads = append(zoneReads, name.AsString())
+				return providers.ReadDataSourceResponse{State: cty.ObjectVal(map[string]cty.Value{
+					"name":    name,
+					"zone_id": cty.StringVal("Z-" + name.AsString()),
+				})}
+			case "test_record":
+				zone := req.Config.GetAttr("zone")
+				if zone.IsNull() || zone.AsString() != "root-real.com." {
+					t.Errorf("data.test_record.b read with zone %#v, want exactly the root module's own data.test_zone.shared.name (%q); the child's same-named data source must never be consulted for this reference", zone, "root-real.com.")
+				}
+				return providers.ReadDataSourceResponse{State: cty.ObjectVal(map[string]cty.Value{
+					"zone": zone,
+					"id":   cty.StringVal("rec-1"),
+				})}
+			}
+			t.Fatalf("read of unexpected type %q", req.TypeName)
+			return providers.ReadDataSourceResponse{}
+		},
+	}
+
+	_, diags := Read(context.Background(), cfg, analysis, &fakeProviders{provider: mock})
+	if diags.HasErrors() {
+		t.Fatalf("read failed: %s", diags.Err())
+	}
+
+	// Only the root's own data.test_zone.shared should ever be read - the
+	// child's same-named, unreferenced one is never demanded.
+	if len(zoneReads) != 1 || zoneReads[0] != "root-real.com." {
+		t.Fatalf("test_zone reads %v, want exactly [\"root-real.com.\"]", zoneReads)
+	}
+}
+
+// TestReadDynamicBlockExpandsIntoRealSchemaBlocks is
+// [configs.StaticEvaluator.DecodeBlock]'s own fix, exercised end to end:
+// before it, DecodeBlock ran hcldec.Decode directly against the raw,
+// unexpanded body, and hcldec refuses any body containing a literal
+// "dynamic" block outright ("Blocks of type \"dynamic\" are not expected
+// here") because no schema ever declares that block type - a hard, honest
+// refusal, never a silently wrong or partial value, but a refusal all the
+// same for a shape ordinary real configurations use (an IAM policy
+// document's `dynamic "statement"`). This reads data.test_policy.doc,
+// whose two statement blocks come entirely from a dynamic block over
+// local.actions, and checks the provider actually received two decoded
+// statement objects with the expected sids - proving the expansion, not
+// just that eligibility analysis stopped refusing it.
+func TestReadDynamicBlockExpandsIntoRealSchemaBlocks(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "dynamic-block-read"), nil)
+	analysis := Analyze(context.Background(), cfg, Options{})
+
+	src, ok := analysis.SourceFor(addrs.RootModule, dataAddr("test_policy", "doc"))
+	if !ok || !src.Eligible {
+		reason := "not classified at all"
+		if ok {
+			reason = src.ReasonDetail
+		}
+		t.Fatalf("data.test_policy.doc is not eligible: %s", reason)
+	}
+
+	var gotStatements []string
+	mock := &tofu.MockProvider{
+		GetProviderSchemaResponse: testProviderSchema(),
+		ConfigureProviderCalled:   true,
+		ReadDataSourceFn: func(req providers.ReadDataSourceRequest) providers.ReadDataSourceResponse {
+			if req.TypeName != "test_policy" {
+				t.Fatalf("read of unexpected type %q", req.TypeName)
+			}
+			stmts := req.Config.GetAttr("statement")
+			if stmts.IsNull() || !stmts.IsKnown() {
+				t.Fatalf("data.test_policy.doc's statement attribute is %#v, want a known list of 2 decoded blocks", stmts)
+			}
+			for it := stmts.ElementIterator(); it.Next(); {
+				_, v := it.Element()
+				gotStatements = append(gotStatements, v.GetAttr("sid").AsString())
+			}
+			return providers.ReadDataSourceResponse{State: cty.ObjectVal(map[string]cty.Value{
+				"id":        cty.StringVal("policy-1"),
+				"statement": stmts,
+			})}
+		},
+	}
+
+	_, diags := Read(context.Background(), cfg, analysis, &fakeProviders{provider: mock})
+	if diags.HasErrors() {
+		t.Fatalf("read failed: %s", diags.Err())
+	}
+
+	want := []string{"generic-a", "generic-b"}
+	if len(gotStatements) != len(want) {
+		t.Fatalf("decoded %d statement blocks %v, want %v", len(gotStatements), gotStatements, want)
+	}
+	for i := range want {
+		if gotStatements[i] != want[i] {
+			t.Errorf("statement[%d].sid = %q, want %q", i, gotStatements[i], want[i])
+		}
 	}
 }
 

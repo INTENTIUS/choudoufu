@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/lang/marks"
@@ -476,6 +477,165 @@ terraform {
 
 			assertExactDiagnostics(t, diags, tc.diags)
 		})
+	}
+}
+
+// TestStaticEvaluator_DecodeBlockExpandsDynamicBlocks: before issue #212's
+// fix, DecodeBlock ran hcldec.Decode directly against the raw body, and
+// hcldec refuses any body containing a literal "dynamic" block outright
+// ("Blocks of type \"dynamic\" are not expected here") because no schema
+// ever declares that block type - see the doc on DecodeBlock itself. This
+// decodes a body whose only "item" blocks come from a dynamic block over a
+// literal list, with the iterator read inside content, and checks the
+// result actually has two items with the expected names - proving the
+// two-phase expand-then-decode split works end to end, not merely that it
+// no longer errors.
+func TestStaticEvaluator_DecodeBlockExpandsDynamicBlocks(t *testing.T) {
+	f, diags := hclsyntax.ParseConfig([]byte(`
+dynamic "item" {
+	for_each = ["a", "b"]
+	content {
+		name = "item-${item.value}"
+	}
+}
+`), "eval.tf", hcl.InitialPos)
+	if diags.HasErrors() {
+		t.Fatal(diags)
+	}
+
+	spec := &hcldec.BlockListSpec{
+		TypeName: "item",
+		Nested: &hcldec.ObjectSpec{
+			"name": &hcldec.AttrSpec{
+				Name: "name",
+				Type: cty.String,
+			},
+		},
+	}
+
+	call := RootModuleCallForTesting()
+	mod, modDiags := NewModule(nil, nil, call, "dir", SelectiveLoadAll)
+	if modDiags.HasErrors() {
+		t.Fatal(modDiags)
+	}
+	eval := NewStaticEvaluator(mod, call)
+
+	val, decDiags := eval.DecodeBlock(t.Context(), f.Body, spec, StaticIdentifier{Subject: "test"})
+	if decDiags.HasErrors() {
+		t.Fatalf("decoding a body with a dynamic block: %s", decDiags)
+	}
+	if !val.Type().IsTupleType() && !val.Type().IsListType() {
+		t.Fatalf("decoded value has type %s, want a list/tuple of 2 items", val.Type().FriendlyName())
+	}
+	items := val.AsValueSlice()
+	if len(items) != 2 {
+		t.Fatalf("decoded %d items, want 2: %#v", len(items), val)
+	}
+	want := []string{"item-a", "item-b"}
+	for i, w := range want {
+		if got := items[i].GetAttr("name").AsString(); got != w {
+			t.Errorf("item[%d].name = %q, want %q", i, got, w)
+		}
+	}
+}
+
+// TestStaticEvaluator_WithVariables exercises the seam issue #212 adds
+// directly: an evaluator's own var.* resolution is bound to whatever
+// [StaticModuleVariables] closure [StaticEvaluator.WithVariables] installs,
+// dup-not-mutate exactly like [StaticEvaluator.WithDataResults] and
+// [StaticEvaluator.WithRepetitionData] - the original evaluator keeps
+// answering through its own frozen closure, and the copy answers through
+// the new one.
+func TestStaticEvaluator_WithVariables(t *testing.T) {
+	file, fileDiags := testParser(map[string]string{"eval.tf": `
+variable "x" {}
+locals {
+	y = var.x
+}
+`}).LoadConfigFile("eval.tf")
+	if fileDiags.HasErrors() {
+		t.Fatal(fileDiags)
+	}
+
+	frozenCall := NewStaticModuleCall(nil, hcl.Range{}, func(v *Variable) (cty.Value, hcl.Diagnostics) {
+		return cty.StringVal("frozen"), nil
+	}, "<testing>", "")
+	mod, _ := NewModule([]*File{file}, nil, frozenCall, "dir", SelectiveLoadAll)
+	eval := NewStaticEvaluator(mod, frozenCall)
+
+	ident := StaticIdentifier{Subject: "local.y", DeclRange: mod.Locals["y"].DeclRange}
+
+	val, diags := eval.Evaluate(t.Context(), mod.Locals["y"].Expr, ident)
+	if diags.HasErrors() {
+		t.Fatalf("evaluating through the original evaluator: %s", diags)
+	}
+	if val.AsString() != "frozen" {
+		t.Fatalf("original evaluator's local.y = %q, want %q", val.AsString(), "frozen")
+	}
+
+	rebound := eval.WithVariables(func(v *Variable) (cty.Value, hcl.Diagnostics) {
+		return cty.StringVal("rebound"), nil
+	})
+	val, diags = rebound.Evaluate(t.Context(), mod.Locals["y"].Expr, ident)
+	if diags.HasErrors() {
+		t.Fatalf("evaluating through the rebound evaluator: %s", diags)
+	}
+	if val.AsString() != "rebound" {
+		t.Fatalf("rebound evaluator's local.y = %q, want %q", val.AsString(), "rebound")
+	}
+
+	// dup-not-mutate: the original evaluator must still answer "frozen"
+	// after WithVariables built a copy from it.
+	val, diags = eval.Evaluate(t.Context(), mod.Locals["y"].Expr, ident)
+	if diags.HasErrors() {
+		t.Fatalf("re-evaluating through the original evaluator: %s", diags)
+	}
+	if val.AsString() != "frozen" {
+		t.Fatalf("original evaluator's local.y changed to %q after WithVariables built a copy; want it still %q", val.AsString(), "frozen")
+	}
+}
+
+// TestModuleCall_VariablesUsing exercises [ModuleCall.VariablesUsing]
+// directly: it evaluates the module call's own X = <expr> arguments
+// through whichever evaluator it is handed, not only the one
+// [ModuleCall.decodeStaticVariables] freezes mc.Variables against at load
+// time - the seam [liveModuleEvaluator] in internal/live/dataread uses to
+// give an ancestor module its own live, data-lookup-attached evaluator
+// (issue #212).
+func TestModuleCall_VariablesUsing(t *testing.T) {
+	file, fileDiags := testParser(map[string]string{"eval.tf": `
+locals {
+	answer = "parent-value"
+}
+
+module "child" {
+	source = "./child"
+	x      = local.answer
+}
+`}).LoadConfigFile("eval.tf")
+	if fileDiags.HasErrors() {
+		t.Fatal(fileDiags)
+	}
+
+	call := RootModuleCallForTesting()
+	mod, modDiags := NewModule([]*File{file}, nil, call, "dir", SelectiveLoadAll)
+	if modDiags.HasErrors() {
+		t.Fatal(modDiags)
+	}
+	eval := NewStaticEvaluator(mod, call)
+
+	mc := mod.ModuleCalls["child"]
+	if mc == nil {
+		t.Fatal("module.child was not parsed")
+	}
+
+	vars := mc.VariablesUsing(t.Context(), eval)
+	val, diags := vars(&Variable{Name: "x"})
+	if diags.HasErrors() {
+		t.Fatalf("evaluating module.child's own x argument through VariablesUsing: %s", diags)
+	}
+	if val.AsString() != "parent-value" {
+		t.Fatalf("module.child's x = %q, want %q (local.answer, evaluated through the evaluator VariablesUsing was handed)", val.AsString(), "parent-value")
 	}
 }
 
