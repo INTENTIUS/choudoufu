@@ -302,9 +302,25 @@ one to three times. Two of those were buying nothing, so:
   and the tests for the packages you touched. The orchestrator runs full CI
   after every merge, so a pre-commit run moves no gate; `internal/command`
   alone costs 61 seconds and most agents never touch it.
-- **The after-fix `just corpus` is mandatory.** It is the measurement, and it
-  is the number the merge is made on. Run it, read the ladder out of
-  `live/corpus-refusals.json`, then `git checkout -- live/` before you commit.
+- **Do not run `just corpus` either.** This reverses an earlier version of
+  this section, on evidence. Six agents stalled on it in one session, every
+  one of them backgrounding it and then stopping to wait. Three causes
+  compound: it takes ~2 minutes alone but acquires ~75 provider schemas, so
+  with several agents running it is heavily contended and can appear hung; the
+  orchestrator regenerates on the merged tree regardless, because a branch's
+  numbers are never the measurement; and its result arrives too late in an
+  agent's turn to change any decision.
+
+  **Measure with a targeted probe instead.** The agents that produced the
+  best numbers this session did not run the generator — they called
+  `check.Dir`, `identity.ResolveWith`, `stamp.Stamp` or `SynthesizeTypeIdentity`
+  directly against the specific fixtures in question, with real schemas from
+  the warm plugin cache. That is faster, uncontended, and answers the question
+  the generator only answers by side effect. Build the probe in your scratch
+  directory and delete it before committing.
+
+  If you genuinely need a corpus number, say what you would expect it to show
+  and let the orchestrator compute it on the merged tree.
 
 Read-only auditors finished in 6 to 15 minutes against 25 to 47 for
 implementers, entirely because they run no generators. If a task does not
