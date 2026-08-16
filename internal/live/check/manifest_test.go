@@ -103,14 +103,24 @@ func TestShippedManifestIsValid(t *testing.T) {
 	var thirdParty int
 	root := filepath.Join("..", "..", "..")
 	for _, source := range manifest.Sources {
-		if source.VarFile != "" {
-			// #183: a var_file that does not resolve to a real file would
-			// silently measure the estate bare while the artifact claimed
-			// otherwise - readVarsFile fails open (it skips what it cannot
-			// read), so nothing else in the pipeline would catch a typo
-			// here.
-			if _, err := os.Stat(filepath.Join(root, source.VarFile)); err != nil {
-				t.Errorf("%s: var_file %q does not exist: %s", source.Glob, source.VarFile, err)
+		for _, vf := range source.VarFiles {
+			// #183: a var_files entry that does not resolve to a real file
+			// would silently measure the estate bare while the artifact
+			// claimed otherwise - readVarsFile fails open (it skips what it
+			// cannot read), so nothing else in the pipeline would catch a
+			// typo here.
+			if _, err := os.Stat(filepath.Join(root, vf)); err != nil {
+				t.Errorf("%s: var_files %q does not exist: %s", source.Glob, vf, err)
+			}
+		}
+		if l := source.VarFileLayout; l != nil {
+			// VariablesDir itself is not required to exist here: it
+			// typically sits under .corpus/, materialized only after "just
+			// corpus-fetch" runs, which this test does not require. What
+			// must hold unconditionally is that the rule names both of its
+			// fields - see [ManifestSource.VarFileLayout]'s doc comment.
+			if l.VariablesDir == "" || l.Env == "" {
+				t.Errorf("%s: var_file_layout is missing variables_dir or env", source.Glob)
 			}
 		}
 		if source.Fetch == nil {

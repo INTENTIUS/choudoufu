@@ -103,8 +103,8 @@ func run() error {
 		logf(logOut, "corpus-gen: %s\n", entry.Name)
 
 		var varFiles []string
-		if entry.VarFile != "" {
-			varFiles = append(varFiles, underRoot(*root, entry.VarFile))
+		for _, vf := range entry.VarFiles {
+			varFiles = append(varFiles, underRoot(*root, vf))
 		}
 		report := check.Dir(ctx, entry.Dir, check.Context{Schemas: schemas}, varFiles...)
 		// Attribution before folding, so a rate-capable entry's profile can
@@ -112,7 +112,7 @@ func run() error {
 		// operator's tfvars (#161, #175). It only marks; it never changes a
 		// verdict or a count.
 		report.AttributeUnsetVariables(report.Load.UnsetVariables(), report.Load.Sources())
-		corpus.Add(entry.Name, entry.Origin, report, entry.VarFile)
+		corpus.Add(entry.Name, entry.Origin, report, entry.VarFiles...)
 		origins[entry.Origin]++
 	}
 	corpus.Finish()

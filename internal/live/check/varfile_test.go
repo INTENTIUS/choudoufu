@@ -95,7 +95,7 @@ resource "aws_s3_bucket" "b" {
 }
 
 // TestResolvePropagatesVarFile is the manifest-side half: a source's
-// var_file (#183) reaches the [CorpusEntryRef] for the directory it names,
+// var_files (#183) reaches the [CorpusEntryRef] for the directory it names,
 // unresolved and repository-root-relative exactly as written, and a source
 // with none leaves the field empty - so a corpus-gen run over one manifest
 // can tell a vars-supplied entry from a bare one without touching the
@@ -112,7 +112,7 @@ func TestResolvePropagatesVarFile(t *testing.T) {
 	}
 
 	manifest := Manifest{Sources: []ManifestSource{
-		{Glob: "corpus/withvars", Origin: "test", VarFile: "vars/withvars.tfvars"},
+		{Glob: "corpus/withvars", Origin: "test", VarFiles: []string{"vars/withvars.tfvars"}},
 		{Glob: "corpus/bare", Origin: "test"},
 	}}
 	entries, err := manifest.Resolve(root)
@@ -128,23 +128,103 @@ func TestResolvePropagatesVarFile(t *testing.T) {
 		byName[e.Name] = e
 	}
 
-	if got := byName["corpus/withvars"].VarFile; got != "vars/withvars.tfvars" {
-		t.Errorf("corpus/withvars: VarFile = %q, want \"vars/withvars.tfvars\"", got)
+	if got := byName["corpus/withvars"].VarFiles; len(got) != 1 || got[0] != "vars/withvars.tfvars" {
+		t.Errorf("corpus/withvars: VarFiles = %v, want [\"vars/withvars.tfvars\"]", got)
 	}
-	if got := byName["corpus/bare"].VarFile; got != "" {
-		t.Errorf("corpus/bare: VarFile = %q, want empty - a source with no var_file must not acquire one", got)
+	if got := byName["corpus/bare"].VarFiles; len(got) != 0 {
+		t.Errorf("corpus/bare: VarFiles = %v, want empty - a source with no var_files must not acquire one", got)
 	}
 }
 
+// TestResolveDerivesVarFilesFromLayout exercises [VarFileLayout]: a source
+// with one derives common.tfvars and the deployment's own file from each
+// matched directory's own name, skips a candidate the estate does not ship,
+// and orders common before the deployment file so the deployment's value
+// takes precedence, matching stock -var-file's later-wins order.
+func TestResolveDerivesVarFilesFromLayout(t *testing.T) {
+	root := t.TempDir()
+	for _, dir := range []string{
+		"corpus/deployments/has-both",
+		"corpus/deployments/dep-only",
+		"corpus/deployments/none",
+		"corpus/variables/integration",
+	} {
+		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, dep := range []string{"has-both", "dep-only", "none"} {
+		if err := os.WriteFile(filepath.Join(root, "corpus/deployments", dep, "main.tf"), []byte("# config\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "corpus/variables/integration/common.tfvars"), []byte(`x = 1`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "corpus/variables/integration/has-both.tfvars"), []byte(`x = 2`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "corpus/variables/integration/dep-only.tfvars"), []byte(`x = 3`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	manifest := Manifest{Sources: []ManifestSource{{
+		Glob:   "corpus/deployments/*",
+		Origin: "test",
+		VarFileLayout: &VarFileLayout{
+			VariablesDir: "corpus/variables",
+			Env:          "integration",
+		},
+	}}}
+	entries, err := manifest.Resolve(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]CorpusEntryRef{}
+	for _, e := range entries {
+		byName[e.Name] = e
+	}
+
+	want := []string{"corpus/variables/integration/common.tfvars", "corpus/variables/integration/has-both.tfvars"}
+	if got := byName["corpus/deployments/has-both"].VarFiles; !equalStrings(got, want) {
+		t.Errorf("has-both: VarFiles = %v, want %v", got, want)
+	}
+	// dep-only has no common.tfvars candidate written for it in this test's
+	// tree, but the shared one lives in the same env directory, so it still
+	// applies - only a directory's OWN missing file is skipped.
+	want = []string{"corpus/variables/integration/common.tfvars", "corpus/variables/integration/dep-only.tfvars"}
+	if got := byName["corpus/deployments/dep-only"].VarFiles; !equalStrings(got, want) {
+		t.Errorf("dep-only: VarFiles = %v, want %v", got, want)
+	}
+	// "none" ships no deployment-specific file, so only the shared one
+	// applies - the missing candidate is left out, not recorded as if read.
+	want = []string{"corpus/variables/integration/common.tfvars"}
+	if got := byName["corpus/deployments/none"].VarFiles; !equalStrings(got, want) {
+		t.Errorf("none: VarFiles = %v, want %v", got, want)
+	}
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // TestCorpusAddRecordsVarFile is the artifact-side half: [Corpus.Add]'s
-// optional varFile argument lands on the entry so a reader of
+// optional varFiles argument lands on the entry, in order, so a reader of
 // live/corpus-refusals.json can tell a vars-supplied measurement from a
 // bare one, and every ordinary call - the eight elsewhere in this package's
 // own tests, all of which pass none - keeps compiling and keeps producing
 // an empty field.
 func TestCorpusAddRecordsVarFile(t *testing.T) {
 	corpus := NewCorpus()
-	corpus.Add("with-vars", "test", Report{}, "live/corpus-vars/example.tfvars")
+	corpus.Add("with-vars", "test", Report{}, "live/corpus-vars/a.tfvars", "live/corpus-vars/b.tfvars")
 	corpus.Add("bare", "test", Report{})
 	corpus.Finish()
 
@@ -153,10 +233,11 @@ func TestCorpusAddRecordsVarFile(t *testing.T) {
 		byName[e.Name] = e
 	}
 
-	if got := byName["with-vars"].VarFile; got != "live/corpus-vars/example.tfvars" {
-		t.Errorf("with-vars: VarFile = %q, want \"live/corpus-vars/example.tfvars\"", got)
+	want := []string{"live/corpus-vars/a.tfvars", "live/corpus-vars/b.tfvars"}
+	if got := byName["with-vars"].VarFiles; !equalStrings(got, want) {
+		t.Errorf("with-vars: VarFiles = %v, want %v", got, want)
 	}
-	if got := byName["bare"].VarFile; got != "" {
-		t.Errorf("bare: VarFile = %q, want empty", got)
+	if got := byName["bare"].VarFiles; len(got) != 0 {
+		t.Errorf("bare: VarFiles = %v, want empty", got)
 	}
 }
