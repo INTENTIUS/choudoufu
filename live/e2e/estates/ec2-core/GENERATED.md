@@ -28,6 +28,9 @@ go run ./tools/estate-gen -cohort ec2-core -types aws_ebs_snapshot_block_public_
 | `aws_placement_group.app` | coverage | none |
 | `aws_spot_fleet_request.app` | coverage | launch_specification and launch_template_config are both Optional in the schema, but the provider requires exactly one (validate: "Invalid combination of arguments"), and the generic pass sets neither; iam_fleet_role is Required and the provider validates it is a well-formed ARN (validate: "is an invalid ARN"), and the generic placeholder string is not one |
 | `aws_volume_attachment.app` | coverage | none |
+| `aws_ebs_volume.ec2-core` | supporting, not coverage | none |
+| `aws_security_group.ec2-core` | supporting, not coverage | none |
+| `aws_subnet.ec2-core` | supporting, not coverage | none |
 
 ## Requested types
 
@@ -52,6 +55,7 @@ go run ./tools/estate-gen -cohort ec2-core -types aws_ebs_snapshot_block_public_
 | `versions.tf` | `terraform`/`provider "aws"` blocks, identical in shape to `live/e2e/estate/versions.tf`. |
 | `locals.tf` | `estate_tag` — "ec2-core-cohort", distinct from every other cohort's own tag. |
 | `ec2-core.tf` | Every requested (coverage) resource. |
+| `supporting.tf` | Resources this generator added on its own so a required argument had something to reference - not a coverage row (see the Provenance table above). |
 
 ## Gating
 

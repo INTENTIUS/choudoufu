@@ -45,6 +45,8 @@ go run ./tools/estate-gen -cohort route53-cloudfront -types aws_cloudfront_anyca
 | `aws_route53recoverycontrolconfig_cluster.app` | coverage | none |
 | `aws_route53recoverycontrolconfig_control_panel.app` | coverage | none |
 | `aws_route53recoverycontrolconfig_safety_rule.app` | coverage | asserted_controls and gating_controls are both Optional in the schema, but the provider requires exactly one of them set (validate: "one of asserted_controls,gating_controls must be specified"); a gating rule also needs target_controls, the list of controls it gates, which the schema likewise leaves Optional; rule_config.type is a required string the schema does not constrain to an enum, but the provider validates it against a fixed set (validate: "expected type to be one of [ATLEAST AND OR]") |
+| `aws_route53_zone.route53-cloudfront` | supporting, not coverage | none |
+| `aws_vpc.route53-cloudfront` | supporting, not coverage | none |
 
 ## Requested types
 
@@ -86,6 +88,7 @@ go run ./tools/estate-gen -cohort route53-cloudfront -types aws_cloudfront_anyca
 | `versions.tf` | `terraform`/`provider "aws"` blocks, identical in shape to `live/e2e/estate/versions.tf`. |
 | `locals.tf` | `estate_tag` — "route53-cloudfront-cohort", distinct from every other cohort's own tag. |
 | `route53-cloudfront.tf` | Every requested (coverage) resource. |
+| `supporting.tf` | Resources this generator added on its own so a required argument had something to reference - not a coverage row (see the Provenance table above). |
 
 ## Gating
 

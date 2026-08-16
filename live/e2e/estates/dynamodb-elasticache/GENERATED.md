@@ -24,6 +24,7 @@ go run ./tools/estate-gen -cohort dynamodb-elasticache -types aws_dynamodb_globa
 | `aws_elasticache_subnet_group.app` | coverage | none |
 | `aws_elasticache_user.app` | coverage | engine is a required argument the schema types as an unconstrained string, but the provider validates it against a closed enum (validate: "expected engine to be one of [\"redis\" \"valkey\"]"); the generic placeholder string is neither |
 | `aws_elasticache_user_group.app` | coverage | none |
+| `aws_subnet.dynamodb-elasticache` | supporting, not coverage | none |
 
 ## Requested types
 
@@ -44,6 +45,7 @@ go run ./tools/estate-gen -cohort dynamodb-elasticache -types aws_dynamodb_globa
 | `versions.tf` | `terraform`/`provider "aws"` blocks, identical in shape to `live/e2e/estate/versions.tf`. |
 | `locals.tf` | `estate_tag` — "dynamodb-elasticache-cohort", distinct from every other cohort's own tag. |
 | `dynamodb-elasticache.tf` | Every requested (coverage) resource. |
+| `supporting.tf` | Resources this generator added on its own so a required argument had something to reference - not a coverage row (see the Provenance table above). |
 
 ## Gating
 

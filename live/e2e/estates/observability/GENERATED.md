@@ -46,6 +46,7 @@ go run ./tools/estate-gen -cohort observability -types aws_cloudwatch_alarm_mute
 | `aws_xray_group.app` | coverage | none |
 | `aws_xray_resource_policy.app` | coverage | policy_document is a required string the schema does not constrain, but the provider validates it is well-formed JSON (validate: "A string value was provided that is not valid JSON string format"); the generic placeholder string is not |
 | `aws_xray_sampling_rule.app` | coverage | rule_name is length-limited to 32 characters (validate: "expected length of rule_name to be in the range (1 - 32)"), and this cohort's own name ("observability") makes the generic tofu-<cohort>-cohort-<type> placeholder 46 characters - shortened here to a value that still names the cohort and the type. http_method is length-limited to 10 characters and the generic "placeholder" string is 11; priority must be in (1 - 9999) and version must be at least 1, but both are numeric arguments the generic required-only pass zero-values rather than infers a real member for; resource_arn has no local format check but "*" (match any resource) is the provider's own documented value for a rule with no specific resource. |
+| `aws_cloudwatch_log_group.observability` | supporting, not coverage | none |
 | `aws_iam_role.observability` | supporting, not coverage | schema requires "assume_role_policy" as a plain string, but the provider validates it is well-formed JSON (validate: "\"assume_role_policy\" contains an invalid JSON"); the generic string placeholder is not JSON |
 
 ## Requested types

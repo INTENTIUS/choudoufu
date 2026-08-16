@@ -26,7 +26,9 @@ go run ./tools/estate-gen -cohort iot -types aws_iot_authorizer,aws_iot_billing_
 | `aws_iot_thing_type.app` | coverage | none |
 | `aws_iot_topic_rule.app` | coverage | "name" is this type's own identity argument (internal/live/identity/table.go), but the generic pass's tofu-<cohort>-<type> placeholder uses hyphens, and the provider validates topic rule names against ^[0-9A-Za-z_]+$ (validate: "Name must match the pattern ^[0-9A-Za-z_]+$") - hyphens are not in that set, unlike every other client-named IoT type in this cohort. |
 | `aws_iot_topic_rule_destination.app` | coverage | none |
+| `aws_acm_certificate.iot` | supporting, not coverage | none |
 | `aws_iam_role.iot` | supporting, not coverage | schema requires "assume_role_policy" as a plain string, but the provider validates it is well-formed JSON (validate: "\"assume_role_policy\" contains an invalid JSON"); the generic string placeholder is not JSON |
+| `aws_vpc.iot` | supporting, not coverage | none |
 
 ## Requested types
 

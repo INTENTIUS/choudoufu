@@ -43,6 +43,8 @@ go run ./tools/estate-gen -cohort data-movement -types aws_appintegrations_data_
 | `aws_transfer_user.app` | coverage | none |
 | `aws_transfer_workflow.app` | coverage | steps.type is a required string the schema does not constrain to an enum, but the provider validates it against a fixed set (validate: "expected type to be one of [...]"); DELETE needs no further delete_step_details block, the smaller of the five shapes |
 | `aws_iam_role.data-movement` | supporting, not coverage | schema requires "assume_role_policy" as a plain string, but the provider validates it is well-formed JSON (validate: "\"assume_role_policy\" contains an invalid JSON"); the generic string placeholder is not JSON |
+| `aws_s3_bucket.data-movement` | supporting, not coverage | none |
+| `aws_secretsmanager_secret.data-movement` | supporting, not coverage | none |
 
 ## Requested types
 

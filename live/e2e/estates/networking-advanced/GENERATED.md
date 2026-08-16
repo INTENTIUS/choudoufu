@@ -59,6 +59,7 @@ go run ./tools/estate-gen -cohort networking-advanced -types aws_globalaccelerat
 | `aws_vpclattice_service_network_service_association.app` | coverage | none |
 | `aws_vpclattice_service_network_vpc_association.app` | coverage | service_network_identifier is Required but a generic-string placeholder, not a reference - overridden to this cohort's own aws_vpclattice_service_network.app.id. vpc_identifier is Required with no ARN-format validate error surfaced, but the real target is an EC2 VPC, outside this batch's own scope, so it stays a literal placeholder id |
 | `aws_vpclattice_target_group.app` | coverage | name is Required and length-validated the same way aws_vpclattice_listener's is above, given a short literal name for the same reason. type is Required and validated against a closed enum (validate: "expected type to be one of [\"IP\" \"LAMBDA\" \"INSTANCE\" \"ALB\"]"); an IP-type target group also needs its config block's vpc_identifier in practice (not caught by validate, enforced at Create), so config is given even though the schema marks it Optional |
+| `aws_lb.networking-advanced` | supporting, not coverage | none |
 
 ## Requested types
 
@@ -114,6 +115,7 @@ go run ./tools/estate-gen -cohort networking-advanced -types aws_globalaccelerat
 | `versions.tf` | `terraform`/`provider "aws"` blocks, identical in shape to `live/e2e/estate/versions.tf`. |
 | `locals.tf` | `estate_tag` — "networking-advanced-cohort", distinct from every other cohort's own tag. |
 | `networking-advanced.tf` | Every requested (coverage) resource. |
+| `supporting.tf` | Resources this generator added on its own so a required argument had something to reference - not a coverage row (see the Provenance table above). |
 
 ## Gating
 

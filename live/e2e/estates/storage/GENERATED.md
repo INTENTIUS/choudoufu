@@ -33,6 +33,9 @@ go run ./tools/estate-gen -cohort storage -types aws_backup_framework,aws_backup
 | `aws_fsx_openzfs_volume.app` | coverage | none |
 | `aws_fsx_s3_access_point_attachment.app` | coverage | type is a plain string in the schema but the provider validates it against the enum ["OPENZFS" "ONTAP"] (validate: "Invalid String Enum Value"); openzfs_configuration is a required block for type = "OPENZFS" that the schema does not mark required, its own volume_id is required with no schema-visible default, and its nested file_system_identity block is itself required with a required "type" of its own (validate: "Block ... must have a configuration value" at each level) |
 | `aws_fsx_windows_file_system.app` | coverage | throughput_capacity is optional/computed in the schema, rendered as the generic pass's numeric zero placeholder, but the provider validates it against a fixed set of MB/s values (validate: "expected throughput_capacity to be one of [8 16 32 ...]"), none of which is zero |
+| `aws_kms_key.storage` | supporting, not coverage | none |
+| `aws_s3_bucket.storage` | supporting, not coverage | none |
+| `aws_subnet.storage` | supporting, not coverage | none |
 
 ## Requested types
 
@@ -62,6 +65,7 @@ go run ./tools/estate-gen -cohort storage -types aws_backup_framework,aws_backup
 | `versions.tf` | `terraform`/`provider "aws"` blocks, identical in shape to `live/e2e/estate/versions.tf`. |
 | `locals.tf` | `estate_tag` — "storage-cohort", distinct from every other cohort's own tag. |
 | `storage.tf` | Every requested (coverage) resource. |
+| `supporting.tf` | Resources this generator added on its own so a required argument had something to reference - not a coverage row (see the Provenance table above). |
 
 ## Gating
 

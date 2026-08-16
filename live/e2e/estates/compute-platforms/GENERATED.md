@@ -43,6 +43,7 @@ go run ./tools/estate-gen -cohort compute-platforms -types aws_amplify_app,aws_a
 | `aws_lightsail_lb.app` | coverage | none |
 | `aws_lightsail_lb_certificate.app` | coverage | none |
 | `aws_lightsail_static_ip.app` | coverage | none |
+| `aws_iam_role.compute-platforms` | supporting, not coverage | schema requires "assume_role_policy" as a plain string, but the provider validates it is well-formed JSON (validate: "\"assume_role_policy\" contains an invalid JSON"); the generic string placeholder is not JSON |
 
 ## Requested types
 
@@ -82,6 +83,7 @@ go run ./tools/estate-gen -cohort compute-platforms -types aws_amplify_app,aws_a
 | `versions.tf` | `terraform`/`provider "aws"` blocks, identical in shape to `live/e2e/estate/versions.tf`. |
 | `locals.tf` | `estate_tag` — "compute-platforms-cohort", distinct from every other cohort's own tag. |
 | `compute-platforms.tf` | Every requested (coverage) resource. |
+| `supporting.tf` | Resources this generator added on its own so a required argument had something to reference - not a coverage row (see the Provenance table above). |
 
 ## Gating
 

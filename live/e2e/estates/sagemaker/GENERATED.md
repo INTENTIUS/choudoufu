@@ -43,6 +43,10 @@ go run ./tools/estate-gen -cohort sagemaker -types aws_sagemaker_algorithm,aws_s
 | `aws_sagemaker_user_profile.app` | coverage | none |
 | `aws_sagemaker_workteam.app` | coverage | none |
 | `aws_iam_role.sagemaker` | supporting, not coverage | schema requires "assume_role_policy" as a plain string, but the provider validates it is well-formed JSON (validate: "\"assume_role_policy\" contains an invalid JSON"); the generic string placeholder is not JSON |
+| `aws_s3_bucket.sagemaker` | supporting, not coverage | none |
+| `aws_servicecatalog_product.sagemaker` | supporting, not coverage | type is Required and the provider validates it against a closed enum (validate: "expected type to be one of [\"CLOUD_FORMATION_TEMPLATE\" \"MARKETPLACE\" \"TERRAFORM_OPEN_SOURCE\" \"TERRAFORM_CLOUD\" \"EXTERNAL\"]"); the generic placeholder string is not a member. provisioning_artifact_parameters is a required block whose own template_physical_id and template_url are both Optional in the schema, but the provider requires exactly one of them in practice (validate: "one of ... must be specified"), and the generic pass sets neither. |
+| `aws_subnet.sagemaker` | supporting, not coverage | none |
+| `aws_vpc.sagemaker` | supporting, not coverage | none |
 
 ## Requested types
 
