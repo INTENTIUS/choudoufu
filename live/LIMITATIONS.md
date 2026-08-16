@@ -495,8 +495,8 @@ own. Fixture at `live/e2e/limits/cloud-block/`.
 
 ### unadmitted-type
 
-**Construct.** `aws_iam_access_key`, a resource type outside the v0
-admission table.
+**Construct.** `aws_acm_certificate_validation`, a resource type outside the
+v0 admission table.
 
 **Why bounded.** "The admission rule". A type participates only if its
 identity is recoverable from the live system with no memory, by one of the
@@ -510,31 +510,35 @@ a `DO NOT EDIT` header. A type is not added to them by hand.
 `aws_nat_gateway` held this fixture's place until the EC2 networking
 ratification batch (issue #65) admitted it, and `aws_cloudwatch_event_rule`
 until the omitted-bus fallback vocabulary (`Component.Default`, the #175
-reversal) let its batch land. `aws_iam_access_key` is stabler than either:
-it is in the AWS provider survey's curated top types, and it is out by
-ruling rather than by any gap - the access key ID is server-assigned and
-the secret half is unreadable after create, so issue #125 held the ops
-exclusion and withdrew the one admission ever made. What cannot be read
-back there is the resource's own contents, never the marker, and that is
-the distinction which took `aws_secretsmanager_secret_version` off this
-list on 2026-08-16. The standing
-credential-material exclusion is the single class type parity deliberately
-leaves out, so no future ratification batch retires this example.
+reversal) let its batch land. `aws_iam_access_key` held it after those and
+moved to the `markerless-type` entry below when that rule landed: it is on
+the derived markerless roster, so the refusal an operator now sees for it
+names the mechanism rather than the table. `aws_acm_certificate_validation`
+is what is left, and it is stable for the same reason `aws_iam_access_key`
+was: it is in the AWS provider survey's curated top types, and it is out by
+ruling rather than by any gap - it records only that DNS validation
+finished, which is lifecycle sequencing wearing a resource's shape, so no
+future ratification batch retires this example.
 
-Two kinds of type hit this rule, and the error message does not distinguish
-them. Most out-of-table types are simply not wired yet - a scoping
+Two kinds of type hit this rule, and the error message used to make no
+distinction. Most out-of-table types are simply not wired yet - a scoping
 boundary, not a ban. `aws_nat_gateway` was exactly this case until issue
 #65's EC2 networking batch reached it, `aws_cloudwatch_event_rule` until
 the #175 batch built the `Component` vocabulary its omitted-bus identity
-needed, and most of the survey's remaining unadmitted rows still are.
-Two surveyed types are out by the admission rule
-itself, with no wiring batch ever coming: `aws_iam_access_key` (a
-credential, whose identity is born
-server-side alongside a secret that can never be read again. It becomes a
-lifecycle-layer Op writing to the secret store, referenced by ARN or
-pointer, never by value, the same forwarding `random_password` gets above)
-and `aws_acm_certificate_validation` (a waiter pretending to be a resource,
-it moves to lifecycle sequencing, the same forwarding as `time_sleep`).
+needed, and most of the survey's remaining unadmitted rows still are. The
+other kind is out by rule with no wiring batch ever coming, and that half
+now has a refusal of its own wherever the reason is derivable: see
+`markerless-type` below, which claims every type the markerless roster
+vetoes, `aws_iam_access_key` among them. What is left under this heading is
+the surveyed type whose exclusion is a hand ruling the roster does not
+reach - `aws_acm_certificate_validation`, a waiter pretending to be a
+resource, which moves to lifecycle sequencing, the same forwarding
+`time_sleep` gets above. `aws_iam_access_key`'s own forwarding is unchanged
+by the move: it becomes a lifecycle-layer Op writing to the secret store,
+referenced by ARN or pointer, never by value, the same forwarding
+`random_password` gets. What cannot be read back there is the resource's
+own contents, never the marker, and that is the distinction which took
+`aws_secretsmanager_secret_version` off this list on 2026-08-16.
 `aws_secretsmanager_secret_version` was a third until 2026-08-16, when the
 maintainer withdrew the exclusion: the ownership marker goes into a tag,
 never into the secret, so the credential rationale never applied to it. It
@@ -560,6 +564,55 @@ types the rule excludes: the lifecycle layer, per their entries in
 
 **Enforcement.** `RuleUnadmittedType`, `internal/live/lint/lint.go`
 (`checkManagedResources`). Fixture at `live/e2e/limits/unadmitted-type/`.
+
+### markerless-type
+
+**Construct.** `aws_emr_instance_group`, or any other resource type on
+`internal/live/identity`'s `MarkerlessTypes` roster.
+
+**Why bounded.** Ownership under this fork is two tags on the live object
+(`live/MARKERS.md`), and every way a run finds a live object again reads
+them off it. A type on this roster fails that twice over: the provider
+mints its identity at create time, so no run can compute what the object
+will be called, and the type carries no `tags` argument, so the marker that
+is the only handle left has nowhere to be written. Applying one would
+create a resource the configuration can never see again, and every later
+plan would propose creating another.
+
+The roster is derived, not maintained. `tools/row-gen` computes it on every
+run from `live/survey-full.json`'s taggability signal and the same
+server-assignment verdict that decides admission, and emits it into
+`internal/live/identity/markerless_generated.go` alongside
+`MarkerlessReason`, the one sentence covering the whole set. The refusal
+carries that sentence verbatim rather than a copy, so a type joining or
+leaving the roster cannot leave the message describing it wrongly.
+
+This is the distinction the `unadmitted-type` entry above could not make.
+That rule closes by asking a reader with a documented import ID to open an
+issue naming it - a reasonable request for a type no ratification batch has
+reached, and a round trip to be told no for a type the derivation has
+already refused on evidence. This rule offers no next step, because there
+is none: no configuration edit changes it, and no batch reaches it.
+
+Two of the four credential types the project excludes by standing ruling
+(`aws_iam_access_key`, `aws_iot_certificate`) are also on this roster and
+report through this rule. Both reasons are true of them; the roster's is
+the one the code can derive, and the credential ruling stands behind it
+unchanged.
+
+**Forwarding address.** None for the type as written. Where the same cloud
+object can be expressed by a taggable parent resource - a policy or
+attachment folded into the thing it attaches to - that parent is admitted
+in the ordinary way and carries the marker for both. `live/SURVEY.md`'s
+untaggable sections are where to check whether a given type has such a
+parent.
+
+**Enforcement.** `RuleMarkerlessType`, `internal/live/lint/lint.go`
+(`checkManagedResources`), consulted ahead of `RuleUnadmittedType` and
+ahead of `admitted()`'s provider-identity-schema fallback - a retracted
+type would otherwise be re-admitted from its identity schema with
+plan-and-create-only support, which is the one outcome worse than refusing
+it. Fixture at `live/e2e/limits/markerless-type/`.
 
 ### count-index-in-tag
 
@@ -1473,6 +1526,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | lint | child-live-config | error | `internal/live/lint` | "child-live-config" |
 | 0 | 0 | lint | for-each-key | error | `internal/live/lint` | "foreach-invalid-key" |
 | 0 | 0 | lint | ignore-changes | error | `internal/live/lint` | "ignore-changes" |
+| - | - | lint | markerless-type | error | `internal/live/lint` | "markerless-type" |
 | 0 | 0 | lint | module-provider-block | error | `internal/live/lint` | "module-provider-block" |
 | 0 | 0 | lint | moved-block | error | `internal/live/lint` | "moved-block" |
 | 0 | 0 | lint | overlong-address | error | `internal/live/lint` | "overlong-address" |
@@ -1518,7 +1572,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker could not be checked | error | `internal/live/stamp` | "Ownership marker could not be checked" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**177 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Two layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`) and a discovery refusal, whose severity is read from the same call the diagnostic is built from. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**178 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Two layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`) and a discovery refusal, whose severity is read from the same call the diagnostic is built from. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->

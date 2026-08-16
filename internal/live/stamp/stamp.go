@@ -22,6 +22,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/markerkey"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -898,7 +899,7 @@ func (s *stamper) unstampableAt(rc *configs.Resource, rng hcl.Range, summary, de
 // raised, and the two saying different things is how the fork's own
 // documentation came to describe a guarantee it did not hold (#111).
 func UnmarkedDiscoveryDetail(addr addrs.ConfigResource, disco identity.BlockDiscovery) string {
-	const lost = "Applying it unmarked would create a resource this configuration can never see again, and every later plan would propose creating another one."
+	const lost = "Applying it unmarked " + lint.UnfindableClause
 
 	arg := func(i int) string {
 		if i < len(disco.Args) {
@@ -921,7 +922,7 @@ func UnmarkedDiscoveryDetail(addr addrs.ConfigResource, disco identity.BlockDisc
 		// name catalog_id even where catalog_id was the entire fix.
 		if len(disco.Args) > 1 {
 			return fmt.Sprintf(
-				"%s has an identity this configuration would determine on its own except for the %s, which is a property of the cloud this run is pointed at and which nothing has told this run. The ownership marker is the only handle left. Setting %s in the resource block names the same thing from the configuration, which makes the identity computable and needs no marker at all; leaving it out and applying would create a resource this configuration can never see again, and every later plan would propose creating another one.",
+				"%s has an identity this configuration would determine on its own except for the %s, which is a property of the cloud this run is pointed at and which nothing has told this run. The ownership marker is the only handle left. Setting %s in the resource block names the same thing from the configuration, which makes the identity computable and needs no marker at all; leaving it out and applying "+lint.UnfindableClause,
 				addr, prop, orListBare(disco.Args[1:]))
 		}
 		return fmt.Sprintf(
@@ -931,14 +932,14 @@ func UnmarkedDiscoveryDetail(addr addrs.ConfigResource, disco identity.BlockDisc
 	case identity.DiscoveryNameOmitted:
 		if name := arg(0); name != "" {
 			return fmt.Sprintf(
-				"%s sets no %s, and the provider invents one at create time when it is omitted, so this run cannot say what the object will be called. The ownership marker is the only handle left. Setting %s to a value this configuration chooses makes the identity computable and needs no marker at all; leaving it out and applying would create a resource this configuration can never see again, and every later plan would propose creating another one.",
+				"%s sets no %s, and the provider invents one at create time when it is omitted, so this run cannot say what the object will be called. The ownership marker is the only handle left. Setting %s to a value this configuration chooses makes the identity computable and needs no marker at all; leaving it out and applying "+lint.UnfindableClause,
 				addr, name, name)
 		}
 
 	case identity.DiscoveryNamePrefix:
 		if base, prefix := arg(0), arg(1); base != "" && prefix != "" {
 			return fmt.Sprintf(
-				"%s is named through %s, so the provider appends a random suffix at create time and this run cannot say what the object will be called. The ownership marker is the only handle left. Naming it with %s instead of %s makes the identity computable and needs no marker at all; applying as written would create a resource this configuration can never see again, and every later plan would propose creating another one.",
+				"%s is named through %s, so the provider appends a random suffix at create time and this run cannot say what the object will be called. The ownership marker is the only handle left. Naming it with %s instead of %s makes the identity computable and needs no marker at all; applying as written "+lint.UnfindableClause,
 				addr, prefix, base, prefix)
 		}
 	}

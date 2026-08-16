@@ -1,21 +1,22 @@
 # Fixture for the residue roster's registry-laggard cohort (issue #49).
-# aws_ec2_client_vpn_authorization_rule is outside the v0 table and, per
-# live/mapping.json and live/registry.json, maps to
-# AWS::EC2::ClientVpnAuthorizationRule, whose Registry entry ships no
-# working handler at all. The rejected3 batch (2026-08-16) verified this
-# type's identity cleanly (server-assigned via id) but found the provider's
-# own Import section needs client_vpn_endpoint_id and target_network_cidr -
-# both real, Required arguments the registry's own composite-free
-# primaryIdentifier claim never named - so it stayed rejected rather than
-# admitted with an incomplete key (tools/row-gen/rejected.json). This
-# fixture previously used aws_codebuild_source_credential before the same
-# batch admitted it by correcting row-gen's proposal against the provider's
-# own documented import behaviour, and moved to a still-unadmitted type so
-# this test keeps exercising the registry-laggard cohort rather than
-# tripping over the admission table's own growth.
+# aws_config_delivery_channel is outside the v0 table and, per
+# live/mapping.json and live/registry.json, maps to a CloudFormation type
+# whose Registry entry ships no working handler at all. Its survey row reads
+# "identity attrs (name) are settable but not required arguments, so
+# client-naming is unprovable from the schema; untaggable, no native list
+# resource and no Cloud Control list handler", which is ordinary admission
+# debt: a config signal naming every block explicitly can still admit it.
+#
+# Two types held this fixture's place before it. aws_codebuild_source_credential
+# left when the rejected3 batch (2026-08-16) admitted it. aws_ec2_client_vpn_authorization_rule
+# left when RuleMarkerlessType landed: it is on
+# internal/live/identity.MarkerlessTypes, and the markerless-type refusal
+# deliberately carries no residue cohort sentence, so a fixture using it
+# stopped exercising this test's subject entirely. The replacement has to be
+# unadmitted, in the registry-laggard cohort, and off the markerless roster -
+# all three, or this test measures something other than what it names.
 
-resource "aws_ec2_client_vpn_authorization_rule" "example" {
-  client_vpn_endpoint_id = "cvpn-endpoint-0ac3a1abbccddd666"
-  target_network_cidr    = "10.1.0.0/24"
-  authorize_all_groups   = true
+resource "aws_config_delivery_channel" "example" {
+  name           = "example"
+  s3_bucket_name = "example-config-bucket"
 }

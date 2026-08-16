@@ -347,6 +347,42 @@ func checkManagedResources(ctx context.Context, mod *configs.Module, path addrs.
 			continue
 		}
 
+		if markerlessVetoed(resource.Type) {
+			// Ahead of the unadmitted-type refusal below, and ahead of the
+			// schema fallback inside admitted() - see markerlessVetoed and
+			// admitted in admission.go for why the order is load-bearing
+			// rather than stylistic.
+			//
+			// Both facts, in one sentence, from the layer that derives them:
+			// identity.MarkerlessReason is generated alongside the roster
+			// itself, so the roster cannot grow a member this sentence
+			// describes wrongly. The consequence clause comes from
+			// internal/live/stamp, which says the same thing to an operator
+			// who reached apply with an unstampable resource; #111 is what
+			// happens when one fact has two wordings and one of them is
+			// updated.
+			//
+			// No next step is offered because there is none. That is the
+			// whole difference between this rule and the one below, whose
+			// closing clause asks for an issue naming the type and its
+			// import ID.
+			*issues = append(*issues, Issue{
+				Rule:      RuleMarkerlessType,
+				Construct: addr,
+				Type:      resource.Type,
+				Module:    path,
+				Detail: fmt.Sprintf(
+					"resource type %q is excluded from the live-markers subset by a standing rule "+
+						"rather than by a ratification batch that has not reached it: %s. Applying a "+
+						"block of this type %s No configuration edit changes that, and no future batch "+
+						"reaches it.",
+					resource.Type, identity.MarkerlessReason, UnfindableClause,
+				),
+				Subject: resource.DeclRange,
+			})
+			continue
+		}
+
 		if !admitted(resource.Type, schemas, signal) {
 			// Three clauses of this sentence have gone stale in turn (#101).
 			// It said the table was "hardcoded in

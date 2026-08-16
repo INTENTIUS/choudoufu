@@ -36,7 +36,7 @@ func TestRefusalNamesUnmappedCohort(t *testing.T) {
 }
 
 func TestRefusalNamesRegistryLaggardCohort(t *testing.T) {
-	assertRefusalNamesCohort(t, "testdata/residue-laggard", "aws_ec2_client_vpn_authorization_rule.example", residue.CohortRegistryLaggard)
+	assertRefusalNamesCohort(t, "testdata/residue-laggard", "aws_config_delivery_channel.example", residue.CohortRegistryLaggard)
 }
 
 func TestRefusalNamesEmulatorBlockedCohort(t *testing.T) {
@@ -51,6 +51,15 @@ func assertRefusalNamesCohort(t *testing.T, dir, construct string, wantCohort re
 	t.Helper()
 
 	resourceType := strings.SplitN(construct, ".", 2)[0]
+	// A cohort fixture whose type drifted onto the markerless roster stops
+	// exercising the cohort sentence at all: RuleMarkerlessType fires
+	// instead, and it carries no cohort sentence by design (see
+	// checkManagedResources). The rule assertion below would catch it, but
+	// with a message about rules rather than about what actually happened,
+	// which sent one reader looking in the wrong place already.
+	if markerlessVetoed(resourceType) {
+		t.Fatalf("%s is on identity.MarkerlessTypes, so it now raises RuleMarkerlessType and never reaches the %s cohort sentence; move this fixture to an unadmitted, non-markerless type in the same cohort", resourceType, wantCohort)
+	}
 	cohort, sentence, ok := residue.Lookup(resourceType)
 	if !ok {
 		t.Fatalf("residue.Lookup(%q) reports no cohort; the fixture no longer exercises %s", resourceType, wantCohort)

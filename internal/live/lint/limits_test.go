@@ -43,6 +43,7 @@ var enforcedLimits = map[string]Rule{
 	"backend-block":       RuleStateBackend,
 	"cloud-block":         RuleStateBackend,
 	"unadmitted-type":     RuleUnadmittedType,
+	"markerless-type":     RuleMarkerlessType,
 	"count-index-in-tag":  RuleCountIndex,
 	"foreach-invalid-key": RuleForEachKey,
 	"overlong-address":    RuleOverlongAddress,
