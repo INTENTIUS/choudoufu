@@ -225,12 +225,39 @@ func (r *resolver) walkModule(cfg *configs.Config, modInst addrs.ModuleInstance,
 		}
 	}
 	for _, name := range SortedChildNames(cfg.Children) {
+		// Restored before every sibling, not just once before the loop: the
+		// recursive r.walkModule call below, for whichever sibling sorts
+		// before this one, ends by leaving r.mod/r.curCfg/r.modInst/r.eval
+		// pointing at wherever ITS OWN deepest descendant left them -
+		// enterModuleAt has no notion of a caller to return to. Without
+		// this, a later sibling's own r.mod.ModuleCalls[name] lookup below
+		// silently reads an unrelated module's call table (typically empty,
+		// so its own count/for_each is missed entirely) whenever an
+		// earlier-sorted sibling has any children of its own to recurse
+		// into first. Found via govuk-infrastructure's opensearch
+		// blue/green module: "blue_domain" sorts and is walked before
+		// "snapshot_bucket", and blue_domain's own subtree left r.mod
+		// pointing three levels down by the time snapshot_bucket's count
+		// was read.
+		r.enterModuleAt(cfg, modInst)
 		child := cfg.Children[name]
-		var forEach hcl.Expression
+		var forEach, count hcl.Expression
 		if call, ok := r.mod.ModuleCalls[name]; ok && call != nil {
 			forEach = call.ForEach
+			count = call.Count
 		}
-		keys, diag := ChildModuleKeys(r.ctx, r.mod, childSubject(name), forEach)
+		// count and for_each are mutually exclusive on a module call, the
+		// same as on a resource; count is tried first only because that is
+		// the order [resolver.buildExpansion] already uses for a resource's
+		// own count/for_each, not because either can be set alongside the
+		// other.
+		var keys []addrs.InstanceKey
+		var diag *hcl.Diagnostic
+		if count != nil {
+			keys, diag = ChildModuleCountKeys(r.ctx, r.mod, childSubject(name), count)
+		} else {
+			keys, diag = ChildModuleKeys(r.ctx, r.mod, childSubject(name), forEach)
+		}
 		if diag != nil {
 			r.diags = r.diags.Append(diag)
 			continue
