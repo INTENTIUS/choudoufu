@@ -166,11 +166,21 @@ func serverSegmentTokens(g importGrammarRow) string {
 
 // argumentRefEntry mirrors tools/importdocs-gen/artifact.go's
 // ArgumentRefEntry: one Argument Reference bullet's name and its
-// Required/ForceNew marking.
+// Required/ForceNew/ServerAssignedIfAbsent marking.
 type argumentRefEntry struct {
 	Name     string `json:"name"`
 	Required bool   `json:"required"`
 	ForceNew bool   `json:"force_new"`
+
+	// ServerAssignedIfAbsent mirrors tools/importdocs-gen/parse.go's
+	// ArgumentRefEntry field of the same name: the bullet's own prose
+	// states the provider assigns this Optional argument a fresh value
+	// (not a literal default - see Component.Default's own scrape,
+	// OmittedFallbacks above) when the configuration omits it. See #190
+	// and internal/live/identity/table.go's Component.ServerAssignedIfAbsent,
+	// the field this evidence feeds at emit time (emit.go's
+	// mergeServerAssigned).
+	ServerAssignedIfAbsent bool `json:"server_assigned_if_absent"`
 }
 
 type importGrammarArtifact struct {

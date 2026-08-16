@@ -32,6 +32,21 @@ func loadAnnotationsForTest(t *testing.T) map[string]annotation {
 	return annotations
 }
 
+// loadImportGrammarForTest reads live/import-grammar.json the same way
+// runEmit does, for mergeServerAssigned's own evidence.
+func loadImportGrammarForTest(t *testing.T) map[string]importGrammarRow {
+	t.Helper()
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatalf("repoRoot: %v", err)
+	}
+	grammar, err := loadImportGrammar(filepath.Join(root, importGrammarJSONRel))
+	if err != nil {
+		t.Fatalf("loadImportGrammar: %v", err)
+	}
+	return grammar
+}
+
 // TestEmitFilesMatchCommitted regenerates the two files -emit owns and
 // requires them to match what is committed byte-for-byte. Regenerate with:
 //
@@ -70,8 +85,9 @@ func TestEmitFilesMatchCommitted(t *testing.T) {
 	}
 	proposals := loadAllForTest(t)
 	annotations := loadAnnotationsForTest(t)
+	grammar := loadImportGrammarForTest(t)
 
-	files, identityPart, lintPart, err := buildEmitFiles(proposals, annotations)
+	files, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar)
 	if err != nil {
 		t.Fatalf("buildEmitFiles: %v", err)
 	}
@@ -116,7 +132,8 @@ func TestEmitPartitionsDisjointAndComplete(t *testing.T) {
 	proposals := loadAllForTest(t)
 	annotations := loadAnnotationsForTest(t)
 
-	_, identityPart, lintPart, err := buildEmitFiles(proposals, annotations)
+	grammar := loadImportGrammarForTest(t)
+	_, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar)
 	if err != nil {
 		t.Fatalf("buildEmitFiles: %v", err)
 	}
@@ -199,7 +216,8 @@ func TestEmitGateRefusesUnruledMismatch(t *testing.T) {
 	}
 	delete(broken, victim)
 
-	files, _, _, err := buildEmitFiles(proposals, broken)
+	grammar := loadImportGrammarForTest(t)
+	files, _, _, err := buildEmitFiles(proposals, broken, grammar)
 	if err == nil {
 		t.Fatalf("buildEmitFiles accepted an unreproduced, unruled type (%s): the gate is not firing", victim)
 	}
@@ -218,7 +236,8 @@ func TestEmitRendersValidGo(t *testing.T) {
 	proposals := loadAllForTest(t)
 	annotations := loadAnnotationsForTest(t)
 
-	files, _, _, err := buildEmitFiles(proposals, annotations)
+	grammar := loadImportGrammarForTest(t)
+	files, _, _, err := buildEmitFiles(proposals, annotations, grammar)
 	if err != nil {
 		t.Fatalf("buildEmitFiles: %v", err)
 	}

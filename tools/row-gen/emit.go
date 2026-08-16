@@ -44,6 +44,14 @@ import (
 // Once the fragments are gone that ground truth is this mode's own previous
 // output, which makes -emit a fixed point: running it twice changes nothing.
 //
+// One field is the deliberate exception: renderIdentityFile's own
+// mergeServerAssigned recomputes [identity.Component.ServerAssignedIfAbsent]
+// from live/import-grammar.json on every run rather than copying it, because
+// nothing ever ratifies that field by hand - see renderIdentityFile's doc
+// comment for why that is still the fixed point this comment describes
+// (idempotent once the field is set, changing only when the doc evidence
+// does), not a hole in the byte-identity bar above.
+//
 // What row-gen's fresh classifyAll run contributes is the MEASUREMENT: which
 // types its registry-evidence classifier reproduces on its own and which
 // still need a human's correction. That number is the visible debt a later
@@ -85,8 +93,12 @@ func runEmit(out, errOut *os.File) error {
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", annotationsJSONRel, err)
 	}
+	grammar, err := loadImportGrammar(filepath.Join(root, importGrammarJSONRel))
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", importGrammarJSONRel, err)
+	}
 
-	files, identityPart, lintPart, err := buildEmitFiles(proposals, annotations)
+	files, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar)
 	if err != nil {
 		return err
 	}
@@ -114,10 +126,11 @@ var emitFileOrder = []string{identityTableRel, lintTableRel}
 
 // buildEmitFiles is -emit's pure computation, split out from runEmit so tests
 // can exercise it without writing to the checkout: given a fresh classifyAll
-// run and annotations.json's rulings, it returns the two generated files'
-// contents by repo-relative path, plus the two convergence measurements the
-// summary line and tests both want the counts of.
-func buildEmitFiles(proposals []proposal, annotations map[string]annotation) (files map[string][]byte, identityPart, lintPart emitPartition, err error) {
+// run, annotations.json's rulings and live/import-grammar.json's own
+// evidence, it returns the two generated files' contents by repo-relative
+// path, plus the two convergence measurements the summary line and tests
+// both want the counts of.
+func buildEmitFiles(proposals []proposal, annotations map[string]annotation, grammar map[string]importGrammarRow) (files map[string][]byte, identityPart, lintPart emitPartition, err error) {
 	art := buildConvergence(proposals, annotations)
 
 	matched := make(map[string]bool, len(art.Types))
@@ -152,7 +165,7 @@ func buildEmitFiles(proposals []proposal, annotations map[string]annotation) (fi
 	lintGenerated, lintOverride := splitNonRecordBacked(identityPart)
 	lintPart = emitPartition{Generated: lintGenerated, Override: lintOverride}
 
-	identitySrc, err := renderIdentityFile(identity.AdmittedTypes())
+	identitySrc, err := renderIdentityFile(identity.AdmittedTypes(), grammar)
 	if err != nil {
 		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", identityTableRel, err)
 	}
@@ -219,12 +232,26 @@ func admittedNonRecordBacked() []string {
 }
 
 // renderIdentityFile renders internal/live/identity's whole table: the
-// [identity.DefaultTable] declaration itself, over the named types' verbatim
-// entries, gofmt-formatted. The result is self-contained - a plain map
-// literal that calls no constructor and references no hand-written helper or
-// constant - so that nothing outside this generator participates in building
-// the table.
-func renderIdentityFile(types []string) ([]byte, error) {
+// [identity.DefaultTable] declaration itself, over the named types' entries,
+// gofmt-formatted. The result is self-contained - a plain map literal that
+// calls no constructor and references no hand-written helper or constant -
+// so that nothing outside this generator participates in building the
+// table.
+//
+// Every field but one is copied verbatim from the currently-compiled
+// [identity.DefaultTable], as this file's own doc comment has always
+// promised. The one exception is mergeServerAssigned's own field,
+// [identity.Component.ServerAssignedIfAbsent] (#190): unlike every other
+// field here, nothing ever ratifies its value by hand - a human choosing it
+// per row would be re-deciding a fact the provider's docs already state, the
+// same reasoning that keeps OmittedFallbacks's Default values (and, before
+// this, ForceNew and Required) out of hand-ratification too. So this one
+// field is not read from DefaultTable at all; it is recomputed from
+// live/import-grammar.json on every run, over an otherwise-verbatim copy of
+// every ratified row. A row a human ratified before #190 existed still gets
+// the field filled in the moment the doc evidence for its own arguments
+// says to, with no per-type edit anywhere in this generator's control flow.
+func renderIdentityFile(types []string, grammar map[string]importGrammarRow) ([]byte, error) {
 	var b strings.Builder
 	b.WriteString(licenseHeader)
 	b.WriteString("\n")
@@ -234,10 +261,57 @@ func renderIdentityFile(types []string) ([]byte, error) {
 	b.WriteString(defaultTableDoc)
 	b.WriteString("var DefaultTable = map[string]TypeIdentity{\n")
 	for _, t := range types {
-		fmt.Fprintf(&b, "%q: %s,\n", t, renderStruct(reflect.ValueOf(identity.DefaultTable[t])))
+		entry := mergeServerAssigned(identity.DefaultTable[t], grammar[t])
+		fmt.Fprintf(&b, "%q: %s,\n", t, renderStruct(reflect.ValueOf(entry)))
 	}
 	b.WriteString("}\n")
 	return format.Source([]byte(b.String()))
+}
+
+// mergeServerAssigned layers live/import-grammar.json's Argument Reference
+// evidence onto entry's Components, setting
+// [identity.Component.ServerAssignedIfAbsent] wherever the doc's own bullet
+// for one of a component's Attrs states the auto-generation convention
+// (tools/importdocs-gen's ArgumentRefEntry.ServerAssignedIfAbsent - see
+// #190). It never touches a component that already resolves without the
+// argument (Default set) or that carries no Attrs at all (a literal
+// separator), and it never names a resource type: the only inputs are
+// entry's own Attrs names and row's own per-argument evidence, so the same
+// call handles every type in the table identically. row's zero value (the
+// type has no grammar row at all) leaves entry untouched.
+func mergeServerAssigned(entry identity.TypeIdentity, row importGrammarRow) identity.TypeIdentity {
+	if len(row.ArgumentReference) == 0 || len(entry.Components) == 0 {
+		return entry
+	}
+	assigned := make(map[string]bool, len(row.ArgumentReference))
+	for _, a := range row.ArgumentReference {
+		if a.ServerAssignedIfAbsent {
+			assigned[a.Name] = true
+		}
+	}
+	if len(assigned) == 0 {
+		return entry
+	}
+	changed := false
+	comps := append([]identity.Component(nil), entry.Components...)
+	for i, c := range comps {
+		if c.ServerAssignedIfAbsent || c.Default != "" || len(c.Attrs) == 0 {
+			continue
+		}
+		for _, name := range c.Attrs {
+			if assigned[name] {
+				c.ServerAssignedIfAbsent = true
+				comps[i] = c
+				changed = true
+				break
+			}
+		}
+	}
+	if !changed {
+		return entry
+	}
+	entry.Components = comps
+	return entry
 }
 
 // defaultTableDoc is DefaultTable's own doc comment. It travels with the

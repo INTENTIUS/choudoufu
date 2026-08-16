@@ -1914,7 +1914,8 @@
         },
         {
           "name": "value",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         }
       ]
     },
@@ -2950,7 +2951,8 @@
         },
         {
           "name": "operation_name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "region",
@@ -14148,7 +14150,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -16952,7 +16955,8 @@
         },
         {
           "name": "client_token",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "tags",
@@ -24748,7 +24752,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -24978,7 +24983,8 @@
         },
         {
           "name": "target_id",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         }
       ],
       "arguments_in_doc_order": [
@@ -25643,7 +25649,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -26602,7 +26609,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -31349,7 +31357,8 @@
         },
         {
           "name": "version_name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "version_name_prefix",
@@ -31482,7 +31491,8 @@
         },
         {
           "name": "version_name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "version_name_prefix",
@@ -38678,7 +38688,8 @@
         },
         {
           "name": "identifier",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "identifier_prefix",
@@ -39100,7 +39111,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -39200,7 +39212,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -39749,7 +39762,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -43203,7 +43217,8 @@
         {
           "name": "cluster_identifier",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "db_subnet_group_name",
@@ -43401,7 +43416,8 @@
         {
           "name": "identifier",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "instance_class",
@@ -43485,7 +43501,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -43767,7 +43784,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -53913,7 +53931,8 @@
         },
         {
           "name": "node_group_name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "node_group_name_prefix",
@@ -55044,7 +55063,8 @@
         },
         {
           "name": "id",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "tags",
@@ -66373,7 +66393,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -66518,7 +66539,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -66704,7 +66726,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -66874,7 +66897,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -66980,7 +67004,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -67214,7 +67239,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -67618,7 +67644,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -77306,7 +77333,8 @@
         },
         {
           "name": "statement_id",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "statement_id_prefix",
@@ -78118,7 +78146,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -79018,7 +79047,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "port",
@@ -79294,7 +79324,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "tags",
@@ -82143,7 +82174,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -83404,7 +83436,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -83543,7 +83576,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -83649,7 +83683,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -85027,7 +85062,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -85182,7 +85218,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -85378,7 +85415,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -85441,7 +85479,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -85499,7 +85538,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -87715,7 +87755,8 @@
         {
           "name": "cluster_identifier",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "cluster_identifier_prefix",
@@ -87983,7 +88024,8 @@
         {
           "name": "identifier",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "identifier_prefix",
@@ -88087,7 +88129,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -88435,7 +88478,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -88526,7 +88570,8 @@
         {
           "name": "graph_name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "public_connectivity",
@@ -97442,7 +97487,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -101556,7 +101602,8 @@
         {
           "name": "cluster_identifier",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "cluster_identifier_prefix",
@@ -102085,7 +102132,8 @@
         {
           "name": "identifier",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "instance_class",
@@ -102207,7 +102255,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -104543,7 +104592,8 @@
         {
           "name": "identifier",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "identifier_prefix",
@@ -109682,7 +109732,8 @@
         {
           "name": "bucket",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "bucket_namespace",
@@ -114785,7 +114836,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "network_config",
@@ -115083,7 +115135,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "tags",
@@ -115175,7 +115228,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "production_variants",
@@ -116581,7 +116635,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "primary_container",
@@ -116926,7 +116981,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "region",
@@ -117066,7 +117122,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "on_create",
@@ -118031,7 +118088,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -118094,7 +118152,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -118819,7 +118878,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "revoke_rules_on_delete",
@@ -124269,7 +124329,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -125136,7 +125197,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -125935,7 +125997,8 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -130534,7 +130597,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -138082,7 +138146,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "server_assigned_if_absent": true
         },
         {
           "name": "metric_name",
@@ -139378,7 +139443,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -139480,7 +139546,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",
@@ -139875,7 +139942,8 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "server_assigned_if_absent": true
         },
         {
           "name": "name_prefix",

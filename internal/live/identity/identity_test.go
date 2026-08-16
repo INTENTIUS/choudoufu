@@ -523,8 +523,8 @@ func TestResolveErrors(t *testing.T) {
 		{
 			dir:         "missing-identity-arg",
 			wantSummary: "Identity argument not set",
-			wantDetail:  `"bucket"`,
-			wantAbsent:  `aws_s3_bucket.data`,
+			wantDetail:  `"name"`,
+			wantAbsent:  `aws_iam_group.admins`,
 		},
 		// The three marked-expansion cases below crashed the run before
 		// buildExpansion guarded them: cty panics rather than erroring when
