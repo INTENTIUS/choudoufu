@@ -747,13 +747,17 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	// to it (a Glue catalog_id defaults to the caller's own account) can be
 	// answered by the configuration instead: see [Component.Attrs] on a
 	// cloud-bearing component, and cloudComponentAttr below.
-	if missing, ok := r.missingCloudValue(entry, attrs, scope, addr, cloudScope); ok {
+	if comp, ok := r.missingCloudComponent(entry, attrs, scope, addr, cloudScope); ok {
 		return Resolution{
-			Addr:      addr,
-			Class:     ClassNeedsDiscovery,
-			Reason:    cloudReason(entry, missing),
-			Cause:     DiscoveryCloudUnknown,
-			CauseArgs: []string{string(missing)},
+			Addr:   addr,
+			Class:  ClassNeedsDiscovery,
+			Reason: cloudReason(entry, comp.Cloud),
+			Cause:  DiscoveryCloudUnknown,
+			// The cloud property first, then the arguments the provider
+			// documents as defaulting to it - which is what the
+			// configuration can set instead, and is empty for a component
+			// that has no such argument. See [DiscoveryCloudUnknown].
+			CauseArgs: append([]string{string(comp.Cloud)}, comp.Attrs...),
 		}, true
 	}
 
@@ -794,7 +798,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			// catalog_id pointed at another account's Data Catalog names
 			// that catalog, not this run's account. The cloud value is the
 			// documented fallback for the omitted case, and
-			// missingCloudValue has already refused the case where neither
+			// missingCloudComponent has already refused the case where neither
 			// side has anything to offer.
 			if attr := r.cloudComponentAttr(comp, attrs, scope, addr); attr != nil {
 				got, ok := r.resolveExpr(attr.Expr, scope, r.identifier(addr, attr.Name, attr.Range))
@@ -1017,11 +1021,21 @@ func classify(addr addrs.AbsResourceInstance, parts []Part, attrs []AttrFormula,
 	}
 }
 
-// missingCloudValue reports the first cloud property this entry's identity
-// needs that neither the run nor the configuration supplied, in component
-// order. A component the configuration answers (see cloudComponentAttr) is
-// not missing anything, whether or not the run was told the cloud value.
-func (r *resolver) missingCloudValue(entry TypeIdentity, attrs hcl.Attributes, scope instScope, addr addrs.AbsResourceInstance, cs cloudScopeKey) (CloudValue, bool) {
+// missingCloudComponent reports the first component of this entry's identity
+// whose cloud property neither the run nor the configuration supplied, in
+// component order. A component the configuration answers (see
+// cloudComponentAttr) is not missing anything, whether or not the run was told
+// the cloud value.
+//
+// It returns the whole [Component] rather than just its [CloudValue] because
+// the component's [Component.Attrs] is the operator's way out: those are the
+// arguments the provider documents as defaulting to the cloud property, so
+// setting one makes the identity computable with no cloud call and no marker.
+// The refusal used to carry only the property, which left the one sentence an
+// operator reads unable to name catalog_id even though catalog_id was the
+// whole fix (GitHub issue #250). A component with no such argument returns an
+// empty Attrs and the sentence offers no step, which is still true of it.
+func (r *resolver) missingCloudComponent(entry TypeIdentity, attrs hcl.Attributes, scope instScope, addr addrs.AbsResourceInstance, cs cloudScopeKey) (Component, bool) {
 	for _, comp := range entry.Components {
 		if comp.Cloud == CloudNone {
 			continue
@@ -1030,15 +1044,15 @@ func (r *resolver) missingCloudValue(entry TypeIdentity, attrs hcl.Attributes, s
 			continue
 		}
 		if _, ok := r.cloudValueFor(comp.Cloud, cs); !ok {
-			return comp.Cloud, true
+			return comp, true
 		}
 	}
-	return CloudNone, false
+	return Component{}, false
 }
 
 // cloudValueFor is this run's value for one cloud property, for the resource
 // whose scope is cs, and whether it has one. It is the single answer both
-// [resolver.missingCloudValue] and the component loop read, so the refusal
+// [resolver.missingCloudComponent] and the component loop read, so the refusal
 // and the identity can never disagree about what is known.
 //
 // [CloudRegion] is answered from the resource's own effective region rather

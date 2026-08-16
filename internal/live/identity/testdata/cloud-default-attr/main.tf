@@ -37,3 +37,11 @@ resource "aws_glue_catalog_database" "maybe" {
   catalog_id = var.cross_account ? null : var.peer_catalog
   name       = "maybe"
 }
+
+# The contrast case: a cloud-bearing component with NO argument beside it.
+# The account is a bare segment in the middle of the ARN CloudFront mints, and
+# the provider documents no argument that names it, so there is nothing an
+# author could set instead and the refusal has no next step to offer.
+resource "aws_cloudfront_realtime_log_config" "logs" {
+  name = "traffic"
+}

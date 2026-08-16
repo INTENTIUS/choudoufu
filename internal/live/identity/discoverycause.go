@@ -55,7 +55,20 @@ const (
 	// came out of the configuration - so this is a gap in what the run knows
 	// rather than a property of the type.
 	//
-	// [Resolution.CauseArgs] holds the missing [CloudValue].
+	// [Resolution.CauseArgs] holds the missing [CloudValue] first, then the
+	// failing component's [Component.Attrs] - the arguments the provider's
+	// own Argument Reference documents as defaulting to that cloud property
+	// (a Glue catalog_id defaults to the caller's account; a region
+	// argument defaults to the provider's region). Setting one of those in
+	// the configuration makes the identity computable with no cloud call
+	// and no marker, so it is the operator's way out and a reader must be
+	// able to name it. A component with no such argument - a bare account
+	// segment in the middle of an ARN, say - contributes no further entries
+	// and leaves the sentence with no step to offer, which is true of it.
+	//
+	// The slice is therefore at least one long for this cause, and index 0
+	// is always the cloud property. Readers written against the
+	// single-entry shape keep working unchanged.
 	DiscoveryCloudUnknown DiscoveryCause = "CLOUD_UNKNOWN"
 
 	// DiscoveryNameOmitted is [Component.ServerAssignedIfAbsent] on an

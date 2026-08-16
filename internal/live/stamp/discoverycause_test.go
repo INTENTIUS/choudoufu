@@ -119,6 +119,57 @@ func TestUnmarkedDiscoveryDetail_everyCauseIsToldApart(t *testing.T) {
 	}
 }
 
+// TestUnmarkedDiscoveryDetail_cloudCauseNamesTheArgument is #250's second
+// half. A CLOUD_UNKNOWN carries the missing cloud property first and then the
+// arguments the provider documents as defaulting to it, so the sentence can
+// offer the same kind of next step DiscoveryNameOmitted already offers -
+// "set catalog_id" - instead of describing a run-level setting the operator
+// forgot and that does not exist.
+//
+// The assertion is on the rendered sentence, and the negative half matters as
+// much as the positive one: a component with no such argument must keep the
+// no-step wording rather than invent one.
+func TestUnmarkedDiscoveryDetail_cloudCauseNamesTheArgument(t *testing.T) {
+	withArg, severity := stampWithCause(t, identity.BlockDiscovery{
+		Cause: identity.DiscoveryCloudUnknown,
+		Args:  []string{string(identity.CloudAccountID), "catalog_id"},
+	})
+	if severity != tfdiags.Error {
+		t.Errorf("naming the argument softened the severity to %v; the resource is still unfindable as written", severity)
+	}
+	for _, phrase := range []string{
+		"AWS account ID",
+		"Setting catalog_id in the resource block",
+		"makes the identity computable and needs no marker at all",
+	} {
+		if !strings.Contains(withArg, phrase) {
+			t.Errorf("the sentence does not contain %q:\n  %s", phrase, withArg)
+		}
+	}
+
+	// The contrast: a bare account segment in the middle of an ARN has no
+	// argument, and the sentence must not pretend otherwise.
+	bare, _ := stampWithCause(t, identity.BlockDiscovery{
+		Cause: identity.DiscoveryCloudUnknown,
+		Args:  []string{string(identity.CloudAccountID)},
+	})
+	if strings.Contains(bare, "Setting") {
+		t.Errorf("a cloud component with no argument was still offered one:\n  %s", bare)
+	}
+	if bare == withArg {
+		t.Errorf("the argument made no difference to the sentence:\n  %s", bare)
+	}
+
+	// Two candidate arguments read as a choice, not as a list to set all of.
+	both, _ := stampWithCause(t, identity.BlockDiscovery{
+		Cause: identity.DiscoveryCloudUnknown,
+		Args:  []string{string(identity.CloudRegion), "region", "location"},
+	})
+	if !strings.Contains(both, "Setting region or location in the resource block") {
+		t.Errorf("two candidate arguments did not render as a choice:\n  %s", both)
+	}
+}
+
 // TestUnmarkedDiscoveryDetail_zeroCauseStillRefuses is the trap this map's
 // shape creates and the reason [stamper.discovery] uses the comma-ok form.
 //
