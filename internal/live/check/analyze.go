@@ -118,21 +118,28 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	// instrument runs it directly, right after the identity resolution that
 	// supplies req.NeedsDiscovery.
 	//
-	// Gated on schemas actually being present, and not merely non-nil:
-	// unlike the lint and identity passes above, which fall back to a
-	// hand-written admission table and only get less accurate without
-	// schemas, [stamp.Stamp] has no such fallback - every resource type
-	// reads as unschema'd and therefore untaggable, which turns "this
-	// instrument does not know" into a false "Unmarked apply of a
-	// marker-only resource" error on every needs-discovery instance. That is
-	// exactly the false-refusal failure mode this issue exists to remove,
-	// not to add back for a directory nobody ran "tofu init" in.
-	if result != nil && len(actx.Schemas) > 0 {
+	// Always run when identity resolved at all, rather than gated on
+	// "any schema present anywhere" (that gate was issue #230: schemas are
+	// merged across every provider the configuration uses, so it went true
+	// the moment ANY provider's schema loaded - random_id's, say - even
+	// while the AWS schema this run actually needed had failed to acquire.
+	// [stamp.Stamp] then read every AWS needs-discovery resource as
+	// SkipNoSchema, but req.NeedsDiscovery still said "must be stamped" for
+	// each one, unconditionally, so SkipNoSchema escalated into a fabricated
+	// hard error instead of the silent skip it is everywhere else). The gate
+	// that actually matters is per resource TYPE, and it lives inside
+	// [stampNeedsDiscovery] now: a type is only asked to stamp when its own
+	// schema is among actx.Schemas, so a type with no schema at all - the
+	// entire configuration's case when actx.Schemas is empty, or one
+	// provider's case when the rest loaded - reads as SkipNoSchema without
+	// mustStamp ever turning that into a refusal. Unknown must not be
+	// reported as refused.
+	if result != nil {
 		stampReq := stamp.Request{
 			Estate:         estateForStamp(ctx, cfg),
 			Config:         cfg,
 			Schemas:        flatSchemas(actx.Schemas),
-			NeedsDiscovery: stampNeedsDiscovery(result),
+			NeedsDiscovery: stampNeedsDiscovery(result, actx.Schemas),
 		}
 		_, stampDiags := stamp.Stamp(ctx, stampReq)
 		for _, diag := range stampDiags {
