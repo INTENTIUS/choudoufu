@@ -292,7 +292,14 @@ func (r *resolver) checkCollisions(result *Result) {
 	// with no known region has to be compared against every other member
 	// of its own group, not just the first one seen (#217's own safety
 	// direction - see regionsDistinguish's doc comment).
-	seen := make(map[string][]Resolution)
+	//
+	// [resolver.scopeContextValues] answers the same question for the rest
+	// of a resource's location - a GCP project, a zone, an AWS account_id -
+	// wherever the provider's own identity schema names it and the resolved
+	// identity does not carry it (#200). contextDistinguish compares those
+	// by regionsDistinguish's rule exactly: known on both sides and
+	// different, or no answer at all.
+	seen := make(map[string][]scopedResolution)
 	for _, res := range result.All() {
 		var ident, shown string
 		switch res.Class {
@@ -305,16 +312,20 @@ func (r *resolver) checkCollisions(result *Result) {
 			continue
 		}
 		key := res.Type() + "\x00" + ident + "\x00" + res.cloudScope.base
+		ctx := r.scopeContextValues(res)
 
 		var collidesWith *Resolution
 		for i := range seen[key] {
-			if regionsDistinguish(seen[key][i].cloudScope, res.cloudScope) {
+			if regionsDistinguish(seen[key][i].res.cloudScope, res.cloudScope) {
 				continue
 			}
-			collidesWith = &seen[key][i]
+			if contextDistinguish(seen[key][i].ctx, ctx) {
+				continue
+			}
+			collidesWith = &seen[key][i].res
 			break
 		}
-		seen[key] = append(seen[key], res)
+		seen[key] = append(seen[key], scopedResolution{res: res, ctx: ctx})
 		if collidesWith == nil {
 			continue
 		}
@@ -408,6 +419,217 @@ func regionsDistinguish(a, b cloudScopeKey) bool {
 	return a.regionKnown && b.regionKnown && a.region != b.region
 }
 
+// scopedResolution is one resolution plus the scope attributes
+// [resolver.checkCollisions] compares it by that [Resolution.cloudScope]
+// does not carry. See [resolver.scopeContextValues].
+type scopedResolution struct {
+	res Resolution
+	ctx map[string]string
+}
+
+// contextDistinguish reports whether two resources' scope-context values
+// place them in different parts of the cloud, so that two instances sharing
+// an identity string are two objects rather than one.
+//
+// The rule is regionsDistinguish's, generalized: a name only ever rules a
+// pair OUT, and only when BOTH sides resolved it and the two values differ.
+// A name one side did not resolve is absent from that side's map and is a
+// wildcard, exactly as an unknown region is (#217) - "cannot disambiguate,
+// so don't". Nothing here can turn a collision this package would otherwise
+// report into silence on the strength of a value it failed to read.
+func contextDistinguish(a, b map[string]string) bool {
+	for name, av := range a {
+		if bv, resolved := b[name]; resolved && av != bv {
+			return true
+		}
+	}
+	return false
+}
+
+// scopeContextValues is the part of a resource's cloud location that
+// [resolver.resourceCloudScope] structurally cannot reach: the values of
+// the identity-schema attributes this run's identity string does not carry,
+// read from the resource's own body.
+//
+// GitHub issue #200. A GCP project is to google what an account is to aws,
+// and the google provider exposes it as an ordinary per-resource `project`
+// argument rather than as a provider alias, so providerscope sees one
+// provider configuration for resources in three different projects. The
+// identity string does not carry it either: `project` is an
+// optional-for-import attribute, [identityCandidates] classifies it as
+// context, and [SynthesizeTypeIdentity] therefore builds an entry whose
+// only component is the required attribute - a google_project_service's
+// `service`. Three module instantiations enabling the same API in three
+// separate projects then resolve to the identical identity and read as a
+// duplicate-marker collision, which is a refusal over a configuration that
+// works.
+//
+// Nothing here names a provider or a resource type. The names come from the
+// provider's own identity schema minus whatever the resolved entry already
+// says the identity is made of ([TypeIdentity.namedAttrs]), so a type whose
+// entry already carries an attribute - every hand-written row with a
+// [CloudRegion] component, for one - contributes it to the identity and not
+// to the scope, and is compared exactly as it was before this existed. The
+// same derivation gives aws `account_id`, google `zone` and `location`, and
+// whatever the next provider calls the same idea.
+//
+// The value is read through the ordinary [resolver.resolveExpr] path rather
+// than a static evaluation, which is the other half of the fix: the
+// argument here is `project = google_project.environment_project.project_id`,
+// a reference to a sibling whose own identity already resolved to a literal
+// (#220's path, reached through [resolver.parentPart]). A static evaluation
+// sees only a managed-resource reference and gives up.
+//
+// Two properties this must keep, and both come from being called after the
+// walk rather than during it ([resolver.checkCollisions] is the only
+// caller). Every instance is already resolved and memoized, so a nested
+// [resolver.instance] call here raises no diagnostic that the walk has not
+// already raised - which is what makes discarding this probe's diagnostics
+// safe. And discarding them is required: a `project` argument that does not
+// resolve is a scope this run cannot sharpen, never a reason to refuse a
+// configuration, exactly as [resolver.staticRegionAttr] treats a `region`
+// argument it cannot read.
+//
+// nil whenever the run has no schemas, the type has none, the identity
+// schema names nothing the identity does not already carry, or the body
+// sets none of them - in every one of which cases collision detection is
+// exactly what it was before.
+func (r *resolver) scopeContextValues(res Resolution) map[string]string {
+	names := r.scopeContextNames(res.Type())
+	if len(names) == 0 {
+		return nil
+	}
+	if !r.enterModuleFor(res.Addr.Module) {
+		return nil
+	}
+	rc := r.mod.ResourceByAddr(res.Addr.Resource.Resource)
+	if rc == nil {
+		return nil
+	}
+	exp, ok := r.expansionFor(rc)
+	if !ok {
+		return nil
+	}
+	scope := exp.scope(res.Addr.Resource.Key)
+
+	want := make([]hcl.AttributeSchema, 0, len(names))
+	for _, name := range names {
+		want = append(want, hcl.AttributeSchema{Name: name})
+	}
+	content, _, diags := rc.Config.PartialContent(&hcl.BodySchema{Attributes: want})
+	if diags.HasErrors() {
+		return nil
+	}
+
+	var out map[string]string
+	for _, name := range names {
+		attr, set := content.Attributes[name]
+		if !set {
+			continue
+		}
+		val, ok := r.probeString(attr.Expr, scope, r.identifier(res.Addr, name, attr.Range))
+		if !ok || val == "" {
+			// An empty string is a value the configuration wrote, but it
+			// is not a place to put an object under - the same distinction
+			// [resolver.cloudValueFor] already draws for `region = ""` -
+			// so it stays unresolved and keeps behaving as a wildcard.
+			continue
+		}
+		if out == nil {
+			out = make(map[string]string, len(names))
+		}
+		out[name] = val
+	}
+	return out
+}
+
+// scopeContextNames is [resolver.scopeContextValues]' per-type half: which
+// attributes of the provider's identity schema for typeName are scope
+// rather than identity, memoized because it is asked once per resolved
+// instance and answered once per type.
+//
+// The subtraction is what makes this safe to widen: an attribute the
+// resolved entry already mentions on either side ([TypeIdentity.namedAttrs]
+// - a component's argument or an identity attribute another resource may
+// read back) is already in the identity string every comparison starts
+// from, so counting it again as scope would change nothing. What is left is
+// exactly the identity-schema attributes this run's identity does not
+// carry, and every one of them narrows which live object an instance means.
+//
+// An attribute the type's own configuration schema does not declare is
+// dropped: the body cannot state it, so nothing could ever be read for it.
+func (r *resolver) scopeContextNames(typeName string) []string {
+	if names, asked := r.scopeCtx[typeName]; asked {
+		return names
+	}
+	names := r.deriveScopeContextNames(typeName)
+	r.scopeCtx[typeName] = names
+	return names
+}
+
+func (r *resolver) deriveScopeContextNames(typeName string) []string {
+	if r.schemas == nil {
+		return nil
+	}
+	schema, served := r.schemas[typeName]
+	if !served || schema.IdentitySchema == nil || schema.Block == nil {
+		return nil
+	}
+	entry, ok := r.lookupType(typeName)
+	if !ok {
+		return nil
+	}
+	named := entry.namedAttrs()
+
+	required, optional := identityAttrs(schema.IdentitySchema)
+	var out []string
+	for _, name := range append(append([]string(nil), required...), optional...) {
+		if named[name] {
+			continue
+		}
+		if arg, declared := schema.Block.Attributes[name]; !declared || arg == nil {
+			continue
+		}
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// probeString resolves an expression to a string for a question no refusal
+// hangs on: whether two resources are in the same place. It is
+// [resolver.resolveExpr] with both of its side effects undone - the
+// diagnostics it recorded, and whatever module the reference walk left the
+// resolver pointing at.
+//
+// All four module fields are saved and restored, not three:
+// [resolver.enterModuleAt] sets mod, curCfg, modInst and eval together, and
+// a restore that puts back a subset leaves the resolver reading one
+// module's resources through another's static evaluator. That defect has
+// already been shipped once in this package, in namedLeaf's var branch.
+//
+// A part that is not a literal - a promise to read a parent's live ID later
+// - is not a string this run has, so the whole probe fails rather than
+// contributing a partial value that would compare unequal to itself.
+func (r *resolver) probeString(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) (string, bool) {
+	mark := len(r.diags)
+	mod, curCfg, modInst, eval := r.mod, r.curCfg, r.modInst, r.eval
+	parts, ok := r.resolveExpr(expr, scope, ident)
+	r.mod, r.curCfg, r.modInst, r.eval = mod, curCfg, modInst, eval
+	r.diags = r.diags[:mark:mark]
+	if !ok {
+		return "", false
+	}
+	var buf strings.Builder
+	for _, part := range parts {
+		if part.Parent != nil {
+			return "", false
+		}
+		buf.WriteString(part.Literal)
+	}
+	return buf.String(), true
+}
+
 func newResolver(ctx context.Context, cfg *configs.Config, rctx Context) *resolver {
 	dataIndex, badResults := buildDataResultsIndex(rctx.DataResults)
 	r := &resolver{
@@ -423,6 +645,7 @@ func newResolver(ctx context.Context, cfg *configs.Config, rctx Context) *resolv
 		instFailed: make(map[string]bool),
 		instVisit:  make(map[string]bool),
 		synth:      make(map[string]*TypeIdentity),
+		scopeCtx:   make(map[string][]string),
 	}
 	for _, key := range badResults {
 		// A result the index could not use is the calling code's defect, not
@@ -490,6 +713,14 @@ type resolver struct {
 	// nil entry means "asked, and the schemas do not describe this type well
 	// enough". See [SynthesizeTypeIdentity].
 	synth map[string]*TypeIdentity
+
+	// scopeCtx memoizes, per type, which of the provider identity schema's
+	// own attributes are scope rather than identity for that type - the
+	// ones [resolver.checkCollisions] reads to tell two resources apart
+	// when the identity string alone cannot. See
+	// [resolver.scopeContextNames]. A nil entry means "asked, and there
+	// are none", which is the common case and must not be re-derived.
+	scopeCtx map[string][]string
 
 	// Expansion memo, keyed by the module instance and the resource address
 	// (no instance key) - two resource blocks with the same local address in
