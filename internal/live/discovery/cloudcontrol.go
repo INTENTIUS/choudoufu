@@ -209,6 +209,12 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 			continue
 		}
 		if decl.declares(typeName, escaped) {
+			// GitHub issue #244, half 2 - the same check discovery.go's own
+			// scan loop makes at the same point, for the same reason. See
+			// displaced.go.
+			if want, displaced := decl.displacedFrom(typeName, escaped, c); displaced {
+				diags = diags.Append(problemDiag(res, displacedProblem(req, typeName, escaped, want, c)))
+			}
 			continue
 		}
 		if cb := decl.countBlockFor(typeName, escaped); cb != nil {

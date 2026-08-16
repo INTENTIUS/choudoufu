@@ -688,11 +688,25 @@ address marker onto another instance's object. From there `live-mv`, or a
 honoured: a `moved` block's old address is one of the markers the check
 accepts, precisely so a pending move is not mistaken for a renumbering.
 
-The half of this that is still open is the displaced object. Object
-`aws_x.r[2]`, still carrying its marker after the address it names has been
-taken over by a different live object, is dropped by discovery's scan
-rather than reported (GitHub issue #244, half 2). Nothing proposes to
-destroy it, and nothing tells you it is there.
+The displaced object is reported too, which is the other half of the same
+question and a different pass's job. The object that used to be `aws_x.r[1]`
+still carries `aws_x.r[1]` in its own marker, and the ownership check above
+never sees it: that check reads the one object the configuration's identity
+fetched, which after the renumbering is a different object entirely.
+Discovery is the pass that lists what the cloud holds, so it is the only one
+holding both halves - the marker on the object, and the identity the
+configuration computes for the address that marker names. When those two
+disagree it says so, as `Live resource displaced from the address it is
+marked for`.
+
+That finding is a warning and it proposes nothing. The resource is not read,
+not changed and not destroyed; it stays in the account until you say which
+resource is which, with `live-mv` or a `moved` block. The comparison behind
+it is inexact - the identity a configuration computes and the identity a
+provider attaches to a listed object are two different things that usually,
+not always, spell the same string - so it is built to report only on
+positive evidence and to stay silent wherever it cannot compare like with
+like. Costing a line of output rather than a destroy is what pays for that.
 
 A module call's arguments are deliberately excluded from this second
 question and keep the shape analysis alone. Proving a call's own arguments
@@ -1343,6 +1357,7 @@ refused, and each says so in its own entry.
 | - | - | discovery | Invalid estate name | error | `internal/live/discovery` | "Invalid estate name" |
 | - | - | discovery | Listed resource with no identity | error | `internal/live/discovery` | "Listed resource with no identity" |
 | - | - | discovery | Listed resource with no tags | error | `internal/live/discovery` | "Listed resource with no tags" |
+| - | - | discovery | Live resource displaced from the address it is marked for | error | `internal/live/discovery` | "Live resource displaced from the address it is marked for" |
 | - | - | discovery | Malformed ownership marker | error | `internal/live/discovery` | "Malformed ownership marker" |
 | - | - | discovery | Malformed slot marker | error | `internal/live/discovery` | "Malformed slot marker" |
 | - | - | discovery | No AWS account ID from the provider | error | `internal/live/discovery` | "No AWS account ID from the provider" |
@@ -1485,7 +1500,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker could not be checked | error | `internal/live/stamp` | "Ownership marker could not be checked" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**176 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning` - today only a lint rule can declare `warning`, GitHub issue #214's `state-backend`; every other layer's refusal is `error`.
+**177 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning` - today only a lint rule can declare `warning`, GitHub issue #214's `state-backend`; every other layer's refusal is `error`.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -1712,6 +1727,14 @@ reserved for the limits wing's fixture directories, and
 #### Listed resource with no tags
 
 **What.** A live resource was listed with no tags at all where markers were expected, so ownership cannot be read from it.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Live resource displaced from the address it is marked for
+
+**What.** A live resource carries this estate's marker for an address the configuration still declares, but the identity that address resolves to names a different live resource - so two resources answer to one address. Nothing is proposed for it; a human says which is which.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 

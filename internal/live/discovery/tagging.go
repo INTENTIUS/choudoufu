@@ -682,6 +682,12 @@ func fileTaggingCandidate(req Request, decl *declared, typeName string, c tagged
 		return diags
 	}
 	if decl.declares(typeName, escaped) {
+		// GitHub issue #244, half 2 - the same check discovery.go's own scan
+		// loop makes at the same point, for the same reason. See
+		// displaced.go.
+		if want, displaced := decl.displacedFrom(typeName, escaped, claim); displaced {
+			return diags.Append(problemDiag(res, displacedProblem(req, typeName, escaped, want, claim)))
+		}
 		return diags
 	}
 	if cb := decl.countBlockFor(typeName, escaped); cb != nil {

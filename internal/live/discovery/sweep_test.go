@@ -225,11 +225,18 @@ func TestSweepReportsNoProgressWhenNobodyAsks(t *testing.T) {
 // discovery list is waiting on, because its identity comes out of
 // configuration. Judged by the discovery list alone it looks exactly like an
 // orphan, and an orphan is destroyed.
+//
+// The import ID is the fixture's own bucket argument, and that now matters:
+// GitHub issue #244 gave discovery the second half of the ownership question
+// - is this object the instance that address names - so a live ID that is not
+// the one the configuration computes is a different finding (a displacement)
+// rather than the one this test is about. It read "estate-data" until then,
+// which nothing compared to anything.
 func TestSweepLeavesDeclaredClientNamedResourcesAlone(t *testing.T) {
 	cloud := newFakeCloud()
 	ownWholeEstate(cloud)
 	cloud.listable("aws_s3_bucket")
-	cloud.own("aws_s3_bucket", "estate-data", `aws_s3_bucket.data`)
+	cloud.own("aws_s3_bucket", "tofu-stateless-e2e-data", `aws_s3_bucket.data`)
 
 	res, diags := discoverFixture(t, cloud, Request{Sweep: true})
 	assertNoErrors(t, diags)
