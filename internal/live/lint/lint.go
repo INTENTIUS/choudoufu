@@ -257,14 +257,21 @@ func checkManagedResources(mod *configs.Module, path addrs.Module, schemas map[s
 	for _, resource := range mod.ManagedResources {
 		addr := resource.Addr().String()
 
-		checkProvisioners(resource, addr, path, issues)
-		checkCountIndex(resource, addr, path, issues)
-		checkIgnoreChanges(resource, addr, path, schemas, issues)
-
 		// Type classification is managed-resources-only on purpose: a data
 		// source stores nothing and is re-read every operation, so it has no
-		// identity to recover and no admission question to answer.
-		if lt, ok := ClassifyLogicalType(resource.Type); ok {
+		// identity to recover and no admission question to answer. It is
+		// computed here, ahead of every rule below rather than only ahead of
+		// its own admission check, because checkCountIndex needs it too: a
+		// rule that decides which arguments are identity-relevant has to run
+		// after the classification that says whether this type has any
+		// argument-derived identity at all, not before it.
+		lt, isLogical := ClassifyLogicalType(resource.Type)
+
+		checkProvisioners(resource, addr, path, issues)
+		checkCountIndex(resource, addr, path, countIndexScopeForType(resource.Type, lt, isLogical), issues)
+		checkIgnoreChanges(resource, addr, path, schemas, issues)
+
+		if isLogical {
 			if lt.Class == ClassRecordAdmitted && recordStoreConfigured {
 				// GitHub issue #73: a RECORD_ADMITTED type flips from
 				// refused to admitted once a live block configures a
