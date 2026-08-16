@@ -306,7 +306,11 @@ func buildProposeReport(root string) (report, summary string, err error) {
 	if err != nil {
 		return "", "", fmt.Errorf("reading %s: %w", surveyJSONRel, err)
 	}
-	vetoed := setOf(markerlessRoster(survey, proposals))
+	importGrammar, err := loadImportGrammar(filepath.Join(root, importGrammarJSONRel))
+	if err != nil {
+		return "", "", fmt.Errorf("reading %s: %w", importGrammarJSONRel, err)
+	}
+	vetoed := setOf(markerlessRoster(survey, proposals, importGrammar))
 
 	candidates := selectProposeCandidates(proposals, admitted, rejected, vetoed, qualifying)
 

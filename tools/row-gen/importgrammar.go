@@ -61,6 +61,15 @@ type importGrammarRow struct {
 	// tools/importdocs-gen/parse.go's idParts.
 	IDParts []idPart `json:"id_parts"`
 
+	// SoleIDPart and ArgumentNamesAnyDepth are the second evidence source
+	// the markerless veto reads (issue #249, markerless.go) - see
+	// tools/importdocs-gen/soleid.go for what each one means. SoleIDPart
+	// is IDParts at the one arity IDParts' own gate refuses;
+	// ArgumentNamesAnyDepth is the refutation set that keeps a nested
+	// block's argument from being read as a server-minted segment.
+	SoleIDPart            *idPart  `json:"sole_id_part"`
+	ArgumentNamesAnyDepth []string `json:"argument_names_any_depth"`
+
 	// EvidenceExcerpt is the Import section's own text, pinned verbatim at
 	// scrape time (tools/importdocs-gen/artifact.go's Evidence). Issue #176's
 	// R3 corroboration reads its "using ..." sentences the same way
@@ -150,6 +159,119 @@ func docNamesServerSegment(g importGrammarRow) bool {
 		}
 	}
 	return false
+}
+
+// docMintedSegment reports the segment of the documented import ID that
+// the provider's own documentation says the SERVER supplies, over both
+// arities: IDParts for a composite, SoleIDPart for a one-segment ID.
+//
+// It is docNamesServerSegment's stricter sibling, and the differences are
+// the point:
+//
+//   - It reads SoleIDPart as well, so a type whose whole documented ID is
+//     one opaque value is answerable at all. docNamesServerSegment cannot
+//     see those - IDParts is empty for every one of them - which is why
+//     the veto this feeds used to stop at composites, and why it missed
+//     the three types issue #249's own recommendation named.
+//   - It subtracts ArgumentNamesAnyDepth. A segment the doc attributes to
+//     the Attribute Reference, whose name is ALSO an Argument Reference
+//     bullet inside some nested block, is configuration-supplied; the
+//     attribution only landed on "attribute" because idParts' argument set
+//     is the top-level one. Calling that segment server-minted is the
+//     exact misread issue #242 corrected, and it is a misread in the
+//     dangerous direction here, because this evidence vetoes a type.
+//   - It defers to the provider's own identity schema, which outranks
+//     any docs paragraph - see identitySchemaIsAllArguments.
+//
+// Both callers of docNamesServerSegment are left alone: they answer a
+// different question (does this composite's registry-sourced
+// server-assigned classification survive the doc's own attribution), and
+// widening their evidence would change proposals rather than vetoes.
+func docMintedSegment(g importGrammarRow) (string, bool) {
+	configArgs := make(map[string]bool, len(g.ArgumentNamesAnyDepth))
+	for _, n := range g.ArgumentNamesAnyDepth {
+		configArgs[normalizeName(n)] = true
+	}
+	if identitySchemaIsAllArguments(g, configArgs) {
+		return "", false
+	}
+	parts := g.IDParts
+	if g.SoleIDPart != nil {
+		parts = append(append([]idPart(nil), parts...), *g.SoleIDPart)
+	}
+	for _, part := range parts {
+		if part.Source != idPartSourceAttribute && part.Source != idPartSourceOwnID {
+			continue
+		}
+		if namesAConfigurationArgument(part.Token, configArgs) {
+			continue
+		}
+		return part.Token, true
+	}
+	return "", false
+}
+
+// identitySchemaIsAllArguments reports whether the provider's own
+// Identity Schema names a required identity whose every component is a
+// configuration argument. When it does, the ID is reconstructible from
+// configuration whatever a second documented import form says, and no
+// prose segment can establish otherwise.
+//
+// This is the provider's structured answer outranking a docs paragraph -
+// the same order classify.go's resolveArgName already states - and it is
+// load-bearing for a page that documents two import forms.
+// aws_neptunegraph_private_graph_endpoint documents both "using the
+// `graph_identifier` and `vpc_id`" (both arguments) and "using the
+// `private_graph_endpoint_identifier`" (minted); the first is what the
+// v1.12 identity block declares, so the identity is computable and the
+// second form is a convenience, not a wall.
+func identitySchemaIsAllArguments(g importGrammarRow, configArgs map[string]bool) bool {
+	if len(g.IdentitySchemaRequired) == 0 {
+		return false
+	}
+	for _, name := range g.IdentitySchemaRequired {
+		if !configArgs[normalizeName(name)] {
+			return false
+		}
+	}
+	return true
+}
+
+// namesAConfigurationArgument reports whether a prose segment name lands
+// on a configuration argument, over the same word-suffix scan the scrape
+// itself attributes a plain-prose segment with (tools/importdocs-gen's
+// attributePlainPart): the whole token first, then each shorter suffix of
+// its words.
+//
+// The suffix scan is what makes this a refutation rather than a spot
+// check. aws_fms_admin_account documents its import "using the account
+// ID"; the whole token is "the account ID", which matches no argument
+// name, while its two-word suffix "account ID" is exactly the
+// `account_id` argument the page declares. Comparing only the whole token
+// would have vetoed a type whose identity the configuration supplies.
+func namesAConfigurationArgument(token string, configArgs map[string]bool) bool {
+	words := strings.Fields(token)
+	for k := len(words); k >= 1; k-- {
+		if configArgs[normalizeName(strings.Join(words[len(words)-k:], ""))] {
+			return true
+		}
+	}
+	return false
+}
+
+// normalizeName is tools/importdocs-gen's own normalize: the comparison
+// form both sides of a name match reduce to, so "REST-API-ID" and
+// "rest_api_id" are one name. Re-declared here for the same reason
+// importGrammarRow's fields are - this package decodes the artifact
+// itself rather than importing the generator that wrote it.
+func normalizeName(s string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(s) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // serverSegmentTokens names the attribute-sourced segments, for the note a
