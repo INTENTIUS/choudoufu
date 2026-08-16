@@ -102,6 +102,56 @@ func TestAddressMatches(t *testing.T) {
 	}
 }
 
+// TestAddressMatches_issue210Migration is the same proof TestAddressMatches
+// makes for issue #178's grammar change, for issue #210's: a marker a prior
+// run stamped for a key containing "+" still matches after #210 widened
+// Encode to double it. "+" alone was already covered incidentally by
+// LegacyEscapeAddress (it applies no key escaping at all, which happens to
+// equal both the pre-#178 and the pre-#210 grammar for a key with nothing
+// else to escape) - the case that needed a THIRD grammar,
+// [pre210EscapeAddress], is a key combining "+" with "." / ":" / "@", where
+// issue #178's own doubling was already active before #210 landed and
+// LegacyEscapeAddress does not reproduce it.
+func TestAddressMatches_issue210Migration(t *testing.T) {
+	t.Run("plus alone", func(t *testing.T) {
+		declared := `aws_subnet.this["plus+one"]`
+		preIssue210 := "aws_subnet.this:plus+one" // what stamping wrote before #210
+		current := EscapeAddress(declared)
+		if preIssue210 == current {
+			t.Fatalf("test premise is wrong: pre-#210 and current escaping agree (%q)", current)
+		}
+		for _, observed := range []string{preIssue210, current} {
+			if !AddressMatches(observed, declared) {
+				t.Errorf("AddressMatches(%q, %q) = false, want true", observed, declared)
+			}
+		}
+	})
+
+	t.Run("plus combined with dot", func(t *testing.T) {
+		declared := `aws_subnet.this["a.b+c"]`
+		// What stamping actually wrote once issue #178 landed and before
+		// issue #210 did: "." doubled per #178's grammar, "+" untouched
+		// (pre-#210 never touched it). LegacyEscapeAddress does NOT
+		// reproduce this ("a.b+c", dot left raw), which is exactly the gap
+		// pre210EscapeAddress exists to close.
+		preIssue210 := "aws_subnet.this:a@db+c"
+		current := EscapeAddress(declared)
+		legacy := LegacyEscapeAddress(declared)
+		if preIssue210 == current || preIssue210 == legacy {
+			t.Fatalf("test premise is wrong: pre-#210 escaping (%q) agrees with current (%q) or pre-#178 (%q)", preIssue210, current, legacy)
+		}
+		for _, observed := range []string{preIssue210, current} {
+			if !AddressMatches(observed, declared) {
+				t.Errorf("AddressMatches(%q, %q) = false, want true", observed, declared)
+			}
+		}
+	})
+
+	if AddressMatches("aws_subnet.other:a@db+c", `aws_subnet.this["a.b+c"]`) {
+		t.Error("AddressMatches matched an address that names a different instance")
+	}
+}
+
 // TestContinuationTag_AddressTagKey pins the naming scheme issue #71
 // introduces: TagAddress is chunk 0, tofu-address-2 is chunk 1, and so on.
 func TestContinuationTag_AddressTagKey(t *testing.T) {

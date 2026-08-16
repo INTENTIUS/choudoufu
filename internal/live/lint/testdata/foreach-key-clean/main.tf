@@ -1,7 +1,9 @@
 # The other side of the for_each key rule: every key here is inside the
 # admitted set (letters, digits, space, and + - = . _ : / @ - "." and ":"
-# included since issue #178, escaped rather than refused), and the three
-# for_each shapes below are the ones the rule must decline to guess at.
+# included since issue #178, escaped rather than refused; almost anything
+# else, including "(", ")" and ";", included since issue #210, carried into
+# a marker by markerkey.Encode rather than refused), and the three for_each
+# shapes below are the ones the rule must decline to guess at.
 #
 # aws_route_table_association.this iterates over another resource: its keys
 # are aws_subnet.this's keys, checked where they are declared, so checking
@@ -26,6 +28,8 @@ locals {
     "été"        = "10.42.10.0/24"
     "alice.smith" = "10.42.11.0/24"
     "2001:db8::/64" = "10.42.12.0/24"
+    "sub.example.com (A)" = "10.42.13.0/24"
+    "a;b" = "10.42.14.0/24"
   }
 }
 

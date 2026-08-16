@@ -28,6 +28,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/markerkey"
 )
 
 // The three marker tag keys, from live/MARKERS.md. They are the entire
@@ -175,41 +176,81 @@ func ValidEstateName(s string) bool { return estateNamePattern.MatchString(s) }
 var escapedAddress = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*(:[^.:]+)?(\.[A-Za-z_][A-Za-z0-9_-]*(:[^.:]+)?)+$`)
 
 // EscapeKey applies the for_each-key half of the escaping rule to one raw
-// instance key: [markerkey.Extras] admits "." and ":" in a key (issue
-// #178), and those are also the two characters an escaped address uses to
-// separate its own segments, so a key carrying either has to be
-// transformed, not embedded raw, or it could not be split back out again.
-// The rule is a doubling substitution, applied in this order:
+// instance key, in two layers, in this order:
+//
+//  1. [markerkey.Encode] (issue #210): carries any character outside the
+//     raw AWS tag-value charset into it, so a key like `a(b)` becomes
+//     representable at all. This layer's own doc comment has the full
+//     escaping rule; the short version is that it is a no-op for a key that
+//     was already inside the charset, except for a literal `+`, which it
+//     always doubles.
+//
+//  2. The doubling substitution issue #178 introduced, applied to Encode's
+//     output: [markerkey.Extras] admits "." and ":" in a key, and those are
+//     also the two characters an escaped address uses to separate its own
+//     segments, so a key carrying either has to be transformed, not
+//     embedded raw, or it could not be split back out again.
 //
 //  1. every "@" becomes "@@"
+//
 //  2. every "." becomes "@d"
+//
 //  3. every ":" becomes "@c"
 //
-// The order is load-bearing: doubling "@" first guarantees that every "@"
-// steps 2 and 3 introduce is never itself mistaken for one that needs
-// doubling, because step 1 has already run and will not run again. Any key
-// [markerkey.Valid] admits round-trips through this and [UnescapeKey].
+//     The order is load-bearing: doubling "@" first guarantees that every
+//     "@" steps 2 and 3 introduce is never itself mistaken for one that
+//     needs doubling, because step 1 has already run and will not run
+//     again.
 //
-// This has to be the one implementation two other things reproduce
-// byte-for-byte: internal/live/stamp's addressExpr, which cannot call Go
-// code because it builds an HCL expression evaluated at apply time
-// (`replace(replace(replace(each.key,"@","@@"),".","@d"),":","@c")`), and
-// [EscapeAddress] below, which calls this directly. See
-// internal/live/stamp/foreach_escape_test.go for the proof the two agree.
+// Encode has to run first: its own output is guaranteed to stay inside the
+// AWS-legal charset only because nothing downstream of it looks for "@",
+// "." or ":" INSIDE what it produces the way step 2 does, and Encode never
+// emits those three characters as part of an escape sequence (its own
+// Introducer is "+", not any of them), so the two layers never collide.
+// Any key [markerkey.Valid] admits round-trips through this and
+// [UnescapeKey].
+//
+// The each.key-templated per-instance case is the one place this
+// implementation is not the whole story: a for_each key needing Encode's
+// help cannot be reproduced as a replace()-chain HCL expression the way the
+// pre-#210 three-substitution rule could (Encode's hex escape is a function
+// of each rune's own code point, which replace() cannot compute), so
+// internal/live/stamp's addressExpr uses a different mechanism - a
+// precomputed lookup table keyed by each.key - for a for_each block where at
+// least one static key needs it, falling back to the old
+// replace()-chain template (still exactly correct, since Encode is a no-op
+// there) everywhere else. See internal/live/stamp/foreach_escape_test.go
+// for the proof the two mechanisms agree with this function wherever both
+// apply.
 func EscapeKey(key string) string {
+	return doubleAtDotColon(markerkey.Encode(key))
+}
+
+// doubleAtDotColon is step 2 of [EscapeKey] on its own: the "@" / "." / ":"
+// doubling issue #178 introduced, with no [markerkey.Encode] step before it.
+// It exists separately from EscapeKey for [pre210EscapeAddress], which needs
+// exactly this half - not EscapeKey's - to reconstruct what a marker looked
+// like in the one grammar window issue #210 can otherwise break
+// compatibility with (see that function's doc comment).
+func doubleAtDotColon(key string) string {
 	key = strings.ReplaceAll(key, "@", "@@")
 	key = strings.ReplaceAll(key, ".", "@d")
 	key = strings.ReplaceAll(key, ":", "@c")
 	return key
 }
 
-// UnescapeKey reverses [EscapeKey] for any value it produced, with a single
-// left-to-right scan rather than three reverse substitutions: "@@", "@d"
-// and "@c" have to be read as one unit each even where two of them sit
-// back to back in the output ("@@" immediately followed by "@d" is one
-// escaped "@" then one escaped "."), and a blind sequence of whole-string
-// replacements cannot make that guarantee once the first pass has already
-// introduced new "@" characters for the second to trip over.
+// UnescapeKey reverses [EscapeKey] for any value it produced: the "." / ":"
+// / "@" doubling first, with a single left-to-right scan rather than three
+// reverse substitutions ("@@", "@d" and "@c" have to be read as one unit
+// each even where two of them sit back to back in the output - "@@"
+// immediately followed by "@d" is one escaped "@" then one escaped "." -
+// and a blind sequence of whole-string replacements cannot make that
+// guarantee once the first pass has already introduced new "@" characters
+// for the second to trip over), and then [markerkey.Decode] on the result,
+// reversing Encode's own hex escaping (issue #210). The order is the exact
+// reverse of EscapeKey's: EscapeKey runs Encode first and the doubling
+// second, so undoing it runs the doubling's inverse first and Decode
+// second.
 //
 // It never fails, on purpose. A "@" not immediately followed by "@", "d" or
 // "c" cannot appear in anything [EscapeKey] produced, but it is exactly
@@ -256,7 +297,7 @@ func UnescapeKey(s string) string {
 			b.WriteRune('@')
 		}
 	}
-	return b.String()
+	return markerkey.Decode(b.String())
 }
 
 // EscapeAddress applies the marker spec's escaping rule to an address:
@@ -277,6 +318,51 @@ func UnescapeKey(s string) string {
 // did: this function only transforms text still inside a "[...]" pair, and
 // a marker already on a live resource has none left.
 func EscapeAddress(addr string) string {
+	return escapeAddressWith(addr, EscapeKey)
+}
+
+// pre210EscapeAddress is what [EscapeAddress] computed after issue #178
+// admitted "." and ":" into a for_each key but before issue #210 admitted
+// anything outside the AWS-legal charset: the "@" / "." / ":" doubling
+// applied directly, with no [markerkey.Encode] step in front of it. It
+// exists only for [AddressMatches] - the same reason [LegacyEscapeAddress]
+// exists - because [LegacyEscapeAddress] does not cover this window on its
+// own: it applies NO key-level escaping at all, which happens to reproduce
+// a pre-#178 marker correctly (nothing was ever escaped then) but does NOT
+// reproduce a marker written after #178 landed and before #210 did, for any
+// key combining "+" with "." / ":" / "@" - "a.b+c" stamped as "a@db+c" in
+// that window, which pre210EscapeAddress reconstructs and LegacyEscapeAddress
+// does not ("a.b+c", raw dot and all). A key containing only "+" and letters
+// otherwise happens to produce the same string under all three functions,
+// which is why the gap this closes is narrow: it is exactly the combination
+// this doc comment names, not "+" on its own. See live/MARKERS.md, "for_each
+// key migration".
+func pre210EscapeAddress(addr string) string {
+	return escapeAddressWith(addr, doubleAtDotColon)
+}
+
+// escapeAddressWith is [EscapeAddress]'s address-level escaping - every
+// "[...]" instance key becomes ":" followed by the key run through
+// escapeKey, and any "]" or '"' outside a key (there should never be one)
+// is dropped defensively rather than passed through - parameterized over
+// which key-escaping function to apply, so [EscapeAddress] and
+// [pre210EscapeAddress] share the one bracket-scanning implementation
+// rather than drifting as two copies of it. An address never legally
+// contains "[" except to open an instance key - resource types, names and
+// module names are HCL identifiers, which cannot contain it - so a plain
+// rune scan tracking bracket state cannot mistake structural text for key
+// content or the reverse.
+//
+// It is idempotent for any escapeKey: an already-escaped value contains no
+// "[", so escaping it again returns it unchanged without ever looking
+// inside what used to be a key. That property is what lets [Discover]
+// normalize an observed tag value with the same function it uses on a
+// declared address, without ever decoding anything - and it is also why an
+// already-escaped value written under an older grammar normalizes to
+// itself here exactly as it always did: this function only transforms text
+// still inside a "[...]" pair, and a marker already on a live resource has
+// none left.
+func escapeAddressWith(addr string, escapeKey func(string) string) string {
 	if !strings.ContainsRune(addr, '[') {
 		return addr
 	}
@@ -298,7 +384,7 @@ func EscapeAddress(addr string) string {
 		}
 		inner := strings.Trim(string(runes[i+1:j]), `"`)
 		b.WriteRune(':')
-		b.WriteString(EscapeKey(inner))
+		b.WriteString(escapeKey(inner))
 		if j < len(runes) {
 			j++ // step past the ']'
 		}
@@ -335,22 +421,30 @@ func LegacyEscapeAddress(addr string) string {
 
 // AddressMatches reports whether observed - an already-escaped marker value
 // read off a live resource, never decoded - names the same instance as
-// declared, the address before escaping (addr.String()). It tries
-// [EscapeAddress] first and [LegacyEscapeAddress] second, so a marker
-// written before issue #178 widened the for_each key grammar is still
-// recognized, even for a key whose current escaping differs from what a
-// prior run wrote (only possible for a key containing "@", the one
-// character both grammars admitted but escape differently). Every
-// declared-vs-observed comparison that decides ownership - "is this live
-// resource the one this instance address names" - should go through this
-// rather than a bare EscapeAddress equality, or a resource stamped under
-// the old grammar reads as unowned under the new code. See
-// live/MARKERS.md, "for_each key migration".
+// declared, the address before escaping (addr.String()). It tries three
+// escapings of declared, in order - [EscapeAddress] (current), then
+// [pre210EscapeAddress] (issue #178's grammar without issue #210's), then
+// [LegacyEscapeAddress] (pre-#178, no key escaping at all) - so a marker
+// written under any of the three grammars this fork has ever stamped with
+// is still recognized, even for a key whose current escaping differs from
+// what a prior run wrote. That is only possible for a key containing "@"
+// (escaped differently by the pre-#178 and current grammars) or "+"
+// (escaped differently by the pre-#210 and current grammars, and by the
+// pre-#178 and current grammars whenever the same key also has a "." or
+// ":" for #178's own grammar to touch) - see live/MARKERS.md, "for_each key
+// migration", for the accounting. Every declared-vs-observed comparison
+// that decides ownership - "is this live resource the one this instance
+// address names" - should go through this rather than a bare EscapeAddress
+// equality, or a resource stamped under an older grammar reads as unowned
+// under the new code.
 func AddressMatches(observed, declared string) bool {
 	if observed == "" {
 		return false
 	}
 	if observed == EscapeAddress(declared) {
+		return true
+	}
+	if observed == pre210EscapeAddress(declared) {
 		return true
 	}
 	return observed == LegacyEscapeAddress(declared)

@@ -151,34 +151,110 @@ refusing to admit the resource.
 
 ### for_each key escaping
 
-A `for_each` instance key may contain any character AWS allows in a tag
-value: letters and numbers representable in UTF-8, space, and
-`+ - = . _ : / @` (`internal/live/markerkey`, `RuleForEachKey`). Three of
-those characters - `@`, `.` and `:` - would collide with the address-level
-escaping above if embedded raw, so a key's own instance of any of them is
-substituted first, in this order:
+Stock OpenTofu accepts any string as a `for_each` key. A `for_each` instance
+key here may contain any character AWS allows a tag value to render as
+printable text at all - which is almost everything - except six characters
+that collide with a rule outside this fork's own control, not with the AWS
+tag-value charset itself (`internal/live/markerkey`, `RuleForEachKey`):
+
+- `"`, `\`, and every non-printable character (tab, CR, LF included) are
+  escaped by OpenTofu's own address rendering (`addrs`' `toHCLQuotedString`)
+  before this fork's own escaping ever sees the text, and it has no way to
+  tell that escaping apart from the character actually being there.
+- `$` and `%` are doubled by that same rendering when immediately followed
+  by `{`, a transformation with no per-character inverse.
+- `[` and `]` are the delimiters the address-level escaping rule (above)
+  scans for; a raw one inside a key corrupts that scan before any key-level
+  rule gets a chance to run.
+
+Everything else - the full AWS-legal set `+ - = . _ : / @`, letters, digits,
+and space as before, plus almost every other printable character, `(`, `)`,
+`;`, `!`, and a great deal more (issue #210) - is escaped into a marker in
+two layers, applied to a raw key in this order:
+
+1. **Out-of-charset escaping** (issue #210). Every character outside the
+   AWS-legal set (`+ - = . _ : / @`, letters, digits, space) is carried into
+   it: `+` (the escape introducer) doubles, and everything else becomes `+`
+   followed by its Unicode code point as six uppercase hex digits - `a(b)`
+   becomes `a+000028b+000029`. A key already inside the AWS-legal set is
+   unchanged by this layer, with one exception: a key containing a literal
+   `+` is not, because `+` has to double to keep its own escape sequences
+   unambiguous. `plus+one` becomes `plus++one`. No character among the
+   eight in the AWS-legal punctuation set is free of this cost - it is the
+   same trade issue #178 made for `@` below, on a different character.
+   `+` was chosen as the least likely of the eight to already appear in a
+   `for_each` key drawn from a resource name, an availability zone, a CIDR,
+   or similar (see `internal/live/markerkey`'s `Introducer` for the full
+   reasoning).
+2. **The `.` / `:` / `@` doubling** issue #178 introduced (below), applied
+   to step 1's output.
+
+| Raw key | Escaped |
+|---|---|
+| `a(b)` | `a+000028b+000029` |
+| `plus+one` | `plus++one` |
+| `a;b` | `a+00003Bb` |
+
+Step 1 has to run first: its own output is guaranteed to contain no raw
+`@`, `.` or `:` as part of an escape sequence (its own introducer is `+`,
+none of those three), so step 2 never mistakes anything step 1 produced for
+its own escape sequences.
+
+Three of the AWS-legal characters - `@`, `.` and `:` - would collide with
+the address-level escaping above if embedded raw, so a key's own instance
+of any of them is substituted, in this order:
 
 1. Every `@` becomes `@@`.
 2. Every `.` becomes `@d`.
 3. Every `:` becomes `@c`.
 
 The order is load-bearing: doubling `@` first guarantees that every `@`
-steps 2 and 3 introduce is never itself mistaken for one that needs
-doubling. Reading it back reverses the same three substitutions in a single
-left-to-right scan, not as three independent reverse replacements, because
-two adjacent escaped characters (an escaped `@` immediately followed by an
-escaped `.`, say) have to be read as two two-character units rather than
-reprocessed as if the first's output could be the second's input.
+these steps introduce is never itself mistaken for one that needs
+doubling. Reading it back reverses both layers, in reverse order: the three
+substitutions above in a single left-to-right scan, not as three
+independent reverse replacements (two adjacent escaped characters have to
+be read as two two-character units rather than reprocessed as if the
+first's output could be the second's input), and then step 1's hex
+unescaping on what that scan produces.
 
-Issue #178 introduced this: before it, `.` and `:` were excluded from a
-`for_each` key entirely rather than escaped, because they collided with the
-address-level rule and nothing decoded a key on its own to tell a literal
-`.` apart from a segment separator. `@` was always admitted and was never
-escaped - it is legal in a tag value and does not collide with anything the
-address-level rule touches on its own - which is exactly what makes it the
-one character both grammars admit but escape differently. See "for_each key
-migration", below, for what that means for a marker a run wrote before this
-issue landed.
+Issue #178 introduced the doubling: before it, `.` and `:` were excluded
+from a `for_each` key entirely rather than escaped, because they collided
+with the address-level rule and nothing decoded a key on its own to tell a
+literal `.` apart from a segment separator. `@` was always admitted and was
+never escaped - it is legal in a tag value and does not collide with
+anything the address-level rule touches on its own - which is exactly what
+makes it the one character both grammars admit but escape differently. See
+"for_each key migration", below, for what that means for a marker a run
+wrote before this issue landed.
+
+Issue #210's own introducer, `+`, carries the identical burden, because `+`
+was already legal and unescaped before #210 - `plus+one` stamped as
+`plus+one` before this issue, and stamps as `plus++one` now. Unlike `@`,
+this is not covered by a single fallback: a `for_each` key can combine `+`
+with `.`, `:` or `@` in the same string, and issue #178's doubling of those
+three was already active for any marker stamped after #178 landed and
+before #210 did. `a.b+c` stamped as `a@db+c` in that window (`.` doubled,
+`+` untouched) - a THIRD grammar neither the current escaping nor the
+pre-#178 one (which applies no key escaping at all) reproduces on its own.
+`AddressMatches` therefore tries three escapings of a declared address, not
+two: current, then this pre-#210-but-post-#178 one
+(`markers.pre210EscapeAddress`), then pre-#178
+(`LegacyEscapeAddress`) - see "for_each key migration", below, for the same
+accounting applied to `@`.
+
+**The per-instance apply-time case.** A `for_each` block's marker value is
+usually a template over `each.key`, evaluated once per instance by the
+ordinary plan engine (see "count and for_each", below) - `replace()` calls
+can express the `.`/`:`/`@` doubling this way, but not the hex escaping,
+which is a function of each character's own code point that `replace()`
+cannot compute. For a block where every key is unaffected by the hex
+escaping (the overwhelming common case), the template is exactly as before.
+For a block where at least one of its own keys needs it, the tool that
+stamps the marker precomputes every instance's escaped address in advance
+(the keys are already known before the plan runs) and writes a lookup
+table keyed by the raw key instead of a template - functionally identical
+to what `for_each` key escaping always produced, just built ahead of time
+rather than replayed by three `replace()` calls at apply time.
 
 ### for_each key migration
 
@@ -219,6 +295,23 @@ bytes. Nothing that identifies or acts on a live resource depends on
 resolving that ambiguity correctly - see `markers.UnescapeAddress`'s doc
 comment - so the worst it can do is mislabel a resource in a message, never
 bind, adopt, or destroy the wrong one.
+
+**Issue #210 repeats this exact shape for `+`.** `+` was in that original
+five-character set (`+ - = _ / @`), legal and unescaped since before #178,
+so a `for_each` key containing it is the same kind of shape `@` is: a
+marker a prior run stamped differs from what this run would stamp for the
+same key, because `+` now doubles. `AddressMatches` covers it the same way,
+extended to a third escaping rather than a second - see "for_each key
+escaping", above, for why a key combining `+` with `.`, `:` or `@` needs
+that third grammar and not just the pre-#178 one. `markers.UnescapeAddress`
+carries the equivalent residual, best-effort ambiguity for `+`: a pre-#210
+key that happened to contain the literal sequence `+` followed by six hex
+digits is indistinguishable from a post-#210 key whose hex escaping
+produced the same bytes, with the same guarantee that nothing which binds,
+adopts, or destroys a resource depends on resolving it. Every other
+character issue #210 admits (`(`, `)`, `;`, and everything else outside the
+pre-#210 AWS-legal set) was refused by lint before this issue and so never
+reached a live marker, exactly as `.` and `:` never did before #178.
 
 ### `tofu-address` continuation tags
 
@@ -274,11 +367,20 @@ of issue #178's migration.
   `this:2`. This is harmless in practice because a single resource block
   uses either `count` or `for_each`, never both, so the two never compete
   for the same address.
-- A `for_each` key outside the AWS-allowed tag character set cannot be
-  written as a marker at all, escaping or not, and is rejected by lint. A
-  key inside that set - including one containing `.`, `:` or `@` - always
-  escapes, per "for_each key escaping" above; there is no character left
-  that the escaping rule refuses to handle.
+- A `for_each` key containing one of the six characters "for_each key
+  escaping" names above (a quote, a backslash, a non-printable character,
+  `$`, `%`, `[` or `]`) cannot be written as a marker at all, and is
+  rejected by lint. Every other key - including one containing `.`, `:` or
+  `@`, or one outside the AWS-allowed tag character set entirely, like
+  `a(b)` - always escapes, per "for_each key escaping" above, since issue
+  #210; there is no printable character left that the escaping rule
+  refuses to handle except those six.
+- A key long enough that its escaped form - after the out-of-charset
+  expansion "for_each key escaping" describes - exceeds the continuation-tag
+  budget below is refused there (RuleOverlongAddress), not truncated. The
+  expansion is worst-case seven characters per out-of-charset rune, so a
+  key that fits comfortably as written can still be refused once escaped;
+  the refusal names the escaped length, not the raw one.
 - Reading a marker's key back (rather than comparing it against a known
   declared address) carries the narrow, coincidental ambiguity "for_each
   key migration" describes: a pre-#178 key that happened to contain the
