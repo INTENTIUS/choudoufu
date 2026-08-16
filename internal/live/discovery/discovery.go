@@ -377,6 +377,41 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	return res, diags
 }
 
+// DeclaredDiagnostics runs the provider-free half of discovery: it checks
+// every needs-discovery resolution against the declared configuration and
+// reports the diagnostics that follow from that alone - a marker address
+// too long to carry, two declared addresses that escape to the same marker
+// value, and a resolution naming a resource block the configuration no
+// longer declares. See [declaredInstances], which this calls directly.
+//
+// [Discover] refuses to run at all without req.Provider, because listing
+// live resources is the whole reason it exists. That gate sits in front of
+// declaredInstances too, even though declaredInstances itself never reads
+// req.Provider - it works from req.Config and req.Resolutions (and
+// req.ScopeProvider, for issue #69's multi-provider sweep) alone. This
+// entry point exists so a caller with no provider handle, such as an
+// offline check, can still run the part of discovery that needs none.
+//
+// req.Provider is ignored - callers with no provider handle at all are
+// exactly who this exists for. req.Config must be non-nil: unlike Discover,
+// this does not check that first, because declaredInstances dereferences it
+// for the root module (identity.ConfigForModule(nil, root) hands back a nil
+// *configs.Config with ok=true, and the field access after it - modCfg.Module
+// - panics on that nil rather than degrading). A nil or moduleless Config is
+// refused here for the same reason Discover refuses it.
+func DeclaredDiagnostics(ctx context.Context, req Request) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if req.Config == nil || req.Config.Module == nil {
+		return diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"No configuration to discover against",
+			"Discovery needs the configuration the identity resolutions were computed from, so that a marker can be matched against an address that is actually declared, and none was given.",
+		))
+	}
+	_, diags = declaredInstances(ctx, req)
+	return diags
+}
+
 // sweepTypes is the estate-wide sweep's type universe: every type the
 // stateless admission table covers that the config-driven scan did not
 // already list.

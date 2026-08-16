@@ -540,6 +540,94 @@ func orderWork(resolutions []identity.Resolution) (concrete, derived, needsDisco
 	return concrete, derived, needsDiscovery, cyclic, recordBacked
 }
 
+// Schemas is how [EmptyImportIdentityDiagnostics] learns which identity
+// attributes a resource type's provider actually has - the same subset of
+// [github.com/intentius/choudoufu/internal/tofu.Schemas] that
+// [github.com/intentius/choudoufu/internal/live/stamp.Schemas] declares for
+// the same reason, so an offline caller that already acquired schemas for
+// stamping can hand the same value here.
+type Schemas interface {
+	ResourceTypeConfig(provider addrs.Provider, resourceMode addrs.ResourceMode, resourceType string) (*providers.Schema, uint64)
+}
+
+// CyclicIdentityDiagnostics reports every "Cyclic parent-derived identities"
+// refusal [Build] would raise, computed from resolutions alone: [orderWork]
+// classifies a parent-derived resolution as cyclic purely from the
+// Addr/Formula.Parents graph among resolutions, before any provider is asked
+// to import or read anything. This is that half of [builder.run] (see its
+// "for _, r := range cyclic" loop) with the live-materializing halves left
+// out, so a caller with no provider handle can still see it.
+func CyclicIdentityDiagnostics(resolutions []identity.Resolution) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	_, _, _, cyclic, _ := orderWork(resolutions)
+	for _, r := range cyclic {
+		detail := fmt.Sprintf(
+			"The identities of %s and the instances it derives from refer to each other in a cycle, so there is no order in which they can be read. This is a bug in identity resolution: a parent-derived identity must name parents that are resolvable first.",
+			r.Addr,
+		)
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cyclic parent-derived identities", detail))
+	}
+	return diags
+}
+
+// EmptyImportIdentityDiagnostics reports every "Empty import identity"
+// refusal [Build] would raise for a [identity.ClassConcrete] resolution,
+// computed with no live call: [importTarget] decides purely from the
+// resolution's own statically-resolved identity/values and the provider's
+// schema whether an identity object or an import-ID string can be built, and
+// [importAndRead] refuses before ever touching a provider when neither can.
+//
+// A [identity.ClassParentDerived] resolution is not checked here. Its
+// identity is a formula over a parent's live value ([builder.renderFormula]
+// reads b.live, populated only by a prior [builder.materialize] call against
+// a real provider), so whether its import target ends up empty cannot be
+// decided offline - the omission is real, not an oversight.
+//
+// cfg supplies each resolution's provider configuration, the same way
+// [builder.providerFor] does when a resource block still declares the
+// instance; a resolution whose block is gone (Undeclared) is skipped, since
+// this entry point has no [Options.UndeclaredProvider] to fall back to and
+// guessing one would be worse than staying silent about it.
+func EmptyImportIdentityDiagnostics(cfg *configs.Config, resolutions []identity.Resolution, schemas Schemas) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	concrete, _, _, _, _ := orderWork(resolutions)
+	for _, r := range concrete {
+		if r.Undeclared {
+			continue
+		}
+		modCfg, ok := identity.ConfigForModule(cfg, r.Addr.Module)
+		if !ok || modCfg == nil || modCfg.Module == nil {
+			continue
+		}
+		rc := modCfg.Module.ManagedResources[r.Addr.Resource.Resource.String()]
+		if rc == nil {
+			continue
+		}
+		providerAddr := providerConfigAddr(modCfg, rc)
+		typeName := r.Type()
+		schema, _ := schemas.ResourceTypeConfig(providerAddr.Provider, addrs.ManagedResourceMode, typeName)
+		if schema == nil {
+			continue
+		}
+		w := wanted{
+			addr:       r.Addr,
+			importID:   r.ImportID,
+			identity:   r.Identity,
+			values:     r.IdentityValues,
+			undeclared: r.Undeclared,
+		}
+		target := importTarget(w, *schema)
+		if !target.IsIdentityBased() && !target.IsIDBased() {
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"Empty import identity",
+				fmt.Sprintf("Nothing was computed as the import identity for a %s: no identity object and no import ID. For a type identified by several attributes with no separator between them, the identity object is the only form there is (see internal/live/identity's IdentityObjectOnly), so an identity the provider's schema would not accept leaves nothing to import by - which is refused here rather than approximated with a string.", typeName),
+			))
+		}
+	}
+	return diags
+}
+
 // renderFormula turns a parent-derived resolution into a concrete import ID -
 // and into the same identity attribute by attribute, when the formula carries
 // that split - by reading its parents' live values out of the projection
