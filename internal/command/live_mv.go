@@ -303,7 +303,7 @@ func (c *LiveMvCommand) liveMvRegion(ctx context.Context, config *configs.Config
 		if !ok {
 			continue
 		}
-		providerAddr := providerConfigAddr(rc, addr.Module.Module())
+		providerAddr := providerConfigAddr(modCfg, rc)
 		if _, err := provs.ConfiguredProvider(ctx, providerAddr); err != nil {
 			return ""
 		}

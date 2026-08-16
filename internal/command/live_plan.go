@@ -35,6 +35,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/live/registry"
 	"github.com/intentius/choudoufu/internal/live/stamp"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
@@ -1232,7 +1233,7 @@ func statelessNeedsDiscoveryProvider(config *configs.Config, needs []identity.Re
 		if !ok {
 			continue
 		}
-		addr := providerConfigAddr(rc, r.Addr.Module.Module())
+		addr := providerConfigAddr(modCfg, rc)
 		seen[addr.String()] = addr
 	}
 
@@ -1278,7 +1279,7 @@ func statelessNeedsDiscoveryProvider(config *configs.Config, needs []identity.Re
 // even implicated.
 func statelessManagedResourceProviders(config *configs.Config) []addrs.AbsProviderConfig {
 	seen := make(map[string]addrs.AbsProviderConfig)
-	walkManagedResources(config, func(rc *configs.Resource, modPath addrs.Module) {
+	walkManagedResources(config, func(rc *configs.Resource, modCfg *configs.Config) {
 		if ti, ok := identity.LookupType(rc.Type); ok && ti.RecordBacked {
 			// GitHub issue #73's record-backed resources (null_resource,
 			// terraform_data, time_*, non-sensitive random_*) have no
@@ -1289,7 +1290,7 @@ func statelessManagedResourceProviders(config *configs.Config) []addrs.AbsProvid
 			// provider with no listable, taggable resources at all.
 			return
 		}
-		addr := providerConfigAddr(rc, modPath)
+		addr := providerConfigAddr(modCfg, rc)
 		seen[addr.String()] = addr
 	})
 	out := make([]addrs.AbsProviderConfig, 0, len(seen))
@@ -1492,14 +1493,14 @@ func quoteAll(names []string) []string {
 }
 
 // providerConfigAddr is the absolute provider configuration a resource block
-// uses, modPath being the static module the block itself is declared in
-// (addrs.RootModule for a root resource).
-func providerConfigAddr(rc *configs.Resource, modPath addrs.Module) addrs.AbsProviderConfig {
-	return addrs.AbsProviderConfig{
-		Module:   modPath,
-		Provider: rc.Provider,
-		Alias:    rc.ProviderConfigAddr().Alias,
-	}
+// uses: [providerscope.ResolveResource] walking every ancestor module call's
+// `providers = {...}` mapping between modCfg (the static module the block
+// itself is declared in) and the root, honouring an aliased mapping instead
+// of ignoring it. GitHub issue #188; the resolution core is
+// internal/live/providerscope, built and tested separately from this
+// wiring.
+func providerConfigAddr(modCfg *configs.Config, rc *configs.Resource) addrs.AbsProviderConfig {
+	return providerscope.ResolveResource(modCfg, rc)
 }
 
 // walkManagedResources calls fn once for every managed resource in cfg's
@@ -1507,13 +1508,15 @@ func providerConfigAddr(rc *configs.Resource, modPath addrs.Module) addrs.AbsPro
 // command-layer counterpart of the five walkers' own traversal, for the
 // handful of places here that still need to look a resource block up by
 // hand rather than through an identity.Resolution's already module-
-// qualified address.
-func walkManagedResources(cfg *configs.Config, fn func(rc *configs.Resource, modPath addrs.Module)) {
+// qualified address. fn is given the [configs.Config] node the resource is
+// declared in, not just its path, because [providerConfigAddr] needs the
+// node itself to walk ancestor module calls' providers mappings.
+func walkManagedResources(cfg *configs.Config, fn func(rc *configs.Resource, modCfg *configs.Config)) {
 	if cfg == nil || cfg.Module == nil {
 		return
 	}
 	for _, rc := range cfg.Module.ManagedResources {
-		fn(rc, cfg.Path)
+		fn(rc, cfg)
 	}
 	for _, name := range identity.SortedChildNames(cfg.Children) {
 		walkManagedResources(cfg.Children[name], fn)

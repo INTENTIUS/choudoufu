@@ -395,40 +395,45 @@ func TestIgnoreChangesAdmitsAForeignTagKey(t *testing.T) {
 }
 
 // TestModuleProvidersAdmitsTheDefaultMapping is the other half of GitHub
-// issue #104's rule.
+// issue #104's rule, updated by GitHub issue #188's narrowing.
 //
 // `providers = { aws = aws }` describes exactly what live mode already does:
 // the module's resources are served by the root's default configuration.
 // Refusing it would refuse a configuration that works, which is the cost
-// this project's goal weighs heaviest. Only a mapping to an *aliased* parent
-// configuration asks for something the run will not do.
+// this project's goal weighs heaviest.
+//
+// `providers = { aws = aws.useast1 }` used to ask for something the run
+// would not do, back when nothing in the live path read a module call's
+// providers mapping at all. Issue #188 built and wired
+// internal/live/providerscope.Resolve into every site that resolves a
+// resource's provider configuration (internal/command/live_plan.go,
+// internal/live/discovery's inScope, internal/live/projection/build.go), so
+// this mapping is now honoured rather than silently ignored: module "east"'s
+// resources are planned, applied and swept against the root's aliased
+// us-east-1 configuration, exactly as the mapping asks. Refusing it would
+// again be refusing a configuration that now works.
 func TestModuleProvidersAdmitsTheDefaultMapping(t *testing.T) {
 	cfg := loadConfigDir(t, filepath.Join(limitsDir(t), "module-providers"))
 	issues := CheckContext(t.Context(), cfg)
 
-	var east, west bool
 	for _, issue := range issues {
 		switch {
 		case strings.Contains(issue.Construct, `module "west"`):
-			west = true
 			t.Errorf("the default mapping was refused: %s\nproviders = { aws = aws } is what live mode does anyway.", issue)
 		case strings.Contains(issue.Construct, `module "east"`):
-			east = true
-			if !strings.Contains(issue.Detail, "account or region") {
-				t.Errorf("the refusal does not name the consequence: %s", issue.Detail)
-			}
+			t.Errorf("the aliased-parent mapping was refused: %s\nGitHub issue #188 resolves it through internal/live/providerscope instead of ignoring it.", issue)
 		}
 	}
-	if !east {
-		t.Error(`module "east" maps aws to an aliased configuration and was not refused`)
-	}
-	_ = west
 
 	// The configuration_aliases shape, which the first version of this rule
-	// admitted. An adversarial audit reproduced the provider-key computation
-	// and found the module's resources resolving aws.primary against a root
-	// that does not declare it, so the provider is configured from the
-	// environment with nothing from the configuration reaching it.
+	// admitted and issue #188 does not change: a resource's own `provider =
+	// aws.primary` reference was never resolved by walking the module call's
+	// mapping (it names the alias directly), so this shape's refusal still
+	// turns on whether the root declares a matching provider block. An
+	// adversarial audit reproduced the provider-key computation and found
+	// the module's resources resolving aws.primary against a root that does
+	// not declare it, so the provider is configured from the environment
+	// with nothing from the configuration reaching it.
 	var aliased bool
 	for _, issue := range issues {
 		if strings.Contains(issue.Construct, `module "aliased"`) {
