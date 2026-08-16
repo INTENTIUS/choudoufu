@@ -165,7 +165,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 219,
-      "sites": 183,
+      "sites": 185,
       "unresolved_modules": 17,
       "unset_variables": 6,
       "schemas": true,
@@ -176,9 +176,9 @@
           {
             "layer": "dataread",
             "id": "Data source provider not configurable",
-            "sites": 1,
+            "sites": 3,
             "categories": {
-              "data_source": 1
+              "data_source": 3
             }
           },
           {
@@ -211,12 +211,12 @@
           {
             "layer": "identity",
             "id": "Not an identity attribute",
-            "sites": 5
+            "sites": 3
           },
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 17
+            "sites": 19
           },
           {
             "layer": "identity",
@@ -278,8 +278,8 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 244,
-      "sites": 172,
+      "instances": 256,
+      "sites": 160,
       "unresolved_modules": 1,
       "unset_variables": 3,
       "schemas": true,
@@ -312,7 +312,7 @@
           {
             "layer": "identity",
             "id": "Identity not resolvable from configuration",
-            "sites": 6
+            "sites": 12
           },
           {
             "layer": "identity",
@@ -323,7 +323,7 @@
           {
             "layer": "identity",
             "id": "Not an identity attribute",
-            "sites": 32
+            "sites": 14
           },
           {
             "layer": "identity",
@@ -2179,9 +2179,9 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 2,
+            "sites": 3,
             "categories": {
-              "tfe_outputs": 2
+              "tfe_outputs": 3
             }
           },
           {
@@ -2203,11 +2203,6 @@
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 1
-          },
-          {
-            "layer": "identity",
-            "id": "Not an identity attribute",
             "sites": 1
           },
           {
@@ -2483,7 +2478,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 10,
-      "sites": 7,
+      "sites": 9,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2496,9 +2491,9 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 1,
+            "sites": 2,
             "categories": {
-              "tfe_outputs": 1
+              "tfe_outputs": 2
             }
           },
           {
@@ -2511,13 +2506,8 @@
           },
           {
             "layer": "identity",
-            "id": "Non-static for_each expression",
-            "sites": 1
-          },
-          {
-            "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 2
+            "sites": 4
           },
           {
             "layer": "stamp",
@@ -4861,22 +4851,15 @@
     {
       "name": ".corpus/mastino/global/dns",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
-      "instances": 61,
-      "sites": 2,
+      "instances": 63,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 15,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
-        "refusals": [
-          {
-            "layer": "identity",
-            "id": "Not an identity attribute",
-            "sites": 2
-          }
-        ]
+        "onboarding_class": "clean"
       },
       "provider_schemas": [
         {
@@ -6834,7 +6817,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 11,
-      "sites": 14,
+      "sites": 16,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6845,15 +6828,23 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 3,
+            "sites": 4,
             "categories": {
-              "data_source": 3
+              "data_source": 4
+            }
+          },
+          {
+            "layer": "identity",
+            "id": "Dynamic value in static context",
+            "sites": 2,
+            "categories": {
+              "other": 2
             }
           },
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 2
+            "sites": 1
           },
           {
             "layer": "lint",
@@ -6986,19 +6977,14 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
       "shadowed": 2,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Non-static for_each expression",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "unadmitted-type",
@@ -9265,7 +9251,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"Resolves at plan time via a data-source read\"",
       "raised_by": "internal/live/dataread",
       "configs": 106,
-      "sites": 2403,
+      "sites": 2406,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:420",
         ".corpus/alb/examples/complete-alb/main.tf:425",
@@ -9283,7 +9269,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
       "raised_by": "internal/configs",
       "configs": 73,
-      "sites": 3281,
+      "sites": 3285,
       "examples": [
         ".corpus/alb/main.tf:88",
         ".corpus/alb/main.tf:231",
@@ -9379,8 +9365,8 @@
       "what": "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.",
       "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
       "raised_by": "internal/configs",
-      "configs": 51,
-      "sites": 363,
+      "configs": 52,
+      "sites": 365,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:195",
         ".corpus/alb/examples/complete-alb/main.tf:195",
@@ -9445,24 +9431,6 @@
     },
     {
       "layer": "identity",
-      "id": "Not an identity attribute",
-      "title": "Not an identity attribute",
-      "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
-      "docs_ref": "live/LIMITATIONS.md, \"Not an identity attribute\"",
-      "raised_by": "internal/live/identity",
-      "configs": 35,
-      "sites": 108,
-      "examples": [
-        ".corpus/cool-assessment/dynamodb_endpoint_client_sg.tf:16",
-        ".corpus/cool-assessment/kali_route53.tf:6",
-        ".corpus/cool-assessment/s3_endpoint_client_sg.tf:16",
-        ".corpus/cool-assessment/transitgateway.tf:69",
-        ".corpus/cool-assessment/windows_route53.tf:6"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
       "id": "Module output not supported in static context",
       "title": "Module output not supported in static context",
       "what": "An identity argument, a count or a for_each reads a child module's output. Module outputs are produced by evaluating the module, which has not happened yet.",
@@ -9476,6 +9444,24 @@
         ".corpus/alb/examples/complete-alb/main.tf:180",
         ".corpus/alb/examples/complete-alb/main.tf:180",
         ".corpus/alb/examples/complete-alb/main.tf:181"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Not an identity attribute",
+      "title": "Not an identity attribute",
+      "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
+      "docs_ref": "live/LIMITATIONS.md, \"Not an identity attribute\"",
+      "raised_by": "internal/live/identity",
+      "configs": 33,
+      "sites": 85,
+      "examples": [
+        ".corpus/cool-assessment/dynamodb_endpoint_client_sg.tf:16",
+        ".corpus/cool-assessment/s3_endpoint_client_sg.tf:16",
+        ".corpus/cool-assessment/transitgateway.tf:69",
+        ".corpus/cyhy-amis/terraform/bod_bastion_security_group_rules.tf:23",
+        ".corpus/cyhy-amis/terraform/bod_bastion_security_group_rules.tf:23"
       ],
       "registered": true
     },
@@ -9505,31 +9491,13 @@
       "docs_ref": "live/LIMITATIONS.md, \"Identity not resolvable from configuration\"",
       "raised_by": "internal/live/identity",
       "configs": 22,
-      "sites": 112,
+      "sites": 118,
       "examples": [
         ".corpus/autoscaling/main.tf:1116",
         ".corpus/autoscaling/main.tf:1116",
         ".corpus/autoscaling/main.tf:1116",
         ".corpus/cool-assessment/guacamole_route53.tf:24",
         ".corpus/cyhy-amis/terraform/bod_bastion_route53.tf:27"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
-      "id": "Non-static for_each expression",
-      "title": "Non-static for_each expression",
-      "what": "A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.",
-      "docs_ref": "live/LIMITATIONS.md, \"Non-static for_each expression\"",
-      "raised_by": "internal/live/identity",
-      "configs": 21,
-      "sites": 63,
-      "examples": [
-        ".corpus/cool-assessment/efs.tf:22",
-        ".corpus/cool-assessment/efs.tf:39",
-        ".corpus/cool-assessment/network_acls.tf:23",
-        ".corpus/cool-assessment/operations_acl_rules.tf:8",
-        ".corpus/cool-assessment/operations_acl_rules.tf:27"
       ],
       "registered": true
     },
@@ -9548,6 +9516,24 @@
         ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:75",
         ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:91",
         ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:173"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Non-static for_each expression",
+      "title": "Non-static for_each expression",
+      "what": "A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.",
+      "docs_ref": "live/LIMITATIONS.md, \"Non-static for_each expression\"",
+      "raised_by": "internal/live/identity",
+      "configs": 19,
+      "sites": 60,
+      "examples": [
+        ".corpus/cool-assessment/efs.tf:22",
+        ".corpus/cool-assessment/efs.tf:39",
+        ".corpus/cool-assessment/network_acls.tf:23",
+        ".corpus/cool-assessment/operations_acl_rules.tf:8",
+        ".corpus/cool-assessment/operations_acl_rules.tf:27"
       ],
       "registered": true
     },
@@ -9689,6 +9675,22 @@
       "registered": true
     },
     {
+      "layer": "dataread",
+      "id": "Data source provider not configurable",
+      "title": "Data source provider not configurable",
+      "what": "A data source the phase must read belongs to a provider configuration that cannot be built before the plan: its provider block needs full evaluation, or the provider's own configure call refused - bad or missing credentials land here, quoted.",
+      "docs_ref": "live/LIMITATIONS.md, \"Data source provider not configurable\"",
+      "raised_by": "internal/live/dataread",
+      "configs": 1,
+      "sites": 3,
+      "examples": [
+        ".corpus/cool-assessment/locals.tf:136",
+        ".corpus/cool-assessment/locals.tf:136",
+        ".corpus/cool-assessment/locals.tf:136"
+      ],
+      "registered": true
+    },
+    {
       "layer": "lint",
       "id": "module-providers",
       "title": "Module provider mapping is not honoured",
@@ -9699,20 +9701,6 @@
       "examples": [
         ".corpus/cool-assessment/read_terraform_state_role.tf:17",
         ".corpus/cool-assessment/read_write_terraform_state_role.tf:17"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "dataread",
-      "id": "Data source provider not configurable",
-      "title": "Data source provider not configurable",
-      "what": "A data source the phase must read belongs to a provider configuration that cannot be built before the plan: its provider block needs full evaluation, or the provider's own configure call refused - bad or missing credentials land here, quoted.",
-      "docs_ref": "live/LIMITATIONS.md, \"Data source provider not configurable\"",
-      "raised_by": "internal/live/dataread",
-      "configs": 1,
-      "sites": 1,
-      "examples": [
-        ".corpus/cool-assessment/locals.tf:136"
       ],
       "registered": true
     },
@@ -10824,8 +10812,8 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 3501,
-    "sites": 10196,
+    "instances": 3515,
+    "sites": 10187,
     "refusals_fired": 26,
     "refusals_in_set": 125,
     "configs_without_schemas": 3,
@@ -10846,10 +10834,10 @@
       "origin": "published deployment",
       "configs": 145,
       "loaded": 144,
-      "blocked": 120,
-      "clean": 24,
-      "instances": 2320,
-      "sites": 2577,
+      "blocked": 119,
+      "clean": 25,
+      "instances": 2334,
+      "sites": 2568,
       "reads_as": "rate"
     },
     {
@@ -10870,7 +10858,7 @@
     "classes": [
       {
         "class": "clean",
-        "configs": 24
+        "configs": 25
       },
       {
         "class": "backend-only",
@@ -10878,7 +10866,7 @@
       },
       {
         "class": "admissions-only",
-        "configs": 19
+        "configs": 20
       },
       {
         "class": "data-read-eligible",
@@ -10886,7 +10874,7 @@
       },
       {
         "class": "language-blocked",
-        "configs": 68
+        "configs": 66
       },
       {
         "class": "unreadable",
