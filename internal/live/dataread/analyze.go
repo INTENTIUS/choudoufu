@@ -34,13 +34,20 @@ type Options struct {
 	// behind its own refusal.
 	Schemas map[string]providers.Schema
 
-	// ProjectManagedArguments is issue #193's fix class (c), PROTOTYPE and
-	// OFF by default: answer a managed resource attribute reference from
-	// the resource block's own configuration argument, offline, instead of
-	// refusing it as dynamic. Off, this package behaves exactly as it did
-	// before the option existed. See managedproj.go for what is and is not
-	// built.
-	ProjectManagedArguments bool
+	// SkipManagedProjection turns issue #193's managed-argument projection
+	// OFF. The projection is ON by default, because it is now complete on
+	// both halves: [Analyze] classifies a projectable managed reference and
+	// [Read] materializes its value, so a configuration this classifies as
+	// readable is one the read phase then reads. While only the
+	// classification existed the polarity was the other way round, since a
+	// live-check saying "no configuration edit is needed" for a plan that
+	// then refuses is worse than the refusal it replaced.
+	//
+	// This is not a product switch. It exists so a measurement can compute
+	// the class's own contribution with and without it, and so this
+	// package's tests can assert both sides of the rule from one fixture.
+	// See managedproj.go for what is and is not projected.
+	SkipManagedProjection bool
 }
 
 // Source is one data resource block the analysis classified: demanded by an
@@ -141,6 +148,12 @@ type Analysis struct {
 	// order holds every demanded source, dependencies before dependents -
 	// the property [Read] relies on. Deterministic across runs.
 	order []*Source
+
+	// projectManaged records whether this analysis classified with #193's
+	// managed-argument projection. [Read] reads it rather than taking its
+	// own option, so the read phase can never project where the analysis
+	// did not, nor refuse where the analysis promised.
+	projectManaged bool
 }
 
 // Empty reports that identity resolution demands no data sources at all,
@@ -356,11 +369,14 @@ func (an *analyzer) forEachDataRefs(mod *configs.Module, expr hcl.Expression, de
 // repeats until resolution demands nothing new. The probe's diagnostics are
 // discarded - the real resolution runs later, with real values.
 func Analyze(ctx context.Context, cfg *configs.Config, opts Options) *Analysis {
-	a := &Analysis{sources: make(map[string]*Source)}
+	a := &Analysis{sources: make(map[string]*Source), projectManaged: !opts.SkipManagedProjection}
 	if cfg == nil || cfg.Module == nil || cfg.Module.StaticEvaluator == nil {
 		return a
 	}
-	an := &analyzer{ctx: ctx, cfg: cfg, analysis: a, schemas: opts.Schemas, projectManaged: opts.ProjectManagedArguments, visiting: make(map[string]bool), managedCache: make(map[string]managedProj)}
+	an := &analyzer{ctx: ctx, cfg: cfg, analysis: a, schemas: opts.Schemas, visiting: make(map[string]bool)}
+	if a.projectManaged {
+		an.proj = newManagedProjector(ctx, cfg, false)
+	}
 
 	// #209: a data source reference nested inside a for_each meta-argument's
 	// own map-value literal never surfaces in a probe round's diagnostics at
@@ -405,11 +421,10 @@ type analyzer struct {
 	schemas  map[string]providers.Schema
 	visiting map[string]bool
 
-	// projectManaged is [Options.ProjectManagedArguments].
-	projectManaged bool
-
-	// managedCache is #193's PROTOTYPE fix class (c) memo.
-	managedCache map[string]managedProj
+	// proj is #193's managed-argument projector in its coverage-only mode,
+	// or nil when [Options.SkipManagedProjection] turned it off. See
+	// managedproj.go.
+	proj *managedProjector
 }
 
 type demandRoot struct {

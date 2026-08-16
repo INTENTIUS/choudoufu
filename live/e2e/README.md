@@ -6,10 +6,12 @@ markers and the feature's live demo
 covers running it in one command, reading its output as a human or a
 machine, and what the branch's claim means as a single exit code.
 
-There is a second, much smaller harness beside it: `live/e2e/record-store/`,
-issue #73's record-backed lifecycle. It is the only end-to-end exercise the
-record-backed class has and it needs neither Docker nor AWS. See "The
-record-store harness" at the bottom.
+There are two smaller harnesses beside it, both documented at the bottom of
+this file. `live/e2e/record-store/` is issue #73's record-backed lifecycle,
+the only end-to-end exercise that class has, and it needs neither Docker nor
+AWS. `live/e2e/dataread-projection/` is issue #193's read side, a data source
+resolved from a managed resource's own configured argument and read against
+the emulator; it needs Docker and the AWS CLI.
 
 ## Quickstart
 
@@ -227,3 +229,47 @@ real cloud object, so it needs the floci harness above rather than this one.
 The unit-level proof of both halves is
 `internal/live/identity/recordbackedattr_test.go` and
 `internal/live/projection/recordparent_test.go`.
+
+## The data-read projection harness
+
+`live/e2e/dataread-projection/run.sh` is issue #193's read side: a data
+source whose argument reads a managed resource attribute the resource's own
+block **sets**, resolved before the plan and read against a real emulator.
+
+```
+just demo-dataread
+```
+
+It needs Docker and the AWS CLI, and runs on port 4599 rather than 4566 so
+it can run beside `just demo`. Under a minute after the image is pulled.
+
+The offline half of that mechanism — deciding *whether* an argument is
+projectable — is tested offline in `internal/live/dataread`, and has to be:
+`tools/corpus-gen` runs the same classification over 250 third-party
+configurations with no AWS account behind them, and that is the instrument
+the whole language-wall measurement rests on. The read half cannot be tested
+that way. It exists to turn a projected argument into a real provider call,
+and nothing offline shows that the call went out with the right argument and
+came back with the live answer.
+
+The fixture is arranged so a static shortcut cannot pass it. Phase 1 applies
+an SSM parameter whose value the configuration states; the script then
+overwrites that value **out of band** through the AWS CLI, so from that point
+the configuration and the cloud disagree. Phase 2 names a CloudWatch log
+group after the parameter's value *as read back from the cloud*. A run that
+resolved the value from configuration would name the log group after the
+phase-1 string, and step 4 fails on exactly that.
+
+| Step | Proves |
+|---|---|
+| phase 1 | A stateless `apply` under a `live` block creates the seed parameter. Floci drops an SSM parameter's tag set (floci-gaps #10), so the ownership markers go on by hand with `aws ssm add-tags-to-resource` — adoption exactly as the docs describe it — *after* the out-of-band overwrite, which drops them again. |
+| overwrite | The parameter reads back as the live value through the AWS CLI, not through `choudoufu`. This is the setup that gives the next step its teeth. |
+| phase 2 plan | The plan resolves `aws_ssm_parameter.seed.name` from the block that sets it, reads the data source with it, and names the log group after the value the cloud returned. Both directions are asserted: the live name must be present and the configured name must be absent. |
+| apply + read back | The log group exists on the emulator under the live-derived name, read with the AWS CLI rather than from `choudoufu`'s own output. |
+| clean re-plan | With the state file deleted, a second run redoes the whole projection and read — values are never cached — and proposes nothing for the derived log group. |
+| unset attribute | `aws_ssm_parameter.seed.arn` is assigned by the provider and appears nowhere in the block, so it must still refuse, naming the managed resource, with no raw HCL "does not have an attribute named" error leaking out. |
+
+The harness fails on a build without the read side, which is what makes it a
+test rather than a demonstration: with the managed branch removed from
+`reader.lookupFor`, step 4 refuses with *"Data source not readable before
+resolution … Unable to use aws_ssm_parameter.seed in static context"*.

@@ -90,6 +90,13 @@ func Read(ctx context.Context, cfg *configs.Config, analysis *Analysis, provs Pr
 		results:  make(map[string]cty.Value),
 		insts:    &analyzer{ctx: ctx, cfg: cfg},
 	}
+	if analysis.projectManaged {
+		// #193's read side: the same projector [Analyze] classified with,
+		// in its value-returning mode. Built only when the analysis itself
+		// projected, so the two halves can never disagree about whether a
+		// managed reference is answerable.
+		r.proj = newManagedProjector(ctx, cfg, true)
+	}
 	for _, src := range analysis.Demanded() {
 		if !r.readSource(src) {
 			// Stop at the first failure rather than fanning a misconfigured
@@ -118,6 +125,10 @@ type reader struct {
 
 	// insts reuses the analyzer's module-instance walk.
 	insts *analyzer
+
+	// proj is #193's managed-argument projector in its value-returning
+	// mode, or nil when the analysis did not project. See managedproj.go.
+	proj *managedProjector
 
 	// encBuilt, enc and encDiags cache the configuration's own encryption
 	// setup (its "terraform { encryption { ... } }" block, or none), built
@@ -303,6 +314,20 @@ func (r *reader) callRead(src *Source, provider providers.Interface, dsSchema pr
 	req := providers.ReadDataSourceRequest{
 		TypeName: src.Resource.Type,
 		Config:   unmarked,
+		// ProviderMeta must be a real cty.Value, never the zero Value: the
+		// plugin client marshals it unconditionally whenever the provider
+		// declares a provider_meta schema (internal/plugin/grpc_provider.go's
+		// ReadDataSource), and msgpack.Marshal on cty.NilVal panics inside
+		// cty's own conformance check rather than returning an error. The aws
+		// provider declares one, so every real read from this phase crashed
+		// the process until this line existed; the offline tests could not see
+		// it because internal/tofu's MockProvider does no marshalling at all.
+		// A null is also the honest value: this phase does not evaluate a
+		// module's own provider_meta block, so it sends what a module that
+		// declares none sends. The same three lines appear in
+		// internal/live/liveimport, internal/live/untag and internal/live/mv
+		// for the same reason.
+		ProviderMeta: cty.NullVal(cty.DynamicPseudoType),
 	}
 	var resp providers.ReadDataSourceResponse
 	if src.RemoteState {
@@ -392,8 +417,19 @@ func (r *reader) representativeInstance(src *Source, keys []addrs.InstanceKey) a
 // lookupFor answers whole-resource data references from what the phase has
 // read so far in one module - well-founded because sources read in
 // dependency order.
+//
+// A MANAGED reference goes to #193's projector instead, which answers it
+// from the resource block's own arguments with real values, evaluated
+// through this same lookup: a projected argument that itself reads a data
+// source sees that source's already-read value, for the same reason and by
+// the same ordering that makes the data-source case well-founded. The
+// projector is nil unless the analysis projected, so with the projection
+// disabled this is byte-for-byte the lookup it was before.
 func (r *reader) lookupFor(module addrs.Module) configs.StaticDataLookup {
 	return func(addr addrs.Resource) (cty.Value, bool) {
+		if addr.Mode == addrs.ManagedResourceMode {
+			return r.proj.project(module, addr, r.lookupFor)
+		}
 		val, ok := r.agg[sourceKey(module, addr)]
 		return val, ok
 	}
@@ -407,46 +443,64 @@ func (r *reader) lookupFor(module addrs.Module) configs.StaticDataLookup {
 // per-instance repetition value is the key itself.
 func (r *reader) expansionKeys(src *Source, eval *configs.StaticEvaluator) ([]addrs.InstanceKey, map[string]cty.Value, bool) {
 	rc := src.Config
+	keys, eachVals, detail, ok := staticExpansion(r.ctx, src.Module, src.Resource.String(), rc.Count, rc.ForEach, eval)
+	if !ok {
+		return nil, nil, r.refuse(src, SummaryNotReadable, "%s's %s", src.Resource.String(), detail)
+	}
+	return keys, eachVals, true
+}
+
+// staticExpansion turns one block's count or for_each into its instance
+// keys, with eachVals carrying each key's own each.value for a for_each
+// (nil otherwise, where the key is the only repetition value there is). It
+// is shared by the data-source read above and #193's managed-argument
+// projection (managedproj.go), which needs the identical answer: a block
+// whose instance keys are not knowable before the plan has no aggregate
+// shape either way.
+//
+// detail is a sentence fragment naming the failure, for a caller to prefix
+// with whatever it calls the block - "data.aws_subnet.x's " here.
+func staticExpansion(ctx context.Context, module addrs.Module, subject string, count, forEach hcl.Expression, eval *configs.StaticEvaluator) ([]addrs.InstanceKey, map[string]cty.Value, string, bool) {
 	switch {
-	case rc.Count != nil:
-		val, ok := r.evalExpr(src, eval, rc.Count, "count")
+	case count != nil:
+		val, detail, ok := staticEvalExpr(ctx, module, subject, "count", count, eval)
 		if !ok {
-			return nil, nil, false
+			return nil, nil, detail, false
 		}
 		if val.IsMarked() {
-			return nil, nil, r.refuse(src, SummaryNotReadable, "%s's count reads a sensitive value, so its instance keys cannot be computed before the plan.", src.Resource.String())
+			return nil, nil, "count reads a sensitive value, so its instance keys cannot be computed before the plan.", false
 		}
 		if val.IsNull() || !val.IsWhollyKnown() {
-			return nil, nil, r.refuse(src, SummaryNotReadable, "%s's count does not evaluate to a value knowable before the plan.", src.Resource.String())
+			return nil, nil, "count does not evaluate to a value knowable before the plan.", false
 		}
 		num, err := convert.Convert(val, cty.Number)
 		if err != nil {
-			return nil, nil, r.refuse(src, SummaryNotReadable, "%s's count is not a number: %s.", src.Resource.String(), err)
+			return nil, nil, fmt.Sprintf("count is not a number: %s.", err), false
 		}
 		var n int
 		if convErr := numToInt(num, &n); convErr != nil || n < 0 {
-			return nil, nil, r.refuse(src, SummaryNotReadable, "%s's count is not a whole non-negative number.", src.Resource.String())
+			return nil, nil, "count is not a whole non-negative number.", false
 		}
 		keys := make([]addrs.InstanceKey, n)
 		for i := range keys {
 			keys[i] = addrs.IntKey(i)
 		}
-		return keys, nil, true
+		return keys, nil, "", true
 
-	case rc.ForEach != nil:
-		val, ok := r.evalExpr(src, eval, rc.ForEach, "for_each")
+	case forEach != nil:
+		val, detail, ok := staticEvalExpr(ctx, module, subject, "for_each", forEach, eval)
 		if !ok {
-			return nil, nil, false
+			return nil, nil, detail, false
 		}
 		if val.IsMarked() {
-			return nil, nil, r.refuse(src, SummaryNotReadable, "%s's for_each reads a sensitive value, so its instance keys cannot be computed before the plan.", src.Resource.String())
+			return nil, nil, "for_each reads a sensitive value, so its instance keys cannot be computed before the plan.", false
 		}
 		if val.IsNull() || !val.IsWhollyKnown() {
-			return nil, nil, r.refuse(src, SummaryNotReadable, "%s's for_each does not evaluate to a value knowable before the plan.", src.Resource.String())
+			return nil, nil, "for_each does not evaluate to a value knowable before the plan.", false
 		}
 		ty := val.Type()
 		if !ty.IsMapType() && !ty.IsObjectType() && !ty.IsSetType() {
-			return nil, nil, r.refuse(src, SummaryNotReadable, "%s's for_each is neither a map nor a set of strings.", src.Resource.String())
+			return nil, nil, "for_each is neither a map nor a set of strings.", false
 		}
 		var names []string
 		eachVals := make(map[string]cty.Value)
@@ -459,10 +513,10 @@ func (r *reader) expansionKeys(src *Source, eval *configs.StaticEvaluator) ([]ad
 				k = v
 			}
 			if k.IsMarked() {
-				return nil, nil, r.refuse(src, SummaryNotReadable, "%s's for_each reads a sensitive value, so its instance keys cannot be computed before the plan.", src.Resource.String())
+				return nil, nil, "for_each reads a sensitive value, so its instance keys cannot be computed before the plan.", false
 			}
 			if k.Type() != cty.String || k.IsNull() || !k.IsKnown() {
-				return nil, nil, r.refuse(src, SummaryNotReadable, "%s's for_each has a key that is not a string.", src.Resource.String())
+				return nil, nil, "for_each has a key that is not a string.", false
 			}
 			names = append(names, k.AsString())
 			eachVals[k.AsString()] = v
@@ -472,10 +526,10 @@ func (r *reader) expansionKeys(src *Source, eval *configs.StaticEvaluator) ([]ad
 		for i, name := range names {
 			keys[i] = addrs.StringKey(name)
 		}
-		return keys, eachVals, true
+		return keys, eachVals, "", true
 
 	default:
-		return []addrs.InstanceKey{addrs.NoKey}, nil, true
+		return []addrs.InstanceKey{addrs.NoKey}, nil, "", true
 	}
 }
 
@@ -496,26 +550,26 @@ func numToInt(num cty.Value, out *int) error {
 	return nil
 }
 
-// evalExpr evaluates one expression through the phase's evaluator, guarded
-// the way every static evaluation on the live path is guarded.
-func (r *reader) evalExpr(src *Source, eval *configs.StaticEvaluator, expr hcl.Expression, label string) (val cty.Value, ok bool) {
+// staticEvalExpr evaluates one expression through a static evaluator,
+// guarded the way every static evaluation on the live path is guarded. The
+// returned detail is a sentence fragment naming the failure, for a caller to
+// prefix with whatever it calls the block; it is empty on success.
+func staticEvalExpr(ctx context.Context, module addrs.Module, subject, label string, expr hcl.Expression, eval *configs.StaticEvaluator) (val cty.Value, detail string, ok bool) {
 	defer func() {
 		if rec := recover(); rec != nil {
-			val, ok = cty.NilVal, r.refuse(src, SummaryNotReadable,
-				"%s's %s could not be evaluated: %v.", src.Resource.String(), label, rec)
+			val, detail, ok = cty.NilVal, fmt.Sprintf("%s could not be evaluated: %v.", label, rec), false
 		}
 	}()
 	ident := configs.StaticIdentifier{
-		Module:    src.Module,
-		Subject:   fmt.Sprintf("%s's %s", src.Resource.String(), label),
+		Module:    module,
+		Subject:   fmt.Sprintf("%s's %s", subject, label),
 		DeclRange: expr.Range(),
 	}
-	v, hclDiags := eval.Evaluate(r.ctx, expr, ident)
+	v, hclDiags := eval.Evaluate(ctx, expr, ident)
 	if hclDiags.HasErrors() {
-		return cty.NilVal, r.refuse(src, SummaryNotReadable,
-			"%s's %s is not statically evaluable: %s.", src.Resource.String(), label, hclDiags.Error())
+		return cty.NilVal, fmt.Sprintf("%s is not statically evaluable: %s.", label, hclDiags.Error()), false
 	}
-	return v, true
+	return v, "", true
 }
 
 // decodeConfig evaluates the block's arguments against the provider's own

@@ -118,9 +118,15 @@ type StaticDataLookup func(addr addrs.Resource) (cty.Value, bool)
 // would be a guess a later phase treats as fact. A caller that HAS performed
 // reads - the pre-resolution data-read phase - hands the results in through
 // this seam, and only references the lookup actually covers are permitted;
-// everything else keeps refusing exactly as before. Managed-mode references
-// are never answered this way: there is nothing a pre-plan read could
-// honestly say about an object the plan may be about to change.
+// everything else keeps refusing exactly as before.
+//
+// A managed-mode reference is answerable only from the resource block's own
+// configuration - never from a pre-plan read, because there is nothing such
+// a read could honestly say about an object the plan may be about to change.
+// internal/live/dataread's lookup answers one when the block's own body sets
+// an argument of that name and the expression evaluates statically; the
+// answer is partial by construction, so [lookupCoversTraversal] refuses a
+// reference that does not take it down to one of those arguments.
 func (s *StaticEvaluator) WithDataResults(lookup StaticDataLookup) *StaticEvaluator {
 	if s == nil || lookup == nil {
 		return s

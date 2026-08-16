@@ -416,18 +416,38 @@ func (s staticScopeData) StaticValidateReferences(_ context.Context, refs []*add
 // in the same words, as no answer at all, instead of surfacing an HCL
 // "this object does not have an attribute named ..." error several layers
 // down.
+//
+// An instance index in the traversal is walked through rather than stopping
+// the check, so that a count- or for_each-expanded answer is checked for the
+// attribute on its ELEMENT. That matters for a partial answer such as a
+// managed resource's projection (internal/live/dataread's managedproj.go),
+// where an attribute the block does not set has to refuse at the same place
+// whether or not the reference goes through an instance key.
 func lookupCoversTraversal(val cty.Value, remaining hcl.Traversal) bool {
-	if val == cty.NilVal || !val.Type().IsObjectType() {
+	if val == cty.NilVal {
 		return true
 	}
+	ty := val.Type()
 	for _, step := range remaining {
 		switch ts := step.(type) {
 		case hcl.TraverseAttr:
-			return val.Type().HasAttribute(ts.Name)
+			if !ty.IsObjectType() {
+				// Not a shape this function can decide; the evaluator itself
+				// does, exactly as before.
+				return true
+			}
+			return ty.HasAttribute(ts.Name)
 		case hcl.TraverseIndex:
-			// An instance key: the element type is what carries the
-			// attribute, and this lookup shape does not model expansion.
-			return true
+			// An instance key: the element is what carries the attribute, so
+			// step into it and keep looking. Which element does not matter -
+			// uniformElementType only answers when every element has the same
+			// type - so the index value itself is never touched, and a marked
+			// or unknown key costs nothing here.
+			elem, ok := uniformElementType(ty)
+			if !ok {
+				return true
+			}
+			ty = elem
 		default:
 			return true
 		}
@@ -435,13 +455,52 @@ func lookupCoversTraversal(val cty.Value, remaining hcl.Traversal) bool {
 	return true
 }
 
+// uniformElementType returns the type every element of ty has, when ty is a
+// collection and they all agree. A tuple or object whose elements differ has
+// no single answer, and neither does anything that is not a collection at
+// all; the caller then knows only that it cannot decide.
+func uniformElementType(ty cty.Type) (cty.Type, bool) {
+	switch {
+	case ty.IsListType(), ty.IsSetType(), ty.IsMapType():
+		return ty.ElementType(), true
+	case ty.IsTupleType():
+		etys := ty.TupleElementTypes()
+		if len(etys) == 0 {
+			return cty.NilType, false
+		}
+		for _, ety := range etys[1:] {
+			if !ety.Equals(etys[0]) {
+				return cty.NilType, false
+			}
+		}
+		return etys[0], true
+	case ty.IsObjectType():
+		var first cty.Type
+		seen := false
+		for _, aty := range ty.AttributeTypes() {
+			if !seen {
+				first, seen = aty, true
+				continue
+			}
+			if !aty.Equals(first) {
+				return cty.NilType, false
+			}
+		}
+		if !seen {
+			return cty.NilType, false
+		}
+		return first, true
+	}
+	return cty.NilType, false
+}
+
 // anyResourceSubject extracts the containing resource of EITHER mode from a
 // reference subject. The mode gate used to live here, refusing every managed
 // reference before the lookup could be asked; it now lives in the lookup
 // itself, which is the only place that knows whether it has an answer. A
-// lookup that answers nothing for managed mode - which is every lookup in
-// this repository unless dataread.Options.ProjectManagedArguments is set -
-// leaves behaviour identical.
+// lookup that answers nothing for managed mode - which is every lookup here
+// except internal/live/dataread's, and that one only for an argument the
+// block's own body sets - leaves behaviour identical.
 func anyResourceSubject(subject addrs.Referenceable) (addrs.Resource, bool) {
 	switch s := subject.(type) {
 	case addrs.Resource:
