@@ -178,32 +178,24 @@ func declaredEstateNamesFrom(ctx context.Context, cfg *configs.Config, seen map[
 // [addrs.AbsResourceInstance] resolution walks, so a resource inside a
 // for_each'd module still matches (see GitHub issue #111).
 //
-// schemas gates the result per resource TYPE, not per run (GitHub issue
-// #230): a hand-table-admitted type's ClassNeedsDiscovery classification is a
-// static, generator-baked property of table_generated.go, independent of
-// whether that type's own provider schema happened to load - schemas are
-// only a fallback for a type the table does not cover. [stamp.Stamp] cannot
-// tell the two "no schema" causes apart on its own (SkipNoSchema fires
-// identically for a provider that failed entirely and one that loaded fine
-// but does not model this particular type), so mustStamp - the thing that
-// turns SkipNoSchema from a silent skip into a hard "unstampable" error -
-// must never read true for a type this run has no schema for at all. A
-// resource is therefore only counted as needing discovery here when its own
-// type's schema is present in schemas; the previous gate instead asked
-// whether ANY provider's schema had loaded anywhere in the configuration,
-// which fabricated a hard refusal on every needs-discovery AWS resource the
-// moment some unrelated provider (random, say) resolved while AWS's schema
-// acquisition failed. Unknown must not be reported as refused.
-func stampNeedsDiscovery(result *identity.Result, schemas map[string]providers.Schema) map[string]bool {
+// It says nothing about provider schemas, deliberately. GitHub issue #230's
+// invariant - a type whose own schema this run could not read is UNKNOWN,
+// never refused - lives in [stamp.SkipReason.Unknown] and is applied by
+// stamp.Stamp itself, so every caller gets it: this instrument, "choudoufu
+// live-plan", and anything that folds a [stamp.Result] into diagnostics of
+// its own. The first fix for #230 filtered this map by schema presence
+// instead, which held here and nowhere else, and it compared a different
+// predicate from the one stamp applies (a key present in the map, versus a
+// non-nil schema Block), so an entry carrying a schema with no block would
+// have slipped past the gate straight into the refusal it was meant to
+// prevent.
+func stampNeedsDiscovery(result *identity.Result) map[string]bool {
 	if result == nil {
 		return nil
 	}
 	needs := result.NeedsDiscovery()
 	out := make(map[string]bool, len(needs))
 	for _, r := range needs {
-		if _, ok := schemas[r.Addr.Resource.Resource.Type]; !ok {
-			continue
-		}
 		out[r.Addr.ContainingResource().Config().String()] = true
 	}
 	return out

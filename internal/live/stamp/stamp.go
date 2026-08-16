@@ -268,6 +268,40 @@ const (
 	SkipModuleKeyedTrusted SkipReason = "MODULE_KEYED_TRUSTED"
 )
 
+// Unknown reports whether this skip means the pass could not TELL whether the
+// resource can carry an ownership marker, as opposed to knowing that it
+// cannot.
+//
+// GitHub issue #230's invariant, in one place instead of one per consumer:
+// unknown must not be reported as refused. Every other reason is a fact this
+// pass established by reading the resource - its type's schema has no tags
+// argument, its body is JSON, its tags argument is an expression nothing can
+// append to - and a marker-only resource hitting one of those really is about
+// to be created unfindable. [SkipNoSchema] establishes nothing: the type's
+// schema was not in [Request.Schemas], and there are three unrelated ways for
+// that to happen, none of which is evidence about taggability -
+//
+//   - the provider's schema acquisition failed while another provider's
+//     succeeded (internal/command's statelessProviders.resourceSchemas
+//     documents its own failures as silent and its result as possibly
+//     partial, and 33 of 250 corpus entries show that shape);
+//   - the installed provider release does not serve this type at all, the
+//     ordinary version-skew case;
+//   - two providers both serve the type name, so the merged map DROPS it
+//     rather than pick one (resourceSchemas again).
+//
+// In all three the run fails later with a message that names the real
+// problem, so the honest outcome here is a warning that says the taggability
+// is unknown - never the hard "you are about to create an unfindable
+// resource" refusal, which asserts a fact this pass does not have.
+//
+// Consumers that turn a Skip into a diagnostic of their own
+// (internal/command's statelessStampGaps) must consult this rather than
+// re-deriving it, or the invariant holds in one caller and not the next -
+// which is exactly how #230 shipped, fixed in internal/live/check while the
+// path a user actually runs kept fabricating.
+func (r SkipReason) Unknown() bool { return r == SkipNoSchema }
+
 // Skip is one resource this pass left alone, and why.
 type Skip struct {
 	// Addr is the resource block's address, module-qualified for a block
@@ -532,7 +566,17 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 			// reasons, and with a better message than this pass could give.
 			return nil, diags
 		}
-		return nil, diags.Append(s.unstampable(rc, detail))
+		// A warning, never [stamper.unstampable]'s must-stamp escalation:
+		// see [SkipReason.Unknown]. The detail sentence above already says
+		// "unknown", and reporting an unknown as the hard "applying this
+		// unmarked creates a resource you can never find again" refusal
+		// asserts a fact this pass does not have. GitHub issue #230.
+		return nil, diags.Append(&hcl.Diagnostic{
+			Severity: hcl.DiagWarning,
+			Summary:  SummaryNotStamped,
+			Detail:   detail,
+			Subject:  rc.DeclRange.Ptr(),
+		})
 	}
 	if !taggable(schema.Block) {
 		// Silent for a resource identified some other way: an untaggable type

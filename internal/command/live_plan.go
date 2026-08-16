@@ -1118,7 +1118,19 @@ func statelessStampGaps(res *stamp.Result, needsDiscovery map[string]bool) tfdia
 		// deliberately leaves it alone rather than failing to write anything.
 		// Treating it as a gap tells an operator their marker is missing
 		// while it sits in the file above the error. See #111.
-		if skip.Reason == stamp.SkipAlreadyStamped || skip.Reason == stamp.SkipModuleKeyedTrusted || !needsDiscovery[skip.Addr.String()] {
+		//
+		// [stamp.SkipReason.Unknown] is exempt for a different reason, and
+		// it is GitHub issue #230's: that skip records that this run could
+		// not READ the type's schema, so whether the resource can carry a
+		// marker at all is unknown. Reporting an unknown as "applying this
+		// would create a resource this configuration can never find again"
+		// states a fact nothing established. tofu.Schemas can come back
+		// without a given type in three ordinary ways - a provider release
+		// that predates the type, two providers serving one type name (which
+		// statelessProviders.resourceSchemas drops rather than resolves), a
+		// partial acquisition - and each one fails the run later with a
+		// message that names the real problem.
+		if skip.Reason == stamp.SkipAlreadyStamped || skip.Reason == stamp.SkipModuleKeyedTrusted || skip.Reason.Unknown() || !needsDiscovery[skip.Addr.String()] {
 			continue
 		}
 		diags = diags.Append(tfdiags.Sourceless(
