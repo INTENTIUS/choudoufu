@@ -1004,7 +1004,7 @@ refused, and each says so in its own entry.
 | 22 | 187 | identity | Identity not resolvable from configuration | `internal/live/identity` | "Identity not resolvable from configuration" |
 | 22 | 66 | identity | Identity argument not set | `internal/live/identity` | "Identity argument not set" |
 | 21 | 110 | lint | module-providers | `internal/live/lint` | "module-providers" |
-| 20 | 65 | identity | Non-static for_each expression | `internal/live/identity` | "Non-static for_each expression" |
+| 19 | 62 | identity | Non-static for_each expression | `internal/live/identity` | "Non-static for_each expression" |
 | 18 | 63 | identity | Non-static identity argument | `internal/live/identity` | "Non-static identity argument" |
 | 13 | 30 | lint | child-module | `internal/live/lint` | "child-module" |
 | 13 | 27 | identity | Invalid for_each set | `internal/live/identity` | "Invalid for_each set" |
@@ -1076,6 +1076,8 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Invalid count | `internal/live/identity` | "Invalid count" |
 | 0 | 0 | identity | Invalid default value for module argument | `internal/configs` | "Invalid default value for module argument" |
 | 0 | 0 | identity | Invalid expanding argument value | `hcl` | "Invalid expanding argument value" |
+| 0 | 0 | identity | Invalid for_each condition | `internal/live/identity` | "Invalid for_each condition" |
+| 0 | 0 | identity | Invalid for_each key | `internal/live/identity` | "Invalid for_each key" |
 | 0 | 0 | identity | Invalid for_each value | `internal/live/identity` | "Invalid for_each value" |
 | 0 | 0 | identity | Invalid index | `hcl` | "Invalid index" |
 | 0 | 0 | identity | Invalid index key | `internal/addrs` | "Invalid index key" |
@@ -1163,7 +1165,7 @@ refused, and each says so in its own entry.
 | - | - | stamp | Ownership markers not stamped | `internal/live/stamp` | "Ownership markers not stamped" |
 | - | - | stamp | Unmarked apply of a marker-only resource | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 
-**173 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
+**175 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -1265,7 +1267,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 20 configurations in the measured corpus, at 65 sites.
+**How often.** Blocked 19 configurations in the measured corpus, at 62 sites.
 
 #### Non-static identity argument
 
@@ -1768,6 +1770,22 @@ reserved for the limits wing's fixture directories, and
 **What.** A function call expands an argument with ... over something that is not a list or tuple.
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
+
+**How often.** Blocked no configuration in the measured corpus.
+
+#### Invalid for_each condition
+
+**What.** The if clause of a for_each comprehension over another resource's keys did not evaluate to a known boolean, even though it never reads the comprehension's value variable.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked no configuration in the measured corpus.
+
+#### Invalid for_each key
+
+**What.** The key clause of a for_each comprehension over another resource's keys did not evaluate to a known string, even though it never reads the comprehension's value variable.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked no configuration in the measured corpus.
 

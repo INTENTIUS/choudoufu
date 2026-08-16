@@ -2291,7 +2291,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 35,
+      "sites": 32,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -2314,11 +2314,6 @@
             "layer": "identity",
             "id": "Invalid function argument",
             "sites": 2
-          },
-          {
-            "layer": "identity",
-            "id": "Non-static for_each expression",
-            "sites": 3
           },
           {
             "layer": "identity",
@@ -8126,8 +8121,8 @@
       "what": "A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.",
       "docs_ref": "live/LIMITATIONS.md, \"Non-static for_each expression\"",
       "raised_by": "internal/live/identity",
-      "configs": 20,
-      "sites": 65,
+      "configs": 19,
+      "sites": 62,
       "examples": [
         ".corpus/cool-assessment/efs.tf:22",
         ".corpus/cool-assessment/efs.tf:39",
@@ -8743,6 +8738,28 @@
     },
     {
       "layer": "identity",
+      "id": "Invalid for_each condition",
+      "title": "Invalid for_each condition",
+      "what": "The if clause of a for_each comprehension over another resource's keys did not evaluate to a known boolean, even though it never reads the comprehension's value variable.",
+      "docs_ref": "live/LIMITATIONS.md, \"Invalid for_each condition\"",
+      "raised_by": "internal/live/identity",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Invalid for_each key",
+      "title": "Invalid for_each key",
+      "what": "The key clause of a for_each comprehension over another resource's keys did not evaluate to a known string, even though it never reads the comprehension's value variable.",
+      "docs_ref": "live/LIMITATIONS.md, \"Invalid for_each key\"",
+      "raised_by": "internal/live/identity",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
       "id": "Invalid for_each value",
       "title": "Invalid for_each value",
       "what": "A for_each value is neither a map nor a set of strings.",
@@ -9319,9 +9336,9 @@
     "configs": 250,
     "loaded": 249,
     "instances": 3276,
-    "sites": 14222,
+    "sites": 14219,
     "refusals_fired": 32,
-    "refusals_in_set": 116,
+    "refusals_in_set": 118,
     "configs_without_schemas": 0,
     "refusals_unregistered": 0
   },
@@ -9343,7 +9360,7 @@
       "blocked": 144,
       "clean": 0,
       "instances": 2129,
-      "sites": 2914,
+      "sites": 2911,
       "reads_as": "rate"
     },
     {
