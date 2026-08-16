@@ -1123,6 +1123,8 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 		return r.resolveExpr(e.Wrapped, scope, ident)
 	case *hclsyntax.ParenthesesExpr:
 		return r.resolveExpr(e.Expression, scope, ident)
+	case *hclsyntax.ConditionalExpr:
+		return r.resolveConditional(e, scope, ident)
 	}
 
 	trav, diags := hcl.AbsTraversalForExpr(expr)
@@ -1138,6 +1140,55 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 		return nil, false
 	}
 	return r.resolveTraversal(trav, scope, ident)
+}
+
+// resolveConditional decomposes `cond ? A : B` (GitHub issue #196) by
+// evaluating cond statically and recursing [resolver.resolveExpr] into
+// whichever branch it selects, so a resource reference in the branch NOT
+// taken is never consulted - it does not even need to be resolvable.
+//
+// This reaches only the case [resolver.resolveExpr]'s own top-level
+// isSymbolic check could not already dispatch to evalStatic: cond, A and B
+// combined reference a managed resource somewhere (isSymbolic sees every
+// hcl.Expression.Variables() in the whole ConditionalExpr, regardless of
+// which branch runs), so `cond ? "literal" : "literal"` and similar
+// resource-free conditionals never reach here - they already resolve
+// through the ordinary evalStatic path above.
+//
+// It draws no new boundary: cond is rejected exactly when
+// [resolver.isSymbolic] would reject it as a bare expression (a managed
+// resource, or each.value over a for_each'd resource), and the selected
+// branch is handed back to resolveExpr, which applies every existing rule -
+// parentPart's registered-IdentityAttrs check, the provider-schema
+// Computed-flag boundary in [resolver.siblingLiteralExpr] - unchanged.
+func (r *resolver) resolveConditional(e *hclsyntax.ConditionalExpr, scope instScope, ident configs.StaticIdentifier) ([]Part, bool) {
+	if r.isSymbolic(e.Condition, scope) {
+		r.errorf(e.Condition.Range(), "Identity not resolvable from configuration",
+			"%s selects between branches of a conditional expression using another resource's value. "+
+				"A resource reference contributes to an identity only as a whole reference or as an interpolation in a string template; "+
+				"it cannot be passed through functions or operators, because the value it produces is not known until apply - so which branch applies is not known either.",
+			ident.Subject)
+		return nil, false
+	}
+
+	condVal, ok := r.evalStatic(e.Condition, scope, ident)
+	if !ok {
+		// evalStatic already recorded why (an unset variable, an impure
+		// call, and so on).
+		return nil, false
+	}
+	condVal, convErr := convert.Convert(condVal, cty.Bool)
+	if convErr != nil || condVal.IsNull() || !condVal.IsKnown() {
+		r.errorf(e.Condition.Range(), "Identity not resolvable from configuration",
+			"%s's conditional expression condition did not evaluate to a known true/false value.",
+			ident.Subject)
+		return nil, false
+	}
+
+	if condVal.True() {
+		return r.resolveExpr(e.TrueResult, scope, ident)
+	}
+	return r.resolveExpr(e.FalseResult, scope, ident)
 }
 
 // resolveIndexedTraversal decomposes a reference into another resource
