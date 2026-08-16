@@ -399,13 +399,21 @@ func checkManagedResources(mod *configs.Module, path addrs.Module, schemas map[s
 // that store" (logical_type.go's own wording for what admission means) -
 // its provisioners are exactly as recoverable as they always were, because
 // the record store is what replaces state for that type, tainted bit
-// included. Reporting RuleProvisioner on top of RuleLogicalResource would
-// not be a second, independent hazard: it would be the same "one verdict
-// per resource" violation checkManagedResources already avoids for
-// RuleUnadmittedType once a type is already known logical (lint.go, the
-// isLogical branch above) - telling an operator to also strip a provisioner
-// that a record_store declaration already brings back to life is noise, not
-// a second fix they need to make.
+// included: recordPayload.Status (internal/live/projection/record.go)
+// carries states.ObjectTainted through WriteBack and materializeRecord
+// (internal/live/projection/writeback.go, build.go) exactly the way a real
+// state file's tainted bit survives a plan/apply cycle, so a create-time
+// provisioner failure on a record-backed resource still forces a replace
+// on the next plan (issue #216, which is the reason this claim is now
+// backed by a test - TestTaintedRecordSurvivesWriteBackAndMaterialization
+// in record_test.go - and not just this comment). Reporting RuleProvisioner
+// on top of RuleLogicalResource would not be a second, independent hazard:
+// it would be the same "one verdict per resource" violation
+// checkManagedResources already avoids for RuleUnadmittedType once a type
+// is already known logical (lint.go, the isLogical branch above) - telling
+// an operator to also strip a provisioner that a record_store declaration
+// already brings back to life is noise, not a second fix they need to
+// make.
 func checkProvisioners(resource *configs.Resource, addr string, path addrs.Module, isLogical bool, issues *[]Issue) {
 	if isLogical {
 		return

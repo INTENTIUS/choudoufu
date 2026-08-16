@@ -7,12 +7,14 @@ package projection
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
+	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
@@ -110,7 +112,7 @@ func TestBuildHydratesRecordBacked(t *testing.T) {
 		"id":       cty.StringVal("abc123"),
 		"triggers": cty.MapVal(map[string]cty.Value{"input": cty.StringVal("value")}),
 	})
-	payload, err := encodeRecordPayload(val, nil)
+	payload, err := encodeRecordPayload(val, nil, states.ObjectReady)
 	if err != nil {
 		t.Fatalf("encoding the fixture payload: %s", err)
 	}
@@ -224,7 +226,7 @@ func TestBuildDiscoversOrphanedRecords(t *testing.T) {
 		"id":       cty.StringVal("orphan-id"),
 		"triggers": cty.NullVal(cty.Map(cty.String)),
 	})
-	payload, err := encodeRecordPayload(val, nil)
+	payload, err := encodeRecordPayload(val, nil, states.ObjectReady)
 	if err != nil {
 		t.Fatalf("encoding: %s", err)
 	}
@@ -314,7 +316,7 @@ func TestWriteBackPersistsAndDeletes(t *testing.T) {
 		"id":       cty.StringVal("old-id"),
 		"triggers": cty.NullVal(cty.Map(cty.String)),
 	})
-	oldPayload, err := encodeRecordPayload(oldVal, nil)
+	oldPayload, err := encodeRecordPayload(oldVal, nil, states.ObjectReady)
 	if err != nil {
 		t.Fatalf("encoding: %s", err)
 	}
@@ -368,7 +370,7 @@ func TestWriteBackPersistsAndDeletes(t *testing.T) {
 	if err != nil || !exists {
 		t.Fatalf("kept record missing after write-back: exists=%v err=%v", exists, err)
 	}
-	gotVal, _, err := decodeRecordPayload(gotPayload)
+	gotVal, _, _, err := decodeRecordPayload(gotPayload)
 	if err != nil {
 		t.Fatalf("decoding the written-back payload: %s", err)
 	}
@@ -402,7 +404,7 @@ func TestWriteBackVersionConflict(t *testing.T) {
 		"id":       cty.StringVal("old-id"),
 		"triggers": cty.NullVal(cty.Map(cty.String)),
 	})
-	oldPayload, err := encodeRecordPayload(oldVal, nil)
+	oldPayload, err := encodeRecordPayload(oldVal, nil, states.ObjectReady)
 	if err != nil {
 		t.Fatalf("encoding: %s", err)
 	}
@@ -418,7 +420,7 @@ func TestWriteBackVersionConflict(t *testing.T) {
 		"id":       cty.StringVal("raced-id"),
 		"triggers": cty.NullVal(cty.Map(cty.String)),
 	})
-	racingPayload, err := encodeRecordPayload(racingVal, nil)
+	racingPayload, err := encodeRecordPayload(racingVal, nil, states.ObjectReady)
 	if err != nil {
 		t.Fatalf("encoding: %s", err)
 	}
@@ -468,7 +470,7 @@ func TestWriteBackVersionConflict(t *testing.T) {
 	if err != nil || !exists {
 		t.Fatalf("record missing after a failed write-back: exists=%v err=%v", exists, err)
 	}
-	gotVal, _, err := decodeRecordPayload(gotPayload)
+	gotVal, _, _, err := decodeRecordPayload(gotPayload)
 	if err != nil {
 		t.Fatalf("decoding: %s", err)
 	}
@@ -509,6 +511,202 @@ func TestRecordKeyPrefixDisjointFromReceipts(t *testing.T) {
 
 	if recordNamespaceRoot == "tofu-receipts" {
 		t.Fatal("recordNamespaceRoot literally equals the receipts namespace segment")
+	}
+}
+
+// TestTaintedRecordSurvivesWriteBackAndMaterialization is issue #216's own
+// regression test. It does not invent its own notion of "tainted" - it uses
+// the exact same stock mechanism the real apply pipeline uses
+// (node_resource_apply_instance.go's maybeTainted calls
+// [states.ResourceInstanceObject.AsTainted] when a create-time provisioner
+// fails) and then drives the object through the real, unmocked
+// [WriteBack] and the real materializeRecord path (via [BuildWith]), the
+// same two functions a live apply and the next live plan actually call.
+// If this test passes by writing its own payload struct and reading it
+// back, it proves nothing; it deliberately does not do that.
+func TestTaintedRecordSurvivesWriteBackAndMaterialization(t *testing.T) {
+	ctx := context.Background()
+	store, err := staterecord.NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("building the local store: %s", err)
+	}
+	const prefix = "tofu-records/test-estate"
+	addr := mustAddr(t, `null_resource.trigger`)
+	schema := nullResourceSchema()
+
+	// Step 1: a create-time provisioner failure, the stock way. This is
+	// exactly what node_resource_apply_instance.go's maybeTainted does to
+	// the object it is about to leave in the final state.
+	createdVal := cty.ObjectVal(map[string]cty.Value{
+		"id":       cty.StringVal("half-created"),
+		"triggers": cty.MapVal(map[string]cty.Value{"input": cty.StringVal("value")}),
+	})
+	obj := &states.ResourceInstanceObject{Status: states.ObjectReady, Value: createdVal}
+	tainted := obj.AsTainted()
+	if tainted.Status != states.ObjectTainted {
+		t.Fatalf("AsTainted() produced status %s, want ObjectTainted - test setup is broken, not the code under test", tainted.Status)
+	}
+
+	src, err := tainted.Encode(schema.Block.ImpliedType(), uint64(schema.Version), 0)
+	if err != nil {
+		t.Fatalf("encoding the tainted object: %s", err)
+	}
+
+	finalState := states.NewState()
+	finalState.EnsureModule(addr.Module).SetResourceInstanceCurrent(addr.Resource, src, nullProvider, addrs.NoKey)
+
+	schemas := &tofu.Schemas{
+		Providers: map[addrs.Provider]providers.ProviderSchema{
+			nullProvider.Provider: {
+				Provider:      providers.Schema{Block: &configschema.Block{}},
+				ResourceTypes: map[string]providers.Schema{"null_resource": schema},
+			},
+		},
+	}
+
+	// Step 2: the real write-back, no prior record (this is the create's
+	// first-ever write).
+	diags := WriteBack(ctx, WriteBackRequest{
+		Store:      store,
+		KeyPrefix:  prefix,
+		FinalState: finalState,
+		Schemas:    schemas,
+	})
+	assertNoErrors(t, diags)
+
+	// Sanity check on the wire format: the persisted record actually says
+	// tainted, not just "whatever WriteBack felt like."
+	rawPayload, _, exists, err := store.Get(ctx, RecordKey(prefix, addr))
+	if err != nil || !exists {
+		t.Fatalf("record missing after write-back: exists=%v err=%v", exists, err)
+	}
+	_, _, gotStatus, err := decodeRecordPayload(rawPayload)
+	if err != nil {
+		t.Fatalf("decoding the written-back payload: %s", err)
+	}
+	if gotStatus != states.ObjectTainted {
+		t.Fatalf("persisted record status = %s, want ObjectTainted", gotStatus)
+	}
+
+	// Step 3: the real materialization path a live plan runs on its next
+	// invocation - BuildWith, driving materializeRecord, exactly as
+	// TestBuildHydratesRecordBacked does for the ready case.
+	cfg := loadConfig(t, writeNullResourceFixture(t))
+	provs := SingleProvider(nullProvider, nullResourceProvider())
+	resolutions := []identity.Resolution{{Addr: addr, Class: identity.ClassRecordBacked}}
+
+	res, diags := BuildWith(ctx, cfg, resolutions, provs, Options{
+		RecordStore:     store,
+		RecordKeyPrefix: prefix,
+	})
+	assertNoErrors(t, diags)
+	assertMaterialized(t, res, []string{`null_resource.trigger`})
+
+	inst := res.State.ResourceInstance(addr)
+	if inst == nil || inst.Current == nil {
+		t.Fatal("no current object for the materialized instance")
+	}
+	// This is the assertion that matters: the exact field stock OpenTofu's
+	// plan graph consults (node_resource_abstract_instance.go checks
+	// currentState.Status != states.ObjectTainted to force a replace) came
+	// through the record store intact, not silently reset to ready.
+	if inst.Current.Status != states.ObjectTainted {
+		t.Errorf("materialized instance status = %s, want ObjectTainted - a tainted create was written back and read back as healthy, issue #216's exact regression", inst.Current.Status)
+	}
+}
+
+// TestRecordWithNoStatusFieldDecodesReady pins the migration answer for a
+// record written by a choudoufu build older than issue #216's fix: such a
+// record's JSON has no "status" key at all. It must decode as
+// states.ObjectReady, not fail and not (accidentally) decode as tainted -
+// every record old enough to lack this field was also written before
+// RuleProvisioner ever let a provisioner run against a record-backed type
+// (issue #199 predates this field), so "no status field" can only ever mean
+// "this was never at risk of being tainted," and ready is the correct,
+// safe default.
+func TestRecordWithNoStatusFieldDecodesReady(t *testing.T) {
+	val := cty.ObjectVal(map[string]cty.Value{
+		"id":       cty.StringVal("pre-216"),
+		"triggers": cty.NullVal(cty.Map(cty.String)),
+	})
+	valTy, err := ctyjson.MarshalType(val.Type())
+	if err != nil {
+		t.Fatalf("marshaling the type: %s", err)
+	}
+	attrs, err := ctyjson.Marshal(val, val.Type())
+	if err != nil {
+		t.Fatalf("marshaling the value: %s", err)
+	}
+	// Deliberately built as raw JSON with no "status" key, rather than via
+	// encodeRecordPayload, to simulate a record this package's own current
+	// code never wrote.
+	raw, err := json.Marshal(map[string]json.RawMessage{
+		"value_type": valTy,
+		"attrs":      attrs,
+	})
+	if err != nil {
+		t.Fatalf("marshaling the legacy payload: %s", err)
+	}
+
+	gotVal, _, gotStatus, err := decodeRecordPayload(raw)
+	if err != nil {
+		t.Fatalf("decoding a pre-#216 record: %s", err)
+	}
+	if gotStatus != states.ObjectReady {
+		t.Errorf("status for a record with no status field = %s, want ObjectReady", gotStatus)
+	}
+	if got := gotVal.GetAttr("id"); got.AsString() != "pre-216" {
+		t.Errorf("id = %v, want pre-216", got)
+	}
+}
+
+// TestRecordWithUnknownStatusIsRefused is the "does a completeness check
+// silently skip what it does not recognise" question, answered for the
+// status field: a value neither "" nor "tainted" - the shape a record
+// written by a future choudoufu with a status this build has never heard of
+// would take - must fail loudly, not be silently coerced to ready (which
+// would resurrect exactly the #216 bug for a new status value) or to
+// tainted (which would force spurious replacements this build cannot
+// justify).
+func TestRecordWithUnknownStatusIsRefused(t *testing.T) {
+	val := cty.ObjectVal(map[string]cty.Value{
+		"id":       cty.StringVal("future"),
+		"triggers": cty.NullVal(cty.Map(cty.String)),
+	})
+	valTy, err := ctyjson.MarshalType(val.Type())
+	if err != nil {
+		t.Fatalf("marshaling the type: %s", err)
+	}
+	attrs, err := ctyjson.Marshal(val, val.Type())
+	if err != nil {
+		t.Fatalf("marshaling the value: %s", err)
+	}
+	raw, err := json.Marshal(map[string]json.RawMessage{
+		"value_type": valTy,
+		"attrs":      attrs,
+		"status":     json.RawMessage(`"deprecated-in-the-future"`),
+	})
+	if err != nil {
+		t.Fatalf("marshaling the payload: %s", err)
+	}
+
+	if _, _, _, err := decodeRecordPayload(raw); err == nil {
+		t.Fatal("decodeRecordPayload accepted an unrecognized status silently")
+	}
+}
+
+// TestEncodeRecordPayloadRefusesPlannedStatus is encodeObjectStatus's other
+// guard: states.ObjectPlanned should never reach WriteBack's FinalState (it
+// is a transient plan/refresh-walk placeholder states.SyncState strips
+// before a real apply runs), but if it ever did, encoding it must fail
+// loudly rather than silently write "ready" or invent a third wire value.
+func TestEncodeRecordPayloadRefusesPlannedStatus(t *testing.T) {
+	val := cty.ObjectVal(map[string]cty.Value{
+		"id":       cty.StringVal("planned"),
+		"triggers": cty.NullVal(cty.Map(cty.String)),
+	})
+	if _, err := encodeRecordPayload(val, nil, states.ObjectPlanned); err == nil {
+		t.Fatal("encodeRecordPayload accepted states.ObjectPlanned silently")
 	}
 }
 

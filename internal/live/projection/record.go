@@ -15,6 +15,7 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/states"
 )
 
 // recordNamespaceRoot is the literal segment every record-backed key lives
@@ -114,12 +115,76 @@ type recordPayload struct {
 	// carrying it costs nothing and a future provider version that starts
 	// using it is not this package's business to notice.
 	Private []byte `json:"private,omitempty"`
+
+	// Status is the object's [states.ObjectStatus], encoded as
+	// recordStatusTainted for a tainted object and omitted entirely for a
+	// ready one - see encodeObjectStatus. A record-backed resource has no
+	// state file to carry the tainted bit stock OpenTofu sets when a
+	// create-time provisioner fails (see checkProvisioners in
+	// internal/live/lint/lint.go), so the record store is that bit's only
+	// home; omitting it here is exactly the write-back bug issue #216
+	// found, where a failed provisioner on e.g. a null_resource was
+	// written back and read back as healthy forever. A record written by a
+	// choudoufu build that predates this field decodes with an empty
+	// Status, which decodeObjectStatus treats as ready - the correct
+	// default, since every record old enough to lack this field was also
+	// written back before RuleProvisioner ever let a provisioner run on a
+	// record-backed type in the first place (issue #199), so no legacy
+	// record can have actually been tainted.
+	Status string `json:"status,omitempty"`
 }
 
-// encodeRecordPayload turns a materialized value plus its provider-private
-// bytes into the bytes a [staterecord.Store] holds for one record-backed
-// resource instance.
-func encodeRecordPayload(val cty.Value, private []byte) ([]byte, error) {
+// recordStatusTainted is recordPayload.Status's encoding of
+// states.ObjectTainted. There is deliberately no "ready" string: the empty
+// value (json's omitempty default, and every pre-#216 record's implicit
+// status) already means ready, so only the one state that needs a marker
+// gets one.
+const recordStatusTainted = "tainted"
+
+// encodeObjectStatus turns a real [states.ObjectStatus] - the one
+// [states.ResourceInstanceObject.Decode] and AsTainted actually produce -
+// into recordPayload's Status string. Only ObjectReady and ObjectTainted
+// are legal here: those are the only two statuses a resource's *current*
+// object can hold once an apply has finished (states.ObjectPlanned is a
+// transient plan/refresh-walk placeholder that [states.SyncState] strips
+// before a real apply runs, per its own RemovePlannedResourceInstanceObjects
+// doc comment - it should never reach WriteBack's FinalState). Anything
+// else is refused rather than silently folded into "ready", which is
+// exactly the failure this type exists to stop.
+func encodeObjectStatus(status states.ObjectStatus) (string, error) {
+	switch status {
+	case states.ObjectReady:
+		return "", nil
+	case states.ObjectTainted:
+		return recordStatusTainted, nil
+	default:
+		return "", fmt.Errorf("cannot persist a record for an object with status %s: only ready and tainted objects are ever recorded", status)
+	}
+}
+
+// decodeObjectStatus reverses [encodeObjectStatus]. An empty string -
+// either a genuinely ready object or a record written before this field
+// existed - decodes as states.ObjectReady, the safe default (see
+// recordPayload.Status's doc comment for why a pre-#216 record can never
+// have actually been tainted). Any other value this package did not itself
+// write is refused rather than guessed at, the same discipline
+// encodeObjectStatus applies on the way in.
+func decodeObjectStatus(raw string) (states.ObjectStatus, error) {
+	switch raw {
+	case "":
+		return states.ObjectReady, nil
+	case recordStatusTainted:
+		return states.ObjectTainted, nil
+	default:
+		return 0, fmt.Errorf("the stored record's status %q is not one this version of choudoufu understands", raw)
+	}
+}
+
+// encodeRecordPayload turns a materialized value, its provider-private
+// bytes, and its [states.ObjectStatus] into the bytes a [staterecord.Store]
+// holds for one record-backed resource instance. status must be
+// states.ObjectReady or states.ObjectTainted - see [encodeObjectStatus].
+func encodeRecordPayload(val cty.Value, private []byte, status states.ObjectStatus) ([]byte, error) {
 	valTy, err := ctyjson.MarshalType(val.Type())
 	if err != nil {
 		return nil, fmt.Errorf("encoding the record's value type: %w", err)
@@ -128,7 +193,11 @@ func encodeRecordPayload(val cty.Value, private []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("encoding the record's value: %w", err)
 	}
-	p := recordPayload{ValueType: valTy, Attrs: attrs, Private: private}
+	statusStr, err := encodeObjectStatus(status)
+	if err != nil {
+		return nil, fmt.Errorf("encoding the record's status: %w", err)
+	}
+	p := recordPayload{ValueType: valTy, Attrs: attrs, Private: private, Status: statusStr}
 	out, err := json.Marshal(p)
 	if err != nil {
 		return nil, fmt.Errorf("encoding the record payload: %w", err)
@@ -142,18 +211,22 @@ func encodeRecordPayload(val cty.Value, private []byte) ([]byte, error) {
 // implied type before trusting it against a running provider - see
 // builder.materializeRecord - because a record written under an older
 // provider version may not conform to the schema in hand today.
-func decodeRecordPayload(raw []byte) (cty.Value, []byte, error) {
+func decodeRecordPayload(raw []byte) (cty.Value, []byte, states.ObjectStatus, error) {
 	var p recordPayload
 	if err := json.Unmarshal(raw, &p); err != nil {
-		return cty.NilVal, nil, fmt.Errorf("the stored record is not valid JSON: %w", err)
+		return cty.NilVal, nil, 0, fmt.Errorf("the stored record is not valid JSON: %w", err)
 	}
 	ty, err := ctyjson.UnmarshalType(p.ValueType)
 	if err != nil {
-		return cty.NilVal, nil, fmt.Errorf("the stored record's value type could not be read: %w", err)
+		return cty.NilVal, nil, 0, fmt.Errorf("the stored record's value type could not be read: %w", err)
 	}
 	val, err := ctyjson.Unmarshal(p.Attrs, ty)
 	if err != nil {
-		return cty.NilVal, nil, fmt.Errorf("the stored record's value could not be read: %w", err)
+		return cty.NilVal, nil, 0, fmt.Errorf("the stored record's value could not be read: %w", err)
 	}
-	return val, p.Private, nil
+	status, err := decodeObjectStatus(p.Status)
+	if err != nil {
+		return cty.NilVal, nil, 0, fmt.Errorf("the stored record's status could not be read: %w", err)
+	}
+	return val, p.Private, status, nil
 }
