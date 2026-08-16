@@ -533,6 +533,20 @@ const (
 	// package runs otherwise has no such gap, because it lists by CFN type
 	// directly rather than joining backward from an ARN.
 	SweepGapNoARNJoin SweepGapReason = "NO_ARN_JOIN"
+
+	// SweepGapScopeUnavailable is a type whose CFN listing needs a
+	// parent-scoped ResourceModel (live/registry.json's
+	// handlers.list_required_input, internal/live/cloudcontrol's
+	// ListResourcesScoped) that this leg could not build safely: either the
+	// required input does not match the single scoping property this leg
+	// was given, or it could not be positioned inside the type's own
+	// primary_identifier to verify a result actually belongs to the parent
+	// it was scoped to. Reported rather than silently skipped, and rather
+	// than sent with an unverifiable ResourceModel and trusted blind - a
+	// Cloud Control backend that ignores scoping (floci's own
+	// ListResources does, confirmed against its source) would otherwise let
+	// one parent's children be attributed to another's.
+	SweepGapScopeUnavailable SweepGapReason = "PARENT_SCOPE_UNAVAILABLE"
 )
 
 // SweepGap is one resource type the removal sweep could not cover.

@@ -406,8 +406,69 @@ func (c *Client) GetResource(ctx context.Context, typeName, identifier string) (
 }
 
 // ListResources enumerates every live resource of typeName, paginating
-// NextToken to exhaustion.
+// NextToken to exhaustion. It sends no ResourceModel at all, which Cloud
+// Control accepts only for a type whose list handler needs no scoping
+// input; a type whose handler requires one (live/registry.json's
+// handlers.list_required_input) answers with a validation error rather than
+// an unscoped enumeration - see [Client.ListResourcesScoped] for that case.
 func (c *Client) ListResources(ctx context.Context, typeName string) ([]ResourceDescription, error) {
+	return c.listResources(ctx, typeName, "")
+}
+
+// ListResourcesScoped is [Client.ListResources] for a type whose list
+// handler requires scoping input - the composite identities under a
+// config-known parent that CloudFormation's own ListResources documents
+// list_required_input for (e.g. AWS::ApiGateway::Resource needs
+// RestApiId): ordinary ListResources would either enumerate every parent's
+// children in one unfiltered call (wrong: no way to tell which child
+// belongs to which parent without a second read per result) or, for a
+// handler that mandates the input, fail outright.
+//
+// resourceModel is the partial resource model Cloud Control scopes the
+// listing to, keyed by the CFN property name(s) the type's own
+// list_required_input names - e.g. {"RestApiId": "abc123"} - marshaled to
+// the JSON string the wire's ResourceModel field carries (verified against
+// the service's own API model: ListResourcesInput.ResourceModel is shape
+// Properties, a JSON string, the same encoding [ResourceDescription.Properties]
+// already round-trips on the read side). An empty map is rejected rather
+// than silently sent as "{}": a caller asking to scope with nothing to
+// scope by is a bug in the caller, not a request Cloud Control should ever
+// see, and a type that genuinely needs no scoping belongs on
+// [Client.ListResources] instead.
+//
+// Cloud Control is documented to filter server-side on the fields
+// resourceModel supplies, but this client does not assume every backend
+// honors that - floci's own ListResources implementation ignores
+// ResourceModel entirely and returns every live resource of typeName
+// unfiltered, verified by reading its handler
+// (CloudControlJsonHandler.listResources delegates straight to
+// CloudControlService.listResources(region, typeName), no ResourceModel
+// parameter in the call at all). A caller that trusts an unscoped result
+// list is scoped just because it sent scoping risks attributing one
+// parent's children to a different parent - exactly the removal-detection
+// hazard this method exists to avoid, not commit by omission. Every result
+// this call returns must still be verified against the same scoping value
+// before being attributed to a parent; this client sends the scope but
+// makes no promise about what came back.
+func (c *Client) ListResourcesScoped(ctx context.Context, typeName string, resourceModel map[string]string) ([]ResourceDescription, error) {
+	if len(resourceModel) == 0 {
+		return nil, fmt.Errorf("cloudcontrol: ListResourcesScoped for %s: resourceModel must not be empty - use ListResources for a type that needs no scoping", typeName)
+	}
+	modelJSON, err := json.Marshal(resourceModel)
+	if err != nil {
+		return nil, fmt.Errorf("cloudcontrol: ListResourcesScoped for %s: encoding the resource model: %w", typeName, err)
+	}
+	return c.listResources(ctx, typeName, string(modelJSON))
+}
+
+// listResources is the pagination loop [ListResources] and
+// [ListResourcesScoped] share, differing only in whether a ResourceModel
+// rides along on every page request. Cloud Control's own ListResourcesInput
+// shape carries ResourceModel independently of NextToken, and nothing in
+// its documentation says a paginated request may drop it on page 2 - so
+// every page of a scoped listing carries the same resourceModelJSON the
+// first one did.
+func (c *Client) listResources(ctx context.Context, typeName, resourceModelJSON string) ([]ResourceDescription, error) {
 	var out []ResourceDescription
 	var nextToken string
 	for {
@@ -416,9 +477,10 @@ func (c *Client) ListResources(ctx context.Context, typeName string) ([]Resource
 			NextToken            string                    `json:"NextToken"`
 		}
 		payload := struct {
-			TypeName  string `json:"TypeName"`
-			NextToken string `json:"NextToken,omitempty"`
-		}{TypeName: typeName, NextToken: nextToken}
+			TypeName      string `json:"TypeName"`
+			NextToken     string `json:"NextToken,omitempty"`
+			ResourceModel string `json:"ResourceModel,omitempty"`
+		}{TypeName: typeName, NextToken: nextToken, ResourceModel: resourceModelJSON}
 
 		if err := c.call(ctx, "ListResources", payload, &resp); err != nil {
 			return nil, err

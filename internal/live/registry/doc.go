@@ -43,4 +43,16 @@
 // required-input list - CloudFormation's "free" enumerability - which is the
 // same bar admission-path-2 discovery already clears for a provider's native
 // list resource: no argument beyond an optional region.
+//
+// A required-input type is not unlistable, only unlistable without a
+// parent's value in hand. [Roster.EnumerationSourceScoped] answers the
+// complementary question [Roster.EnumerationSource] refuses: given a TF type
+// mapped to a CFN type whose list handler names required input, what are
+// those input property names, so a caller that does have a parent value
+// (internal/live/discovery's parent-scoped Cloud Control leg) can build the
+// ResourceModel the scoped call needs
+// (internal/live/cloudcontrol.Client.ListResourcesScoped). The two methods
+// are mutually exclusive for any one CFN type: a type reports ok from at
+// most one of them, since Listable's own condition is required-input being
+// empty.
 package registry

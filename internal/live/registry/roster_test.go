@@ -128,6 +128,117 @@ func TestEnumerationSource(t *testing.T) {
 	}
 }
 
+func TestRequiredListInput(t *testing.T) {
+	r := testRoster(t)
+
+	tests := []struct {
+		name      string
+		cfnType   string
+		wantProps []string
+		wantOK    bool
+	}{
+		{"required input", "AWS::Example::ParentInputThing", []string{"Arn"}, true},
+		{"listable with no required input", "AWS::EFS::FileSystem", nil, false},
+		{"no list handler at all", "AWS::EC2::SubnetRouteTableAssociation", nil, false},
+		{"not in registry", "AWS::Not::InRegistry", nil, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := r.RequiredListInput(tt.cfnType)
+			if ok != tt.wantOK {
+				t.Fatalf("RequiredListInput(%q) ok = %v, want %v", tt.cfnType, ok, tt.wantOK)
+			}
+			if !equalStrings(got, tt.wantProps) {
+				t.Errorf("RequiredListInput(%q) = %v, want %v", tt.cfnType, got, tt.wantProps)
+			}
+		})
+	}
+}
+
+func TestRequiredListInputReturnsACopy(t *testing.T) {
+	r := testRoster(t)
+
+	got, ok := r.RequiredListInput("AWS::Example::ParentInputThing")
+	if !ok {
+		t.Fatal("RequiredListInput(ParentInputThing): ok = false, want true")
+	}
+	got[0] = "mutated"
+
+	again, _ := r.RequiredListInput("AWS::Example::ParentInputThing")
+	if again[0] == "mutated" {
+		t.Fatal("mutating a RequiredListInput result mutated the Roster's own state - the returned slice must be a copy")
+	}
+}
+
+func TestEnumerationSourceScoped(t *testing.T) {
+	r := testRoster(t)
+
+	tests := []struct {
+		name      string
+		tfType    string
+		wantCFN   string
+		wantProps []string
+		wantOK    bool
+	}{
+		{"mapped, required input", "aws_parent_input_thing", "AWS::Example::ParentInputThing", []string{"Arn"}, true},
+		{"mapped, no required input - EnumerationSource's territory, not this one", "aws_efs_file_system", "", nil, false},
+		{"mapped but no list handler at all", "aws_route_table_association", "", nil, false},
+		{"folded, no CFN type", "aws_folded_thing", "", nil, false},
+		{"unmapped", "aws_unmapped_thing", "", nil, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfnType, props, ok := r.EnumerationSourceScoped(tt.tfType)
+			if ok != tt.wantOK || cfnType != tt.wantCFN {
+				t.Fatalf("EnumerationSourceScoped(%q) = (%q, _, %v), want (%q, _, %v)", tt.tfType, cfnType, ok, tt.wantCFN, tt.wantOK)
+			}
+			if !equalStrings(props, tt.wantProps) {
+				t.Errorf("EnumerationSourceScoped(%q) required input = %v, want %v", tt.tfType, props, tt.wantProps)
+			}
+		})
+	}
+}
+
+// TestEnumerationSourceAndScopedAreMutuallyExclusive is the invariant the
+// package doc claims: for every mapped CFN type the fixture carries, at most
+// one of [Roster.EnumerationSource] and [Roster.EnumerationSourceScoped]
+// reports ok.
+func TestEnumerationSourceAndScopedAreMutuallyExclusive(t *testing.T) {
+	r := testRoster(t)
+
+	for _, tfType := range []string{
+		"aws_efs_file_system",
+		"aws_route_table_association",
+		"aws_parent_input_thing",
+		"aws_folded_thing",
+		"aws_unmapped_thing",
+	} {
+		_, plainOK := r.EnumerationSource(tfType)
+		_, _, scopedOK := r.EnumerationSourceScoped(tfType)
+		if plainOK && scopedOK {
+			t.Errorf("%s: both EnumerationSource and EnumerationSourceScoped reported ok", tfType)
+		}
+	}
+}
+
+func TestPrimaryIdentifier(t *testing.T) {
+	r := testRoster(t)
+
+	if got, want := r.PrimaryIdentifier("AWS::Example::ParentInputThing"), []string{"Arn", "ChildId"}; !equalStrings(got, want) {
+		t.Errorf("PrimaryIdentifier(ParentInputThing) = %v, want %v", got, want)
+	}
+	if got := r.PrimaryIdentifier("AWS::Not::InRegistry"); got != nil {
+		t.Errorf("PrimaryIdentifier(unknown) = %v, want nil", got)
+	}
+
+	got := r.PrimaryIdentifier("AWS::Example::ParentInputThing")
+	got[0] = "mutated"
+	again := r.PrimaryIdentifier("AWS::Example::ParentInputThing")
+	if again[0] == "mutated" {
+		t.Fatal("mutating a PrimaryIdentifier result mutated the Roster's own state - the returned slice must be a copy")
+	}
+}
+
 func TestIdentifierArityAndTaggable(t *testing.T) {
 	r := testRoster(t)
 

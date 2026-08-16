@@ -89,12 +89,32 @@ type Roster struct {
 	// here too, and Listable reports false for it.
 	listable map[string]bool
 
+	// listRequiredInput is cfn_type -> live/registry.json's
+	// handlers.list_required_input, for a type whose handlers.list is set
+	// but the required-input list is non-empty (the exact complement of
+	// what makes listable true) - [Roster.EnumerationSourceScoped]'s own
+	// data. A type with handlers.list false, or list true with no required
+	// input, has no entry here.
+	listRequiredInput map[string][]string
+
 	// taggable is cfn_type -> live/registry.json's tagging.taggable.
 	taggable map[string]bool
 
 	// arity is cfn_type -> len(primary_identifier), the number of "|"-joined
 	// segments a Cloud Control identifier for the type carries.
 	arity map[string]int
+
+	// primaryIdentifier is cfn_type -> live/registry.json's own
+	// primary_identifier, in order - the CFN property name each "|"-joined
+	// segment of a ListResources/GetResource Identifier carries, positionally.
+	// [Roster.RequiredListInput]'s own property names are not guaranteed to
+	// appear here at all (AWS::DataZone::Project requires
+	// "DomainIdentifier", a property distinct from either primary_identifier
+	// entry) or to sit at any particular position when they do
+	// (AWS::ApiGateway::Deployment's RestApiId is index 1, not 0) - a caller
+	// that wants to verify a scoped listing's own identifier actually matches
+	// what it asked for needs the position, not an assumption.
+	primaryIdentifier map[string][]string
 
 	// service is the CFN service segment per TF type, from every mapping
 	// row naming a CFN type - wider than cfnType, see ServiceOf.
@@ -135,14 +155,16 @@ func Parse(mappingJSON, registryJSON []byte) (*Roster, error) {
 	}
 
 	r := &Roster{
-		cfnType:       make(map[string]string, len(m.Rows)),
-		service:       make(map[string]string, len(m.Rows)),
-		anyCFNType:    make(map[string]string, len(m.Rows)),
-		relationships: make(map[string][]string, len(reg.Types)),
-		tfTypeFor:     make(map[string][]string, len(m.Rows)),
-		listable:      make(map[string]bool, len(reg.Types)),
-		taggable:      make(map[string]bool, len(reg.Types)),
-		arity:         make(map[string]int, len(reg.Types)),
+		cfnType:           make(map[string]string, len(m.Rows)),
+		service:           make(map[string]string, len(m.Rows)),
+		anyCFNType:        make(map[string]string, len(m.Rows)),
+		relationships:     make(map[string][]string, len(reg.Types)),
+		tfTypeFor:         make(map[string][]string, len(m.Rows)),
+		listable:          make(map[string]bool, len(reg.Types)),
+		listRequiredInput: make(map[string][]string, len(reg.Types)),
+		taggable:          make(map[string]bool, len(reg.Types)),
+		arity:             make(map[string]int, len(reg.Types)),
+		primaryIdentifier: make(map[string][]string, len(reg.Types)),
 	}
 	for _, row := range m.Rows {
 		if row.CFNType == nil || *row.CFNType == "" {
@@ -168,8 +190,14 @@ func Parse(mappingJSON, registryJSON []byte) (*Roster, error) {
 	}
 	for _, e := range reg.Types {
 		r.listable[e.TypeName] = e.Handlers.List && len(e.Handlers.ListRequiredInput) == 0
+		if e.Handlers.List && len(e.Handlers.ListRequiredInput) > 0 {
+			r.listRequiredInput[e.TypeName] = append([]string(nil), e.Handlers.ListRequiredInput...)
+		}
 		r.taggable[e.TypeName] = e.Tagging.Taggable
 		r.arity[e.TypeName] = len(e.PrimaryIdentifier)
+		if len(e.PrimaryIdentifier) > 0 {
+			r.primaryIdentifier[e.TypeName] = append([]string(nil), e.PrimaryIdentifier...)
+		}
 		for _, rel := range e.Relationships {
 			r.relationships[e.TypeName] = append(r.relationships[e.TypeName], rel.TypeName)
 		}
@@ -266,6 +294,22 @@ func (r *Roster) IdentifierArity(cfnType string) int {
 	return r.arity[cfnType]
 }
 
+// PrimaryIdentifier returns live/registry.json's own primary_identifier for
+// cfnType, in order - the CFN property name each "|"-joined segment of a
+// ListResources/GetResource Identifier carries, positionally (see the
+// [Roster.primaryIdentifier] field doc for why a caller needs the position
+// rather than assuming one). Nil for a type live/registry.json never saw.
+func (r *Roster) PrimaryIdentifier(cfnType string) []string {
+	if r == nil {
+		return nil
+	}
+	pi := r.primaryIdentifier[cfnType]
+	if pi == nil {
+		return nil
+	}
+	return append([]string(nil), pi...)
+}
+
 // EnumerationSource is the combined join a caller actually wants: the CFN
 // type Cloud Control should be asked to list tfType through, when the
 // mapping names one and the registry roster says it is listable. ok is
@@ -279,6 +323,47 @@ func (r *Roster) EnumerationSource(tfType string) (cfnType string, ok bool) {
 		return "", false
 	}
 	return cfnType, true
+}
+
+// RequiredListInput returns the CFN property names cfnType's list handler
+// requires as scoping input (live/registry.json's
+// handlers.list_required_input), in registry order, and whether it has any.
+// False for a type live/registry.json never saw, one whose handlers.list is
+// unset, or one whose list needs no input at all - [Roster.Listable] is true
+// for that last case instead, and the two never overlap.
+func (r *Roster) RequiredListInput(cfnType string) (properties []string, ok bool) {
+	if r == nil {
+		return nil, false
+	}
+	properties, ok = r.listRequiredInput[cfnType]
+	if !ok {
+		return nil, false
+	}
+	return append([]string(nil), properties...), true
+}
+
+// EnumerationSourceScoped is [Roster.EnumerationSource]'s counterpart for a
+// TF type mapped to a CFN type whose list handler requires scoping input:
+// where EnumerationSource reports ok=false and leaves the caller with a
+// refusal, this reports the CFN type and the required property names, for a
+// caller that has a parent value in hand to scope with
+// (internal/live/discovery's parent-scoped Cloud Control leg,
+// internal/live/cloudcontrol.Client.ListResourcesScoped).
+//
+// ok is false for anything short of a mapped CFN type whose registry row
+// sets handlers.list with a non-empty required-input list - which, by
+// construction, is exactly the set [Roster.EnumerationSource] excludes for
+// requiring input. A tfType is therefore never ok from both methods.
+func (r *Roster) EnumerationSourceScoped(tfType string) (cfnType string, requiredInput []string, ok bool) {
+	cfnType, mapped := r.CloudControlType(tfType)
+	if !mapped {
+		return "", nil, false
+	}
+	requiredInput, ok = r.RequiredListInput(cfnType)
+	if !ok {
+		return "", nil, false
+	}
+	return cfnType, requiredInput, true
 }
 
 // ServiceOf reports the CloudFormation service segment of the type tfType
