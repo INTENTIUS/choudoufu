@@ -4,10 +4,10 @@
     "admitted_total": 936,
     "compared": 926,
     "not_in_mapped_set": 10,
-    "adopted_unchanged": 820,
-    "adopted_unchanged_pct": 88.55,
-    "genuine_mismatches": 106,
-    "annotated": 106,
+    "adopted_unchanged": 831,
+    "adopted_unchanged_pct": 89.74,
+    "genuine_mismatches": 95,
+    "annotated": 95,
     "unannotated_mismatches": 0,
     "scrape_gap_mismatches": 24
   },
@@ -129,8 +129,8 @@
     },
     "BedrockAgentCore": {
       "compared": 16,
-      "adopted_unchanged": 9,
-      "adopted_unchanged_pct": 56.25
+      "adopted_unchanged": 13,
+      "adopted_unchanged_pct": 81.25
     },
     "Billing": {
       "compared": 1,
@@ -144,8 +144,8 @@
     },
     "CE": {
       "compared": 3,
-      "adopted_unchanged": 0,
-      "adopted_unchanged_pct": 0
+      "adopted_unchanged": 3,
+      "adopted_unchanged_pct": 100
     },
     "CUR": {
       "compared": 1,
@@ -304,8 +304,8 @@
     },
     "DirectConnect": {
       "compared": 9,
-      "adopted_unchanged": 3,
-      "adopted_unchanged_pct": 33.33
+      "adopted_unchanged": 4,
+      "adopted_unchanged_pct": 44.44
     },
     "DocDB": {
       "compared": 1,
@@ -769,8 +769,8 @@
     },
     "S3Files": {
       "compared": 4,
-      "adopted_unchanged": 3,
-      "adopted_unchanged_pct": 75
+      "adopted_unchanged": 4,
+      "adopted_unchanged_pct": 100
     },
     "S3Outposts": {
       "compared": 3,
@@ -814,8 +814,8 @@
     },
     "SSMContacts": {
       "compared": 4,
-      "adopted_unchanged": 2,
-      "adopted_unchanged_pct": 50
+      "adopted_unchanged": 3,
+      "adopted_unchanged_pct": 75
     },
     "SSMIncidents": {
       "compared": 2,
@@ -849,8 +849,8 @@
     },
     "SecurityHub": {
       "compared": 13,
-      "adopted_unchanged": 10,
-      "adopted_unchanged_pct": 76.92
+      "adopted_unchanged": 11,
+      "adopted_unchanged_pct": 84.62
     },
     "SecurityLake": {
       "compared": 2,
@@ -1019,6 +1019,9 @@
       "service": "ElasticLoadBalancingV2",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -1654,6 +1657,9 @@
       "service": "ARCRegionSwitch",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -1884,6 +1890,9 @@
       "service": "BCMDataExports",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -2018,6 +2027,9 @@
       "service": "BedrockAgentCore",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -2034,15 +2046,11 @@
       "service": "BedrockAgentCore",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "import-grammar precedence: the provider's own Terraform 1.12+ Identity Schema names a different required import identity attribute than the legacy Import section's example implied",
-      "mismatch_classes": [
-        "identity-attrs"
-      ],
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['evaluator_id'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_bedrockagentcore_gateway",
@@ -2065,15 +2073,11 @@
       "service": "BedrockAgentCore",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "import-grammar precedence: the provider's own Terraform 1.12+ Identity Schema names a different required import identity attribute than the legacy Import section's example implied",
-      "mismatch_classes": [
-        "identity-attrs"
-      ],
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['harness_id'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_bedrockagentcore_memory",
@@ -2108,30 +2112,22 @@
       "service": "BedrockAgentCore",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "import-grammar precedence: the provider's own Terraform 1.12+ Identity Schema names a different required import identity attribute than the legacy Import section's example implied",
-      "mismatch_classes": [
-        "identity-attrs"
-      ],
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['online_evaluation_config_id'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_bedrockagentcore_policy_engine",
       "service": "BedrockAgentCore",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "import-grammar precedence: the provider's own Terraform 1.12+ Identity Schema names a different required import identity attribute than the legacy Import section's example implied",
-      "mismatch_classes": [
-        "identity-attrs"
-      ],
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['policy_engine_id'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_bedrockagentcore_resource_policy",
@@ -2176,42 +2172,30 @@
       "service": "CE",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "import-grammar precedence: the provider's own Terraform 1.12+ Identity Schema names a different required import identity attribute than the legacy Import section's example implied",
-      "mismatch_classes": [
-        "identity-attrs"
-      ],
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['arn'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_ce_anomaly_subscription",
       "service": "CE",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "import-grammar precedence: the provider's own Terraform 1.12+ Identity Schema names a different required import identity attribute than the legacy Import section's example implied",
-      "mismatch_classes": [
-        "identity-attrs"
-      ],
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['arn'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_ce_cost_category",
       "service": "CE",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "import-grammar precedence: the provider's own Terraform 1.12+ Identity Schema names a different required import identity attribute than the legacy Import section's example implied",
-      "mismatch_classes": [
-        "identity-attrs"
-      ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['arn'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_chatbot_slack_channel_configuration",
@@ -2226,6 +2210,9 @@
       "service": "CleanRooms",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -2234,6 +2221,9 @@
       "service": "CleanRooms",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -2242,6 +2232,9 @@
       "service": "CleanRooms",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -2463,6 +2456,9 @@
         "server-assigned",
         "components"
       ],
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "scrape_gap": true,
       "matched": false,
       "annotated": true,
@@ -2473,6 +2469,9 @@
       "service": "CloudTrail",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -2628,6 +2627,7 @@
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
       "matched": true,
@@ -2639,6 +2639,7 @@
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
       "matched": true,
@@ -2779,6 +2780,7 @@
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
       "matched": true,
@@ -2884,6 +2886,7 @@
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
       "matched": true,
@@ -2968,6 +2971,9 @@
       "service": "CodeGuruReviewer",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -3184,6 +3190,9 @@
       "service": "Comprehend",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -3625,6 +3634,9 @@
       "service": "DataZone",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -3751,6 +3763,7 @@
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
       "matched": true,
@@ -3933,12 +3946,8 @@
       "service": "DirectConnect",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "identity-attrs"
-      ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['id'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_dx_hosted_private_virtual_interface",
@@ -4213,6 +4222,9 @@
       "service": "EC2",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -5419,6 +5431,9 @@
       "service": "Glue",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -5700,6 +5715,9 @@
       "service": "IAM",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -5789,6 +5807,9 @@
       "service": "ImageBuilder",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -5797,6 +5818,9 @@
       "service": "ImageBuilder",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -5805,6 +5829,9 @@
       "service": "ImageBuilder",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -5813,6 +5840,9 @@
       "service": "ImageBuilder",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -5821,6 +5851,9 @@
       "service": "ImageBuilder",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -5829,6 +5862,9 @@
       "service": "ImageBuilder",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -5837,6 +5873,9 @@
       "service": "ImageBuilder",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -5845,6 +5884,9 @@
       "service": "ImageBuilder",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -5888,6 +5930,9 @@
       "service": "Inspector",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -5896,6 +5941,9 @@
       "service": "Inspector",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -5904,6 +5952,9 @@
       "service": "Inspector",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -5946,6 +5997,9 @@
       "service": "Invoicing",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -6404,6 +6458,9 @@
       "service": "ElasticLoadBalancingV2",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -6438,6 +6495,9 @@
       "service": "ElasticLoadBalancingV2",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -6767,6 +6827,7 @@
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
       "matched": true,
@@ -6777,6 +6838,9 @@
       "service": "SES",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -6785,6 +6849,9 @@
       "service": "SES",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -6948,6 +7015,9 @@
       "service": "MSK",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -7495,6 +7565,9 @@
       "service": "ObservabilityAdmin",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -7504,6 +7577,7 @@
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
       "matched": true,
@@ -7700,6 +7774,7 @@
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
       "matched": true,
@@ -7751,6 +7826,9 @@
       "service": "SMSVOICE",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -7818,6 +7896,9 @@
       "service": "APS",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -7878,6 +7959,9 @@
       "service": "RAM",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -8122,6 +8206,9 @@
       "service": "ResilienceHubV2",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -8131,6 +8218,7 @@
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
       "matched": true,
@@ -8142,6 +8230,7 @@
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
       "matched": true,
@@ -8685,6 +8774,9 @@
       "service": "S3Outposts",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -8716,6 +8808,7 @@
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
       "matched": true,
@@ -8726,12 +8819,8 @@
       "service": "S3Files",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "identity-attrs"
-      ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['id'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_s3files_file_system_policy",
@@ -8750,6 +8839,7 @@
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
       "matched": true,
@@ -8768,6 +8858,9 @@
       "service": "S3Tables",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -8787,6 +8880,9 @@
       "service": "S3Vectors",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -8795,6 +8891,9 @@
       "service": "S3Vectors",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -9280,12 +9379,8 @@
       "service": "SecurityHub",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "identity-attrs"
-      ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['id'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_securityhub_configuration_policy_association",
@@ -9320,6 +9415,9 @@
       "service": "SecurityHub",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -9328,6 +9426,9 @@
       "service": "SecurityHub",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -9397,6 +9498,9 @@
       "service": "SecurityHub",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -9405,6 +9509,9 @@
       "service": "SecurityLake",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -9646,6 +9753,9 @@
       "service": "StepFunctions",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -9654,6 +9764,9 @@
       "service": "StepFunctions",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -9735,6 +9848,9 @@
       "service": "SNS",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -9872,18 +9988,17 @@
       "service": "SSMContacts",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "import-grammar precedence: the provider's own Terraform 1.12+ Identity Schema names a different required import identity attribute than the legacy Import section's example implied",
-      "mismatch_classes": [
-        "identity-attrs"
-      ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['arn'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_ssmcontacts_contact_channel",
       "service": "SSMContacts",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -9907,6 +10022,9 @@
       "service": "SSMContacts",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -10368,6 +10486,9 @@
       "service": "EC2",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -11074,6 +11195,7 @@
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
       "matched": true,
