@@ -579,17 +579,48 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 		})
 	}
 	if !taggable(schema.Block) {
-		// Silent for a resource identified some other way: an untaggable type
-		// is not a gap in the estate's records, it is a type whose identity
-		// comes from somewhere else. Loud for one that has no other way to be
-		// found, where it is the estate's records and the resource both.
+		// Loud for a resource that has no other way to be found, where the
+		// marker is the estate's records and the resource both.
 		s.skip(addr, SkipUntaggable, "")
-		if !s.mustStamp(rc) {
-			return nil, diags
+		if s.mustStamp(rc) {
+			return nil, diags.Append(s.unstampable(rc, fmt.Sprintf(
+				"%s is a %s. %s",
+				addr, rc.Type, markers.NotAMarkerSurface(schema.Block, rc.Type))))
 		}
-		return nil, diags.Append(s.unstampable(rc, fmt.Sprintf(
-			"%s is a %s, whose schema has no tags map this configuration can set, so there is nowhere to carry an ownership marker.",
-			addr, rc.Type)))
+		// Otherwise it depends on WHY the type cannot carry a marker, and
+		// the two reasons deserve different volumes.
+		//
+		// A type with no tag surface at all is silent, as it always has
+		// been: it is not a gap in the estate's records, it is a type whose
+		// identity comes from somewhere else, and an aws_route_table_
+		// association or an aws_s3_bucket_policy is exactly that. Hundreds
+		// of AWS resources are in this case in an ordinary configuration
+		// and warning on each would drown the run.
+		//
+		// A type that HAS a tag surface and cannot use it is a warning. The
+		// author is looking at a tags argument in their own file and has
+		// every reason to assume this fork is using it; the marker scheme
+		// silently not covering their resource is precisely the false
+		// "you are fine" this fork keeps finding in itself. GitHub issue
+		// #243, and the maintainer ruling on #223 that the non-AWS marker
+		// path is to be refused explicitly rather than left as a silent
+		// gap.
+		//
+		// The split is derived, not per-provider: it asks whether this
+		// schema has a tags map whose documented vocabulary refuses a
+		// marker. At hashicorp/aws 6.59.0 no type is in that case, so this
+		// warning cannot fire anywhere on the path that works.
+		if reason, refused := markers.RefusedTagSurface(schema.Block); refused {
+			return nil, diags.Append(&hcl.Diagnostic{
+				Severity: hcl.DiagWarning,
+				Summary:  SummaryNotStamped,
+				Detail: fmt.Sprintf(
+					"%s is a %s, and %s, so its tags map cannot carry an ownership marker. Nothing marks this resource as belonging to estate %q, so a later run cannot recognise it as one this configuration owns: it can be planned and created, but not adopted, discovered, moved or released. Give it an identity this configuration states outright - an argument the provider imports it by - or manage it outside the estate.",
+					addr, rc.Type, reason, s.req.Estate),
+				Subject: rc.DeclRange.Ptr(),
+			})
+		}
+		return nil, diags
 	}
 	if keyedAncestor {
 		return s.moduleKeyedResource(rc, addr)
