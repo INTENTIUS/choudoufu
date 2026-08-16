@@ -33,17 +33,53 @@
     "cloud-platform-infrastructure), CC0-1.0 (both cisagov repos),",
     "Apache-2.0 (k8s.io).",
     "",
-    "var_file (#183) is this project's own measurement input, never the",
-    "estate's: it supplies a value for a required variable the estate left",
-    "unset, so a refusal that is only an artifact of the missing value (see",
-    "unset_var_only in live/corpus-refusals.json and #178's rule-2 scoping)",
-    "can be told apart from a real one. The files it points at live under",
-    "live/corpus-vars/ and each carries its own provenance comment: which",
-    "unset variables it supplies and why that value, never a guess at the",
-    "estate's real environment. It is scoped to one directory, not to a",
-    "whole wildcarded source - see [ManifestSource.VarFile]'s doc comment",
-    "for how a narrow source aims one at a single estate under a glob that",
-    "also matches many others."
+    "var_files and var_file_layout (#183, reworked to the parity ruling on",
+    "2026-08-15) run each estate the way its own operator does: with the",
+    "tfvars files the estate's own repository ships, discovered from its",
+    "own layout, never a value this project composed. A refusal that is",
+    "only an artifact of a required variable nobody supplied a value for is",
+    "flagged unset_var_only in live/corpus-refusals.json (#178's rule-2",
+    "scoping); supplying the estate's own file is how that gets told apart",
+    "from a real language-wall blocker, honestly, rather than papered over.",
+    "",
+    "var_file_layout derives var files from a directory's own name, for a",
+    "layout expressible as a rule - see [ManifestSource.VarFileLayout]'s",
+    "doc comment. Of the four corpus repositories that ship any tfvars:",
+    "",
+    "  - govuk-infrastructure uses it: terraform/deployments/<name> pairs",
+    "    with terraform/variables/<env>/<name>.tfvars plus that env's own",
+    "    common.tfvars, both applied when the estate ships them. Which env:",
+    "    \"integration\" is picked uniformly (not per estate) because it has",
+    "    the widest coverage among the four - 25 of the 35 in-corpus",
+    "    deployments ship an integration/<name>.tfvars, against 24 for",
+    "    production, 23 for staging and 1 for test.",
+    "  - mastino needs no entry at all: every tfvars file it ships is a",
+    "    *.auto.tfvars sitting in the same directory as the deployment it",
+    "    configures, which internal/live/check's loader already reads from",
+    "    the measured directory itself, with no manifest wiring, exactly as",
+    "    stock OpenTofu auto-loads it.",
+    "  - k8s.io ships terraform.tfvars for two in-corpus projects",
+    "    (cdn.packages.k8s.io, prow-build-cluster), also auto-loaded with no",
+    "    entry needed. Three others (artifacts.k8s.io, kops-infra-ci, macos)",
+    "    ship only atlantis.tfvars, applied by an Atlantis workflow named",
+    "    \"aws\" in the repo's .atlantis.yaml - but that workflow's own",
+    "    extra_args (whether it actually passes -var-file=atlantis.tfvars)",
+    "    live in Atlantis server config, not in the repository, so this",
+    "    manifest does not wire them: doing so would be inferring CI",
+    "    plumbing this project cannot read, not reading a file the estate",
+    "    unambiguously ships as its own input.",
+    "  - cloud-platform-infrastructure ships 6 tfvars files, all under",
+    "    aws-accounts/<account>/{account,vpc/eks,...}, one or two directory",
+    "    levels below the account directory this manifest's glob matches;",
+    "    the account directory itself (and global-resources, the only other",
+    "    in-corpus entry) has no .tf files directly, so HasConfigFiles",
+    "    excludes it and neither in-corpus entry has a tfvars file of its",
+    "    own to apply. Reaching the nested root modules would mean widening",
+    "    the glob that decides which directories are in the corpus at all -",
+    "    a different axis from var_files, not this change's to make.",
+    "  - govuk-aws ships zero tfvars files anywhere in the repository; its",
+    "    estates stay language-blocked on unset_var_only refusals, honestly,",
+    "    with no entry here."
   ],
   "sources": [
     {
@@ -178,21 +214,6 @@
       }
     },
     {
-      "glob": ".corpus/govuk-aws/terraform/projects/app-related-links",
-      "origin": "published deployment",
-      "var_file": "live/corpus-vars/govuk-aws-app-related-links.tfvars"
-    },
-    {
-      "glob": ".corpus/govuk-aws/terraform/projects/infra-athena-query-results",
-      "origin": "published deployment",
-      "var_file": "live/corpus-vars/govuk-aws-infra-athena-query-results.tfvars"
-    },
-    {
-      "glob": ".corpus/govuk-aws/terraform/projects/infra-datagovuk-organogram-bucket",
-      "origin": "published deployment",
-      "var_file": "live/corpus-vars/govuk-aws-infra-datagovuk-organogram-bucket.tfvars"
-    },
-    {
       "glob": ".corpus/govuk-aws/terraform/projects/*",
       "origin": "published deployment",
       "fetch": {
@@ -215,17 +236,16 @@
       "origin": "published deployment"
     },
     {
-      "glob": ".corpus/govuk-infrastructure/terraform/deployments/mobile-backend",
-      "origin": "published deployment",
-      "var_file": "live/corpus-vars/govuk-infrastructure-mobile-backend.tfvars"
-    },
-    {
       "glob": ".corpus/govuk-infrastructure/terraform/deployments/*",
       "origin": "published deployment",
       "fetch": {
         "dir": ".corpus/govuk-infrastructure",
         "repo": "https://github.com/alphagov/govuk-infrastructure.git",
         "commit": "c02504fa4abb439234669e9ea9b662bdb35209e9"
+      },
+      "var_file_layout": {
+        "variables_dir": ".corpus/govuk-infrastructure/terraform/variables",
+        "env": "integration"
       }
     },
     {
