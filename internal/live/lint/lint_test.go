@@ -238,34 +238,44 @@ func TestCheck(t *testing.T) {
 			},
 		},
 		{
-			name: "count.index in every position it must be caught",
+			name: "count.index in every position it must still be caught",
 			dir:  "testdata/count-index",
 			want: []wantIssue{
 				{
 					rule:      RuleCountIndex,
-					construct: "count.index in aws_vpc.plain_arg",
+					construct: "count.index in aws_network_acl_rule.plain_arg",
 					file:      "testdata/count-index/main.tf",
-					line:      9,
+					line:      18,
 				},
 				{
 					rule:      RuleCountIndex,
-					construct: "count.index in aws_vpc.in_tag",
+					construct: "count.index in aws_route53_record.in_identity_template",
 					file:      "testdata/count-index/main.tf",
-					line:      19,
+					line:      35,
 				},
 				{
 					rule:      RuleCountIndex,
-					construct: "count.index in aws_security_group.nested_block",
+					construct: "count.index in aws_network_acl_rule.conditional",
 					file:      "testdata/count-index/main.tf",
-					line:      32,
-				},
-				{
-					rule:      RuleCountIndex,
-					construct: "count.index in aws_vpc.conditional",
-					file:      "testdata/count-index/main.tf",
-					line:      46,
+					line:      49,
 				},
 			},
+		},
+		{
+			// The mirror image of the previous case, and the point of #187's
+			// narrowing: count.index in an argument identity.LookupType does
+			// not mark as identity-bearing for the resource's own type is no
+			// longer refused, however that argument is reached - a plain
+			// server-assigned type's arguments (none of which ever feed its
+			// identity, per identity.Resolve's ServerAssigned branch
+			// returning before it reads one), a Components type's own
+			// non-identity attribute, and a Components type's nested block
+			// (Components names only ever top-level attributes, so nothing
+			// inside a nested block can be identity-bearing). See
+			// testdata/count-index for the resources these mirror.
+			name: "count.index outside identity relevance is not caught",
+			dir:  "testdata/count-index-not-relevant",
+			want: nil,
 		},
 		{
 			name: "several rules at once, reported in source order",
