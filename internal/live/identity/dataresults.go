@@ -45,9 +45,9 @@ func buildDataResultsIndex(results map[string]cty.Value) (dataResultsIndex, []st
 	}
 
 	type group struct {
-		noKey    *cty.Value
-		intKeys  map[int]cty.Value
-		strKeys  map[string]cty.Value
+		noKey   *cty.Value
+		intKeys map[int]cty.Value
+		strKeys map[string]cty.Value
 	}
 	groups := make(map[string]map[string]*group)
 	var bad []string

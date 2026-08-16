@@ -34,4 +34,3 @@ const (
 	// the ladder's data-read-eligible rung rather than language-blocked.
 	SummaryEligibleRead = "Resolves at plan time via a data-source read"
 )
-
