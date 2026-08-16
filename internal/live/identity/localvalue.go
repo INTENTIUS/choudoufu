@@ -197,14 +197,15 @@ func (r *resolver) namedDef(root, name string, scope instScope) (hcl.Expression,
 //   - local/var aliasing, through [resolver.namedDef].
 //   - An object constructor directly ([resolver.objectConsKeys]).
 //   - merge() of several arguments, each chased the same way and unioned -
-//     including merge(list...): the splatted argument is itself chased,
-//     and a list literal is handled by unioning ITS OWN elements the same
-//     way merge's separate arguments always were (see the TupleConsExpr
-//     case below), so merge(a, b) and merge([a, b]...) reach the same
-//     answer through the same code.
-//   - A tuple/list constructor, unioning every element's own key set - the
-//     shape merge(list...)'s splatted argument decomposes into once it is
-//     chased back to a literal list.
+//     including merge(list...): the splatted final argument is itself
+//     chased, and a list literal reached that way is handled by unioning
+//     ITS OWN elements the same way merge's separate arguments always were
+//     (see the TupleConsExpr case below), so merge(a, b) and
+//     merge([a, b]...) reach the same answer through the same code.
+//   - A tuple/list constructor, unioning every element's own key set - but
+//     ONLY when it stands where merge()'s splatted final argument stands,
+//     which is the sole position where a list's elements ARE the separate
+//     objects being unioned. See tupleIsArgs.
 //   - A for-comprehension producing an object ([resolver.forExprKeys]):
 //     chases the SOURCE collection's own key set, then evaluates the
 //     comprehension's KEY clause once per source key with ONLY the loop's
@@ -214,16 +215,31 @@ func (r *resolver) namedDef(root, name string, scope instScope) (hcl.Expression,
 //     cleanly, rather than answer with something nothing here actually
 //     knows.
 //
+// tupleIsArgs is the audit fix for a wrong-key-set defect the TupleConsExpr
+// case shipped with: outside merge(list...)'s splat, a tuple is a LIST, and
+// a list's keys are its integer indices, NOT the union of its elements' own
+// object keys. Reading `[{host=...,port=...}, {...}, {...}]` as the key set
+// {"host","port"} answered a THREE-element list with TWO instances under
+// two invented keys - and did it silently, with no diagnostic, because
+// [resolver.staticForEachKeys] only runs where evaluating the expression
+// whole has already failed. It reached that answer two ways: a top-level
+// `for_each = <tuple>` (which OpenTofu rejects outright - for_each takes a
+// map or a set of strings) and, far more damagingly, a for-comprehension
+// ranging over a list, where `{ for i, h in local.hosts : "item-${i}" => h }`
+// really produces "item-0"/"item-1"/"item-2". So the tuple reading is now
+// admitted only in the one position that licenses it, and everywhere else
+// this declines and leaves the ordinary for_each diagnostic standing.
+//
 // It deliberately does not chase a selector before reaching the object
 // (for_each = local.foo.bar is not supported): the corpus shape this fix
 // exists for is always a bare local or module variable ranged over
 // directly.
-func (r *resolver) staticForEachKeys(expr hcl.Expression, ident configs.StaticIdentifier, depth int) ([]string, bool) {
+func (r *resolver) staticForEachKeys(expr hcl.Expression, ident configs.StaticIdentifier, depth int, tupleIsArgs bool) ([]string, bool) {
 	if depth > maxStaticDecomposeDepth {
 		return nil, false
 	}
 	if paren, ok := expr.(*hclsyntax.ParenthesesExpr); ok {
-		return r.staticForEachKeys(paren.Expression, ident, depth+1)
+		return r.staticForEachKeys(paren.Expression, ident, depth+1, tupleIsArgs)
 	}
 
 	if trav, diags := hcl.AbsTraversalForExpr(expr); !diags.HasErrors() && len(trav) == 2 {
@@ -232,7 +248,10 @@ func (r *resolver) staticForEachKeys(expr hcl.Expression, ident configs.StaticId
 				defExpr, _, restore, defOk := r.namedDef(root, nameStep.Name, instScope{})
 				if defOk {
 					defer restore()
-					return r.staticForEachKeys(defExpr, ident, depth+1)
+					// tupleIsArgs propagates through the alias: the corpus
+					// shape is merge(local.teams...), where the splatted
+					// argument is a local naming the list.
+					return r.staticForEachKeys(defExpr, ident, depth+1, tupleIsArgs)
 				}
 			}
 		}
@@ -247,10 +266,15 @@ func (r *resolver) staticForEachKeys(expr hcl.Expression, ident configs.StaticId
 	}
 
 	if tuple, ok := expr.(*hclsyntax.TupleConsExpr); ok {
+		if !tupleIsArgs {
+			return nil, false
+		}
 		seen := map[string]bool{}
 		var keys []string
 		for _, elem := range tuple.Exprs {
-			got, ok := r.staticForEachKeys(elem, ident, depth+1)
+			// An element of the splatted list is one of merge's arguments,
+			// an object in its own right - never itself a list of them.
+			got, ok := r.staticForEachKeys(elem, ident, depth+1, false)
 			if !ok {
 				return nil, false
 			}
@@ -267,8 +291,12 @@ func (r *resolver) staticForEachKeys(expr hcl.Expression, ident configs.StaticId
 	if call, ok := expr.(*hclsyntax.FunctionCallExpr); ok && call.Name == "merge" {
 		seen := map[string]bool{}
 		var keys []string
-		for _, arg := range call.Args {
-			got, ok := r.staticForEachKeys(arg, ident, depth+1)
+		for i, arg := range call.Args {
+			// merge(a, b...) splats only its FINAL argument, and only when
+			// ExpandFinal is set: that is the one argument whose elements
+			// stand in for merge's own separate arguments.
+			argIsSplat := call.ExpandFinal && i == len(call.Args)-1
+			got, ok := r.staticForEachKeys(arg, ident, depth+1, argIsSplat)
 			if !ok {
 				return nil, false
 			}
@@ -296,7 +324,12 @@ func (r *resolver) objectConsKeys(obj *hclsyntax.ObjectConsExpr, ident configs.S
 			return nil, false
 		}
 		ks, err := convert.Convert(kv, cty.String)
-		if err != nil || ks.IsNull() || !ks.IsKnown() {
+		// IsMarked: cty.Value.AsString panics on a marked value, and a key
+		// built from a sensitive variable is marked. lint's and stamp's own
+		// staticForEachKeys copies both test IsMarked before reading the
+		// value; this one did not, so `{ "${var.secret}-a" = ... }` as a
+		// for_each source crashed the run rather than refusing it.
+		if err != nil || ks.IsNull() || !ks.IsKnown() || ks.IsMarked() {
 			return nil, false
 		}
 		name := ks.AsString()
@@ -344,7 +377,11 @@ func (r *resolver) forExprKeys(fe *hclsyntax.ForExpr, ident configs.StaticIdenti
 		return nil, false
 	}
 
-	srcKeys, ok := r.staticForEachKeys(fe.CollExpr, ident, depth+1)
+	// tupleIsArgs is false: a for-comprehension's source collection is
+	// ranged over, so if it is a list the loop's key variable is the
+	// INTEGER INDEX, not any key belonging to an element. Declining is the
+	// honest answer here; see [resolver.staticForEachKeys]'s own note.
+	srcKeys, ok := r.staticForEachKeys(fe.CollExpr, ident, depth+1, false)
 	if !ok {
 		return nil, false
 	}
@@ -358,7 +395,10 @@ func (r *resolver) forExprKeys(fe *hclsyntax.ForExpr, ident configs.StaticIdenti
 			return nil, false
 		}
 		ks, err := convert.Convert(kv, cty.String)
-		if err != nil || ks.IsNull() || !ks.IsKnown() {
+		// IsMarked for the same reason [resolver.objectConsKeys] tests it:
+		// AsString panics on a marked value, and a key clause reading a
+		// sensitive variable produces one.
+		if err != nil || ks.IsNull() || !ks.IsKnown() || ks.IsMarked() {
 			return nil, false
 		}
 		name := ks.AsString()
@@ -619,7 +659,10 @@ func (r *resolver) selectStatic(expr hcl.Expression, rest []hcl.Traverser, scope
 				continue
 			}
 			ks, err := convert.Convert(kv, cty.String)
-			if err != nil || ks.IsNull() || !ks.IsKnown() || ks.AsString() != key {
+			// IsMarked before AsString, which panics on a marked value: an
+			// object key built from a sensitive variable is marked, and a
+			// key this cannot read is a key it cannot match.
+			if err != nil || ks.IsNull() || !ks.IsKnown() || ks.IsMarked() || ks.AsString() != key {
 				continue
 			}
 			return r.selectStatic(item.ValueExpr, rest[1:], scope, ident, depth+1)

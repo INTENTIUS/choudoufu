@@ -1192,6 +1192,22 @@ func (r *resolver) resolveConditional(e *hclsyntax.ConditionalExpr, scope instSc
 			ident.Subject)
 		return nil, false
 	}
+	// cty.Value.True panics on a marked value, and `variable "x" { type =
+	// bool, sensitive = true }` used as the condition produces one - so this
+	// check is what stands between an ordinary configuration and a crashed
+	// run, not a nicety. Refusing rather than reading it also keeps the
+	// package's existing stance: [resolver.stringValue] already refuses a
+	// sensitive identity value outright, and which branch a sensitive
+	// condition selected is one bit of that same value, rendered into the
+	// marker and into plan output.
+	if condVal.IsMarked() {
+		r.errorf(e.Condition.Range(), "Identity derived from a sensitive value",
+			"%s selects between branches of a conditional expression using a sensitive value. "+
+				"An import identity is written to logs and plan output, so which branch a sensitive condition chose cannot be recorded there. "+
+				"If the value is not genuinely secret, wrap it in nonsensitive(...) to use it here.",
+			ident.Subject)
+		return nil, false
+	}
 
 	if condVal.True() {
 		return r.resolveExpr(e.TrueResult, scope, ident)
@@ -2378,7 +2394,11 @@ func (r *resolver) forEachExpansion(rc *configs.Resource) (*expansion, bool) {
 		// for_each that already worked keeps going through the unchanged
 		// path below, with eachValues populated the way every consumer of
 		// it already expects. See localvalue.go.
-		if keys, structOK := r.staticForEachKeys(expr, ident, 0); structOK {
+		// tupleIsArgs is false at the top: for_each accepts a map, an
+		// object, or a set of strings, never a list, so a tuple standing
+		// here is not a set of merge() arguments and its elements' own keys
+		// are not this block's instance keys.
+		if keys, structOK := r.staticForEachKeys(expr, ident, 0, false); structOK {
 			r.diags = r.diags[:mark]
 			sorted := append([]string(nil), keys...)
 			sort.Strings(sorted)
@@ -2627,6 +2647,15 @@ func (r *resolver) forEachOverComprehension(rc *configs.Resource, fe *hclsyntax.
 				"The key clause of %s's for_each comprehension did not evaluate to a known string.", subject)
 			return nil, false, true
 		}
+		// A marked key would panic in AsString below, and is refused for
+		// the same reason [resolver.forEachExpansion] refuses a marked
+		// for_each value outright: an instance key becomes a marker value
+		// written to the cloud.
+		if ks.IsMarked() {
+			r.errorf(fe.KeyExpr.Range(), "Sensitive for_each expression",
+				"The key clause of %s's for_each comprehension is sensitive, so it cannot become part of resource addresses.", subject)
+			return nil, false, true
+		}
 		name := ks.AsString()
 		if !seen[name] {
 			seen[name] = true
@@ -2751,6 +2780,15 @@ func (r *resolver) comprehensionOverSiblingAttr(rc *configs.Resource, fe *hclsyn
 		if err != nil || ks.IsNull() || !ks.IsKnown() {
 			r.errorf(fe.KeyExpr.Range(), "Invalid for_each key",
 				"The key clause of %s's for_each comprehension did not evaluate to a known string.", subject)
+			return nil, false, true
+		}
+		// A marked key would panic in AsString below, and is refused for
+		// the same reason [resolver.forEachExpansion] refuses a marked
+		// for_each value outright: an instance key becomes a marker value
+		// written to the cloud.
+		if ks.IsMarked() {
+			r.errorf(fe.KeyExpr.Range(), "Sensitive for_each expression",
+				"The key clause of %s's for_each comprehension is sensitive, so it cannot become part of resource addresses.", subject)
 			return nil, false, true
 		}
 		name := ks.AsString()
