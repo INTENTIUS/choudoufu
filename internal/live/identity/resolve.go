@@ -442,6 +442,22 @@ type resolver struct {
 	insts      map[string]Resolution
 	instFailed map[string]bool
 	instVisit  map[string]bool
+
+	// curInstanceAddr is the resource instance whose identity
+	// resolveInstance is currently building, in
+	// [addrs.AbsResourceInstance.String] form - empty outside any
+	// resolveInstance call. Every diagnostic raised while it is set is
+	// tagged with it as an [InstanceFailure] (see [resolver.errorf] and
+	// [resolver.appendDiags]), so a caller can tell which instance a
+	// diagnostic belongs to without parsing its rendered text. Set on entry
+	// to resolveInstance and restored on exit (see resolveInstance's own
+	// defer), the same save/restore discipline [resolver.enterModuleAt]
+	// already uses for r.mod/r.modInst - required because resolveInstance
+	// recurses into another resolveInstance call for every parent a
+	// component references ([resolver.parentPart] -> [resolver.instance]),
+	// and a diagnostic raised inside that nested call belongs to the
+	// parent, not to whichever instance is waiting on it. See #221.
+	curInstanceAddr string
 }
 
 // enterModule points the resolver at one node of the static module tree,
@@ -566,6 +582,18 @@ func (r *resolver) instance(addr addrs.AbsResourceInstance, rng hcl.Range) (Reso
 func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range) (Resolution, bool) {
 	resAddr := addr.Resource.Resource
 
+	// Every diagnostic raised from here down - directly, or through a
+	// nested r.instance call resolving a DIFFERENT instance a component
+	// references - gets tagged with whichever instance owns the call frame
+	// at the moment it fires (see [resolver.curInstanceAddr],
+	// [resolver.errorf], [resolver.appendDiags]). Restored on return so a
+	// diagnostic raised after this call unwinds - by whichever instance
+	// called it, or by nothing at all - is not misattributed to addr. See
+	// #221.
+	prevInstanceAddr := r.curInstanceAddr
+	r.curInstanceAddr = addr.String()
+	defer func() { r.curInstanceAddr = prevInstanceAddr }()
+
 	if !r.enterModuleFor(addr.Module) {
 		r.errorf(rng, "Reference to a module instance that does not exist",
 			"%s is in %s, which is not part of this configuration's static module tree, so its identity cannot be resolved.",
@@ -672,6 +700,16 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		byAttr[name] = append(byAttr[name], got...)
 	}
 
+	// failed tracks whether any real component below could not be resolved.
+	// The loop no longer returns on the first one (GitHub issue #221): every
+	// component is still evaluated even after one fails, so a second,
+	// independently-broken component raises its own diagnostic instead of
+	// staying invisible behind the first. internal/live/check's cascade
+	// fixpoint reclassifies a dependent as data-read-eligible only when
+	// EVERY diagnostic tagged with this instance's address traces back to
+	// one - which requires every failing component to have actually been
+	// reached and diagnosed, not just the first.
+	failed := false
 	for _, comp := range entry.Components {
 		if comp.Cloud != CloudNone {
 			// Present: missingCloudValue already refused the alternative.
@@ -739,23 +777,29 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			r.errorf(rc.DeclRange, "Identity argument not set",
 				"%s has no value for %s, so its import identity (%s) cannot be built.",
 				addr.String(), orList(comp.Attrs), entry.ImportSyntax)
-			return Resolution{}, false
+			failed = true
+			continue
 		}
 		ident := r.identifier(addr, attr.Name, attr.Range)
 		expr := attr.Expr
 		if comp.SoleElement {
 			narrowed, ok := r.soleElementExpr(expr, scope, attr, ident)
 			if !ok {
-				return Resolution{}, false
+				failed = true
+				continue
 			}
 			expr = narrowed
 		}
 		got, ok := r.resolveExpr(expr, scope, ident)
 		if !ok {
-			return Resolution{}, false
+			failed = true
+			continue
 		}
 		parts = append(parts, got...)
 		addTo(comp.identityAttrFor(attr.Name), got)
+	}
+	if failed {
+		return Resolution{}, false
 	}
 
 	res := classify(addr, coalesce(parts), attrFormulas(byAttr, attrOrder), entry.IdentityObjectOnly)
@@ -910,7 +954,7 @@ func (r *resolver) identityArgs(rc *configs.Resource, entry TypeIdentity) (hcl.A
 
 	content, _, diags := rc.Config.PartialContent(schema)
 	if diags.HasErrors() {
-		r.diags = r.diags.Append(diags)
+		r.appendDiags(diags)
 		return nil, false
 	}
 	return content.Attributes, true
@@ -1199,7 +1243,7 @@ func (r *resolver) resolveTraversal(trav hcl.Traversal, scope instScope, ident c
 
 	ref, refDiags := addrs.ParseRef(trav)
 	if refDiags.HasErrors() {
-		r.diags = r.diags.Append(refDiags)
+		r.appendDiags(refDiags)
 		return nil, false
 	}
 
@@ -1325,7 +1369,7 @@ func (r *resolver) evalStatic(expr hcl.Expression, scope instScope, ident config
 
 	val, diags := r.evalPure(expr, scope, ident)
 	if diags.HasErrors() {
-		r.diags = r.diags.Append(diags)
+		r.appendDiags(diags)
 		return cty.NilVal, false
 	}
 	return val, true
@@ -1677,13 +1721,61 @@ func (r *resolver) providerRegionAttr(abs addrs.AbsProviderConfig) (string, bool
 }
 
 func (r *resolver) errorf(rng hcl.Range, summary, format string, args ...any) {
-	r.diags = r.diags.Append(&hcl.Diagnostic{
+	diag := &hcl.Diagnostic{
 		Severity: hcl.DiagError,
 		Summary:  summary,
 		Detail:   fmt.Sprintf(format, args...),
 		Subject:  rng.Ptr(),
-	})
+	}
+	if r.curInstanceAddr != "" {
+		// Freshly built, so there is nothing to preserve: unlike
+		// [resolver.appendDiags], no wrap is needed here.
+		diag.Extra = InstanceFailure{Addr: r.curInstanceAddr}
+	}
+	r.diags = r.diags.Append(diag)
 }
+
+// appendDiags is [resolver.errorf] for diagnostics this package did not
+// itself construct - an [addrs.ParseRef] failure, an hcl.Body's own
+// PartialContent diagnostics, [resolver.evalPure]'s. It takes the same
+// argument shape [tfdiags.Diagnostics.Append] itself does (hcl.Diagnostics,
+// *hcl.Diagnostic, tfdiags.Diagnostics, ...) rather than picking one, since
+// its callers pass whichever shape their own diagnostics already came back
+// as.
+//
+// Every diagnostic gets the same [InstanceFailure] tag errorf attaches,
+// wrapping whatever Extra it already carries rather than discarding it (see
+// [instanceFailureDiag] and [InstanceFailure.UnwrapDiagnosticExtra]) -
+// otherwise a data-source reference refused inside a failing component
+// would lose the [configs.RefusedReference] internal/live/dataread and
+// internal/live/check's classifyDataSite both depend on.
+func (r *resolver) appendDiags(new ...any) {
+	if r.curInstanceAddr == "" {
+		r.diags = r.diags.Append(new...)
+		return
+	}
+	var toTag tfdiags.Diagnostics
+	toTag = toTag.Append(new...)
+	if len(toTag) == 0 {
+		return
+	}
+	tagged := make(tfdiags.Diagnostics, len(toTag))
+	for i, d := range toTag {
+		tagged[i] = instanceFailureDiag{Diagnostic: d, tag: InstanceFailure{Addr: r.curInstanceAddr, inner: d.ExtraInfo()}}
+	}
+	r.diags = r.diags.Append(tagged)
+}
+
+// instanceFailureDiag decorates a [tfdiags.Diagnostic] with an
+// [InstanceFailure], leaving everything else about it - including whatever
+// Extra it already carried, reachable through InstanceFailure's own unwrap
+// chain - untouched. See [resolver.appendDiags].
+type instanceFailureDiag struct {
+	tfdiags.Diagnostic
+	tag InstanceFailure
+}
+
+func (d instanceFailureDiag) ExtraInfo() interface{} { return d.tag }
 
 // ---- expansion -------------------------------------------------------
 
@@ -2209,7 +2301,7 @@ func (r *resolver) resolveResourceRef(expr hcl.Expression, subject string, rng h
 	}
 	ref, refDiags := addrs.ParseRef(trav)
 	if refDiags.HasErrors() {
-		r.diags = r.diags.Append(refDiags)
+		r.appendDiags(refDiags)
 		return addrs.Resource{}, nil, false
 	}
 	parentAddr, ok := ref.Subject.(addrs.Resource)
