@@ -141,6 +141,45 @@ func InvalidRune(key string) (rune, bool) {
 	return 0, false
 }
 
+// NeedsEncode reports whether key requires [Encode]'s help to become a
+// marker - true for exactly the keys [Encode] does not leave byte-for-byte
+// unchanged: one containing a rune outside legalRune, or a literal
+// Introducer (which Encode always doubles even though it is already
+// legalRune on its own).
+//
+// This is a narrower question than [Valid]. Valid asks whether a key can
+// become a marker AT ALL; NeedsEncode asks whether doing so depends on
+// Encode specifically having run. The two enforcement points this package
+// serves diverge exactly here: identity resolution's own evaluator can see
+// a for_each key no matter how it was computed, but stamp only reaches
+// Encode's actual hex-escaping through a precomputed lookup table it can
+// build solely from a for_each expression it can also evaluate statically
+// (issue #210's forEachNeedsKeyLookup); a for_each stamp cannot read
+// statically at all (rooted at a data source, another resource, or
+// anything else only known once the cloud is read) falls back to a
+// narrower template that reproduces only legalRune's own doubling rule,
+// with no Encode step. A key that needs Encode's help is stamped wrong
+// there, silently, which is why identity checks this set as a hard refusal
+// for exactly that shape of for_each (issue #227) rather than only
+// [Valid]'s wider one.
+func NeedsEncode(key string) bool {
+	return Encode(key) != key
+}
+
+// FirstEncodeRune returns the first rune in key that [NeedsEncode] would
+// flag - the first one outside legalRune, or the first literal Introducer -
+// and whether it found one. It is [NeedsEncode]'s sibling the way
+// [InvalidRune] is [Valid]'s: the same boundary, but naming the offending
+// character for a diagnostic instead of collapsing it to a bool.
+func FirstEncodeRune(key string) (rune, bool) {
+	for _, r := range key {
+		if r == Introducer || !legalRune(r) {
+			return r, true
+		}
+	}
+	return 0, false
+}
+
 // DescribeRune renders an offending character for a diagnostic: the
 // character itself when it is printable, and its code point either way, so
 // a key that failed on a zero-width or control character says something
