@@ -69,6 +69,23 @@ type Context struct {
 	// run knows, which is what every caller running before a plugin has
 	// started passes.
 	Schemas map[string]providers.Schema
+
+	// DataResults are the values the pre-resolution data-read phase read
+	// (issue #179), keyed by the data resource instance's absolute address
+	// ([addrs.AbsResourceInstance.String]). They let an identity argument, a
+	// count or a for_each that reads a data source resolve against the
+	// provider's own answer instead of refusing as non-static: the static
+	// evaluator permits and answers exactly the references these cover, and
+	// nothing else changes.
+	//
+	// Nil is the default and means no phase ran, which is what every caller
+	// running before a provider has started passes; every data-source
+	// reference then refuses exactly as it always has. Nothing here is ever
+	// fetched by this package - the reads happen in internal/live/dataread,
+	// and a stale or invented value on this path would become a live
+	// ownership marker, which is why the phase re-reads on every run and no
+	// cache exists.
+	DataResults map[string]cty.Value
 }
 
 // ResolveWith is [Resolve] told everything the caller knows that the
@@ -269,11 +286,13 @@ func (r *resolver) checkCollisions(result *Result) {
 }
 
 func newResolver(ctx context.Context, cfg *configs.Config, rctx Context) *resolver {
+	dataIndex, badResults := buildDataResultsIndex(rctx.DataResults)
 	r := &resolver{
 		ctx:        ctx,
 		rootCfg:    cfg,
 		cloud:      rctx.Cloud,
 		schemas:    rctx.Schemas,
+		dataIndex:  dataIndex,
 		expansions: make(map[string]*expansion),
 		expFailed:  make(map[string]bool),
 		expVisit:   make(map[string]bool),
@@ -282,9 +301,26 @@ func newResolver(ctx context.Context, cfg *configs.Config, rctx Context) *resolv
 		instVisit:  make(map[string]bool),
 		synth:      make(map[string]*TypeIdentity),
 	}
+	for _, key := range badResults {
+		// A result the index could not use is the calling code's defect, not
+		// the configuration's, and it must not vanish: dropped silently it
+		// would resurface as the generic dynamic-value refusal pointing the
+		// user at their own file.
+		r.diags = r.diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			SummaryUnusableDataResult,
+			fmt.Sprintf(
+				"The data-read phase handed resolution a result under %q, which is not usable: it must be an absolute data resource instance address, and one resource's instances must share one key kind with no gaps. This is a defect in the calling code, not in the configuration.",
+				key),
+		))
+	}
 	r.enterModule(cfg)
 	return r
 }
+
+// SummaryUnusableDataResult is the caller-error refusal for a
+// [Context.DataResults] entry resolution cannot index. See [newResolver].
+const SummaryUnusableDataResult = "Unusable data-source result"
 
 type resolver struct {
 	ctx context.Context
@@ -311,6 +347,11 @@ type resolver struct {
 	// schemas are the provider's resource type schemas when the caller had
 	// them, and nil when it did not. See [Context.Schemas].
 	schemas map[string]providers.Schema
+
+	// dataIndex is [Context.DataResults] regrouped per module instance and
+	// resource, and nil when the caller passed none. See
+	// [buildDataResultsIndex].
+	dataIndex dataResultsIndex
 
 	// signal is the whole configuration's naming signal, collected before
 	// classification starts because the schema fallback's verdict depends on
@@ -365,6 +406,13 @@ func (r *resolver) enterModuleAt(cfg *configs.Config, modInst addrs.ModuleInstan
 	// block owns, and a function that answers differently every time it is
 	// called cannot make that claim. See impure.go.
 	r.eval = cfg.Module.StaticEvaluator.Pure()
+	// Data-read results, when the caller performed the pre-resolution read
+	// phase: the evaluator answers exactly the data references the phase
+	// covered in this module instance, and refuses everything else exactly
+	// as before. See [Context.DataResults].
+	if lookup := r.dataLookupFor(modInst); lookup != nil {
+		r.eval = r.eval.WithDataResults(lookup)
+	}
 }
 
 // enterModuleFor is [resolver.enterModuleAt] by module instance path, for
