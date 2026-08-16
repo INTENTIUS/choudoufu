@@ -186,3 +186,60 @@ func TestUpperBound(t *testing.T) {
 		}
 	}
 }
+
+// TestVocabularyRefusal_posixClassIsOneClass is the third wrong extraction of
+// the same family as "[Tag definitions]", found by an adversarial sweep
+// rather than by a provider: a POSIX bracket expression nested inside a
+// character class.
+//
+// "[[:print:]]{0,999}" is one class, and the pattern this fork used to
+// extract from it was "[:print:]" - a class of the six letters in "print"
+// and a colon - because the inner brackets are excluded from a class's own
+// character set and the match therefore started one bracket in. The
+// resulting refusal said the values cannot spell ".", of a vocabulary that
+// admits every printable character there is, and refusing a working tags map
+// is the direction that costs a user their resource type.
+//
+// The second case is the boundary and must still refuse: [[:alnum:]_.-] is
+// read correctly and genuinely cannot spell every character in the marker
+// value alphabet.
+func TestVocabularyRefusal_posixClassIsOneClass(t *testing.T) {
+	cases := []struct {
+		name        string
+		desc        string
+		wantRefused bool
+	}{
+		{
+			"a permissive POSIX class spells a marker",
+			"Values may only contain [[:print:]]{0,999} characters.",
+			false,
+		},
+		{
+			"a POSIX class with a negation",
+			"Values may only contain [[:^cntrl:]]{0,999} characters.",
+			false,
+		},
+		{
+			"a POSIX class that genuinely excludes a separator",
+			"Values may only contain [[:alnum:]_-]{1,999} characters.",
+			true,
+		},
+		{
+			"a POSIX class capped below what one marker value needs",
+			"Values may only contain [[:print:]]{0,8} characters.",
+			true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			reason, refused := VocabularyRefusal(tc.desc)
+			if refused != tc.wantRefused {
+				t.Errorf("refused = %v, want %v\n  desc:   %s\n  reason: %s",
+					refused, tc.wantRefused, tc.desc, reason)
+			}
+			if refused && strings.Contains(reason, "[:") && !strings.Contains(reason, "[[:") {
+				t.Errorf("the quoted pattern lost the outer bracket, so the class it names is not the one the provider wrote: %s", reason)
+			}
+		})
+	}
+}

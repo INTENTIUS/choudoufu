@@ -209,7 +209,25 @@ func namespaced(s string) (string, bool) {
 // contain any, and a markdown link label does: "[Tag definitions]" compiles
 // perfectly well as a class of the letters in "Tag definitions" and means
 // nothing of the kind.
-var documentedPattern = regexp.MustCompile(`(?:\[(?:[^\[\]\\\s]|\\.)+\](?:\{\d+(?:,\d+)?\})?)+`)
+//
+// A POSIX class - "[[:alnum:]_.:-]" - is matched as one class, alternation
+// [posixClass first. Without that branch the inner brackets are excluded by
+// [^\[\]...], so the match starts at the INNER bracket and comes out as
+// "[:alnum:]": a class of six letters and a colon, which compiles and means
+// nothing of the kind. It is the same misreading as "[Tag definitions]" and
+// it fails the other way - toward refusing a tags map whose real vocabulary
+// spells a marker perfectly. "Values may only contain [[:print:]]{0,999}
+// characters" refused on "cannot spell \".\"" while [[:print:]] admits every
+// character an escaped address uses.
+var documentedPattern = regexp.MustCompile(`(?:\[(?:` + posixClass + `|[^\[\]\\\s]|\\.)+\](?:\{\d+(?:,\d+)?\})?)+`)
+
+// posixClass is one POSIX bracket expression as it appears INSIDE a
+// character class. Go's regexp accepts the same syntax, so a pattern
+// carrying one is compiled and run like any other.
+const posixClass = `\[:\^?[a-z]+:\]`
+
+// posixClassRE is [posixClass] on its own, for counting them.
+var posixClassRE = regexp.MustCompile(posixClass)
 
 // wholeStringRule distinguishes a pattern that governs an entire key or
 // value from one that governs a position in it. "must conform to the
@@ -335,6 +353,11 @@ func upperBound(pattern string) (int, bool) {
 		return 0, false
 	}
 	// Every class before the last contributes at least one character, which
-	// is how "[\p{Ll}\p{Lo}][\p{Ll}\p{Lo}\p{N}_-]{0,62}" comes to 63.
-	return n + strings.Count(pattern, "[") - 1, true
+	// is how "[\p{Ll}\p{Lo}][\p{Ll}\p{Lo}\p{N}_-]{0,62}" comes to 63. A
+	// POSIX class opens a bracket of its own inside another class and is not
+	// a class in this sense, so its bracket is discounted; counting it would
+	// inflate the cap, which is the direction that stops a real length
+	// refusal firing.
+	classes := strings.Count(pattern, "[") - len(posixClassRE.FindAllString(pattern, -1))
+	return n + classes - 1, true
 }
