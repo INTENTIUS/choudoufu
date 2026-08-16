@@ -20,6 +20,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/lang"
+	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -225,12 +226,39 @@ func (r *resolver) walkModule(cfg *configs.Config, modInst addrs.ModuleInstance,
 		}
 	}
 	for _, name := range SortedChildNames(cfg.Children) {
+		// Restored before every sibling, not just once before the loop: the
+		// recursive r.walkModule call below, for whichever sibling sorts
+		// before this one, ends by leaving r.mod/r.curCfg/r.modInst/r.eval
+		// pointing at wherever ITS OWN deepest descendant left them -
+		// enterModuleAt has no notion of a caller to return to. Without
+		// this, a later sibling's own r.mod.ModuleCalls[name] lookup below
+		// silently reads an unrelated module's call table (typically empty,
+		// so its own count/for_each is missed entirely) whenever an
+		// earlier-sorted sibling has any children of its own to recurse
+		// into first. Found via govuk-infrastructure's opensearch
+		// blue/green module: "blue_domain" sorts and is walked before
+		// "snapshot_bucket", and blue_domain's own subtree left r.mod
+		// pointing three levels down by the time snapshot_bucket's count
+		// was read.
+		r.enterModuleAt(cfg, modInst)
 		child := cfg.Children[name]
-		var forEach hcl.Expression
+		var forEach, count hcl.Expression
 		if call, ok := r.mod.ModuleCalls[name]; ok && call != nil {
 			forEach = call.ForEach
+			count = call.Count
 		}
-		keys, diag := ChildModuleKeys(r.ctx, r.mod, childSubject(name), forEach)
+		// count and for_each are mutually exclusive on a module call, the
+		// same as on a resource; count is tried first only because that is
+		// the order [resolver.buildExpansion] already uses for a resource's
+		// own count/for_each, not because either can be set alongside the
+		// other.
+		var keys []addrs.InstanceKey
+		var diag *hcl.Diagnostic
+		if count != nil {
+			keys, diag = ChildModuleCountKeys(r.ctx, r.mod, childSubject(name), count)
+		} else {
+			keys, diag = ChildModuleKeys(r.ctx, r.mod, childSubject(name), forEach)
+		}
 		if diag != nil {
 			r.diags = r.diags.Append(diag)
 			continue
@@ -265,7 +293,13 @@ func (r *resolver) checkCollisions(result *Result) {
 		default:
 			continue
 		}
-		key := res.Type() + "\x00" + ident
+		// cloudScope keeps two same-named resources that target different
+		// accounts or regions from colliding: see [Resolution.cloudScope]
+		// and [resolver.resourceCloudScope]. A blank scope (the ordinary
+		// single-region estate) is a no-op partition - every resource in
+		// such a configuration shares the same blank value, so the key
+		// collapses back to Type+ident exactly as before.
+		key := res.Type() + "\x00" + ident + "\x00" + res.cloudScope
 
 		first, exists := seen[key]
 		if !exists {
@@ -331,13 +365,17 @@ type resolver struct {
 	// [resolver.enterModuleFor].
 	rootCfg *configs.Config
 
-	// mod, modInst and eval are the module currently being worked on: the
-	// module whose resources [resolver.expansionFor] and
+	// mod, curCfg, modInst and eval are the module currently being worked
+	// on: the module whose resources [resolver.expansionFor] and
 	// [resolver.resolveInstance] are reading. They are mutated by
 	// [resolver.enterModule] as the walk moves between modules, so nothing
 	// in this package may cache them across a call that might change
-	// modules.
+	// modules. curCfg is mod's own *configs.Config node, kept alongside it
+	// only because [providerscope.Resolve] needs the Config (for its
+	// Parent/Path module-tree walk) rather than the bare Module - see
+	// [resolver.resourceCloudScope].
 	mod     *configs.Module
+	curCfg  *configs.Config
 	modInst addrs.ModuleInstance
 	eval    *configs.StaticEvaluator
 
@@ -401,6 +439,7 @@ func (r *resolver) enterModule(cfg *configs.Config) {
 // [ModuleInstance] would compute, through [resolver.enterModule].
 func (r *resolver) enterModuleAt(cfg *configs.Config, modInst addrs.ModuleInstance) {
 	r.mod = cfg.Module
+	r.curCfg = cfg
 	r.modInst = modInst
 	// Pure on purpose: an identity is a claim about which cloud object a
 	// block owns, and a function that answers differently every time it is
@@ -632,6 +671,25 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 				addTo(comp.identityAttrFor(comp.Attrs[0]), got)
 				continue
 			}
+			if prefixAttr, base := firstPrefixSibling(attrs, comp.Attrs); prefixAttr != nil {
+				// The block names the object through "<base>_prefix", not
+				// "<base>" - a convention the provider documents across
+				// dozens of types (aws_db_parameter_group, aws_iam_role,
+				// aws_s3_bucket, aws_cloudwatch_log_group, and more) to mean
+				// "assign a random suffix to this prefix at create time".
+				// That is not a missing argument, the way this error reads
+				// for every other component: it is a name this run cannot
+				// compute before the object exists, the identical situation
+				// [TypeIdentity.ServerAssigned] already gives its own
+				// resolution class to at the whole-type level. See #190.
+				return Resolution{
+					Addr:  addr,
+					Class: ClassNeedsDiscovery,
+					Reason: fmt.Sprintf(
+						"%s is named through %s rather than %q; the provider appends a random suffix to the prefix at create time, so the resulting name is not known until the object exists.",
+						addr.String(), prefixAttr.Name, base),
+				}, true
+			}
 			r.errorf(rc.DeclRange, "Identity argument not set",
 				"%s has no value for %s, so its import identity (%s) cannot be built.",
 				addr.String(), orList(comp.Attrs), entry.ImportSyntax)
@@ -640,7 +698,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		ident := r.identifier(addr, attr.Name, attr.Range)
 		expr := attr.Expr
 		if comp.SoleElement {
-			narrowed, ok := r.soleElementExpr(expr, attr, ident)
+			narrowed, ok := r.soleElementExpr(expr, scope, attr, ident)
 			if !ok {
 				return Resolution{}, false
 			}
@@ -654,7 +712,9 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		addTo(comp.identityAttrFor(attr.Name), got)
 	}
 
-	return classify(addr, coalesce(parts), attrFormulas(byAttr, attrOrder), entry.IdentityObjectOnly), true
+	res := classify(addr, coalesce(parts), attrFormulas(byAttr, attrOrder), entry.IdentityObjectOnly)
+	res.cloudScope = r.resourceCloudScope(rc, scope)
+	return res, true
 }
 
 // attrFormulas turns the per-attribute part lists into the ordered form a
@@ -770,11 +830,28 @@ func cloudReason(entry TypeIdentity, missing CloudValue) string {
 func (r *resolver) identityArgs(rc *configs.Resource, entry TypeIdentity) (hcl.Attributes, bool) {
 	var names []string
 	seen := make(map[string]bool)
+	add := func(n string) {
+		if !seen[n] {
+			seen[n] = true
+			names = append(names, n)
+		}
+	}
 	for _, comp := range entry.Components {
 		for _, n := range comp.Attrs {
-			if !seen[n] {
-				seen[n] = true
-				names = append(names, n)
+			add(n)
+			// Every provider that names an object through one of these
+			// arguments also offers the "<name>_prefix" sibling documented
+			// to make the provider assign a random suffix at create time
+			// (aws_db_parameter_group's name/name_prefix, aws_iam_role's
+			// name/name_prefix, and so on across the provider - #190). It is
+			// never this component's own identity value, so it is pulled
+			// only to let [resolver.resolveInstance] tell "nothing named
+			// this object" apart from "named it in a way that is not known
+			// until the object exists" - the same distinction
+			// [TypeIdentity.ServerAssigned] already draws at the whole-type
+			// level, drawn here per instance instead.
+			if !strings.HasSuffix(n, "_prefix") {
+				add(n + "_prefix")
 			}
 		}
 	}
@@ -798,19 +875,27 @@ func (r *resolver) identityArgs(rc *configs.Resource, entry TypeIdentity) (hcl.A
 // the expression a list/set-typed identity argument was written with, it
 // returns the one sub-expression to resolve in its place, or refuses.
 //
-// hcl.ExprList only ever succeeds for a syntactic list/set/tuple
-// CONSTRUCT ("[...]") - never for a variable or function call that merely
-// evaluates to one, which is exactly the "written in configuration, not
-// merely producing one at apply time" bar every other identity component in
-// this package already holds itself to. When it fails, expr is treated as
-// already scalar and returned unchanged, so a Component.Attrs list mixing a
-// collection-typed name with a genuinely scalar one (aws_security_group_rule
-// pairs cidr_blocks/ipv6_cidr_blocks/prefix_list_ids, all lists, with
+// hcl.ExprList succeeds only for a syntactic list/set/tuple CONSTRUCT
+// ("[...]"), so a Component.Attrs list mixing a collection-typed name with a
+// genuinely scalar one (aws_security_group_rule pairs
+// cidr_blocks/ipv6_cidr_blocks/prefix_list_ids, all lists, with
 // source_security_group_id, a plain string) narrows only the members that
-// need it.
-func (r *resolver) soleElementExpr(expr hcl.Expression, attr *hcl.Attribute, ident configs.StaticIdentifier) (hcl.Expression, bool) {
+// need it: it fails harmlessly on the scalar member, which falls through to
+// [resolver.soleElementFromValue] and then, if that finds no collection
+// either, returns unchanged to resolve as a plain scalar.
+//
+// soleElementFromValue is the fallback for the construct not being
+// syntactic: a variable or local typed list(string)/set(string) - a
+// *_cidr_blocks argument declared that way is the common shape - is exactly
+// as "written in configuration, not merely producing one at apply time" as
+// every other identity component in this package already requires; nothing
+// about the one-element rule is specific to how the collection was spelled.
+func (r *resolver) soleElementExpr(expr hcl.Expression, scope instScope, attr *hcl.Attribute, ident configs.StaticIdentifier) (hcl.Expression, bool) {
 	elems, diags := hcl.ExprList(expr)
 	if diags.HasErrors() || elems == nil {
+		if narrowed, ok, applicable := r.soleElementFromValue(expr, scope, attr, ident); applicable {
+			return narrowed, ok
+		}
 		return expr, true
 	}
 	if len(elems) != 1 {
@@ -820,6 +905,55 @@ func (r *resolver) soleElementExpr(expr hcl.Expression, attr *hcl.Attribute, ide
 		return nil, false
 	}
 	return elems[0], true
+}
+
+// soleElementFromValue is [resolver.soleElementExpr]'s fallback when expr is
+// not a syntactic list construct: it evaluates expr the same way
+// [resolver.resolveExpr] eventually would, and applies the one-element rule
+// structurally when - and only when - the result is itself a known
+// list/set/tuple, rather than letting the whole collection reach
+// [resolver.stringValue] and refuse as "Non-string identity argument".
+//
+// applicable is false whenever nothing here applies: expr references a
+// managed resource (isSymbolic, nothing evaluable without the cloud), or
+// evaluation fails for a reason unrelated to being a collection, or it
+// succeeds but is not one. In every applicable=false case, no diagnostic is
+// left behind - the caller's own unchanged-expression path stands, and
+// resolveExpr raises whatever it would have raised for the original
+// expression. When applicable is true, ok carries the same "exactly one
+// element" verdict the syntactic case enforces, and the diagnostic (if any)
+// is already recorded.
+func (r *resolver) soleElementFromValue(expr hcl.Expression, scope instScope, attr *hcl.Attribute, ident configs.StaticIdentifier) (hcl.Expression, bool, bool) {
+	if r.isSymbolic(expr, scope) {
+		return nil, false, false
+	}
+	mark := len(r.diags)
+	val, ok := r.evalStatic(expr, scope, ident)
+	if !ok {
+		r.diags = r.diags[:mark]
+		return nil, false, false
+	}
+	ty := val.Type()
+	if !ty.IsListType() && !ty.IsSetType() && !ty.IsTupleType() {
+		return nil, false, false
+	}
+	if val.IsNull() || !val.IsWhollyKnown() {
+		return nil, false, false
+	}
+	n := 0
+	var only cty.Value
+	for it := val.ElementIterator(); it.Next(); {
+		_, v := it.Element()
+		only = v
+		n++
+	}
+	if n != 1 {
+		r.errorf(attr.Range, "Ambiguous list-valued identity argument",
+			"%s has %d elements. This component's identity can only be built when %s carries exactly one value; the AWS API - not this configuration's list order - decides how more than one composes into the real object, so this package will not guess which one to use.",
+			ident.Subject, n, attr.Name)
+		return nil, false, true
+	}
+	return &hclsyntax.LiteralValueExpr{Val: only, SrcRange: attr.Range}, true, true
 }
 
 func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) ([]Part, bool) {
@@ -873,6 +1007,9 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 
 	trav, diags := hcl.AbsTraversalForExpr(expr)
 	if diags.HasErrors() {
+		if parts, ok, applicable := r.resolveIndexedTraversal(expr, scope, ident); applicable {
+			return parts, ok
+		}
 		r.errorf(expr.Range(), "Identity not resolvable from configuration",
 			"%s refers to another resource inside an expression that identity resolution cannot follow. "+
 				"A resource reference contributes to an identity only as a whole reference or as an interpolation in a string template; "+
@@ -881,6 +1018,110 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 		return nil, false
 	}
 	return r.resolveTraversal(trav, scope, ident)
+}
+
+// resolveIndexedTraversal decomposes a reference into another resource
+// selected by a computed index - aws_subnet.this[each.key].id or
+// aws_instance.this[count.index].private_ip - which hcl.AbsTraversalForExpr
+// cannot turn into a traversal because the index is an expression rather
+// than a literal HCL parses directly into a traversal step. The index is
+// evaluated the same way any other identity-argument expression is
+// ([resolver.evalStatic]), against the same per-instance scope that already
+// carries each.key/each.value or count.index ([expansion.scope]) - so this
+// is not new evaluation machinery, only a second way to reach
+// [resolver.parentPart] once the addressed instance is known, alongside the
+// literal-index and bare-reference paths [resolver.resolveTraversal]
+// already has via hcl.AbsTraversalForExpr.
+//
+// applicable is false whenever expr is not this shape at all: not a single
+// attribute step following one index into what turns out to be a bare
+// managed-resource reference. The caller's own "cannot follow" diagnostic
+// stands unreplaced in that case. When applicable is true, ok reports
+// whether resolution succeeded, and a diagnostic has already been recorded
+// in its place when it did not - either by this function directly, or by
+// whatever evaluated the index or the target's own expansion.
+func (r *resolver) resolveIndexedTraversal(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) (parts []Part, ok bool, applicable bool) {
+	rel, isRel := expr.(*hclsyntax.RelativeTraversalExpr)
+	if !isRel {
+		return nil, false, false
+	}
+	idx, isIdx := rel.Source.(*hclsyntax.IndexExpr)
+	if !isIdx {
+		return nil, false, false
+	}
+	if len(rel.Traversal) != 1 {
+		return nil, false, false
+	}
+	attrStep, isAttr := rel.Traversal[0].(hcl.TraverseAttr)
+	if !isAttr {
+		return nil, false, false
+	}
+
+	trav, diags := hcl.AbsTraversalForExpr(idx.Collection)
+	if diags.HasErrors() {
+		return nil, false, false
+	}
+	ref, refDiags := addrs.ParseRef(trav)
+	if refDiags.HasErrors() {
+		return nil, false, false
+	}
+	resAddr, isRes := ref.Subject.(addrs.Resource)
+	if !isRes || len(ref.Remaining) > 0 || resAddr.Mode != addrs.ManagedResourceMode {
+		return nil, false, false
+	}
+
+	rc := r.mod.ResourceByAddr(resAddr)
+	if rc == nil {
+		return nil, false, false
+	}
+	exp, expOK := r.expansionFor(rc)
+	if !expOK {
+		// The target's own expansion already failed and already carries a
+		// diagnostic, wherever that first happened - see [resolveResourceRef]
+		// for the same pattern.
+		return nil, false, true
+	}
+
+	keyVal, keyOK := r.evalStatic(idx.Key, scope, ident)
+	if !keyOK {
+		// evalStatic already recorded why.
+		return nil, false, true
+	}
+	key, keyIsValid := indexKeyValue(keyVal)
+	if !keyIsValid {
+		r.errorf(idx.Key.Range(), "Identity not resolvable from configuration",
+			"%s indexes %s with a value that is not a string or a whole number, so it cannot select one of its instances.",
+			ident.Subject, resAddr.String())
+		return nil, false, true
+	}
+	if !exp.hasKey(key) {
+		r.errorf(idx.SrcRange, "Reference to a resource instance that does not exist",
+			"%s does not exist. %s", resAddr.Instance(key).String(), exp.describe(resAddr))
+		return nil, false, true
+	}
+
+	got, gotOK := r.parentPart(resAddr.Instance(key).Absolute(r.modInst), attrStep.Name, expr.Range(), ident)
+	return got, gotOK, true
+}
+
+// indexKeyValue turns an evaluated index expression into the instance key it
+// names, the same two key kinds every resource expansion in this package
+// already produces ([resolver.countExpansion], [resolver.forEachExpansion]).
+func indexKeyValue(val cty.Value) (addrs.InstanceKey, bool) {
+	if val.IsNull() || !val.IsKnown() || val.IsMarked() {
+		return nil, false
+	}
+	switch {
+	case val.Type() == cty.String:
+		return addrs.StringKey(val.AsString()), true
+	case val.Type() == cty.Number:
+		var n int
+		if err := gocty.FromCtyValue(val, &n); err != nil {
+			return nil, false
+		}
+		return addrs.IntKey(n), true
+	}
+	return nil, false
 }
 
 // resolveTraversal turns a reference to another resource's attribute into a
@@ -1156,6 +1397,91 @@ func (r *resolver) identifier(addr addrs.AbsResourceInstance, attrName string, r
 		Subject:   fmt.Sprintf("%s.%s", addr.String(), attrName),
 		DeclRange: rng,
 	}
+}
+
+// resourceCloudScope is [Resolution.cloudScope]'s whole implementation: a
+// string that is equal for two resources only when they plausibly target
+// the same account and region, so [resolver.checkCollisions] can tell a
+// genuine duplicate-identity collision from two same-named resources that
+// simply live in different places.
+//
+// It has two independent inputs, both general across every managed
+// resource type and every provider, not just AWS:
+//
+//   - The resource's resolved absolute provider configuration
+//     ([providerscope.ResolveResource]), which already walks every
+//     enclosing module call's own `providers = { ... }` mapping. Two
+//     module calls of the same child module, each remapping `aws` to a
+//     different aliased provider block, are exactly this: same resource
+//     address shape inside the module, different account or region
+//     outside it (found in the corpus: simpleinfra's dev-desktops calls
+//     ./aws-region once per region this way).
+//   - A literal `region` argument set directly on the resource body, read
+//     the same PartialContent-then-static-evaluate way every identity
+//     argument already is. This one is AWS-specific in practice - it is
+//     the per-resource region override the AWS provider has exposed on
+//     almost every resource type since it adopted the endpoints
+//     framework - but nothing here names a resource type to reach it: any
+//     resource in any provider that happens to declare a statically
+//     known `region` argument gets the same treatment. (Found in the
+//     corpus: govuk-infrastructure's chat estate declares the identical
+//     aws_cloudwatch_log_group name "/aws/bedrock" twice, once with
+//     region = "eu-west-1" and once with region = "eu-west-2" - the same
+//     provider configuration both times, since neither block uses a
+//     provider alias, so only the region argument tells them apart.)
+//
+// A resource that sets neither - the overwhelming majority, and every
+// resource in a single-region, single-account estate - gets back the bare
+// provider-configuration string, which is identical for every resource in
+// such an estate: the collision key in that case reduces to exactly what it
+// was before this existed, Type+identity, with no drop in sensitivity.
+//
+// This is deliberately best-effort: a `region` argument that fails to
+// evaluate statically (references something a plain identity argument
+// could not either) is silently treated as absent rather than refused,
+// because collision detection choosing not to disambiguate a resource pair
+// is strictly safer than a spurious refusal over an argument nothing else
+// in this run needed to read. See [resolver.staticRegionAttr].
+func (r *resolver) resourceCloudScope(rc *configs.Resource, scope instScope) string {
+	abs := providerscope.ResolveResource(r.curCfg, rc)
+	key := abs.String()
+	if region, ok := r.staticRegionAttr(rc, scope); ok {
+		key += "\x00region=" + region
+	}
+	return key
+}
+
+// staticRegionAttr reads a resource's own `region` argument, when the body
+// sets one and it evaluates to a known, non-null string from configuration
+// alone. It never records a diagnostic: unlike every other argument this
+// package reads, a `region` override is consulted only to sharpen
+// [resolver.checkCollisions], not to build the identity itself, so a
+// failure here must fall back to "no override", not refuse the run.
+func (r *resolver) staticRegionAttr(rc *configs.Resource, scope instScope) (string, bool) {
+	content, _, diags := rc.Config.PartialContent(&hcl.BodySchema{
+		Attributes: []hcl.AttributeSchema{{Name: "region"}},
+	})
+	if diags.HasErrors() {
+		return "", false
+	}
+	attr, ok := content.Attributes["region"]
+	if !ok || r.isSymbolic(attr.Expr, scope) {
+		return "", false
+	}
+	ident := configs.StaticIdentifier{
+		Module:    r.modInst.Module(),
+		Subject:   fmt.Sprintf("%s.region", rc.Addr().String()),
+		DeclRange: attr.Range,
+	}
+	val, evalDiags := r.evalPure(attr.Expr, scope, ident)
+	if evalDiags.HasErrors() || val.IsMarked() || val.IsNull() || !val.IsWhollyKnown() {
+		return "", false
+	}
+	str, err := convert.Convert(val, cty.String)
+	if err != nil {
+		return "", false
+	}
+	return str.AsString(), true
 }
 
 func (r *resolver) errorf(rng hcl.Range, summary, format string, args ...any) {
@@ -1615,6 +1941,21 @@ func (r *resolver) forEachExpansion(rc *configs.Resource) (*expansion, bool) {
 		return r.checkedForEachKeys(rc, exp)
 
 	case ty.IsSetType():
+		// An empty set built from a for-expression with no matching source
+		// elements - toset([for x in var.y : x if <false for everything>]),
+		// the shape a filtered comprehension produces whenever nothing
+		// passes the filter - carries cty.DynamicPseudoType as its element
+		// type, because cty has nothing to infer a concrete one from. Stock
+		// OpenTofu's own for_each validation accepts that element type
+		// alongside cty.String (internal/lang/evalchecks/eval_for_each.go's
+		// performSetTypeChecks); this package's own check did not, so an
+		// empty for_each set refused here even though OpenTofu itself
+		// accepts it downstream. Checked as emptiness rather than the type
+		// directly, since a zero-length set has no keys to enumerate either
+		// way and the distinction does not matter to this package.
+		if val.LengthInt() == 0 {
+			return r.checkedForEachKeys(rc, exp)
+		}
 		if ty.ElementType() != cty.String {
 			r.errorf(expr.Range(), "Invalid for_each set",
 				"The for_each value for %s is a set of %s. Only a set of strings can produce instance keys.", addr.String(), ty.ElementType().FriendlyName())
@@ -1865,6 +2206,19 @@ func firstPresent(attrs hcl.Attributes, names []string) *hcl.Attribute {
 		}
 	}
 	return nil
+}
+
+// firstPrefixSibling is [firstPresent] for the "<name>_prefix" convention
+// [resolver.identityArgs] pulls alongside every plain name: it reports the
+// first one actually set in the resource body, and which of names it is a
+// sibling of, so the caller can name the base argument in its own message.
+func firstPrefixSibling(attrs hcl.Attributes, names []string) (attr *hcl.Attribute, base string) {
+	for _, n := range names {
+		if a, ok := attrs[n+"_prefix"]; ok {
+			return a, n
+		}
+	}
+	return nil, ""
 }
 
 // coalesce merges adjacent literal parts, so that a formula's parts

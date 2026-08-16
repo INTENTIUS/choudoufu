@@ -12,6 +12,8 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/convert"
+	"github.com/zclconf/go-cty/cty/gocty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
@@ -129,6 +131,103 @@ func ChildModuleKeys(ctx context.Context, mod *configs.Module, subject string, e
 		keys = append(keys, addrs.StringKey(name))
 	}
 	return keys, nil
+}
+
+// ChildModuleCountKeys evaluates a module call's count expression and
+// returns the instance keys it expands to - addrs.IntKey(0)..IntKey(n-1) -
+// or a diagnostic explaining why it could not. It is [ChildModuleKeys]'s
+// count counterpart, and exists because [resolver.walkModule] previously
+// read only a module call's for_each and treated a count-gated call as
+// always having exactly one unkeyed instance, whatever count actually
+// evaluated to - silently walking a disabled (count = 0) module's
+// resources as if they existed, and addressing a single-instance one
+// (count = 1) as the call itself rather than as [0], the same mismatch a
+// resource's own count/for_each split has always kept apart.
+//
+// The evaluable scope, and the reasoning for refusing anything wider, are
+// identical to [ChildModuleKeys]: var, local, path, terraform and tofu
+// only, because instance keys become part of every address inside the
+// module and have to be knowable before anything is read from the cloud.
+//
+// A nil expr reports the single unkeyed instance every static call has
+// always had, exactly as [ChildModuleKeys] does for a nil for_each -
+// callers try count first and fall back to for_each, mirroring
+// configs.ModuleCall's own mutual exclusivity of the two.
+func ChildModuleCountKeys(ctx context.Context, mod *configs.Module, subject string, expr hcl.Expression) ([]addrs.InstanceKey, *hcl.Diagnostic) {
+	if expr == nil {
+		return []addrs.InstanceKey{addrs.NoKey}, nil
+	}
+	if mod == nil || mod.StaticEvaluator == nil {
+		return nil, staticEvalCountDiag(expr.Range(), subject, "no static evaluator is available to evaluate it")
+	}
+
+	for _, trav := range expr.Variables() {
+		switch trav.RootName() {
+		case "var", "local", "path", "terraform", "tofu":
+			// Evaluable in a static scope.
+		default:
+			return nil, staticEvalCountDiag(expr.Range(), subject, fmt.Sprintf("it references %q, which is not knowable from configuration alone", trav.RootName()))
+		}
+	}
+
+	ident := configs.StaticIdentifier{Module: addrs.RootModule, Subject: subject, DeclRange: expr.Range()}
+	val, hclDiags := mod.StaticEvaluator.Pure().Evaluate(ctx, expr, ident)
+	if hclDiags.HasErrors() {
+		return nil, staticEvalCountDiag(expr.Range(), subject, hclDiags.Error())
+	}
+	if val.IsMarked() {
+		return nil, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Sensitive count expression",
+			Detail:   fmt.Sprintf("The count for %s is sensitive or ephemeral, so the instance keys it produces cannot become part of addresses inside the module.", subject),
+			Subject:  expr.Range().Ptr(),
+		}
+	}
+	if !val.IsKnown() || val.IsNull() {
+		return nil, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Non-static count expression",
+			Detail: fmt.Sprintf(
+				"The count for %s evaluated to null, or to a value not knowable from configuration alone. Instance keys become part of every address inside the module, and those addresses are what a tofu-address marker records, so they must be knowable before anything is read from the cloud.",
+				subject),
+			Subject: expr.Range().Ptr(),
+		}
+	}
+	num, err := convert.Convert(val, cty.Number)
+	if err != nil {
+		return nil, invalidCountDiag(expr.Range(), subject, fmt.Sprintf("is not a number: %s", err))
+	}
+	var n int
+	if err := gocty.FromCtyValue(num, &n); err != nil {
+		return nil, invalidCountDiag(expr.Range(), subject, fmt.Sprintf("is not a whole number: %s", err))
+	}
+	if n < 0 {
+		return nil, invalidCountDiag(expr.Range(), subject, "is negative")
+	}
+
+	keys := make([]addrs.InstanceKey, 0, n)
+	for i := 0; i < n; i++ {
+		keys = append(keys, addrs.IntKey(i))
+	}
+	return keys, nil
+}
+
+func staticEvalCountDiag(rng hcl.Range, subject, why string) *hcl.Diagnostic {
+	return &hcl.Diagnostic{
+		Severity: hcl.DiagError,
+		Summary:  "Non-static count expression",
+		Detail:   fmt.Sprintf("The count for %s cannot be determined from configuration alone: %s.", subject, why),
+		Subject:  rng.Ptr(),
+	}
+}
+
+func invalidCountDiag(rng hcl.Range, subject, why string) *hcl.Diagnostic {
+	return &hcl.Diagnostic{
+		Severity: hcl.DiagError,
+		Summary:  "Invalid count",
+		Detail:   fmt.Sprintf("The count for %s %s.", subject, why),
+		Subject:  rng.Ptr(),
+	}
 }
 
 func staticEvalDiag(rng hcl.Range, subject, why string) *hcl.Diagnostic {
