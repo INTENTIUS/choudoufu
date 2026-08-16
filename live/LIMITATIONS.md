@@ -1248,20 +1248,20 @@ refused, and each says so in its own entry.
 |---|---|---|---|---|---|---|
 | 111 | 1329 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
 | 106 | 2406 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
-| 69 | 3273 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
+| 70 | 3279 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
 | 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
+| 51 | 355 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
 | 51 | 104 | stamp | Unmarked apply of a marker-only resource | error | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
-| 50 | 349 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
-| 45 | 186 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
-| 34 | 86 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
+| 45 | 193 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
+| 36 | 88 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
 | 23 | 210 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
 | 20 | 74 | identity | Non-static identity argument | error | `internal/live/identity` | "Non-static identity argument" |
-| 19 | 60 | identity | Non-static for_each expression | error | `internal/live/identity` | "Non-static for_each expression" |
 | 18 | 317 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
-| 17 | 52 | identity | Identity not resolvable from configuration | error | `internal/live/identity` | "Identity not resolvable from configuration" |
+| 18 | 59 | identity | Non-static for_each expression | error | `internal/live/identity` | "Non-static for_each expression" |
 | 10 | 51 | identity | Non-static count expression | error | `internal/live/identity` | "Non-static count expression" |
+| 9 | 37 | identity | Identity not resolvable from configuration | error | `internal/live/identity` | "Identity not resolvable from configuration" |
 | 6 | 63 | lint | moved-block | error | `internal/live/lint` | "moved-block" |
-| 6 | 17 | lint | child-module | error | `internal/live/lint` | "child-module" |
+| 5 | 16 | lint | child-module | error | `internal/live/lint` | "child-module" |
 | 4 | 13 | dataread | Data source not readable before resolution | error | `internal/live/dataread` | "Data source not readable before resolution" |
 | 3 | 5 | identity | Identity argument not set | error | `internal/live/identity` | "Identity argument not set" |
 | 2 | 2 | lint | provisioner | error | `internal/live/lint` | "local-exec" / "remote-exec" |
@@ -1460,7 +1460,15 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 69 configurations in the measured corpus, at 3273 sites.
+**How often.** Blocked 70 configurations in the measured corpus, at 3279 sites.
+
+#### Dynamic value in static context
+
+**What.** An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.
+
+**Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
+
+**How often.** Blocked 51 configurations in the measured corpus, at 355 sites.
 
 #### Unmarked apply of a marker-only resource
 
@@ -1470,21 +1478,13 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 51 configurations in the measured corpus, at 104 sites.
 
-#### Dynamic value in static context
-
-**What.** An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.
-
-**Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
-
-**How often.** Blocked 50 configurations in the measured corpus, at 349 sites.
-
 #### Unresolvable identity
 
 **What.** An identity could not be built because a reference it depends on failed; the reference's own error explains why.
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 45 configurations in the measured corpus, at 186 sites.
+**How often.** Blocked 45 configurations in the measured corpus, at 193 sites.
 
 #### Not an identity attribute
 
@@ -1492,7 +1492,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 34 configurations in the measured corpus, at 86 sites.
+**How often.** Blocked 36 configurations in the measured corpus, at 88 sites.
 
 #### Module output not supported in static context
 
@@ -1516,15 +1516,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 19 configurations in the measured corpus, at 60 sites.
-
-#### Identity not resolvable from configuration
-
-**What.** An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
-
-**How often.** Blocked 17 configurations in the measured corpus, at 52 sites.
+**How often.** Blocked 18 configurations in the measured corpus, at 59 sites.
 
 #### Non-static count expression
 
@@ -1533,6 +1525,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked 10 configurations in the measured corpus, at 51 sites.
+
+#### Identity not resolvable from configuration
+
+**What.** An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 9 configurations in the measured corpus, at 37 sites.
 
 #### Data source not readable before resolution
 

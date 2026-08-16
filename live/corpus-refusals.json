@@ -70,8 +70,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 26,
-      "sites": 36,
+      "instances": 29,
+      "sites": 33,
       "unresolved_modules": 5,
       "unset_variables": 0,
       "schemas": true,
@@ -3751,7 +3751,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 14,
-      "sites": 3,
+      "sites": 13,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4465,8 +4465,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 8,
-      "sites": 30,
+      "instances": 9,
+      "sites": 29,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6365,8 +6365,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 2,
-      "sites": 17,
+      "instances": 3,
+      "sites": 16,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -7534,8 +7534,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 8,
-      "sites": 629,
+      "instances": 9,
+      "sites": 628,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -9133,8 +9133,8 @@
       "what": "Something an identity argument, a count or a for_each depends on could not be computed. It is the trailing half of another refusal: the diagnostic before it names what actually failed, and this one names the chain that led there.",
       "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
       "raised_by": "internal/configs",
-      "configs": 69,
-      "sites": 3273,
+      "configs": 70,
+      "sites": 3279,
       "examples": [
         ".corpus/alb/main.tf:88",
         ".corpus/alb/main.tf:231",
@@ -9224,6 +9224,24 @@
       "registered": true
     },
     {
+      "layer": "identity",
+      "id": "Dynamic value in static context",
+      "title": "Dynamic value in static context",
+      "what": "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.",
+      "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
+      "raised_by": "internal/configs",
+      "configs": 51,
+      "sites": 355,
+      "examples": [
+        ".corpus/alb/examples/complete-alb/main.tf:195",
+        ".corpus/alb/examples/complete-alb/main.tf:195",
+        ".corpus/alb/examples/complete-alb/main.tf:195",
+        ".corpus/alb/examples/complete-alb/main.tf:196",
+        ".corpus/alb/examples/complete-alb/main.tf:196"
+      ],
+      "registered": true
+    },
+    {
       "layer": "stamp",
       "id": "Unmarked apply of a marker-only resource",
       "title": "Unmarked apply of a marker-only resource",
@@ -9243,31 +9261,13 @@
     },
     {
       "layer": "identity",
-      "id": "Dynamic value in static context",
-      "title": "Dynamic value in static context",
-      "what": "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.",
-      "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
-      "raised_by": "internal/configs",
-      "configs": 50,
-      "sites": 349,
-      "examples": [
-        ".corpus/alb/examples/complete-alb/main.tf:195",
-        ".corpus/alb/examples/complete-alb/main.tf:195",
-        ".corpus/alb/examples/complete-alb/main.tf:195",
-        ".corpus/alb/examples/complete-alb/main.tf:196",
-        ".corpus/alb/examples/complete-alb/main.tf:196"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
       "id": "Unresolvable identity",
       "title": "Unresolvable identity",
       "what": "An identity could not be built because a reference it depends on failed; the reference's own error explains why.",
       "docs_ref": "live/LIMITATIONS.md, \"Unresolvable identity\"",
       "raised_by": "internal/live/identity",
       "configs": 45,
-      "sites": 186,
+      "sites": 193,
       "examples": [
         ".corpus/cool-assessment/operations_routing.tf:21",
         ".corpus/cool-assessment/operations_routing.tf:29",
@@ -9284,8 +9284,8 @@
       "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
       "docs_ref": "live/LIMITATIONS.md, \"Not an identity attribute\"",
       "raised_by": "internal/live/identity",
-      "configs": 34,
-      "sites": 86,
+      "configs": 36,
+      "sites": 88,
       "examples": [
         ".corpus/cool-assessment/dynamodb_endpoint_client_sg.tf:16",
         ".corpus/cool-assessment/s3_endpoint_client_sg.tf:16",
@@ -9332,24 +9332,6 @@
       "registered": true
     },
     {
-      "layer": "identity",
-      "id": "Non-static for_each expression",
-      "title": "Non-static for_each expression",
-      "what": "A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.",
-      "docs_ref": "live/LIMITATIONS.md, \"Non-static for_each expression\"",
-      "raised_by": "internal/live/identity",
-      "configs": 19,
-      "sites": 60,
-      "examples": [
-        ".corpus/cool-assessment/efs.tf:22",
-        ".corpus/cool-assessment/efs.tf:39",
-        ".corpus/cool-assessment/network_acls.tf:23",
-        ".corpus/cool-assessment/operations_acl_rules.tf:8",
-        ".corpus/cool-assessment/operations_acl_rules.tf:27"
-      ],
-      "registered": true
-    },
-    {
       "layer": "lint",
       "id": "count-index",
       "title": "count.index is not available in resource arguments",
@@ -9368,19 +9350,19 @@
     },
     {
       "layer": "identity",
-      "id": "Identity not resolvable from configuration",
-      "title": "Identity not resolvable from configuration",
-      "what": "An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.",
-      "docs_ref": "live/LIMITATIONS.md, \"Identity not resolvable from configuration\"",
+      "id": "Non-static for_each expression",
+      "title": "Non-static for_each expression",
+      "what": "A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.",
+      "docs_ref": "live/LIMITATIONS.md, \"Non-static for_each expression\"",
       "raised_by": "internal/live/identity",
-      "configs": 17,
-      "sites": 52,
+      "configs": 18,
+      "sites": 59,
       "examples": [
-        ".corpus/autoscaling/main.tf:1116",
-        ".corpus/autoscaling/main.tf:1116",
-        ".corpus/autoscaling/main.tf:1116",
-        ".corpus/cool-assessment/guacamole_route53.tf:24",
-        ".corpus/cyhy-amis/terraform/bod_bastion_route53.tf:27"
+        ".corpus/cool-assessment/efs.tf:22",
+        ".corpus/cool-assessment/efs.tf:39",
+        ".corpus/cool-assessment/network_acls.tf:23",
+        ".corpus/cool-assessment/operations_acl_rules.tf:8",
+        ".corpus/cool-assessment/operations_acl_rules.tf:27"
       ],
       "registered": true
     },
@@ -9399,6 +9381,24 @@
         ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:109",
         ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:125",
         ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:140"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Identity not resolvable from configuration",
+      "title": "Identity not resolvable from configuration",
+      "what": "An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.",
+      "docs_ref": "live/LIMITATIONS.md, \"Identity not resolvable from configuration\"",
+      "raised_by": "internal/live/identity",
+      "configs": 9,
+      "sites": 37,
+      "examples": [
+        ".corpus/cool-assessment/guacamole_route53.tf:24",
+        ".corpus/cyhy-amis/terraform/bod_bastion_route53.tf:27",
+        ".corpus/cyhy-amis/terraform/bod_docker_route53.tf:14",
+        ".corpus/cyhy-amis/terraform/bod_route53.tf:74",
+        ".corpus/cyhy-amis/terraform/bod_route53.tf:74"
       ],
       "registered": true
     },
@@ -9425,8 +9425,8 @@
       "title": "This module call cannot be expanded under live resource markers",
       "docs_ref": "live/LIMITATIONS.md, \"child-module\"",
       "raised_by": "internal/live/lint",
-      "configs": 6,
-      "sites": 17,
+      "configs": 5,
+      "sites": 16,
       "examples": [
         ".corpus/cool-assessment/debiandesktop_ec2.tf:85",
         ".corpus/cool-assessment/egressassess_ec2.tf:99",
@@ -10670,8 +10670,8 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 3702,
-    "sites": 9124,
+    "instances": 3708,
+    "sites": 9128,
     "refusals_fired": 25,
     "refusals_in_set": 125,
     "configs_without_schemas": 3,
@@ -10704,8 +10704,8 @@
       "loaded": 74,
       "blocked": 71,
       "clean": 3,
-      "instances": 597,
-      "sites": 6681,
+      "instances": 603,
+      "sites": 6685,
       "reads_as": "ranking"
     }
   ],
