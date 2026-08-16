@@ -4508,7 +4508,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 72,
+      "sites": 71,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -9417,24 +9417,6 @@
       "registered": true
     },
     {
-      "layer": "identity",
-      "id": "Two resources with the same identity",
-      "title": "Two resources with the same identity",
-      "what": "Two resource blocks resolve to one identity, so one live object would have two owners.",
-      "docs_ref": "live/LIMITATIONS.md, \"duplicate-identity\"",
-      "raised_by": "internal/live/identity",
-      "configs": 2,
-      "sites": 35,
-      "examples": [
-        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41",
-        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41",
-        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41",
-        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41",
-        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41"
-      ],
-      "registered": true
-    },
-    {
       "layer": "lint",
       "id": "provisioner",
       "title": "Provisioners are not available under live resource markers",
@@ -9445,6 +9427,24 @@
       "examples": [
         ".corpus/autoscaling/examples/complete/main.tf:882",
         ".corpus/rds/examples/s3-import-mysql/main.tf:191"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Two resources with the same identity",
+      "title": "Two resources with the same identity",
+      "what": "Two resource blocks resolve to one identity, so one live object would have two owners.",
+      "docs_ref": "live/LIMITATIONS.md, \"duplicate-identity\"",
+      "raised_by": "internal/live/identity",
+      "configs": 1,
+      "sites": 34,
+      "examples": [
+        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41",
+        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41",
+        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41",
+        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41",
+        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41"
       ],
       "registered": true
     },
@@ -10625,7 +10625,7 @@
     "configs": 250,
     "loaded": 249,
     "instances": 3866,
-    "sites": 8477,
+    "sites": 8476,
     "refusals_fired": 24,
     "refusals_in_set": 125,
     "configs_without_schemas": 3,
@@ -10659,7 +10659,7 @@
       "blocked": 71,
       "clean": 3,
       "instances": 748,
-      "sites": 6100,
+      "sites": 6099,
       "reads_as": "ranking"
     }
   ],

@@ -1325,8 +1325,8 @@ refused, and each says so in its own entry.
 | 5 | 16 | lint | child-module | error | `internal/live/lint` | "child-module" |
 | 5 | 14 | dataread | Data source not readable before resolution | error | `internal/live/dataread` | "Data source not readable before resolution" |
 | 3 | 5 | identity | Identity argument not set | error | `internal/live/identity` | "Identity argument not set" |
-| 2 | 35 | identity | Two resources with the same identity | error | `internal/live/identity` | "duplicate-identity" |
 | 2 | 2 | lint | provisioner | error | `internal/live/lint` | "local-exec" / "remote-exec" |
+| 1 | 34 | identity | Two resources with the same identity | error | `internal/live/identity` | "duplicate-identity" |
 | 1 | 4 | identity | Invalid operand | error | `hcl` | "Invalid operand" |
 | 1 | 3 | dataread | Data source provider not configurable | error | `internal/live/dataread` | "Data source provider not configurable" |
 | 1 | 2 | lint | module-providers | error | `internal/live/lint` | "module-providers" |
