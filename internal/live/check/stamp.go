@@ -177,13 +177,33 @@ func declaredEstateNamesFrom(ctx context.Context, cfg *configs.Config, seen map[
 // their lookups - by [addrs.ConfigResource.String], not by the keyed
 // [addrs.AbsResourceInstance] resolution walks, so a resource inside a
 // for_each'd module still matches (see GitHub issue #111).
-func stampNeedsDiscovery(result *identity.Result) map[string]bool {
+//
+// schemas gates the result per resource TYPE, not per run (GitHub issue
+// #230): a hand-table-admitted type's ClassNeedsDiscovery classification is a
+// static, generator-baked property of table_generated.go, independent of
+// whether that type's own provider schema happened to load - schemas are
+// only a fallback for a type the table does not cover. [stamp.Stamp] cannot
+// tell the two "no schema" causes apart on its own (SkipNoSchema fires
+// identically for a provider that failed entirely and one that loaded fine
+// but does not model this particular type), so mustStamp - the thing that
+// turns SkipNoSchema from a silent skip into a hard "unstampable" error -
+// must never read true for a type this run has no schema for at all. A
+// resource is therefore only counted as needing discovery here when its own
+// type's schema is present in schemas; the previous gate instead asked
+// whether ANY provider's schema had loaded anywhere in the configuration,
+// which fabricated a hard refusal on every needs-discovery AWS resource the
+// moment some unrelated provider (random, say) resolved while AWS's schema
+// acquisition failed. Unknown must not be reported as refused.
+func stampNeedsDiscovery(result *identity.Result, schemas map[string]providers.Schema) map[string]bool {
 	if result == nil {
 		return nil
 	}
 	needs := result.NeedsDiscovery()
 	out := make(map[string]bool, len(needs))
 	for _, r := range needs {
+		if _, ok := schemas[r.Addr.Resource.Resource.Type]; !ok {
+			continue
+		}
 		out[r.Addr.ContainingResource().Config().String()] = true
 	}
 	return out
