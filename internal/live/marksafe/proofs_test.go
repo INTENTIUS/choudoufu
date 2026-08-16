@@ -545,3 +545,42 @@ func TestReceiverIndexResolvesTheCollision(t *testing.T) {
 	}
 	t.Logf("%d Range() calls belong to hcl, not cty", hcl)
 }
+
+// TestReceiverIndexFollowsAliasAndEmbedding is the adversarial half of
+// [ProofNotCtyValue]: the index is asked to resolve a receiver WRONGLY
+// rather than not at all.
+//
+// Resolution is sound one-directionally only if "the name is not cty.Value"
+// implies "the method is not cty.Value's". Two shapes break that implication
+// while calling cty.Value.AsString, which panics on a marked receiver:
+//
+//   - `type Alias = cty.Value`, which the type checker reports under the
+//     alias's own name (GODEBUG gotypesalias=1, the default since Go 1.23);
+//   - a struct embedding cty.Value, where AsString is promoted.
+//
+// Resolving either as "not a cty.Value" would record a proof that does not
+// hold, which the span rework in this file's own commit calls worse than an
+// admitted gap. The index therefore resolves the method's DECLARING receiver
+// rather than the type written at the call site.
+func TestReceiverIndexFollowsAliasAndEmbedding(t *testing.T) {
+	const pattern = "./internal/live/marksafe/testdata/aliasrecv"
+	idx, err := LoadReceiverIndex(moduleRoot, pattern)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sites, err := Scan([]string{filepath.Join("testdata", "aliasrecv")}, UnsafeMethods(), idx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sites) != 3 {
+		t.Fatalf("the fixture has three AsString calls and the scanner found %d: %v", len(sites), sites)
+	}
+	for _, s := range sites {
+		if !isCtyValue(s.RecvType) {
+			t.Errorf("%s: receiver resolved to %q, so the call is dismissed as not a cty.Value - but it IS cty.Value.AsString and panics on a marked receiver", s, s.RecvType)
+		}
+		if s.Proof == ProofNotCtyValue {
+			t.Errorf("%s: recorded %q, a proof that does not hold", s, s.Proof)
+		}
+	}
+}

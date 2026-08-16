@@ -2107,11 +2107,26 @@ func (r *resolver) staticRegionAttr(rc *configs.Resource, scope instScope) (stri
 // string from configuration alone - [resolver.effectiveRegion]'s fallback
 // for a resource whose own body states no `region` override, so that
 // resource inherits the region its provider block would actually apply
-// (#217). [providerscope.Resolve] always anchors abs at the root module
-// (see that function's own doc comment: every return path sets
-// Module: addrs.RootModule), so the search below only ever looks at
-// r.rootCfg's own module, never the module the resolver happens to be
-// walking when this is called.
+// (#217).
+//
+// The block is looked for in abs's OWN module, which is usually but not
+// always the root. [providerscope.Resolve] anchors at the root for every
+// shape except one: a module that declares its own content-bearing
+// `provider` block for the (name, alias) pair a resource in it names is
+// served by that block directly, and Resolve returns Module: cur.Path for
+// it - stock OpenTofu's own behaviour, and the shape internal/live/lint's
+// checkModuleProviderBlocks (#201) exists to admit. This function used to
+// search r.rootCfg.Module unconditionally on the stated claim that "every
+// return path sets Module: addrs.RootModule", which that return path
+// contradicts. The consequence was not academic once #250 routed a
+// {Cloud: "region"} component through here: a resource under a child
+// module's own provider block rendered its identity with the ROOT block's
+// region when the root had one, and refused as region-unknown when it did
+// not, both silently.
+//
+// The module's own evaluator is used for the same reason: a provider
+// block's expressions reference the variables and locals of the module the
+// block is written in, which is the module this lookup found it in.
 //
 // The match against abs is the same deterministic shape
 // internal/live/dataread/analyze.go's findProviderConfig already uses for
@@ -2139,7 +2154,11 @@ func (r *resolver) providerRegionAttr(abs addrs.AbsProviderConfig) (string, bool
 	if r.rootCfg == nil || r.rootCfg.Module == nil {
 		return "", false
 	}
-	mod := r.rootCfg.Module
+	owner := r.rootCfg.Descendent(abs.Module)
+	if owner == nil || owner.Module == nil {
+		return "", false
+	}
+	mod := owner.Module
 
 	keys := make([]string, 0, len(mod.ProviderConfigs))
 	for k := range mod.ProviderConfigs {
@@ -2175,10 +2194,10 @@ func (r *resolver) providerRegionAttr(abs addrs.AbsProviderConfig) (string, bool
 	}
 
 	// A provider block's own expressions live in, and reference variables
-	// and locals of, the ROOT module - which very often differs from
-	// whatever module the resolver is currently walking a resource in
-	// ([resolver.mod]'s own doc comment). r.eval is swapped to the root
-	// module's own pure evaluator for the one call below and restored
+	// and locals of, the module the BLOCK is written in - which very often
+	// differs from whatever module the resolver is currently walking a
+	// resource in ([resolver.mod]'s own doc comment). r.eval is swapped to
+	// that module's own pure evaluator for the one call below and restored
 	// immediately after; nothing else in this function or its caller
 	// depends on r.eval, so the swap has no visible effect beyond it.
 	saved := r.eval
@@ -2186,7 +2205,7 @@ func (r *resolver) providerRegionAttr(abs addrs.AbsProviderConfig) (string, bool
 	defer func() { r.eval = saved }()
 
 	ident := configs.StaticIdentifier{
-		Module:    addrs.RootModule,
+		Module:    abs.Module,
 		Subject:   fmt.Sprintf("provider.%s.region", pc.Name),
 		DeclRange: attr.Range,
 	}

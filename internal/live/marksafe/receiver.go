@@ -103,15 +103,15 @@ func LoadReceiverIndex(moduleDir string, patterns ...string) (ReceiverIndex, err
 				if !ok {
 					return true
 				}
-				tv, ok := p.TypesInfo.Types[sel.X]
-				if !ok || tv.Type == nil {
+				name, ok := receiverTypeName(p.TypesInfo, sel)
+				if !ok {
 					return true
 				}
 				pos := fset.Position(sel.Sel.Pos())
 				if !pos.IsValid() {
 					return true
 				}
-				out[receiverKey(pos.Filename, pos)] = typeName(tv.Type)
+				out[receiverKey(pos.Filename, pos)] = name
 				return true
 			})
 		}
@@ -121,6 +121,43 @@ func LoadReceiverIndex(moduleDir string, patterns ...string) (ReceiverIndex, err
 			len(failed), failed[0])
 	}
 	return out, nil
+}
+
+// receiverTypeName answers, for one selector expression, the type whose
+// method is being called - not the type written at the call site.
+//
+// Those two differ in exactly the shapes that would make [ProofNotCtyValue]
+// record a proof that does not hold, both of which resolve to a name other
+// than cty.Value while calling cty.Value's own method:
+//
+//   - a type alias, `type V = cty.Value`, where the type checker reports the
+//     alias name under GODEBUG gotypesalias=1 (the default since Go 1.23);
+//   - a struct embedding cty.Value, where AsString is promoted and runs
+//     against the embedded cty.Value.
+//
+// Both panic on a marked value exactly as a bare cty.Value does, so
+// dismissing them by name would be the false-proof class this package's
+// span rework exists to end.
+//
+// [types.Info.Selections] answers the right question directly: for a method
+// selection it carries the method object, whose signature's receiver is the
+// type that DECLARES the method, following aliases and embedding. Only
+// method selections are taken from there; a field selection or a package
+// qualifier falls back to the type of the operand, which is what the rest of
+// this index means.
+func receiverTypeName(info *types.Info, sel *ast.SelectorExpr) (string, bool) {
+	if s := info.Selections[sel]; s != nil && s.Kind() == types.MethodVal {
+		if fn, ok := s.Obj().(*types.Func); ok {
+			if recv := fn.Signature().Recv(); recv != nil {
+				return typeName(recv.Type()), true
+			}
+		}
+	}
+	tv, ok := info.Types[sel.X]
+	if !ok || tv.Type == nil {
+		return "", false
+	}
+	return typeName(tv.Type), true
 }
 
 // typeName renders a type the way this check compares them: pointers and
