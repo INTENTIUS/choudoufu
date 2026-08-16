@@ -118,19 +118,30 @@ func (s staticScopeData) enhanceDiagnostics(ident StaticIdentifier, diags tfdiag
 type ReferenceCategory string
 
 const (
-	CategoryManagedResource      ReferenceCategory = "managed_resource"
-	CategoryDataSource           ReferenceCategory = "data_source"
-	CategoryCrossStackDataSource ReferenceCategory = "cross_stack_data_source"
-	CategoryModuleOutput         ReferenceCategory = "module_output"
-	CategoryProviderFunction     ReferenceCategory = "provider_function"
-	CategoryOther                ReferenceCategory = "other"
+	CategoryManagedResource  ReferenceCategory = "managed_resource"
+	CategoryDataSource       ReferenceCategory = "data_source"
+	CategoryTfeOutputs       ReferenceCategory = "tfe_outputs"
+	CategoryRemoteState      ReferenceCategory = "remote_state"
+	CategoryModuleOutput     ReferenceCategory = "module_output"
+	CategoryProviderFunction ReferenceCategory = "provider_function"
+	CategoryOther            ReferenceCategory = "other"
+)
+
+// tfeOutputsType and remoteStateType are the two cross-stack data source
+// types: mechanically both are provider data sources, but each carries its
+// own auth surface and failure modes and lands as its own stage (issue
+// #179). This is the one place a type name IS the category definition -
+// every other rule in this file stays structural.
+const (
+	tfeOutputsType  = "tfe_outputs"
+	remoteStateType = "terraform_remote_state"
 )
 
 // crossStackDataSources are the data source types that read another
 // stack's recorded outputs rather than a live cloud resource.
 var crossStackDataSources = map[string]bool{
-	"terraform_remote_state": true,
-	"tfe_outputs":            true,
+	remoteStateType: true,
+	tfeOutputsType:  true,
 }
 
 // RefusedReference is the structured account of one reference
@@ -168,12 +179,27 @@ func (r RefusedReference) UnwrapDiagnosticExtra() interface{} { return r.Categor
 
 // IsCrossStackDataSource reports whether typeName is one of the data source
 // types that read another stack's recorded outputs rather than a live cloud
-// resource. Exported because the data-read phase draws its coverage line
-// exactly here: a same-stack data source is an ordering problem the phase
-// solves, a cross-stack one carries its own auth surface and failure modes
-// and stays refused until its own stage ships (issue #179).
+// resource - the union of [IsTfeOutputs] and [IsRemoteState]. Exported
+// because the data-read phase draws its coverage line exactly here: a
+// same-stack data source is an ordering problem the phase solves, a
+// cross-stack one carries its own auth surface and failure modes and stays
+// refused until its own stage ships (issue #179).
 func IsCrossStackDataSource(typeName string) bool {
 	return crossStackDataSources[typeName]
+}
+
+// IsTfeOutputs reports whether typeName is the tfe provider's cross-stack
+// output reader. Stage 2 of #179 gives it its own read pipeline; see
+// [IsRemoteState] for the flavor that stays refused until stage 3.
+func IsTfeOutputs(typeName string) bool {
+	return typeName == tfeOutputsType
+}
+
+// IsRemoteState reports whether typeName is the builtin
+// terraform_remote_state data source. It stays refused byte-for-byte until
+// #179's stage 3 gives it its own read pipeline.
+func IsRemoteState(typeName string) bool {
+	return typeName == remoteStateType
 }
 
 // categorizeReference derives subject's [ReferenceCategory] from its Go
@@ -199,10 +225,14 @@ func categorizeResourceMode(mode addrs.ResourceMode, typeName string) ReferenceC
 	case addrs.ManagedResourceMode:
 		return CategoryManagedResource
 	case addrs.DataResourceMode:
-		if crossStackDataSources[typeName] {
-			return CategoryCrossStackDataSource
+		switch typeName {
+		case tfeOutputsType:
+			return CategoryTfeOutputs
+		case remoteStateType:
+			return CategoryRemoteState
+		default:
+			return CategoryDataSource
 		}
-		return CategoryDataSource
 	default:
 		return CategoryOther
 	}

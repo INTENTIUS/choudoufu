@@ -52,11 +52,21 @@ type Source struct {
 	// source for a transitive dependency.
 	NeededBy string
 
-	// CrossStack marks the two cross-stack flavors (terraform_remote_state,
-	// tfe_outputs). The phase does not cover them in this stage: they keep
-	// exactly the refusals they have today, and this record only says the
-	// demand exists.
+	// CrossStack marks terraform_remote_state, the one cross-stack flavor
+	// this stage still does not cover: it keeps exactly the refusal it has
+	// today, and this record only says the demand exists. tfe_outputs used
+	// to set this too; #179 stage 2 gives it the standard pipeline instead
+	// and marks it with [Source.TfeOutputs].
 	CrossStack bool
+
+	// TfeOutputs marks a tfe_outputs source. It goes through the same
+	// eligibility pipeline as a same-stack source, plus one extra rule: the
+	// tfe provider's auth surface (a token argument, TFE_TOKEN, or a CLI
+	// credentials entry) must be available, checked offline the same way
+	// eligibility rule 3 checks provider-configurability. An ineligible
+	// tfe_outputs source refuses under [SummaryCrossStackOutputsUnavailable]
+	// rather than the generic classes same-stack sources use.
+	TfeOutputs bool
 
 	// Eligible reports that the phase can read this source before the plan:
 	// static arguments and count/for_each, a statically configurable
@@ -183,7 +193,9 @@ func (an *analyzer) demandRoots(diags tfdiags.Diagnostics) []demandRoot {
 			continue
 		}
 		ref := tfdiags.ExtraInfo[configs.RefusedReference](diag)
-		if ref.Category != configs.CategoryDataSource && ref.Category != configs.CategoryCrossStackDataSource {
+		switch ref.Category {
+		case configs.CategoryDataSource, configs.CategoryTfeOutputs, configs.CategoryRemoteState:
+		default:
 			continue
 		}
 		res, ok := DataSubject(ref.Subject)
@@ -303,11 +315,18 @@ func (an *analyzer) classify(module addrs.Module, res addrs.Resource, neededBy s
 	}
 
 	src := &Source{Module: module, Resource: res, Config: rc, NeededBy: neededBy}
-	if configs.IsCrossStackDataSource(res.Type) {
+	if configs.IsRemoteState(res.Type) {
+		// Stage 3's flavor: stays exactly as refused as it is today.
 		src.CrossStack = true
 		an.analysis.sources[key] = src
 		an.analysis.order = append(an.analysis.order, src)
 		return src
+	}
+	if configs.IsTfeOutputs(res.Type) {
+		// Stage 2: tfe_outputs goes through the same eligibility pipeline a
+		// same-stack source does, below, plus the auth-surface rule after
+		// rule 3.
+		src.TfeOutputs = true
 	}
 
 	an.visiting[key] = true
@@ -362,7 +381,7 @@ func (an *analyzer) classify(module addrs.Module, res addrs.Resource, neededBy s
 		switch category {
 		case configs.CategoryManagedResource:
 			refuse(fmt.Sprintf("its %s depends on a managed resource: %s", ne.label, errDetail))
-		case configs.CategoryCrossStackDataSource:
+		case configs.CategoryRemoteState:
 			refuse(fmt.Sprintf("its %s reads a cross-stack data source, which this stage does not read: %s", ne.label, errDetail))
 		default:
 			refuse(fmt.Sprintf("its %s is not statically evaluable: %s", ne.label, errDetail))
@@ -372,9 +391,27 @@ func (an *analyzer) classify(module addrs.Module, res addrs.Resource, neededBy s
 	// Rule 3: the provider must be configurable the way the projection
 	// builder configures one - by statically evaluating its root provider
 	// block. The exact line ConfiguredProvider already draws.
+	var providerCfg *configs.Provider
 	if src.ReasonSummary == "" {
-		if ok, detail := an.providerConfigurable(node, rc); !ok {
+		var ok bool
+		var detail string
+		ok, detail, providerCfg = an.providerConfigurable(node, rc)
+		if !ok {
 			src.ReasonSummary = SummaryProviderNotConfigurable
+			src.ReasonDetail = fmt.Sprintf(
+				"%s's value is needed to resolve the identity of %s, but %s.",
+				res.String(), neededBy, detail)
+		}
+	}
+
+	// tfe_outputs' own eligibility rule, checked the same way rule 3 is -
+	// offline, from the provider block and the process environment, before
+	// any read is attempted: the tfe provider's auth surface must be
+	// present, or there is nothing honest to read and no reason to risk a
+	// read call that will only fail (or, worse, block) on a missing token.
+	if src.ReasonSummary == "" && src.TfeOutputs {
+		if ok, detail := an.tfeAuthAvailable(providerCfg); !ok {
+			src.ReasonSummary = SummaryCrossStackOutputsUnavailable
 			src.ReasonDetail = fmt.Sprintf(
 				"%s's value is needed to resolve the identity of %s, but %s.",
 				res.String(), neededBy, detail)
@@ -493,7 +530,11 @@ func (an *analyzer) evalRecorded(node *configs.Config, module addrs.Module, res 
 
 	eval := node.Module.StaticEvaluator.Pure().WithDataResults(func(addr addrs.Resource) (cty.Value, bool) {
 		dep := node.Module.DataResources[addr.String()]
-		if dep == nil || configs.IsCrossStackDataSource(addr.Type) {
+		// terraform_remote_state is the one flavor still not covered: a
+		// reference to it is an ineligibility, not an ordering edge.
+		// tfe_outputs is covered exactly like a same-stack source - stage
+		// 2 gives it the same pipeline, recorded as a dependency below.
+		if dep == nil || configs.IsRemoteState(addr.Type) {
 			return cty.NilVal, false
 		}
 		record(addr)
@@ -529,14 +570,12 @@ func (an *analyzer) evalRecorded(node *configs.Config, module addrs.Module, res 
 	return errDetail, configs.CategoryOther, false
 }
 
-// providerConfigurable draws eligibility rule 3: the provider configuration
-// the data source resolves to must be statically evaluable from the root
-// module's provider block, which is exactly what ConfiguredProvider will do
-// at read time. An absent block for the default configuration is fine - the
-// provider configures itself from the process environment - while an absent
-// block for an aliased configuration is not.
-func (an *analyzer) providerConfigurable(node *configs.Config, rc *configs.Resource) (bool, string) {
-	pcAddr := rc.ProviderConfigAddr()
+// findProviderConfig locates the root-module provider block a data source
+// resolves to, the same lookup [providerConfigurable] and the tfe
+// auth-surface rule both need. A nil result with no alias means the default
+// configuration, which configures itself from the process environment.
+func (an *analyzer) findProviderConfig(node *configs.Config, rc *configs.Resource) (pcAddr addrs.LocalProviderConfig, found *configs.Provider) {
+	pcAddr = rc.ProviderConfigAddr()
 	fqn := node.Module.ProviderForLocalConfig(pcAddr)
 
 	root := an.cfg.Module
@@ -546,7 +585,6 @@ func (an *analyzer) providerConfigurable(node *configs.Config, rc *configs.Resou
 	}
 	sort.Strings(keys)
 
-	var found *configs.Provider
 	for _, k := range keys {
 		pc := root.ProviderConfigs[k]
 		if pc.Alias != pcAddr.Alias {
@@ -558,11 +596,24 @@ func (an *analyzer) providerConfigurable(node *configs.Config, rc *configs.Resou
 		found = pc
 		break
 	}
+	return pcAddr, found
+}
+
+// providerConfigurable draws eligibility rule 3: the provider configuration
+// the data source resolves to must be statically evaluable from the root
+// module's provider block, which is exactly what ConfiguredProvider will do
+// at read time. An absent block for the default configuration is fine - the
+// provider configures itself from the process environment - while an absent
+// block for an aliased configuration is not. The found provider block (nil
+// for the default configuration) is returned too, for the tfe auth-surface
+// rule that runs right after this one.
+func (an *analyzer) providerConfigurable(node *configs.Config, rc *configs.Resource) (bool, string, *configs.Provider) {
+	pcAddr, found := an.findProviderConfig(node, rc)
 	if found == nil {
 		if pcAddr.Alias == "" {
-			return true, ""
+			return true, "", nil
 		}
-		return false, fmt.Sprintf("the provider configuration %q it needs is not declared in the root module", pcAddr.StringCompact())
+		return false, fmt.Sprintf("the provider configuration %q it needs is not declared in the root module", pcAddr.StringCompact()), nil
 	}
 
 	body, ok := found.Config.(*hclsyntax.Body)
@@ -571,7 +622,7 @@ func (an *analyzer) providerConfigurable(node *configs.Config, rc *configs.Resou
 		// call at read time is the judge, and its refusal quotes the real
 		// error. Analysis stays permissive rather than refusing working
 		// configurations it merely cannot enumerate.
-		return true, ""
+		return true, "", found
 	}
 	var exprs []namedExpr
 	collectProviderExpressions(body, &exprs)
@@ -579,10 +630,10 @@ func (an *analyzer) providerConfigurable(node *configs.Config, rc *configs.Resou
 		if errDetail, _, ok := an.evalProviderExpr(found, ne); !ok {
 			return false, fmt.Sprintf(
 				"its provider configuration provider.%s needs a value that cannot be evaluated before the plan: %s",
-				providerDisplayName(found), errDetail)
+				providerDisplayName(found), errDetail), nil
 		}
 	}
-	return true, ""
+	return true, "", found
 }
 
 func providerDisplayName(pc *configs.Provider) string {

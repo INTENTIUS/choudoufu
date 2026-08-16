@@ -156,6 +156,11 @@ func (r *reader) readSource(src *Source) bool {
 	}
 	provider, err := r.provs.ConfiguredProvider(r.ctx, absAddr)
 	if err != nil {
+		if src.TfeOutputs {
+			return r.refuse(src, SummaryCrossStackOutputsUnavailable,
+				"%s's value is needed to resolve the identity of %s, and its TFC/TFE workspace could not be reached: %s.",
+				src.Resource.String(), src.NeededBy, err)
+		}
 		return r.refuse(src, SummaryProviderNotConfigurable,
 			"%s's value is needed to resolve the identity of %s, and its provider could not be configured: %s.",
 			src.Resource.String(), src.NeededBy, err)
@@ -185,12 +190,22 @@ func (r *reader) readSource(src *Source) bool {
 		Config:   unmarked,
 	})
 	if resp.Diagnostics.HasErrors() {
+		if src.TfeOutputs {
+			return r.refuse(src, SummaryCrossStackOutputsUnavailable,
+				"reading %s's outputs from its TFC/TFE workspace failed; the provider said: %s.",
+				src.Resource.String(), resp.Diagnostics.Err())
+		}
 		return r.refuse(src, SummaryReadFailed,
 			"reading %s before resolution failed; the provider said: %s.",
 			src.Resource.String(), resp.Diagnostics.Err())
 	}
 	state := resp.State
 	if state == cty.NilVal || state.IsNull() {
+		if src.TfeOutputs {
+			return r.refuse(src, SummaryCrossStackOutputsUnavailable,
+				"reading %s returned no output values; the workspace may have no current state version.",
+				src.Resource.String())
+		}
 		return r.refuse(src, SummaryReadFailed,
 			"reading %s before resolution returned no value.", src.Resource.String())
 	}

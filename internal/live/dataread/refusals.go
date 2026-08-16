@@ -38,6 +38,10 @@ func (r Refusal) DocsRef() string {
 // refusals is the registry. Keep it sorted by Summary.
 var refusals = []Refusal{
 	{
+		Summary: SummaryCrossStackOutputsUnavailable,
+		What:    "A tfe_outputs value the phase must read has no auth surface available: no token argument, no TFE_TOKEN environment variable, and no credentials entry for its host in the CLI configuration (checked offline, before any read is attempted); or the read itself failed - workspace not found, no current state version, insufficient permissions - quoted from the provider.",
+	},
+	{
 		Summary: SummaryNotReadable,
 		What:    "A data source's value is needed to resolve an identity, a count or a for_each, but the data source depends on a managed resource, names one in depends_on, or has an argument that is not statically evaluable, so it cannot be read before the plan.",
 	},

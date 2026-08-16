@@ -164,6 +164,126 @@ func TestReadSensitiveAttributeStaysRefusedInIdentity(t *testing.T) {
 	}
 }
 
+// tfeProviderSchema serves tfe_outputs the way the real hashicorp/tfe
+// provider's schema does: values is the whole-attribute-sensitive map the
+// design's "Sensitivity" section names.
+func tfeProviderSchema() *providers.GetProviderSchemaResponse {
+	return &providers.GetProviderSchemaResponse{
+		Provider: providers.Schema{Block: &configschema.Block{}},
+		DataSources: map[string]providers.Schema{
+			"tfe_outputs": {Block: &configschema.Block{
+				Attributes: map[string]*configschema.Attribute{
+					"organization": {Type: cty.String, Optional: true},
+					"workspace":    {Type: cty.String, Optional: true},
+					"values":       {Type: cty.Map(cty.String), Computed: true, Sensitive: true},
+				},
+			}},
+		},
+		ResourceTypes: map[string]providers.Schema{},
+	}
+}
+
+// TestReadTfeOutputsGoesThroughTheStandardPipeline: an eligible tfe_outputs
+// source is read through exactly the same generic readSource path a
+// same-stack source is - #179 stage 2 adds an eligibility rule and a
+// failure class, not a second read implementation.
+func TestReadTfeOutputsGoesThroughTheStandardPipeline(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "tfe-eligible"), nil)
+	analysis := Analyze(context.Background(), cfg, Options{})
+
+	src, ok := analysis.SourceFor(addrs.RootModule, dataAddr("tfe_outputs", "app"))
+	if !ok || !src.Eligible {
+		t.Fatalf("tfe-eligible fixture did not classify eligible: %+v", src)
+	}
+
+	called := false
+	mock := &tofu.MockProvider{
+		GetProviderSchemaResponse: tfeProviderSchema(),
+		ConfigureProviderCalled:   true,
+		ReadDataSourceFn: func(req providers.ReadDataSourceRequest) providers.ReadDataSourceResponse {
+			called = true
+			return providers.ReadDataSourceResponse{State: cty.ObjectVal(map[string]cty.Value{
+				"organization": req.Config.GetAttr("organization"),
+				"workspace":    req.Config.GetAttr("workspace"),
+				"values": cty.MapVal(map[string]cty.Value{
+					"log_group": cty.StringVal("prod-app"),
+				}),
+			})}
+		},
+	}
+	results, diags := Read(context.Background(), cfg, analysis, &fakeProviders{provider: mock})
+	if diags.HasErrors() {
+		t.Fatalf("read failed: %s", diags.Err())
+	}
+	if !called {
+		t.Fatalf("an eligible tfe_outputs source was never read")
+	}
+
+	res, resDiags := identity.ResolveWith(context.Background(), cfg, identity.Context{DataResults: results})
+	if resDiags.HasErrors() {
+		t.Fatalf("resolution over the tfe_outputs read failed: %s", resDiags.Err())
+	}
+	addr, addrDiags := addrs.ParseAbsResourceInstanceStr("aws_cloudwatch_log_group.per_workspace")
+	if addrDiags.HasErrors() {
+		t.Fatal(addrDiags.Err())
+	}
+	resolution, ok := res.Get(addr)
+	if !ok {
+		t.Fatalf("aws_cloudwatch_log_group.per_workspace did not resolve")
+	}
+	if want := "/tfe/prod-app"; resolution.ImportID != want {
+		t.Errorf("resolved to %q, want %q", resolution.ImportID, want)
+	}
+}
+
+// TestReadTfeOutputsSensitiveValueRefusesWithNonsensitiveRemedy: the tfe
+// provider marks the whole values attribute sensitive, the mark rides the
+// read value into resolution exactly as it does for a same-stack source,
+// and the refusal that reaches an identity argument carries the
+// nonsensitive() remedy the design calls for.
+func TestReadTfeOutputsSensitiveValueRefusesWithNonsensitiveRemedy(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "tfe-sensitive"), nil)
+	analysis := Analyze(context.Background(), cfg, Options{})
+
+	mock := &tofu.MockProvider{
+		GetProviderSchemaResponse: tfeProviderSchema(),
+		ConfigureProviderCalled:   true,
+		ReadDataSourceFn: func(req providers.ReadDataSourceRequest) providers.ReadDataSourceResponse {
+			return providers.ReadDataSourceResponse{State: cty.ObjectVal(map[string]cty.Value{
+				"organization": req.Config.GetAttr("organization"),
+				"workspace":    req.Config.GetAttr("workspace"),
+				"values": cty.MapVal(map[string]cty.Value{
+					"log_group": cty.StringVal("prod-app"),
+				}),
+			})}
+		},
+	}
+	results, diags := Read(context.Background(), cfg, analysis, &fakeProviders{provider: mock})
+	if diags.HasErrors() {
+		t.Fatalf("read failed: %s", diags.Err())
+	}
+	if !results["data.tfe_outputs.app"].GetAttr("values").IsMarked() {
+		t.Fatalf("tfe_outputs' schema-sensitive values attribute came out of the phase unmarked")
+	}
+
+	_, resDiags := identity.ResolveWith(context.Background(), cfg, identity.Context{DataResults: results})
+	if !resDiags.HasErrors() {
+		t.Fatalf("a sensitive tfe_outputs value reached an identity argument without refusing")
+	}
+	found := false
+	for _, d := range resDiags {
+		if d.Description().Summary == "Identity derived from a sensitive value" {
+			found = true
+			if !strings.Contains(d.Description().Detail, "nonsensitive(") {
+				t.Errorf("the refusal lacks the nonsensitive() remedy: %s", d.Description().Detail)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("no sensitivity refusal; got: %s", resDiags.Err())
+	}
+}
+
 // TestReadExpansionFromDependency: a count that needs a dependency's value
 // computes at read time, the instances share one read, and resolution sees
 // a per-instance tuple.
