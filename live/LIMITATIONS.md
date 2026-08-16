@@ -1114,7 +1114,7 @@ refused, and each says so in its own entry.
 | 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
 | 58 | 226 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
 | 53 | 544 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
-| 43 | 1129 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
+| 43 | 1130 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
 | 33 | 256 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
 | 33 | 100 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
 | 24 | 77 | identity | Null identity argument | error | `internal/live/identity` | "Null identity argument" |
@@ -1125,7 +1125,6 @@ refused, and each says so in its own entry.
 | 6 | 63 | lint | moved-block | error | `internal/live/lint` | "moved-block" |
 | 6 | 48 | dataread | Data source not readable before resolution | error | `internal/live/dataread` | "Data source not readable before resolution" |
 | 6 | 17 | lint | child-module | error | `internal/live/lint` | "child-module" |
-| 3 | 3 | lint | module-provider-block | error | `internal/live/lint` | "module-provider-block" |
 | 2 | 4 | identity | Identity argument not set | error | `internal/live/identity` | "Identity argument not set" |
 | 2 | 2 | lint | provisioner | error | `internal/live/lint` | "local-exec" / "remote-exec" |
 | 1 | 50 | lint | for-each-key | error | `internal/live/lint` | "foreach-invalid-key" |
@@ -1241,6 +1240,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | for_each over a resource that is not keyed | error | `internal/live/identity` | "for_each over a resource that is not keyed" |
 | 0 | 0 | lint | child-live-config | error | `internal/live/lint` | "child-live-config" |
 | 0 | 0 | lint | ignore-changes | error | `internal/live/lint` | "ignore-changes" |
+| 0 | 0 | lint | module-provider-block | error | `internal/live/lint` | "module-provider-block" |
 | 0 | 0 | lint | overlong-address | error | `internal/live/lint` | "overlong-address" |
 | 0 | 0 | lint | policy-scope | error | `internal/live/lint` | "policy-scope" |
 | 0 | 0 | lint | policy-threshold | error | `internal/live/lint` | "policy-threshold" |

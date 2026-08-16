@@ -261,7 +261,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 244,
-      "sites": 163,
+      "sites": 164,
       "unresolved_modules": 1,
       "unset_variables": 3,
       "schemas": true,
@@ -320,7 +320,7 @@
           {
             "layer": "lint",
             "id": "count-index",
-            "sites": 64
+            "sites": 65
           },
           {
             "layer": "lint",
@@ -6571,7 +6571,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 14,
-      "sites": 19,
+      "sites": 18,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6613,11 +6613,6 @@
             "layer": "identity",
             "id": "Unable to compute static value",
             "sites": 4
-          },
-          {
-            "layer": "lint",
-            "id": "module-provider-block",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -6967,7 +6962,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 15,
-      "sites": 20,
+      "sites": 19,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7013,11 +7008,6 @@
           {
             "layer": "lint",
             "id": "logical-resource",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "module-provider-block",
             "sites": 1
           },
           {
@@ -7257,7 +7247,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 19,
-      "sites": 20,
+      "sites": 19,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7299,11 +7289,6 @@
             "layer": "identity",
             "id": "Unable to compute static value",
             "sites": 4
-          },
-          {
-            "layer": "lint",
-            "id": "module-provider-block",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -9337,7 +9322,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"count-index-in-tag\"",
       "raised_by": "internal/live/lint",
       "configs": 43,
-      "sites": 1129,
+      "sites": 1130,
       "examples": [
         ".corpus/cool-assessment/gophish_ec2.tf:133",
         ".corpus/cool-assessment/gophish_ec2.tf:135",
@@ -9522,21 +9507,6 @@
         ".corpus/cool-assessment/gophish_ec2.tf:139",
         ".corpus/cool-assessment/kali_ec2.tf:109",
         ".corpus/cool-assessment/nessus_ec2.tf:120"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "lint",
-      "id": "module-provider-block",
-      "title": "Provider block in a child module is not consulted",
-      "docs_ref": "live/LIMITATIONS.md, \"module-provider-block\"",
-      "raised_by": "internal/live/lint",
-      "configs": 3,
-      "sites": 3,
-      "examples": [
-        ".corpus/simpleinfra/terraform/shared/modules/gha-iam-user/main.tf:10",
-        ".corpus/simpleinfra/terraform/shared/modules/gha-iam-user/main.tf:10",
-        ".corpus/simpleinfra/terraform/shared/modules/gha-iam-user/main.tf:10"
       ],
       "registered": true
     },
@@ -10584,6 +10554,16 @@
     },
     {
       "layer": "lint",
+      "id": "module-provider-block",
+      "title": "Provider block in a child module needs count, for_each, enabled or depends_on removed from its call chain",
+      "docs_ref": "live/LIMITATIONS.md, \"module-provider-block\"",
+      "raised_by": "internal/live/lint",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
       "id": "overlong-address",
       "title": "Resource address does not fit in a marker",
       "docs_ref": "live/LIMITATIONS.md, \"overlong-address\"",
@@ -10677,8 +10657,8 @@
     "configs": 250,
     "loaded": 249,
     "instances": 3498,
-    "sites": 10165,
-    "refusals_fired": 27,
+    "sites": 10163,
+    "refusals_fired": 26,
     "refusals_in_set": 118,
     "configs_without_schemas": 3,
     "refusals_unregistered": 0
@@ -10701,7 +10681,7 @@
       "blocked": 118,
       "clean": 26,
       "instances": 2320,
-      "sites": 2266,
+      "sites": 2264,
       "reads_as": "rate"
     },
     {
