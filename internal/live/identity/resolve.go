@@ -1119,7 +1119,7 @@ func (r *resolver) evalPure(expr hcl.Expression, scope instScope, ident configs.
 func (r *resolver) stringValue(val cty.Value, expr hcl.Expression, ident configs.StaticIdentifier) (string, bool) {
 	if val.IsMarked() {
 		r.errorf(expr.Range(), "Identity derived from a sensitive value",
-			"%s is derived from a sensitive value. An import identity is written to logs and plan output, so it cannot be sensitive.", ident.Subject)
+			"%s is derived from a sensitive value. An import identity is written to logs and plan output, so it cannot be sensitive. If the value is not genuinely secret - a data source such as tfe_outputs that marks its whole result sensitive is the common case - wrap it in nonsensitive(...) to use it here.", ident.Subject)
 		return "", false
 	}
 	if val.IsNull() {

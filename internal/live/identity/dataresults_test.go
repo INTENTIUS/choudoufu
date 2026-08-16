@@ -50,6 +50,36 @@ func TestDataResultResolvesIdentityArgument(t *testing.T) {
 	}
 }
 
+// TestDataResultResolvesTfeOutputsReference is #179 stage 2's proof that
+// the DataResults seam needed no change for the cross-stack flavor: a
+// tfe_outputs result, handed in exactly like a same-stack one, resolves the
+// identity that reads it. What differs between the two flavors lives
+// entirely in internal/live/dataread's eligibility rule, not here.
+func TestDataResultResolvesTfeOutputsReference(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "data-read-tfe"), nil)
+
+	results := map[string]cty.Value{
+		"data.tfe_outputs.app": cty.ObjectVal(map[string]cty.Value{
+			"organization": cty.StringVal("acme"),
+			"workspace":    cty.StringVal("prod"),
+			"values": cty.MapVal(map[string]cty.Value{
+				"log_group": cty.StringVal("prod-app"),
+			}),
+		}),
+	}
+
+	result, diags := ResolveWith(context.Background(), cfg, Context{DataResults: results})
+	assertNoErrors(t, diags)
+
+	res := resolutionAt(t, result, "aws_cloudwatch_log_group.per_workspace")
+	if res.Class != ClassConcrete {
+		t.Fatalf("resolved %s; with the data result present every value it needs is in hand", res.Class)
+	}
+	if want := "/tfe/prod-app"; res.ImportID != want {
+		t.Errorf("resolved to %q, want %q", res.ImportID, want)
+	}
+}
+
 // TestDataReferenceRefusesWithoutResults is the disabled-fix proof: the
 // same configuration with no DataResults must refuse exactly as it always
 // has, with the passthrough dynamic-value wording, not resolve to anything.

@@ -101,7 +101,7 @@ var refusals = []Refusal{
 	{"Configuration loaded without a static evaluator", "The configuration was not loaded through configs.Parser.LoadConfigDir or the configload package. A caller error, not a configuration one.", ""},
 	{"Expression not evaluable here", "Static evaluation of an identity argument panicked and was recovered; most often an expression inside a keyed module resolving, several layers down, back to the module call's own each.key or each.value.", ""},
 	{"Identity argument not set", "The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.", ""},
-	{"Identity derived from a sensitive value", "An identity argument reads a sensitive or ephemeral value. Import identities are written to logs and plan output, so neither can be part of one.", ""},
+	{"Identity derived from a sensitive value", "An identity argument reads a sensitive or ephemeral value. Import identities are written to logs and plan output, so neither can be part of one. When the value is not genuinely secret - tfe_outputs marking its whole result sensitive is the common case - the remedy is nonsensitive(...) around the specific value.", ""},
 	{"Identity derived from an impure function", "An identity argument calls uuid(), timestamp() or bcrypt(), which return a different value on every evaluation.", ""},
 	{"Identity not resolvable from configuration", "An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.", ""},
 	{"Invalid count", "A count expression is not a whole non-negative number.", ""},
