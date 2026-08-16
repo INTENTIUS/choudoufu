@@ -190,7 +190,7 @@ resource "aws_connect_user" "app" {
   instance_id          = aws_connect_user_hierarchy_structure.app.instance_id
   name                 = aws_appstream_stack.app.name
   routing_profile_id   = aws_connect_routing_profile.app.routing_profile_id
-  security_profile_ids = ["placeholder"]
+  security_profile_ids = [aws_connect_security_profile.app.id]
   phone_config {
     phone_type = "SOFT_PHONE"
   }

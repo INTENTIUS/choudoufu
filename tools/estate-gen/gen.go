@@ -296,10 +296,10 @@ func planCohort(cohort string, schemas providers.GetProviderSchemaResponse, requ
 		if attr, ok := block.Attributes[idArg]; !ok || attr == nil || (!attr.Required && !attr.Optional) {
 			continue // fillBlock would never emit it, so nothing would reference the parent
 		}
-		if _, _, wired := g.siblingRef(p.Addr.Type, idArg); wired {
+		if _, _, _, wired := g.siblingRef(p.Addr.Type, idArg); wired {
 			continue // a rendered sibling already answers it
 		}
-		_, suffix := refArgSuffix(idArg)
+		_, suffix, _ := refArgSuffix(idArg)
 		for _, cand := range constructedParentTypes(p.Addr.Type, idArg) {
 			if suffix != "" && !strings.HasPrefix(p.Addr.Type, cand+"_") {
 				continue
@@ -358,7 +358,7 @@ func planCohort(cohort string, schemas providers.GetProviderSchemaResponse, requ
 			if _, _, ok := g.parentRef(p.Addr.Type, leaf); ok {
 				continue // already resolved another way; do not add a competing sibling
 			}
-			if _, _, ok := g.siblingRef(p.Addr.Type, leaf); ok {
+			if _, _, _, ok := g.siblingRef(p.Addr.Type, leaf); ok {
 				continue // same - siblingForBase's tiebreak is one-shot with no
 				// fallback, so a newly added, ultimately-unwireable candidate
 				// (aws_appsync_api's page names it for aws_appsync_channel_namespace's
@@ -679,11 +679,14 @@ func (g *generator) fillBlock(body *hclwrite.Body, b *configschema.Block, addr r
 //  3. A sibling reference (siblingRef, issue #173): the argument's own
 //     name says which other resource it points at - "<base>_id"/"<base>_arn"
 //     naming a sibling type this run also renders (prefix_list_id against
-//     aws_ec2_managed_prefix_list), or a bare identity-component argument
+//     aws_ec2_managed_prefix_list), a bare identity-component argument
 //     whose service-qualified parent type is rendered here (the codeartifact
-//     dependents' "domain" against aws_codeartifact_domain). The referenced
-//     attribute comes from the sibling's schema and the identity table, not
-//     a guess - see refAttr.
+//     dependents' "domain" against aws_codeartifact_domain), or the plural
+//     "<base>_ids"/"<base>_arns" over a list/set(string) argument (the same
+//     base resolution, wrapped in a single-element list literal -
+//     aws_ecs_daemon's capacity_provider_arns against
+//     aws_ecs_capacity_provider). The referenced attribute comes from the
+//     sibling's schema and the identity table, not a guess - see refAttr.
 //  4. This resource's own identity argument (identityArgName): a
 //     deterministic, type-derived placeholder name,
 //     "tofu-<cohort>-cohort-<suffix>".
@@ -705,7 +708,10 @@ func (g *generator) valueExpr(addr resourceAddr, argName string, ty cty.Type, ro
 		if parent, attrName, ok := g.parentRef(addr.Type, argName); ok {
 			return fmt.Sprintf("%s.%s", parent, attrName)
 		}
-		if parent, attrName, ok := g.siblingRef(addr.Type, argName); ok {
+		if parent, attrName, plural, ok := g.siblingRef(addr.Type, argName); ok {
+			if plural {
+				return fmt.Sprintf("[%s.%s]", parent, attrName)
+			}
 			return fmt.Sprintf("%s.%s", parent, attrName)
 		}
 		if lit, ok := g.pairedSeedLiteral(addr.Type, argName); ok {
@@ -790,18 +796,27 @@ func (g *generator) parentRef(selfType, argName string) (parent resourceAddr, at
 }
 
 // refArgSuffix splits a reference-shaped argument name: "<base>_id" or
-// "<base>_arn" with a non-empty base ("prefix_list_id" -> "prefix_list",
-// "id"). Any other shape returns two empty strings. AWS's own argument
-// naming convention is the rule here: an argument named after another
-// resource kind plus "_id"/"_arn" carries that resource's exported handle,
-// never an independent value (issue #173's escaping shape 1).
-func refArgSuffix(argName string) (base, suffix string) {
+// "<base>_arn" (singular) with a non-empty base ("prefix_list_id" ->
+// "prefix_list", "id"), or "<base>_ids"/"<base>_arns" (plural - a
+// list/set-typed argument naming more than one sibling of the same kind,
+// "capacity_provider_arns" -> "capacity_provider", "arn", plural=true).
+// Any other shape returns two empty strings. AWS's own argument naming
+// convention is the rule here, singular or plural alike: an argument named
+// after another resource kind plus "_id"/"_arn"[s] carries that resource's
+// exported handle(s), never an independent value (issue #173's escaping
+// shape 1; the plural form is the same convention pluralized - see
+// siblingRef, which is what actually decides whether a rendered sibling
+// answers it, and whether the schema backs the plural reading up).
+func refArgSuffix(argName string) (base, suffix string, plural bool) {
 	for _, s := range []string{"id", "arn"} {
 		if b, ok := strings.CutSuffix(argName, "_"+s); ok && b != "" {
-			return b, s
+			return b, s, false
+		}
+		if b, ok := strings.CutSuffix(argName, "_"+s+"s"); ok && b != "" {
+			return b, s, true
 		}
 	}
-	return "", ""
+	return "", "", false
 }
 
 // serviceSegment is a type name's first underscore-separated word after
@@ -827,7 +842,7 @@ func serviceSegment(typeName string) string {
 func constructedParentTypes(selfType, argName string) []string {
 	service := serviceSegment(selfType)
 	bases := []string{argName}
-	if b, _ := refArgSuffix(argName); b != "" {
+	if b, _, _ := refArgSuffix(argName); b != "" {
 		bases = append(bases, b)
 	}
 	seen := map[string]bool{selfType: true}
@@ -1007,6 +1022,30 @@ func refAttrAllowed(siblingType, argName, attrName string, identityBound bool) b
 	return false
 }
 
+// isStringListArg reports whether selfType's own wire schema types argName
+// as a list or set of strings - the schema half of the plural sibling-
+// reference gate (siblingRef): an argument name shaped like "<base>_arns"
+// says the argument names more than one sibling of the same kind, but only
+// a list/set(string) argument can actually hold the single-element list
+// literal that reading produces, so a name that merely happens to end in
+// "s" over a scalar-typed argument (there are none among AWS's own
+// "_arn"/"_id" conventions today, but nothing rules one out for a future
+// provider release) is left to fall through to the ordinary placeholder
+// rather than being wrapped in "[...]" against a slot that cannot take a
+// list.
+func isStringListArg(schemas providers.GetProviderSchemaResponse, selfType, argName string) bool {
+	res, ok := schemas.ResourceTypes[selfType]
+	if !ok || res.Block == nil {
+		return false
+	}
+	attr, ok := res.Block.Attributes[argName]
+	if !ok {
+		return false
+	}
+	ty := attr.Type
+	return (ty.IsListType() || ty.IsSetType()) && ty.ElementType() == cty.String
+}
+
 // siblingRef is issue #173's rule-level fix for reference arguments
 // parentRef cannot see: parentRef only links an argument that shares its
 // NAME with a sibling's identity-table argument, while a reference-by-id
@@ -1015,8 +1054,9 @@ func refAttrAllowed(siblingType, argName, attrName string, identityBound bool) b
 // different word entirely (aws_codeartifact_domain's identity is its ARN
 // assembly, but its dependents' "domain" argument still names it).
 //
-// Two shapes, both derived from the argument name and the roster this run
-// already holds - no per-type table:
+// Three shapes, all derived from the argument name (plus, for the third,
+// the argument's own schema type) and the roster this run already holds -
+// no per-type table:
 //
 //   - "<base>_id"/"<base>_arn": base resolves to a rendered sibling type
 //     (siblingForBase). When the argument is also selfType's own identity
@@ -1027,25 +1067,39 @@ func refAttrAllowed(siblingType, argName, attrName string, identityBound bool) b
 //   - bare: the argument is one of selfType's own identity components and
 //     its service-qualified construction (constructedParentTypes) is a
 //     rendered sibling - the codeartifact dependents' "domain".
-func (g *generator) siblingRef(selfType, argName string) (parent resourceAddr, attrName string, ok bool) {
-	base, suffix := refArgSuffix(argName)
+//   - "<base>_ids"/"<base>_arns": the plural of the first shape - same
+//     base resolution via siblingForBase, gated additionally on the
+//     argument's own schema type actually being a list/set of strings
+//     (isStringListArg), since the argument name alone cannot tell a
+//     genuine plural handle (aws_ecs_daemon's capacity_provider_arns, one
+//     ARN per referenced aws_ecs_capacity_provider) from a coincidence.
+//     The returned attrName is still the sibling's single attribute
+//     (siblingForBase/refAttr do not know how many sibling instances
+//     exist, only which one this run rendered); the caller wraps it in a
+//     single-element list, the same shape a hand-written config would use
+//     to point a plural argument at exactly one real resource.
+func (g *generator) siblingRef(selfType, argName string) (parent resourceAddr, attrName string, plural bool, ok bool) {
+	base, suffix, isPlural := refArgSuffix(argName)
 	if base != "" {
+		if isPlural && !isStringListArg(g.schemas, selfType, argName) {
+			return resourceAddr{}, "", false, false
+		}
 		t, found := g.siblingForBase(selfType, base)
 		if !found {
-			return resourceAddr{}, "", false
+			return resourceAddr{}, "", false, false
 		}
 		if selfIdArg, owns := identityArgName(selfType); owns && selfIdArg == argName && !strings.HasPrefix(selfType, t+"_") {
-			return resourceAddr{}, "", false
+			return resourceAddr{}, "", false, false
 		}
 		attr, found := g.refAttr(t, argName, suffix, identityComponentAttr(selfType, argName))
 		if !found {
-			return resourceAddr{}, "", false
+			return resourceAddr{}, "", false, false
 		}
-		return g.byType[t], attr, true
+		return g.byType[t], attr, isPlural, true
 	}
 
 	if !identityComponentAttr(selfType, argName) {
-		return resourceAddr{}, "", false
+		return resourceAddr{}, "", false, false
 	}
 	for _, cand := range constructedParentTypes(selfType, argName) {
 		addr, found := g.byType[cand]
@@ -1056,9 +1110,9 @@ func (g *generator) siblingRef(selfType, argName string) (parent resourceAddr, a
 		if !found {
 			continue
 		}
-		return addr, attr, true
+		return addr, attr, false, true
 	}
-	return resourceAddr{}, "", false
+	return resourceAddr{}, "", false, false
 }
 
 // pairedSeedLiteral renders the same documented literal the sibling that
