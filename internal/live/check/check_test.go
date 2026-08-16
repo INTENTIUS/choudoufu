@@ -100,6 +100,7 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		"pins":            true, // the shared provider-version pin (#117), one constant
 		"pluginschema":    true, // provider schema reading
 		"policy":          true, // the ownership policy matrix
+		"providerscope":   true, // module-aware provider address resolution (#104); a pure function, not yet wired into any pass
 		"refusalscan":     true, // the shared lockstep scanner behind those registries
 		"providerversion": true,
 		"registry":        true,
