@@ -116,7 +116,7 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 16,
+            "sites": 17,
             "categories": {
               "remote_state": 16
             }
@@ -148,7 +148,7 @@
           {
             "layer": "identity",
             "id": "Unresolvable identity",
-            "sites": 4
+            "sites": 3
           },
           {
             "layer": "lint",
@@ -2030,7 +2030,7 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 27,
+            "sites": 28,
             "categories": {
               "data_source": 7,
               "tfe_outputs": 20
@@ -2071,7 +2071,7 @@
           {
             "layer": "identity",
             "id": "Unresolvable identity",
-            "sites": 4
+            "sites": 3
           },
           {
             "layer": "identity",
@@ -2768,20 +2768,15 @@
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 17,
+            "sites": 85,
             "categories": {
               "data_source": 17
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 68
           }
         ]
       }
@@ -2823,20 +2818,15 @@
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 1,
+            "sites": 4,
             "categories": {
               "data_source": 1
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 3
           }
         ]
       }
@@ -3089,20 +3079,15 @@
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 9,
+            "sites": 46,
             "categories": {
               "data_source": 9
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 37
           }
         ]
       }
@@ -3118,20 +3103,15 @@
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 17,
+            "sites": 85,
             "categories": {
               "data_source": 17
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 68
           }
         ]
       }
@@ -3483,20 +3463,15 @@
       "unset_variables": 23,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 6,
+            "sites": 19,
             "categories": {
               "data_source": 6
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 13
           }
         ]
       }
@@ -3512,20 +3487,15 @@
       "unset_variables": 3,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 3,
+            "sites": 6,
             "categories": {
               "data_source": 3
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 3
           }
         ]
       }
@@ -3707,20 +3677,15 @@
       "unset_variables": 3,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 1,
+            "sites": 4,
             "categories": {
               "data_source": 1
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 3
           }
         ]
       }
@@ -3736,20 +3701,15 @@
       "unset_variables": 3,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 1,
+            "sites": 4,
             "categories": {
               "data_source": 1
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 3
           }
         ]
       }
@@ -3765,20 +3725,15 @@
       "unset_variables": 3,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 5,
+            "sites": 8,
             "categories": {
               "data_source": 5
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 3
           }
         ]
       }
@@ -3839,20 +3794,15 @@
       "unset_variables": 3,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 3,
+            "sites": 6,
             "categories": {
               "data_source": 3
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 3
           }
         ]
       }
@@ -3868,20 +3818,15 @@
       "unset_variables": 3,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 3,
+            "sites": 6,
             "categories": {
               "data_source": 3
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 3
           }
         ]
       }
@@ -3921,20 +3866,15 @@
       "unset_variables": 3,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 3,
+            "sites": 6,
             "categories": {
               "data_source": 3
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 3
           }
         ]
       }
@@ -3964,20 +3904,15 @@
       "unset_variables": 3,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 1,
+            "sites": 4,
             "categories": {
               "data_source": 1
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 3
           }
         ]
       }
@@ -6764,7 +6699,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"Resolves at plan time via a data-source read\"",
       "raised_by": "internal/live/dataread",
       "configs": 101,
-      "sites": 1831,
+      "sites": 2046,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:420",
         ".corpus/alb/examples/complete-alb/main.tf:425",
@@ -6873,24 +6808,6 @@
     },
     {
       "layer": "identity",
-      "id": "Unresolvable identity",
-      "title": "Unresolvable identity",
-      "what": "An identity could not be built because a reference it depends on failed; the reference's own error explains why.",
-      "docs_ref": "live/LIMITATIONS.md, \"Unresolvable identity\"",
-      "raised_by": "internal/live/identity",
-      "configs": 62,
-      "sites": 402,
-      "examples": [
-        ".corpus/autoscaling/main.tf:1463",
-        ".corpus/cool-assessment/operations_routing.tf:21",
-        ".corpus/cool-assessment/operations_routing.tf:29",
-        ".corpus/cool-assessment/operations_routing.tf:39",
-        ".corpus/cool-assessment/route53.tf:51"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
       "id": "Dynamic value in static context",
       "title": "Dynamic value in static context",
       "what": "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.",
@@ -6904,6 +6821,24 @@
         ".corpus/alb/examples/complete-alb/main.tf:195",
         ".corpus/alb/examples/complete-alb/main.tf:196",
         ".corpus/alb/examples/complete-alb/main.tf:196"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Unresolvable identity",
+      "title": "Unresolvable identity",
+      "what": "An identity could not be built because a reference it depends on failed; the reference's own error explains why.",
+      "docs_ref": "live/LIMITATIONS.md, \"Unresolvable identity\"",
+      "raised_by": "internal/live/identity",
+      "configs": 49,
+      "sites": 187,
+      "examples": [
+        ".corpus/autoscaling/main.tf:1463",
+        ".corpus/cool-assessment/operations_routing.tf:21",
+        ".corpus/cool-assessment/operations_routing.tf:29",
+        ".corpus/cool-assessment/operations_routing.tf:39",
+        ".corpus/cyhy-amis/terraform/bod_vpc.tf:121"
       ],
       "registered": true
     },
@@ -8312,11 +8247,11 @@
       },
       {
         "class": "data-read-eligible",
-        "configs": 28
+        "configs": 41
       },
       {
         "class": "language-blocked",
-        "configs": 70
+        "configs": 57
       },
       {
         "class": "unreadable",

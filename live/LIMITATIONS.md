@@ -1056,11 +1056,11 @@ refused, and each says so in its own entry.
 | Configs | Sites | Layer | Refusal | Severity | Raised by | Documented at |
 |---|---|---|---|---|---|---|
 | 113 | 1398 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
-| 101 | 1831 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
+| 101 | 2046 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
 | 74 | 3511 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
 | 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
-| 62 | 402 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
 | 53 | 543 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
+| 49 | 187 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
 | 43 | 1129 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
 | 33 | 256 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
 | 33 | 100 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
@@ -1261,7 +1261,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 101 configurations in the measured corpus, at 1831 sites.
+**How often.** Blocked 101 configurations in the measured corpus, at 2046 sites.
 
 #### Unable to compute static value
 
@@ -1271,14 +1271,6 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 74 configurations in the measured corpus, at 3511 sites.
 
-#### Unresolvable identity
-
-**What.** An identity could not be built because a reference it depends on failed; the reference's own error explains why.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
-
-**How often.** Blocked 62 configurations in the measured corpus, at 402 sites.
-
 #### Dynamic value in static context
 
 **What.** An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.
@@ -1286,6 +1278,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
 **How often.** Blocked 53 configurations in the measured corpus, at 543 sites.
+
+#### Unresolvable identity
+
+**What.** An identity could not be built because a reference it depends on failed; the reference's own error explains why.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 49 configurations in the measured corpus, at 187 sites.
 
 #### Module output not supported in static context
 
