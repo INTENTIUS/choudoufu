@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
+	"github.com/intentius/choudoufu/internal/live/stamp"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -110,6 +111,48 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	result, diags := identity.ResolveWith(ctx, cfg, identity.Context{Schemas: actx.Schemas})
 	if result != nil {
 		report.Instances = result.Len()
+	}
+
+	// Issue #224's stamp pass: internal/live/stamp needs no live provider
+	// handle - see catalog.go's LayerStamp doc comment - so this offline
+	// instrument runs it directly, right after the identity resolution that
+	// supplies req.NeedsDiscovery.
+	//
+	// Gated on schemas actually being present, and not merely non-nil:
+	// unlike the lint and identity passes above, which fall back to a
+	// hand-written admission table and only get less accurate without
+	// schemas, [stamp.Stamp] has no such fallback - every resource type
+	// reads as unschema'd and therefore untaggable, which turns "this
+	// instrument does not know" into a false "Unmarked apply of a
+	// marker-only resource" error on every needs-discovery instance. That is
+	// exactly the false-refusal failure mode this issue exists to remove,
+	// not to add back for a directory nobody ran "tofu init" in.
+	if result != nil && len(actx.Schemas) > 0 {
+		stampReq := stamp.Request{
+			Estate:         estateForStamp(ctx, cfg),
+			Config:         cfg,
+			Schemas:        flatSchemas(actx.Schemas),
+			NeedsDiscovery: stampNeedsDiscovery(result),
+		}
+		_, stampDiags := stamp.Stamp(ctx, stampReq)
+		for _, diag := range stampDiags {
+			desc := diag.Description()
+			site := Site{Detail: desc.Detail}
+			if src := diag.Source(); src.Subject != nil {
+				site.File = src.Subject.Filename
+				site.Line = src.Subject.Start.Line
+				site.Column = src.Subject.Start.Column
+				site.StartByte = src.Subject.Start.Byte
+				site.EndByte = src.Subject.End.Byte
+			}
+			switch diag.Severity() {
+			case tfdiags.Error:
+				f := findings.get(LayerStamp, desc.Summary)
+				f.add(site)
+			default:
+				report.addWarning(LayerStamp, desc.Summary, site)
+			}
+		}
 	}
 
 	// Issue #179's third checked pass, computed lazily: the eligibility

@@ -14,6 +14,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/passthrough"
+	"github.com/intentius/choudoufu/internal/live/stamp"
 )
 
 // TestCatalogComesFromBothTables is #114's fourth acceptance criterion: the
@@ -42,6 +43,11 @@ func TestCatalogComesFromBothTables(t *testing.T) {
 	// in the catalog alongside the other two.
 	for _, refusal := range dataread.Refusals() {
 		want[string(LayerDataread)+"/"+refusal.Summary] = true
+	}
+	// The fifth table, added by #224: internal/live/stamp needs no cloud
+	// either, so its registry ranks in the catalog alongside the other four.
+	for _, refusal := range stamp.Refusals() {
+		want[string(LayerStamp)+"/"+refusal.Summary] = true
 	}
 
 	got := map[string]bool{}
