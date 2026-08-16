@@ -171,6 +171,170 @@ func moduleLabel(module addrs.Module) string {
 	return module.String()
 }
 
+// maxForEachAliasDepth bounds how many locals or merge() arguments
+// [analyzer.forEachDataRefs] will chase through before giving up, the same
+// backstop [maxStaticDecomposeDepth] gives resolve.go's own version of this
+// walk (internal/live/identity/localvalue.go) - a defensive bound against a
+// pathological or self-referential chain, not a limit ordinary
+// configurations approach.
+const maxForEachAliasDepth = 16
+
+// scanForEachDataRefs finds every data-source reference reachable from ANY
+// resource block's own for_each meta-argument, across every module in the
+// tree, and classifies each one demanded - independent of whatever the
+// diagnostic-probing loop in [Analyze] would or would not have found on its
+// own.
+//
+// It exists because [resolver.forEachExpansion] (resolve.go) recovers from
+// a for_each whose KEYS are statically known but whose VALUES are not by
+// discarding the whole-value evaluation's diagnostics and building a
+// "keyOnly" expansion instead (#178's key-set fix, in localvalue.go's
+// staticForEachKeys/objectConsKeys) - deliberately: a resource reference
+// buried in one value must not refuse the whole block when only the key
+// set is needed to enumerate instances. The diagnostic that discarding
+// throws away is exactly the one [demandRoots] otherwise relies on to
+// discover a data source reference. A configuration that reads
+// each.key alone never needed it. One whose own identity-bearing
+// argument reads each.value - govuk-infrastructure's
+// aws_security_group_rule.postgres_from_eks_workers is the corpus's one
+// confirmed instance, #209 - needs the discarded value's data source read
+// before the plan exactly as much as a direct reference would, and had no
+// way to ask for it: by the time each.value is evaluated, the object
+// constructor that named the data source is gone, replaced by an opaque
+// per-instance value with no attribute named "value" at all (see
+// resolve.go's expansion.keyOnly and #213, which turned that shape's
+// raw HCL "Unsupported attribute" into the cleaner but still
+// data-source-silent "Dynamic value in static context").
+//
+// This does not need resolve.go to change at all: once the source found
+// here is read, [Read] populates [identity.Context.DataResults] with its
+// real value, the for_each's whole-value evaluation succeeds on
+// resolve.go's ordinary first attempt (the value is now wholly known,
+// never a placeholder), eachValues is populated the regular way, and
+// each.value resolves like any other for_each over a static map - no
+// keyOnly fallback, no special-casing, because the expression that used to
+// fail now simply does not.
+//
+// Only the shapes [resolver.staticForEachKeys] itself recognizes are
+// walked - an object constructor, one level of local aliasing, or merge()
+// of such - because those are exactly the shapes that can reach the
+// keyOnly fallback in the first place; a for_each in any other shape either
+// evaluates as a whole (a direct data reference stays visible to
+// [demandRoots] the ordinary way, see aws_security_group_rule's own
+// asset-master-efs/elasticsearch/shared_docdb/licensify_docdb siblings in
+// the same corpus file) or fails outright with no fallback to swallow its
+// diagnostic. Module-call variable aliasing (for_each = var.name reaching a
+// literal in a calling module) is not chased: unlike [staticForEachKeys],
+// which the resolver runs per instance and can therefore navigate to the
+// exact calling module instance, this scan runs once over the static
+// module tree with no instance in hand, and no such shape appeared in the
+// corpus scan that measured #209 (only a same-module local and a same-file
+// object literal did). A for_each aliased that way keeps today's behavior:
+// undetected, exactly as every other unrecognized shape here is left
+// alone.
+func (an *analyzer) scanForEachDataRefs() {
+	an.walkModulesForForEach(an.cfg)
+}
+
+func (an *analyzer) walkModulesForForEach(cfg *configs.Config) {
+	if cfg == nil || cfg.Module == nil {
+		return
+	}
+	mod := cfg.Module
+	resources := make([]*configs.Resource, 0, len(mod.ManagedResources)+len(mod.DataResources))
+	for _, rc := range mod.ManagedResources {
+		resources = append(resources, rc)
+	}
+	for _, rc := range mod.DataResources {
+		resources = append(resources, rc)
+	}
+	sort.Slice(resources, func(i, j int) bool { return resources[i].Addr().String() < resources[j].Addr().String() })
+
+	for _, rc := range resources {
+		if rc.ForEach == nil {
+			continue
+		}
+		for _, res := range an.forEachDataRefs(mod, rc.ForEach, 0) {
+			// The block's own for_each over its own data source's
+			// nonexistent-instance shape (for_each = data.x.y ranging over
+			// itself) cannot occur - a data block cannot reference its own
+			// for_each in its own for_each - so no self-dependency guard is
+			// needed the way [classify]'s own "record" callback needs one.
+			an.classify(cfg.Path, res, fmt.Sprintf("%s's for_each", rc.Addr().String()))
+		}
+	}
+
+	names := make([]string, 0, len(cfg.Children))
+	for name := range cfg.Children {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		an.walkModulesForForEach(cfg.Children[name])
+	}
+}
+
+// forEachDataRefs finds every data-source reference in expr's object-value
+// positions, following the same shapes [resolver.staticForEachKeys] chases
+// in resolve.go before deciding a for_each's keys are knowable regardless
+// of its values: parentheses, one level of local aliasing within mod, and
+// merge() of any of those. Anything else - a for-expression, a function
+// other than merge, a bare data reference with no surrounding object
+// constructor - is left alone, matching that function's own "not
+// applicable" behavior for a shape it does not recognize; those shapes
+// either already surface their data reference through the ordinary
+// diagnostic-probing path or genuinely have none to find.
+func (an *analyzer) forEachDataRefs(mod *configs.Module, expr hcl.Expression, depth int) []addrs.Resource {
+	if depth > maxForEachAliasDepth {
+		return nil
+	}
+	if paren, ok := expr.(*hclsyntax.ParenthesesExpr); ok {
+		return an.forEachDataRefs(mod, paren.Expression, depth+1)
+	}
+	if trav, diags := hcl.AbsTraversalForExpr(expr); !diags.HasErrors() && len(trav) == 2 && trav.RootName() == "local" {
+		if nameStep, ok := trav[1].(hcl.TraverseAttr); ok {
+			if local, ok := mod.Locals[nameStep.Name]; ok {
+				return an.forEachDataRefs(mod, local.Expr, depth+1)
+			}
+		}
+	}
+	if call, ok := expr.(*hclsyntax.FunctionCallExpr); ok && call.Name == "merge" {
+		var out []addrs.Resource
+		for _, arg := range call.Args {
+			out = append(out, an.forEachDataRefs(mod, arg, depth+1)...)
+		}
+		return out
+	}
+	obj, ok := expr.(*hclsyntax.ObjectConsExpr)
+	if !ok {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []addrs.Resource
+	for _, item := range obj.Items {
+		for _, trav := range item.ValueExpr.Variables() {
+			if trav.RootName() != "data" {
+				continue
+			}
+			ref, diags := addrs.ParseRef(trav)
+			if diags.HasErrors() {
+				continue
+			}
+			res, ok := DataSubject(ref.Subject)
+			if !ok {
+				continue
+			}
+			key := res.String()
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			out = append(out, res)
+		}
+	}
+	return out
+}
+
 // Analyze derives which data sources identity resolution demands and
 // classifies each as readable-before-the-plan or not. It is offline: no
 // provider process, no cloud call, nothing but the configuration - which is
@@ -189,6 +353,16 @@ func Analyze(ctx context.Context, cfg *configs.Config, opts Options) *Analysis {
 		return a
 	}
 	an := &analyzer{ctx: ctx, cfg: cfg, analysis: a, schemas: opts.Schemas, visiting: make(map[string]bool)}
+
+	// #209: a data source reference nested inside a for_each meta-argument's
+	// own map-value literal never surfaces in a probe round's diagnostics at
+	// all - see [analyzer.scanForEachDataRefs] for why - so it has to be
+	// found by reading the for_each expressions directly, once, before the
+	// diagnostic-driven loop below ever runs. Every source this finds is
+	// classified exactly like a directly-referenced one; the loop's own
+	// placeholder coverage and transitive-dependency handling apply to it
+	// unchanged from here on.
+	an.scanForEachDataRefs()
 
 	placeholders := make(map[string]cty.Value)
 	// Each productive round classifies at least one new source or extends

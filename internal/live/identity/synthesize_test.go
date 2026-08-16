@@ -319,7 +319,7 @@ func gcpShapedSchemas() map[string]providers.Schema {
 func TestIsContextAttrCorroboratesAcrossTypes(t *testing.T) {
 	schemas := gcpShapedSchemas()
 	bucket := schemas["google_storage_bucket"]
-	if !isContextAttr(schemas, bucket, "project") {
+	if !isContextAttr(schemas, "google_storage_bucket", bucket, "project") {
 		t.Error("project was not recognized as context even though a second GCP type corroborates it")
 	}
 
@@ -347,7 +347,7 @@ func TestIsContextAttrRefusesUncorroboratedName(t *testing.T) {
 		},
 	})
 	item := schemas["aws_dynamodb_table_item"]
-	if isContextAttr(schemas, item, "range_key_value") {
+	if isContextAttr(schemas, "aws_dynamodb_table_item", item, "range_key_value") {
 		t.Error("range_key_value was treated as context with no other type in the schema set corroborating it")
 	}
 }
@@ -403,7 +403,7 @@ func TestIsContextAttrNestedBlockNeverContext(t *testing.T) {
 	}
 	schemas["google_project_iam_member"] = schema
 
-	if isContextAttr(schemas, schema, "condition_title") {
+	if isContextAttr(schemas, "google_project_iam_member", schema, "condition_title") {
 		t.Error("condition_title was treated as context even though it flattens a required argument of a nested block")
 	}
 	if _, ok := SynthesizeTypeIdentity("google_project_iam_member", schemas, nil); ok {
@@ -432,7 +432,7 @@ func TestIsContextAttrNameAndIDNeverContext(t *testing.T) {
 		},
 	})
 	template := schemas["google_colab_runtime_template"]
-	if isContextAttr(schemas, template, "name") {
+	if isContextAttr(schemas, "google_colab_runtime_template", template, "name") {
 		t.Error("name was treated as context even though it is corroborated and the literal exclusion should have refused it first")
 	}
 	if _, ok := SynthesizeTypeIdentity("google_colab_runtime_template", schemas, nil); ok {
