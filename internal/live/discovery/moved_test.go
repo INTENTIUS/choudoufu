@@ -266,3 +266,38 @@ func TestDiscoverMovedBlockOntoASetWithoutSlots(t *testing.T) {
 		t.Errorf("problems = %v, want exactly one %s", kinds, ProblemNeedsSlotMarkers)
 	}
 }
+
+// TestDiscoverMovedBlockLevelMarkerReportsOnce is the third read of a
+// declaredInstances map that a moved alias made an enumeration rather than a
+// lookup. d.blocks files one *declaredBlock under its own address and under
+// every address a moved block says it used to have, and [bind] ranges that
+// map to report block-level markers - so a for_each block with one moved
+// alias reported the identical ProblemNeedsSlotMarkers twice, once per name
+// the same block answers to.
+//
+// The two earlier ones (d.types via indexCountBlocks, d.counts via the set
+// matcher) were found before the alias shipped; this one was not, because
+// the duplicate is a repeated diagnostic rather than a wrong binding, and no
+// test counted problems.
+func TestDiscoverMovedBlockLevelMarkerReportsOnce(t *testing.T) {
+	cloud := newFakeCloud()
+	// aws_subnet.pair is a for_each block, and the fixture's second moved
+	// block says it used to be aws_subnet.pair_old. A live resource carrying
+	// the OLD BLOCK address - not one of its instances - reaches the same
+	// *declaredBlock the new block address does.
+	cloud.own("aws_subnet", "subnet-blocklevel", `aws_subnet.pair_old`)
+
+	res, _ := Discover(context.Background(), movedRenameRequest(t, cloud))
+
+	var slotProblems []Problem
+	for _, p := range res.Problems {
+		if p.Kind == ProblemNeedsSlotMarkers {
+			slotProblems = append(slotProblems, p)
+		}
+	}
+	if len(slotProblems) != 1 {
+		t.Errorf("one live resource carrying one block-level marker produced %d NEEDS_SLOT_MARKERS problems, want 1.\n"+
+			"d.blocks is enumerated, and a moved block files one block under several names.\n%v",
+			len(slotProblems), slotProblems)
+	}
+}
