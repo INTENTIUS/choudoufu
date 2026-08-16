@@ -66,16 +66,31 @@ const (
 // A nil signal makes this exactly [Derivable]: no configuration, nothing to
 // say about the cohort.
 func DerivableWith(resourceTypes map[string]providers.Schema, signal *ConfigSignal) []DerivableType {
-	out := Derivable(resourceTypes)
+	out := make([]DerivableType, 0, len(resourceTypes))
 	for typeName, schema := range resourceTypes {
-		d, ok := derivableFromConfig(typeName, schema, signal)
-		if !ok {
-			continue
+		if d, ok := derivableOne(resourceTypes, typeName, schema, signal); ok {
+			out = append(out, d)
 		}
-		out = append(out, d)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Type < out[j].Type })
 	return out
+}
+
+// derivableOne is [DerivableWith] for a single type, with the whole schema
+// set still in hand because [identityCandidates] needs it.
+//
+// The strict rule is tried first and the config rule only after it
+// declines, so a type the schemas settle on their own never comes back
+// carrying the weaker [AdmitConfigSignal] evidence. The two are mutually
+// exclusive anyway - [cohortAttrs] requires at least one candidate the
+// block does not mark Required, which is exactly what [derivable] refuses -
+// but ordering it here means a caller reading one answer does not depend on
+// that staying true.
+func derivableOne(schemas map[string]providers.Schema, typeName string, schema providers.Schema, signal *ConfigSignal) (DerivableType, bool) {
+	if d, ok := derivable(schemas, typeName, schema); ok {
+		return d, true
+	}
+	return derivableFromConfig(schemas, typeName, schema, signal)
 }
 
 // DerivableNewWith is [DerivableWith] restricted to the types
@@ -92,8 +107,8 @@ func DerivableNewWith(resourceTypes map[string]providers.Schema, signal *ConfigS
 	return out
 }
 
-func derivableFromConfig(typeName string, schema providers.Schema, signal *ConfigSignal) (DerivableType, bool) {
-	required, ok := cohortAttrs(schema)
+func derivableFromConfig(schemas map[string]providers.Schema, typeName string, schema providers.Schema, signal *ConfigSignal) (DerivableType, bool) {
+	required, context, ok := cohortAttrs(schemas, typeName, schema)
 	if !ok {
 		return DerivableType{}, false
 	}
@@ -102,7 +117,6 @@ func derivableFromConfig(typeName string, schema providers.Schema, signal *Confi
 		return DerivableType{}, false
 	}
 
-	_, context := identityAttrs(schema.IdentitySchema)
 	_, inTable := DefaultTable[typeName]
 	return DerivableType{
 		Type:          typeName,
@@ -115,43 +129,62 @@ func derivableFromConfig(typeName string, schema providers.Schema, signal *Confi
 }
 
 // cohortAttrs reports the attributes that leave a type undecided by the
-// schemas alone, and whether the type is in that cohort at all.
+// schemas alone, the ones that are context, and whether the type is in that
+// cohort at all.
 //
-// The cohort is narrow on purpose. Every attribute the provider requires
-// for import has to be an argument of the type that a configuration is
+// The cohort is narrow on purpose. Every attribute that identifies an
+// instance has to be an argument of the type that a configuration is
 // allowed to set, because the whole rule is "did the configuration set it",
 // and an attribute configuration cannot set can never be answered yes. At
 // least one of them has to be optional, because a type all of whose
 // identity attributes are required arguments is already settled - by
 // [Derivable], with no configuration needed - and reporting it twice would
 // let a weaker piece of evidence stand in for a stronger one.
-func cohortAttrs(schema providers.Schema) ([]string, bool) {
+//
+// Which attributes those are is [identityCandidates]' question, not this
+// one's, and the difference matters for a type whose identity schema
+// requires nothing for import. Such a type used to be refused here on the
+// same reasoning [derivable] used - the provider will not say what names
+// one - and that reasoning skipped the evidence this function exists to
+// read. google_workflows_workflow requires nothing for import and offers
+// name, project and region; the first is what every block of it in the
+// corpus writes down and the other two are context, so the configuration
+// answers the question the identity schema left open, which is precisely
+// the cohort's own definition. Refusing it was not caution, it was not
+// looking.
+//
+// The bar an attribute has to clear is unchanged and is what keeps this
+// safe: settable here, and set on every instance of the type in this
+// configuration by [ConfigSignal.NamingOfType]'s unanimity rule. An
+// optional attribute that any block omits fails that and is refused, so no
+// component is ever built out of a value some instance does not carry.
+func cohortAttrs(schemas map[string]providers.Schema, typeName string, schema providers.Schema) (candidates, context []string, ok bool) {
 	if schema.IdentitySchema == nil || schema.Block == nil {
-		return nil, false
+		return nil, nil, false
 	}
-	required, _ := identityAttrs(schema.IdentitySchema)
-	if len(required) == 0 {
-		return nil, false
+	candidates, context = identityCandidates(schemas, typeName, schema)
+	if len(candidates) == 0 {
+		return nil, nil, false
 	}
 
 	optional := false
-	for _, name := range required {
+	for _, name := range candidates {
 		arg, ok := schema.Block.Attributes[name]
 		switch {
 		case !ok || arg == nil:
 			// The provider computes it; no argument by that name exists.
-			return nil, false
+			return nil, nil, false
 		case arg.Required:
 			// Settled either way; it is the other attributes that decide.
 		case arg.Optional:
 			optional = true
 		default:
 			// Computed-only: configuration cannot name it, whatever it says.
-			return nil, false
+			return nil, nil, false
 		}
 	}
 	if !optional {
-		return nil, false
+		return nil, nil, false
 	}
-	return required, true
+	return candidates, context, true
 }

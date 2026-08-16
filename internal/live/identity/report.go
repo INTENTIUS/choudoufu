@@ -103,11 +103,10 @@ func Report(resourceTypes map[string]providers.Schema, signal *ConfigSignal) Der
 		if strict[typeName] {
 			continue
 		}
-		required, ok := cohortAttrs(schema)
+		required, context, ok := cohortAttrs(resourceTypes, typeName, schema)
 		if !ok {
 			continue
 		}
-		_, context := identityAttrs(schema.IdentitySchema)
 		_, inTable := DefaultTable[typeName]
 
 		admits := AdmitNeedsConfigSignal

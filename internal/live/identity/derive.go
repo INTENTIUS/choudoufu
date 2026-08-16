@@ -36,16 +36,18 @@ type DerivableType struct {
 	// Type is the resource type name.
 	Type string
 
-	// IdentityAttrs are the identity attributes the provider marks required
-	// for import, sorted. Each one is also the name of a required argument
-	// of this type.
+	// IdentityAttrs are the identity attributes that name one instance,
+	// sorted: the ones the provider marks required for import, or - when it
+	// requires nothing for import - the optional-for-import ones that are
+	// not context. See [identityCandidates] for that split and why it is
+	// the same question either way.
 	IdentityAttrs []string
 
-	// Context are the identity attributes the provider marks optional for
-	// import: the ones the provider can fill in itself rather than ones the
-	// configuration has to supply. In the AWS provider these are account_id
-	// and region, which is why they are excluded from the rule rather than
-	// counted against it.
+	// Context are the identity attributes the provider can fill in itself
+	// rather than ones the configuration has to supply. In the AWS provider
+	// these are account_id and region, which is why they are excluded from
+	// the rule rather than counted against it; [isContextAttr] derives the
+	// answer instead of naming them.
 	Context []string
 
 	// InTable is true when [DefaultTable] already covers this type, so a
@@ -74,8 +76,9 @@ type DerivableType struct {
 // mean.
 //
 // The rule is deliberately the strict one: a type qualifies only when its
-// identity schema has at least one required-for-import attribute and every
-// one of those attributes is the name of a *required* argument of the type.
+// identity schema names at least one attribute that identifies an instance
+// (see [identityCandidates]) and every one of those attributes is the name
+// of a *required* argument of the type.
 // An optional argument does not qualify it, and the reason is specific
 // rather than cautious. The AWS provider's legacy-SDK schemas mark
 // aws_s3_bucket's bucket argument Optional+Computed (because bucket_prefix
@@ -97,7 +100,7 @@ type DerivableType struct {
 func Derivable(resourceTypes map[string]providers.Schema) []DerivableType {
 	out := make([]DerivableType, 0, len(resourceTypes))
 	for typeName, schema := range resourceTypes {
-		if d, ok := derivable(typeName, schema); ok {
+		if d, ok := derivable(resourceTypes, typeName, schema); ok {
 			out = append(out, d)
 		}
 	}
@@ -120,16 +123,13 @@ func DerivableNew(resourceTypes map[string]providers.Schema) []DerivableType {
 	return out
 }
 
-func derivable(typeName string, schema providers.Schema) (DerivableType, bool) {
+func derivable(schemas map[string]providers.Schema, typeName string, schema providers.Schema) (DerivableType, bool) {
 	if schema.IdentitySchema == nil || schema.Block == nil {
 		return DerivableType{}, false
 	}
 
-	required, context := identityAttrs(schema.IdentitySchema)
+	required, context := identityCandidates(schemas, typeName, schema)
 	if len(required) == 0 {
-		// An identity schema with nothing required for import does not say
-		// what names the resource, so it cannot say the configuration names
-		// it either. Singleton account-wide settings look like this.
 		return DerivableType{}, false
 	}
 
@@ -148,4 +148,63 @@ func derivable(typeName string, schema providers.Schema) (DerivableType, bool) {
 		InTable:       inTable,
 		Admits:        AdmitSchema,
 	}, true
+}
+
+// identityCandidates splits a type's identity schema into the attributes
+// that name one instance of it and the attributes that are context - the
+// account, the project, the region, whatever the provider fills in from its
+// own ambient configuration. It is the one place either derivation rule
+// decides what "the identity attributes" means, so the strict rule and the
+// config-signal rule cannot disagree about it.
+//
+// An identity schema that requires something for import has already
+// answered: the required set names the instance and the optional set is
+// everything else, which [SynthesizeTypeIdentity] then puts to
+// [onlyContext] to make sure the "everything else" really is ambient. That
+// is the whole of today's behaviour and this returns it unchanged.
+//
+// An identity schema that requires *nothing* is the case this exists for.
+// Reading it as "the provider will not say what names one" and stopping
+// there is what the code did, and it is wrong twice over. It is wrong about
+// singletons, which do look like this - an account-wide setting whose
+// identity is nothing but account_id and region - but for those the answer
+// falls out anyway: every optional attribute is context, the candidate set
+// is empty, and both callers refuse exactly as before. And it is wrong
+// about the far commoner shape, an identity that is a client-supplied name
+// scoped by ambient context, which the provider marks entirely optional for
+// import because the ambient half can be defaulted and the ID grammar puts
+// them all in one string. google_workflows_workflow requires nothing and
+// offers name, project and region; project and region are context by the
+// same test aws_route53_record's set_identifier and aws_route's
+// destination_cidr_block fail, and what is left is the name.
+//
+// So the candidates are the optional-for-import attributes that are not
+// context, and the context is the rest. Nothing here admits anything: a
+// candidate still has to be an argument this type's own block carries, and
+// still has to be either required of every configuration ([derivable]) or
+// observed on every instance in this one ([cohortAttrs] plus
+// [ConfigSignal.NamingOfType]). Both bars are the ones a required-for-
+// import attribute already has to clear, and they are what keeps an
+// optional attribute some configuration omits from becoming a component
+// that would send a lookup at the wrong live object.
+//
+// schemas is the whole provider schema set, needed because [isContextAttr]
+// decides by corroboration across independently-authored types and cannot
+// answer from one schema alone. A caller that has only the one type's
+// schema therefore gets no context at all, every optional attribute counts
+// as a candidate, and the type is refused rather than admitted on a
+// half-read - which is the safe direction.
+func identityCandidates(schemas map[string]providers.Schema, typeName string, schema providers.Schema) (candidates, context []string) {
+	required, optional := identityAttrs(schema.IdentitySchema)
+	if len(required) > 0 {
+		return required, optional
+	}
+	for _, name := range optional {
+		if isContextAttr(schemas, typeName, schema, name) {
+			context = append(context, name)
+			continue
+		}
+		candidates = append(candidates, name)
+	}
+	return candidates, context
 }

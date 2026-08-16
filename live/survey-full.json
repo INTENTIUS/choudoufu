@@ -3840,6 +3840,7 @@
           "resource_arn"
         ]
       },
+      "admission": "needs-config-signal",
       "evidence": "identity schema requires nothing for import; untaggable and no native list resource, so no admission path recovers it"
     },
     {
