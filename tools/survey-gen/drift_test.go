@@ -82,11 +82,24 @@ var surveyExpectations = []surveyExpectation{
 			IdentitySchema int
 		}{Taggable: 847, ListResource: 195, IdentitySchema: 479},
 		Paths: map[string]int{
-			"marker":               789,
+			"marker":               787,
 			"moves to Ops":         702,
 			"client-named":         117,
 			"parent-derived":       47,
 			"list + content match": 24,
+			// 789 -> 787, and account-derived 20 -> 22: the identical
+			// staleness the note below describes, recurred, and caught the
+			// same way - a regeneration run and diffed rather than the test
+			// firing. aws_comprehend_entity_recognizer and
+			// aws_kinesisanalyticsv2_application both gained
+			// Component-built ARNs folding in the run's region and
+			// account-id, in the row-gen admission batches 3fd37e36cd /
+			// b2f7e0948d / 2fbbe2613e, none of which regenerated this
+			// artifact. classify.go reads that shape as account-derived.
+			// The gate cannot catch it while its expectations are
+			// hand-synced to the committed file; what it does catch is the
+			// next person regenerating and not noticing.
+			//
 			// aws_ecs_capacity_provider moved marker -> account-derived
 			// here: #150 (commit 0ca3115721) gave it IdentityAttrs whose
 			// ARN folds in the run's region and account-id, which
@@ -98,7 +111,7 @@ var surveyExpectations = []surveyExpectation{
 			// are hand-synced to the committed artifact rather than
 			// derived from a fresh run, so nothing caught it until a live
 			// regeneration was actually run and diffed against it.
-			"account-derived": 20,
+			"account-derived": 22,
 		},
 	},
 }
