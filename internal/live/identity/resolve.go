@@ -1125,6 +1125,14 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 		return r.resolveExpr(e.Expression, scope, ident)
 	case *hclsyntax.ConditionalExpr:
 		return r.resolveConditional(e, scope, ident)
+	case *hclsyntax.FunctionCallExpr:
+		// join(sep, R.*.attr) / one(R.*.attr) over a resource that provably
+		// expands to exactly one instance - see splat.go. Not applicable to
+		// any other call, which falls out of the switch to the generic
+		// "cannot be passed through functions or operators" refusal below.
+		if parts, ok, applicable := r.resolveArityCollapse(e, scope, ident); applicable {
+			return parts, ok
+		}
 	}
 
 	trav, diags := hcl.AbsTraversalForExpr(expr)
