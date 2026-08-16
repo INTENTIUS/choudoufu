@@ -155,6 +155,36 @@ func isRoleArg(argName string) bool {
 	return argName == "role" || strings.HasSuffix(argName, "_role_arn")
 }
 
+// ambiguousIdentityArgs is the set of argument names that more than one
+// type in identity.DefaultTable self-identifies by - computed from the
+// table itself, not hand-listed, so it grows and shrinks with admission
+// batches instead of needing a matching edit here. "function_name" has
+// exactly one owner in the table (aws_lambda_function) and is absent from
+// this set; "bucket" has ten and is a member; so does "name" itself, whose
+// 120-odd owners are why parentRef's fallback used to name it as a literal
+// before this census replaced the one name it happened to have been
+// written against with the whole family it turned out to belong to (issue
+// #231 - the #136 fix caught bare "name" only, missing seventeen other
+// argument names with the identical multi-owner shape, "bucket" and
+// "resource_arn" among the worst offenders at ten and seven owners).
+var ambiguousIdentityArgs = computeAmbiguousIdentityArgs()
+
+func computeAmbiguousIdentityArgs() map[string]bool {
+	owners := map[string]int{}
+	for t := range identity.DefaultTable {
+		if arg, ok := identityArgName(t); ok {
+			owners[arg]++
+		}
+	}
+	ambiguous := map[string]bool{}
+	for arg, n := range owners {
+		if n > 1 {
+			ambiguous[arg] = true
+		}
+	}
+	return ambiguous
+}
+
 // identityArgName returns the argument name that carries typeName's own
 // client-set identity, per internal/live/identity's table - the "identity
 // arguments named from the identity table" issue #56 asks for - when that
@@ -765,27 +795,40 @@ func looksLikeName(argName string) bool {
 // other - both keeping their own "name" placeholder instead of an
 // arbitrary, cycle-prone pick between them.
 //
-// # Bare "name" carries no target hint at all
+// # An ambiguous argument name carries no target hint at all
 //
 // "function_name", "cluster_name", "event_bus_name" each spell out WHICH
 // kind of sibling they mean, which is why a type that does not itself
 // compete for the identity argument can safely take the lexicographically-
-// first same-named candidate: at most one type in a cohort self-identifies
-// by "function_name", so there is nothing to pick between. Bare "name" has
-// no such property - 151 types in hashicorp/aws 6.59.0 self-identify by
-// plain "name" alone (aws_iam_group, aws_athena_workgroup,
-// aws_cloudwatch_event_bus among them), so a type that merely HAS a
-// required "name" argument without itself being one of those 151 (a
-// server-assigned type like aws_cognito_user_pool, whose real identity is
-// its minted id) collided with whichever self-named type happened to sort
-// first in the same cohort - aws_cognito_user_pool.name was wired to
-// aws_iam_group.name, an unrelated resource that only shares the word
-// "name" (found retiring #136's overrides: the override existed to give
-// the type back its own placeholder). The fix is not a new tiebreak but
-// dropping the case bare "name" has no business being in: unlike
-// "function_name", it never singles out a target type, so it takes the
-// same path as any other unmatched argument - selfType's own placeholder
-// (valueExpr's later tiers).
+// first same-named candidate: at most one type in identity.DefaultTable
+// self-identifies by "function_name", so there is nothing to pick between.
+// A name in ambiguousIdentityArgs has no such property - "bucket" alone has
+// ten owners in the table, "name" itself has over a hundred (aws_iam_group,
+// aws_athena_workgroup, aws_cloudwatch_event_bus among them) - so a type
+// that merely HAS a required argument by one of these names without itself
+// being one of the owners (a server-assigned type like
+// aws_cognito_user_pool, whose real identity is its minted id) collides
+// with whichever self-named type happened to sort first in the same
+// cohort - aws_cognito_user_pool.name was wired to aws_iam_group.name, an
+// unrelated resource that only shares the word "name" (found retiring
+// #136's overrides: the override existed to give the type back its own
+// placeholder).
+//
+// The first fix here (#136) only dropped the case bare "name" has no
+// business being in, on the premise that a qualified name like
+// "resource_arn" or "domain_name" was safe because it spelled out a
+// target. A census of identity.DefaultTable disproved that (#231): 17
+// other argument names have the identical multi-owner shape - two API
+// gateway generations both self-identify by "domain_name", RDS and
+// Redshift both by "cluster_identifier", and so on for 15 more. None of
+// those pairs has a full prefix relation to fall back on either, so the
+// alphabetic tiebreak was exactly as unsupported for them as it was for
+// bare "name". ambiguousIdentityArgs generalizes the rule from that one
+// literal to the property that actually matters - an argument name is
+// unsafe to hand out to the first same-named candidate whenever more than
+// one admitted type self-identifies by it, however the name is spelled -
+// so it takes the same path as any other unmatched argument - selfType's
+// own placeholder (valueExpr's later tiers).
 func (g *generator) parentRef(selfType, argName string) (parent resourceAddr, attrName string, ok bool) {
 	var candidates []string
 	for t := range g.byType {
@@ -803,12 +846,12 @@ func (g *generator) parentRef(selfType, argName string) (parent resourceAddr, at
 
 	selfIdArg, selfOwnsIt := identityArgName(selfType)
 	if !selfOwnsIt || selfIdArg != argName {
-		if argName == "name" {
+		if ambiguousIdentityArgs[argName] {
 			// No prefix relation to fall back on, and no target hint in
-			// the argument name either: selfType is not one of the 151
-			// types bare "name" identifies, so accepting a same-named
-			// candidate here has no evidence behind it beyond the word
-			// "name" occurring twice.
+			// the argument name either: selfType is not one of argName's
+			// several owners in identity.DefaultTable, so accepting a
+			// same-named candidate here has no evidence behind it beyond
+			// the name occurring more than once.
 			return resourceAddr{}, "", false
 		}
 		// selfType has no competing claim on argName, and argName itself

@@ -37,10 +37,13 @@ var typeOverridesDatabases = map[string]typeOverride{
 	// #175 ratification batch, 2026-08-15.
 	"aws_redshift_endpoint_access": {
 		Reasons: []string{
-			`endpoint_name is validated against a 30-character ceiling the wire schema does not express (validate: "expected length of endpoint_name to be in the range (1 - 30)"), and the generic tofu-<cohort>-cohort-<type> literal is 46 characters; shortened here, still cohort-prefixed and unique in the run`,
+			`endpoint_name is validated against a 30-character ceiling the wire schema does not express (validate: "expected length of endpoint_name to be in the range (1 - 30)"), and the generic tofu-<cohort>-cohort-<type> literal is 46 characters; shortened here, still cohort-prefixed and unique in the run. cluster_identifier is not a parentRef candidate: it is one of the argument names more than one admitted type self-identifies by - aws_rds_cluster and aws_redshift_cluster both self-identify by it (issue #231) - so parentRef correctly refuses to guess between them rather than picking whichever happens to be a candidate in this cohort's own render. Only aws_redshift_cluster is real Redshift, which is what this endpoint access actually needs; wired to it by hand instead of the generic placeholder the refusal leaves behind, which names no real cluster.`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("endpoint_name", exprTokens(`"tofu-databases-endpoint"`))
+			if cluster, ok := g.byType["aws_redshift_cluster"]; ok {
+				body.SetAttributeRaw("cluster_identifier", exprTokens(fmt.Sprintf("%s.cluster_identifier", cluster)))
+			}
 		},
 	},
 	"aws_redshift_cluster": {
