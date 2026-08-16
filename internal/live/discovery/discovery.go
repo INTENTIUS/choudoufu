@@ -1779,11 +1779,24 @@ func bind(req Request, decl *declared, res *Result) tfdiags.Diagnostics {
 		// instances: pre-instance-key writers. Never bound by guess, and
 		// never resolvable by slots either - a for_each instance's key is
 		// its identity, not a position in a fungible set.
+		//
+		// This is an ENUMERATION of a map a moved block aliases: since
+		// GitHub issue #198, d.blocks files one *declaredBlock under its
+		// own address AND under every address a moved block says it used to
+		// have, so ranging the map visits the same block once per name it
+		// answers to. Reported per name, one live resource carrying one
+		// block-level marker produced two identical problems - the same
+		// shape as the two the moved work's own author found in d.types and
+		// d.counts, in the third and last read of that kind. Keyed on the
+		// block pointer rather than on blk.addr because the pointer is what
+		// the aliases actually share.
+		reported := make(map[*declaredBlock]bool)
 		for _, blockAddr := range sortedBlockAddrs(decl.blocks[typeName]) {
 			blk := decl.blocks[typeName][blockAddr]
-			if len(blk.claimants) == 0 {
+			if len(blk.claimants) == 0 || reported[blk] {
 				continue
 			}
+			reported[blk] = true
 			diags = diags.Append(problemDiag(res, Problem{
 				Kind:     ProblemNeedsSlotMarkers,
 				TypeName: typeName,
