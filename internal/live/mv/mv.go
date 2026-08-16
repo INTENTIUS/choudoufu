@@ -19,6 +19,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -199,8 +200,10 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	res.Anchor = anchor
 
 	var rc *configs.Resource
+	var rcCfg *configs.Config
 	if modCfg, ok := identity.ConfigForModule(req.Config, anchor.Module); ok && modCfg.Module != nil {
 		rc = modCfg.Module.ManagedResources[anchor.Resource.Resource.String()]
+		rcCfg = modCfg
 	}
 	if rc == nil {
 		// anchorAddr only returns declared addresses, so this is a bug.
@@ -210,7 +213,7 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			fmt.Sprintf("%s is declared per identity resolution, but no resource block was found for it in the configuration. This is a bug.", anchor),
 		))
 	}
-	providerAddr := providerConfigAddr(rc, anchor.Module.Module())
+	providerAddr := providerscope.ResolveResource(rcCfg, rc)
 	provider, err := req.Providers.ConfiguredProvider(ctx, providerAddr)
 	if err != nil {
 		return res, diags.Append(tfdiags.Sourceless(
@@ -430,16 +433,6 @@ func resolutionFor(req Request, addr addrs.AbsResourceInstance) (identity.Resolu
 		}
 	}
 	return identity.Resolution{}, false
-}
-
-// providerConfigAddr is the absolute provider configuration a resource block
-// uses, modPath being the static module the block itself is declared in.
-func providerConfigAddr(rc *configs.Resource, modPath addrs.Module) addrs.AbsProviderConfig {
-	return addrs.AbsProviderConfig{
-		Module:   modPath,
-		Provider: rc.Provider,
-		Alias:    rc.ProviderConfigAddr().Alias,
-	}
 }
 
 func resourceSchema(ctx context.Context, provider providers.Interface, providerAddr addrs.AbsProviderConfig, typeName string) (providers.Schema, tfdiags.Diagnostics) {
