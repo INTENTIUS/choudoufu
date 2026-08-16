@@ -228,6 +228,62 @@ type ArgumentRefEntry struct {
 	// instead). Always false for a Required argument: omission is not a
 	// state a Required argument's own value can be in.
 	ServerAssignedIfAbsent bool `json:"server_assigned_if_absent,omitempty"`
+
+	// CloudDefault is set when the bullet's own prose states that omitting
+	// this argument selects a property of the cloud the run is pointed at
+	// rather than a value the configuration could name: "account-id" for
+	// "If omitted, this defaults to the AWS Account ID", "region" for
+	// "Defaults to the Region set in the provider configuration". It is the
+	// missing half of a cloud-derived identity component - the account is
+	// what the object is named under when the argument is absent, and the
+	// argument is what it is named under when the argument is present - and
+	// tools/row-gen's mergeCloudDefault reads it to fill in
+	// identity.Component.Attrs on a component that already carries
+	// identity.Component.Cloud.
+	//
+	// The values are deliberately identity.CloudAccountID's and
+	// identity.CloudRegion's own strings, so the merge is a lookup rather
+	// than a translation table this file and that one both have to agree
+	// about. Always empty for a Required argument: a required argument has
+	// no omitted case to default from. See cloudDefault for the test.
+	CloudDefault string `json:"cloud_default,omitempty"`
+}
+
+// accountDefaultRe matches the doc's own statement that omitting an argument
+// selects the caller's own AWS account ID, in the three ways the provider's
+// docs phrase it across v6.59.0: "If omitted, this defaults to the AWS
+// Account ID", "Defaults to the account ID the AWS provider is currently
+// connected to", "If none is supplied, the AWS account ID is used by
+// default". The default clause and the account clause have to be in the same
+// phrase, which is what keeps this off a bullet that merely describes an
+// account-valued argument with no default at all (aws_codeartifact_*'s
+// domain_owner, "The account number of the AWS account that owns the
+// domain", is such a bullet, and it is correctly not a cloud default: the
+// docs do not say what omitting it does).
+var accountDefaultRe = regexp.MustCompile(`(?i)(defaults?\s+to\s+(the\s+)?(aws\s+)?account\s*id|(aws\s+)?account\s*id\s+is\s+used\s+by\s+default)`)
+
+// regionDefaultRe is accountDefaultRe for the region: the phrase has to name
+// the provider, which is what separates the AWS provider's per-resource
+// region override ("Defaults to the Region set in the provider
+// configuration", on 1488 of the 1699 v6.59.0 resource docs, plus four
+// wordings of the same sentence) from an unrelated region-valued default
+// that happens to start the same way ("Defaults to the region's default
+// VPC", which names no provider before the sentence ends).
+var regionDefaultRe = regexp.MustCompile(`(?i)defaults?\s+to\s+the\s+region\b[^.]{0,60}\bprovider\b`)
+
+// cloudDefault reports which cloud property an Argument Reference bullet's
+// full text documents as the value the provider uses when the configuration
+// omits the argument, or "" for the overwhelming majority of bullets that
+// document no such thing.
+func cloudDefault(body string) string {
+	switch {
+	case accountDefaultRe.MatchString(body):
+		return "account-id"
+	case regionDefaultRe.MatchString(body):
+		return "region"
+	default:
+		return ""
+	}
 }
 
 // serverAssignedOmitRe matches the doc's own statement that an argument's
@@ -330,12 +386,16 @@ func argumentReferenceEntries(doc string) []ArgumentRefEntry {
 		}
 		seen[name] = true
 		required := strings.HasPrefix(strings.TrimSpace(paren), "Required")
-		out = append(out, ArgumentRefEntry{
+		entry := ArgumentRefEntry{
 			Name:                   name,
 			Required:               required,
 			ForceNew:               forceNewPhraseRe.MatchString(paren),
 			ServerAssignedIfAbsent: !required && serverAssignedIfAbsent(bodies[name]),
-		})
+		}
+		if !required {
+			entry.CloudDefault = cloudDefault(bodies[name])
+		}
+		out = append(out, entry)
 	}
 	return out
 }

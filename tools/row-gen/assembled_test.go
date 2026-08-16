@@ -6,7 +6,6 @@
 package main
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -142,7 +141,12 @@ func TestProposedFields_AssembledMatchesRatifiedComponents(t *testing.T) {
 		if serverAssigned || claimed {
 			t.Errorf("%s: serverAssigned=%v claimedAttrs=%v, want false/false", tf, serverAssigned, claimed)
 		}
-		if !reflect.DeepEqual(components, ratified.Components) {
+		// componentsEqual rather than reflect.DeepEqual: it is the relation
+		// convergence itself measures, and it is the honest one here,
+		// because the ratified row carries two fields emit.go merges in from
+		// live/import-grammar.json that no proposal bucket ever claims - see
+		// stripMergedFields. Every other field is compared in full.
+		if !componentsEqual(components, ratified.Components) {
 			t.Errorf("%s: components differ from the ratified row\n got %+v\nwant %+v", tf, components, ratified.Components)
 		}
 	}

@@ -181,6 +181,14 @@ type argumentRefEntry struct {
 	// the field this evidence feeds at emit time (emit.go's
 	// mergeServerAssigned).
 	ServerAssignedIfAbsent bool `json:"server_assigned_if_absent"`
+
+	// CloudDefault mirrors tools/importdocs-gen/parse.go's ArgumentRefEntry
+	// field of the same name: the bullet's own prose states that omitting
+	// this Optional argument selects a property of the cloud the run is
+	// pointed at, spelled with identity.CloudAccountID's and
+	// identity.CloudRegion's own string values. See emit.go's
+	// mergeCloudDefault, the merge this evidence feeds.
+	CloudDefault string `json:"cloud_default"`
 }
 
 type importGrammarArtifact struct {

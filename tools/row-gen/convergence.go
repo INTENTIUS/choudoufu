@@ -374,22 +374,35 @@ func componentsEqual(a, b []identity.Component) bool {
 	if len(a) == 0 && len(b) == 0 {
 		return true
 	}
-	return reflect.DeepEqual(stripServerAssignedIfAbsent(a), stripServerAssignedIfAbsent(b))
+	return reflect.DeepEqual(stripMergedFields(a), stripMergedFields(b))
 }
 
-// stripServerAssignedIfAbsent returns a copy of comps with every
-// [identity.Component.ServerAssignedIfAbsent] cleared, for componentsEqual's
-// own comparison. Never mutates its argument: a is [identity.DefaultTable]'s
-// own slice by way of compareOne's ratified parameter, and mutating it in
-// place would corrupt the table every other caller in this process still
-// reads.
-func stripServerAssignedIfAbsent(comps []identity.Component) []identity.Component {
+// stripMergedFields returns a copy of comps with every field emit.go merges
+// in from live/import-grammar.json cleared, for componentsEqual's own
+// comparison: [identity.Component.ServerAssignedIfAbsent] (#190) and
+// [identity.Component.Attrs] on a component that carries a
+// [identity.Component.Cloud] value (#241, emit.go's mergeCloudDefault).
+// Neither is a classification judgment any proposal bucket makes -
+// proposedFields' bucketAssembled switch renders a cloud slot as a Cloud
+// component and nothing else, by construction - so comparing either would
+// fail every ratified row the merge touches for a field compareOne's caller
+// never asked classifyAll to propose. Only the Attrs of a cloud-bearing
+// component are cleared; an ordinary argument component's Attrs is the
+// classifier's own claim and is compared in full.
+//
+// Never mutates its argument: a is [identity.DefaultTable]'s own slice by
+// way of compareOne's ratified parameter, and mutating it in place would
+// corrupt the table every other caller in this process still reads.
+func stripMergedFields(comps []identity.Component) []identity.Component {
 	if len(comps) == 0 {
 		return comps
 	}
 	out := make([]identity.Component, len(comps))
 	for i, c := range comps {
 		c.ServerAssignedIfAbsent = false
+		if c.Cloud != identity.CloudNone {
+			c.Attrs = nil
+		}
 		out[i] = c
 	}
 	return out

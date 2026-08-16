@@ -726,11 +726,23 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		}, true
 	}
 
-	// Cloud properties are checked before anything is read from the resource
-	// body, so that a type this run cannot name gets the one honest answer -
-	// "the account is not known here" - rather than an error about some
-	// argument that would have been fine had the account been known.
-	if missing, ok := r.missingCloudValue(entry); ok {
+	attrs, ok := r.identityArgs(rc, entry)
+	if !ok {
+		return Resolution{}, false
+	}
+
+	scope := exp.scope(addr.Resource.Key)
+
+	// Cloud properties are checked before anything else in the body is
+	// interpreted, so that a type this run cannot name gets the one honest
+	// answer - "the account is not known here" - rather than an error about
+	// some argument that would have been fine had the account been known.
+	// The body is decoded first only so that a component carrying BOTH a
+	// cloud property and the argument the provider documents as defaulting
+	// to it (a Glue catalog_id defaults to the caller's own account) can be
+	// answered by the configuration instead: see [Component.Attrs] on a
+	// cloud-bearing component, and cloudComponentAttr below.
+	if missing, ok := r.missingCloudValue(entry, attrs, scope, addr); ok {
 		return Resolution{
 			Addr:      addr,
 			Class:     ClassNeedsDiscovery,
@@ -740,12 +752,6 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		}, true
 	}
 
-	attrs, ok := r.identityArgs(rc, entry)
-	if !ok {
-		return Resolution{}, false
-	}
-
-	scope := exp.scope(addr.Resource.Key)
 	var parts []Part
 	// The same pieces again, split by the identity attribute each component
 	// supplies. It is what makes an import ask the provider for
@@ -776,7 +782,25 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	failed := false
 	for _, comp := range entry.Components {
 		if comp.Cloud != CloudNone {
-			// Present: missingCloudValue already refused the alternative.
+			// A cloud-bearing component may also carry the argument the
+			// provider documents as defaulting to that same cloud property.
+			// The configuration's own value wins when it has one, because
+			// that is what the object will actually be named: a Glue
+			// catalog_id pointed at another account's Data Catalog names
+			// that catalog, not this run's account. The cloud value is the
+			// documented fallback for the omitted case, and
+			// missingCloudValue has already refused the case where neither
+			// side has anything to offer.
+			if attr := r.cloudComponentAttr(comp, attrs, scope, addr); attr != nil {
+				got, ok := r.resolveExpr(attr.Expr, scope, r.identifier(addr, attr.Name, attr.Range))
+				if !ok {
+					failed = true
+					continue
+				}
+				parts = append(parts, got...)
+				addTo(comp.identityAttrFor(attr.Name), got)
+				continue
+			}
 			v, _ := r.cloud.value(comp.Cloud)
 			got := []Part{{Literal: v}}
 			parts = append(parts, got...)
@@ -989,10 +1013,15 @@ func classify(addr addrs.AbsResourceInstance, parts []Part, attrs []AttrFormula,
 }
 
 // missingCloudValue reports the first cloud property this entry's identity
-// needs that the run was not given, in component order.
-func (r *resolver) missingCloudValue(entry TypeIdentity) (CloudValue, bool) {
+// needs that neither the run nor the configuration supplied, in component
+// order. A component the configuration answers (see cloudComponentAttr) is
+// not missing anything, whether or not the run was told the cloud value.
+func (r *resolver) missingCloudValue(entry TypeIdentity, attrs hcl.Attributes, scope instScope, addr addrs.AbsResourceInstance) (CloudValue, bool) {
 	for _, comp := range entry.Components {
 		if comp.Cloud == CloudNone {
+			continue
+		}
+		if r.cloudComponentAttr(comp, attrs, scope, addr) != nil {
 			continue
 		}
 		if _, ok := r.cloud.value(comp.Cloud); !ok {
@@ -1000,6 +1029,38 @@ func (r *resolver) missingCloudValue(entry TypeIdentity) (CloudValue, bool) {
 		}
 	}
 	return CloudNone, false
+}
+
+// cloudComponentAttr reports the resource argument that supplies a
+// cloud-bearing component's value for this instance, or nil when the
+// configuration leaves the provider's documented cloud default to stand.
+//
+// A component carries both a [Component.Cloud] property and [Component.Attrs]
+// when the provider's own Argument Reference says the argument defaults to
+// that property - "If omitted, this defaults to the AWS Account ID" on a Glue
+// catalog_id, "Defaults to the Region set in the provider configuration" on a
+// region override. Both halves are real identity: the account is what the
+// object is named under when the argument is absent, and the argument is what
+// it is named under when the argument is present, which is the whole point of
+// a cross-account Data Catalog. So the choice has to be made per instance,
+// here, rather than by modelling the component as one or the other.
+//
+// An argument written but evaluating to a clean null is an absence, not a
+// value - `catalog_id = var.cross_account ? var.catalog : null` is the same
+// conditional spelling [resolver.resolveInstance] already handles for
+// name/name_prefix - so it falls back to the cloud default rather than
+// refusing. The peek raises no diagnostic of its own: an expression that
+// fails to evaluate is reported as "stated", so the ordinary resolution path
+// reports it exactly as it reports any other identity argument.
+func (r *resolver) cloudComponentAttr(comp Component, attrs hcl.Attributes, scope instScope, addr addrs.AbsResourceInstance) *hcl.Attribute {
+	attr := firstPresent(attrs, comp.Attrs)
+	if attr == nil {
+		return nil
+	}
+	if val, diags := r.evalPure(attr.Expr, scope, r.identifier(addr, attr.Name, attr.Range)); !diags.HasErrors() && val.IsNull() {
+		return nil
+	}
+	return attr
 }
 
 // cloudReason is the needs-discovery explanation for an identity that embeds

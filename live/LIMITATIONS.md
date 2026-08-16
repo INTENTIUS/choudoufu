@@ -3083,6 +3083,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_emr_studio_session_mapping` | `aws_emr_studio` | no (report-only) |
 | `aws_glue_catalog_table` | `aws_glue_catalog` | no (report-only) |
 | `aws_glue_catalog_table_optimizer` | `aws_glue_catalog` | no (report-only) |
+| `aws_glue_data_catalog_encryption_settings` | `aws_glue_catalog` | no (report-only) |
 | `aws_glue_user_defined_function` | `aws_glue_catalog` | no (report-only) |
 | `aws_guardduty_member` | `aws_guardduty_detector` | no (report-only) |
 | `aws_guardduty_organization_configuration` | `aws_guardduty_detector` | no (report-only) |
@@ -3163,7 +3164,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_workspacesweb_user_access_logging_settings_association` | `aws_workspacesweb_user_access_logging_settings` | no (report-only) |
 | `aws_workspacesweb_user_settings_association` | `aws_workspacesweb_user_settings` | no (report-only) |
 
-**Total.** 122 types swept via a parent read.
+**Total.** 123 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child. Whether it
@@ -3238,8 +3239,7 @@ per-type reasoning as it stands.
 `aws_elasticache_global_replication_group`,
 `aws_emr_security_configuration`, `aws_fsx_s3_access_point_attachment`,
 `aws_globalaccelerator_endpoint_group`, `aws_globalaccelerator_listener`,
-`aws_glue_classifier`, `aws_glue_data_catalog_encryption_settings`,
-`aws_glue_security_configuration`,
+`aws_glue_classifier`, `aws_glue_security_configuration`,
 `aws_guardduty_organization_admin_account`, `aws_iam_group`,
 `aws_iam_group_policy`, `aws_inspector2_delegated_admin_account`,
 `aws_inspector2_member_association`, `aws_inspector_assessment_target`,
