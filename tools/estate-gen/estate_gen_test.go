@@ -43,6 +43,12 @@ var lambdaTypes = []string{
 	"aws_lambda_event_source_mapping",
 	"aws_lambda_function",
 	"aws_lambda_layer_version",
+	// Admitted by wall/rejected3's parity batch, which verified 65 rejected
+	// types against the v6.59.0 doc cache and admitted 28. This type joins the
+	// lambda cohort by the same defaultCohortTypes rule every other member
+	// does - the list is derived from the admission table, so admitting a
+	// aws_lambda_* type necessarily grows it.
+	"aws_lambda_layer_version_permission",
 	"aws_lambda_permission",
 }
 

@@ -1190,10 +1190,10 @@ refused, and each says so in its own entry.
 |---|---|---|---|---|---|---|
 | 111 | 1329 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
 | 106 | 2406 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
-| 73 | 3285 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
+| 71 | 3277 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
 | 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
-| 52 | 365 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
 | 51 | 104 | stamp | Unmarked apply of a marker-only resource | error | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
+| 50 | 349 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
 | 44 | 169 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
 | 43 | 1130 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
 | 34 | 271 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
@@ -1402,15 +1402,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 73 configurations in the measured corpus, at 3285 sites.
-
-#### Dynamic value in static context
-
-**What.** An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.
-
-**Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
-
-**How often.** Blocked 52 configurations in the measured corpus, at 365 sites.
+**How often.** Blocked 71 configurations in the measured corpus, at 3277 sites.
 
 #### Unmarked apply of a marker-only resource
 
@@ -1419,6 +1411,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** The stamp pass, raised by `internal/live/stamp`.
 
 **How often.** Blocked 51 configurations in the measured corpus, at 104 sites.
+
+#### Dynamic value in static context
+
+**What.** An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.
+
+**Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
+
+**How often.** Blocked 50 configurations in the measured corpus, at 349 sites.
 
 #### Unresolvable identity
 

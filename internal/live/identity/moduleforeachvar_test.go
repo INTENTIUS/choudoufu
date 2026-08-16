@@ -40,7 +40,7 @@ func TestModuleCallForEachVar(t *testing.T) {
 
 	assertClassifications(t, result, map[string]string{
 		`module.user["alice"].aws_iam_user.this`: `CONCRETE alice-admin`,
-		`module.user["bob"].aws_iam_user.this`:    `CONCRETE bob-reader`,
+		`module.user["bob"].aws_iam_user.this`:   `CONCRETE bob-reader`,
 	})
 }
 

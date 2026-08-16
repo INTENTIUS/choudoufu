@@ -3942,27 +3942,14 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 3,
-      "sites": 4,
+      "instances": 4,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
-            "sites": 1,
-            "categories": {
-              "other": 1
-            }
-          },
-          {
-            "layer": "identity",
-            "id": "Unable to compute static value",
-            "sites": 1
-          },
           {
             "layer": "stamp",
             "id": "Unmarked apply of a marker-only resource",
@@ -4437,8 +4424,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 25,
-      "sites": 306,
+      "instances": 28,
+      "sites": 300,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -7564,27 +7551,14 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 41,
+      "sites": 25,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 54,
+      "shadowed": 73,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
-            "sites": 12,
-            "categories": {
-              "managed_resource": 12
-            }
-          },
-          {
-            "layer": "identity",
-            "id": "Unable to compute static value",
-            "sites": 4
-          },
           {
             "layer": "lint",
             "id": "unadmitted-type",
@@ -9259,8 +9233,8 @@
       "what": "Something an identity argument, a count or a for_each depends on could not be computed. It is the trailing half of another refusal: the diagnostic before it names what actually failed, and this one names the chain that led there.",
       "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
       "raised_by": "internal/configs",
-      "configs": 73,
-      "sites": 3285,
+      "configs": 71,
+      "sites": 3277,
       "examples": [
         ".corpus/alb/main.tf:88",
         ".corpus/alb/main.tf:231",
@@ -9350,24 +9324,6 @@
       "registered": true
     },
     {
-      "layer": "identity",
-      "id": "Dynamic value in static context",
-      "title": "Dynamic value in static context",
-      "what": "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.",
-      "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
-      "raised_by": "internal/configs",
-      "configs": 52,
-      "sites": 365,
-      "examples": [
-        ".corpus/alb/examples/complete-alb/main.tf:195",
-        ".corpus/alb/examples/complete-alb/main.tf:195",
-        ".corpus/alb/examples/complete-alb/main.tf:195",
-        ".corpus/alb/examples/complete-alb/main.tf:196",
-        ".corpus/alb/examples/complete-alb/main.tf:196"
-      ],
-      "registered": true
-    },
-    {
       "layer": "stamp",
       "id": "Unmarked apply of a marker-only resource",
       "title": "Unmarked apply of a marker-only resource",
@@ -9382,6 +9338,24 @@
         ".corpus/autoscaling/main.tf:21",
         ".corpus/autoscaling/main.tf:21",
         ".corpus/autoscaling/main.tf:21"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Dynamic value in static context",
+      "title": "Dynamic value in static context",
+      "what": "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.",
+      "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
+      "raised_by": "internal/configs",
+      "configs": 50,
+      "sites": 349,
+      "examples": [
+        ".corpus/alb/examples/complete-alb/main.tf:195",
+        ".corpus/alb/examples/complete-alb/main.tf:195",
+        ".corpus/alb/examples/complete-alb/main.tf:195",
+        ".corpus/alb/examples/complete-alb/main.tf:196",
+        ".corpus/alb/examples/complete-alb/main.tf:196"
       ],
       "registered": true
     },
@@ -10796,8 +10770,8 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 3621,
-    "sites": 10070,
+    "instances": 3625,
+    "sites": 10046,
     "refusals_fired": 25,
     "refusals_in_set": 125,
     "configs_without_schemas": 3,
@@ -10820,8 +10794,8 @@
       "loaded": 144,
       "blocked": 119,
       "clean": 25,
-      "instances": 2335,
-      "sites": 2567,
+      "instances": 2336,
+      "sites": 2549,
       "reads_as": "rate"
     },
     {
@@ -10830,8 +10804,8 @@
       "loaded": 74,
       "blocked": 71,
       "clean": 3,
-      "instances": 554,
-      "sites": 7462,
+      "instances": 557,
+      "sites": 7456,
       "reads_as": "ranking"
     }
   ],
@@ -10850,7 +10824,7 @@
       },
       {
         "class": "admissions-only",
-        "configs": 20
+        "configs": 21
       },
       {
         "class": "data-read-eligible",
@@ -10858,7 +10832,7 @@
       },
       {
         "class": "language-blocked",
-        "configs": 66
+        "configs": 65
       },
       {
         "class": "unreadable",
