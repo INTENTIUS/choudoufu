@@ -285,6 +285,80 @@ func TestCheck(t *testing.T) {
 			want: nil,
 		},
 		{
+			// GitHub issue #217: an injective operation (addition, a
+			// conditional whose condition is index-independent) wrapping a
+			// non-injective one (modulo, integer division, min/max,
+			// multiplication by an unprovable or zero operand, both
+			// operands of a binary op referencing the index, a general
+			// function, a bare comparison) must still refuse - safety is
+			// recursive over the whole expression, not decided at the
+			// outermost node. Before the fix, checkCountIndex had no case
+			// for *hclsyntax.BinaryOpExpr at all and fell through as safe;
+			// this is the corpus-shaped fixture for that inversion. See
+			// testdata/count-index-pure-scalar for the mirror-image shapes
+			// that do stay unrefused.
+			name: "count.index wrapped in a nonlinear or unproven operation is still caught",
+			dir:  "testdata/count-index-nonlinear",
+			want: []wantIssue{
+				{
+					rule:      RuleCountIndex,
+					construct: "count.index in aws_network_acl_rule.modulo",
+					file:      "testdata/count-index-nonlinear/main.tf",
+					line:      25,
+				},
+				{
+					rule:      RuleCountIndex,
+					construct: "count.index in aws_network_acl_rule.integer_division",
+					file:      "testdata/count-index-nonlinear/main.tf",
+					line:      40,
+				},
+				{
+					rule:      RuleCountIndex,
+					construct: "count.index in aws_network_acl_rule.bounded",
+					file:      "testdata/count-index-nonlinear/main.tf",
+					line:      54,
+				},
+				{
+					rule:      RuleCountIndex,
+					construct: "count.index in aws_network_acl_rule.multiply_by_variable",
+					file:      "testdata/count-index-nonlinear/main.tf",
+					line:      71,
+				},
+				{
+					rule:      RuleCountIndex,
+					construct: "count.index in aws_network_acl_rule.multiply_by_zero",
+					file:      "testdata/count-index-nonlinear/main.tf",
+					line:      92,
+				},
+				{
+					// count.index - count.index: both operands reference
+					// the index, so it is reported once per traversal.
+					rule:      RuleCountIndex,
+					construct: "count.index in aws_network_acl_rule.both_operands_reference_index",
+					file:      "testdata/count-index-nonlinear/main.tf",
+					line:      110,
+				},
+				{
+					rule:      RuleCountIndex,
+					construct: "count.index in aws_network_acl_rule.both_operands_reference_index",
+					file:      "testdata/count-index-nonlinear/main.tf",
+					line:      110,
+				},
+				{
+					rule:      RuleCountIndex,
+					construct: "count.index in aws_route53_record.format_function",
+					file:      "testdata/count-index-nonlinear/main.tf",
+					line:      125,
+				},
+				{
+					rule:      RuleCountIndex,
+					construct: "count.index in aws_network_acl_rule.comparison",
+					file:      "testdata/count-index-nonlinear/main.tf",
+					line:      142,
+				},
+			},
+		},
+		{
 			// The mirror image of the previous case, and the point of #187's
 			// narrowing: count.index in an argument identity.LookupType does
 			// not mark as identity-bearing for the resource's own type is no
