@@ -374,8 +374,17 @@ comment_out_resource() {
 # value, version, ...). Empty (nothing printed) if the address has no diff at
 # all.
 plan_block() {
-  local out="$1" addr="$2" start
-  start="$(grep -n -F -- "# $addr will be" <<< "$out" | head -n1 | cut -d: -f1)"
+  local out="$1" addr="$2" start matches
+  # Two steps, not "grep ... | head -n1 | cut -d: -f1": that pipes grep's
+  # output straight into a live process (head) that closes its stdin after
+  # the first line. If the header matches more than once (an adversarial or
+  # just very large plan), head's early exit signals grep with SIGPIPE while
+  # grep still has output queued, and the pipeline dies at exit 141 under
+  # pipefail (#232). Command substitution below reads grep to EOF with no
+  # consumer able to close it early, so the herestring-fed head after it has
+  # no upstream process left to kill.
+  matches="$(grep -n -F -- "# $addr will be" <<< "$out")"
+  start="$(head -n1 <<< "$matches" | cut -d: -f1)"
   [ -n "$start" ] || return 0
   tail -n "+$start" <<< "$out" | awk '
     NR == 1 { print; next }
@@ -705,11 +714,19 @@ echo "  LIVE_E2E_EXACTNESS: $LIVE_E2E_EXACTNESS"
 echo "=== 1. Floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
 docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "floci" "docker run for $FLOCI_NAME failed"
+# Captured before grep, not "curl | grep -q": grep -q exits (and closes its
+# stdin) the instant it finds a match, same early-exit-consumer shape as the
+# head/awk sites in #232, so a large enough health response could SIGPIPE
+# curl. The response here is a small fixed JSON object well under one pipe
+# buffer in practice, but capturing it first costs nothing and removes the
+# live pipe entirely.
 for _ in $(seq 1 45); do
-  curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null | grep -q '"ec2"' && break
+  HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)"
+  grep -q '"ec2"' <<< "$HEALTH" && break
   sleep 2
 done
-curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null | grep -q '"ec2"' \
+HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)"
+grep -q '"ec2"' <<< "$HEALTH" \
   || fail "floci" "floci did not come up healthy (ec2) at $ENDPOINT"
 
 export AWS_ENDPOINT_URL="$ENDPOINT"
@@ -800,7 +817,13 @@ else
     grep -q "will be destroyed" <<< "$BLOCK" \
       && fail "slot-migration" "$ADDR is proposed as a destroy: $BLOCK"
 
-    SLOT="$(grep -oE '"tofu-slot"[[:space:]]*=[[:space:]]*"[0-9]+"' <<< "$BLOCK" | head -n1 | grep -oE '[0-9]+')"
+    # Same two-step shape as plan_block above and for the same reason
+    # (#232): the first grep can match more than once inside a resource
+    # block, so piping it straight into "head -n1 | grep ..." risks SIGPIPE
+    # on that first grep once head closes early. Capture its full output via
+    # command substitution first, then feed head/grep from a herestring.
+    SLOT_MATCHES="$(grep -oE '"tofu-slot"[[:space:]]*=[[:space:]]*"[0-9]+"' <<< "$BLOCK")"
+    SLOT="$(head -n1 <<< "$SLOT_MATCHES" | grep -oE '[0-9]+')"
     [ -n "$SLOT" ] || fail "slot-migration" "$ADDR's diff proposes no tofu-slot tag: $BLOCK"
 
     ALLOC_ID="$(awk -v est="stateless-e2e" -v want="aws_eip.pool:$i" '$2==est && $3==want {print $1; exit}' <<< "$LIVE_EIPS")"
