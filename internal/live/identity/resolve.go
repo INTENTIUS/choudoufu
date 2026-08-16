@@ -2210,6 +2210,13 @@ type expansion struct {
 
 	// eachValues holds each.value per key for a for_each over a static
 	// collection. Nil when for_each iterates over another resource.
+	//
+	// It is TOTAL over keys for an expansion built by evaluating the
+	// for_each expression whole, and PARTIAL for a keyOnly expansion, where
+	// a key is present only if that one key's own value expression
+	// evaluated on its own. Absence and cty.NilVal must therefore not be
+	// conflated: [expansion.scope] reads presence, so a key this map does
+	// not mention keeps each.value unbound and refusing.
 	eachValues map[addrs.InstanceKey]cty.Value
 
 	// eachParent is set when for_each iterates over another managed
@@ -2221,10 +2228,10 @@ type expansion struct {
 	// (staticForEachKeys in localvalue.go): the for_each source is an
 	// object constructor whose keys are statically known but whose values
 	// are not - typically a managed resource's attribute reached through
-	// one of them - so eachValues is deliberately left nil rather than
-	// populated with a guess. each.key resolves normally, at any depth
+	// one of them - so eachValues is left unpopulated for those keys rather
+	// than filled with a guess. each.key resolves normally, at any depth
 	// (directly, or reached through a local's own definition - #213);
-	// each.value, wherever it is read, is not covered by
+	// each.value for such a key is not covered by
 	// [instances.RepetitionData.EachValue] and refuses cleanly with
 	// "Dynamic value in static context" ([configs.StaticEvaluator]'s own
 	// diagnostic, not a recovered panic - see [resolver.evalPure]).
@@ -2278,16 +2285,25 @@ func (e *expansion) scope(key addrs.InstanceKey) instScope {
 			return sc
 		}
 		sc.repetition = instances.RepetitionData{CountIndex: cty.NumberIntVal(int64(idx))}
+	case e.keyOnly:
+		// Tested before eachValues, because a keyOnly expansion may carry
+		// values for SOME of its keys: the key set was proven structurally,
+		// and separately, key by key, some of the value expressions beside
+		// those keys evaluated on their own. A key with a proven value gets
+		// it; a key without one is left exactly as it was before those
+		// values were carried at all - only each.key bound, so a bare
+		// each.value or an each.value.<attr> for that instance refuses with
+		// "Dynamic value in static context" rather than reading a value
+		// nothing here knows.
+		sc.repetition = instances.RepetitionData{EachKey: keyValue(key)}
+		if v, ok := e.eachValues[key]; ok {
+			sc.repetition.EachValue = v
+		}
 	case e.eachValues != nil:
 		sc.repetition = instances.RepetitionData{EachKey: keyValue(key), EachValue: e.eachValues[key]}
 	case e.eachParent != nil:
 		// each.value is symbolic here, so only each.key has a value; a
 		// reference to each.value is handled structurally instead.
-		sc.repetition = instances.RepetitionData{EachKey: keyValue(key)}
-	case e.keyOnly:
-		// Same shape as the eachParent case above, for the same reason:
-		// only the key was ever knowable without evaluating a value this
-		// package refuses to evaluate.
 		sc.repetition = instances.RepetitionData{EachKey: keyValue(key)}
 	}
 	return sc
@@ -2621,13 +2637,31 @@ func (r *resolver) forEachExpansion(rc *configs.Resource) (*expansion, bool) {
 		// object, or a set of strings, never a list, so a tuple standing
 		// here is not a set of merge() arguments and its elements' own keys
 		// are not this block's instance keys.
-		if keys, structOK := r.staticForEachKeys(expr, ident, 0, false); structOK {
+		if keys, vals, structOK := r.staticForEachKeys(expr, ident, 0, false); structOK {
 			r.diags = r.diags[:mark]
+			// Whatever the chase proved a key's value to be, carried onto the
+			// expansion so each.value resolves for that key alone. A key with
+			// no proven value is simply absent from the map, which is how
+			// [expansion.scope] tells the two apart; nothing here fills a gap
+			// with a neighbouring key's value or with a zero value.
+			proven := map[string]cty.Value{}
+			for i, name := range keys {
+				if i < len(vals) && vals[i] != cty.NilVal {
+					proven[name] = vals[i]
+				}
+			}
 			sorted := append([]string(nil), keys...)
 			sort.Strings(sorted)
 			exp := &expansion{keyOnly: true}
 			for _, name := range sorted {
-				exp.keys = append(exp.keys, addrs.StringKey(name))
+				k := addrs.StringKey(name)
+				exp.keys = append(exp.keys, k)
+				if v, ok := proven[name]; ok {
+					if exp.eachValues == nil {
+						exp.eachValues = make(map[addrs.InstanceKey]cty.Value)
+					}
+					exp.eachValues[k] = v
+				}
 			}
 			return r.checkedForEachKeys(rc, exp)
 		}
