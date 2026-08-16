@@ -846,7 +846,7 @@ func (b *builder) materializeRecord(ctx context.Context, addr addrs.AbsResourceI
 		return
 	}
 
-	val, private, err := decodeRecordPayload(payload)
+	val, private, status, err := decodeRecordPayload(payload)
 	if err != nil {
 		detail := fmt.Sprintf("The persisted record for %s could not be read: %s.", addr, err)
 		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot decode a persisted record", detail))
@@ -864,8 +864,13 @@ func (b *builder) materializeRecord(ctx context.Context, addr addrs.AbsResourceI
 		return
 	}
 
+	// status came out of the record itself (decodeRecordPayload), not a
+	// hardcoded states.ObjectReady: a tainted object has to stay tainted
+	// through this hydration, or the ordinary tofu plan graph never sees
+	// the reason to force a replace (issue #216 - a record-backed
+	// resource has no state file to carry that bit anywhere else).
 	obj := &states.ResourceInstanceObject{
-		Status:  states.ObjectReady,
+		Status:  status,
 		Value:   converted,
 		Private: private,
 	}

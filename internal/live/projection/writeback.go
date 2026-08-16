@@ -116,7 +116,7 @@ func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 				continue
 			}
 
-			payload, err := encodeRecordPayload(obj.Value, obj.Private)
+			payload, err := encodeRecordPayload(obj.Value, obj.Private, obj.Status)
 			if err != nil {
 				diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot persist a record",
 					fmt.Sprintf("Writing the persisted record for %s failed: %s.", addr, err),
