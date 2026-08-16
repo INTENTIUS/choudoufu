@@ -303,6 +303,19 @@ func (r *reader) callRead(src *Source, provider providers.Interface, dsSchema pr
 	req := providers.ReadDataSourceRequest{
 		TypeName: src.Resource.Type,
 		Config:   unmarked,
+		// ProviderMeta must be a real cty.Value, never the zero Value: the
+		// plugin client marshals it unconditionally whenever the provider
+		// declares a provider_meta schema (internal/plugin/grpc_provider.go's
+		// ReadDataSource), and msgpack.Marshal on cty.NilVal panics inside
+		// cty's own conformance check rather than returning an error. The aws
+		// provider declares one, so every real read from this phase crashed
+		// the process until this line existed; the offline tests could not see
+		// it because internal/tofu's MockProvider does no marshalling at all.
+		// A null is also the honest value: this phase does not evaluate a
+		// module's own provider_meta block, so it sends what a module that
+		// declares none sends. The same line appears in internal/live/liveimport,
+		// internal/live/untag and internal/live/mv for the same reason.
+		ProviderMeta: cty.NullVal(cty.DynamicPseudoType),
 	}
 	var resp providers.ReadDataSourceResponse
 	if src.RemoteState {
