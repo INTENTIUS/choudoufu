@@ -213,7 +213,7 @@ func plainEnumIDParts(section, tfType string, args []ArgumentRefEntry, attrNames
 		out := make([]IDPart, len(parts))
 		informative := false
 		for i, p := range parts {
-			out[i] = attributePlainPart(p, tfType, requiredNames, attrNames)
+			out[i], _ = attributePlainPart(p, tfType, requiredNames, attrNames)
 			if out[i].Source != idPartSourceUnknown {
 				informative = true
 			}
@@ -225,8 +225,65 @@ func plainEnumIDParts(section, tfType string, args []ArgumentRefEntry, attrNames
 	return nil
 }
 
-// attributePlainPart attributes one plain-word part.
-func attributePlainPart(part, tfType string, requiredNames, attrNames []string) IDPart {
+// plainEnumComposedArguments reads the same plain-word enumeration
+// plainEnumIDParts does ("using the listener arn and certificate arn,
+// separated by an underscore") but answers classifyGrammar's question
+// instead of idParts': not what each segment is, but whether the WHOLE
+// documented ID reconstructs from configuration. It succeeds only when
+// every enumerated segment attributes to a Required argument - a mix of
+// argument- and server-sourced segments (aws_guardduty_ipset's own "the
+// primary GuardDuty detector ID and IPSet ID", where IPSet ID is the
+// resource's own server-minted id) is exactly the shape idParts' weaker,
+// per-segment attribution exists to carry instead of collapsing into a
+// wrong Composed=true. Returns the resolved argument names in the doc's
+// own left-to-right order, nil when no phrase resolves completely.
+func plainEnumComposedArguments(section, tfType string, args []ArgumentRefEntry, attrNames []string) []string {
+	var requiredNames []string
+	for _, a := range args {
+		if a.Required {
+			requiredNames = append(requiredNames, a.Name)
+		}
+	}
+	for _, phrase := range usingPhrases(section) {
+		if i := strings.Index(strings.ToLower(phrase), "separated by"); i != -1 {
+			phrase = strings.TrimSpace(phrase[:i])
+		}
+		if strings.Contains(phrase, "`") {
+			continue // a backticked phrase belongs to the token sources
+		}
+		raw := plainEnumSplitRe.Split(phrase, -1)
+		var parts []string
+		for _, p := range raw {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				parts = append(parts, p)
+			}
+		}
+		if len(parts) < 2 {
+			continue
+		}
+		names := make([]string, 0, len(parts))
+		complete := true
+		for _, p := range parts {
+			_, arg := attributePlainPart(p, tfType, requiredNames, attrNames)
+			if arg == "" {
+				complete = false
+				break
+			}
+			names = append(names, arg)
+		}
+		if complete {
+			return names
+		}
+	}
+	return nil
+}
+
+// attributePlainPart attributes one plain-word part, and - only when it
+// resolves to idPartSourceArgument - the Required argument name it
+// resolved to (empty for every other source, including when nothing
+// matches at all).
+func attributePlainPart(part, tfType string, requiredNames, attrNames []string) (IDPart, string) {
 	words := plainContentWords(part)
 	for k := len(words); k >= 1; k-- {
 		cand := normalize(strings.Join(words[len(words)-k:], ""))
@@ -235,12 +292,12 @@ func attributePlainPart(part, tfType string, requiredNames, attrNames []string) 
 		}
 		for _, a := range requiredNames {
 			if normalize(a) == cand {
-				return IDPart{Token: part, Source: idPartSourceArgument}
+				return IDPart{Token: part, Source: idPartSourceArgument}, a
 			}
 		}
 		for _, a := range attrNames {
 			if normalize(a) == cand {
-				return IDPart{Token: part, Source: idPartSourceAttribute}
+				return IDPart{Token: part, Source: idPartSourceAttribute}, ""
 			}
 		}
 	}
@@ -260,14 +317,14 @@ func attributePlainPart(part, tfType string, requiredNames, attrNames []string) 
 		for k := 1; k <= len(typeTokens); k++ {
 			tail = normalize(typeTokens[len(typeTokens)-k]) + tail
 			if tail == base {
-				return IDPart{Token: part, Source: idPartSourceOwnID}
+				return IDPart{Token: part, Source: idPartSourceOwnID}, ""
 			}
 			if len(tail) > len(base) {
 				break
 			}
 		}
 	}
-	return IDPart{Token: part, Source: idPartSourceUnknown}
+	return IDPart{Token: part, Source: idPartSourceUnknown}, ""
 }
 
 // plainContentWords splits a part into its content words: parenthesized

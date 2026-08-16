@@ -105,7 +105,7 @@ func TestSweep_SkipsMissingDocsAndDocsWithNoImportSection(t *testing.T) {
 		return http.StatusNotFound, nil, nil
 	}}
 
-	rows, docsFound, docsMissing, err := sweep(context.Background(), dir, roster, fake.fetch)
+	rows, docsFound, docsMissing, aliasRows, err := sweep(context.Background(), dir, roster, fake.fetch)
 	if err != nil {
 		t.Fatalf("sweep: %v", err)
 	}
@@ -117,6 +117,9 @@ func TestSweep_SkipsMissingDocsAndDocsWithNoImportSection(t *testing.T) {
 	}
 	if len(rows) != 1 || rows[0].TFType != "aws_has_doc" {
 		t.Errorf("rows = %v, want exactly one row for aws_has_doc", rows)
+	}
+	if aliasRows != 0 {
+		t.Errorf("aliasRows = %d, want 0 (no doc in this fixture declares an alias note)", aliasRows)
 	}
 }
 

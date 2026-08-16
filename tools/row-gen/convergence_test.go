@@ -142,7 +142,31 @@ const unannotatedMismatchRatchetMax = 0
 // composite rule's arity check declines rather than guess the shape of -
 // there is no proposal to reproduce and no vocabulary yet for a
 // one-or-more-of-a-named-set trailing component. See the ruling's own exit.
-const annotationCountRatchetMax = 120
+//
+// 121 (2026-08-16): the reviewed bump the constant's own rule allows - a
+// newly admitted type the classifier cannot reproduce. aws_alb_target_group_
+// attachment (the rejected.json sweep: the aws_alb* family are the
+// provider's own documented aliases of aws_lb*, "is known as ... The
+// functionality is identical.", and importdocs-gen now clones the canonical
+// type's import-grammar row onto the alias - see aliasDeclaredFor) inherits
+// aws_lb_target_group_attachment's own fold-child gap verbatim, on cloned
+// evidence, so it needs the same ruling under its own name.
+//
+// 116 (2026-08-16): the downward travel the constant's own rule describes.
+// The same sweep taught classifyGrammar a plain-prose enumeration signal
+// (plainEnumComposedArguments, prosename.go): an Import sentence naming
+// every segment of a composite ID in plain words with no backticks at all
+// ("using the listener arn and certificate arn, separated by an underscore"
+// on aws_lb_listener_certificate's own page) now sets composed_of_arguments
+// the same way the backticked and format-token signals already did. Five
+// of the rows this newly resolves already carried a ruling under the old
+// "needs-hand-separator"/"fold-child, no scrape attribution" reasoning -
+// aws_cognito_identity_provider, aws_db_instance_role_association,
+// aws_guardduty_filter, aws_guardduty_member, aws_rds_cluster_role_
+// association - and the fresh classifier now reproduces all five ratified
+// rows unchanged, so their rulings are deleted rather than left stale.
+// Net against 121: -5 stale +1 new (aws_alb_target_group_attachment) = 116.
+const annotationCountRatchetMax = 116
 
 // TestAnnotationCountRatchet reads the committed ledger directly and fails
 // when it has grown past annotationCountRatchetMax - never when it shrinks:
