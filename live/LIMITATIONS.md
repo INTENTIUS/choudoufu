@@ -1327,13 +1327,13 @@ refused, and each says so in its own entry.
 | 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
 | 63 | 2982 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
 | 53 | 110 | stamp | Unmarked apply of a marker-only resource | error | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
-| 47 | 339 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
-| 37 | 135 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
+| 47 | 338 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
+| 33 | 131 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
 | 21 | 76 | identity | Non-static identity argument | error | `internal/live/identity` | "Non-static identity argument" |
 | 18 | 166 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
 | 18 | 59 | identity | Non-static for_each expression | error | `internal/live/identity` | "Non-static for_each expression" |
 | 17 | 316 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
-| 13 | 32 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
+| 17 | 36 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
 | 10 | 51 | identity | Non-static count expression | error | `internal/live/identity` | "Non-static count expression" |
 | 10 | 38 | identity | Identity not resolvable from configuration | error | `internal/live/identity` | "Identity not resolvable from configuration" |
 | 5 | 16 | lint | child-module | error | `internal/live/lint` | "child-module" |
@@ -1554,7 +1554,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 47 configurations in the measured corpus, at 339 sites.
+**How often.** Blocked 47 configurations in the measured corpus, at 338 sites.
 
 #### Unresolvable identity
 
@@ -1562,7 +1562,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 37 configurations in the measured corpus, at 135 sites.
+**How often.** Blocked 33 configurations in the measured corpus, at 131 sites.
 
 #### Non-static identity argument
 
@@ -1594,7 +1594,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 13 configurations in the measured corpus, at 32 sites.
+**How often.** Blocked 17 configurations in the measured corpus, at 36 sites.
 
 #### Non-static count expression
 

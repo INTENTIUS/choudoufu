@@ -445,12 +445,11 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 4,
+      "instances": 5,
       "sites": 19,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 1,
       "provider_schemas": [
         {
           "provider": "hashicorp/aws",
@@ -509,12 +508,12 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 19,
+      "instances": 20,
       "sites": 24,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3,
+      "shadowed": 2,
       "provider_schemas": [
         {
           "provider": "hashicorp/aws",
@@ -594,12 +593,12 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 24,
+      "instances": 25,
       "sites": 9,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3,
+      "shadowed": 2,
       "provider_schemas": [
         {
           "provider": "hashicorp/aws",
@@ -637,12 +636,12 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 17,
+      "instances": 18,
       "sites": 10,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3,
+      "shadowed": 2,
       "provider_schemas": [
         {
           "provider": "hashicorp/aws",
@@ -680,12 +679,12 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 20,
+      "instances": 21,
       "sites": 9,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3,
+      "shadowed": 2,
       "provider_schemas": [
         {
           "provider": "hashicorp/aws",
@@ -2232,12 +2231,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 12,
+      "instances": 13,
       "sites": 43,
       "unresolved_modules": 3,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 40,
+      "shadowed": 39,
       "var_files": [
         ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
         ".corpus/govuk-infrastructure/terraform/variables/integration/cluster-services.tfvars"
@@ -2572,12 +2571,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 1,
+      "instances": 5,
       "sites": 291,
       "unresolved_modules": 6,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 312,
+      "shadowed": 308,
       "var_files": [
         ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
         ".corpus/govuk-infrastructure/terraform/variables/integration/gcp-gov-graph.tfvars"
@@ -3060,12 +3059,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 157,
+      "instances": 184,
       "sites": 60,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 82,
+      "shadowed": 55,
       "var_files": [
         ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
         ".corpus/govuk-infrastructure/terraform/variables/integration/rds.tfvars"
@@ -3737,8 +3736,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 20,
-      "sites": 764,
+      "instances": 21,
+      "sites": 763,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true,
@@ -9179,7 +9178,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
       "raised_by": "internal/configs",
       "configs": 47,
-      "sites": 339,
+      "sites": 338,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:195",
         ".corpus/alb/examples/complete-alb/main.tf:195",
@@ -9196,8 +9195,8 @@
       "what": "An identity could not be built because a reference it depends on failed; the reference's own error explains why.",
       "docs_ref": "live/LIMITATIONS.md, \"Unresolvable identity\"",
       "raised_by": "internal/live/identity",
-      "configs": 37,
-      "sites": 135,
+      "configs": 33,
+      "sites": 131,
       "examples": [
         ".corpus/cool-assessment/operations_routing.tf:21",
         ".corpus/cool-assessment/operations_routing.tf:29",
@@ -9285,8 +9284,8 @@
       "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
       "docs_ref": "live/LIMITATIONS.md, \"Not an identity attribute\"",
       "raised_by": "internal/live/identity",
-      "configs": 13,
-      "sites": 32,
+      "configs": 17,
+      "sites": 36,
       "examples": [
         ".corpus/cool-assessment/dynamodb_endpoint_client_sg.tf:16",
         ".corpus/cool-assessment/s3_endpoint_client_sg.tf:16",
@@ -10593,8 +10592,8 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 3883,
-    "sites": 8462,
+    "instances": 3921,
+    "sites": 8461,
     "refusals_fired": 24,
     "refusals_in_set": 125,
     "configs_without_schemas": 3,
@@ -10617,7 +10616,7 @@
       "loaded": 144,
       "blocked": 118,
       "clean": 26,
-      "instances": 2402,
+      "instances": 2434,
       "sites": 2322,
       "reads_as": "rate"
     },
@@ -10627,8 +10626,8 @@
       "loaded": 74,
       "blocked": 71,
       "clean": 3,
-      "instances": 748,
-      "sites": 6099,
+      "instances": 754,
+      "sites": 6098,
       "reads_as": "ranking"
     }
   ],
