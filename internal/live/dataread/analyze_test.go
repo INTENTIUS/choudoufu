@@ -200,18 +200,23 @@ func TestAnalyzeTfeOutputsEligibleWithProviderToken(t *testing.T) {
 	if !src.TfeOutputs {
 		t.Fatalf("a tfe_outputs source was not marked TfeOutputs")
 	}
-	if src.CrossStack {
-		t.Fatalf("a tfe_outputs source was marked CrossStack; only terraform_remote_state should be")
+	if src.RemoteState {
+		t.Fatalf("a tfe_outputs source was marked RemoteState; only terraform_remote_state should be")
 	}
 	if !src.Eligible {
 		t.Fatalf("a tfe_outputs source with a static token argument classified ineligible: %s", src.ReasonDetail)
 	}
 }
 
-// TestAnalyzeTfeOutputsMissingTokenIsIneligible: the auth-surface rule,
-// checked offline before any provider call is attempted - the shape
-// live-check must be able to report without a network call or a hang.
-func TestAnalyzeTfeOutputsMissingTokenIsIneligible(t *testing.T) {
+// TestAnalyzeTfeOutputsEligibleWithNoTokenAnywhere: the maintainer's ruling
+// on #181 - eligibility models the owner running the configuration, and an
+// owner running tfe_outputs has a token by construction, the same treatment
+// stage 1 already gives the aws provider block. The auth-surface check
+// moved to read time (see read_test.go's
+// TestReadTfeOutputsMissingTokenRefusesAtReadTimeWithoutCallingTheProvider),
+// so Analyze - which never even configures a provider - classifies this
+// eligible regardless of what credentials this process happens to have.
+func TestAnalyzeTfeOutputsEligibleWithNoTokenAnywhere(t *testing.T) {
 	t.Setenv("TFE_TOKEN", "")
 	t.Setenv("HOME", t.TempDir()) // isolate from any real ~/.terraform.d/credentials.tfrc.json
 	t.Setenv("TF_CLI_CONFIG_FILE", "")
@@ -222,53 +227,59 @@ func TestAnalyzeTfeOutputsMissingTokenIsIneligible(t *testing.T) {
 	if !ok {
 		t.Fatalf("the demanded tfe_outputs source was not classified at all")
 	}
-	if src.Eligible {
-		t.Fatalf("a tfe_outputs source with no token anywhere classified eligible")
-	}
-	if src.ReasonSummary != SummaryCrossStackOutputsUnavailable {
-		t.Errorf("refused under %q, want %q", src.ReasonSummary, SummaryCrossStackOutputsUnavailable)
-	}
-	for _, part := range []string{"needed to resolve the identity of", "TFE_TOKEN"} {
-		if !strings.Contains(src.ReasonDetail, part) {
-			t.Errorf("the wording lacks %q: %s", part, src.ReasonDetail)
-		}
-	}
-}
-
-// TestAnalyzeTfeOutputsEnvTokenIsEligible: the second auth surface - no
-// provider-block token, but TFE_TOKEN set in the process environment.
-func TestAnalyzeTfeOutputsEnvTokenIsEligible(t *testing.T) {
-	t.Setenv("TFE_TOKEN", "env-test-token")
-
-	a := analyzeFixture(t, "tfe-missing-token")
-
-	src, ok := a.SourceFor(addrs.RootModule, dataAddr("tfe_outputs", "app"))
-	if !ok {
-		t.Fatalf("the demanded tfe_outputs source was not classified at all")
-	}
 	if !src.Eligible {
-		t.Fatalf("a tfe_outputs source with TFE_TOKEN set classified ineligible: %s", src.ReasonDetail)
+		t.Fatalf("a tfe_outputs source with no token anywhere classified ineligible at analysis time: %s (the ruling moved this check to read time)", src.ReasonDetail)
 	}
 }
 
-// TestAnalyzeRemoteStateStaysIneligible: stage 2 covers tfe_outputs only -
-// terraform_remote_state must keep exactly the refusal it had before this
-// stage, with no auth rule and no read pipeline applied to it.
-func TestAnalyzeRemoteStateStaysIneligible(t *testing.T) {
-	a := analyzeFixture(t, "remote-state-stays-refused")
+// TestAnalyzeRemoteStateEligibleWithStaticBackendConfig: #179 stage 3 -
+// terraform_remote_state goes through the same eligibility pipeline a
+// same-stack source does. Static eligibility still requires the backend
+// block's own arguments (backend, config, workspace) to be statically
+// evaluable; a fully literal backend and config passes. Backend
+// reachability and credentials are never consulted here - the same ruling
+// [TestAnalyzeTfeOutputsEligibleWithNoTokenAnywhere] pins for tfe_outputs.
+func TestAnalyzeRemoteStateEligibleWithStaticBackendConfig(t *testing.T) {
+	a := analyzeFixture(t, "remote-state-eligible")
 
 	src, ok := a.SourceFor(addrs.RootModule, dataAddr("terraform_remote_state", "network"))
 	if !ok {
 		t.Fatalf("the demanded terraform_remote_state source was not classified at all")
 	}
-	if !src.CrossStack {
-		t.Fatalf("a terraform_remote_state source was not marked CrossStack")
+	if !src.RemoteState {
+		t.Fatalf("a terraform_remote_state source was not marked RemoteState")
 	}
 	if src.TfeOutputs {
 		t.Fatalf("a terraform_remote_state source was marked TfeOutputs")
 	}
+	if !src.Eligible {
+		t.Fatalf("a terraform_remote_state source with a static backend and config classified ineligible: %s", src.ReasonDetail)
+	}
+}
+
+// TestAnalyzeRemoteStateNonStaticBackendConfigIsIneligible: eligibility
+// rule 1 applies to terraform_remote_state's own arguments exactly as it
+// does to any data source's - "the backend block's own arguments must be
+// static" is the same rule, not a new one, so the class-agnostic
+// [SummaryNotReadable] wording is what fires, naming the managed
+// dependency.
+func TestAnalyzeRemoteStateNonStaticBackendConfigIsIneligible(t *testing.T) {
+	a := analyzeFixture(t, "remote-state-ineligible-backend")
+
+	src, ok := a.SourceFor(addrs.RootModule, dataAddr("terraform_remote_state", "network"))
+	if !ok {
+		t.Fatalf("the demanded terraform_remote_state source was not classified at all")
+	}
 	if src.Eligible {
-		t.Fatalf("a terraform_remote_state source classified eligible; stage 3 has not shipped")
+		t.Fatalf("a terraform_remote_state source whose config reads a managed resource classified eligible")
+	}
+	if src.ReasonSummary != SummaryNotReadable {
+		t.Errorf("refused under %q, want %q", src.ReasonSummary, SummaryNotReadable)
+	}
+	for _, part := range []string{"needed to resolve the identity of", "managed resource", "cannot be read before the plan"} {
+		if !strings.Contains(src.ReasonDetail, part) {
+			t.Errorf("the wording lacks %q: %s", part, src.ReasonDetail)
+		}
 	}
 }
 

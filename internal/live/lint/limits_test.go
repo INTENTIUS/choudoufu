@@ -38,7 +38,6 @@ var enforcedLimits = map[string]Rule{
 	"local-file":         RuleLogicalResource,
 	"random-password":    RuleLogicalResource,
 	"time-sleep":         RuleLogicalResource,
-	"remote-state":       RuleRemoteState,
 	"moved-block":        RuleMovedBlock,
 	"child-module":       RuleChildModule,
 	"backend-block":      RuleStateBackend,

@@ -16,9 +16,24 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
+
+// encryptedDataSourceReader is the builtin terraform provider's special
+// read entry point for terraform_remote_state
+// (internal/builtin/providers/tf/provider.go, ReadDataSourceEncrypted): its
+// ordinary ReadDataSource panics deliberately, because a state read needs
+// the resource instance address (the encryption key name is derived from
+// it) and an [encryption.Encryption] that ReadDataSource's signature has no
+// room for. internal/tofu's own data-source eval draws the identical type
+// assertion (node_resource_abstract_instance.go, ProviderWithEncryption) -
+// this is a second, narrower copy of that interface rather than an import
+// of internal/tofu, which this package does not otherwise depend on.
+type encryptedDataSourceReader interface {
+	ReadDataSourceEncrypted(ctx context.Context, req providers.ReadDataSourceRequest, path addrs.AbsResourceInstance, enc encryption.Encryption) providers.ReadDataSourceResponse
+}
 
 // Providers is the one seam the read phase needs from its caller: a
 // configured provider instance per provider configuration. The command
@@ -49,9 +64,7 @@ func Read(ctx context.Context, cfg *configs.Config, analysis *Analysis, provs Pr
 	}
 
 	for _, src := range analysis.Demanded() {
-		if src.CrossStack || src.Eligible {
-			// A cross-stack source keeps exactly the refusal resolution
-			// raises for it today; this stage neither reads nor re-words it.
+		if src.Eligible {
 			continue
 		}
 		diags = diags.Append(&hcl.Diagnostic{
@@ -75,9 +88,6 @@ func Read(ctx context.Context, cfg *configs.Config, analysis *Analysis, provs Pr
 		insts:    &analyzer{ctx: ctx, cfg: cfg},
 	}
 	for _, src := range analysis.Demanded() {
-		if src.CrossStack {
-			continue
-		}
 		if !r.readSource(src) {
 			// Stop at the first failure rather than fanning a misconfigured
 			// provider's error across every remaining block: the run is
@@ -105,6 +115,32 @@ type reader struct {
 
 	// insts reuses the analyzer's module-instance walk.
 	insts *analyzer
+
+	// encBuilt, enc and encDiags cache the configuration's own encryption
+	// setup (its "terraform { encryption { ... } }" block, or none), built
+	// at most once and only when a terraform_remote_state source is
+	// actually read - the same cost-avoidance the whole phase promises for
+	// a configuration that never needed it. This is the real encryption a
+	// user's own configuration declares for remote-state targets, not a
+	// hardcoded no-op: a foreign stack's genuinely encrypted state fails to
+	// decode honestly (see [SummaryCrossStackStateUnavailable]) exactly
+	// when this run has no matching encryption configuration for it.
+	encBuilt bool
+	enc      encryption.Encryption
+	encDiags hcl.Diagnostics
+}
+
+// encryption lazily builds this run's [encryption.Encryption] from the
+// loaded configuration's own encryption block, the same construction
+// internal/command/meta_encryption.go does for every other command that
+// reads state. Built once and reused across every terraform_remote_state
+// source this phase reads.
+func (r *reader) encryption() (encryption.Encryption, hcl.Diagnostics) {
+	if !r.encBuilt {
+		r.encBuilt = true
+		r.enc, r.encDiags = encryption.New(r.ctx, encryption.DefaultRegistry, r.cfg.Module.Encryption, r.cfg.Module.StaticEvaluator)
+	}
+	return r.enc, r.encDiags
 }
 
 func (r *reader) refuse(src *Source, summary, format string, args ...any) bool {
@@ -129,6 +165,20 @@ func (r *reader) readSource(src *Source) bool {
 		return r.refuse(src, SummaryReadFailed, "%s's module is no longer in the configuration tree; this is a defect in the calling code.", src.Resource.String())
 	}
 	rc := src.Config
+
+	// tfe_outputs' auth-surface check, offline and before any read is
+	// attempted - the maintainer's ruling on #181 moves it here from
+	// eligibility (analyze.go no longer draws it), so that a token missing
+	// from THIS run's environment surfaces as a read-time refusal rather
+	// than as an eligibility verdict about the configuration itself.
+	if src.TfeOutputs {
+		_, providerCfg := r.insts.findProviderConfig(node, rc)
+		if ok, detail := r.insts.tfeAuthAvailable(providerCfg); !ok {
+			return r.refuse(src, SummaryCrossStackOutputsUnavailable,
+				"%s's value is needed to resolve the identity of %s, but %s.",
+				src.Resource.String(), src.NeededBy, detail)
+		}
+	}
 
 	lookup := r.lookupFor(src.Module)
 	eval := node.Module.StaticEvaluator.Pure().WithDataResults(lookup)
@@ -156,9 +206,14 @@ func (r *reader) readSource(src *Source) bool {
 	}
 	provider, err := r.provs.ConfiguredProvider(r.ctx, absAddr)
 	if err != nil {
-		if src.TfeOutputs {
+		switch {
+		case src.TfeOutputs:
 			return r.refuse(src, SummaryCrossStackOutputsUnavailable,
 				"%s's value is needed to resolve the identity of %s, and its TFC/TFE workspace could not be reached: %s.",
+				src.Resource.String(), src.NeededBy, err)
+		case src.RemoteState:
+			return r.refuse(src, SummaryCrossStackStateUnavailable,
+				"%s's value is needed to resolve the identity of %s, and its provider could not be configured: %s.",
 				src.Resource.String(), src.NeededBy, err)
 		}
 		return r.refuse(src, SummaryProviderNotConfigurable,
@@ -185,14 +240,45 @@ func (r *reader) readSource(src *Source) bool {
 	}
 
 	unmarked, _ := configVal.UnmarkDeep()
-	resp := provider.ReadDataSource(r.ctx, providers.ReadDataSourceRequest{
+	req := providers.ReadDataSourceRequest{
 		TypeName: src.Resource.Type,
 		Config:   unmarked,
-	})
+	}
+	var resp providers.ReadDataSourceResponse
+	if src.RemoteState {
+		// terraform_remote_state's ReadDataSource panics deliberately
+		// (internal/builtin/providers/tf/provider.go): the real entry point
+		// needs the resource instance address and this run's own
+		// encryption setup, which ReadDataSource's signature has no room
+		// for. ConfiguredProvider already resolved this to the builtin
+		// "terraform" provider - the same instance terraform_data has used
+		// since #73 - so the type assertion always succeeds in practice;
+		// the error branch is a defensive backstop, not a live path.
+		tfp, ok := provider.(encryptedDataSourceReader)
+		if !ok {
+			return r.refuse(src, SummaryCrossStackStateUnavailable,
+				"%s's provider does not support the encrypted remote-state read path this stage requires; this is a defect in the calling code.",
+				src.Resource.String())
+		}
+		enc, encDiags := r.encryption()
+		if encDiags.HasErrors() {
+			return r.refuse(src, SummaryCrossStackStateUnavailable,
+				"%s's value is needed to resolve the identity of %s, and this configuration's own encryption block could not be built: %s.",
+				src.Resource.String(), src.NeededBy, encDiags.Error())
+		}
+		resp = tfp.ReadDataSourceEncrypted(r.ctx, req, r.representativeInstance(src, keys), enc)
+	} else {
+		resp = provider.ReadDataSource(r.ctx, req)
+	}
 	if resp.Diagnostics.HasErrors() {
-		if src.TfeOutputs {
+		switch {
+		case src.TfeOutputs:
 			return r.refuse(src, SummaryCrossStackOutputsUnavailable,
 				"reading %s's outputs from its TFC/TFE workspace failed; the provider said: %s.",
+				src.Resource.String(), resp.Diagnostics.Err())
+		case src.RemoteState:
+			return r.refuse(src, SummaryCrossStackStateUnavailable,
+				"reading %s from its backend failed; the backend said: %s.",
 				src.Resource.String(), resp.Diagnostics.Err())
 		}
 		return r.refuse(src, SummaryReadFailed,
@@ -201,9 +287,14 @@ func (r *reader) readSource(src *Source) bool {
 	}
 	state := resp.State
 	if state == cty.NilVal || state.IsNull() {
-		if src.TfeOutputs {
+		switch {
+		case src.TfeOutputs:
 			return r.refuse(src, SummaryCrossStackOutputsUnavailable,
 				"reading %s returned no output values; the workspace may have no current state version.",
+				src.Resource.String())
+		case src.RemoteState:
+			return r.refuse(src, SummaryCrossStackStateUnavailable,
+				"reading %s returned no state; the backend may be unreachable or misconfigured.",
 				src.Resource.String())
 		}
 		return r.refuse(src, SummaryReadFailed,
@@ -218,6 +309,26 @@ func (r *reader) readSource(src *Source) bool {
 
 	r.store(src, keys, state)
 	return true
+}
+
+// representativeInstance picks one absolute instance address for a
+// terraform_remote_state read's encryption-key lookup
+// (encryption.Encryption.RemoteState keys by name, derived from this
+// address the same way [tf.Provider.ReadDataSourceEncrypted] derives it).
+// One call serves every instance of a count- or for_each-expanded block
+// (the same "one honest answer, shared" rule [reader.readSource]'s doc
+// comment states), so any one instance's address is representative; the
+// first module instance and the first key are simplest and deterministic.
+func (r *reader) representativeInstance(src *Source, keys []addrs.InstanceKey) addrs.AbsResourceInstance {
+	key := addrs.InstanceKey(addrs.NoKey)
+	if len(keys) > 0 {
+		key = keys[0]
+	}
+	modInst := addrs.RootModuleInstance
+	if insts := r.insts.moduleInstancesOf(src.Module); len(insts) > 0 {
+		modInst = insts[0]
+	}
+	return src.Resource.Instance(key).Absolute(modInst)
 }
 
 // lookupFor answers whole-resource data references from what the phase has

@@ -131,13 +131,12 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 				report.Shadowed++
 				continue
 			}
-			// A same-stack or tfe_outputs data-source refusal is re-homed
-			// under the data-read pass's own classification: an eligible
-			// site is no longer a language refusal at all (a live-plan
-			// reads the value before resolution), and an ineligible one
-			// gets the class-specific wording instead of the generic
-			// dynamic-value text. terraform_remote_state keeps today's
-			// refusal until stage 3 reads it.
+			// A same-stack, tfe_outputs, or terraform_remote_state
+			// data-source refusal is re-homed under the data-read pass's
+			// own classification: an eligible site is no longer a language
+			// refusal at all (a live-plan reads the value before
+			// resolution), and an ineligible one gets the class-specific
+			// wording instead of the generic dynamic-value text.
 			if layer, id, detail, ok := classifyDataSite(diag, analysis); ok {
 				site.Detail = detail
 				f := findings.get(layer, id)
@@ -171,9 +170,12 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 // identity raised it.
 func classifyDataSite(diag tfdiags.Diagnostic, analysis func() *dataread.Analysis) (Layer, string, string, bool) {
 	ref := tfdiags.ExtraInfo[configs.RefusedReference](diag)
-	// terraform_remote_state (configs.CategoryRemoteState) keeps its refusal
-	// exactly as raised until #179 stage 3 gives it its own read pipeline.
-	if ref.Category != configs.CategoryDataSource && ref.Category != configs.CategoryTfeOutputs {
+	// Same-stack data sources and both cross-stack flavors - tfe_outputs
+	// (#179 stage 2) and terraform_remote_state (#179 stage 3) - all go
+	// through the data-read pass's own classification now.
+	switch ref.Category {
+	case configs.CategoryDataSource, configs.CategoryTfeOutputs, configs.CategoryRemoteState:
+	default:
 		return "", "", "", false
 	}
 	res, ok := dataread.DataSubject(ref.Subject)
@@ -181,7 +183,7 @@ func classifyDataSite(diag tfdiags.Diagnostic, analysis func() *dataread.Analysi
 		return "", "", "", false
 	}
 	src, found := analysis().SourceFor(ref.Module, res)
-	if !found || src.CrossStack {
+	if !found {
 		return "", "", "", false
 	}
 	if src.Eligible {

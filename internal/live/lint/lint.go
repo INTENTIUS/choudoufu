@@ -17,10 +17,6 @@ import (
 	residue "github.com/intentius/choudoufu/live"
 )
 
-// remoteStateDataType is the data source that reads a state file. Its whole
-// purpose is the thing stateless mode removes.
-const remoteStateDataType = "terraform_remote_state"
-
 // Check runs the stateless subset rules over a loaded configuration and
 // returns every construct that puts it outside the subset.
 //
@@ -157,7 +153,6 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	checkManagedResources(mod, path, schemas, signal, recordStoreConfigured, issues)
 	checkForEachKeys(ctx, mod, path, issues)
 	checkOverlongAddresses(ctx, mod, modInst, issues)
-	checkDataResources(mod, path, issues)
 	checkReceiptLeafRule(mod, path, issues)
 	checkReceiptValueRule(mod, path, issues)
 	checkReceiptSecretRule(mod, path, issues)
@@ -404,26 +399,6 @@ func checkProvisioners(resource *configs.Resource, addr string, path addrs.Modul
 			Detail: "a connection block configures how provisioners reach the resource, and " +
 				"provisioners are not available under live resource markers. Remove the connection block",
 			Subject: conn.DeclRange,
-		})
-	}
-}
-
-// checkDataResources rejects the terraform_remote_state data source.
-func checkDataResources(mod *configs.Module, path addrs.Module, issues *[]Issue) {
-	for _, resource := range mod.DataResources {
-		if resource.Type != remoteStateDataType {
-			continue
-		}
-		*issues = append(*issues, Issue{
-			Rule:      RuleRemoteState,
-			Construct: resource.Addr().String(),
-			Module:    path,
-			Detail: "this data source reads a state file, and here prior state is rebuilt from " +
-				"the live system rather than stored. Read the producer's own live resource with a data source of its own " +
-				"type, filtered on its tofu-estate/tofu-address marker tags (live/OUTPUTS.md " +
-				"is the recorded decision and this pattern's spec), or pass values across " +
-				"explicitly as variables or outputs of a module call",
-			Subject: resource.DeclRange,
 		})
 	}
 }

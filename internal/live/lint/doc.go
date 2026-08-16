@@ -15,10 +15,14 @@
 //
 // Every rule here traces back to one of two sections of the roadmap. The
 // "Banned, and why" section covers constructs that exist only to maintain or
-// repair a state file: provisioners and connection blocks, the
-// terraform_remote_state data source, moved blocks, logical resources whose
-// existence is the store (random_, tls_, time_, null_, local_), and backend
-// or cloud blocks. The "The admission rule" section covers resource types:
+// repair a state file: provisioners and connection blocks, moved blocks,
+// logical resources whose existence is the store (random_, tls_, time_,
+// null_, local_), and backend or cloud blocks. terraform_remote_state used
+// to be named here too; issue #179 stage 3 gave it its own read pipeline
+// (internal/live/dataread) instead, so this package no longer has a rule for
+// it at all - a reference to it now succeeds or refuses through the same
+// data-source eligibility and read-time classes any other cross-stack
+// source draws. The "The admission rule" section covers resource types:
 // a type participates only if its identity is recoverable with no memory. The
 // set that qualifies is generated into admission_generated.go by
 // tools/row-gen -emit; admission.go holds only admitted(), which reads that
@@ -44,11 +48,13 @@
 // # Scope of v0
 //
 // Rules that classify a resource type — the logical-resource ban and the
-// admission table — apply to managed resources only. A data source is re-read
-// on every operation and stores nothing, so it has no identity to recover and
-// no admission question to answer; the one data-source rule
-// (terraform_remote_state) is about reading a state file, not about identity.
-// Ephemeral resources are likewise untouched by the type rules.
+// admission table — apply to managed resources only. A data source is
+// re-read on every operation and stores nothing, so it has no identity to
+// recover and no admission question to answer; this package has no
+// data-source rule at all as of issue #179 stage 3, which moved
+// terraform_remote_state's coverage to internal/live/dataread alongside
+// every other data source. Ephemeral resources are likewise untouched by
+// the type rules.
 //
 // The check walks the whole module tree, including child modules, and reports
 // the module path on each issue.

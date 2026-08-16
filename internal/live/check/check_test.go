@@ -150,7 +150,6 @@ func TestAnalyzeReportsTheRuleThatFired(t *testing.T) {
 		{"count-index", LayerLint, string(lint.RuleCountIndex)},
 		{"provisioner", LayerLint, string(lint.RuleProvisioner)},
 		{"backend", LayerLint, string(lint.RuleStateBackend)},
-		{"remote-state", LayerLint, string(lint.RuleRemoteState)},
 		{"moved", LayerLint, string(lint.RuleMovedBlock)},
 	}
 

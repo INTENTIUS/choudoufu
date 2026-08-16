@@ -20,6 +20,20 @@ const (
 	// permission error (caught at read time, quoted from the provider).
 	SummaryCrossStackOutputsUnavailable = "Cross-stack outputs unavailable"
 
+	// SummaryCrossStackStateUnavailable is terraform_remote_state's own
+	// failure class (#179 stage 3), the backend analog of
+	// [SummaryCrossStackOutputsUnavailable]: the backend it names could not
+	// be reached, has no state for the named key or workspace, names a
+	// backend type this binary does not link, or holds a state snapshot
+	// this fork cannot decode (a newer format, or encryption it cannot
+	// open) - always caught at read time, quoted from the backend, never
+	// guessed at offline. Eligibility (rule 1) still requires the data
+	// source's own backend and config arguments to be statically
+	// evaluable; only the backend's actual reachability is deferred to read
+	// time, per the same ruling [SummaryCrossStackOutputsUnavailable]
+	// documents.
+	SummaryCrossStackStateUnavailable = "Cross-stack state unavailable"
+
 	// SummaryNotReadable is eligibility failing: the data source's own
 	// arguments, its count/for_each, or something it depends on cannot be
 	// evaluated before the plan, so there is nothing honest to read.
