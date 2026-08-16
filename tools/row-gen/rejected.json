@@ -1,11 +1,6 @@
 {
   "note": "Types a ratification batch considered and did not admit. PROPOSE reads this as a veto set so it never re-proposes a type already ruled out by name. Recovered from the 'Rejected, and deliberately absent from this table' prose in the per-cohort identity and admission fragments that issue #96 deleted (readable at d40d9f5ded^) and from live/e2e/estates/remainder/README.md; recovered_from names the source each type came from. THE INVARIANT: this set and internal/live/identity.DefaultTable are disjoint. A type that is admitted must not be vetoed, because two contradictory rulings are not conservatism. TestRejectedLedgerIsDisjointFromAdmitted enforces it. Issue #131 rebuilt the ledger against that invariant: the first recovery harvested every type name adjacent to the word Rejected rather than the subject of each '- <type>:' bullet, which admitted 58 types into the veto set and lost 5 genuine rejections. Over-inclusion is safe only among types nobody admitted; among admitted types it is a defect.",
   "rejected": {
-    "aws_amplify_domain_association": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_compute_platforms.go"
-      ]
-    },
     "aws_amplify_webhook": {
       "recovered_from": [
         "internal/live/identity/table_cohort_compute_platforms.go"
@@ -69,7 +64,8 @@
     "aws_apigatewayv2_route": {
       "recovered_from": [
         "internal/live/identity/table_cohort_apigateway.go"
-      ]
+      ],
+      "reason": "verifies as a two-component composite, not the flat server-assigned row row-gen's classifier proposed: the provider's own Identity Schema (v6.59.0) names api_id AND id both Required, and api_id is a plain Required argument on the resource itself (\"API identifier\"). The classifier's import-grammar-precedence rule saw the doc's own prose attribute the id segment to the Attribute Reference and concluded the WHOLE two-segment identity is server-assigned, dropping api_id even though it is a real, config-supplied argument on this same resource - the exact 'second required, config-supplied component ignored' risk this ledger exists to catch. Left unadmitted; belongs with its apigatewayv2_*/api_gateway_* sibling family (needs hand separator), which also needs the not-yet-built parent-scoped Cloud Control listing capability."
     },
     "aws_apigatewayv2_route_response": {
       "recovered_from": [
@@ -79,40 +75,29 @@
     "aws_appstream_directory_config": {
       "reason": "credential material: service_account_credentials.account_password is a Required plaintext AD service-account password persisted in config and state (provider doc 6.59.0, Argument Reference); same class as aws_ivs_playback_key_pair's client-supplied write-only material. Ruled by the maintainer 2026-08-15 (#175); the one class where rejection is the end state."
     },
-    "aws_appstream_fleet": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_appstream_image_builder": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
     "aws_appsync_api_key": {
       "recovered_from": [
         "internal/live/identity/table_cohort_streaming.go"
-      ]
+      ],
+      "reason": "verifies as needing a config-supplied api_id component the classifier's flat server-assigned proposal dropped: the provider's Import section requires \"AppSync API ID and key separated by :\", and api_id is a plain Required argument on this resource. The classifier's generic 'primaryIdentifier subset of readOnlyProperties' rule fired because CFN's own primaryIdentifier is the single field ApiKeyId, so it never considered the doc's two-segment requirement even though it printed the two-segment ImportSyntax placeholder itself. Untaggable and unlistable (live/survey-full.json), so there is no discovery fallback either. Left unadmitted."
     },
     "aws_appsync_function": {
       "recovered_from": [
         "internal/live/identity/table_cohort_streaming.go"
-      ]
-    },
-    "aws_backup_restore_testing_selection": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_storage.go"
-      ]
+      ],
+      "reason": "verifies as needing a config-supplied api_id component the classifier's flat server-assigned proposal dropped: the provider's Import section requires \"AppSync API ID and Function ID separated by -\", and api_id is a plain Required argument on this resource. Same generic-rule gap as aws_appsync_api_key. Left unadmitted."
     },
     "aws_backup_selection": {
       "recovered_from": [
         "internal/live/identity/table_cohort_storage.go"
-      ]
+      ],
+      "reason": "the provider's own Identity Schema (v6.59.0, required_for_import=[id, plan_id]) confirms this needs a second, config-supplied component (plan_id, a Required argument) the classifier's flat server-assigned proposal ignores. Left unadmitted; the wall/rejected2 batch pulled this from its admission set for the same reason."
     },
     "aws_bedrock_guardrail_version": {
       "recovered_from": [
         "internal/live/identity/table_cohort_stragglers.go"
-      ]
+      ],
+      "reason": "verifies as needing a config-supplied guardrail_arn component the classifier's flat server-assigned proposal dropped: the provider's Import section requires a comma-delimited guardrail_arn,version pair, and guardrail_arn is the resource's sole Required argument. version has no config source at all (not listed in the Argument Reference), so distinguishing versions created by repeated applies - especially with skip_destroy retaining old ones - needs a real live read, not a flat id. Left unadmitted."
     },
     "aws_bedrockagent_agent_action_group": {
       "recovered_from": [
@@ -132,12 +117,14 @@
     "aws_bedrockagent_data_source": {
       "recovered_from": [
         "internal/live/identity/table_cohort_stragglers.go"
-      ]
+      ],
+      "reason": "verifies as needing a config-supplied knowledge_base_id component the classifier's flat server-assigned proposal dropped, despite the classifier's own tryDocNamedServerSegment rule firing: the Import section's \"data source ID and the knowledge base ID\" example attributes only the first segment to the Attribute Reference, and knowledge_base_id is a plain Required argument on this resource, not a server-provided value the way the rule's own WAFv2/Transfer precedents are. Left unadmitted."
     },
     "aws_bedrockagentcore_gateway_target": {
       "recovered_from": [
         "internal/live/identity/table_cohort_stragglers.go"
-      ]
+      ],
+      "reason": "verifies as needing a config-supplied gateway_identifier component the classifier's flat server-assigned proposal dropped: the Import section requires \"the gateway identifier and target ID separated by a comma\", and gateway_identifier is a plain Required argument on this resource. Left unadmitted."
     },
     "aws_bedrockagentcore_memory_strategy": {
       "recovered_from": [
@@ -150,33 +137,19 @@
         "internal/live/identity/table_cohort_stragglers.go"
       ]
     },
-    "aws_bedrockagentcore_workload_identity": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_stragglers.go"
-      ]
-    },
-    "aws_codebuild_source_credential": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_devtools.go",
-        "internal/live/identity/table_cohort_iot.go"
-      ]
-    },
     "aws_cognito_managed_login_branding": {
       "recovered_from": [
         "internal/live/identity/table_cohort_identity.go"
-      ]
+      ],
+      "reason": "verifies as needing a config-supplied user_pool_id component the classifier's flat server-assigned proposal dropped: the Import section requires user_pool_id and managed_login_branding_id comma-separated, and user_pool_id (along with client_id) is a plain Required argument on this resource. Left unadmitted."
     },
     "aws_cognito_risk_configuration": {
       "recovered_from": [
         "internal/live/identity/table_cohort_identity.go"
-      ]
+      ],
+      "reason": "the classifier's raw proposal (client-named, single value from the doc's user-pool-only example) drops the optional client_id suffix the same Import section documents (\"the user pool ID OR the user pool ID and Client Id separated by :\"): two resources against the same pool, one scoped to a client and one not, would resolve to the identical identity under the flat proposal - a real collision risk, not a hypothetical one. Needs an optional/conditional trailing component this table has no representation for yet. Left unadmitted."
     },
     "aws_cognito_user_pool_client": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_identity.go"
-      ]
-    },
-    "aws_cognito_user_pool_ui_customization": {
       "recovered_from": [
         "internal/live/identity/table_cohort_identity.go"
       ]
@@ -184,12 +157,14 @@
     "aws_datazone_environment_profile": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
-      ]
+      ],
+      "reason": "verifies as a two-component composite (domain_identifier,id), not the flat server-assigned row proposed: the provider's Identity Schema (v6.59.0) names domain_identifier AND id both Required, and domain_identifier is a plain Required argument (\"Identifier of the DataZone domain\") on the resource itself. Same second-required-component defect as aws_backup_selection/aws_eks_pod_identity_association/aws_prometheus_anomaly_detector. Left unadmitted; needs a hand-ratified composite row (comma-joined per the Import section) rather than the classifier's flat proposal."
     },
     "aws_datazone_project": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
-      ]
+      ],
+      "reason": "verifies as a two-component composite (domain_identifier:id), not the flat server-assigned row proposed: the provider's Identity Schema (v6.59.0) names domain_identifier AND id both Required, and domain_identifier is a plain Required argument on the resource itself. Same second-required-component defect as aws_backup_selection/aws_eks_pod_identity_association/aws_prometheus_anomaly_detector. Left unadmitted; needs a hand-ratified composite row (colon-joined per the Import section) rather than the classifier's flat proposal."
     },
     "aws_db_cluster_snapshot": {
       "recovered_from": [
@@ -218,12 +193,14 @@
     "aws_ec2_client_vpn_authorization_rule": {
       "recovered_from": [
         "internal/live/identity/table_cohort_ec2_networking.go"
-      ]
+      ],
+      "reason": "verifies as needing two-to-three config-supplied components (client_vpn_endpoint_id, target_network_cidr, optionally access_group_id) the classifier's flat server-assigned proposal dropped entirely: the registry's primaryIdentifier is the single opaque field Id, but the Import section requires the endpoint ID and target network CIDR (plus an optional group name) comma-joined, and all of client_vpn_endpoint_id/target_network_cidr/access_group_id are real arguments on this resource. Left unadmitted."
     },
     "aws_ec2_client_vpn_network_association": {
       "recovered_from": [
         "internal/live/identity/table_cohort_ec2_networking.go"
-      ]
+      ],
+      "reason": "verifies as needing a config-supplied client_vpn_endpoint_id component the classifier's flat server-assigned proposal dropped: the Import section requires the endpoint ID and the association ID comma-separated, and client_vpn_endpoint_id is a plain Required argument on this resource. Left unadmitted."
     },
     "aws_ec2_transit_gateway_multicast_domain_association": {
       "recovered_from": [
@@ -243,7 +220,8 @@
     "aws_ecs_task_set": {
       "recovered_from": [
         "internal/live/identity/table_cohort_ecs_eks.go"
-      ]
+      ],
+      "reason": "verifies as needing two config-supplied components (cluster, service) the classifier's flat server-assigned proposal dropped, despite tryDocNamedServerSegment firing: the Import section requires task_set_id, service and cluster comma-joined, and cluster/service are both plain Required arguments on this resource, not server-provided values the way the rule's own WAFv2/Transfer precedents are. Left unadmitted."
     },
     "aws_eks_identity_provider_config": {
       "recovered_from": [
@@ -266,29 +244,19 @@
         "internal/live/identity/table_cohort_compute_platforms.go"
       ]
     },
-    "aws_elasticache_global_replication_group": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_databases.go",
-        "internal/live/identity/table_cohort_dynamodb_elasticache.go",
-        "internal/live/identity/table_cohort_remainder.go"
-      ]
-    },
     "aws_emr_instance_fleet": {
       "recovered_from": [
         "internal/live/identity/table_cohort_compute_platforms.go"
-      ]
+      ],
+      "reason": "verifies as needing a config-supplied cluster_id component the classifier's flat server-assigned proposal dropped: the Import section requires the EMR Cluster identifier and Instance Fleet identifier joined by /, and cluster_id is a plain Required argument on this resource (mirrors aws_emr_instance_group's own EMRCLUSTERID/INSTANCEGROUPID shape). Left unadmitted."
     },
     "aws_emr_instance_group": {
       "recovered_from": [
         "internal/live/identity/table_cohort_compute_platforms.go"
-      ]
+      ],
+      "reason": "verifies as needing a config-supplied cluster_id component the classifier's flat server-assigned proposal dropped, even though the classifier's own note printed the two-part ImportSyntax placeholder EMRCLUSTERID/INSTANCEGROUPID: cluster_id is a plain Required argument on this resource. Left unadmitted."
     },
     "aws_emr_managed_scaling_policy": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_compute_platforms.go"
-      ]
-    },
-    "aws_emr_studio_session_mapping": {
       "recovered_from": [
         "internal/live/identity/table_cohort_compute_platforms.go"
       ]
@@ -296,35 +264,11 @@
     "aws_fms_policy": {
       "reason": "verifies cleanly (server-assigned via ARN) but ties with the already-admitted aws_iam_policy under internal/live/identity/parent.go's _policy suffix convention: both are fourteen characters, and lexicographically 'aws_fms_policy' < 'aws_iam_policy', so parentByConvention's shortest-then-alphabetical tie-break risks silently redirecting a policy_arn-shaped argument's convention match away from aws_iam_policy once aws_fms_policy joins DefaultTable (live/e2e/estates/remainder/README.md, 'A naming collision the identity package's convention-based parent inference cannot disambiguate'). Left unadmitted; the fix belongs in parent.go's tie-break rule, out of this batch's write surface."
     },
-    "aws_gamelift_game_server_group": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_glue_catalog": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_data.go"
-      ]
-    },
-    "aws_glue_catalog_table_optimizer": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_data.go"
-      ]
-    },
-    "aws_glue_dev_endpoint": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_data.go"
-      ]
-    },
     "aws_glue_partition": {
       "recovered_from": [
         "internal/live/identity/table_cohort_data.go"
-      ]
-    },
-    "aws_glue_user_defined_function": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_data.go"
-      ]
+      ],
+      "reason": "verifies as needing three config-supplied components (catalog_id, database_name, table_name) the classifier's flat server-assigned proposal dropped, even though the classifier's own note printed the four-part ImportSyntax placeholder CATALOGID:DATABASENAME:TABLENAME:PARTITIONVALUES: database_name and table_name are plain Required arguments and catalog_id is a real (optional, account-id-defaulted) argument on this resource. Left unadmitted."
     },
     "aws_iam_access_key": {
       "recovered_from": [
@@ -336,7 +280,8 @@
     "aws_iam_group_membership": {
       "recovered_from": [
         "internal/live/identity/table_cohort_identity.go"
-      ]
+      ],
+      "reason": "the pinned v6.59.0 provider docs carry no Import section at all for this resource, so the classifier's server-assigned proposal (registry primaryIdentifier Id alone) has no doc corroboration. This is a virtual IAM association resource (name/users/group), not independently discoverable. Left unadmitted for lack of import evidence."
     },
     "aws_identitystore_group": {
       "recovered_from": [
@@ -346,7 +291,8 @@
     "aws_identitystore_group_membership": {
       "recovered_from": [
         "internal/live/identity/table_cohort_identity.go"
-      ]
+      ],
+      "reason": "verifies as needing a config-supplied identity_store_id component the classifier's flat server-assigned proposal dropped, despite tryDocNamedServerSegment firing: identity_store_id (along with group_id and member_id, which the two-part ImportSyntax IDENTITY_STORE_ID/MEMBERSHIP_ID also omits) is a plain Required argument on this resource, not a server-provided value the way the rule's own WAFv2/Transfer precedents are. Left unadmitted."
     },
     "aws_iot_certificate": {
       "recovered_from": [
@@ -356,12 +302,14 @@
     "aws_iot_policy_attachment": {
       "recovered_from": [
         "internal/live/identity/table_cohort_iot.go"
-      ]
+      ],
+      "reason": "the pinned v6.59.0 provider docs carry no Import section at all for this resource. Left unadmitted for lack of import evidence."
     },
     "aws_iot_thing_principal_attachment": {
       "recovered_from": [
         "internal/live/identity/table_cohort_iot.go"
-      ]
+      ],
+      "reason": "the pinned v6.59.0 provider docs carry no Import section at all for this resource. Left unadmitted for lack of import evidence."
     },
     "aws_ivs_playback_key_pair": {
       "reason": "public_key is Required, ForceNew and write-only (no IVS read returns the material), so a marker-rebuilt plan always proposes replacement - measured by the acceptance tier's media cohort 2026-08-14 (#124). Same ground as SURVEY.md's credential-material exclusion (aws_iam_access_key, #125), extended to client-supplied write-only material."
@@ -374,22 +322,26 @@
     "aws_lakeformation_data_lake_settings": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
-      ]
+      ],
+      "reason": "the pinned v6.59.0 provider docs carry no Import section at all for this resource (a singleton per-account settings resource). Left unadmitted for lack of import evidence."
     },
     "aws_lakeformation_permissions": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
-      ]
+      ],
+      "reason": "the pinned v6.59.0 provider docs carry no Import section at all for this resource. Left unadmitted for lack of import evidence."
     },
     "aws_lakeformation_resource": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
-      ]
+      ],
+      "reason": "the pinned v6.59.0 provider docs carry no Import section at all for this resource. Left unadmitted for lack of import evidence."
     },
     "aws_lakeformation_resource_lf_tag": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
-      ]
+      ],
+      "reason": "the pinned v6.59.0 provider docs state outright: \"You cannot import this resource.\" Left unadmitted."
     },
     "aws_lambda_alias": {
       "recovered_from": [
@@ -397,11 +349,6 @@
         "internal/live/identity/table_cohort_lambda.go",
         "internal/live/identity/table_cohort_messaging.go",
         "internal/live/identity/table_cohort_storage.go"
-      ]
-    },
-    "aws_lambda_layer_version_permission": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_lambda.go"
       ]
     },
     "aws_lexv2models_bot_version": {
@@ -427,50 +374,22 @@
     "aws_m2_deployment": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
-      ]
+      ],
+      "reason": "the registry's primaryIdentifier (ApplicationId alone) undersells the real identity: the provider's Import section requires APPLICATION-ID,DEPLOYMENT-ID (a deployment is one of potentially many under an application), so the classifier's client-named proposal (application_id alone) would resolve every deployment under one application to the same identity - a genuine wrong-object risk. Left unadmitted."
     },
     "aws_medialive_multiplex_program": {
       "reason": "the pinned provider's import leaves multiplex_id (ForceNew) unset - reproduced directly against floci 2026-08-14: terraform import by the documented PROGRAM_NAME/MULTIPLEX_ID id populates program_name and settings but not multiplex_id, so a marker-rebuilt plan always proposes replacement (#124). Re-admittable if a future pass backfills null ForceNew arguments from the identity components that composed the import id."
     },
-    "aws_network_interface_sg_attachment": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_ec2_core.go"
-      ]
-    },
-    "aws_networkflowmonitor_monitor": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_pinpoint_app": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_pinpointsmsvoicev2_resource_policy": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
     "aws_prometheus_anomaly_detector": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
-      ]
+      ],
+      "reason": "the provider's own Identity Schema (v6.59.0, required_for_import=[id, workspace_id]) confirms this needs a second, config-supplied component (workspace_id, a Required argument) the classifier's flat server-assigned proposal ignores. Left unadmitted; the wall/rejected2 batch pulled this from its admission set for the same reason."
     },
     "aws_qldb_stream": {
       "recovered_from": [
         "internal/live/identity/table_cohort_databases.go",
         "internal/live/identity/table_cohort_remainder.go"
-      ]
-    },
-    "aws_rds_cluster_endpoint": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_rds.go"
-      ]
-    },
-    "aws_route53_cidr_location": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_route53_cloudfront.go"
       ]
     },
     "aws_route53_query_log": {
@@ -481,26 +400,18 @@
     "aws_s3control_multi_region_access_point_policy": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
-      ]
+      ],
+      "reason": "the classifier's client-named proposal captured only account_id, but the provider's Import section requires account_id AND the Multi-Region Access Point's name, colon-separated - account_id alone does not distinguish between multiple MRAPs in the same account. Left unadmitted."
     },
     "aws_s3tables_table_policy": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_scheduler_schedule": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_streaming.go"
-      ]
+      ],
+      "reason": "the classifier's client-named proposal captured only table_bucket_arn, but the provider's Import section requires table_bucket_arn, namespace and name, semicolon-separated - table_bucket_arn alone does not distinguish between multiple tables in the same bucket. Left unadmitted."
     },
     "aws_secretsmanager_secret_version": {
       "recovered_from": [
         "internal/live/identity/table_cohort_iot.go"
-      ]
-    },
-    "aws_service_discovery_instance": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
       ]
     },
     "aws_service_discovery_private_dns_namespace": {
@@ -508,49 +419,15 @@
         "live/e2e/estates/remainder/README.md"
       ]
     },
-    "aws_ses_receipt_filter": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_ses_receipt_rule": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_ses_receipt_rule_set": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_ses_template": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
     "aws_sesv2_configuration_set_event_destination": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_shield_protection_group": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_ssm_document": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
+      ],
+      "reason": "misclassified as server-assigned (registry primaryIdentifier is the single opaque field Id) when both real identity components - configuration_set_name and event_destination_name - are plain Required arguments on this resource; the Import section documents `configuration_set_name|event_destination_name`, not a server-minted value at all. Left unadmitted."
     },
     "aws_transfer_ssh_key": {
       "recovered_from": [
         "internal/live/identity/table_cohort_remainder.go"
-      ]
-    },
-    "aws_vpc_block_public_access_options": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
       ]
     },
     "aws_vpc_endpoint_service_allowed_principal": {
@@ -573,7 +450,8 @@
     "aws_vpn_gateway_route_propagation": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
-      ]
+      ],
+      "reason": "verifies as needing two config-supplied components (vpn_gateway_id, route_table_id) the classifier's flat server-assigned proposal dropped: this is a pure association resource with no independent server-minted id; both arguments are the resource's own real, non-computed arguments. Left unadmitted."
     },
     "aws_waf_byte_match_set": {
       "recovered_from": [
@@ -664,6 +542,12 @@
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
       ]
+    },
+    "aws_pinpoint_app": {
+      "reason": "identity verifies cleanly (server-assigned via id, confirmed against the provider's Import section) but live/residue.go's DeprecatedServices roster hand-excludes the entire aws_pinpoint_ prefix: AWS announced Pinpoint end-of-support for October 30, 2026, folding existing functionality into End User Messaging, and internal/live/lint/residue_test.go's TestRefusalNamesDeprecatedServiceCohort names this exact type, by construct, as the cohort's own fixture. Admitting it breaks that fixture and contradicts the maintainer's own deprecated-service policy, which is not an identity-correctness question this batch's evidence can override. Left unadmitted."
+    },
+    "aws_ssm_document": {
+      "reason": "identity verifies cleanly (client-named via name, confirmed against the provider's own Identity Schema, v6.59.0 Required: name) but live/residue.go's hand-curated emulatorBlocked roster excludes it outright: \"floci answers ssm:CreateDocument with UnsupportedOperation, so no SSM document can be created against the emulator at all (choudoufu#26)\", and internal/live/lint/residue_test.go's TestRefusalNamesEmulatorBlockedCohort names this exact type, by construct, as the cohort's own fixture. Admitting it breaks that fixture and outruns what this batch's e2e/floci validation can confirm. Left unadmitted."
     }
   }
 }

@@ -150,6 +150,20 @@ func TestSelectProposeCandidates_Deterministic(t *testing.T) {
 // generated that table in full and moved every such ruling into
 // rejected.json. If a future edit drops rows from the ledger, this fails
 // loudly instead of silently losing the safety net.
+//
+// aws_lambda_layer_version_permission dropped out of the sentinel list
+// itself (2026-08-16, the rejected3 batch): the original 2026 note's whole
+// complaint was that row-gen's classifier proposed a wrong server-assigned
+// row instead of the doc-documented "layer-arn,version-number" composite,
+// with import-grammar precedence not yet able to derive that composite
+// automatically. It can now (bucket: composite, layer_name,version_number
+// joined by ",", both plain Required arguments on the resource, matching
+// the provider's Import section exactly) - the extractor gap the original
+// note named has since closed, so the type is admitted in
+// table_generated.go rather than rejected.json. aws_lambda_alias alone
+// still stands for the historical point: the provider's own Import section
+// disagrees with the registry's read-only AliasArn, and nothing about that
+// disagreement has changed.
 func TestLoadRejectedTypes_LedgerIsIntact(t *testing.T) {
 	root, err := repoRoot()
 	if err != nil {
@@ -159,7 +173,7 @@ func TestLoadRejectedTypes_LedgerIsIntact(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRejectedTypes: %v", err)
 	}
-	for _, want := range []string{"aws_lambda_alias", "aws_lambda_layer_version_permission"} {
+	for _, want := range []string{"aws_lambda_alias"} {
 		if !rejected[want] {
 			t.Errorf("loadRejectedTypes did not find %q, the identity table's own worked Rejected example", want)
 		}
@@ -234,8 +248,58 @@ func TestLoadRejectedTypes_LedgerIsIntact(t *testing.T) {
 	// real-artifact fixture. Both stay rejected, with the reason restated
 	// in rejected.json itself rather than only in the deleted-prose
 	// recovery this ledger already carries for most of its other rows.
-	if len(rejected) < 132 {
-		t.Errorf("rejected.json carries %d types, want at least the 132 standing after the wall/rejected2 batch's 21-type admission", len(rejected))
+	//
+	// 104 (2026-08-16, rejected3 batch): 28 more admissions, all
+	// independently doc/schema-verified rather than pasted from row-gen's
+	// raw proposal - aws_amplify_domain_association, aws_appstream_fleet,
+	// aws_appstream_image_builder, aws_backup_restore_testing_selection,
+	// aws_bedrockagentcore_workload_identity, aws_codebuild_source_
+	// credential, aws_cognito_user_pool_ui_customization, aws_elasticache_
+	// global_replication_group, aws_emr_studio_session_mapping, aws_
+	// gamelift_game_server_group, aws_glue_catalog, aws_glue_catalog_
+	// table_optimizer, aws_glue_dev_endpoint, aws_glue_user_defined_
+	// function, aws_lambda_layer_version_permission, aws_network_
+	// interface_sg_attachment, aws_networkflowmonitor_monitor, aws_
+	// pinpointsmsvoicev2_resource_policy, aws_rds_cluster_endpoint, aws_
+	// route53_cidr_location, aws_scheduler_schedule, aws_service_
+	// discovery_instance, aws_ses_receipt_filter, aws_ses_receipt_rule,
+	// aws_ses_receipt_rule_set, aws_ses_template, aws_shield_protection_
+	// group, aws_vpc_block_public_access_options. All now admit with
+	// evidence (table_generated.go); see
+	// TestLoadRejectedTypes_LedgerIsIntact's own note on why aws_lambda_
+	// layer_version_permission left its historical sentinel role.
+	//
+	// Two more (aws_pinpoint_app, aws_ssm_document) verified cleanly on
+	// identity alone but were tried and reverted for downstream reasons
+	// the identity work itself was right about, the same shape as wall/
+	// rejected2's aws_fms_policy/aws_ec2_carrier_gateway: aws_pinpoint_app
+	// sits under live/residue.go's hand-curated DeprecatedServices roster
+	// (the whole aws_pinpoint_ prefix, AWS's own Pinpoint end-of-support
+	// announcement) and is TestRefusalNamesDeprecatedServiceCohort's own
+	// fixture; aws_ssm_document sits in the same file's emulatorBlocked
+	// roster ("floci answers ssm:CreateDocument with UnsupportedOperation")
+	// and is TestRefusalNamesEmulatorBlockedCohort's own fixture. Both
+	// restored to rejected.json with the reason stated directly.
+	//
+	// A wider sweep over the same non-WAF remainder caught nineteen more
+	// candidates whose raw proposal was itself the defect - a config-
+	// supplied parent-scoping argument (api_id, cluster_id, user_pool_id,
+	// domain_identifier and the like) the classifier's flat server-
+	// assigned or single-argument client-named proposal silently dropped,
+	// the same wrong-object risk aws_backup_selection/aws_eks_pod_
+	// identity_association/aws_prometheus_anomaly_detector already named
+	// (aws_apigatewayv2_route and aws_datazone_environment_profile/
+	// aws_datazone_project join that list this batch) - plus seven types
+	// (aws_iam_group_membership, aws_iot_policy_attachment, aws_iot_thing_
+	// principal_attachment, aws_lakeformation_data_lake_settings, aws_
+	// lakeformation_permissions, aws_lakeformation_resource, aws_
+	// lakeformation_resource_lf_tag) whose pinned v6.59.0 docs carry no
+	// Import section at all (one states outright "You cannot import this
+	// resource."), so the registry's own server-assigned claim has no doc
+	// corroboration. All twenty-eight stay rejected, with the reason stated
+	// directly in rejected.json rather than only via recovered_from.
+	if len(rejected) < 104 {
+		t.Errorf("rejected.json carries %d types, want at least the 104 standing after the rejected3 batch's 28-type admission", len(rejected))
 	}
 }
 
