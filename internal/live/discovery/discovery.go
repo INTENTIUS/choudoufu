@@ -24,6 +24,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/policy"
+	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/live/registry"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -529,20 +530,18 @@ func (d *declared) typeNames() []string {
 // block, when scope is the zero value (every existing caller, unchanged),
 // or only the blocks using that exact provider configuration when it is
 // set (issue #69's multi-provider sweep - see [Request.ScopeProvider]'s own
-// doc comment for what this is and is not used to restrict). modPath is the
-// static module the block itself is declared in, the same module-qualified
-// shape [Request.ScopeProvider] and internal/command/live_plan.go's
-// providerConfigAddr use, so a resource inside a child module scopes
-// correctly rather than being compared as if it were always in the root.
-func inScope(scope addrs.AbsProviderConfig, rc *configs.Resource, modPath addrs.Module) bool {
+// doc comment for what this is and is not used to restrict). modCfg is the
+// [configs.Config] node for the static module the block itself is declared
+// in, the same node [providerscope.ResolveResource] needs to walk every
+// ancestor module call's `providers = {...}` mapping up to the root (GitHub
+// issue #188) - a resource inside a module called with an aliased mapping
+// scopes against the account or region the mapping actually sends it to,
+// not the module's own local provider reference.
+func inScope(scope addrs.AbsProviderConfig, rc *configs.Resource, modCfg *configs.Config) bool {
 	if scope.Provider.Type == "" {
 		return true
 	}
-	addr := addrs.AbsProviderConfig{
-		Module:   modPath,
-		Provider: rc.Provider,
-		Alias:    rc.ProviderConfigAddr().Alias,
-	}
+	addr := providerscope.ResolveResource(modCfg, rc)
 	return addr.String() == scope.String()
 }
 
@@ -599,8 +598,9 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 		// it. The lookup is module-qualified: r.Addr.Module says which node
 		// of the static tree declares blockAddr, and a block with the same
 		// local name in a different module must not match.
+		modCfg, modCfgOK := identity.ConfigForModule(req.Config, r.Addr.Module)
 		var block *configs.Resource
-		if modCfg, ok := identity.ConfigForModule(req.Config, r.Addr.Module); ok && modCfg.Module != nil {
+		if modCfgOK && modCfg.Module != nil {
 			block = modCfg.Module.ManagedResources[blockAddr]
 		}
 		if block == nil {
@@ -612,7 +612,7 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 			continue
 		}
 
-		if !inScope(req.ScopeProvider, block, r.Addr.Module.Module()) {
+		if !inScope(req.ScopeProvider, block, modCfg) {
 			// Declared, but by a different provider configuration than this
 			// pass is scoped to (issue #69's multi-provider sweep). It
 			// already contributed its address to d.all above, which is what
@@ -761,7 +761,7 @@ func (d *declared) walkCountBlocks(ctx context.Context, cfg *configs.Config, mod
 		// not get a count-set entry here either, or a marker naming one of
 		// its slots would be parked on a block this pass never declared
 		// anything into.
-		if !inScope(scope, rc, cfg.Path) {
+		if !inScope(scope, rc, cfg) {
 			continue
 		}
 		typeName := rc.Type

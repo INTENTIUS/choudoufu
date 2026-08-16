@@ -163,7 +163,7 @@ func parentReadSweepType(ctx context.Context, req Request, schemas listclient.Sc
 			continue
 		}
 		if modCfg, ok := identity.ConfigForModule(req.Config, r.Addr.Module); ok && modCfg.Module != nil {
-			if rc, ok := modCfg.Module.ManagedResources[r.Addr.Resource.Resource.String()]; ok && !inScope(req.ScopeProvider, rc, r.Addr.Module.Module()) {
+			if rc, ok := modCfg.Module.ManagedResources[r.Addr.Resource.Resource.String()]; ok && !inScope(req.ScopeProvider, rc, modCfg) {
 				// Issue #69's multi-provider sweep: this parent belongs to a
 				// different provider configuration, which is the pass
 				// actually responsible for reading its children. Reading it

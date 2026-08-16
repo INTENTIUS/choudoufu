@@ -19,6 +19,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/lang"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -771,8 +772,9 @@ func (b *builder) materializeRecord(ctx context.Context, addr addrs.AbsResourceI
 	typeName := addr.Resource.Resource.Type
 
 	modPath := addr.Module.Module()
+	modCfg, modOK := identity.ConfigForModule(b.cfg, addr.Module)
 	var rc *configs.Resource
-	if modCfg, ok := identity.ConfigForModule(b.cfg, addr.Module); ok && modCfg.Module != nil {
+	if modOK && modCfg.Module != nil {
 		rc = modCfg.Module.ManagedResources[addr.Resource.Resource.String()]
 	}
 	if rc == nil && !undeclared {
@@ -802,7 +804,7 @@ func (b *builder) materializeRecord(ctx context.Context, addr addrs.AbsResourceI
 
 	var providerAddr addrs.AbsProviderConfig
 	if rc != nil {
-		providerAddr = providerConfigAddr(rc, modPath)
+		providerAddr = providerConfigAddr(modCfg, rc)
 	} else {
 		providerAddr = addrs.AbsProviderConfig{
 			Module:   addrs.RootModule,
@@ -1143,7 +1145,15 @@ func pickImported(imported []providers.ImportedResource, typeName string) (*prov
 // reads through the wrong account.
 func (b *builder) providerFor(rc *configs.Resource, modPath addrs.Module, typeName string, addr addrs.AbsResourceInstance) (addrs.AbsProviderConfig, bool) {
 	if rc != nil {
-		return providerConfigAddr(rc, modPath), true
+		if modCfg, ok := identity.ConfigForModule(b.cfg, addr.Module); ok && modCfg.Module != nil {
+			return providerConfigAddr(modCfg, rc), true
+		}
+		// materialize's own identity.ConfigForModule(b.cfg, addr.Module)
+		// lookup is what produced rc in the first place, so this branch is
+		// unreachable in practice; it exists only so an internal
+		// inconsistency degrades to the resource's own local address
+		// anchored at root rather than failing the whole plan.
+		return addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: rc.Provider, Alias: rc.ProviderConfigAddr().Alias}, true
 	}
 	if p, ok := b.opts.UndeclaredProviders[addr.String()]; ok && p.Provider.Type != "" {
 		return p, true
@@ -1275,15 +1285,14 @@ func discoveryReason(r identity.Resolution) string {
 }
 
 // providerConfigAddr is the absolute provider configuration a resource
-// block uses, modPath being the static module the block itself is declared
-// in (addrs.RootModule for a root resource, issue #59's child-module
-// traversal for anything deeper).
-func providerConfigAddr(rc *configs.Resource, modPath addrs.Module) addrs.AbsProviderConfig {
-	return addrs.AbsProviderConfig{
-		Module:   modPath,
-		Provider: rc.Provider,
-		Alias:    rc.ProviderConfigAddr().Alias,
-	}
+// block uses: [providerscope.ResolveResource] walking every ancestor module
+// call's `providers = {...}` mapping between modCfg (the static module the
+// block itself is declared in) and the root, honouring an aliased mapping
+// instead of ignoring it. GitHub issue #188; the resolution core is
+// internal/live/providerscope, built and tested separately from this
+// wiring.
+func providerConfigAddr(modCfg *configs.Config, rc *configs.Resource) addrs.AbsProviderConfig {
+	return providerscope.ResolveResource(modCfg, rc)
 }
 
 // attrString reads one attribute out of a materialized object's value and
