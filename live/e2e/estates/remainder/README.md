@@ -246,6 +246,44 @@ service:
 `aws_transfer_web_app` — were dropped to a concurrent batch; see "Dropped
 to a concurrent batch" above.)
 
+## Reversed 2026-08-16: four taggable server-minted composites (wall/servermint)
+
+Four types this batch and the `ecs_eks` batch recorded as rejected below
+are now admitted: `aws_ecs_task_set`, `aws_eks_pod_identity_association`,
+`aws_prometheus_anomaly_detector` and
+`aws_service_discovery_private_dns_namespace`.
+
+The rejections were right about the shape and wrong about what the shape
+costs. Each reason said the classifier's flat server-assigned proposal
+"drops a config-supplied component" - `cluster`/`service` for the task
+set, `workspace_id` for the anomaly detector, `domain_identifier`-style
+parent scopes for the rest. That is true of the import ID string, and it
+does not matter for a `ServerAssigned` row: the import ID is never built
+from `Components` for such a type. It is read back from the cloud, and
+`ImportSyntax` is documentation only, as `internal/live/identity/table.go`
+says in the field's own doc comment. The shipped table already carries 51
+`ServerAssigned` rows whose `ImportSyntax` has a separator in it -
+`aws_connect_queue` `INSTANCEID:QUEUEID`, `aws_transfer_agreement`
+`SERVER_ID/AGREEMENT_ID` (its `agreement_id` sits under Attribute
+Reference in the same doc cache these rejections were read from) - so the
+line these four sat behind was not a capability boundary.
+
+What does matter is taggability, and it is the whole test. All four carry
+a top-level `tags` argument at v6.59.0 (`live/survey-full.json`
+`signals.taggable`), so `internal/live/stamp` writes the ownership marker
+and the tag-filtered sweep finds it. The parent scope is not load-bearing:
+**parent-scoped enumeration can confirm an identity the configuration has
+already narrowed to one; it cannot supply one.** For a taggable type the
+marker does the narrowing and the parent only shrinks the candidate set,
+which is why these four move and the 38 untaggable members of the same
+bucket stay refused - for them there is nowhere to write a marker at all,
+and `tools/row-gen/rejected.json` now says so in those words.
+
+No generator rule changed. All four are reproduced by row-gen's own fresh
+classifier (`live/rowgen-convergence.json`: `matched`, no mismatch
+classes), so nothing here is a hand-written row standing in for a
+derivation.
+
 ## Rejected on identity grounds (58 types)
 
 Independent verification against the pinned v6.58.0 provider's own

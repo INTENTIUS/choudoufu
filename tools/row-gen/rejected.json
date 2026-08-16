@@ -217,19 +217,7 @@
         "internal/live/identity/table_cohort_ec2_networking.go"
       ]
     },
-    "aws_ecs_task_set": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_ecs_eks.go"
-      ],
-      "reason": "verifies as needing two config-supplied components (cluster, service) the classifier's flat server-assigned proposal dropped, despite tryDocNamedServerSegment firing: the Import section requires task_set_id, service and cluster comma-joined, and cluster/service are both plain Required arguments on this resource, not server-provided values the way the rule's own WAFv2/Transfer precedents are. Left unadmitted."
-    },
     "aws_eks_identity_provider_config": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_ecs_eks.go"
-      ]
-    },
-    "aws_eks_pod_identity_association": {
-      "reason": "recovered by re-running the fragment scrape with the bullet-subject rule (#131); the first pass collected every type name near the word Rejected, which both over- and under-counted",
       "recovered_from": [
         "internal/live/identity/table_cohort_ecs_eks.go"
       ]
@@ -380,12 +368,6 @@
     "aws_medialive_multiplex_program": {
       "reason": "the pinned provider's import leaves multiplex_id (ForceNew) unset - reproduced directly against floci 2026-08-14: terraform import by the documented PROGRAM_NAME/MULTIPLEX_ID id populates program_name and settings but not multiplex_id, so a marker-rebuilt plan always proposes replacement (#124). Re-admittable if a future pass backfills null ForceNew arguments from the identity components that composed the import id."
     },
-    "aws_prometheus_anomaly_detector": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ],
-      "reason": "the provider's own Identity Schema (v6.59.0, required_for_import=[id, workspace_id]) confirms this needs a second, config-supplied component (workspace_id, a Required argument) the classifier's flat server-assigned proposal ignores. Left unadmitted; the wall/rejected2 batch pulled this from its admission set for the same reason."
-    },
     "aws_qldb_stream": {
       "recovered_from": [
         "internal/live/identity/table_cohort_databases.go",
@@ -412,11 +394,6 @@
     "aws_secretsmanager_secret_version": {
       "recovered_from": [
         "internal/live/identity/table_cohort_iot.go"
-      ]
-    },
-    "aws_service_discovery_private_dns_namespace": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
       ]
     },
     "aws_sesv2_configuration_set_event_destination": {
