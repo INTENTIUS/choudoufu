@@ -284,6 +284,33 @@ func TestReadRefusesIneligibleBeforeAnyCall(t *testing.T) {
 	}
 }
 
+// TestConfigureFailureRefusesWithProviderClass: the analysis passed rule 3
+// statically, but the provider's own configure refused at read time - bad
+// or missing credentials are the design's example - and the error is
+// quoted under the provider class.
+func TestConfigureFailureRefusesWithProviderClass(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "read-order"), nil)
+	analysis := Analyze(context.Background(), cfg, Options{})
+
+	_, diags := Read(context.Background(), cfg, analysis, &fakeProviders{err: errNoCreds})
+	if !diags.HasErrors() {
+		t.Fatalf("a provider that will not configure did not refuse")
+	}
+	d := diags[0].Description()
+	if got := diags[0].Description().Summary; got != SummaryProviderNotConfigurable {
+		t.Errorf("refused under %q, want %q", got, SummaryProviderNotConfigurable)
+	}
+	if !strings.Contains(d.Detail, "no valid credential sources") {
+		t.Errorf("the provider's own error is not quoted: %s", d.Detail)
+	}
+}
+
+var errNoCreds = errCreds{}
+
+type errCreds struct{}
+
+func (errCreds) Error() string { return "no valid credential sources for the provider found" }
+
 var errQuota = errThrottling{}
 
 type errThrottling struct{}
