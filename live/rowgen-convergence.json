@@ -1,11 +1,11 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 936,
-    "compared": 926,
+    "admitted_total": 954,
+    "compared": 944,
     "not_in_mapped_set": 10,
-    "adopted_unchanged": 820,
-    "adopted_unchanged_pct": 88.55,
+    "adopted_unchanged": 838,
+    "adopted_unchanged_pct": 88.77,
     "genuine_mismatches": 106,
     "annotated": 106,
     "unannotated_mismatches": 0,
@@ -910,6 +910,16 @@
     "VpcLattice": {
       "compared": 14,
       "adopted_unchanged": 14,
+      "adopted_unchanged_pct": 100
+    },
+    "WAF": {
+      "compared": 7,
+      "adopted_unchanged": 7,
+      "adopted_unchanged_pct": 100
+    },
+    "WAFRegional": {
+      "compared": 11,
+      "adopted_unchanged": 11,
       "adopted_unchanged_pct": 100
     },
     "WAFv2": {
@@ -10757,6 +10767,201 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_waf_byte_match_set",
+      "service": "WAF",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_waf_ipset",
+      "service": "WAF",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_waf_rule",
+      "service": "WAF",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_waf_size_constraint_set",
+      "service": "WAF",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_waf_sql_injection_match_set",
+      "service": "WAF",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_waf_web_acl",
+      "service": "WAF",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_waf_xss_match_set",
+      "service": "WAF",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafregional_byte_match_set",
+      "service": "WAFRegional",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafregional_geo_match_set",
+      "service": "WAFRegional",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafregional_ipset",
+      "service": "WAFRegional",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafregional_rate_based_rule",
+      "service": "WAFRegional",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafregional_regex_pattern_set",
+      "service": "WAFRegional",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafregional_rule",
+      "service": "WAFRegional",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafregional_size_constraint_set",
+      "service": "WAFRegional",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafregional_sql_injection_match_set",
+      "service": "WAFRegional",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafregional_web_acl",
+      "service": "WAFRegional",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafregional_web_acl_association",
+      "service": "WAFRegional",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: Argument Reference's own Required arguments, separator and order recovered from the documented example string",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafregional_xss_match_set",
+      "service": "WAFRegional",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
       "matched": true,
       "annotated": false

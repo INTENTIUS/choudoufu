@@ -2870,6 +2870,13 @@ undeclared instance is created through whichever configuration found it.
 `aws_vpc_endpoint_security_group_association`,
 `aws_vpc_endpoint_subnet_association`, `aws_vpc_ipam_pool_cidr`,
 `aws_vpclattice_auth_policy`, `aws_vpclattice_resource_policy`,
+`aws_waf_byte_match_set`, `aws_waf_ipset`, `aws_waf_size_constraint_set`,
+`aws_waf_sql_injection_match_set`, `aws_waf_xss_match_set`,
+`aws_wafregional_byte_match_set`, `aws_wafregional_geo_match_set`,
+`aws_wafregional_ipset`, `aws_wafregional_regex_pattern_set`,
+`aws_wafregional_size_constraint_set`,
+`aws_wafregional_sql_injection_match_set`,
+`aws_wafregional_web_acl_association`, `aws_wafregional_xss_match_set`,
 `aws_wafv2_web_acl_logging_configuration`, `aws_wafv2_web_acl_rule`,
 `aws_workspacesweb_browser_settings_association`,
 `aws_workspacesweb_data_protection_settings_association`,
@@ -3016,6 +3023,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_vpc_endpoint_security_group_association` | `aws_vpc_endpoint` | no (report-only) |
 | `aws_vpc_endpoint_subnet_association` | `aws_vpc_endpoint` | no (report-only) |
 | `aws_vpc_ipam_pool_cidr` | `aws_vpc_ipam_pool` | no (report-only) |
+| `aws_wafregional_web_acl_association` | `aws_wafregional_web_acl` | no (report-only) |
 | `aws_wafv2_web_acl_rule` | `aws_wafv2_web_acl` | no (report-only) |
 | `aws_workspacesweb_browser_settings_association` | `aws_workspacesweb_browser_settings` | no (report-only) |
 | `aws_workspacesweb_data_protection_settings_association` | `aws_workspacesweb_data_protection_settings` | no (report-only) |
@@ -3026,7 +3034,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_workspacesweb_user_access_logging_settings_association` | `aws_workspacesweb_user_access_logging_settings` | no (report-only) |
 | `aws_workspacesweb_user_settings_association` | `aws_workspacesweb_user_settings` | no (report-only) |
 
-**Total.** 121 types swept via a parent read.
+**Total.** 122 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child. Whether it
@@ -3147,12 +3155,22 @@ per-type reasoning as it stands.
 `aws_verifiedpermissions_policy`, `aws_verifiedpermissions_policy_template`,
 `aws_vpc_block_public_access_options`, `aws_vpc_dhcp_options_association`,
 `aws_vpc_endpoint_connection_notification`, `aws_vpclattice_auth_policy`,
-`aws_vpclattice_resource_policy`, `aws_wafv2_web_acl_logging_configuration`
-and `aws_xray_resource_policy`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
+`aws_vpclattice_resource_policy`, `aws_waf_byte_match_set`, `aws_waf_ipset`,
+`aws_waf_size_constraint_set`, `aws_waf_sql_injection_match_set`,
+`aws_waf_xss_match_set`, `aws_wafregional_byte_match_set`,
+`aws_wafregional_geo_match_set`, `aws_wafregional_ipset`,
+`aws_wafregional_regex_pattern_set`, `aws_wafregional_size_constraint_set`,
+`aws_wafregional_sql_injection_match_set`, `aws_wafregional_xss_match_set`,
+`aws_wafv2_web_acl_logging_configuration` and `aws_xray_resource_policy`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
 parent-readable: the three ECR registry types are account-level singletons
 with no admitted parent resource to read at all, and the dashboard, the
 KMS alias and the Lambda layer version are each client-named on their own
-terms, with no dependency on any other admitted type's identity. For these,
+terms, with no dependency on any other admitted type's identity. The WAF
+Classic and WAF Classic Regional match-set entries are a third shape: they
+carry no `tags` argument in the pinned v6.59.0 provider (only the rules and
+web ACLs of those two services do), and their identity is a bare
+server-minted id with no parent argument in it, so neither path reaches
+them. For these,
 issue #60 changes nothing: destroy the resource before removing its block,
 or delete it out of band. Every plan still names this narrower list under
 "Not swept for removal". The parent-readable set above is reported there

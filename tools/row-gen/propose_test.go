@@ -182,7 +182,14 @@ func TestLoadRejectedTypes_LedgerIsIntact(t *testing.T) {
 	// rejections lived only in prose banners a merge dropped before #96's
 	// scrape ran, and were recovered separately from the remainder estate's
 	// README. One from each of that README's two rejection sections.
-	for _, want := range []string{"aws_fms_policy", "aws_waf_web_acl"} {
+	// aws_waf_web_acl used to stand for the second section here. The
+	// rejected4 batch admitted the whole WAF Classic/Regional family, so
+	// the sentinel moved to aws_ec2_carrier_gateway - still recovered from
+	// the same "Excluded despite verifying clean" section, still genuinely
+	// unadmitted, and held out for a reason that has not changed
+	// (internal/live/discovery/tagging_test.go names it by constant as the
+	// canonical mapped-but-not-admitted real-artifact fixture).
+	for _, want := range []string{"aws_fms_policy", "aws_ec2_carrier_gateway"} {
 		if !rejected[want] {
 			t.Errorf("loadRejectedTypes did not find %q, recovered from the remainder README in #127", want)
 		}
@@ -298,8 +305,38 @@ func TestLoadRejectedTypes_LedgerIsIntact(t *testing.T) {
 	// resource."), so the registry's own server-assigned claim has no doc
 	// corroboration. All twenty-eight stay rejected, with the reason stated
 	// directly in rejected.json rather than only via recovered_from.
-	if len(rejected) < 104 {
-		t.Errorf("rejected.json carries %d types, want at least the 104 standing after the rejected3 batch's 28-type admission", len(rejected))
+	//
+	// 86 (2026-08-16, rejected4 batch): the eighteen mapped WAF Classic and
+	// WAF Classic Regional types. These were never an identity or an
+	// extraction problem - the remainder README's own words are that each
+	// "would otherwise have been ratified" and that all seven WAF Classic
+	// types were "verified present and importable". They were held out by
+	// live/residue.go's DeprecatedServices roster, which the type-parity
+	// ruling supersedes: the only sanctioned permanent exclusion is
+	// credential material. The roster was never an admission gate anyway -
+	// residue.Lookup is consulted only INSIDE lint's unadmitted-type
+	// refusal, to explain a refusal rather than to cause one - and the
+	// repository already contradicted the "standing policy" reading by
+	// admitting aws_appstream_fleet, aws_appstream_image_builder,
+	// aws_appstream_stack, aws_appstream_user and
+	// aws_appstream_fleet_stack_association while AppStream 2.0 sits in
+	// the same roster. Seventeen admit server-assigned by their own
+	// documented id (pinned v6.59.0 Import sections, each importing by the
+	// `id` alone against a read-only registry primaryIdentifier Id);
+	// aws_wafregional_web_acl_association admits as the composite
+	// web_acl_id:resource_arn its doc actually documents, which the
+	// classifier now derives on its own (importprecedence.go rule 4's
+	// widened gate).
+	//
+	// The seven remaining aws_waf_/aws_wafregional_ types (geo_match_set,
+	// rate_based_rule, regex_match_set, regex_pattern_set, rule_group,
+	// wafregional_regex_match_set, wafregional_rule_group) are NOT in this
+	// ledger and are not admitted by this batch: live/mapping.json gives
+	// them via="deprecated-service" with a null cfn_type, so row-gen never
+	// classifies them at all. They are the cfn-unmodeled debt, a different
+	// address from this one.
+	if len(rejected) < 86 {
+		t.Errorf("rejected.json carries %d types, want at least the 86 standing after the rejected4 batch's 18-type admission", len(rejected))
 	}
 }
 
