@@ -20,7 +20,7 @@ import (
 // This file is -emit's whole implementation (issue #96): where every other
 // mode of this tool only prints - a human pastes, edits and ratifies every
 // block (see this package's own doc comment) - emit mode writes the two
-// tables outright. [identity.DefaultTable] and internal/live/lint's
+// tables outright, alongside markerless.go's derived veto roster. [identity.DefaultTable] and internal/live/lint's
 // admittedTypesV0 are each declared, in full, by a file this mode owns end to
 // end. Nothing hand-written participates in building either one: no per-cohort
 // fragment, no init(), no core literal a batch appends to, and no assembly
@@ -145,9 +145,9 @@ func runEmit(out, errOut *os.File) error {
 	return nil
 }
 
-// emitFileOrder is the two generated files' write order, and the key set
+// emitFileOrder is the generated files' write order, and the key set
 // buildEmitFiles' returned map always has exactly.
-var emitFileOrder = []string{identityTableRel, lintTableRel}
+var emitFileOrder = []string{identityTableRel, lintTableRel, markerlessTableRel}
 
 // buildEmitFiles is -emit's pure computation, split out from runEmit so tests
 // can exercise it without writing to the checkout: given a fresh classifyAll
@@ -167,6 +167,7 @@ func buildEmitFiles(proposals []proposal, annotations map[string]annotation, gra
 	if err != nil {
 		return nil, emitPartition{}, emitPartition{}, err
 	}
+	vetoed := markerlessRoster(survey, proposals)
 	rows, types := emittedRows(recordBacked, grammar, survey)
 
 	// Issue #132's gate: a row the fresh classifier does not reproduce is
@@ -211,11 +212,25 @@ func buildEmitFiles(proposals []proposal, annotations map[string]annotation, gra
 	if err != nil {
 		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", lintTableRel, err)
 	}
+	markerlessSrc, err := renderMarkerlessFile(vetoed)
+	if err != nil {
+		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", markerlessTableRel, err)
+	}
 
 	return map[string][]byte{
-		identityTableRel: identitySrc,
-		lintTableRel:     lintSrc,
+		identityTableRel:   identitySrc,
+		lintTableRel:       lintSrc,
+		markerlessTableRel: markerlessSrc,
 	}, identityPart, lintPart, nil
+}
+
+// setOf indexes a sorted type list for membership tests.
+func setOf(types []string) map[string]bool {
+	out := make(map[string]bool, len(types))
+	for _, t := range types {
+		out[t] = true
+	}
+	return out
 }
 
 // recordBackedRows is the RecordBacked half of the emitted table, derived
@@ -257,6 +272,20 @@ func recordBackedRows(logical logicalSchemas) (map[string]bool, error) {
 
 // emittedRows builds every row the identity table will carry, and the sorted
 // type list that keys it.
+//
+// markerless.go's derived veto does NOT filter here yet, and the reason is
+// recorded rather than left to be rediscovered: 77 rows this table already
+// admits are types that rule vetoes, and dropping them is a separate change
+// with its own consequences (issue #249). It converts their refusal from
+// internal/live/stamp's hard unmarked-apply error into lint's
+// unadmitted-type finding, which internal/live/check's ClassifyOnboarding
+// counts as NON-blocking - so the retraction, on its own, would move
+// estates up the onboarding ladder without any configuration becoming
+// applyable. It also empties 21 cohort estates of resources whose
+// ratification evidence lives in hand-owned READMEs. The veto is derived
+// and measured here; applying it to this table needs those two answered
+// first. [MarkerlessAdmittedOverlapMax] in live/admission_coverage_test.go
+// is the ratchet that keeps the gap from growing meanwhile.
 //
 // The two halves come from different places on purpose. A RecordBacked row is
 // derived whole - its only non-zero fields are Type and RecordBacked, because

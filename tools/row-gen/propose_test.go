@@ -103,11 +103,13 @@ func TestSelectProposeCandidates(t *testing.T) {
 		{TFType: "aws_known_rejected", Bucket: bucketServerAssigned, Rule: "clean"},      // excluded: recorded rejection
 		{TFType: "aws_wrong_rule", Bucket: bucketServerAssigned, Rule: "not-qualifying"}, // excluded: rule does not qualify
 		{TFType: "aws_not_pastable", Bucket: bucketNeedsHandSeparator, Rule: "clean"},    // excluded: bucket never pastable
+		{TFType: "aws_markerless", Bucket: bucketServerAssigned, Rule: "clean"},          // excluded: markerless.go's derived veto
 	}
 	admitted := map[string]bool{"aws_already_admitted": true}
 	rejected := map[string]bool{"aws_known_rejected": true}
+	vetoed := map[string]bool{"aws_markerless": true}
 
-	got := selectProposeCandidates(proposals, admitted, rejected, qualifying)
+	got := selectProposeCandidates(proposals, admitted, rejected, vetoed, qualifying)
 
 	if len(got) != 1 {
 		t.Fatalf("selectProposeCandidates returned %d candidates, want 1: %+v", len(got), got)
@@ -131,7 +133,7 @@ func TestSelectProposeCandidates_Deterministic(t *testing.T) {
 		{TFType: "aws_aaa", Bucket: bucketClientNamed, Rule: "r"},
 		{TFType: "aws_mmm", Bucket: bucketClientNamed, Rule: "r"},
 	}
-	got := selectProposeCandidates(proposals, map[string]bool{}, map[string]bool{}, qualifying)
+	got := selectProposeCandidates(proposals, map[string]bool{}, map[string]bool{}, map[string]bool{}, qualifying)
 	want := []string{"aws_aaa", "aws_mmm", "aws_zzz"}
 	if len(got) != len(want) {
 		t.Fatalf("got %d candidates, want %d", len(got), len(want))

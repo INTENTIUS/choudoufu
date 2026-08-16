@@ -246,7 +246,7 @@ type proposeCandidate struct {
 // selectProposeCandidates is the full filter: pastable bucket, not already
 // admitted, not named in a recorded rejection, and classified under a
 // qualifying rule class. Sorted by TF type for a deterministic report.
-func selectProposeCandidates(proposals []proposal, admitted, rejected map[string]bool, qualifying map[ruleKey]ruleStats) []proposeCandidate {
+func selectProposeCandidates(proposals []proposal, admitted, rejected, vetoed map[string]bool, qualifying map[ruleKey]ruleStats) []proposeCandidate {
 	var out []proposeCandidate
 	for _, p := range proposals {
 		if !pastableBucket(p.Bucket) {
@@ -257,6 +257,9 @@ func selectProposeCandidates(proposals []proposal, admitted, rejected map[string
 		}
 		if rejected[p.TFType] {
 			continue // a batch already looked at this type by name; the rule's clean record elsewhere does not overrule a specific recorded decision
+		}
+		if vetoed[p.TFType] {
+			continue // markerless.go's rule; see its file comment for why no classification confidence can overrule it
 		}
 		k := ruleKey{Bucket: p.Bucket, Rule: p.Rule}
 		stats, ok := qualifying[k]
@@ -299,7 +302,13 @@ func buildProposeReport(root string) (report, summary string, err error) {
 		admitted[t] = true
 	}
 
-	candidates := selectProposeCandidates(proposals, admitted, rejected, qualifying)
+	survey, err := loadSurvey(filepath.Join(root, surveyJSONRel))
+	if err != nil {
+		return "", "", fmt.Errorf("reading %s: %w", surveyJSONRel, err)
+	}
+	vetoed := setOf(markerlessRoster(survey, proposals))
+
+	candidates := selectProposeCandidates(proposals, admitted, rejected, vetoed, qualifying)
 
 	report = renderProposeReport(stats, qualifying, candidates)
 	summary = fmt.Sprintf(

@@ -20,6 +20,16 @@ import (
 type surveyEntry struct {
 	Type     string          `json:"type"`
 	Identity *surveyIdentity `json:"identity"`
+	Signals  surveySignals   `json:"signals"`
+}
+
+// surveySignals is the per-type signal block tools/survey-gen derives from
+// the provider's own schema. Only taggable is read here, and it is the same
+// predicate internal/live/markers.Taggable applies at run time: a tags
+// attribute that is settable and is a map of string. See markerless.go for
+// the one rule that consults it.
+type surveySignals struct {
+	Taggable bool `json:"taggable"`
 }
 
 // surveyIdentity is the identity half of a survey entry: the provider's own

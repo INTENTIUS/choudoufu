@@ -19,12 +19,17 @@ import (
 // measurement: no provider type may fall out of both the identity table and
 // the rejection ledger without being counted.
 //
-// The two committed rosters that decide admission are keyed by type name:
+// The three committed rosters that decide admission are keyed by type name:
 //
 //   - internal/live/identity.DefaultTable, the rows a ratification batch
 //     admitted;
 //   - tools/row-gen/rejected.json, the types a ratification batch looked at
-//     and declined.
+//     and declined;
+//   - internal/live/identity.MarkerlessTypes, the types tools/row-gen's one
+//     derived admission rule vetoes (issue #249). A batch never looked at
+//     these individually and never will: the ruling is a rule, regenerated
+//     on every run, and it carries its own reason in
+//     [identity.MarkerlessReason].
 //
 // TestRejectedLedgerIsDisjointFromAdmitted (tools/row-gen) already forbids a
 // type appearing in both. Nothing forbade a type appearing in neither, and
@@ -41,16 +46,22 @@ import (
 // move when a batch shuffles a type between the table and the ledger.
 
 // unreachedRatchetMax is the highest number of provider resource types that
-// may be in neither internal/live/identity.DefaultTable nor
-// tools/row-gen/rejected.json.
+// may be in none of internal/live/identity.DefaultTable,
+// tools/row-gen/rejected.json and internal/live/identity.MarkerlessTypes.
 //
-// Measured at 665 on 2026-08-16 against hashicorp/aws 6.59.0 (953 admitted,
-// 81 vetoed, 665 unreached, summing to live/survey-full.json's 1699 exactly),
-// after the DocDB family batch admitted four types no ratification batch had
-// ever reached. It stood at 669 for the two measurements before that (949/81
-// and, in #245, 944/86) - the batch that moved five types from the ledger into
-// the table did not change this count at all, which is the whole reason this
-// constant exists rather than a count of the ledger.
+// Measured at 649 on 2026-08-16 against hashicorp/aws 6.59.0: 953 aws_ rows
+// admitted, 81 vetoed by hand, 16 vetoed by the markerless rule and counted
+// by neither of the other two rosters, 649 unreached, summing to
+// live/survey-full.json's 1699 exactly.
+//
+// It stood at 665 before the markerless rule landed (#249). The rule vetoes
+// 121 types in total; 77 of those are rows the table still admits (see
+// markerlessAdmittedOverlapMax) and 28 the hand ledger had already reached,
+// so only the remaining 16 - types no batch had looked at, now pre-empted -
+// move this count. It stood at 669 for the two measurements before that (949/81 and, in #245,
+// 944/86) - the batch that moved five types from the ledger into the table
+// did not change this count at all, which is the whole reason this constant
+// exists rather than a count of the ledger.
 //
 // Lower it whenever a batch lands; raising it is admitting a type stopped
 // being reachable, and needs to be a deliberate, reviewed edit rather than a
@@ -67,7 +78,7 @@ import (
 // is 605. This test deliberately does not subtract it: the fallback needs a
 // live provider plugin, and a ratchet that cannot run without one is a
 // ratchet that does not run.
-const unreachedRatchetMax = 665
+const unreachedRatchetMax = 649
 
 // universeFloor is the anti-tamper leg. The count this file ratchets is a
 // difference, so shrinking live/survey-full.json's type roster lowers it just
@@ -155,6 +166,9 @@ func TestUnreachedTypeRatchet(t *testing.T) {
 	var unreached []string
 	for typeName := range universe {
 		if !admitted[typeName] && !rejected[typeName] {
+			if _, vetoed := identity.MarkerlessTypes[typeName]; vetoed {
+				continue
+			}
 			unreached = append(unreached, typeName)
 		}
 	}
@@ -165,7 +179,8 @@ func TestUnreachedTypeRatchet(t *testing.T) {
 		if len(sample) > 20 {
 			sample = sample[:20]
 		}
-		t.Errorf("%d provider type(s) are in neither internal/live/identity.DefaultTable nor %s, above the "+
+		t.Errorf("%d provider type(s) are in none of internal/live/identity.DefaultTable, %s and "+
+			"internal/live/identity.MarkerlessTypes, above the "+
 			"ratchet ceiling of %d (unreachedRatchetMax). Naming one of these in a configuration is a hard "+
 			"resolve error with no ledger entry saying why. Admit it, or record the ruling in the ledger - "+
 			"raising this constant is neither. First %d: %v",
@@ -239,5 +254,120 @@ func TestAdmittedTableNamesOnlyTypesTheProviderServes(t *testing.T) {
 		sort.Strings(strays)
 		t.Errorf("%d admitted row(s) name a type live/survey-full.json's provider roster does not contain: %v",
 			len(strays), strays)
+	}
+}
+
+// markerlessAdmittedOverlapMax is the number of rows internal/live/identity's
+// generated table still admits that the markerless rule vetoes, and it is a
+// ratchet down to zero.
+//
+// It is not zero today and the reason is recorded rather than assumed. The
+// rule (tools/row-gen/markerless.go) is derived and is applied in full to
+// what may be admitted NEXT - tools/row-gen's PROPOSE stage cannot offer a
+// vetoed type, and the count below is the whole of what a batch has already
+// let through. Retracting those rows is a separate change, because it
+// converts their refusal from internal/live/stamp's hard unmarked-apply
+// error into internal/live/lint's unadmitted-type finding, and
+// internal/live/check.ClassifyOnboarding (ladder.go's own switch) counts
+// unadmitted-type as NON-blocking - so the retraction on its own would move
+// corpus estates up the onboarding ladder while no configuration became any
+// more applyable. It also empties 21 cohort estates under live/e2e of
+// resources whose ratification evidence lives in hand-owned READMEs. Both
+// need answering before the rows come out; see issue #249.
+//
+// Measured at 77 on 2026-08-16 against hashicorp/aws 6.59.0. Lowering it is
+// the point. Raising it means a batch admitted a type the rule vetoes,
+// which PROPOSE cannot do and a hand-pasted row can, and it needs to be a
+// deliberate edit rather than a silent one.
+const markerlessAdmittedOverlapMax = 77
+
+// TestMarkerlessVetoOverlapWithAdmittedDoesNotGrow is the anti-tamper leg
+// for the third roster, and the debt marker for the rows the rule has not
+// been applied to yet.
+//
+// TestUnreachedTypeRatchet's count is a difference and this roster
+// subtracts from it, so a generator that vetoed types it also admits could
+// lower that count while changing nothing about what the fork supports.
+// Bounding the overlap bounds exactly that: the 16 types the rule
+// subtracts from the unreached count are, by this test, types nothing
+// admits.
+func TestMarkerlessVetoOverlapWithAdmittedDoesNotGrow(t *testing.T) {
+	var both []string
+	for typeName := range identity.MarkerlessTypes {
+		if _, admitted := identity.DefaultTable[typeName]; admitted {
+			both = append(both, typeName)
+		}
+	}
+	sort.Strings(both)
+	if len(both) > markerlessAdmittedOverlapMax {
+		t.Errorf("%d type(s) are in both internal/live/identity.DefaultTable and MarkerlessTypes, above the "+
+			"ratchet ceiling of %d (markerlessAdmittedOverlapMax). The markerless rule refuses to admit "+
+			"these, so a row for one of them is the table contradicting a derived veto. Retract the row, or "+
+			"show why the rule does not reach it - raising this constant is neither. Overlap: %v",
+			len(both), markerlessAdmittedOverlapMax, both)
+	}
+	if len(both) < markerlessAdmittedOverlapMax {
+		t.Logf("%d admitted rows overlap the markerless veto, below the ceiling of %d; lower "+
+			"markerlessAdmittedOverlapMax to match", len(both), markerlessAdmittedOverlapMax)
+	}
+}
+
+// TestMarkerlessVetoNamesOnlyTypesTheProviderServes is the same question
+// TestNoVetoNamesATypeTheProviderDoesNotServe asks of the hand ledger. A
+// veto entry outside the provider's roster subtracts from the unreached
+// count without corresponding to anything a configuration could name.
+func TestMarkerlessVetoNamesOnlyTypesTheProviderServes(t *testing.T) {
+	universe := providerTypeUniverse(t)
+
+	var strays []string
+	for typeName := range identity.MarkerlessTypes {
+		if !universe[typeName] {
+			strays = append(strays, typeName)
+		}
+	}
+	sort.Strings(strays)
+	if len(strays) > 0 {
+		t.Errorf("%d markerless veto entr(y/ies) name a type live/survey-full.json's provider roster does "+
+			"not contain: %v - the rule reads that roster, so an entry outside it cannot have been derived "+
+			"from the signal the rule claims to read",
+			len(strays), strays)
+	}
+}
+
+// TestMarkerlessVetoIsUntaggableInTheSurvey checks the rule's own premise
+// against the artifact the rule reads, rather than against the rule. Every
+// vetoed type must be one live/survey-full.json marks untaggable: the
+// conjunction is what makes the veto correct, and the taggable half is the
+// one an estate could disprove by writing a marker. internal/live/stamp's
+// TestPinnedTaggabilityMatchesTheSurvey ties that signal to the predicate
+// the run-time marker writer applies, so this chain ends at the provider
+// schema and not at another of this generator's outputs.
+func TestMarkerlessVetoIsUntaggableInTheSurvey(t *testing.T) {
+	var survey struct {
+		Types []struct {
+			Type    string `json:"type"`
+			Signals struct {
+				Taggable bool `json:"taggable"`
+			} `json:"signals"`
+		} `json:"types"`
+	}
+	decodeInto(t, "survey-full.json", &survey)
+	taggable := make(map[string]bool, len(survey.Types))
+	for _, e := range survey.Types {
+		taggable[e.Type] = e.Signals.Taggable
+	}
+
+	var wrong []string
+	for typeName := range identity.MarkerlessTypes {
+		if taggable[typeName] {
+			wrong = append(wrong, typeName)
+		}
+	}
+	sort.Strings(wrong)
+	if len(wrong) > 0 {
+		t.Errorf("%d markerless veto entr(y/ies) name a type live/survey-full.json marks TAGGABLE: %v - "+
+			"a taggable type has somewhere to write the ownership marker, so the veto's stated reason "+
+			"(%s) does not hold for it",
+			len(wrong), wrong, identity.MarkerlessReason)
 	}
 }
