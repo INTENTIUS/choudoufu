@@ -267,7 +267,7 @@ func checkManagedResources(mod *configs.Module, path addrs.Module, schemas map[s
 		// argument-derived identity at all, not before it.
 		lt, isLogical := ClassifyLogicalType(resource.Type)
 
-		checkProvisioners(resource, addr, path, issues)
+		checkProvisioners(resource, addr, path, isLogical, issues)
 		checkCountIndex(resource, addr, path, countIndexScopeForType(resource.Type, lt, isLogical), issues)
 		checkIgnoreChanges(resource, addr, path, schemas, issues)
 
@@ -374,9 +374,35 @@ func checkManagedResources(mod *configs.Module, path addrs.Module, schemas map[s
 }
 
 // checkProvisioners rejects provisioner blocks and connection blocks on a
-// resource of any type. Both describe effects, and an effect leaves nothing
-// behind that a stateless run can read back to learn whether it already ran.
-func checkProvisioners(resource *configs.Resource, addr string, path addrs.Module, issues *[]Issue) {
+// managed cloud resource. Both describe effects, and this fork gives up
+// effect-memory for a cloud resource on purpose: whether a create-time
+// provisioner already ran, or a destroy-time one still needs to, is
+// recoverable under stock OpenTofu only from a stored record of the attempt
+// (specifically, the tainted-resource bit a failed provisioner sets in
+// state) - and a live-marker-tracked resource has no state entry to carry
+// that bit. A live object simply exists or does not; nothing about it says
+// whether the provisioner attached to its config address already fired, or
+// half-fired and needs cleanup.
+//
+// isLogical narrows that to resources actually exposed to it: a logical,
+// record-backed type (null_resource, terraform_data, time_*, non-secret
+// random_*, issue #73) is either refused outright by RuleLogicalResource
+// (no record_store configured) or, once one is, "running through the stock
+// provider lifecycle against a record hydrated from and written back to
+// that store" (logical_type.go's own wording for what admission means) -
+// its provisioners are exactly as recoverable as they always were, because
+// the record store is what replaces state for that type, tainted bit
+// included. Reporting RuleProvisioner on top of RuleLogicalResource would
+// not be a second, independent hazard: it would be the same "one verdict
+// per resource" violation checkManagedResources already avoids for
+// RuleUnadmittedType once a type is already known logical (lint.go, the
+// isLogical branch above) - telling an operator to also strip a provisioner
+// that a record_store declaration already brings back to life is noise, not
+// a second fix they need to make.
+func checkProvisioners(resource *configs.Resource, addr string, path addrs.Module, isLogical bool, issues *[]Issue) {
+	if isLogical {
+		return
+	}
 	managed := resource.Managed
 	if managed == nil {
 		return
