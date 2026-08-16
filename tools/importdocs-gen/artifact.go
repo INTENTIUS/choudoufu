@@ -131,6 +131,17 @@ type Row struct {
 	// alias" (alias is prose shorthand for the `name` argument, which
 	// resolves to neither section and stays "unknown").
 	IDParts []IDPart `json:"id_parts,omitempty"`
+
+	// AliasOf is set only on a row this sweep synthesized rather than
+	// parsed from the type's own page: the canonical TF type name whose
+	// doc page carried the provider's own "`aws_alb` is known as `aws_lb`.
+	// The functionality is identical." note (see aliasDeclaredFor). Every
+	// other field is a verbatim copy of that canonical row's own fields -
+	// same Import section, same arguments, same everything - because the
+	// note's own claim is that the two types ARE the same resource under
+	// two registered names, not merely similar ones. Empty for every row
+	// parsed from its own fetched page.
+	AliasOf string `json:"alias_of,omitempty"`
 }
 
 // Counts are the sweep-wide totals a reviewer reads off the header without
@@ -144,15 +155,22 @@ type Counts struct {
 	// under their canonical name).
 	DocsFound   int `json:"docs_found"`
 	DocsMissing int `json:"docs_missing"`
-	// NoImportSection is DocsFound minus the docs that produced a row.
+	// NoImportSection is DocsFound minus the docs that produced a row of
+	// their own (excluding AliasRows, which produced no fetch at all).
 	// Since issue #177 a page without a parseable "## Import" section
 	// still rows when its Example Usage or Argument Reference said
 	// anything (the row's grammar fields stay empty), so this counts only
 	// the pages that stated nothing this tool extracts.
 	NoImportSection int `json:"no_import_section"`
 	// Rows is how many types produced a row - DocsFound minus
-	// NoImportSection.
+	// NoImportSection, plus AliasRows.
 	Rows int `json:"rows"`
+
+	// AliasRows is how many of Rows were synthesized from a sibling's
+	// documented "is known as" note rather than fetched from their own
+	// page (aliasDeclaredFor) - a subset of DocsMissing, never of
+	// DocsFound: the alias's own page still 404s.
+	AliasRows int `json:"alias_rows"`
 
 	// ComposedTrue / ComposedFalse / ComposedUnsure partition Rows by
 	// ComposedOfArguments.
@@ -255,6 +273,28 @@ func buildRow(tfType, doc string) (Row, bool) {
 		}
 	}
 
+	// The plain-prose enumeration family: docs that name every segment of
+	// a multi-part ID in plain words with no backticks at all
+	// ("using the listener arn and certificate arn, separated by an
+	// underscore (`_`)" on aws_lb_listener_certificate's own page) -
+	// the composite sibling of the single-argument case just above.
+	// idParts (below) already reads this same enumeration per segment;
+	// this asks the stricter whole-ID question and only fires when every
+	// segment lands on a Required argument, never when idParts would
+	// itself record a server- or unknown-sourced segment mixed in.
+	if cr.Composed == nil {
+		if names := plainEnumComposedArguments(section, tfType, argEntries, attrNames); len(names) >= 2 {
+			t := true
+			cr.Composed = &t
+			if cr.ArgumentsInOrder == nil {
+				cr.ArgumentsInOrder = append([]string(nil), names...)
+			}
+			args := append([]string(nil), names...)
+			sort.Strings(args)
+			cr.Arguments = dedupeStrings(args)
+		}
+	}
+
 	// Last: the row's own documented example, when the prose settled
 	// nothing (issue #135). Only ever fills a gap - a separator the doc
 	// stated, or one classifyGrammar inferred from a format token, wins,
@@ -346,7 +386,7 @@ func tallyRow(c *Counts, r Row) {
 }
 
 // buildArtifact sorts rows by type name and computes the header counts.
-func buildArtifact(rows []Row, typesConsidered, docsFound, docsMissing int) Artifact {
+func buildArtifact(rows []Row, typesConsidered, docsFound, docsMissing, aliasRows int) Artifact {
 	sort.Slice(rows, func(i, j int) bool { return rows[i].TFType < rows[j].TFType })
 
 	art := Artifact{
@@ -358,7 +398,8 @@ func buildArtifact(rows []Row, typesConsidered, docsFound, docsMissing int) Arti
 	art.Counts.TypesConsidered = typesConsidered
 	art.Counts.DocsFound = docsFound
 	art.Counts.DocsMissing = docsMissing
-	art.Counts.NoImportSection = docsFound - len(rows)
+	art.Counts.AliasRows = aliasRows
+	art.Counts.NoImportSection = docsFound - (len(rows) - aliasRows)
 	for _, r := range rows {
 		tallyRow(&art.Counts, r)
 	}

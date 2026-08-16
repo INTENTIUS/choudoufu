@@ -111,12 +111,12 @@ func run(limit int, accept bool, cacheDirOverride string, log *os.File) error {
 		}
 	}
 
-	rows, docsFound, docsMissing, err := sweep(context.Background(), cacheDir, roster, httpFetch)
+	rows, docsFound, docsMissing, aliasRows, err := sweep(context.Background(), cacheDir, roster, httpFetch)
 	if err != nil {
 		return err
 	}
 
-	art := buildArtifact(rows, len(roster), docsFound, docsMissing)
+	art := buildArtifact(rows, len(roster), docsFound, docsMissing, aliasRows)
 	if accept {
 		art.Accepted = time.Now().UTC().Format("2006-01-02")
 	}
@@ -130,34 +130,61 @@ func run(limit int, accept bool, cacheDirOverride string, log *os.File) error {
 		return err
 	}
 	fmt.Fprintf(log,
-		"importdocs-gen: wrote %s (%d types considered, %d docs found, %d docs missing, %d rows: %d composed, %d opaque, %d unsure; %d separators known, %d unsure)%s\n",
-		importGrammarJSONRel, art.Counts.TypesConsidered, art.Counts.DocsFound, art.Counts.DocsMissing, art.Counts.Rows,
+		"importdocs-gen: wrote %s (%d types considered, %d docs found, %d docs missing, %d rows [%d alias-cloned]: %d composed, %d opaque, %d unsure; %d separators known, %d unsure)%s\n",
+		importGrammarJSONRel, art.Counts.TypesConsidered, art.Counts.DocsFound, art.Counts.DocsMissing, art.Counts.Rows, art.Counts.AliasRows,
 		art.Counts.ComposedTrue, art.Counts.ComposedFalse, art.Counts.ComposedUnsure,
 		art.Counts.SeparatorKnown, art.Counts.SeparatorUnsure, acceptedSuffix(art.Accepted))
 	return nil
 }
 
 // sweep fetches and parses every type in roster, in order, returning the
-// rows produced plus the docs-found/docs-missing split. A fetch error
-// (transport failure, unexpected status) aborts the whole sweep - unlike a
-// 404 or a doc with no Import section, which are expected outcomes this
-// function tallies and continues past.
-func sweep(ctx context.Context, cacheDir string, roster []string, fetch fetcher) (rows []Row, docsFound, docsMissing int, err error) {
+// rows produced plus the docs-found/docs-missing/alias-rows split. A fetch
+// error (transport failure, unexpected status) aborts the whole sweep -
+// unlike a 404 or a doc with no Import section, which are expected outcomes
+// this function tallies and continues past.
+func sweep(ctx context.Context, cacheDir string, roster []string, fetch fetcher) (rows []Row, docsFound, docsMissing, aliasRows int, err error) {
+	inRoster := make(map[string]bool, len(roster))
+	for _, t := range roster {
+		inRoster[t] = true
+	}
+	haveOwnRow := make(map[string]bool, len(roster))
 	for _, tfType := range roster {
 		data, found, err := acquireDoc(ctx, cacheDir, tfType, fetch)
 		if err != nil {
-			return nil, 0, 0, fmt.Errorf("%s: %w", tfType, err)
+			return nil, 0, 0, 0, fmt.Errorf("%s: %w", tfType, err)
 		}
 		if !found {
 			docsMissing++
 			continue
 		}
 		docsFound++
-		if row, ok := buildRow(tfType, string(data)); ok {
-			rows = append(rows, row)
+		row, ok := buildRow(tfType, string(data))
+		if !ok {
+			continue
+		}
+		rows = append(rows, row)
+		haveOwnRow[tfType] = true
+
+		// aliasDeclaredFor reads this same page for the provider's own
+		// "`aws_alb` is known as `aws_lb`." note (fetch.go's own doc
+		// comment: "aliases like aws_alb are documented once under their
+		// canonical name") and, for every alias the roster actually names
+		// and that has not already produced its own row, clones this row
+		// under the alias's TF type - the alias's own page 404s, so
+		// nothing else in this sweep will ever produce a row for it.
+		for _, alias := range aliasDeclaredFor(string(data), tfType) {
+			if !inRoster[alias] || haveOwnRow[alias] {
+				continue
+			}
+			clone := row
+			clone.TFType = alias
+			clone.AliasOf = tfType
+			rows = append(rows, clone)
+			haveOwnRow[alias] = true
+			aliasRows++
 		}
 	}
-	return rows, docsFound, docsMissing, nil
+	return rows, docsFound, docsMissing, aliasRows, nil
 }
 
 func acceptedSuffix(accepted string) string {

@@ -28,7 +28,18 @@ var separatorExpectations = struct {
 	// separatorFromExample splitting "us-west-2:b64805ad-…", but the page's
 	// own sentence says the whole string is one Identity Pool ID, so the
 	// colon is internal to the value and the separator claim was wrong.
-	withSeparator:   435,
+	//
+	// 437 (2026-08-16): aliasDeclaredFor started cloning a canonical type's
+	// whole row - separator included - onto its provider-documented
+	// TF-side alias (aws_alb is known as aws_lb, "functionality is
+	// identical"). Of the six aws_alb* clones, two carry a real separator
+	// because their canonical row already did: aws_alb_listener_
+	// certificate ("_", cloned from aws_lb_listener_certificate) and
+	// aws_alb_target_group_attachment (",", cloned from aws_lb_target_
+	// group_attachment). +2, not a scrape regression - the same evidence
+	// counted twice under two registered type names, exactly what the
+	// alias note claims.
+	withSeparator:   437,
 	notInOwnExample: 16,
 }
 

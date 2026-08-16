@@ -187,8 +187,23 @@ func TestLoadRejectedTypes_LedgerIsIntact(t *testing.T) {
 	// treatment: a stated rule, applied to the source, with the delta
 	// explained. TestRejectedLedgerIsDisjointFromAdmitted guards the other
 	// direction.
-	if len(rejected) < 155 {
-		t.Errorf("rejected.json carries %d types, want at least the 161 standing after #131's reconciliation", len(rejected))
+	//
+	// 153 (2026-08-16): the type-parity sweep's own reviewed drop. Six
+	// entries were the aws_alb* family plus aws_lb_listener_certificate -
+	// aws_alb, aws_alb_listener, aws_alb_listener_certificate,
+	// aws_alb_listener_rule, aws_alb_target_group are the provider's own
+	// documented aliases of aws_lb, aws_lb_listener, aws_lb_listener_
+	// certificate, aws_lb_listener_rule, aws_lb_target_group ("is known as
+	// ... The functionality is identical."), and aws_lb_listener_
+	// certificate itself - the canonical name - had never been admitted
+	// either. All six now admit with evidence (table_generated.go); a
+	// rejected type that later admits with a stated identity is not a
+	// stale ledger entry to leave sitting - it is the debt the ruling
+	// names getting paid off. See internal/live/identity.DefaultTable's
+	// aws_alb*/aws_lb_listener_certificate rows for the identity each one
+	// carries.
+	if len(rejected) < 153 {
+		t.Errorf("rejected.json carries %d types, want at least the 153 standing after the 2026-08-16 aws_alb*/aws_lb_listener_certificate admission", len(rejected))
 	}
 }
 

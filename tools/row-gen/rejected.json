@@ -1,31 +1,6 @@
 {
   "note": "Types a ratification batch considered and did not admit. PROPOSE reads this as a veto set so it never re-proposes a type already ruled out by name. Recovered from the 'Rejected, and deliberately absent from this table' prose in the per-cohort identity and admission fragments that issue #96 deleted (readable at d40d9f5ded^) and from live/e2e/estates/remainder/README.md; recovered_from names the source each type came from. THE INVARIANT: this set and internal/live/identity.DefaultTable are disjoint. A type that is admitted must not be vetoed, because two contradictory rulings are not conservatism. TestRejectedLedgerIsDisjointFromAdmitted enforces it. Issue #131 rebuilt the ledger against that invariant: the first recovery harvested every type name adjacent to the word Rejected rather than the subject of each '- <type>:' bullet, which admitted 58 types into the veto set and lost 5 genuine rejections. Over-inclusion is safe only among types nobody admitted; among admitted types it is a defect.",
   "rejected": {
-    "aws_alb": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_alb_listener": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_alb_listener_certificate": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_alb_listener_rule": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_alb_target_group": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
     "aws_amplify_domain_association": {
       "recovered_from": [
         "internal/live/identity/table_cohort_compute_platforms.go"
@@ -487,11 +462,6 @@
     "aws_lambda_layer_version_permission": {
       "recovered_from": [
         "internal/live/identity/table_cohort_lambda.go"
-      ]
-    },
-    "aws_lb_listener_certificate": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
       ]
     },
     "aws_lexv2models_bot_version": {

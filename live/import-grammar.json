@@ -7,12 +7,13 @@
     "docs_found": 1693,
     "docs_missing": 6,
     "no_import_section": 0,
-    "rows": 1693,
-    "composed_true": 689,
-    "composed_false": 228,
-    "composed_unsure": 776,
-    "separator_known": 435,
-    "separator_unsure": 1258
+    "rows": 1699,
+    "alias_rows": 6,
+    "composed_true": 717,
+    "composed_false": 232,
+    "composed_unsure": 750,
+    "separator_known": 437,
+    "separator_unsure": 1262
   },
   "rows": [
     {
@@ -944,6 +945,1041 @@
           }
         ]
       }
+    },
+    {
+      "tf_type": "aws_alb",
+      "import_id_example": "arn:aws:elasticloadbalancing:us-west-2:123456789012:loadbalancer/app/my-load-balancer/50dc6c495c0c9188",
+      "separator": null,
+      "composed_of_arguments": false,
+      "arguments": null,
+      "evidence_excerpt": "## Import\n\nIn Terraform v1.12.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `identity` attribute. For example:\n\n```terraform\nimport {\n  to = aws_lb.example\n  identity = {\n    \"arn\" = \"arn:aws:elasticloadbalancing:us-west-2:123456789012:loadbalancer/app/my-load-balancer/50dc6c495c0c9188\"\n  }\n}\n\nresource \"aws_lb\" \"example\" {\n  ### Configuration omitted for brevity ###\n}\n```\n\n### Identity Schema\n\n#### Required\n\n- `arn` (String) Amazon Resource Name (ARN) of the load balancer.\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import LBs using their ARN. For example:\n\n```terraform\nimport {\n  to = aws_lb.bar\n  id = \"arn:aws:elasticloadbalancing:us-west-2:123456789012:loadbalancer/app/my-load-balancer/50dc6c495c0c9188\"\n}\n```\n\nUsing `terraform import`, import LBs using their ARN. For example:\n\n```console\n% terraform import aws_lb.bar arn:aws:elasticloadbalancing:us-west-2:123456789012:loadbalancer/app/my-load-balancer/50dc6c495c0c9188\n```",
+      "example_arguments": [
+        {
+          "path": [
+            "enable_deletion_protection"
+          ],
+          "value": "true",
+          "incomplete": true
+        },
+        {
+          "path": [
+            "internal"
+          ],
+          "value": "false",
+          "incomplete": true
+        },
+        {
+          "path": [
+            "load_balancer_type"
+          ],
+          "value": "network",
+          "is_string": true,
+          "incomplete": true
+        },
+        {
+          "path": [
+            "name"
+          ],
+          "value": "test-lb-tf",
+          "is_string": true,
+          "incomplete": true
+        },
+        {
+          "path": [
+            "subnets"
+          ],
+          "value": "",
+          "reference": true,
+          "ref_type": "aws_subnet"
+        }
+      ],
+      "argument_reference": [
+        {
+          "name": "region",
+          "required": false
+        },
+        {
+          "name": "access_logs",
+          "required": false
+        },
+        {
+          "name": "connection_logs",
+          "required": false
+        },
+        {
+          "name": "client_keep_alive",
+          "required": false
+        },
+        {
+          "name": "customer_owned_ipv4_pool",
+          "required": false
+        },
+        {
+          "name": "desync_mitigation_mode",
+          "required": false
+        },
+        {
+          "name": "dns_record_client_routing_policy",
+          "required": false
+        },
+        {
+          "name": "drop_invalid_header_fields",
+          "required": false
+        },
+        {
+          "name": "enable_cross_zone_load_balancing",
+          "required": false
+        },
+        {
+          "name": "enable_deletion_protection",
+          "required": false
+        },
+        {
+          "name": "enable_http2",
+          "required": false
+        },
+        {
+          "name": "enable_prefix_for_ipv6_source_nat",
+          "required": false
+        },
+        {
+          "name": "enable_tls_version_and_cipher_suite_headers",
+          "required": false
+        },
+        {
+          "name": "enable_xff_client_port",
+          "required": false
+        },
+        {
+          "name": "enable_waf_fail_open",
+          "required": false
+        },
+        {
+          "name": "enable_zonal_shift",
+          "required": false
+        },
+        {
+          "name": "enforce_security_group_inbound_rules_on_private_link_traffic",
+          "required": false
+        },
+        {
+          "name": "health_check_logs",
+          "required": false
+        },
+        {
+          "name": "idle_timeout",
+          "required": false
+        },
+        {
+          "name": "internal",
+          "required": false
+        },
+        {
+          "name": "ip_address_type",
+          "required": false
+        },
+        {
+          "name": "ipam_pools",
+          "required": false
+        },
+        {
+          "name": "load_balancer_type",
+          "required": false
+        },
+        {
+          "name": "minimum_load_balancer_capacity",
+          "required": false
+        },
+        {
+          "name": "name",
+          "required": false,
+          "server_assigned_if_absent": true
+        },
+        {
+          "name": "name_prefix",
+          "required": false
+        },
+        {
+          "name": "security_groups",
+          "required": false
+        },
+        {
+          "name": "preserve_host_header",
+          "required": false
+        },
+        {
+          "name": "secondary_ips_auto_assigned_per_subnet",
+          "required": false
+        },
+        {
+          "name": "subnet_mapping",
+          "required": false
+        },
+        {
+          "name": "subnets",
+          "required": false
+        },
+        {
+          "name": "tags",
+          "required": false
+        },
+        {
+          "name": "xff_header_processing_mode",
+          "required": false
+        }
+      ],
+      "identity_schema_required": [
+        "arn"
+      ],
+      "import_id_template": {
+        "kind": "arn",
+        "segments": [
+          {
+            "literal": "arn:aws:elasticloadbalancing:"
+          },
+          {
+            "cloud": "region"
+          },
+          {
+            "literal": ":"
+          },
+          {
+            "cloud": "account-id"
+          },
+          {
+            "literal": ":"
+          },
+          {
+            "unattributed": "loadbalancer"
+          },
+          {
+            "literal": "/"
+          },
+          {
+            "unattributed": "app"
+          },
+          {
+            "literal": "/"
+          },
+          {
+            "unattributed": "my-load-balancer"
+          },
+          {
+            "literal": "/"
+          },
+          {
+            "unattributed": "50dc6c495c0c9188"
+          }
+        ]
+      },
+      "exclusive_groups": [
+        [
+          "subnet_mapping",
+          "subnets"
+        ]
+      ],
+      "alias_of": "aws_lb"
+    },
+    {
+      "tf_type": "aws_alb_listener",
+      "import_id_example": "arn:aws:elasticloadbalancing:us-west-2:187416307283:listener/app/front-end-alb/8e4497da625e2d8a/9ab28ade35828f96",
+      "separator": null,
+      "composed_of_arguments": false,
+      "arguments": null,
+      "evidence_excerpt": "## Import\n\nIn Terraform v1.12.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `identity` attribute. For example:\n\n```terraform\nimport {\n  to = aws_lb_listener.example\n  identity = {\n    \"arn\" = \"arn:aws:elasticloadbalancing:us-west-2:187416307283:listener/app/front-end-alb/8e4497da625e2d8a/9ab28ade35828f96\"\n  }\n}\n\nresource \"aws_lb_listener\" \"example\" {\n  ### Configuration omitted for brevity ###\n}\n```\n\n### Identity Schema\n\n#### Required\n\n- `arn` (String) Amazon Resource Name (ARN) of the load balancer listener.\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import listeners using their ARN. For example:\n\n```terraform\nimport {\n  to = aws_lb_listener.front_end\n  id = \"arn:aws:elasticloadbalancing:us-west-2:187416307283:listener/app/front-end-alb/8e4497da625e2d8a/9ab28ade35828f96\"\n}\n```\n\nUsing `terraform import`, import listeners using their ARN. For example:\n\n```console\n% terraform import aws_lb_listener.front_end arn:aws:elasticloadbalancing:us-west-2:187416307283:listener/app/front-end-alb/8e4497da625e2d8a/9ab28ade35828f96\n```",
+      "example_arguments": [
+        {
+          "path": [
+            "load_balancer_arn"
+          ],
+          "value": "",
+          "reference": true,
+          "ref_type": "aws_lb",
+          "ref_attr": "arn"
+        },
+        {
+          "path": [
+            "port"
+          ],
+          "value": "80",
+          "is_string": true,
+          "incomplete": true
+        },
+        {
+          "path": [
+            "protocol"
+          ],
+          "value": "HTTP",
+          "is_string": true,
+          "incomplete": true
+        },
+        {
+          "path": [
+            "default_action",
+            "type"
+          ],
+          "value": "redirect",
+          "is_string": true
+        },
+        {
+          "path": [
+            "default_action",
+            "redirect",
+            "port"
+          ],
+          "value": "443",
+          "is_string": true
+        },
+        {
+          "path": [
+            "default_action",
+            "redirect",
+            "protocol"
+          ],
+          "value": "HTTPS",
+          "is_string": true
+        },
+        {
+          "path": [
+            "default_action",
+            "redirect",
+            "status_code"
+          ],
+          "value": "HTTP_301",
+          "is_string": true
+        }
+      ],
+      "argument_reference": [
+        {
+          "name": "default_action",
+          "required": true
+        },
+        {
+          "name": "load_balancer_arn",
+          "required": true,
+          "force_new": true
+        },
+        {
+          "name": "region",
+          "required": false
+        },
+        {
+          "name": "alpn_policy",
+          "required": false
+        },
+        {
+          "name": "certificate_arn",
+          "required": false
+        },
+        {
+          "name": "mutual_authentication",
+          "required": false
+        },
+        {
+          "name": "port",
+          "required": false
+        },
+        {
+          "name": "protocol",
+          "required": false
+        },
+        {
+          "name": "ssl_policy",
+          "required": false
+        },
+        {
+          "name": "tcp_idle_timeout_seconds",
+          "required": false
+        },
+        {
+          "name": "routing_http_response_server_enabled",
+          "required": false
+        },
+        {
+          "name": "routing_http_response_strict_transport_security_header_value",
+          "required": false
+        },
+        {
+          "name": "routing_http_response_access_control_allow_origin_header_value",
+          "required": false
+        },
+        {
+          "name": "routing_http_response_access_control_allow_methods_header_value",
+          "required": false
+        },
+        {
+          "name": "routing_http_response_access_control_allow_headers_header_value",
+          "required": false
+        },
+        {
+          "name": "routing_http_response_access_control_allow_credentials_header_value",
+          "required": false
+        },
+        {
+          "name": "routing_http_response_access_control_expose_headers_header_value",
+          "required": false
+        },
+        {
+          "name": "routing_http_response_access_control_max_age_header_value",
+          "required": false
+        },
+        {
+          "name": "routing_http_response_content_security_policy_header_value",
+          "required": false
+        },
+        {
+          "name": "routing_http_response_x_content_type_options_header_value",
+          "required": false
+        },
+        {
+          "name": "routing_http_response_x_frame_options_header_value",
+          "required": false
+        },
+        {
+          "name": "routing_http_request_x_amzn_mtls_clientcert_serial_number_header_name",
+          "required": false
+        },
+        {
+          "name": "routing_http_request_x_amzn_mtls_clientcert_issuer_header_name",
+          "required": false
+        },
+        {
+          "name": "routing_http_request_x_amzn_mtls_clientcert_subject_header_name",
+          "required": false
+        },
+        {
+          "name": "routing_http_request_x_amzn_mtls_clientcert_validity_header_name",
+          "required": false
+        },
+        {
+          "name": "routing_http_request_x_amzn_mtls_clientcert_leaf_header_name",
+          "required": false
+        },
+        {
+          "name": "routing_http_request_x_amzn_mtls_clientcert_header_name",
+          "required": false
+        },
+        {
+          "name": "routing_http_request_x_amzn_tls_version_header_name",
+          "required": false
+        },
+        {
+          "name": "routing_http_request_x_amzn_tls_cipher_suite_header_name",
+          "required": false
+        },
+        {
+          "name": "tags",
+          "required": false
+        }
+      ],
+      "identity_schema_required": [
+        "arn"
+      ],
+      "import_id_template": {
+        "kind": "arn",
+        "segments": [
+          {
+            "literal": "arn:aws:elasticloadbalancing:"
+          },
+          {
+            "cloud": "region"
+          },
+          {
+            "literal": ":"
+          },
+          {
+            "cloud": "account-id"
+          },
+          {
+            "literal": ":listener/"
+          },
+          {
+            "unattributed": "app"
+          },
+          {
+            "literal": "/"
+          },
+          {
+            "unattributed": "front-end-alb"
+          },
+          {
+            "literal": "/"
+          },
+          {
+            "unattributed": "8e4497da625e2d8a"
+          },
+          {
+            "literal": "/"
+          },
+          {
+            "unattributed": "9ab28ade35828f96"
+          }
+        ]
+      },
+      "alias_of": "aws_lb_listener"
+    },
+    {
+      "tf_type": "aws_alb_listener_certificate",
+      "import_id_example": "arn:aws:elasticloadbalancing:us-west-2:123456789012:listener/app/test/8e4497da625e2d8a/9ab28ade35828f96/67b3d2d36dd7c26b_arn:aws:iam::123456789012:server-certificate/tf-acc-test-6453083910015726063",
+      "separator": "_",
+      "composed_of_arguments": true,
+      "arguments": [
+        "certificate_arn",
+        "listener_arn"
+      ],
+      "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Listener Certificates using the listener arn and certificate arn, separated by an underscore (`_`). For example:\n\n```terraform\nimport {\n  to = aws_lb_listener_certificate.example\n  id = \"arn:aws:elasticloadbalancing:us-west-2:123456789012:listener/app/test/8e4497da625e2d8a/9ab28ade35828f96/67b3d2d36dd7c26b_arn:aws:iam::123456789012:server-certificate/tf-acc-test-6453083910015726063\"\n}\n```\n\nUsing `terraform import`, import Listener Certificates using the listener arn and certificate arn, separated by an underscore (`_`). For example:\n\n```console\n% terraform import aws_lb_listener_certificate.example arn:aws:elasticloadbalancing:us-west-2:123456789012:listener/app/test/8e4497da625e2d8a/9ab28ade35828f96/67b3d2d36dd7c26b_arn:aws:iam::123456789012:server-certificate/tf-acc-test-6453083910015726063\n```",
+      "example_arguments": [
+        {
+          "path": [
+            "certificate_arn"
+          ],
+          "value": "",
+          "reference": true,
+          "ref_type": "aws_acm_certificate",
+          "ref_attr": "arn"
+        },
+        {
+          "path": [
+            "listener_arn"
+          ],
+          "value": "",
+          "reference": true,
+          "ref_type": "aws_lb_listener",
+          "ref_attr": "arn"
+        }
+      ],
+      "argument_reference": [
+        {
+          "name": "region",
+          "required": false
+        },
+        {
+          "name": "listener_arn",
+          "required": true,
+          "force_new": true
+        },
+        {
+          "name": "certificate_arn",
+          "required": true,
+          "force_new": true
+        }
+      ],
+      "arguments_in_doc_order": [
+        "listener_arn",
+        "certificate_arn"
+      ],
+      "import_id_template": {
+        "kind": "arn",
+        "segments": [
+          {
+            "literal": "arn:aws:elasticloadbalancing:"
+          },
+          {
+            "cloud": "region"
+          },
+          {
+            "literal": ":"
+          },
+          {
+            "cloud": "account-id"
+          },
+          {
+            "literal": ":"
+          },
+          {
+            "unattributed": "listener"
+          },
+          {
+            "literal": "/"
+          },
+          {
+            "unattributed": "app"
+          },
+          {
+            "literal": "/"
+          },
+          {
+            "unattributed": "test"
+          },
+          {
+            "literal": "/"
+          },
+          {
+            "unattributed": "8e4497da625e2d8a"
+          },
+          {
+            "literal": "/"
+          },
+          {
+            "unattributed": "9ab28ade35828f96"
+          },
+          {
+            "literal": "/"
+          },
+          {
+            "unattributed": "67b3d2d36dd7c26b_arn:aws:iam::123456789012:server-certificate"
+          },
+          {
+            "literal": "/"
+          },
+          {
+            "unattributed": "tf-acc-test-6453083910015726063"
+          }
+        ]
+      },
+      "id_parts": [
+        {
+          "token": "the listener arn",
+          "source": "argument"
+        },
+        {
+          "token": "certificate arn",
+          "source": "argument"
+        }
+      ],
+      "alias_of": "aws_lb_listener_certificate"
+    },
+    {
+      "tf_type": "aws_alb_listener_rule",
+      "import_id_example": "arn:aws:elasticloadbalancing:us-west-2:187416307283:listener-rule/app/test/8e4497da625e2d8a/9ab28ade35828f96/67b3d2d36dd7c26b",
+      "separator": null,
+      "composed_of_arguments": false,
+      "arguments": null,
+      "evidence_excerpt": "## Import\n\nIn Terraform v1.12.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `identity` attribute. For example:\n\n```terraform\nimport {\n  to = aws_lb_listener_rule.example\n  identity = {\n    \"arn\" = \"arn:aws:elasticloadbalancing:us-west-2:123456789012:listener-rule/app/my-load-balancer/50dc6c495c0c9188/f2f7dc8efc522ab2/9683b2d02a6cabee\"\n  }\n}\n\nresource \"aws_lb_listener_rule\" \"example\" {\n  ### Configuration omitted for brevity ###\n}\n```\n\n### Identity Schema\n\n#### Required\n\n- `arn` (String) Amazon Resource Name (ARN) of the load balancer listener rule.\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import rules using their ARN. For example:\n\n```terraform\nimport {\n  to = aws_lb_listener_rule.front_end\n  id = \"arn:aws:elasticloadbalancing:us-west-2:187416307283:listener-rule/app/test/8e4497da625e2d8a/9ab28ade35828f96/67b3d2d36dd7c26b\"\n}\n```\n\nUsing `terraform import`, import rules using their ARN. For example:\n\n```console\n% terraform import aws_lb_listener_rule.front_end arn:aws:elasticloadbalancing:us-west-2:187416307283:listener-rule/app/test/8e4497da625e2d8a/9ab28ade35828f96/67b3d2d36dd7c26b\n```",
+      "example_arguments": [
+        {
+          "path": [
+            "listener_arn"
+          ],
+          "value": "",
+          "reference": true,
+          "ref_type": "aws_lb_listener",
+          "ref_attr": "arn"
+        },
+        {
+          "path": [
+            "action",
+            "type"
+          ],
+          "value": "redirect",
+          "is_string": true
+        },
+        {
+          "path": [
+            "action",
+            "redirect",
+            "port"
+          ],
+          "value": "443",
+          "is_string": true
+        },
+        {
+          "path": [
+            "action",
+            "redirect",
+            "protocol"
+          ],
+          "value": "HTTPS",
+          "is_string": true
+        },
+        {
+          "path": [
+            "action",
+            "redirect",
+            "status_code"
+          ],
+          "value": "HTTP_301",
+          "is_string": true
+        },
+        {
+          "path": [
+            "condition",
+            "http_header",
+            "http_header_name"
+          ],
+          "value": "X-Forwarded-For",
+          "is_string": true
+        },
+        {
+          "path": [
+            "condition",
+            "http_header",
+            "values"
+          ],
+          "value": "[\"192.168.1.*\"]",
+          "is_list": true
+        }
+      ],
+      "argument_reference": [
+        {
+          "name": "region",
+          "required": false
+        },
+        {
+          "name": "listener_arn",
+          "required": true,
+          "force_new": true
+        },
+        {
+          "name": "priority",
+          "required": false
+        },
+        {
+          "name": "action",
+          "required": true
+        },
+        {
+          "name": "condition",
+          "required": true
+        },
+        {
+          "name": "tags",
+          "required": false
+        },
+        {
+          "name": "transform",
+          "required": false
+        }
+      ],
+      "identity_schema_required": [
+        "arn"
+      ],
+      "import_id_template": {
+        "kind": "arn",
+        "segments": [
+          {
+            "literal": "arn:aws:elasticloadbalancing:"
+          },
+          {
+            "cloud": "region"
+          },
+          {
+            "literal": ":"
+          },
+          {
+            "cloud": "account-id"
+          },
+          {
+            "literal": ":listener-rule/"
+          },
+          {
+            "unattributed": "app"
+          },
+          {
+            "literal": "/"
+          },
+          {
+            "unattributed": "test"
+          },
+          {
+            "literal": "/"
+          },
+          {
+            "unattributed": "8e4497da625e2d8a"
+          },
+          {
+            "literal": "/"
+          },
+          {
+            "unattributed": "9ab28ade35828f96"
+          },
+          {
+            "literal": "/"
+          },
+          {
+            "unattributed": "67b3d2d36dd7c26b"
+          }
+        ]
+      },
+      "alias_of": "aws_lb_listener_rule"
+    },
+    {
+      "tf_type": "aws_alb_target_group",
+      "import_id_example": "arn:aws:elasticloadbalancing:us-west-2:187416307283:targetgroup/app-front-end/20cfe21448b66314",
+      "separator": null,
+      "composed_of_arguments": false,
+      "arguments": null,
+      "evidence_excerpt": "## Import\n\nIn Terraform v1.12.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `identity` attribute. For example:\n\n```terraform\nimport {\n  to = aws_lb_target_group.example\n  identity = {\n    \"arn\" = \"arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/my-targets/73e2d6bc24d8a067\"\n  }\n}\n\nresource \"aws_lb_target_group\" \"example\" {\n  ### Configuration omitted for brevity ###\n}\n```\n\n### Identity Schema\n\n#### Required\n\n- `arn` (String) Amazon Resource Name (ARN) of the target group.\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Target Groups using their ARN. For example:\n\n```terraform\nimport {\n  to = aws_lb_target_group.app_front_end\n  id = \"arn:aws:elasticloadbalancing:us-west-2:187416307283:targetgroup/app-front-end/20cfe21448b66314\"\n}\n```\n\nUsing `terraform import`, import Target Groups using their ARN. For example:\n\n```console\n% terraform import aws_lb_target_group.app_front_end arn:aws:elasticloadbalancing:us-west-2:187416307283:targetgroup/app-front-end/20cfe21448b66314\n```",
+      "example_arguments": [
+        {
+          "path": [
+            "name"
+          ],
+          "value": "tf-example-lb-tg",
+          "is_string": true
+        },
+        {
+          "path": [
+            "target_type"
+          ],
+          "value": "lambda",
+          "is_string": true
+        }
+      ],
+      "argument_reference": [
+        {
+          "name": "region",
+          "required": false
+        },
+        {
+          "name": "connection_termination",
+          "required": false
+        },
+        {
+          "name": "deregistration_delay",
+          "required": false
+        },
+        {
+          "name": "health_check",
+          "required": false
+        },
+        {
+          "name": "lambda_multi_value_headers_enabled",
+          "required": false
+        },
+        {
+          "name": "load_balancing_algorithm_type",
+          "required": false
+        },
+        {
+          "name": "load_balancing_anomaly_mitigation",
+          "required": false
+        },
+        {
+          "name": "load_balancing_cross_zone_enabled",
+          "required": false
+        },
+        {
+          "name": "name_prefix",
+          "required": false,
+          "force_new": true
+        },
+        {
+          "name": "name",
+          "required": false,
+          "force_new": true,
+          "server_assigned_if_absent": true
+        },
+        {
+          "name": "port",
+          "required": false,
+          "force_new": true
+        },
+        {
+          "name": "preserve_client_ip",
+          "required": false
+        },
+        {
+          "name": "protocol_version",
+          "required": false,
+          "force_new": true
+        },
+        {
+          "name": "protocol",
+          "required": false,
+          "force_new": true
+        },
+        {
+          "name": "proxy_protocol_v2",
+          "required": false
+        },
+        {
+          "name": "slow_start",
+          "required": false
+        },
+        {
+          "name": "stickiness",
+          "required": false
+        },
+        {
+          "name": "tags",
+          "required": false
+        },
+        {
+          "name": "target_control_port",
+          "required": false
+        },
+        {
+          "name": "target_failover",
+          "required": false
+        },
+        {
+          "name": "target_health_state",
+          "required": false
+        },
+        {
+          "name": "target_group_health",
+          "required": false
+        },
+        {
+          "name": "target_type",
+          "required": false,
+          "force_new": true
+        },
+        {
+          "name": "ip_address_type",
+          "required": false,
+          "force_new": true
+        },
+        {
+          "name": "vpc_id",
+          "required": false,
+          "force_new": true
+        }
+      ],
+      "identity_schema_required": [
+        "arn"
+      ],
+      "import_id_template": {
+        "kind": "arn",
+        "segments": [
+          {
+            "literal": "arn:aws:elasticloadbalancing:"
+          },
+          {
+            "cloud": "region"
+          },
+          {
+            "literal": ":"
+          },
+          {
+            "cloud": "account-id"
+          },
+          {
+            "literal": ":targetgroup/"
+          },
+          {
+            "unattributed": "app-front-end"
+          },
+          {
+            "literal": "/"
+          },
+          {
+            "unattributed": "20cfe21448b66314"
+          }
+        ]
+      },
+      "alias_of": "aws_lb_target_group"
+    },
+    {
+      "tf_type": "aws_alb_target_group_attachment",
+      "import_id_example": "arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/my-tg/abc123,i-0123456789abcdef0,8080",
+      "separator": ",",
+      "composed_of_arguments": true,
+      "arguments": [
+        "availability_zone",
+        "port",
+        "target_group_arn",
+        "target_id"
+      ],
+      "evidence_excerpt": "## Import\n\nIn Terraform v1.12.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `identity` attribute. For example:\n\n```terraform\nimport {\n  to = aws_lb_target_group_attachment.example\n  identity = {\n    target_group_arn = \"arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/my-tg/abc123\"\n    target_id        = \"i-0123456789abcdef0\"\n    port             = 8080\n  }\n}\n\nresource \"aws_lb_target_group_attachment\" \"example\" {\n  target_group_arn = \"arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/my-tg/abc123\"\n  target_id        = \"i-0123456789abcdef0\"\n  port             = 8080\n}\n```\n\n### Identity Schema\n\n#### Required\n\n* `target_group_arn` - (String) ARN of the target group.\n* `target_id` - (String) ID of the target (instance ID, IP address, Lambda ARN, or ALB ARN).\n\n#### Optional\n\n* `port` - (Number) Port on which targets receive traffic.\n* `availability_zone` - (String) Availability zone where the target is registered.\n* `quic_server_id` - (String) QUIC server ID for the target.\n* `account_id` - (String) AWS Account where this resource is managed.\n* `region` - (String) Region where this resource is managed.\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Target Group Attachments using `target_group_arn`, `target_id`, and optionally `port` and `availability_zone` separated by commas (`,`). For example:\n\n```terraform\nimport {\n  to = aws_lb_target_group_attachment.example\n  id = \"arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/my-tg/abc123,i-0123456789abcdef0,8080\"\n}\n```\n\nUsing `terraform import`, import Target Group Attachments using the same format. For example:\n\n```console\n% terraform import aws_lb_target_group_attachment.example arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/my-tg/abc123,i-0123456789abcdef0,8080\n```",
+      "example_arguments": [
+        {
+          "path": [
+            "port"
+          ],
+          "value": "80",
+          "incomplete": true
+        },
+        {
+          "path": [
+            "target_group_arn"
+          ],
+          "value": "",
+          "reference": true,
+          "ref_type": "aws_lb_target_group",
+          "ref_attr": "arn"
+        },
+        {
+          "path": [
+            "target_id"
+          ],
+          "value": "",
+          "reference": true,
+          "ref_type": "aws_instance",
+          "ref_attr": "id"
+        }
+      ],
+      "argument_reference": [
+        {
+          "name": "target_group_arn",
+          "required": true
+        },
+        {
+          "name": "target_id",
+          "required": true
+        },
+        {
+          "name": "region",
+          "required": false
+        },
+        {
+          "name": "availability_zone",
+          "required": false
+        },
+        {
+          "name": "port",
+          "required": false
+        },
+        {
+          "name": "quic_server_id",
+          "required": false
+        }
+      ],
+      "arguments_in_doc_order": [
+        "target_group_arn",
+        "target_id",
+        "port",
+        "availability_zone"
+      ],
+      "identity_schema_required": [
+        "target_group_arn",
+        "target_id"
+      ],
+      "identity_schema_optional": [
+        "port",
+        "availability_zone",
+        "quic_server_id",
+        "account_id",
+        "region"
+      ],
+      "import_id_template": {
+        "kind": "arn",
+        "segments": [
+          {
+            "literal": "arn:aws:elasticloadbalancing:"
+          },
+          {
+            "cloud": "region"
+          },
+          {
+            "literal": ":"
+          },
+          {
+            "cloud": "account-id"
+          },
+          {
+            "literal": ":"
+          },
+          {
+            "argument": "target_group_arn",
+            "attributed_by": "placeholder-names-argument"
+          },
+          {
+            "literal": "/"
+          },
+          {
+            "unattributed": "my-tg"
+          },
+          {
+            "literal": "/"
+          },
+          {
+            "unattributed": "abc123,i-0123456789abcdef0,8080"
+          }
+        ]
+      },
+      "alias_of": "aws_lb_target_group_attachment"
     },
     {
       "tf_type": "aws_ami",
@@ -30204,8 +31240,11 @@
       "tf_type": "aws_cognito_identity_provider",
       "import_id_example": "us-west-2_abc123:CorpAD",
       "separator": ":",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "provider_name",
+        "user_pool_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_cognito_identity_provider` resources using their User Pool ID and Provider Name. For example:\n\n```terraform\nimport {\n  to = aws_cognito_identity_provider.example\n  id = \"us-west-2_abc123:CorpAD\"\n}\n```\n\nUsing `terraform import`, import `aws_cognito_identity_provider` resources using their User Pool ID and Provider Name. For example:\n\n```console\n% terraform import aws_cognito_identity_provider.example us-west-2_abc123:CorpAD\n```",
       "example_arguments": [
         {
@@ -30263,6 +31302,10 @@
           "name": "provider_details",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "user_pool_id",
+        "provider_name"
       ],
       "id_parts": [
         {
@@ -30556,8 +31599,11 @@
       "tf_type": "aws_cognito_resource_server",
       "import_id_example": "us-west-2_abc123|https://example.com",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "identifier",
+        "user_pool_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_cognito_resource_server` using their User Pool ID and Identifier. For example:\n\n```terraform\nimport {\n  to = aws_cognito_resource_server.example\n  id = \"us-west-2_abc123|https://example.com\"\n}\n```\n\nUsing `terraform import`, import `aws_cognito_resource_server` using their User Pool ID and Identifier. For example:\n\n```console\n% terraform import aws_cognito_resource_server.example \"us-west-2_abc123|https://example.com\"\n```",
       "example_arguments": [
         {
@@ -30607,6 +31653,10 @@
           "name": "scope",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "user_pool_id",
+        "identifier"
       ]
     },
     {
@@ -38927,8 +39977,11 @@
       "tf_type": "aws_db_instance_role_association",
       "import_id_example": "my-db-instance,arn:aws:iam::123456789012:role/my-role",
       "separator": ",",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "db_instance_identifier",
+        "role_arn"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_db_instance_role_association` using the DB Instance Identifier and IAM Role ARN separated by a comma (`,`). For example:\n\n```terraform\nimport {\n  to = aws_db_instance_role_association.example\n  id = \"my-db-instance,arn:aws:iam::123456789012:role/my-role\"\n}\n```\n\nUsing `terraform import`, import `aws_db_instance_role_association` using the DB Instance Identifier and IAM Role ARN separated by a comma (`,`). For example:\n\n```console\n% terraform import aws_db_instance_role_association.example my-db-instance,arn:aws:iam::123456789012:role/my-role\n```",
       "example_arguments": [
         {
@@ -38985,6 +40038,10 @@
           "name": "role_arn",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "db_instance_identifier",
+        "role_arn"
       ],
       "id_parts": [
         {
@@ -41175,8 +42232,11 @@
       "tf_type": "aws_directory_service_conditional_forwarder",
       "import_id_example": "d-1234567890:example.com",
       "separator": ":",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "directory_id",
+        "remote_domain_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import conditional forwarders using the directory id and remote_domain_name. For example:\n\n```terraform\nimport {\n  to = aws_directory_service_conditional_forwarder.example\n  id = \"d-1234567890:example.com\"\n}\n```\n\nUsing `terraform import`, import conditional forwarders using the directory id and remote_domain_name. For example:\n\n```console\n% terraform import aws_directory_service_conditional_forwarder.example d-1234567890:example.com\n```",
       "example_arguments": [
         {
@@ -41222,6 +42282,10 @@
           "name": "remote_domain_name",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "directory_id",
+        "remote_domain_name"
       ],
       "id_parts": [
         {
@@ -41527,8 +42591,11 @@
       "tf_type": "aws_directory_service_region",
       "import_id_example": "d-9267651497,us-east-2",
       "separator": ",",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "directory_id",
+        "region_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Replicated Regions using directory ID,Region name. For example:\n\n```terraform\nimport {\n  to = aws_directory_service_region.example\n  id = \"d-9267651497,us-east-2\"\n}\n```\n\nUsing `terraform import`, import Replicated Regions using directory ID,Region name. For example:\n\n```console\n% terraform import aws_directory_service_region.example d-9267651497,us-east-2\n```",
       "example_arguments": [
         {
@@ -41594,6 +42661,10 @@
           "name": "vpc_settings",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "directory_id",
+        "region_name"
       ],
       "id_parts": [
         {
@@ -41708,8 +42779,11 @@
       "tf_type": "aws_directory_service_trust",
       "import_id_example": "d-926724cf57/directory.example.com",
       "separator": "/",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "directory_id",
+        "remote_domain_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import the Trust relationship using the directory ID and remote domain name, separated by a `/`. For example:\n\n```terraform\nimport {\n  to = aws_directory_service_trust.example\n  id = \"d-926724cf57/directory.example.com\"\n}\n```\n\nUsing `terraform import`, import the Trust relationship using the directory ID and remote domain name, separated by a `/`. For example:\n\n```console\n% terraform import aws_directory_service_trust.example d-926724cf57/directory.example.com\n```",
       "example_arguments": [
         {
@@ -41793,6 +42867,10 @@
           "name": "trust_type",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "directory_id",
+        "remote_domain_name"
       ],
       "id_parts": [
         {
@@ -65149,8 +66227,11 @@
       "tf_type": "aws_guardduty_filter",
       "import_id_example": "00b00fd5aecc0ab60a708659477e9617:MyFilter",
       "separator": ":",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "detector_id",
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import GuardDuty filters using the detector ID and filter's name separated by a colon. For example:\n\n```terraform\nimport {\n  to = aws_guardduty_filter.MyFilter\n  id = \"00b00fd5aecc0ab60a708659477e9617:MyFilter\"\n}\n```\n\nUsing `terraform import`, import GuardDuty filters using the detector ID and filter's name separated by a colon. For example:\n\n```console\n% terraform import aws_guardduty_filter.MyFilter 00b00fd5aecc0ab60a708659477e9617:MyFilter\n```",
       "example_arguments": [
         {
@@ -65307,6 +66388,10 @@
           "name": "finding_criteria",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "detector_id",
+        "name"
       ],
       "id_parts": [
         {
@@ -65546,8 +66631,11 @@
       "tf_type": "aws_guardduty_member",
       "import_id_example": "00b00fd5aecc0ab60a708659477e9617:123456789012",
       "separator": ":",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "account_id",
+        "detector_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import GuardDuty members using the primary GuardDuty detector ID and member AWS account ID. For example:\n\n```terraform\nimport {\n  to = aws_guardduty_member.MyMember\n  id = \"00b00fd5aecc0ab60a708659477e9617:123456789012\"\n}\n```\n\nUsing `terraform import`, import GuardDuty members using the primary GuardDuty detector ID and member AWS account ID. For example:\n\n```console\n% terraform import aws_guardduty_member.MyMember 00b00fd5aecc0ab60a708659477e9617:123456789012\n```",
       "example_arguments": [
         {
@@ -65621,6 +66709,10 @@
           "name": "disable_email_notification",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "detector_id",
+        "account_id"
       ],
       "id_parts": [
         {
@@ -71267,8 +72359,11 @@
       "tf_type": "aws_iot_thing_group_membership",
       "import_id_example": "thing_group_name/thing_name",
       "separator": "/",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "thing_group_name",
+        "thing_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import IoT Thing Group Membership using the thing group name and thing name. For example:\n\n```terraform\nimport {\n  to = aws_iot_thing_group_membership.example\n  id = \"thing_group_name/thing_name\"\n}\n```\n\nUsing `terraform import`, import IoT Thing Group Membership using the thing group name and thing name. For example:\n\n```console\n% terraform import aws_iot_thing_group_membership.example thing_group_name/thing_name\n```",
       "example_arguments": [
         {
@@ -71309,6 +72404,10 @@
           "name": "override_dynamic_group",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "thing_group_name",
+        "thing_name"
       ],
       "id_parts": [
         {
@@ -78537,8 +79636,11 @@
       "tf_type": "aws_lb_listener_certificate",
       "import_id_example": "arn:aws:elasticloadbalancing:us-west-2:123456789012:listener/app/test/8e4497da625e2d8a/9ab28ade35828f96/67b3d2d36dd7c26b_arn:aws:iam::123456789012:server-certificate/tf-acc-test-6453083910015726063",
       "separator": "_",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "certificate_arn",
+        "listener_arn"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Listener Certificates using the listener arn and certificate arn, separated by an underscore (`_`). For example:\n\n```terraform\nimport {\n  to = aws_lb_listener_certificate.example\n  id = \"arn:aws:elasticloadbalancing:us-west-2:123456789012:listener/app/test/8e4497da625e2d8a/9ab28ade35828f96/67b3d2d36dd7c26b_arn:aws:iam::123456789012:server-certificate/tf-acc-test-6453083910015726063\"\n}\n```\n\nUsing `terraform import`, import Listener Certificates using the listener arn and certificate arn, separated by an underscore (`_`). For example:\n\n```console\n% terraform import aws_lb_listener_certificate.example arn:aws:elasticloadbalancing:us-west-2:123456789012:listener/app/test/8e4497da625e2d8a/9ab28ade35828f96/67b3d2d36dd7c26b_arn:aws:iam::123456789012:server-certificate/tf-acc-test-6453083910015726063\n```",
       "example_arguments": [
         {
@@ -78575,6 +79677,10 @@
           "required": true,
           "force_new": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "listener_arn",
+        "certificate_arn"
       ],
       "import_id_template": {
         "kind": "arn",
@@ -89283,8 +90389,11 @@
       "tf_type": "aws_network_interface_sg_attachment",
       "import_id_example": "eni-1234567890abcdef0_sg-1234567890abcdef0",
       "separator": "_",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "network_interface_id",
+        "security_group_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Network Interface Security Group attachments using the associated network interface ID and security group ID, separated by an underscore (`_`). For example:\n\n```terraform\nimport {\n  to = aws_network_interface_sg_attachment.sg_attachment\n  id = \"eni-1234567890abcdef0_sg-1234567890abcdef0\"\n}\n```\n\nUsing `terraform import`, import Network Interface Security Group attachments using the associated network interface ID and security group ID, separated by an underscore (`_`). For example:\n\n```console\n% terraform import aws_network_interface_sg_attachment.sg_attachment eni-1234567890abcdef0_sg-1234567890abcdef0\n```",
       "example_arguments": [
         {
@@ -89319,6 +90428,10 @@
           "name": "network_interface_id",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "network_interface_id",
+        "security_group_id"
       ],
       "id_parts": [
         {
@@ -90477,8 +91590,11 @@
       "tf_type": "aws_networkmanager_attachment_routing_policy_label",
       "import_id_example": "core-network-0fab1c1e1e1e1e1e1,attachment-0fab2c2e2e2e2e2e2",
       "separator": ",",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "attachment_id",
+        "core_network_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_networkmanager_attachment_routing_policy_label` using the core network ID and attachment ID separated by a comma (`,`). For example:\n\n```terraform\nimport {\n  to = aws_networkmanager_attachment_routing_policy_label.example\n  id = \"core-network-0fab1c1e1e1e1e1e1,attachment-0fab2c2e2e2e2e2e2\"\n}\n```\n\nUsing `terraform import`, import `aws_networkmanager_attachment_routing_policy_label` using the core network ID and attachment ID separated by a comma (`,`). For example:\n\n```console\n% terraform import aws_networkmanager_attachment_routing_policy_label.example core-network-0fab1c1e1e1e1e1e1,attachment-0fab2c2e2e2e2e2e2\n```",
       "example_arguments": [
         {
@@ -90524,6 +91640,10 @@
           "required": true,
           "force_new": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "core_network_id",
+        "attachment_id"
       ],
       "id_parts": [
         {
@@ -90873,8 +91993,11 @@
       "tf_type": "aws_networkmanager_customer_gateway_association",
       "import_id_example": "global-network-0d47f6t230mz46dy4,arn:aws:ec2:us-west-2:123456789012:customer-gateway/cgw-123abc05e04123abc",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "customer_gateway_arn",
+        "global_network_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_networkmanager_customer_gateway_association` using the global network ID and customer gateway ARN. For example:\n\n```terraform\nimport {\n  to = aws_networkmanager_customer_gateway_association.example\n  id = \"global-network-0d47f6t230mz46dy4,arn:aws:ec2:us-west-2:123456789012:customer-gateway/cgw-123abc05e04123abc\"\n}\n```\n\nUsing `terraform import`, import `aws_networkmanager_customer_gateway_association` using the global network ID and customer gateway ARN. For example:\n\n```console\n% terraform import aws_networkmanager_customer_gateway_association.example global-network-0d47f6t230mz46dy4,arn:aws:ec2:us-west-2:123456789012:customer-gateway/cgw-123abc05e04123abc\n```",
       "example_arguments": [
         {
@@ -90930,6 +92053,10 @@
           "name": "link_id",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "global_network_id",
+        "customer_gateway_arn"
       ]
     },
     {
@@ -91238,8 +92365,12 @@
       "tf_type": "aws_networkmanager_link_association",
       "import_id_example": "global-network-0d47f6t230mz46dy4,link-444555aaabbb11223,device-07f6fd08867abc123",
       "separator": ",",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "device_id",
+        "global_network_id",
+        "link_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_networkmanager_link_association` using the global network ID, link ID and device ID. For example:\n\n```terraform\nimport {\n  to = aws_networkmanager_link_association.example\n  id = \"global-network-0d47f6t230mz46dy4,link-444555aaabbb11223,device-07f6fd08867abc123\"\n}\n```\n\nUsing `terraform import`, import `aws_networkmanager_link_association` using the global network ID, link ID and device ID. For example:\n\n```console\n% terraform import aws_networkmanager_link_association.example global-network-0d47f6t230mz46dy4,link-444555aaabbb11223,device-07f6fd08867abc123\n```",
       "example_arguments": [
         {
@@ -91283,6 +92414,11 @@
           "name": "link_id",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "global_network_id",
+        "link_id",
+        "device_id"
       ],
       "id_parts": [
         {
@@ -91591,8 +92727,11 @@
       "tf_type": "aws_networkmanager_transit_gateway_registration",
       "import_id_example": "global-network-0d47f6t230mz46dy4,arn:aws:ec2:us-west-2:123456789012:transit-gateway/tgw-123abc05e04123abc",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "global_network_id",
+        "transit_gateway_arn"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_networkmanager_transit_gateway_registration` using the global network ID and transit gateway ARN. For example:\n\n```terraform\nimport {\n  to = aws_networkmanager_transit_gateway_registration.example\n  id = \"global-network-0d47f6t230mz46dy4,arn:aws:ec2:us-west-2:123456789012:transit-gateway/tgw-123abc05e04123abc\"\n}\n```\n\nUsing `terraform import`, import `aws_networkmanager_transit_gateway_registration` using the global network ID and transit gateway ARN. For example:\n\n```console\n% terraform import aws_networkmanager_transit_gateway_registration.example global-network-0d47f6t230mz46dy4,arn:aws:ec2:us-west-2:123456789012:transit-gateway/tgw-123abc05e04123abc\n```",
       "example_arguments": [
         {
@@ -91623,6 +92762,10 @@
           "name": "transit_gateway_arn",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "global_network_id",
+        "transit_gateway_arn"
       ]
     },
     {
@@ -95268,8 +96411,9 @@
       "tf_type": "aws_organizations_delegated_administrator",
       "import_id_example": "123456789012/config.amazonaws.com",
       "separator": "/",
-      "composed_of_arguments": null,
+      "composed_of_arguments": true,
       "arguments": [
+        "account_id",
         "service_principal"
       ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.12.0 and later, the [`import` block](https://developer.hashicorp.com/terraform/language/import) can be used with the `identity` attribute. For example:\n\n```terraform\nimport {\n  to = aws_organizations_delegated_administrator.example\n  identity = {\n    service_principal    = \"config.amazonaws.com\"\n    delegated_account_id = \"123456789012\"\n  }\n}\n\nresource \"aws_organizations_delegated_administrator\" \"example\" {\n  ### Configuration omitted for brevity ###\n}\n```\n\n### Identity Schema\n\n#### Required\n\n* `service_principal` (String) Service principal for the AWS service.\n* `delegated_account_id` (String) Account ID to be designated as a delegated administrator.\n\n#### Optional\n\n* `account_id` (String) AWS Account where this resource is managed.\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_organizations_delegated_administrator` using the account ID and its service principal. For example:\n\n```terraform\nimport {\n  to = aws_organizations_delegated_administrator.example\n  id = \"123456789012/config.amazonaws.com\"\n}\n```\n\nUsing `terraform import`, import `aws_organizations_delegated_administrator` using the account ID and its service principal. For example:\n\n```console\n% terraform import aws_organizations_delegated_administrator.example 123456789012/config.amazonaws.com\n```",
@@ -95298,6 +96442,10 @@
           "name": "service_principal",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "account_id",
+        "service_principal"
       ],
       "identity_schema_required": [
         "service_principal",
@@ -101056,8 +102204,11 @@
       "tf_type": "aws_ram_resource_association",
       "import_id_example": "arn:aws:ram:eu-west-1:123456789012:resource-share/73da1ab9-b94a-4ba3-8eb4-45917f7f4b12,arn:aws:ec2:eu-west-1:123456789012:subnet/subnet-12345678",
       "separator": ",",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "resource_arn",
+        "resource_share_arn"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import RAM Resource Associations using their Resource Share ARN and Resource ARN separated by a comma. For example:\n\n```terraform\nimport {\n  to = aws_ram_resource_association.example\n  id = \"arn:aws:ram:eu-west-1:123456789012:resource-share/73da1ab9-b94a-4ba3-8eb4-45917f7f4b12,arn:aws:ec2:eu-west-1:123456789012:subnet/subnet-12345678\"\n}\n```\n\nUsing `terraform import`, import RAM Resource Associations using their Resource Share ARN and Resource ARN separated by a comma. For example:\n\n```console\n% terraform import aws_ram_resource_association.example arn:aws:ram:eu-west-1:123456789012:resource-share/73da1ab9-b94a-4ba3-8eb4-45917f7f4b12,arn:aws:ec2:eu-west-1:123456789012:subnet/subnet-12345678\n```",
       "example_arguments": [
         {
@@ -101092,6 +102243,10 @@
           "name": "resource_share_arn",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "resource_share_arn",
+        "resource_arn"
       ],
       "import_id_template": {
         "kind": "arn",
@@ -102293,8 +103448,11 @@
       "tf_type": "aws_rds_cluster_role_association",
       "import_id_example": "my-db-cluster,arn:aws:iam::123456789012:role/my-role",
       "separator": ",",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "db_cluster_identifier",
+        "role_arn"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_rds_cluster_role_association` using the DB Cluster Identifier and IAM Role ARN separated by a comma (`,`). For example:\n\n```terraform\nimport {\n  to = aws_rds_cluster_role_association.example\n  id = \"my-db-cluster,arn:aws:iam::123456789012:role/my-role\"\n}\n```\n\nUsing `terraform import`, import `aws_rds_cluster_role_association` using the DB Cluster Identifier and IAM Role ARN separated by a comma (`,`). For example:\n\n```console\n% terraform import aws_rds_cluster_role_association.example my-db-cluster,arn:aws:iam::123456789012:role/my-role\n```",
       "example_arguments": [
         {
@@ -102341,6 +103499,10 @@
           "name": "role_arn",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "db_cluster_identifier",
+        "role_arn"
       ],
       "id_parts": [
         {
@@ -106552,8 +107714,11 @@
       "tf_type": "aws_route53_cidr_location",
       "import_id_example": "9ac32814-3e67-0932-6048-8d779cc6f511,office",
       "separator": ",",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "cidr_collection_id",
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import CIDR locations using their the CIDR collection ID and location name. For example:\n\n```terraform\nimport {\n  to = aws_route53_cidr_location.example\n  id = \"9ac32814-3e67-0932-6048-8d779cc6f511,office\"\n}\n```\n\nUsing `terraform import`, import CIDR locations using their the CIDR collection ID and location name. For example:\n\n```console\n% terraform import aws_route53_cidr_location.example 9ac32814-3e67-0932-6048-8d779cc6f511,office\n```",
       "example_arguments": [
         {
@@ -106595,6 +107760,10 @@
           "name": "name",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "cidr_collection_id",
+        "name"
       ],
       "id_parts": [
         {
@@ -112637,8 +113806,11 @@
       "tf_type": "aws_s3control_directory_bucket_access_point_scope",
       "import_id_example": "example--zoneid--xa-s3,123456789012",
       "separator": ":",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "account_id",
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import access point scope using the access point name and AWS accountID separated by a colon (`:`). For example:\n\n```terraform\nimport {\n  to = aws_s3control_directory_bucket_access_point_scope.example\n  id = \"example--zoneid--xa-s3,123456789012\"\n}\n```\n\nUsing `terraform import`, import Access Point Scope using access point name and AWS account ID separated by a colon (`,`). For example:\n\n```console\n% terraform import aws_s3control_directory_bucket_access_point_scope.example example--zoneid--xa-s3,123456789012\n```",
       "example_arguments": [
         {
@@ -112689,6 +113861,10 @@
           "name": "scope",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "name",
+        "account_id"
       ]
     },
     {
@@ -121151,8 +122327,11 @@
       "tf_type": "aws_service_discovery_instance",
       "import_id_example": "0123456789/i-0123",
       "separator": "/",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "instance_id",
+        "service_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import Service Discovery Instance using the service ID and instance ID. For example:\n\n```terraform\nimport {\n  to = aws_service_discovery_instance.example\n  id = \"0123456789/i-0123\"\n}\n```\n\nUsing `terraform import`, import Service Discovery Instance using the service ID and instance ID. For example:\n\n```console\n% terraform import aws_service_discovery_instance.example 0123456789/i-0123\n```",
       "example_arguments": [
         {
@@ -121192,6 +122371,10 @@
           "name": "attributes",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "service_id",
+        "instance_id"
       ],
       "id_parts": [
         {
@@ -121421,8 +122604,11 @@
       "tf_type": "aws_servicecatalog_budget_resource_association",
       "import_id_example": "budget-pjtvyakdlyo3m:prod-dnigbtea24ste",
       "separator": ":",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "budget_name",
+        "resource_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_servicecatalog_budget_resource_association` using the budget name and resource ID. For example:\n\n```terraform\nimport {\n  to = aws_servicecatalog_budget_resource_association.example\n  id = \"budget-pjtvyakdlyo3m:prod-dnigbtea24ste\"\n}\n```\n\nUsing `terraform import`, import `aws_servicecatalog_budget_resource_association` using the budget name and resource ID. For example:\n\n```console\n% terraform import aws_servicecatalog_budget_resource_association.example budget-pjtvyakdlyo3m:prod-dnigbtea24ste\n```",
       "example_arguments": [
         {
@@ -121453,6 +122639,10 @@
           "name": "resource_id",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "budget_name",
+        "resource_id"
       ],
       "id_parts": [
         {
@@ -122198,8 +123388,11 @@
       "tf_type": "aws_servicecatalog_tag_option_resource_association",
       "import_id_example": "tag-pjtvyakdlyo3m:prod-dnigbtea24ste",
       "separator": ":",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "resource_id",
+        "tag_option_id"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_servicecatalog_tag_option_resource_association` using the tag option ID and resource ID. For example:\n\n```terraform\nimport {\n  to = aws_servicecatalog_tag_option_resource_association.example\n  id = \"tag-pjtvyakdlyo3m:prod-dnigbtea24ste\"\n}\n```\n\nUsing `terraform import`, import `aws_servicecatalog_tag_option_resource_association` using the tag option ID and resource ID. For example:\n\n```console\n% terraform import aws_servicecatalog_tag_option_resource_association.example tag-pjtvyakdlyo3m:prod-dnigbtea24ste\n```",
       "example_arguments": [
         {
@@ -122230,6 +123423,10 @@
           "name": "tag_option_id",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "tag_option_id",
+        "resource_id"
       ],
       "id_parts": [
         {
@@ -122454,8 +123651,11 @@
       "tf_type": "aws_servicequotas_service_quota",
       "import_id_example": "vpc/L-F678F1CE",
       "separator": "/",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "quota_code",
+        "service_code"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_servicequotas_service_quota` using the service code and quota code, separated by a front slash (`/`). For example:\n\n~> **NOTE:** This resource does not require explicit import and will assume management of an existing service quota on Terraform resource creation.\n\n```terraform\nimport {\n  to = aws_servicequotas_service_quota.example\n  id = \"vpc/L-F678F1CE\"\n}\n```\n\nUsing `terraform import`, import `aws_servicequotas_service_quota` using the service code and quota code, separated by a front slash (`/`). For example:\n\n~> **NOTE:** This resource does not require explicit import and will assume management of an existing service quota on Terraform resource creation.\n\n```console\n% terraform import aws_servicequotas_service_quota.example vpc/L-F678F1CE\n```",
       "example_arguments": [
         {
@@ -122496,6 +123696,10 @@
           "name": "value",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "service_code",
+        "quota_code"
       ],
       "id_parts": [
         {
@@ -123000,8 +124204,11 @@
       "tf_type": "aws_ses_identity_policy",
       "import_id_example": "'example.com|example'",
       "separator": "|",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "identity",
+        "name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import SES Identity Policies using the identity and policy name, separated by a pipe character (`|`). For example:\n\n```terraform\nimport {\n  to = aws_ses_identity_policy.example\n  id = \"example.com|example\"\n}\n```\n\nUsing `terraform import`, import SES Identity Policies using the identity and policy name, separated by a pipe character (`|`). For example:\n\n```console\n% terraform import aws_ses_identity_policy.example 'example.com|example'\n```",
       "example_arguments": [
         {
@@ -123048,6 +124255,10 @@
           "name": "region",
           "required": false
         }
+      ],
+      "arguments_in_doc_order": [
+        "identity",
+        "name"
       ],
       "id_parts": [
         {
@@ -123115,8 +124326,11 @@
       "tf_type": "aws_ses_receipt_rule",
       "import_id_example": "my_rule_set:my_rule",
       "separator": ":",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "name",
+        "rule_set_name"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import SES receipt rules using the ruleset name and rule name separated by `:`. For example:\n\n```terraform\nimport {\n  to = aws_ses_receipt_rule.my_rule\n  id = \"my_rule_set:my_rule\"\n}\n```\n\nUsing `terraform import`, import SES receipt rules using the ruleset name and rule name separated by `:`. For example:\n\n```console\n% terraform import aws_ses_receipt_rule.my_rule my_rule_set:my_rule\n```",
       "example_arguments": [
         {
@@ -123320,6 +124534,10 @@
           "name": "organization_arn",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "rule_set_name",
+        "name"
       ],
       "id_parts": [
         {
