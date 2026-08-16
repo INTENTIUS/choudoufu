@@ -145,7 +145,28 @@ type Resolution struct {
 	// It carries no meaning outside this package (never rendered, never
 	// compared by a caller), and is set only for [ClassConcrete] and
 	// [ClassParentDerived], the two classes checkCollisions inspects.
-	cloudScope string
+	cloudScope cloudScopeKey
+}
+
+// cloudScopeKey is [Resolution.cloudScope]'s own shape: a base component
+// that two resources must match exactly (the resolved provider
+// configuration - account, module, alias), and a region component that
+// only ever RULES OUT a collision, never causes one on its own (#217). See
+// [resolver.resourceCloudScope] for how the two are built and
+// [regionsDistinguish] for the comparison this shape exists to make
+// possible: a region neither side could determine acts as a wildcard, and
+// collides with anything sharing the same base, rather than silently
+// distinguishing itself from a side that DID determine one.
+type cloudScopeKey struct {
+	base string
+
+	// region and regionKnown together are an optional string: regionKnown
+	// false means "this run could not establish an effective region for
+	// this resource" - deliberately distinct from region=="", which is
+	// what a resource literally setting `region = ""` would produce and is
+	// itself a known (if odd) value to compare.
+	region      string
+	regionKnown bool
 }
 
 // Type returns the resource type name, e.g. "aws_route".

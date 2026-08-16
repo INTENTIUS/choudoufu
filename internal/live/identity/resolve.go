@@ -282,7 +282,16 @@ func childSubject(name string) string {
 // ambiguity the marker path treats as a named error rather than picking a
 // winner.
 func (r *resolver) checkCollisions(result *Result) {
-	seen := make(map[string]addrs.AbsResourceInstance)
+	// Grouped by Type+ident+base only - [cloudScopeKey.base] is the part
+	// two resources must match exactly, the same partition the old
+	// single-string key made when region played no part. Region is
+	// resolved WITHIN a group instead (regionsDistinguish), because unlike
+	// base it must never rule out a collision on its own: a group can hold
+	// members with a known region, an unknown one, or both, and a member
+	// with no known region has to be compared against every other member
+	// of its own group, not just the first one seen (#217's own safety
+	// direction - see regionsDistinguish's doc comment).
+	seen := make(map[string][]Resolution)
 	for _, res := range result.All() {
 		var ident string
 		switch res.Class {
@@ -293,17 +302,18 @@ func (r *resolver) checkCollisions(result *Result) {
 		default:
 			continue
 		}
-		// cloudScope keeps two same-named resources that target different
-		// accounts or regions from colliding: see [Resolution.cloudScope]
-		// and [resolver.resourceCloudScope]. A blank scope (the ordinary
-		// single-region estate) is a no-op partition - every resource in
-		// such a configuration shares the same blank value, so the key
-		// collapses back to Type+ident exactly as before.
-		key := res.Type() + "\x00" + ident + "\x00" + res.cloudScope
+		key := res.Type() + "\x00" + ident + "\x00" + res.cloudScope.base
 
-		first, exists := seen[key]
-		if !exists {
-			seen[key] = res.Addr
+		var collidesWith *Resolution
+		for i := range seen[key] {
+			if regionsDistinguish(seen[key][i].cloudScope, res.cloudScope) {
+				continue
+			}
+			collidesWith = &seen[key][i]
+			break
+		}
+		seen[key] = append(seen[key], res)
+		if collidesWith == nil {
 			continue
 		}
 
@@ -315,8 +325,25 @@ func (r *resolver) checkCollisions(result *Result) {
 		}
 		r.errorf(rng, "Two resources with the same identity",
 			"%s and %s both resolve to the identity %q. Both would bind to the same live resource, so one of them has to change: an identity is what tells a live-markers run which cloud object a configuration block owns.",
-			first.String(), res.Addr.String(), ident)
+			collidesWith.Addr.String(), res.Addr.String(), ident)
 	}
+}
+
+// regionsDistinguish is the only way two [cloudScopeKey] values sharing the
+// same base can be told apart (#217): both sides must have determined an
+// effective region, AND those regions must differ. Any other combination -
+// either side's regionKnown false, or both known and equal - collides.
+// This is deliberately asymmetric with how base is compared: base rules a
+// pair IN or OUT on its own, region only ever rules a pair OUT, and only
+// when this run is actually confident it knows both resources' regions and
+// that they differ. A region this run could not determine is not evidence
+// of "somewhere else" - it is exactly the same "cannot disambiguate, so
+// don't" this package already applies to a `region` argument that fails to
+// evaluate statically (see [resolver.resourceCloudScope]'s own doc
+// comment), extended so the same caution holds when it is the OTHER side of
+// a comparison that could not be determined.
+func regionsDistinguish(a, b cloudScopeKey) bool {
+	return a.regionKnown && b.regionKnown && a.region != b.region
 }
 
 func newResolver(ctx context.Context, cfg *configs.Config, rctx Context) *resolver {
@@ -1418,10 +1445,10 @@ func (r *resolver) identifier(addr addrs.AbsResourceInstance, attrName string, r
 }
 
 // resourceCloudScope is [Resolution.cloudScope]'s whole implementation: a
-// string that is equal for two resources only when they plausibly target
-// the same account and region, so [resolver.checkCollisions] can tell a
-// genuine duplicate-identity collision from two same-named resources that
-// simply live in different places.
+// [cloudScopeKey] that agrees for two resources only when they plausibly
+// target the same account and region, so [resolver.checkCollisions] can
+// tell a genuine duplicate-identity collision from two same-named
+// resources that simply live in different places.
 //
 // It has two independent inputs, both general across every managed
 // resource type and every provider, not just AWS:
@@ -1448,25 +1475,55 @@ func (r *resolver) identifier(addr addrs.AbsResourceInstance, attrName string, r
 //     provider configuration both times, since neither block uses a
 //     provider alias, so only the region argument tells them apart.)
 //
-// A resource that sets neither - the overwhelming majority, and every
-// resource in a single-region, single-account estate - gets back the bare
-// provider-configuration string, which is identical for every resource in
-// such an estate: the collision key in that case reduces to exactly what it
-// was before this existed, Type+identity, with no drop in sensitivity.
+// The provider configuration always contributes [cloudScopeKey.base], which
+// [resolver.checkCollisions] requires to match exactly. The region comes
+// from [resolver.effectiveRegion] - the literal argument when the resource
+// states one, the resolved provider configuration's own static `region`
+// otherwise (#217) - and lands in [cloudScopeKey.region]/regionKnown, which
+// checkCollisions treats altogether differently: regionKnown false is a
+// wildcard that never rules out a collision on its own, so a resource this
+// function could not place in any region is exactly as suspect a duplicate
+// as it always was, not silently cleared by an unrelated sibling's known
+// one. A resource in a single-region, single-account estate never states a
+// region anywhere this can find one, so every instance shares base alone
+// with regionKnown false - the collision key in that case reduces to
+// exactly what it was before this existed, Type+identity, with no drop in
+// sensitivity.
 //
-// This is deliberately best-effort: a `region` argument that fails to
-// evaluate statically (references something a plain identity argument
-// could not either) is silently treated as absent rather than refused,
-// because collision detection choosing not to disambiguate a resource pair
-// is strictly safer than a spurious refusal over an argument nothing else
-// in this run needed to read. See [resolver.staticRegionAttr].
-func (r *resolver) resourceCloudScope(rc *configs.Resource, scope instScope) string {
+// This is deliberately best-effort in the OTHER direction: a `region`
+// argument that fails to evaluate statically (references something a plain
+// identity argument could not either) is silently treated as unknown
+// rather than refused, because collision detection choosing not to
+// disambiguate a resource pair is strictly safer than a spurious refusal
+// over an argument nothing else in this run needed to read. See
+// [resolver.staticRegionAttr] and [resolver.providerRegionAttr].
+func (r *resolver) resourceCloudScope(rc *configs.Resource, scope instScope) cloudScopeKey {
 	abs := providerscope.ResolveResource(r.curCfg, rc)
-	key := abs.String()
+	region, ok := r.effectiveRegion(rc, abs, scope)
+	return cloudScopeKey{base: abs.String(), region: region, regionKnown: ok}
+}
+
+// effectiveRegion is [resolver.resourceCloudScope]'s own region component
+// (#217): the resource's own literal `region` argument when it states one,
+// falling back to the region its resolved provider configuration itself
+// declares statically when it does not. Two resources of the same identity
+// that both target the same effective region must produce the same scope
+// string regardless of which of them spelled the region out - a resource
+// stating `region = "us-east-1"` and its sibling silently inheriting the
+// identical region from the enclosing `provider "aws"` block collided
+// before #217's own regression and must keep colliding now. ok is false,
+// and no region joins the scope at all, whenever NEITHER side resolves
+// statically: [resolver.staticRegionAttr]'s and
+// [resolver.providerRegionAttr]'s own doc comments explain why that must
+// fall back to "no override" rather than a refusal - the same reasoning
+// extends here in the direction #217 asks for, since an unknown region on
+// either side of a comparison must collide (report) rather than silently
+// distinguish two resources that might be identical.
+func (r *resolver) effectiveRegion(rc *configs.Resource, abs addrs.AbsProviderConfig, scope instScope) (string, bool) {
 	if region, ok := r.staticRegionAttr(rc, scope); ok {
-		key += "\x00region=" + region
+		return region, true
 	}
-	return key
+	return r.providerRegionAttr(abs)
 }
 
 // staticRegionAttr reads a resource's own `region` argument, when the body
@@ -1492,6 +1549,105 @@ func (r *resolver) staticRegionAttr(rc *configs.Resource, scope instScope) (stri
 		DeclRange: attr.Range,
 	}
 	val, evalDiags := r.evalPure(attr.Expr, scope, ident)
+	if evalDiags.HasErrors() || val.IsMarked() || val.IsNull() || !val.IsWhollyKnown() {
+		return "", false
+	}
+	str, err := convert.Convert(val, cty.String)
+	if err != nil {
+		return "", false
+	}
+	return str.AsString(), true
+}
+
+// providerRegionAttr reads abs's own provider configuration block's
+// `region` argument, when one exists and it evaluates to a known, non-null
+// string from configuration alone - [resolver.effectiveRegion]'s fallback
+// for a resource whose own body states no `region` override, so that
+// resource inherits the region its provider block would actually apply
+// (#217). [providerscope.Resolve] always anchors abs at the root module
+// (see that function's own doc comment: every return path sets
+// Module: addrs.RootModule), so the search below only ever looks at
+// r.rootCfg's own module, never the module the resolver happens to be
+// walking when this is called.
+//
+// The match against abs is the same deterministic shape
+// internal/live/dataread/analyze.go's findProviderConfig already uses for
+// the identical problem (an [addrs.AbsProviderConfig] naming a provider
+// type by its fully-qualified source, a config block naming it by local
+// name): iterate the module's ProviderConfigs in sorted key order,
+// filtering first by Alias and then by comparing
+// [configs.Module.ProviderForLocalConfig] of the block's own local name
+// against abs.Provider. Never [configs.Module.LocalNameForProvider] run in
+// the other direction - that lookup is keyed by the very FQN this function
+// is trying to resolve and picks one winner out of a Go map with no stable
+// order, which is exactly the nondeterminism a lookup keyed by the thing
+// being resolved produces (a real defect elsewhere in this codebase, not a
+// hypothetical one).
+//
+// Like [resolver.staticRegionAttr], this never records a diagnostic and
+// never treats an unresolvable region as anything other than "no
+// override" - a provider block this function cannot resolve, a `region`
+// this run cannot statically evaluate, or a provider configured with its
+// own `for_each` (whose `region` may differ per key, which this function
+// declines to guess at) all report ok=false, which [resolver.effectiveRegion]
+// (and #217's own safety direction) treats as "cannot distinguish these two
+// resources by region", not as a value of "no region".
+func (r *resolver) providerRegionAttr(abs addrs.AbsProviderConfig) (string, bool) {
+	if r.rootCfg == nil || r.rootCfg.Module == nil {
+		return "", false
+	}
+	mod := r.rootCfg.Module
+
+	keys := make([]string, 0, len(mod.ProviderConfigs))
+	for k := range mod.ProviderConfigs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var pc *configs.Provider
+	for _, k := range keys {
+		cand := mod.ProviderConfigs[k]
+		if cand.Alias != abs.Alias {
+			continue
+		}
+		if mod.ProviderForLocalConfig(addrs.LocalProviderConfig{LocalName: cand.Name}) != abs.Provider {
+			continue
+		}
+		pc = cand
+		break
+	}
+	if pc == nil || pc.Config == nil || pc.ForEach != nil {
+		return "", false
+	}
+
+	content, _, diags := pc.Config.PartialContent(&hcl.BodySchema{
+		Attributes: []hcl.AttributeSchema{{Name: "region"}},
+	})
+	if diags.HasErrors() {
+		return "", false
+	}
+	attr, ok := content.Attributes["region"]
+	if !ok || r.isSymbolic(attr.Expr, instScope{}) {
+		return "", false
+	}
+
+	// A provider block's own expressions live in, and reference variables
+	// and locals of, the ROOT module - which very often differs from
+	// whatever module the resolver is currently walking a resource in
+	// ([resolver.mod]'s own doc comment). r.eval is swapped to the root
+	// module's own pure evaluator for the one call below and restored
+	// immediately after; nothing else in this function or its caller
+	// depends on r.eval, so the swap has no visible effect beyond it.
+	saved := r.eval
+	r.eval = mod.StaticEvaluator.Pure()
+	defer func() { r.eval = saved }()
+
+	ident := configs.StaticIdentifier{
+		Module:    addrs.RootModule,
+		Subject:   fmt.Sprintf("provider.%s.region", pc.Name),
+		DeclRange: attr.Range,
+	}
+	val, evalDiags := r.evalPure(attr.Expr, instScope{}, ident)
 	if evalDiags.HasErrors() || val.IsMarked() || val.IsNull() || !val.IsWhollyKnown() {
 		return "", false
 	}
