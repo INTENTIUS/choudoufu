@@ -73,29 +73,68 @@ func TestCapabilityGateNoOpForUnrecordedType(t *testing.T) {
 	}
 }
 
-// TestCapabilityGateMechanismScoping checks that a mechanism-scoped gap
-// (aws_iam_role only fails on the tagging-sweep discovery path, per
-// live/floci-capabilities.json - it works fine on the ordinary path) does
-// not leak into the ordinary mechanism="" lookup, and does fire under its
-// own named wrapper.
+// TestCapabilityGateMechanismScoping checks that a gap recorded under one
+// mechanism never leaks into a lookup scoped to another, driven by real
+// committed rows at the pinned digest rather than a fixture.
+//
+// aws_redshift_cluster is the vehicle: at the pinned digest it carries a
+// mechanism="" row recording unimplemented (create-cluster misroutes to the
+// SQS handler), a mechanism="cloudcontrol-list" row recording implemented,
+// and no tagging-sweep row at all. So the ordinary-path gate must skip on
+// it (TestCapabilityGateSkipsForKnownGap covers that half), while both
+// scoped wrappers must be no-ops - one because its own row says
+// implemented, the other because there is no row under that mechanism to
+// read.
+//
+// This test used to run the same property through aws_iam_role's
+// tagging-sweep row, which recorded unimplemented until the pin moved to
+// sha256:a1c729f4 and floci's union index made all seven tagging-sweep
+// recipes implemented. That direction is now covered as a positive: the
+// tagging-sweep gate must be a no-op on aws_iam_role, which is exactly what
+// makes internal/live/discovery's TestTaggingSweepAgainstFloci assert its
+// bind rather than skip.
 func TestCapabilityGateMechanismScoping(t *testing.T) {
-	var ordinary *testing.T
-	t.Run("ordinary path", func(st *testing.T) {
-		ordinary = st
-		CapabilityGate(st, "aws_iam_role")
-	})
-	if ordinary.Skipped() {
-		t.Error("CapabilityGate (ordinary path) skipped for aws_iam_role; that gap is scoped to tagging-sweep only")
+	cases := []struct {
+		name string
+		run  func(*testing.T)
+		why  string
+	}{
+		{
+			name: "cloudcontrol-list does not inherit the ordinary-path gap",
+			run:  func(st *testing.T) { CloudControlListCapabilityGate(st, "aws_redshift_cluster") },
+			why:  "aws_redshift_cluster's cloudcontrol-list row records implemented; only its mechanism=\"\" row is a gap",
+		},
+		{
+			name: "tagging-sweep does not inherit the ordinary-path gap",
+			run:  func(st *testing.T) { TaggingSweepCapabilityGate(st, "aws_redshift_cluster") },
+			why:  "aws_redshift_cluster has no tagging-sweep row at all, and silence means \"not investigated\"",
+		},
+		{
+			name: "ordinary path is a no-op for a type with only scoped rows",
+			run:  func(st *testing.T) { CapabilityGate(st, "aws_iam_role") },
+			why:  "aws_iam_role has no mechanism=\"\" row; it works fine on the ordinary path",
+		},
+		{
+			name: "tagging-sweep is a no-op once the row records implemented",
+			run:  func(st *testing.T) { TaggingSweepCapabilityGate(st, "aws_iam_role") },
+			why:  "the pinned digest's union index populates the tagging sweep, so the row is implemented",
+		},
 	}
 
-	var sweep *testing.T
-	t.Run("tagging-sweep", func(st *testing.T) {
-		sweep = st
-		TaggingSweepCapabilityGate(st, "aws_iam_role")
-		t.Fatal("unreachable: TaggingSweepCapabilityGate should have skipped before this line")
-	})
-	if !sweep.Skipped() {
-		t.Fatal("TaggingSweepCapabilityGate did not skip for aws_iam_role, a documented mechanism-scoped gap")
+	for _, tc := range cases {
+		var sub *testing.T
+		ran := false
+		t.Run(tc.name, func(st *testing.T) {
+			sub = st
+			tc.run(st)
+			ran = true
+		})
+		if sub.Skipped() {
+			t.Errorf("%s: gate skipped, expected a no-op (%s)", tc.name, tc.why)
+		}
+		if !ran {
+			t.Errorf("%s: code after the gate never ran (%s)", tc.name, tc.why)
+		}
 	}
 }
 

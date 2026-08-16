@@ -156,15 +156,25 @@ regressions in its first day. **Any new call to `AsString`, `True`, `False`,
 
 floci (fork lane, lex00/floci, `/Users/alex/Documents/checkouts/floci`):
 
-- fork main `05573b5e`; published image
-  **`sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933`**.
-- **#229 is fixed on an unpushed branch.** The failure mode was *not
-  indexed*: `ResourceGroupsTaggingService` read a map only 2 of 64 services
-  wrote to. The fix unions it with a live read of every service's stores
-  through `StorageFactory`. Measured 1 → 29 tagged resources indexed, 1 → 21
-  services, and `floci-capability-gen -mode=tagging` 0/7 → 7/7.
-- **Do not re-pin until that image is published.** `live/floci-capabilities.json`
-  and `live/cohort-acceptance.json` stay on `sha256:1362e856…`.
+- fork main `6f030e96`; published image
+  **`sha256:a1c729f445a96fce8858ac45318d5188b5c2afc76a06e819f234326d52e6bd5f`**,
+  which is what `live/floci-image` now pins.
+- **#229 is fixed and the fix is verified from this side.** The failure mode
+  was *not indexed*: `ResourceGroupsTaggingService` read a map only 2 of 64
+  services wrote to. The fix unions it with a live read of every service's
+  stores through `StorageFactory`. Re-probed on the new digest 2026-08-16:
+  `floci-capability-gen -mode=tagging` is 7/7 implemented (was 0/7), and
+  `TestTaggingSweepAgainstFloci` now asserts its bind instead of skipping -
+  `listed=1 source=tagging`, orphan found, `other-estate=0`.
+- **The union index honours `TagFilters`**, which the floci-side oracle could
+  not show because it probes unfiltered. Direct probe across two estates:
+  3 hits unfiltered, 2 for `tofu-estate=alpha`, 1 for `beta`, 0 for an absent
+  value, 3 key-only, 0 for an absent key, and `ResourceTypeFilters` narrows
+  too. So `sweepViaTagging` sees no foreign-estate ARNs and cannot raise
+  spurious `ProblemUnsweepableOwnedType`/`ProblemUnresolvedTaggedARN`.
+- **`live/cohort-acceptance.json` has NOT been re-measured** and still records
+  `sha256:1362e856…`. It is listed in `staleFlociMeasurements` with that
+  reason; the re-measure is its own slot.
 - `live/cohort-acceptance.json` is **4 pass / 27 fail of 31**, not 3/28, and
   all 27 failures are `phase: "apply"`. Those runs predate the
   `!isEmulatorEndpoint` gate, so they had `TaggingSweep=true` against a blind

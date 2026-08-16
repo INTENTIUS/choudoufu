@@ -72,15 +72,20 @@ func TestFlociTypeCapability(t *testing.T) {
 	}
 
 	// Mechanism scoping: aws_iam_role is well-supported on the ordinary
-	// path (no entry there at all - it is only the tagging-sweep mechanism
-	// that misses it), so the empty-mechanism lookup must miss while the
-	// scoped one hits.
+	// path and has no entry there at all, so the empty-mechanism lookup
+	// must miss while the tagging-sweep-scoped one hits. What the scoped
+	// row says changed with the pin: sha256:a1c729f4 unioned the
+	// resourcegroupstaggingapi index with a live read of every service's
+	// stores, so the same seven recipes that all came back empty against
+	// sha256:1362e856 now all turn up in the sweep. The row is still here,
+	// still mechanism-scoped, and now records implemented - which is what
+	// makes flocitest.TaggingSweepCapabilityGate a no-op rather than a skip.
 	if _, ok := FlociTypeCapability(pinnedDigest, "aws_iam_role", ""); ok {
 		t.Error("expected no ordinary-path manifest entry for aws_iam_role (it works fine there); got one")
 	}
 	sweep, ok := FlociTypeCapability(pinnedDigest, "aws_iam_role", "tagging-sweep")
-	if !ok || sweep.Status != FlociUnimplemented {
-		t.Errorf("aws_iam_role tagging-sweep = %+v, ok=%v, want status %q", sweep, ok, FlociUnimplemented)
+	if !ok || sweep.Status != FlociImplemented {
+		t.Errorf("aws_iam_role tagging-sweep = %+v, ok=%v, want status %q", sweep, ok, FlociImplemented)
 	}
 
 	if _, ok := FlociTypeCapability(pinnedDigest, "aws_no_such_type", ""); ok {
