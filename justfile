@@ -107,9 +107,10 @@ corpus init_bin="terraform":
 # `just tables` on a clean tree must produce no diff. If it does, either a
 # recipe is wrong or an artifact was already stale - both worth finding.
 #
-# `tables` runs the DERIVED stages only. The four source stages - registry,
-# importdocs, tagverbs and survey - fetch from upstream or need a running
-# provider, so re-running them is a deliberate act with a pin bump behind it,
+# `tables` runs the DERIVED stages only. The five source stages - registry,
+# importdocs, tagverbs, survey and logical-schemas - fetch from upstream or
+# need a running provider, so re-running one is a deliberate act with a pin
+# bump behind it,
 # not something a routine regeneration should trigger as a side effect.
 # estate-gen is out for the same reason plus its own: it regenerates committed
 # fixtures whose acceptance verdicts are a ratchet, and it carries a separate
@@ -142,7 +143,15 @@ iamref:
 tagverbs:
     env -u PWD go run ./tools/tagverbs-gen
 
-# mapping + registry + import-grammar + the ratified rows -> the two generated tables (a fixed point; see emit.go).
+# The record-store effects providers' own schemas -> live/logical-schemas.json,
+# the evidence every RecordBacked row is derived from (see
+# tools/row-gen/logicalschemas.go). A source stage like `survey`, not a derived
+# one: it launches five providers, so it is out of `tables` for the same reason
+# `survey` is. All five are small and cache like any other provider.
+logical-schemas init_bin="terraform":
+    env -u PWD go run ./tools/row-gen -logical-schemas -init-bin {{init_bin}}
+
+# mapping + registry + import-grammar + logical-schemas + the ratified rows -> the two generated tables (a fixed point; see emit.go).
 row-emit:
     env -u PWD go run ./tools/row-gen -emit
 

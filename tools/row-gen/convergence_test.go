@@ -166,7 +166,22 @@ const unannotatedMismatchRatchetMax = 0
 // association - and the fresh classifier now reproduces all five ratified
 // rows unchanged, so their rulings are deleted rather than left stale.
 // Net against 121: -5 stale +1 new (aws_alb_target_group_attachment) = 116.
-const annotationCountRatchetMax = 116
+//
+// 95 (2026-08-16): two drops in one, and the constant was already stale by
+// the first. The committed ledger was at 105 when this was last read, so 116
+// had stopped bounding anything - the note above accounts for the batch that
+// set it and not for whatever removed nine more afterwards, which is exactly
+// the failure a ratchet is supposed to make visible. The second drop is
+// deliberate and is what this bump records: the ten record-backed effects
+// types (null_resource, terraform_data, random_id/integer/pet/shuffle,
+// time_offset/rotating/sleep/static) each carried a ruling whose own Exit
+// field named the same fix - "Retire by deriving the RecordBacked rows ...
+// inside -emit instead of carrying them as unreproduced table rows" - and
+// -emit now does exactly that from live/logical-schemas.json
+// (recordBackedRows, emit.go). A derived row is not an unreproduced one, so
+// the rulings are deleted rather than left to quietly exempt something else.
+// 105 - 10 = 95.
+const annotationCountRatchetMax = 95
 
 // TestAnnotationCountRatchet reads the committed ledger directly and fails
 // when it has grown past annotationCountRatchetMax - never when it shrinks:

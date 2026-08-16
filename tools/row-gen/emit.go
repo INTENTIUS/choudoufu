@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -57,6 +58,16 @@ import (
 // comment for why all three are still the fixed point this comment describes
 // (idempotent once the field is set, changing only when the evidence does),
 // not a hole in the byte-identity bar above.
+//
+// One whole class of row is the fourth, and it is derived rather than copied
+// for the same reason: the RecordBacked rows, the record-store effects set
+// issue #73 keeps outside the cloud entirely. Nothing about such a row is
+// ratified - it carries no components, no reason string and no identity
+// attributes, only its own type name and the flag - and the flag itself is a
+// fact the provider's schema states. recordBackedRows derives the whole set
+// from live/logical-schemas.json (see logicalschemas.go). Until that
+// derivation existed the ten rows sat in annotations.json as unreproduced
+// entries, every one carrying the same recorded exit, which was to do this.
 //
 // What row-gen's fresh classifyAll run contributes is the MEASUREMENT: which
 // types its registry-evidence classifier reproduces on its own and which
@@ -107,8 +118,12 @@ func runEmit(out, errOut *os.File) error {
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", surveyJSONRel, err)
 	}
+	logical, err := loadLogicalSchemas(filepath.Join(root, logicalSchemasJSONRel))
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", logicalSchemasJSONRel, err)
+	}
 
-	files, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar, survey)
+	files, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar, survey, logical)
 	if err != nil {
 		return err
 	}
@@ -140,13 +155,19 @@ var emitFileOrder = []string{identityTableRel, lintTableRel}
 // evidence, it returns the two generated files' contents by repo-relative
 // path, plus the two convergence measurements the summary line and tests
 // both want the counts of.
-func buildEmitFiles(proposals []proposal, annotations map[string]annotation, grammar map[string]importGrammarRow, survey map[string]surveyEntry) (files map[string][]byte, identityPart, lintPart emitPartition, err error) {
+func buildEmitFiles(proposals []proposal, annotations map[string]annotation, grammar map[string]importGrammarRow, survey map[string]surveyEntry, logical logicalSchemas) (files map[string][]byte, identityPart, lintPart emitPartition, err error) {
 	art := buildConvergence(proposals, annotations)
 
 	matched := make(map[string]bool, len(art.Types))
 	for _, row := range art.Types {
 		matched[row.TFType] = row.Matched
 	}
+
+	recordBacked, err := recordBackedRows(logical)
+	if err != nil {
+		return nil, emitPartition{}, emitPartition{}, err
+	}
+	rows, types := emittedRows(recordBacked, grammar, survey)
 
 	// Issue #132's gate: a row the fresh classifier does not reproduce is
 	// only emittable when annotations.json records why - otherwise a row
@@ -156,9 +177,16 @@ func buildEmitFiles(proposals []proposal, annotations map[string]annotation, gra
 	// a fact that needs a ruling. -convergence stays ungated on purpose:
 	// it is the measurement, and it must keep running over an unannotated
 	// table so the debt stays visible.
+	//
+	// A RecordBacked row is exempt, because it is no longer an unreproduced
+	// row: recordBackedRows derives it from the provider's own schema (see
+	// logicalschemas.go), the same standing mergeServerAssigned's and
+	// mergeIdentityAttrs' fields have. That exemption is what retires the ten
+	// rulings annotations.json used to carry for exactly these types, each of
+	// which named this derivation as its own exit.
 	var unruled []string
-	for _, t := range identity.AdmittedTypes() {
-		if matched[t] {
+	for _, t := range types {
+		if matched[t] || recordBacked[t] {
 			continue
 		}
 		if _, ok := annotations[t]; !ok {
@@ -171,15 +199,15 @@ func buildEmitFiles(proposals []proposal, annotations map[string]annotation, gra
 			len(unruled), annotationsJSONRel, strings.Join(unruled, "\n  "))
 	}
 
-	identityPart = partitionAdmitted(matched)
-	lintGenerated, lintOverride := splitNonRecordBacked(identityPart)
+	identityPart = partitionAdmitted(types, matched, recordBacked)
+	lintGenerated, lintOverride := splitNonRecordBacked(identityPart, recordBacked)
 	lintPart = emitPartition{Generated: lintGenerated, Override: lintOverride}
 
-	identitySrc, err := renderIdentityFile(identity.AdmittedTypes(), grammar, survey)
+	identitySrc, err := renderIdentityFile(types, rows)
 	if err != nil {
 		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", identityTableRel, err)
 	}
-	lintSrc, err := renderLintFile(admittedNonRecordBacked())
+	lintSrc, err := renderLintFile(nonRecordBacked(types, recordBacked))
 	if err != nil {
 		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", lintTableRel, err)
 	}
@@ -190,16 +218,82 @@ func buildEmitFiles(proposals []proposal, annotations map[string]annotation, gra
 	}, identityPart, lintPart, nil
 }
 
-// partitionAdmitted walks every type in [identity.DefaultTable] - the same
-// ground truth classifyAll's own admitted-set seed reads - and splits it by
-// matched, the fresh convergence comparison's verdict. A type absent from
-// matched entirely (rowgen-convergence's "not in the mapped set": no fresh
-// proposal exists to compare) counts as unreproduced, the same as a type
-// whose proposal actively disagrees.
-func partitionAdmitted(matched map[string]bool) emitPartition {
-	var part emitPartition
+// recordBackedRows is the RecordBacked half of the emitted table, derived
+// from live/logical-schemas.json rather than copied from
+// [identity.DefaultTable] (see [recordBackedTypes] for the rule).
+//
+// It also refuses two shapes outright rather than letting them through as a
+// silent table change. A currently-RecordBacked row the derivation does not
+// reproduce would be a row DROPPED from the admission table by a generator
+// run - a type that resolves today and would stop, which is the one thing a
+// change of this kind must never do quietly. And a derived type the table
+// already carries as an ordinary, non-record row would mean two evidence
+// sources claiming the same type, which no prefix in the input providers can
+// produce today and which should stop the run if it ever can.
+func recordBackedRows(logical logicalSchemas) (map[string]bool, error) {
+	derived := recordBackedTypes(logical)
+	backed := make(map[string]bool, len(derived))
+	for _, t := range derived {
+		if row, ok := identity.DefaultTable[t]; ok && !row.RecordBacked {
+			return nil, fmt.Errorf(
+				"row-gen -emit: %s derives RecordBacked from %s, but %s already admits it as an ordinary row - two evidence sources are claiming one type",
+				t, logicalSchemasJSONRel, identityTableRel)
+		}
+		backed[t] = true
+	}
+	var dropped []string
 	for _, t := range identity.AdmittedTypes() {
-		if matched[t] {
+		if identity.DefaultTable[t].RecordBacked && !backed[t] {
+			dropped = append(dropped, t)
+		}
+	}
+	if len(dropped) > 0 {
+		return nil, fmt.Errorf(
+			"row-gen -emit: %d RecordBacked row(s) in %s are not reproduced by the derivation over %s, so emitting would remove them from the admission table - re-run -logical-schemas, or fix the rule:\n  %s",
+			len(dropped), identityTableRel, logicalSchemasJSONRel, strings.Join(dropped, "\n  "))
+	}
+	return backed, nil
+}
+
+// emittedRows builds every row the identity table will carry, and the sorted
+// type list that keys it.
+//
+// The two halves come from different places on purpose. A RecordBacked row is
+// derived whole - its only non-zero fields are Type and RecordBacked, because
+// a record-backed type has no components to resolve and nothing about it is
+// ratified by hand. Every other row is copied verbatim from
+// [identity.DefaultTable], the ratified ground truth this file's own doc
+// comment describes, with mergeServerAssigned's, mergeCloudDefault's and
+// mergeIdentityAttrs' three recomputed fields layered over it.
+func emittedRows(recordBacked map[string]bool, grammar map[string]importGrammarRow, survey map[string]surveyEntry) (map[string]identity.TypeIdentity, []string) {
+	rows := make(map[string]identity.TypeIdentity, len(identity.DefaultTable)+len(recordBacked))
+	for _, t := range identity.AdmittedTypes() {
+		if identity.DefaultTable[t].RecordBacked {
+			continue // re-derived below, never copied
+		}
+		rows[t] = mergeIdentityAttrs(mergeCloudDefault(mergeServerAssigned(identity.DefaultTable[t], grammar[t]), grammar[t]), survey[t])
+	}
+	for t := range recordBacked {
+		rows[t] = identity.TypeIdentity{Type: t, RecordBacked: true}
+	}
+	types := make([]string, 0, len(rows))
+	for t := range rows {
+		types = append(types, t)
+	}
+	sort.Strings(types)
+	return rows, types
+}
+
+// partitionAdmitted splits the emitted type set by matched, the fresh
+// convergence comparison's verdict. A type absent from matched entirely
+// (rowgen-convergence's "not in the mapped set": no fresh proposal exists to
+// compare) counts as unreproduced, the same as a type whose proposal actively
+// disagrees - except for a RecordBacked type, which is reproduced by a rule
+// of its own and so counts as generated.
+func partitionAdmitted(types []string, matched, recordBacked map[string]bool) emitPartition {
+	var part emitPartition
+	for _, t := range types {
+		if matched[t] || recordBacked[t] {
 			part.Generated = append(part.Generated, t)
 		} else {
 			part.Override = append(part.Override, t)
@@ -209,32 +303,32 @@ func partitionAdmitted(matched map[string]bool) emitPartition {
 }
 
 // splitNonRecordBacked derives admittedTypesV0's own measurement from the
-// identity table's: a RECORD_ADMITTED type ([identity.TypeIdentity.RecordBacked])
-// is never a member of admittedTypesV0 at all - internal/live/lint refuses it
-// before resolution ever runs - so every such type is dropped here regardless
-// of which half it landed in.
-func splitNonRecordBacked(part emitPartition) (generated, override []string) {
+// identity table's: a RECORD_ADMITTED type is never a member of
+// admittedTypesV0 at all - internal/live/lint refuses it before resolution
+// ever runs - so every such type is dropped here regardless of which half it
+// landed in.
+func splitNonRecordBacked(part emitPartition, recordBacked map[string]bool) (generated, override []string) {
 	for _, t := range part.Generated {
-		if !identity.DefaultTable[t].RecordBacked {
+		if !recordBacked[t] {
 			generated = append(generated, t)
 		}
 	}
 	for _, t := range part.Override {
-		if !identity.DefaultTable[t].RecordBacked {
+		if !recordBacked[t] {
 			override = append(override, t)
 		}
 	}
 	return generated, override
 }
 
-// admittedNonRecordBacked is admittedTypesV0's key set: [identity.DefaultTable]'s
-// own keys minus the RecordBacked rows. This is the whole of admittedTypesV0's
+// nonRecordBacked is admittedTypesV0's key set: the emitted table's own keys
+// minus the RecordBacked rows. This is the whole of admittedTypesV0's
 // relationship to the identity table, which is why it is derived here rather
 // than tracked as a list of its own.
-func admittedNonRecordBacked() []string {
+func nonRecordBacked(types []string, recordBacked map[string]bool) []string {
 	var out []string
-	for _, t := range identity.AdmittedTypes() {
-		if !identity.DefaultTable[t].RecordBacked {
+	for _, t := range types {
+		if !recordBacked[t] {
 			out = append(out, t)
 		}
 	}
@@ -247,6 +341,10 @@ func admittedNonRecordBacked() []string {
 // calls no constructor and references no hand-written helper or constant -
 // so that nothing outside this generator participates in building the
 // table.
+//
+// The rows come from emittedRows: a RecordBacked row is derived whole from
+// live/logical-schemas.json, and every other row is a verbatim copy of the
+// ratified entry with three recomputed fields layered over it.
 //
 // Every field but two is copied verbatim from the currently-compiled
 // [identity.DefaultTable], as this file's own doc comment has always
@@ -266,7 +364,7 @@ func admittedNonRecordBacked() []string {
 // still gets its field filled in the moment the evidence for its own
 // arguments says to, with no per-type edit anywhere in this generator's
 // control flow.
-func renderIdentityFile(types []string, grammar map[string]importGrammarRow, survey map[string]surveyEntry) ([]byte, error) {
+func renderIdentityFile(types []string, rows map[string]identity.TypeIdentity) ([]byte, error) {
 	var b strings.Builder
 	b.WriteString(licenseHeader)
 	b.WriteString("\n")
@@ -276,8 +374,7 @@ func renderIdentityFile(types []string, grammar map[string]importGrammarRow, sur
 	b.WriteString(defaultTableDoc)
 	b.WriteString("var DefaultTable = map[string]TypeIdentity{\n")
 	for _, t := range types {
-		entry := mergeIdentityAttrs(mergeCloudDefault(mergeServerAssigned(identity.DefaultTable[t], grammar[t]), grammar[t]), survey[t])
-		fmt.Fprintf(&b, "%q: %s,\n", t, renderStruct(reflect.ValueOf(entry)))
+		fmt.Fprintf(&b, "%q: %s,\n", t, renderStruct(reflect.ValueOf(rows[t])))
 	}
 	b.WriteString("}\n")
 	return format.Source([]byte(b.String()))

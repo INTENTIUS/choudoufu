@@ -1,0 +1,212 @@
+{
+  "providers": [
+    {
+      "source": "hashicorp/random",
+      "version": "3.9.0",
+      "store_only": true,
+      "store_only_evidence": "every hashicorp/random resource generates its value at create time and keeps it nowhere but OpenTofu's own record of the resource; there is no remote object to read back, which is why the provider's own docs describe each type as generating a value \"intended to be used as a unique identifier for other resources\" rather than as managing one",
+      "types": [
+        {
+          "type": "random_bytes",
+          "description": "The resource `random_bytes` generates random bytes that are intended to be used as a secret, or key. Use this in preference to `random_id` when the output is considered sensitive, and should not be displayed in the CLI.\n\nThis resource *does* use a cryptographic random number generator.",
+          "sensitive": [
+            {
+              "name": "base64"
+            },
+            {
+              "name": "hex"
+            }
+          ]
+        },
+        {
+          "type": "random_id",
+          "description": "\nThe resource `random_id` generates random numbers that are intended to be\nused as unique identifiers for other resources. If the output is considered \nsensitive, and should not be displayed in the CLI, use `random_bytes`\ninstead.\n\nThis resource *does* use a cryptographic random number generator in order\nto minimize the chance of collisions, making the results of this resource\nwhen a 16-byte identifier is requested of equivalent uniqueness to a\ntype-4 UUID.\n\nThis resource can be used in conjunction with resources that have\nthe `create_before_destroy` lifecycle flag set to avoid conflicts with\nunique names during the brief period where both the old and new resources\nexist concurrently.\n"
+        },
+        {
+          "type": "random_integer",
+          "description": "The resource `random_integer` generates random values from a given range, described by the `min` and `max` attributes of a given resource.\n\nThis resource can be used in conjunction with resources that have the `create_before_destroy` lifecycle flag set, to avoid conflicts with unique names during the brief period where both the old and new resources exist concurrently."
+        },
+        {
+          "type": "random_password",
+          "description": "-\u003e If the managed resource supports a write-only attribute for the password (first introduced in Terraform 1.11), then the ephemeral variant of [`random_password`](https://registry.terraform.io/providers/hashicorp/random/latest/docs/ephemeral-resources/password) should be used, when possible, to avoid storing the password in the plan or state file.\n\nIdentical to [`random_string`](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/string) with the exception that the result is treated as sensitive and, thus, _not_ displayed in console output. Read more about sensitive data handling in the [Terraform documentation](https://developer.hashicorp.com/terraform/language/state/sensitive-data).\n\nThis resource *does* use a cryptographic random number generator.",
+          "sensitive": [
+            {
+              "name": "bcrypt_hash"
+            },
+            {
+              "name": "result"
+            }
+          ],
+          "deprecated": [
+            {
+              "name": "number",
+              "deprecation_message": "**NOTE**: This is deprecated, use `numeric` instead."
+            }
+          ]
+        },
+        {
+          "type": "random_pet",
+          "description": "The resource `random_pet` generates random pet names that are intended to be used as unique identifiers for other resources.\n\nThis resource can be used in conjunction with resources that have the `create_before_destroy` lifecycle flag set, to avoid conflicts with unique names during the brief period where both the old and new resources exist concurrently."
+        },
+        {
+          "type": "random_shuffle",
+          "description": "The resource `random_shuffle` generates a random permutation of a list of strings given as an argument."
+        },
+        {
+          "type": "random_string",
+          "description": "The resource `random_string` generates a random permutation of alphanumeric characters and optionally special characters.\n\nThis resource *does* use a cryptographic random number generator.\n\nHistorically this resource's intended usage has been ambiguous as the original example used it in a password. For backwards compatibility it will continue to exist. For unique ids please use [random_id](id.html), for sensitive random values please use [random_password](password.html).",
+          "deprecated": [
+            {
+              "name": "number",
+              "deprecation_message": "**NOTE**: This is deprecated, use `numeric` instead."
+            }
+          ]
+        },
+        {
+          "type": "random_uuid",
+          "description": "The resource `random_uuid` generates a random uuid string that is intended to be used as a unique identifier for other resources.\n\nThis resource uses [hashicorp/go-uuid](https://github.com/hashicorp/go-uuid) to generate a UUID-formatted string for use with services needing a unique string identifier."
+        },
+        {
+          "type": "random_uuid4",
+          "description": "The resource `random_uuid4` generates a random version 4 uuid string that is intended to be used as a unique identifier for other resources.\n\nThis resource uses [google/uuid](https://github.com/google/uuid) to generate a valid V4 UUID for use with services needing a unique string identifier."
+        },
+        {
+          "type": "random_uuid7",
+          "description": "The resource `random_uuid7` generates a random version 7 uuid string that is intended to be used as a unique identifier for other resources.\n\nThis resource uses [google/uuid](https://github.com/google/uuid) to generate a valid V7 UUID for use with services needing a unique string identifier."
+        }
+      ]
+    },
+    {
+      "source": "hashicorp/tls",
+      "version": "4.3.0",
+      "store_only": true,
+      "store_only_evidence": "hashicorp/tls computes keys and certificates locally and stores them in the record; nothing is registered with any authority, so the record is the only place the material exists. (Every one of its types is secret-bearing and so derives no row here regardless; it is measured because lint classifies the family.)",
+      "types": [
+        {
+          "type": "tls_cert_request",
+          "description": "Creates a Certificate Signing Request (CSR) in [PEM (RFC 1421)](https://datatracker.ietf.org/doc/html/rfc1421) format.\n\nPEM is the typical format used to request a certificate from a Certificate Authority (CA).\n\nThis resource is intended to be used in conjunction with a Terraform provider for a particular certificate authority in order to provision a new certificate.",
+          "sensitive": [
+            {
+              "name": "private_key_pem"
+            }
+          ]
+        },
+        {
+          "type": "tls_locally_signed_cert",
+          "description": "Creates a TLS certificate in [PEM (RFC 1421)](https://datatracker.ietf.org/doc/html/rfc1421) format using a Certificate Signing Request (CSR) and signs it with a provided (local) Certificate Authority (CA).",
+          "sensitive": [
+            {
+              "name": "ca_private_key_pem"
+            }
+          ]
+        },
+        {
+          "type": "tls_private_key",
+          "description": "-\u003e If the managed resource supports a write-only attribute for the private key (first introduced in Terraform 1.11), then the ephemeral variant of [`tls_private_key`](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/ephemeral-resources/private_key) should be used, when possible, to avoid storing the private key data in the plan or state file.\n\nCreates a PEM (and OpenSSH) formatted private key.\n\nGenerates a secure private key and encodes it in [PEM (RFC 1421)](https://datatracker.ietf.org/doc/html/rfc1421) and [OpenSSH PEM (RFC 4716)](https://datatracker.ietf.org/doc/html/rfc4716) formats. This resource is primarily intended for easily bootstrapping throwaway development environments.",
+          "sensitive": [
+            {
+              "name": "private_key_openssh"
+            },
+            {
+              "name": "private_key_pem"
+            },
+            {
+              "name": "private_key_pem_pkcs8"
+            }
+          ]
+        },
+        {
+          "type": "tls_self_signed_cert",
+          "description": "Creates a **self-signed** TLS certificate in [PEM (RFC 1421)](https://datatracker.ietf.org/doc/html/rfc1421) format.",
+          "sensitive": [
+            {
+              "name": "private_key_pem"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "hashicorp/time",
+      "version": "0.14.1",
+      "store_only": true,
+      "store_only_evidence": "each hashicorp/time resource's own description says it \"keeps a ... UTC timestamp stored in the Terraform state\": the stored timestamp is the whole resource",
+      "types": [
+        {
+          "type": "time_offset",
+          "description": "Manages an offset time resource, which keeps an UTC timestamp stored in the Terraform state that is offset from a locally sourced base timestamp. This prevents perpetual differences caused by using the [`timestamp()` function](https://www.terraform.io/docs/configuration/functions/timestamp.html)."
+        },
+        {
+          "type": "time_rotating",
+          "description": "Manages a rotating time resource, which keeps a rotating UTC timestamp stored in the Terraform state and proposes resource recreation when the locally sourced current time is beyond the rotation time. This rotation only occurs when Terraform is executed, meaning there will be drift between the rotation timestamp and actual rotation. The new rotation timestamp offset includes this drift. This prevents perpetual differences caused by using the [`timestamp()` function](https://www.terraform.io/docs/configuration/functions/timestamp.html) by only forcing a new value on the set cadence."
+        },
+        {
+          "type": "time_sleep",
+          "description": "Manages a resource that delays creation and/or destruction, typically for further resources. This prevents cross-platform compatibility and destroy-time issues with using the [`local-exec` provisioner](https://www.terraform.io/docs/provisioners/local-exec.html)."
+        },
+        {
+          "type": "time_static",
+          "description": "Manages a static time resource, which keeps a locally sourced UTC timestamp stored in the Terraform state. This prevents perpetual differences caused by using the [`timestamp()` function](https://www.terraform.io/docs/configuration/functions/timestamp.html)."
+        }
+      ]
+    },
+    {
+      "source": "hashicorp/null",
+      "version": "3.3.1",
+      "store_only": true,
+      "store_only_evidence": "null_resource's own description is \"implements the standard resource lifecycle but takes no further action\" - there is nothing outside the record by construction",
+      "types": [
+        {
+          "type": "null_resource",
+          "description": "The `null_resource` resource implements the standard resource lifecycle but takes no further action. On Terraform 1.4 and later, use the [`terraform_data` resource type](https://developer.hashicorp.com/terraform/language/resources/terraform-data) instead. Terraform 1.9 and later support the `moved` configuration block from `null_resource` to `terraform_data`.\n\nThe `triggers` argument allows specifying an arbitrary set of values that, when changed, will cause the resource to be replaced."
+        }
+      ]
+    },
+    {
+      "source": "hashicorp/local",
+      "version": "2.9.0",
+      "store_only": false,
+      "store_only_evidence": "hashicorp/local's resources write a file to the local filesystem and read it back on refresh. Measured against 2.9.0: delete the file and the provider drops the resource so the next plan proposes a create, and id is the SHA1 of the content, so changing the file changes the resource. The file outlives any record and two instances with distinct records still collide on one filename, so the identity is the filename rather than the record - which is exactly what a RecordBacked row would claim it is not. internal/live/lint's TestLocalFileKeepsItsCountIndexCheck pins the consequence from the other side.",
+      "types": [
+        {
+          "type": "local_file",
+          "description": "Generates a local file with the given content.",
+          "sensitive": [
+            {
+              "name": "sensitive_content"
+            }
+          ],
+          "deprecated": [
+            {
+              "name": "sensitive_content",
+              "deprecation_message": "Use the `local_sensitive_file` resource instead"
+            }
+          ]
+        },
+        {
+          "type": "local_sensitive_file",
+          "description": "Generates a local file with the given sensitive content.",
+          "sensitive": [
+            {
+              "name": "content"
+            },
+            {
+              "name": "content_base64"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "terraform.io/builtin/terraform",
+      "version": "built-in",
+      "store_only": true,
+      "store_only_evidence": "terraform_data is OpenTofu's own built-in replacement for null_resource; its output is its input echoed back after apply, with no provider and no remote object anywhere in the lifecycle",
+      "types": [
+        {
+          "type": "terraform_data"
+        }
+      ]
+    }
+  ]
+}
