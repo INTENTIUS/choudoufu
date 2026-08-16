@@ -60,10 +60,13 @@ resource "aws_network_acl_rule" "bounded" {
   to_port     = 80
 }
 
-# Multiplication by a value this rule has no evaluation context to prove
-# nonzero: count.index * var.multiplier collapses every index to 0 whenever
-# var.multiplier happens to be 0, and this is a syntax-only check with no
-# variable values in scope to rule that out.
+# Multiplication by a value NEITHER check can pin down. var.multiplier has
+# no default and this fixture supplies no value, so it renders unknown at
+# every index and the value check learns nothing; the syntactic check
+# cannot prove a variable nonzero either. Both answer "cannot prove", and
+# "cannot prove" is refuse. Give var.multiplier a nonzero default and this
+# resource is admitted, correctly - see the analogous
+# "multiply_by_defaulted_variable" in testdata/count-index-pure-scalar.
 resource "aws_network_acl_rule" "multiply_by_variable" {
   count = 3
 
@@ -78,8 +81,7 @@ resource "aws_network_acl_rule" "multiply_by_variable" {
 }
 
 variable "multiplier" {
-  type    = number
-  default = 1
+  type = number
 }
 
 # Multiplication by a literal zero: the constant IS statically known, and
@@ -116,13 +118,18 @@ resource "aws_network_acl_rule" "both_operands_reference_index" {
   to_port     = 80
 }
 
-# format() renders count.index through a general-purpose function this rule
-# has not proven injective, unlike a template's own decimal interpolation.
-resource "aws_route53_record" "format_function" {
-  count = 3
+# A function-level collision no shape rule could see. substr truncates the
+# index's decimal rendering to its first character, so indices 0..9 render
+# "0".."9" and index 10 renders "1" again - a collision produced by what
+# substr DOES, not by the shape of the call. No case in count_index.go
+# names substr, or format, or any other function; rendering the twelve
+# values this count actually produces and finding two the same is the whole
+# of the argument.
+resource "aws_route53_record" "truncating_function" {
+  count = 12
 
   zone_id = "Z0123456789ABCDEFGHI"
-  name    = format("record-%d.example.com", count.index)
+  name    = "record-${substr(tostring(count.index), 0, 1)}.example.com"
   type    = "A"
   ttl     = 300
   records = ["10.0.0.1"]
@@ -145,4 +152,23 @@ resource "aws_network_acl_rule" "comparison" {
   cidr_block  = "10.0.0.0/16"
   from_port   = 80
   to_port     = 80
+}
+
+# An impure function reaching count.index. uuid() renders a different value
+# every time it is called, so rendering this at three indices would produce
+# three different strings and look perfectly injective - while naming a
+# different cloud object on every single run, which is worse than a
+# collision. It is refused because the evaluation goes through
+# configs.StaticEvaluator.Pure (the same gate internal/live/identity uses),
+# under which an impure function yields unknown, and an unknown value is
+# one count_index_domain.go can prove nothing about. This is the fixture
+# for that claim: without Pure() it would be admitted.
+resource "aws_route53_record" "impure_function" {
+  count = 3
+
+  zone_id = "Z0123456789ABCDEFGHI"
+  name    = format("record-%s-%d.example.com", uuid(), count.index)
+  type    = "A"
+  ttl     = 300
+  records = ["10.0.0.1"]
 }

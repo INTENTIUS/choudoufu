@@ -505,10 +505,14 @@ helps build a resource's live identity. The original motivating case was a
 tag (`tags = { Name = "vpc-${count.index}" }`), and that shape is no longer
 refused: see "What is safe" below.
 
-**Why banned.** Per "Banned, and why", `count.index` in an identity-bearing
-property is banned, because a marker written from an index has no
-correspondence once instances are added, removed, or reordered. The
-replacement is a `for_each` key, which is stable by construction.
+**Why banned.** `count.index` in an identity-bearing property is refused
+when two instances would render the same value for it, because a live
+marker is then written twice onto one cloud object and the two config
+addresses become indistinguishable - `live-mv` and every other operation
+can act on the wrong resource. It is *not* banned for being an index: a
+value built injectively from `count.index` names the same instance on every
+run, and is admitted. See "What is safe" below, which is most of this
+section.
 
 This anchor kept its name after the rule was narrowed to only the arguments
 that could plausibly carry identity (GitHub issue #187): a tag is the
@@ -561,35 +565,78 @@ proved safe:
   results independently safe or index-free. Every instance takes the same
   branch, so the whole expression reduces to that branch's own proof.
 
-Refused, because none is proven to preserve injectivity - not because each
-was individually flagged as dangerous:
-
-- Indexing a collection: `count.index` in the key position of an index
-  expression (`var.list[count.index]`, `aws_subnet.this[count.index].id`),
-  with any arithmetic inside the key position included - the value consults
-  something outside the index, so removing a higher instance can change
-  what a lower one names, regardless of how the key itself is built.
-- The same thing through a function: any argument to `element`, `lookup`,
-  `slice` or `chunklist`. `element(aws_lb_listener.listener.*.arn,
-  count.index)` and `lookup(var.instance_types, tostring(count.index),
-  ...)` are live in the corpus.
-- Modulo, integer division, `min`/`max`/`floor`/`ceil`/`abs`/`signum`/`pow`,
-  and every other function call, `format` and `tostring` included - none
-  preserves injectivity in general, and several (modulo, integer division,
-  `min`, `max`) actively collapse distinct indices onto the same value once
-  `count` grows past the modulus, divisor, or bound. `100 + (count.index %
-  3)` is the shape #217's audit found accepted.
-- A conditional whose own *condition* reads `count.index`
-  (`count.index == 0 ? a : b`). It selects one of two outcomes however large
-  `count` grows, so it stops being injective at `count > 2` and two
-  instances collide. The result branches are still checked on their own.
-- Comparison and logical operators (`==`, `<`, `&&`, and so on): the result
-  is always one of a small fixed set of values, which collides as soon as
-  `count` exceeds that set's size.
-
 Nesting is walked recursively: an injective operation wrapping a
 non-injective one is still refused, because safety is decided over the
 whole expression, not at the outermost node.
+
+**The second question, which is the one that usually decides.** The shape
+analysis above proves things about an expression over *all* the integers.
+That is far more than is needed: what matters is only the indices this
+resource's `count` actually produces. So a shape it cannot prove is asked a
+second and strictly stronger question, in
+`internal/live/lint/count_index_domain.go`:
+
+> An expression that reads `count.index` is admitted exactly when the
+> values it actually renders - one per index in the resource's real index
+> range - are all known, pure, of one type, and pairwise distinct.
+
+This is not a wider list of blessed shapes. It is the absence of a list:
+nothing in that file names `format`, `element`, `modulo`, or any other
+operation, and the shapes it admits are whatever the operators and
+functions in the expression turn out to do when the values are rendered and
+compared. Every entry in the "Refused" list above is refused only when it
+actually collides:
+
+- `var.availability_zones[count.index]` over a list of three different
+  zones is **admitted**; the same expression over a list that repeats an
+  entry within the index range is refused. Indexing a collection was never
+  wrong in itself - it is wrong when the collection repeats.
+- `format("web-%d", count.index)` is **admitted**, and so is
+  `element(local.subnets, count.index)` over distinct subnets.
+- `count.index % 3` is **admitted at `count = 3`**, where the modulus is
+  the identity map and no two instances can collide, and refused at
+  `count = 5`, which is exactly the case that reopened this class.
+  Injectivity is a property of a function *on a domain*, and the domain is
+  knowable here.
+- `min(count.index, 5)` is admitted up to `count = 6` and refused at
+  `count = 7`, which is precisely where it stops being injective.
+
+The check falls back to the shape analysis above - which refuses by default
+- in every case where it cannot see the real answer, and each of these is a
+refusal rather than an assumption:
+
+- The `count` expression is not statically evaluable, so the index range is
+  unknown. An unset input variable puts a configuration here.
+- The expression reaches outside `var`, `local`, `path`, `terraform` and
+  `tofu`. This is what keeps `aws_subnet.this[count.index].id` and
+  `element(data.aws_x.y.*.id, count.index)` refused: the collection is a
+  managed resource or a data source, so nothing about it is knowable before
+  the plan, and the index being static is neither sufficient nor what is
+  checked.
+- Any rendered value comes back unknown, sensitive, or null. Evaluation
+  goes through the same purity gate `internal/live/identity` uses, so an
+  impure function such as `uuid()` or `timestamp()` renders unknown and is
+  refused rather than looking distinct by accident.
+- The rendered values do not all share one type. A heterogeneous tuple
+  (`["100", 100][count.index]`) yields a string at one index and a number
+  at another; the two are not structurally equal, but both render to the
+  marker `100`, so inequality would be the wrong evidence.
+- The `count` exceeds 256 (`countIndexDomainMax`). A cost bound, not a
+  correctness one.
+
+Scale-down stability comes free here for the same reason it does above:
+OpenTofu retires the highest index first, and every value is rendered from
+the index alone against a configuration that is otherwise fixed, so a
+surviving index renders after a scale-down what it rendered before. What
+this does not promise - and the shape analysis never promised either - is
+stability across an edit to the configuration itself; that is a
+configuration change, and drift and `live-mv` are what answer it.
+
+A module call's arguments are deliberately excluded from this second
+question and keep the shape analysis alone. Proving a call's own arguments
+distinct per instance would not prove what matters there: the identities of
+every resource inside the module, built from those arguments in ways the
+call site cannot see.
 
 **Forwarding address.** `for_each`. Key the resource by a stable string
 instead of a positional index.
@@ -625,16 +672,27 @@ specified job rather than leaking into an identity-bearing property.
 `tofu-slot` is deliberately not among the exempted keys.
 
 **Enforcement.** `RuleCountIndex`, `internal/live/lint/count_index.go`
-(`checkCountIndex`, `countIndexScopeForType`, `analyzeCountIndexSafety`).
-Within an argument in scope for the resource's type, `analyzeCountIndexSafety`
+(`checkCountIndex`, `countIndexScopeForType`, `analyzeCountIndexSafety`) and
+`internal/live/lint/count_index_domain.go`
+(`countIndexDomainFor`, `countIndexDomain.verdict`). Within an
+argument in scope for the resource's type, `analyzeCountIndexSafety`
 recurses over the whole expression and refuses anything it cannot prove
-injective, a node type with no case in that function included. The count
+injective, a node type with no case in that function included; what it
+refuses is then rendered once per index and admitted if the values are
+distinct. The count
 expression itself and the other meta-argument positions are out of scope by
 construction, for every type (see `internal/live/lint/doc.go`, "Scope of
 the count.index rule"). Fixture at `live/e2e/limits/count-index-in-tag/`;
 `internal/live/lint/testdata/count-index-nonlinear` pins the modulo,
-integer-division, min/max, unprovable-multiplier, both-operands, function,
-and bare-comparison shapes #217 added.
+integer-division, min/max, unprovable-multiplier, both-operands,
+truncating-function and bare-comparison shapes, and
+`internal/live/lint/testdata/count-index-pure-scalar` pins their admitted
+mirrors. `TestCountIndexAdmittedShapesRenderDistinctIdentities` is the test
+that makes this safe to widen: it resolves every fixture through
+`internal/live/identity` and asserts that everything the rule admits has
+pairwise-distinct import IDs and everything it refuses actually collides -
+asking the resolver, never the analyzer, which is the check that was
+missing when `100 + (count.index % 3)` shipped as safe.
 
 ### foreach-invalid-key
 

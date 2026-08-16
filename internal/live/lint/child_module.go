@@ -182,8 +182,16 @@ func moduleCallHasCountIndex(call *configs.ModuleCall) bool {
 		// direction to fail in when this pass cannot see the body at all.
 		return true
 	}
-	for _, traversal := range countIndexCandidates(body, false, countIndexScope{walkAll: true}) {
-		ref, refDiags := addrs.ParseRef(traversal)
+	// The empty countIndexDomain deliberately withholds the value-level
+	// check [unsafeCountIndexHits] would otherwise apply, leaving a
+	// module call exactly the syntactic rule it has always had. Proving a
+	// module call's own ARGUMENTS render distinct per instance would not
+	// prove what matters here: the identities of every resource inside the
+	// module, built from those arguments in ways this pass cannot see from
+	// the call site, and addressed by an instance key that becomes part of
+	// every one of them.
+	for _, hit := range countIndexCandidates(body, false, countIndexScope{walkAll: true}, countIndexDomain{}) {
+		ref, refDiags := addrs.ParseRef(hit.traversal)
 		if refDiags.HasErrors() || ref == nil {
 			continue
 		}

@@ -120,6 +120,28 @@
 // happened to check but never proved the general case: it enumerated
 // unsafe shapes rather than safe ones, so 100 + (count.index % 3) fell
 // through as safe by default and wrote a duplicate live-resource marker.
+//
+// A shape that analysis cannot prove then gets a second and strictly
+// stronger question, in count_index_domain.go: not "is this expression's
+// shape injective over the integers" but "are the values it ACTUALLY
+// renders, one per index this resource's count actually expands to, all
+// distinct". Where that can run it decides, and it decides by rendering,
+// so it needs no list of blessed shapes and has no case naming modulo,
+// format, element, or any other operation. It is what admits
+// var.azs[count.index] over a list of three different availability zones,
+// format("web-%d", count.index), and count.index % 3 at count = 3 - where
+// the modulus is the identity map and no two instances can collide - while
+// refusing every one of those the moment two indices do render the same
+// value. It falls back to the shape analysis above, which refuses by
+// default, whenever the count is not statically evaluable, the expression
+// reaches outside var/local/path/terraform/tofu, or any rendered value
+// comes back unknown, sensitive, or of a type that varies across the
+// range. See count_index_domain.go's own header for the rule and the
+// soundness argument, and
+// TestCountIndexAdmittedShapesRenderDistinctIdentities, which checks the
+// property against internal/live/identity's resolved import IDs rather
+// than against the analyzer's own opinion.
+//
 // The line is also still drawn at the resource body, not at the resource
 // block: the count expression itself, and the depends_on, provider,
 // lifecycle, connection, and provisioner positions, are meta-arguments that

@@ -163,7 +163,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	checkChildLiveConfig(mod, path, issues)
 	checkMovedBlocks(mod, path, issues)
 	checkLivePolicy(mod, path, issues)
-	checkManagedResources(mod, path, schemas, signal, recordStoreConfigured, issues)
+	checkManagedResources(ctx, mod, path, schemas, signal, recordStoreConfigured, issues)
 	checkForEachKeys(ctx, mod, path, issues)
 	checkOverlongAddresses(ctx, mod, modInst, issues)
 	checkReceiptLeafRule(mod, path, issues)
@@ -278,7 +278,7 @@ func checkMovedBlocks(mod *configs.Module, path addrs.Module, issues *[]Issue) {
 // checkManagedResources runs the rules that apply to resource blocks:
 // provisioners and their connection blocks, logical resource types, and the v0
 // admission table.
-func checkManagedResources(mod *configs.Module, path addrs.Module, schemas map[string]providers.Schema, signal *identity.ConfigSignal, recordStoreConfigured bool, issues *[]Issue) {
+func checkManagedResources(ctx context.Context, mod *configs.Module, path addrs.Module, schemas map[string]providers.Schema, signal *identity.ConfigSignal, recordStoreConfigured bool, issues *[]Issue) {
 	for _, resource := range mod.ManagedResources {
 		addr := resource.Addr().String()
 
@@ -293,7 +293,7 @@ func checkManagedResources(mod *configs.Module, path addrs.Module, schemas map[s
 		lt, isLogical := ClassifyLogicalType(resource.Type)
 
 		checkProvisioners(resource, addr, path, isLogical, issues)
-		checkCountIndex(resource, addr, path, countIndexScopeForType(resource.Type, lt, isLogical), issues)
+		checkCountIndex(ctx, mod, resource, addr, path, countIndexScopeForType(resource.Type, lt, isLogical), issues)
 		checkIgnoreChanges(resource, addr, path, schemas, issues)
 
 		if isLogical {
