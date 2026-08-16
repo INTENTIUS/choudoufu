@@ -202,8 +202,40 @@ func TestLoadRejectedTypes_LedgerIsIntact(t *testing.T) {
 	// names getting paid off. See internal/live/identity.DefaultTable's
 	// aws_alb*/aws_lb_listener_certificate rows for the identity each one
 	// carries.
-	if len(rejected) < 153 {
-		t.Errorf("rejected.json carries %d types, want at least the 153 standing after the 2026-08-16 aws_alb*/aws_lb_listener_certificate admission", len(rejected))
+	//
+	// 132 (2026-08-16, same-day follow-up): the wall/rejected2 batch's own
+	// reviewed drop, 21 entries. Re-derived against today's machinery
+	// (registry-backed admission, import-grammar precedence, the doc
+	// cache's v6.59.0 pin - a version bump ahead of the v6.58.0 evidence
+	// several of these entries carried, which is why aws_resiliencehubv2_
+	// service/system, aws_mailmanager_ingress_point, aws_osis_pipeline and
+	// aws_prometheus_anomaly_detector's own doc pages simply did not exist
+	// at the earlier pin) rather than by name: aws_comprehend_entity_
+	// recognizer, aws_devopsguru_notification_channel, aws_dx_hosted_
+	// private_virtual_interface, aws_dx_hosted_public_virtual_interface,
+	// aws_dx_hosted_transit_virtual_interface, aws_dynamodb_global_
+	// secondary_index, aws_dynamodb_kinesis_streaming_destination,
+	// aws_elasticache_user_group_association, aws_inspector_resource_group,
+	// aws_iot_ca_certificate, aws_kinesisanalyticsv2_application,
+	// aws_lightsail_domain, aws_mailmanager_ingress_point,
+	// aws_msk_single_scram_secret_association, aws_network_acl_association,
+	// aws_osis_pipeline, aws_resiliencehubv2_service,
+	// aws_resiliencehubv2_system, aws_s3outposts_endpoint,
+	// aws_verifiedaccess_group, aws_vpc_endpoint_connection_notification.
+	// All now admit with evidence (table_generated.go). Two candidates this
+	// same batch tried and reverted, both for reasons the identity work
+	// itself was right about but a downstream consumer was not ready for:
+	// aws_fms_policy verifies cleanly on its own identity but ties with the
+	// already-admitted aws_iam_policy under internal/live/identity/
+	// parent.go's _policy suffix convention (live/e2e/estates/remainder/
+	// README.md's "naming collision" section); aws_ec2_carrier_gateway
+	// also verifies cleanly but internal/live/discovery/tagging_test.go
+	// names it, by constant, as the canonical "mapped but not admitted"
+	// real-artifact fixture. Both stay rejected, with the reason restated
+	// in rejected.json itself rather than only in the deleted-prose
+	// recovery this ledger already carries for most of its other rows.
+	if len(rejected) < 132 {
+		t.Errorf("rejected.json carries %d types, want at least the 132 standing after the wall/rejected2 batch's 21-type admission", len(rejected))
 	}
 }
 

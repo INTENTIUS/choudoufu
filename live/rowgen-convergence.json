@@ -1,11 +1,11 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 887,
-    "compared": 877,
+    "admitted_total": 908,
+    "compared": 898,
     "not_in_mapped_set": 10,
-    "adopted_unchanged": 771,
-    "adopted_unchanged_pct": 87.91,
+    "adopted_unchanged": 792,
+    "adopted_unchanged_pct": 88.2,
     "genuine_mismatches": 106,
     "annotated": 106,
     "unannotated_mismatches": 0,
@@ -13,9 +13,9 @@
   },
   "by_service": {
     "(no CFN model)": {
-      "compared": 12,
-      "adopted_unchanged": 7,
-      "adopted_unchanged_pct": 58.33
+      "compared": 13,
+      "adopted_unchanged": 8,
+      "adopted_unchanged_pct": 61.54
     },
     "ACMPCA": {
       "compared": 2,
@@ -298,14 +298,14 @@
       "adopted_unchanged_pct": 100
     },
     "DevOpsGuru": {
-      "compared": 1,
-      "adopted_unchanged": 0,
-      "adopted_unchanged_pct": 0
+      "compared": 2,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 50
     },
     "DirectConnect": {
-      "compared": 6,
-      "adopted_unchanged": 0,
-      "adopted_unchanged_pct": 0
+      "compared": 9,
+      "adopted_unchanged": 3,
+      "adopted_unchanged_pct": 33.33
     },
     "DocDB": {
       "compared": 1,
@@ -318,14 +318,14 @@
       "adopted_unchanged_pct": 100
     },
     "DynamoDB": {
-      "compared": 3,
-      "adopted_unchanged": 3,
+      "compared": 5,
+      "adopted_unchanged": 5,
       "adopted_unchanged_pct": 100
     },
     "EC2": {
-      "compared": 87,
-      "adopted_unchanged": 74,
-      "adopted_unchanged_pct": 85.06
+      "compared": 90,
+      "adopted_unchanged": 77,
+      "adopted_unchanged_pct": 85.56
     },
     "ECR": {
       "compared": 11,
@@ -363,8 +363,8 @@
       "adopted_unchanged_pct": 100
     },
     "ElastiCache": {
-      "compared": 7,
-      "adopted_unchanged": 7,
+      "compared": 8,
+      "adopted_unchanged": 8,
       "adopted_unchanged_pct": 100
     },
     "ElasticBeanstalk": {
@@ -463,8 +463,8 @@
       "adopted_unchanged_pct": 100
     },
     "Inspector": {
-      "compared": 2,
-      "adopted_unchanged": 2,
+      "compared": 3,
+      "adopted_unchanged": 3,
       "adopted_unchanged_pct": 100
     },
     "InspectorV2": {
@@ -483,8 +483,8 @@
       "adopted_unchanged_pct": 100
     },
     "IoT": {
-      "compared": 11,
-      "adopted_unchanged": 11,
+      "compared": 12,
+      "adopted_unchanged": 12,
       "adopted_unchanged_pct": 100
     },
     "KMS": {
@@ -512,6 +512,11 @@
       "adopted_unchanged": 1,
       "adopted_unchanged_pct": 100
     },
+    "KinesisAnalyticsV2": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
+    },
     "KinesisFirehose": {
       "compared": 1,
       "adopted_unchanged": 1,
@@ -528,9 +533,9 @@
       "adopted_unchanged_pct": 50
     },
     "Lightsail": {
-      "compared": 10,
-      "adopted_unchanged": 9,
-      "adopted_unchanged_pct": 90
+      "compared": 11,
+      "adopted_unchanged": 10,
+      "adopted_unchanged_pct": 90.91
     },
     "Location": {
       "compared": 6,
@@ -548,8 +553,8 @@
       "adopted_unchanged_pct": 0
     },
     "MSK": {
-      "compared": 8,
-      "adopted_unchanged": 8,
+      "compared": 9,
+      "adopted_unchanged": 9,
       "adopted_unchanged_pct": 100
     },
     "MWAA": {
@@ -611,6 +616,11 @@
       "compared": 5,
       "adopted_unchanged": 0,
       "adopted_unchanged_pct": 0
+    },
+    "OSIS": {
+      "compared": 1,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 100
     },
     "Oam": {
       "compared": 2,
@@ -698,8 +708,8 @@
       "adopted_unchanged_pct": 100
     },
     "ResilienceHubV2": {
-      "compared": 1,
-      "adopted_unchanged": 1,
+      "compared": 3,
+      "adopted_unchanged": 3,
       "adopted_unchanged_pct": 100
     },
     "ResourceExplorer2": {
@@ -758,8 +768,8 @@
       "adopted_unchanged_pct": 75
     },
     "S3Outposts": {
-      "compared": 2,
-      "adopted_unchanged": 2,
+      "compared": 3,
+      "adopted_unchanged": 3,
       "adopted_unchanged_pct": 100
     },
     "S3Tables": {
@@ -773,8 +783,8 @@
       "adopted_unchanged_pct": 100
     },
     "SES": {
-      "compared": 8,
-      "adopted_unchanged": 8,
+      "compared": 9,
+      "adopted_unchanged": 9,
       "adopted_unchanged_pct": 100
     },
     "SMSVOICE": {
@@ -3108,6 +3118,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_comprehend_entity_recognizer",
+      "service": "(no CFN model)",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is a full ARN template; scheme literals, Cloud region/account slots and every tail segment attributed per-segment by the scrape (issue #172)",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_config_config_rule",
       "service": "Config",
       "proposed_bucket": "client-named",
@@ -3669,6 +3687,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_devopsguru_notification_channel",
+      "service": "DevOpsGuru",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_devopsguru_resource_collection",
       "service": "DevOpsGuru",
       "proposed_bucket": "server-assigned",
@@ -3845,6 +3871,30 @@
       "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. The scraped Identity Schema names ['id'] and the ratified entry still declines to claim it - the evidence was present and the judgment went the other way. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
+      "tf_type": "aws_dx_hosted_private_virtual_interface",
+      "service": "DirectConnect",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dx_hosted_public_virtual_interface",
+      "service": "DirectConnect",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dx_hosted_transit_virtual_interface",
+      "service": "DirectConnect",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_dx_lag",
       "service": "DirectConnect",
       "proposed_bucket": "server-assigned",
@@ -3893,6 +3943,14 @@
       "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
+      "tf_type": "aws_dynamodb_global_secondary_index",
+      "service": "DynamoDB",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_dynamodb_global_table",
       "service": "DynamoDB",
       "proposed_bucket": "client-named",
@@ -3900,6 +3958,14 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dynamodb_kinesis_streaming_destination",
+      "service": "DynamoDB",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "matched": true,
       "annotated": false
     },
@@ -4753,6 +4819,14 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_elasticache_user_group_association",
+      "service": "ElastiCache",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "matched": true,
       "annotated": false
     },
@@ -5688,6 +5762,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_inspector_resource_group",
+      "service": "Inspector",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_instance",
       "service": "EC2",
       "proposed_bucket": "server-assigned",
@@ -5748,6 +5830,14 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iot_ca_certificate",
+      "service": "IoT",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -5987,6 +6077,14 @@
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_kinesisanalyticsv2_application",
+      "service": "KinesisAnalyticsV2",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is a full ARN template; scheme literals, Cloud region/account slots and every tail segment attributed per-segment by the scrape (issue #172)",
       "matched": true,
       "annotated": false
     },
@@ -6291,6 +6389,17 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_lightsail_domain",
+      "service": "Lightsail",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: the guessed argument name is confirmed as a Required top-level argument in the provider's own Argument Reference",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_lightsail_instance",
       "service": "Lightsail",
       "proposed_bucket": "client-named",
@@ -6507,6 +6616,17 @@
       "annotation_reason": "classifyUnmapped now proposes for this type (live/mapping.json records it cfn-unmodeled with cfn_type null, and loadMapping no longer filters those rows out), but the proposal stays evidence-only: the Import section says only 'using the id' and the documented example is the opaque 'abcd1', so no signal in the scrape links the ID to a configuration argument. The ratified row is the ratifiers' reading of the same page."
     },
     {
+      "tf_type": "aws_mailmanager_ingress_point",
+      "service": "SES",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_mailmanager_rule_set",
       "service": "SES",
       "proposed_bucket": "server-assigned",
@@ -6708,6 +6828,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_msk_single_scram_secret_association",
+      "service": "MSK",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_msk_topic",
       "service": "MSK",
       "proposed_bucket": "composite",
@@ -6837,6 +6965,17 @@
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_network_acl_association",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
         "import-syntax-wording"
       ],
       "matched": true,
@@ -7383,6 +7522,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_osis_pipeline",
+      "service": "OSIS",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the provider's own Terraform 1.12+ Identity Schema names a different required import identity attribute than the legacy Import section's example implied",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_paymentcryptography_key",
       "service": "PaymentCryptography",
       "proposed_bucket": "server-assigned",
@@ -7788,6 +7935,28 @@
       "service": "ResilienceHubV2",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_resiliencehubv2_service",
+      "service": "ResilienceHubV2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_resiliencehubv2_system",
+      "service": "ResilienceHubV2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
       "matched": true,
       "annotated": false
     },
@@ -8388,6 +8557,14 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3outposts_endpoint",
+      "service": "S3Outposts",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -9811,6 +9988,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_verifiedaccess_group",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_verifiedaccess_instance",
       "service": "EC2",
       "proposed_bucket": "server-assigned",
@@ -9921,6 +10106,14 @@
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_endpoint_connection_notification",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
