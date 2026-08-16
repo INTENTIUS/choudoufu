@@ -2216,7 +2216,7 @@ backend-block:state-backend
 cloud-block:state-backend
 unadmitted-type:unadmitted-type
 count-index-in-tag:count-index
-foreach-dotted-key:for-each-key
+foreach-invalid-key:for-each-key
 overlong-address:overlong-address"
 
   # Directories no LINT rule catches. Each still has to be REFUSED — by
