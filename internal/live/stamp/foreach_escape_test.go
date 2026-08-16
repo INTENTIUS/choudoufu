@@ -6,6 +6,8 @@
 package stamp
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/addrs"
@@ -48,36 +50,64 @@ import (
 // whatever remains rejected, so the rule is provably buying something even
 // after the widening.
 
-// forEachEscapeConfig is one for_each block; the keys under test are supplied
-// by the evaluation scope rather than by the for_each expression, exactly as
-// the plan engine supplies them.
-const forEachEscapeConfig = `
+// forEachEscapeKeys is every key TestStamp_eachKeyEscapingRoundTrips checks,
+// and also the block's own for_each set (see [forEachEscapeConfig]): a key
+// needing [markerkey.Encode]'s help only takes the lookup-table path
+// ([forEachNeedsKeyLookup]) when this pass can see it as one of the block's
+// own statically-known keys, so a key exercised here has to actually be in
+// the for_each map, not merely injected into the evaluation scope the way
+// [eachData] used to supply every key on its own, decoupled from the
+// resource's declared for_each. See eachData's own remaining callers for
+// the negative control, where that decoupling is still exactly the point.
+var forEachEscapeKeys = []string{
+	"a", "Web", "eu-west-1a", "team_one", "eu/west", "size=1",
+	"plus+one", "at@sign", "with space", "été", "日本", "007",
+	// issue #178: "." and ":" are admitted, escaped via eachKeyEscapedExpr
+	// (or, when combined with an out-of-charset rune elsewhere in the same
+	// block, folded into the lookup table alongside it) rather than
+	// embedded raw.
+	"alice.smith", "2001:db8::/64", "a.b.c", "a:b:c",
+	"user@example.com", "group.role@team:prod", "@leading.dot",
+	"trailing.dot.", "..", "::",
+	// issue #210: outside the pre-#210 admitted set, but printable and none
+	// of the six characters excluded for colliding with a DIFFERENT
+	// escaping rule (addrs' toHCLQuotedString, or EscapeAddress's own "["
+	// / "]" delimiters) - see markerkey.Encode's doc comment.
+	"a(b)", "a;b", "a!b", "a*b", "a#b", "a,b", "€uro", "a(b) (c)",
+}
+
+// forEachEscapeConfig builds one for_each block whose keys are exactly
+// [forEachEscapeKeys], as a toset() literal so each.value == each.key for
+// every instance, matching what [eachData] injects for the negative
+// control below. Every key here has already passed lint.ValidForEachKey by
+// construction (TestStamp_eachKeyEscapingRoundTrips checks that too, as a
+// premise guard), and none of the admitted set needs backslash or quote
+// escaping to render as an HCL string literal, so %q is a safe, plain
+// quoting - it is never asked to escape anything more exotic than that.
+func forEachEscapeConfig() string {
+	quoted := make([]string, len(forEachEscapeKeys))
+	for i, k := range forEachEscapeKeys {
+		quoted[i] = fmt.Sprintf("%q", k)
+	}
+	return fmt.Sprintf(`
 resource "aws_subnet" "this" {
-  for_each   = { a = "10.42.1.0/24" }
+  for_each   = toset([%s])
   cidr_block = each.value
 }
-`
+`, strings.Join(quoted, ", "))
+}
 
 // TestStamp_eachKeyEscapingRoundTrips is the F-ESC regression: for every key
 // the subset admits, the marker this package stamps is byte-identical to the
 // marker discovery derives from the declared address, and reading it back
 // yields the instance it came from.
 func TestStamp_eachKeyEscapingRoundTrips(t *testing.T) {
-	cfg := loadSource(t, forEachEscapeConfig)
+	cfg := loadSource(t, forEachEscapeConfig())
 
 	_, diags := Stamp(t.Context(), Request{Estate: "stamp-unit", Config: cfg, Schemas: testSchemas()})
 	assertNoErrors(t, diags)
 
-	keys := []string{
-		"a", "Web", "eu-west-1a", "team_one", "eu/west", "size=1",
-		"plus+one", "at@sign", "with space", "été", "日本", "007",
-		// issue #178: "." and ":" are admitted, escaped via
-		// eachKeyEscapedExpr rather than embedded raw.
-		"alice.smith", "2001:db8::/64", "a.b.c", "a:b:c",
-		"user@example.com", "group.role@team:prod", "@leading.dot",
-		"trailing.dot.", "..", "::",
-	}
-	for _, key := range keys {
+	for _, key := range forEachEscapeKeys {
 		if !lint.ValidForEachKey(key) {
 			t.Fatalf("key %q is not in the admitted set; this test's premise is wrong", key)
 		}
@@ -114,7 +144,7 @@ func TestStamp_eachKeyEscapingRoundTrips(t *testing.T) {
 // the lint rule, which is why none of them can reach this code path in a
 // lint-clean run.
 func TestStamp_rejectedEachKeysWouldMisbind(t *testing.T) {
-	cfg := loadSource(t, forEachEscapeConfig)
+	cfg := loadSource(t, forEachEscapeConfig())
 
 	_, diags := Stamp(t.Context(), Request{Estate: "stamp-unit", Config: cfg, Schemas: testSchemas()})
 	assertNoErrors(t, diags)

@@ -22,6 +22,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/markerkey"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -569,6 +570,20 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 	}
 
 	wantAddr, addrDisplay, perInstance, legacyAddr := addressExpr(rc, modInst)
+	if rc.ForEach != nil {
+		if keys, ok := s.staticForEachKeys(ctx, rc); ok && forEachNeedsKeyLookup(keys) {
+			// At least one of this block's own keys is outside the pre-#210
+			// admitted set and needs [markerkey.Encode]'s help, which the
+			// each.key-templated replace() chain [eachKeyEscapedExpr] builds
+			// cannot reproduce (see [addressExpr]'s doc comment). The keys
+			// are already known statically here, so the per-instance value
+			// is precomputed for every one of them in Go instead, and the
+			// synthesized expression only has to select the right one at
+			// apply time.
+			wantAddr, addrDisplay = s.forEachLookupAddressExpr(rc, modInst, keys)
+			legacyAddr = nil
+		}
+	}
 	markers := []marker{
 		{key: TagEstate, expr: &hclsyntax.LiteralValueExpr{Val: cty.StringVal(s.req.Estate), SrcRange: rc.DeclRange}, want: s.req.Estate},
 	}
@@ -1156,6 +1171,18 @@ func objectKeyLiteral(keyExpr hclsyntax.Expression) (string, bool) {
 //
 // The second return is the value in operator-readable form, and the third is
 // whether it varies per instance.
+//
+// Its for_each branch is not the only source of a for_each block's address
+// expression: [forEachNeedsKeyLookup] and [stamper.forEachLookupAddressExpr]
+// replace this function's each.key template with a precomputed lookup table
+// whenever at least one of the block's own (statically known) keys needs
+// [markerkey.Encode]'s help, which [eachKeyEscapedExpr]'s replace()-chain
+// mirror of [markers.EscapeKey] cannot reproduce - see this function's and
+// eachKeyEscapedExpr's own doc comments for why. This function's for_each
+// branch remains exactly correct, and is still what runs, for the
+// overwhelming common case: a block whose keys do not need Encode, or whose
+// keys this pass cannot read statically at all (the same narrower-evaluator
+// gap [stamper.chunkCount] already documents for continuation-tag sizing).
 func addressExpr(rc *configs.Resource, modInst addrs.ModuleInstance) (hclsyntax.Expression, string, bool, hclsyntax.Expression) {
 	base := addrs.ConfigResource{Module: modInst.Module(), Resource: rc.Addr()}.String()
 	rng := rc.DeclRange
@@ -1197,6 +1224,95 @@ func eachKeyEscapedExpr(rng hcl.Range) hclsyntax.Expression {
 		}
 	}
 	return replaceCall(replaceCall(replaceCall(each, "@", "@@"), ".", "@d"), ":", "@c")
+}
+
+// ---------------------------------------------------------------------------
+// Out-of-charset for_each keys (issue #210)
+// ---------------------------------------------------------------------------
+
+// forEachNeedsKeyLookup reports whether any of a for_each block's own
+// (statically known) keys needs [markerkey.Encode]'s help to become a
+// marker - equivalently, whether [addressExpr]'s ordinary each.key template
+// would compute the wrong value for at least one instance in the block. A
+// block where every key is a no-op for Encode (every key admitted before
+// issue #210, minus the narrow case of a literal Introducer) keeps using
+// that template unchanged, byte-for-byte, which is what makes this check
+// safe to skip: nothing about how an already-working for_each block is
+// stamped changes unless this returns true for it.
+func forEachNeedsKeyLookup(keys []string) bool {
+	for _, k := range keys {
+		if markerkey.Encode(k) != k {
+			return true
+		}
+	}
+	return false
+}
+
+// forEachLookupAddressExpr builds the tofu-address value for a for_each
+// block that [forEachNeedsKeyLookup] flagged: a lookup into a table of every
+// instance's own precomputed address, keyed by its raw for_each key.
+//
+//	lookup({ "a(b)" = "aws_subnet.this:a+000028b+000029", ... }, each.key, "")
+//
+// This mirrors [stamper.slotExpr]'s own table-plus-lookup shape (see that
+// function's doc comment) for the same underlying reason: the value each
+// instance needs is a function of that instance's own key in a way no
+// replace()-chain HCL expression can compute (Encode's hex escape depends on
+// each out-of-charset rune's own code point), but the keys are already known
+// in Go by the time this pass runs, so the per-instance work happens once,
+// here, in Go, and the synthesized expression only has to select the right
+// precomputed row at apply time. Unlike slotExpr's table, this one is keyed
+// by the raw each.key value directly rather than by a templated string,
+// because every possible each.key value for this block IS exactly one of
+// the table's own keys - the for_each expression's own key set - so no
+// template or prefix match is needed to find the right row.
+//
+// The default is the empty string, matching slotExpr: an each.key outside
+// the table would mean this run built a table that does not cover the
+// for_each it is stamping, which cannot happen for a block whose keys came
+// from this same pass's own [stamper.staticForEachKeys] call, but is a
+// visibly wrong answer rather than a plausible one if it somehow did.
+//
+// legacyExpr does not travel into this branch (the caller sets it to nil):
+// the pre-#178 grandfather clause exists only for a key containing a
+// literal "@" with nothing else needing escaping, which by construction
+// never reaches this function - forEachNeedsKeyLookup only returns true
+// when at least one key needs Encode's help, and a key admitted before
+// issue #178 never did (see live/MARKERS.md, "for_each key migration").
+func (s *stamper) forEachLookupAddressExpr(rc *configs.Resource, modInst addrs.ModuleInstance, keys []string) (hclsyntax.Expression, string) {
+	rng := rc.DeclRange
+	base := addrs.ConfigResource{Module: modInst.Module(), Resource: rc.Addr()}.String()
+	prefix := discovery.EscapeAddress(base + `["`)
+
+	// Sorted, so that two runs over one configuration produce identical
+	// source - for_each's own key order is not guaranteed to be stable
+	// across runs (a set is a Go map internally), and this pass's own
+	// output should not depend on that.
+	sorted := append([]string(nil), keys...)
+	sort.Strings(sorted)
+
+	items := make([]hclsyntax.ObjectConsItem, 0, len(sorted))
+	for _, k := range sorted {
+		items = append(items, hclsyntax.ObjectConsItem{
+			KeyExpr:   &hclsyntax.ObjectConsKeyExpr{Wrapped: &hclsyntax.LiteralValueExpr{Val: cty.StringVal(k), SrcRange: rng}},
+			ValueExpr: &hclsyntax.LiteralValueExpr{Val: cty.StringVal(prefix + discovery.EscapeKey(k)), SrcRange: rng},
+		})
+	}
+	table := &hclsyntax.ObjectConsExpr{Items: items, SrcRange: rng, OpenRange: rng}
+
+	expr := &hclsyntax.FunctionCallExpr{
+		Name: "lookup",
+		Args: []hclsyntax.Expression{
+			table,
+			&hclsyntax.ScopeTraversalExpr{Traversal: eachKeyTraversal(rng), SrcRange: rng},
+			&hclsyntax.LiteralValueExpr{Val: cty.StringVal(""), SrcRange: rng},
+		},
+		ExpandFinal:     false,
+		NameRange:       rng,
+		OpenParenRange:  rng,
+		CloseParenRange: rng,
+	}
+	return expr, prefix + "each.key (encoded)"
 }
 
 // ---------------------------------------------------------------------------

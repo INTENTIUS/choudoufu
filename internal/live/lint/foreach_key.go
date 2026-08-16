@@ -25,12 +25,11 @@ import (
 // A for_each instance key does not stay in the configuration: it becomes part
 // of the resource's address, the address becomes the tofu-address marker on
 // the live resource, and the marker is the only record of ownership a
-// stateless run has. live/MARKERS.md therefore bounds what a key may
-// contain from two directions at once:
+// stateless run has. Before issue #210, live/MARKERS.md bounded what a key
+// may contain from two directions at once:
 //
 //   - AWS-legal in a tag value. MARKERS.md's list: letters and numbers
 //     representable in UTF-8, space, and the characters `+ - = . _ : / @`.
-//     A key outside it cannot be written as a marker at all.
 //   - Escapable, and unescapable back. The escaped address uses `.` to
 //     separate segments and `:` to introduce an instance key, so a key
 //     carrying either one raw would produce a value that cannot be split
@@ -40,17 +39,43 @@ import (
 //     ever reaches an address, reversibly, so the address-level separators
 //     stay unambiguous. See live/MARKERS.md, "for_each key escaping".
 //
-// The set this rule admits is therefore the full AWS-legal set: letters and
-// numbers, space, and `+ - = . _ : / @`.
+// Stock OpenTofu accepts any string as a for_each key, so a key outside
+// that set - "a (b)", say - was still a real parity defect, not a
+// limitation: refusing it because the marker charset could not hold it was
+// a defect in this fork's charset, not in the key. Issue #210 closes that
+// gap the same way #178 closed the "." / ":" one: with a reversible
+// escaping rather than an exclusion. [markerkey.Encode] carries any
+// printable rune outside the AWS-legal set into it (as an Introducer-led
+// hex escape; see its own doc comment for the full rule and what it costs
+// a key already containing a literal Introducer), which is enough to admit
+// nearly everything - except six characters that collide with a
+// DIFFERENT, unrelated escaping rule this package does not own:
+//
+//   - `"`, `\`, and every non-printable rune (tab, CR, LF included) are
+//     backslash- or `\u`-escaped by addrs' toHCLQuotedString when OpenTofu
+//     itself renders the "declared" side of an address comparison, before
+//     this package's own escaping ever runs on the text.
+//   - `$` and `%` are doubled by that same function when immediately
+//     followed by `{`, a transformation with no per-rune inverse.
+//   - `[` and `]` are the delimiters internal/live/markers' EscapeAddress
+//     scans for to find an instance key's boundaries inside a full address
+//     string; a raw one inside the key corrupts that scan itself, before
+//     any key-level escaping gets a chance to run.
+//
+// [markerkey.InvalidRune]'s doc comment has the full accounting; the short
+// version is that none of the six was ever admitted before #210 either, so
+// this is where the boundary widens to, not a new restriction.
 //
 // The declared side of the comparison renders an instance key through
-// addrs' toHCLQuotedString, which backslash-escapes `"`, `\`, tab/CR/LF,
-// `$`/`%` before `{`, and any non-printable rune - none of which this set
-// admits - while the stamped side (internal/live/stamp's addressExpr)
-// interpolates each.key through the same three-substitution escaping this
-// package's set exists to bound. For a lint-clean configuration the two
-// sides are the same string by construction; see
-// internal/live/stamp/foreach_escape_test.go for the proof.
+// addrs' toHCLQuotedString, none of whose special cases this rule's
+// admitted set can still reach (every rune it touches is now one of the
+// six exclusions above), while the stamped side (internal/live/stamp's
+// addressExpr, or - for a for_each block where at least one key needs
+// Encode's help - stamper.forEachLookupAddressExpr's precomputed lookup
+// table) computes the same [markers.EscapeKey] this package's rule exists
+// to bound. For a lint-clean configuration the two sides are the same
+// string by construction; see internal/live/stamp/foreach_escape_test.go
+// for the proof.
 
 // ValidForEachKey reports whether a for_each instance key survives the round
 // trip through a tofu-address marker: escapable to a marker value, and
@@ -157,12 +182,14 @@ func reportBadForEachKeys(keys []string, where, addr string, subject hcl.Range, 
 					"tofu-address marker. An instance key becomes part of the address of every "+
 					"resource at or beneath %s, the address becomes the marker on the live "+
 					"resource, and that marker is the only record of ownership a live-markers "+
-					"run has (live/MARKERS.md). A key may contain letters, digits, space, and "+
-					"%s: the AWS tag-value character set. This is "+
-					"caught here rather than at apply on purpose: a key like this applies cleanly and "+
-					"wedges every run after it, with no way back that does not go outside OpenTofu. "+
-					"Rename the key",
-				key, DescribeForEachKeyRune(bad), addr, quotedRuneList(markerkey.Extras),
+					"run has (live/MARKERS.md). A key may contain any printable character except "+
+					"%s (live/MARKERS.md, \"for_each key escaping\") - each of those six collides "+
+					"with a different, unrelated escaping rule rather than with the AWS tag-value "+
+					"charset itself, which this fork's own escaping (issue #210) can now carry "+
+					"almost anything else into. This is caught here rather than at apply on "+
+					"purpose: a key like this applies cleanly and wedges every run after it, with "+
+					"no way back that does not go outside OpenTofu. Rename the key",
+				key, DescribeForEachKeyRune(bad), addr, quotedRuneList(markerkey.Excluded),
 			),
 			Subject: subject,
 		})

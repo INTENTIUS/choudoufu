@@ -11,24 +11,30 @@
 # saw a malformed marker). Issue #178 closed that gap by escaping a key's
 # own "." and ":" (and "@") before it reaches an address, reversibly, rather
 # than refusing them - see live/MARKERS.md, "for_each key escaping" - so
-# both characters moved to testdata/foreach-key-clean/main.tf. What remains
-# here is outside the AWS tag-value set outright, which no escaping rule can
-# admit.
+# both characters moved to testdata/foreach-key-clean/main.tf.
+#
+# ";" and "!" moved out here too, for the same reason, when issue #210
+# widened admission to any printable character except the six that collide
+# with a rule OUTSIDE the AWS tag-value charset (markerkey.Encode's doc
+# comment has the full accounting). What remains here is exactly that
+# six-character exclusion - a quote, a backslash, and a literal "[" - plus
+# "%", which issue #210 leaves refused unconditionally rather than only
+# before "{" (see live/MARKERS.md, "for_each key escaping").
 
 locals {
-  cidrs = toset(["10.0.0.0/24;10.0.1.0/24"])
+  cidrs = toset(["10.0.0.0/24[10.0.1.0/24"])
 }
 
-resource "aws_subnet" "semicolon" {
+resource "aws_subnet" "quote" {
   for_each = {
-    "a;b" = "10.42.1.0/24"
+    "a\"b" = "10.42.1.0/24"
   }
 
   cidr_block = each.value
 }
 
-resource "aws_subnet" "bang" {
-  for_each = toset(["a!b"])
+resource "aws_subnet" "backslash" {
+  for_each = toset(["a\\b"])
 
   cidr_block = "10.42.2.0/24"
 }
