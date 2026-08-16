@@ -55,9 +55,9 @@ func TestEveryRefusalDocsRefIsResolvable(t *testing.T) {
 	}
 
 	// AllRefusals, not Catalog: the criterion is every hard refusal in the
-	// live path, and stamping and discovery are the two passes this
-	// instrument cannot run. A refusal it cannot measure is not a refusal a
-	// user cannot hit.
+	// live path, and discovery and projection are the two passes this
+	// instrument cannot run (stamping joined the checked side in #224). A
+	// refusal it cannot measure is not a refusal a user cannot hit.
 	for _, refusal := range AllRefusals() {
 		if refusal.DocsRef == "" {
 			t.Errorf("%s/%s has no DocsRef at all", refusal.Layer, refusal.ID)

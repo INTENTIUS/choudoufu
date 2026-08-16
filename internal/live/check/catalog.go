@@ -39,9 +39,19 @@ const (
 	LayerDataread Layer = "dataread"
 
 	// LayerStamp is internal/live/stamp, which rewrites resource bodies to
-	// carry ownership markers. Not run here: its refusals are about what a
-	// provider's schema says is taggable and what a live object already
-	// carries.
+	// carry ownership markers.
+	//
+	// Run here since GitHub issue #224: [stamp.Stamp] takes req.Config,
+	// req.Schemas, req.Estate and req.NeedsDiscovery and touches no live
+	// provider handle anywhere in its signature or body (req.Slots is the
+	// one live-derived input, and it degrades safely to "write no tofu-slot
+	// tag" when absent - see stamp.go's own doc comment). Its refusals
+	// compare the configuration's own tag values, or the taggability of the
+	// provider's schema, against what a run would compute; neither reads a
+	// live object. The doc comment this replaced said the opposite - "what a
+	// live object already carries" - which was false for all four of the
+	// refusals a corpus run can actually trip, and is exactly the kind of
+	// false load-bearing claim this repository has been burned by before.
 	LayerStamp Layer = "stamp"
 
 	// LayerDiscovery is internal/live/discovery, which lists live objects
@@ -55,8 +65,8 @@ const (
 )
 
 // CheckedLayers are the passes [Analyze] runs. Everything a report says is
-// derived from these three and nothing else.
-func CheckedLayers() []Layer { return []Layer{LayerLint, LayerIdentity, LayerDataread} }
+// derived from these four and nothing else.
+func CheckedLayers() []Layer { return []Layer{LayerLint, LayerIdentity, LayerDataread, LayerStamp} }
 
 // UncheckedLayers are the live-path stages a configuration still has to
 // survive that [Analyze] cannot see, because each of them needs a cloud.
@@ -66,7 +76,7 @@ func CheckedLayers() []Layer { return []Layer{LayerLint, LayerIdentity, LayerDat
 // TestLayersClassifyEveryLivePackage, so a new stage cannot appear in
 // internal/live without someone deciding whether this instrument sees it.
 func UncheckedLayers() []Layer {
-	return []Layer{LayerDiscovery, LayerProjection, LayerStamp}
+	return []Layer{LayerDiscovery, LayerProjection}
 }
 
 // Refusal is one thing the live path can refuse, in a shape that does not
@@ -233,27 +243,9 @@ func Catalog() []Refusal {
 		})
 	}
 
-	sortRefusals(out)
-	return out
-}
-
-// AllRefusals is every refusal the whole live path can produce, including
-// the three stages this instrument cannot run.
-//
-// [Catalog] is deliberately narrower, and the two must not be conflated. A
-// zero in the corpus artifact means "measured over 105 configurations and
-// blocked none of them", which is a finding. A stamping refusal has never
-// been measured by anything, because measuring it needs a cloud, and giving
-// it a zero in the same column would turn "unknown" into "harmless" - the
-// exact confusion the artifact's checked/unchecked layer lists exist to
-// prevent. So the corpus ranks [Catalog], and this is what documentation is
-// generated from.
-//
-// #110's first acceptance criterion is every hard refusal in the live path,
-// which is this set rather than that one.
-func AllRefusals() []Refusal {
-	out := Catalog()
-
+	// The fifth source is issue #224's stamp pass. Like dataread before it,
+	// it needs no cloud - see [LayerStamp]'s doc comment - so its registry
+	// belongs here too, not only in [AllRefusals].
 	for _, refusal := range stamp.Refusals() {
 		out = append(out, Refusal{
 			Layer:    LayerStamp,
@@ -264,6 +256,28 @@ func AllRefusals() []Refusal {
 			RaisedBy: RaisedByStamp,
 		})
 	}
+
+	sortRefusals(out)
+	return out
+}
+
+// AllRefusals is every refusal the whole live path can produce, including
+// the two stages this instrument cannot run (discovery and projection - see
+// #224 for why stamp moved out of that set).
+//
+// [Catalog] is deliberately narrower, and the two must not be conflated. A
+// zero in the corpus artifact means "measured over 105 configurations and
+// blocked none of them", which is a finding. A discovery or projection
+// refusal has never been measured by anything, because measuring the bulk of
+// either needs a cloud, and giving it a zero in the same column would turn
+// "unknown" into "harmless" - the exact confusion the artifact's
+// checked/unchecked layer lists exist to prevent. So the corpus ranks
+// [Catalog], and this is what documentation is generated from.
+//
+// #110's first acceptance criterion is every hard refusal in the live path,
+// which is this set rather than that one.
+func AllRefusals() []Refusal {
+	out := Catalog()
 
 	for _, refusal := range discovery.Refusals() {
 		out = append(out, Refusal{
@@ -359,6 +373,17 @@ func lookup(layer Layer, id string) (Refusal, bool) {
 				What:     refusal.What,
 				DocsRef:  refusal.DocsRef(),
 				RaisedBy: RaisedByDataread,
+			}, true
+		}
+	case LayerStamp:
+		if refusal, ok := stamp.LookupRefusal(id); ok {
+			return Refusal{
+				Layer:    LayerStamp,
+				ID:       refusal.Summary,
+				Title:    refusal.Summary,
+				What:     refusal.What,
+				DocsRef:  refusal.DocsRef(),
+				RaisedBy: RaisedByStamp,
 			}, true
 		}
 	}
