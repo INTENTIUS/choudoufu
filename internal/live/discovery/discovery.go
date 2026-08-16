@@ -1693,8 +1693,8 @@ func sweepGapDiag(res *Result, g SweepGap) tfdiags.Diagnostics {
 		return diags
 	}
 	return diags.Append(tfdiags.Sourceless(
-		tfdiags.Warning,
-		"Incomplete sweep for undeclared resources",
+		tfdiagsSeverity(SeverityForRefusal(SummaryIncompleteSweep)),
+		SummaryIncompleteSweep,
 		g.Detail,
 	))
 }
@@ -2069,15 +2069,23 @@ func sortedBlockAddrs(m map[string]*declaredBlock) []string {
 	return out
 }
 
+// tfdiagsSeverity is the tfdiags spelling of a [Severity]. Both diagnostic
+// builders in this package ([problemDiag] and [sweepGapDiag]) go through it,
+// so [SeverityForRefusal] is the one place that decides what an operator
+// sees and what live/LIMITATIONS.md says at once.
+func tfdiagsSeverity(s Severity) tfdiags.Severity {
+	if s == SeverityWarning {
+		return tfdiags.Warning
+	}
+	return tfdiags.Error
+}
+
 // problemDiag records a problem on the result and returns the diagnostic
 // that goes with it, so the two can never drift apart.
 func problemDiag(res *Result, p Problem) tfdiags.Diagnostic {
 	res.Problems = append(res.Problems, p)
 
-	severity := tfdiags.Error
-	if p.Kind.Severity() == SeverityWarning {
-		severity = tfdiags.Warning
-	}
+	severity := tfdiagsSeverity(p.Kind.Severity())
 
 	// Every kind in problemSummaries has a summary of its own, and
 	// TestProblemSummariesCoverKinds keeps it that way.
