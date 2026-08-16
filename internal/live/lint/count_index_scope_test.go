@@ -163,7 +163,7 @@ resource "made_up_provider_made_up_type" "nested" {
   count = 2
 
   block {
-    value = ["a", "b", "c"][count.index]
+    value = ["a", "a", "c"][count.index]
   }
 }
 `

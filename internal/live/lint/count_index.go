@@ -6,6 +6,7 @@
 package lint
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/hashicorp/hcl/v2"
@@ -143,7 +144,7 @@ func countIndexScopeForType(resourceType string, lt LogicalType, isLogical bool)
 // so the count expression itself, and the depends_on/provider/
 // lifecycle/connection/provisioner positions, are always out of scope,
 // regardless of what they contain.
-func checkCountIndex(resource *configs.Resource, addr string, path addrs.Module, scope countIndexScope, issues *[]Issue) {
+func checkCountIndex(ctx context.Context, mod *configs.Module, resource *configs.Resource, addr string, path addrs.Module, scope countIndexScope, issues *[]Issue) {
 	if scope.skip {
 		return
 	}
@@ -158,7 +159,10 @@ func checkCountIndex(resource *configs.Resource, addr string, path addrs.Module,
 		return
 	}
 
-	for _, traversal := range countIndexCandidates(body, true, scope) {
+	domain := countIndexDomainFor(ctx, mod, resource, addr)
+
+	for _, hit := range countIndexCandidates(body, true, scope, domain) {
+		traversal := hit.traversal
 		ref, refDiags := addrs.ParseRef(traversal)
 		if refDiags.HasErrors() || ref == nil {
 			continue
@@ -172,16 +176,8 @@ func checkCountIndex(resource *configs.Resource, addr string, path addrs.Module,
 			Rule:      RuleCountIndex,
 			Construct: fmt.Sprintf("count.index in %s", addr),
 			Module:    path,
-			Detail: fmt.Sprintf(
-				"%s's configuration reads count.index: the lexical index of a count instance is "+
-					"not stable across scale-up, scale-down, or reordering, so a property built from "+
-					"it cannot be recovered from the live system with no memory, and the instances it "+
-					"names stop being fungible. count survives under live resource markers only as cardinality "+
-					"over a fungible set bound by stable slot markers, not by position (live/LIMITATIONS.md, "+
-					`"count-index-in-tag"). Replace count with for_each keyed by a stable identifier`,
-				addr,
-			),
-			Subject: traversal.SourceRange(),
+			Detail:    countIndexDetail(addr, hit.verdict),
+			Subject:   traversal.SourceRange(),
 		})
 	}
 }
@@ -200,15 +196,15 @@ func checkCountIndex(resource *configs.Resource, addr string, path addrs.Module,
 // defines, never a meta-argument, so it is walked in full exactly as
 // before.
 //
-// The unsafeCountIndexTraversals call on an in-scope attribute walks that
+// The unsafeCountIndexHits call on an in-scope attribute walks that
 // attribute's whole expression tree - conditionals, templates, function
 // calls, arithmetic, nested object and list literals - deciding, position
 // by position, whether count.index there is a provably injective, stable
 // function of the index alone (see [analyzeCountIndexSafety]); scope only
 // decides which top-level attribute gets that treatment, and within one it
 // never shortens the walk.
-func countIndexCandidates(body *hclsyntax.Body, topLevel bool, scope countIndexScope) []hcl.Traversal {
-	var traversals []hcl.Traversal
+func countIndexCandidates(body *hclsyntax.Body, topLevel bool, scope countIndexScope, domain countIndexDomain) []countIndexHit {
+	var traversals []countIndexHit
 
 	for name, attr := range body.Attributes {
 		if topLevel {
@@ -219,7 +215,7 @@ func countIndexCandidates(body *hclsyntax.Body, topLevel bool, scope countIndexS
 				continue
 			}
 		}
-		traversals = append(traversals, unsafeCountIndexTraversals(attr.Expr)...)
+		traversals = append(traversals, unsafeCountIndexHits(attr.Expr, domain)...)
 	}
 
 	for _, block := range body.Blocks {
@@ -231,7 +227,7 @@ func countIndexCandidates(body *hclsyntax.Body, topLevel bool, scope countIndexS
 				continue
 			}
 		}
-		traversals = append(traversals, countIndexCandidates(block.Body, false, scope)...)
+		traversals = append(traversals, countIndexCandidates(block.Body, false, scope, domain)...)
 	}
 
 	return traversals
@@ -256,7 +252,7 @@ var markerKeysExemptFromCountIndex = map[string]bool{
 	"tofu-address": true,
 }
 
-// unsafeCountIndexTraversals decides, for expr as a whole, whether
+// unsafeCountIndexHits decides, for expr as a whole, whether
 // count.index appears anywhere in it in a shape [checkCountIndex] cannot
 // trust as a provably injective, scale-down-stable function of the index
 // alone (see [analyzeCountIndexSafety]), and if so returns every
@@ -269,12 +265,40 @@ var markerKeysExemptFromCountIndex = map[string]bool{
 // including a node type it has no case for at all — comes back unsafe. See
 // its own doc comment for why the rule was inverted this way (GitHub issue
 // #217).
-func unsafeCountIndexTraversals(expr hclsyntax.Expression) []hcl.Traversal {
+//
+// A shape analyzeCountIndexSafety cannot prove gets a second, strictly
+// stronger question: not "is this expression's SHAPE injective over the
+// integers" but "are the values it ACTUALLY renders, one per index this
+// resource's count actually expands to, all distinct" — see
+// [countIndexDomain.verdict]. That check subsumes the syntactic one
+// wherever it can run at all, so it is only consulted second because it is
+// the more expensive of the two, never because it is the weaker.
+func unsafeCountIndexHits(expr hclsyntax.Expression, domain countIndexDomain) []countIndexHit {
 	result := analyzeCountIndexSafety(expr)
 	if !result.hasIndex || result.safe {
 		return nil
 	}
-	return countIndexOnlyTraversals(expr.Variables())
+	verdict := domain.verdict(expr)
+	if verdict == countIndexDistinct {
+		return nil
+	}
+	hits := make([]countIndexHit, 0, 1)
+	for _, t := range countIndexOnlyTraversals(expr.Variables()) {
+		hits = append(hits, countIndexHit{traversal: t, verdict: verdict})
+	}
+	return hits
+}
+
+// countIndexHit is one refused count.index reference together with WHY it
+// was refused: a demonstrated collision between two instances, or an
+// inability to see what the instances render at all. The two want different
+// things from the reader - the first is a bug in the configuration, the
+// second is usually an unset variable or a reference to something that only
+// exists after an apply - so they are reported as different sentences
+// rather than as one hedged one.
+type countIndexHit struct {
+	traversal hcl.Traversal
+	verdict   countIndexVerdict
 }
 
 // countIndexOnlyTraversals filters traversals down to the ones that resolve

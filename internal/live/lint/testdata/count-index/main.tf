@@ -1,32 +1,35 @@
-# Fixture: count.index used to index into a collection, call one of
-# countIndexAccessorFunctions, or select a conditional's branch, landing in
-# an identity-bearing argument. These are the shapes unsafeCountIndexRanges
-# (count_index.go) still flags: a value picked out of an external
-# collection at the lexical position count.index, or one of finitely many
-# branches selected by count.index, rather than a value built as a pure,
-# injective function of the index itself. All resources below are
-# aws_network_acl_rule or aws_route53_record, whose Components
-# (internal/live/identity/table_generated.go) name
+# Fixture: count.index reaching an identity-bearing argument in a way that
+# makes two instances render the SAME value. Every resource below is
+# refused, and the reason each is refused is a real collision, not a
+# disliked shape - TestCountIndexAdmittedShapesRenderDistinctIdentities
+# resolves them through internal/live/identity and asserts the duplicate
+# import IDs exist.
+#
+# var.rule_numbers repeats deliberately: [100, 200, 100, 200] over count =
+# 3 sends indices 0 and 2 to the same value, which is what makes
+# collection-indexing at count.index a hazard HERE. The same shape over a
+# collection whose entries differ is admitted, and lives in
+# testdata/count-index-pure-scalar as "distinct_collection". That pairing
+# is the point: the shape is not what decides it.
+#
+# All resources are aws_network_acl_rule or aws_route53_record, whose
+# Components (internal/live/identity/table_generated.go) name
 # rule_number/network_acl_id/protocol/egress and zone_id/name/type as
-# identity-bearing - so count.index reaching one of those this way is
-# still exactly the collision or reordering hazard this rule exists to
-# catch. testdata/count-index-pure-scalar holds the mirror-image fixture:
-# count.index rendered as a pure, injective scalar (a template, arithmetic,
-# a conditional whose own condition does not depend on count.index) in the
-# same identity-bearing arguments, which is not refused.
-# testdata/count-index-not-relevant holds a second mirror image: indexing
-# in an argument none of this data marks as identity-bearing.
+# identity-bearing, so a collision in these arguments is a collision in the
+# live identity itself. testdata/count-index-not-relevant holds the mirror
+# image for scope: indexing in an argument none of this data marks as
+# identity-bearing.
 
 variable "rule_numbers" {
   type    = list(number)
-  default = [100, 200, 300]
+  default = [100, 200, 100, 200]
 }
 
 # A direct collection index: rule_number picks its value out of
 # var.rule_numbers at position count.index, rather than being built from
 # count.index itself.
 resource "aws_network_acl_rule" "list_index" {
-  count = 2
+  count = 3
 
   network_acl_id = "acl-0123456789abcdef0"
   rule_number = var.rule_numbers[count.index]
@@ -43,7 +46,7 @@ resource "aws_network_acl_rule" "list_index" {
 # is built from a value looked up in var.rule_numbers at count.index rather
 # than from count.index itself.
 resource "aws_route53_record" "list_index_in_template" {
-  count = 2
+  count = 3
 
   zone_id = "Z0123456789ABCDEFGHI"
   name    = "record-${var.rule_numbers[count.index]}.example.com"
@@ -57,7 +60,7 @@ resource "aws_route53_record" "list_index_in_template" {
 # subtree of an index expression is in scope, not just a bare
 # count.index reference inside it.
 resource "aws_network_acl_rule" "offset_index" {
-  count = 2
+  count = 3
 
   network_acl_id = "acl-0123456789abcdef0"
   rule_number = var.rule_numbers[count.index + 1]
@@ -74,7 +77,7 @@ resource "aws_network_acl_rule" "offset_index" {
 # value out of a splat expression no `[]` syntax can index at all), so this
 # is not a hypothetical shape.
 resource "aws_network_acl_rule" "element_accessor" {
-  count = 2
+  count = 3
 
   network_acl_id = "acl-0123456789abcdef0"
   rule_number = element(var.rule_numbers, count.index)
@@ -93,7 +96,7 @@ resource "aws_network_acl_rule" "element_accessor" {
 # testdata/count-index-pure-scalar's "conditional_on_other_value" resource,
 # whose condition does not depend on count.index and stays unrefused.
 resource "aws_network_acl_rule" "conditional" {
-  count = 2
+  count = 3
 
   network_acl_id = "acl-0123456789abcdef0"
   rule_number = count.index == 0 ? 100 : 200
@@ -103,4 +106,21 @@ resource "aws_network_acl_rule" "conditional" {
   cidr_block  = "10.0.0.0/16"
   from_port   = 80
   to_port     = 80
+}
+
+# A tuple literal is heterogeneous: indexing it at count.index yields a
+# string at one index and a number at another. Both render to the marker
+# "100", so the two instances claim one live record - but the two cty
+# values are not structurally equal, because their TYPES differ, so a
+# distinctness check that compared values alone would call this injective
+# and admit it. count_index_domain.go requires one type across the whole
+# range before it trusts inequality at all, which is what refuses this.
+resource "aws_route53_record" "heterogeneous_tuple" {
+  count = 2
+
+  zone_id = "Z0123456789ABCDEFGHI"
+  name    = ["100", 100][count.index]
+  type    = "A"
+  ttl     = 300
+  records = ["10.0.0.1"]
 }

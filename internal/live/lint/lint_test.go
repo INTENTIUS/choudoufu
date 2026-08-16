@@ -245,31 +245,42 @@ func TestCheck(t *testing.T) {
 					rule:      RuleCountIndex,
 					construct: "count.index in aws_network_acl_rule.list_index",
 					file:      "testdata/count-index/main.tf",
-					line:      32,
+					line:      35,
 				},
 				{
 					rule:      RuleCountIndex,
 					construct: "count.index in aws_route53_record.list_index_in_template",
 					file:      "testdata/count-index/main.tf",
-					line:      49,
+					line:      52,
 				},
 				{
 					rule:      RuleCountIndex,
 					construct: "count.index in aws_network_acl_rule.offset_index",
 					file:      "testdata/count-index/main.tf",
-					line:      63,
+					line:      66,
 				},
 				{
 					rule:      RuleCountIndex,
 					construct: "count.index in aws_network_acl_rule.element_accessor",
 					file:      "testdata/count-index/main.tf",
-					line:      80,
+					line:      83,
 				},
 				{
 					rule:      RuleCountIndex,
 					construct: "count.index in aws_network_acl_rule.conditional",
 					file:      "testdata/count-index/main.tf",
-					line:      99,
+					line:      102,
+				},
+				{
+					// A heterogeneous tuple: string "100" at one index and
+					// number 100 at the other, both rendering to the marker
+					// "100". Refused by count_index_domain.go's one-type
+					// requirement, without which the two cty values would
+					// compare unequal purely because their types differ.
+					rule:      RuleCountIndex,
+					construct: "count.index in aws_route53_record.heterogeneous_tuple",
+					file:      "testdata/count-index/main.tf",
+					line:      122,
 				},
 			},
 		},
@@ -322,13 +333,13 @@ func TestCheck(t *testing.T) {
 					rule:      RuleCountIndex,
 					construct: "count.index in aws_network_acl_rule.multiply_by_variable",
 					file:      "testdata/count-index-nonlinear/main.tf",
-					line:      71,
+					line:      74,
 				},
 				{
 					rule:      RuleCountIndex,
 					construct: "count.index in aws_network_acl_rule.multiply_by_zero",
 					file:      "testdata/count-index-nonlinear/main.tf",
-					line:      92,
+					line:      94,
 				},
 				{
 					// count.index - count.index: both operands reference
@@ -336,25 +347,36 @@ func TestCheck(t *testing.T) {
 					rule:      RuleCountIndex,
 					construct: "count.index in aws_network_acl_rule.both_operands_reference_index",
 					file:      "testdata/count-index-nonlinear/main.tf",
-					line:      110,
+					line:      112,
 				},
 				{
 					rule:      RuleCountIndex,
 					construct: "count.index in aws_network_acl_rule.both_operands_reference_index",
 					file:      "testdata/count-index-nonlinear/main.tf",
-					line:      110,
+					line:      112,
 				},
 				{
 					rule:      RuleCountIndex,
-					construct: "count.index in aws_route53_record.format_function",
+					construct: "count.index in aws_route53_record.truncating_function",
 					file:      "testdata/count-index-nonlinear/main.tf",
-					line:      125,
+					line:      132,
 				},
 				{
 					rule:      RuleCountIndex,
 					construct: "count.index in aws_network_acl_rule.comparison",
 					file:      "testdata/count-index-nonlinear/main.tf",
-					line:      142,
+					line:      149,
+				},
+				{
+					// uuid() reaching count.index: refused because
+					// StaticEvaluator.Pure makes an impure function render
+					// unknown. Without that gate it would render three
+					// different strings, look injective, and name a
+					// different cloud object on every run.
+					rule:      RuleCountIndex,
+					construct: "count.index in aws_route53_record.impure_function",
+					file:      "testdata/count-index-nonlinear/main.tf",
+					line:      170,
 				},
 			},
 		},
@@ -1108,7 +1130,7 @@ func loadConfigDir(t *testing.T, dir string) *configs.Config {
 	t.Helper()
 
 	parser := configs.NewParser(nil)
-	rootMod, diags := parser.LoadConfigDir(dir, configs.RootModuleCallForTesting())
+	rootMod, diags := parser.LoadConfigDir(dir, testModuleCall(dir))
 	if diags.HasErrors() {
 		t.Fatalf("failed to load %s: %s", dir, diags.Error())
 	}
@@ -1361,4 +1383,39 @@ func TestCheckWithNilSchemasByteIdenticalToCheckContext(t *testing.T) {
 			}
 		})
 	}
+}
+
+// testModuleCall is the static module call loadConfigDir builds fixtures
+// with. It answers var.* the same way internal/live/check's own Load does
+// (load.go's variableValues.value): a declared default when there is one,
+// and an unknown of the declared type when there is not.
+//
+// It replaces configs.RootModuleCallForTesting, whose variable closure
+// PANICS on any var.* read at all. That was invisible for as long as no
+// lint rule evaluated an expression, and stopped being invisible when
+// count_index_domain.go started rendering a resource's arguments to check
+// them for collisions - a fixture with `count = var.n` panicked the whole
+// package. The production path has never used the panicking closure
+// (check/load.go:65 passes a real one), so this makes the fixtures behave
+// as production does rather than papering over a production hazard.
+//
+// Unknown-for-undeclared is the conservative direction for every rule that
+// consults it: an unknown value is one this pass cannot prove anything
+// about, and count_index_domain.go treats "cannot prove" as refuse.
+func testModuleCall(dir string) configs.StaticModuleCall {
+	return configs.NewStaticModuleCall(
+		addrs.RootModule,
+		hcl.Range{},
+		func(v *configs.Variable) (cty.Value, hcl.Diagnostics) {
+			if v.Default != cty.NilVal {
+				return v.Default, nil
+			}
+			if v.ConstraintType != cty.NilType {
+				return cty.UnknownVal(v.ConstraintType), nil
+			}
+			return cty.DynamicVal, nil
+		},
+		dir,
+		"default",
+	)
 }
