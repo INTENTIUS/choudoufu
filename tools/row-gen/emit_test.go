@@ -32,6 +32,21 @@ func loadAnnotationsForTest(t *testing.T) map[string]annotation {
 	return annotations
 }
 
+// loadSurveyForTest reads live/survey-full.json the same way runEmit does,
+// for mergeIdentityAttrs' own evidence.
+func loadSurveyForTest(t *testing.T) map[string]surveyEntry {
+	t.Helper()
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatalf("repoRoot: %v", err)
+	}
+	survey, err := loadSurvey(filepath.Join(root, surveyJSONRel))
+	if err != nil {
+		t.Fatalf("loadSurvey: %v", err)
+	}
+	return survey
+}
+
 // loadImportGrammarForTest reads live/import-grammar.json the same way
 // runEmit does, for mergeServerAssigned's own evidence.
 func loadImportGrammarForTest(t *testing.T) map[string]importGrammarRow {
@@ -87,7 +102,7 @@ func TestEmitFilesMatchCommitted(t *testing.T) {
 	annotations := loadAnnotationsForTest(t)
 	grammar := loadImportGrammarForTest(t)
 
-	files, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar)
+	files, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar, loadSurveyForTest(t))
 	if err != nil {
 		t.Fatalf("buildEmitFiles: %v", err)
 	}
@@ -133,7 +148,7 @@ func TestEmitPartitionsDisjointAndComplete(t *testing.T) {
 	annotations := loadAnnotationsForTest(t)
 
 	grammar := loadImportGrammarForTest(t)
-	_, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar)
+	_, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar, loadSurveyForTest(t))
 	if err != nil {
 		t.Fatalf("buildEmitFiles: %v", err)
 	}
@@ -217,7 +232,7 @@ func TestEmitGateRefusesUnruledMismatch(t *testing.T) {
 	delete(broken, victim)
 
 	grammar := loadImportGrammarForTest(t)
-	files, _, _, err := buildEmitFiles(proposals, broken, grammar)
+	files, _, _, err := buildEmitFiles(proposals, broken, grammar, loadSurveyForTest(t))
 	if err == nil {
 		t.Fatalf("buildEmitFiles accepted an unreproduced, unruled type (%s): the gate is not firing", victim)
 	}
@@ -237,7 +252,7 @@ func TestEmitRendersValidGo(t *testing.T) {
 	annotations := loadAnnotationsForTest(t)
 
 	grammar := loadImportGrammarForTest(t)
-	files, _, _, err := buildEmitFiles(proposals, annotations, grammar)
+	files, _, _, err := buildEmitFiles(proposals, annotations, grammar, loadSurveyForTest(t))
 	if err != nil {
 		t.Fatalf("buildEmitFiles: %v", err)
 	}

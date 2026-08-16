@@ -44,13 +44,17 @@ import (
 // Once the fragments are gone that ground truth is this mode's own previous
 // output, which makes -emit a fixed point: running it twice changes nothing.
 //
-// One field is the deliberate exception: renderIdentityFile's own
-// mergeServerAssigned recomputes [identity.Component.ServerAssignedIfAbsent]
-// from live/import-grammar.json on every run rather than copying it, because
-// nothing ever ratifies that field by hand - see renderIdentityFile's doc
-// comment for why that is still the fixed point this comment describes
-// (idempotent once the field is set, changing only when the doc evidence
-// does), not a hole in the byte-identity bar above.
+// Two fields are the deliberate exceptions, both recomputed by
+// renderIdentityFile on every run rather than copied, because nothing ever
+// ratifies either by hand - the provider's own documentation or schema
+// states them. mergeServerAssigned recomputes
+// [identity.Component.ServerAssignedIfAbsent] from live/import-grammar.json,
+// and mergeIdentityAttrs recomputes a server-assigned row's
+// [identity.TypeIdentity.IdentityAttrs] from live/survey-full.json's
+// identity schema (see serverassignedattrs.go). See renderIdentityFile's doc
+// comment for why both are still the fixed point this comment describes
+// (idempotent once the field is set, changing only when the evidence does),
+// not a hole in the byte-identity bar above.
 //
 // What row-gen's fresh classifyAll run contributes is the MEASUREMENT: which
 // types its registry-evidence classifier reproduces on its own and which
@@ -97,8 +101,12 @@ func runEmit(out, errOut *os.File) error {
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", importGrammarJSONRel, err)
 	}
+	survey, err := loadSurvey(filepath.Join(root, surveyJSONRel))
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", surveyJSONRel, err)
+	}
 
-	files, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar)
+	files, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar, survey)
 	if err != nil {
 		return err
 	}
@@ -130,7 +138,7 @@ var emitFileOrder = []string{identityTableRel, lintTableRel}
 // evidence, it returns the two generated files' contents by repo-relative
 // path, plus the two convergence measurements the summary line and tests
 // both want the counts of.
-func buildEmitFiles(proposals []proposal, annotations map[string]annotation, grammar map[string]importGrammarRow) (files map[string][]byte, identityPart, lintPart emitPartition, err error) {
+func buildEmitFiles(proposals []proposal, annotations map[string]annotation, grammar map[string]importGrammarRow, survey map[string]surveyEntry) (files map[string][]byte, identityPart, lintPart emitPartition, err error) {
 	art := buildConvergence(proposals, annotations)
 
 	matched := make(map[string]bool, len(art.Types))
@@ -165,7 +173,7 @@ func buildEmitFiles(proposals []proposal, annotations map[string]annotation, gra
 	lintGenerated, lintOverride := splitNonRecordBacked(identityPart)
 	lintPart = emitPartition{Generated: lintGenerated, Override: lintOverride}
 
-	identitySrc, err := renderIdentityFile(identity.AdmittedTypes(), grammar)
+	identitySrc, err := renderIdentityFile(identity.AdmittedTypes(), grammar, survey)
 	if err != nil {
 		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", identityTableRel, err)
 	}
@@ -238,20 +246,23 @@ func admittedNonRecordBacked() []string {
 // so that nothing outside this generator participates in building the
 // table.
 //
-// Every field but one is copied verbatim from the currently-compiled
+// Every field but two is copied verbatim from the currently-compiled
 // [identity.DefaultTable], as this file's own doc comment has always
-// promised. The one exception is mergeServerAssigned's own field,
-// [identity.Component.ServerAssignedIfAbsent] (#190): unlike every other
-// field here, nothing ever ratifies its value by hand - a human choosing it
-// per row would be re-deciding a fact the provider's docs already state, the
-// same reasoning that keeps OmittedFallbacks's Default values (and, before
-// this, ForceNew and Required) out of hand-ratification too. So this one
-// field is not read from DefaultTable at all; it is recomputed from
-// live/import-grammar.json on every run, over an otherwise-verbatim copy of
-// every ratified row. A row a human ratified before #190 existed still gets
-// the field filled in the moment the doc evidence for its own arguments
-// says to, with no per-type edit anywhere in this generator's control flow.
-func renderIdentityFile(types []string, grammar map[string]importGrammarRow) ([]byte, error) {
+// promised. The exceptions are mergeServerAssigned's own field,
+// [identity.Component.ServerAssignedIfAbsent] (#190), and mergeIdentityAttrs'
+// [identity.TypeIdentity.IdentityAttrs] on a server-assigned row (#197):
+// unlike every other field here, nothing ever ratifies either value by hand -
+// a human choosing one per row would be re-deciding a fact the provider's
+// docs or its own identity schema already state, the same reasoning that
+// keeps OmittedFallbacks's Default values (and, before this, ForceNew and
+// Required) out of hand-ratification too. So neither field is read from
+// DefaultTable at all; they are recomputed from live/import-grammar.json and
+// live/survey-full.json on every run, over an otherwise-verbatim copy of
+// every ratified row. A row a human ratified before either rule existed
+// still gets its field filled in the moment the evidence for its own
+// arguments says to, with no per-type edit anywhere in this generator's
+// control flow.
+func renderIdentityFile(types []string, grammar map[string]importGrammarRow, survey map[string]surveyEntry) ([]byte, error) {
 	var b strings.Builder
 	b.WriteString(licenseHeader)
 	b.WriteString("\n")
@@ -261,7 +272,7 @@ func renderIdentityFile(types []string, grammar map[string]importGrammarRow) ([]
 	b.WriteString(defaultTableDoc)
 	b.WriteString("var DefaultTable = map[string]TypeIdentity{\n")
 	for _, t := range types {
-		entry := mergeServerAssigned(identity.DefaultTable[t], grammar[t])
+		entry := mergeIdentityAttrs(mergeServerAssigned(identity.DefaultTable[t], grammar[t]), survey[t])
 		fmt.Fprintf(&b, "%q: %s,\n", t, renderStruct(reflect.ValueOf(entry)))
 	}
 	b.WriteString("}\n")
