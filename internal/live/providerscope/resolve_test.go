@@ -193,10 +193,14 @@ func TestResolveDeadEndAliasStopsAtTheChildRatherThanGuessing(t *testing.T) {
 
 	child := childConfig(t, root, "child")
 	got := ResolveResource(child, resourceIn(t, child, "aws_s3_bucket.data"))
-	// The alias survives verbatim, anchored at root (Module is always
-	// addrs.RootModule in Resolve's return value - see its doc comment for
-	// why that is the right anchor for every caller reading provider blocks
-	// today). No root block named "primary" exists in this fixture, so a
+	// The alias survives verbatim, anchored at root: no dead end this
+	// fixture can reach carries its own local provider block (GitHub issue
+	// #201 gave Resolve's return value a second possible anchor, a
+	// non-root module with a content-bearing block of its own - see
+	// TestResolveLocalProviderBlockTerminatesAtItsOwnModule - but that
+	// never applies to an alias with no matching entry anywhere in the
+	// tree, which is this case). No root block named "primary" exists in
+	// this fixture, so a
 	// caller that resolves the returned address against the root module's
 	// blocks - every caller in the live path today - gets the same
 	// "provider configuration is not declared" diagnostic issue #123
@@ -205,5 +209,65 @@ func TestResolveDeadEndAliasStopsAtTheChildRatherThanGuessing(t *testing.T) {
 	want := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: awsProvider(), Alias: "primary"}
 	if !sameAddr(got, want) {
 		t.Errorf("child module: got %s, want %s", got, want)
+	}
+}
+
+// TestResolveLocalProviderBlockTerminatesAtItsOwnModule is GitHub issue
+// #201's actual corpus shape: a child module declares its own,
+// content-bearing provider block (a live one reads a var, mirroring
+// simpleinfra/terraform/shared/modules/gha-iam-user/main.tf:10's
+// `provider "github" { owner = var.org }`), reached by a call with none of
+// count, for_each, enabled or depends_on - the shape
+// internal/live/lint.checkModuleProviderBlocks now admits. Before this
+// change, Resolve had no path that terminated at a non-root module's own
+// block at all: every return climbed to addrs.RootModule regardless, which
+// would have pointed this resource at root's us-west-2 configuration
+// instead of the child's own us-east-1 one - a live resource read, written
+// and swept against the wrong account with nothing said about it, the
+// exact failure mode issue #104's own package doc comment describes for an
+// unhonoured providers mapping.
+func TestResolveLocalProviderBlockTerminatesAtItsOwnModule(t *testing.T) {
+	root := loadConfigDir(t, "testdata/local-provider-block")
+
+	child := childConfig(t, root, "compute")
+	got := ResolveResource(child, resourceIn(t, child, "aws_s3_bucket.data"))
+	want := addrs.AbsProviderConfig{Module: addrs.Module{"compute"}, Provider: awsProvider(), Alias: ""}
+	if !sameAddr(got, want) {
+		t.Errorf("compute module: got %s, want %s (module.compute's own provider block, not root's)", got, want)
+	}
+}
+
+// TestResolveLocalProviderBlockAliasedTerminatesAtItsOwnModule is the same
+// shape with an alias on both the block and the resource's own provider
+// reference - proving the terminate-locally case carries the alias through
+// rather than only handling the always-unaliased default name.
+func TestResolveLocalProviderBlockAliasedTerminatesAtItsOwnModule(t *testing.T) {
+	root := loadConfigDir(t, "testdata/local-provider-block-aliased")
+
+	child := childConfig(t, root, "compute")
+	got := ResolveResource(child, resourceIn(t, child, "aws_s3_bucket.data"))
+	want := addrs.AbsProviderConfig{Module: addrs.Module{"compute"}, Provider: awsProvider(), Alias: "east"}
+	if !sameAddr(got, want) {
+		t.Errorf("compute module: got %s, want %s", got, want)
+	}
+}
+
+// TestResolveEmptyLocalProviderBlockFallsThrough is the other half of issue
+// #201's local-block work: an EMPTY block (`provider "aws" {}`) is
+// internal/configs/provider_validation.go's own "could be a proxy
+// configuration" shape, legal even under a call using count precisely
+// because it carries no settings of its own. A naive "any matching local
+// declaration terminates the walk" rule would resolve this to the child's
+// own (empty) block instead of root's real one - silently trading a
+// configured provider for an unconfigured one. Resolve must fall through it
+// exactly as if the child had declared no block at all.
+func TestResolveEmptyLocalProviderBlockFallsThrough(t *testing.T) {
+	root := loadConfigDir(t, "testdata/empty-proxy-block")
+
+	child := childConfig(t, root, "compute")
+	got := ResolveResource(child, resourceIn(t, child, "aws_s3_bucket.data"))
+	want := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: awsProvider(), Alias: ""}
+	if !sameAddr(got, want) {
+		t.Errorf("compute module: got %s, want %s (root's real configuration, not the child's empty proxy block)", got, want)
 	}
 }

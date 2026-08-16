@@ -60,13 +60,8 @@ var enforcedLimits = map[string]Rule{
 	// does declare - is pinned by TestCheck's
 	// undeclared-provider-alias-declared case.
 	"undeclared-provider-alias": RuleUndeclaredProviderAlias,
-	// GitHub issue #70's ruling: the in-child-module provider block, warned
-	// about while the design question was open, is refused now that the
-	// measurement (0 of 740 module-source files in the ten corpus repos
-	// declare one) and upstream's own legacy guidance both point the same
-	// way. The admitted twin - the same provider block declared at root -
-	// is pinned by TestCheck's module-provider-root case.
-	"module-provider-block": RuleModuleProviderBlock,
+	// module-provider-block moved to notYetEnforcedLimits under GitHub issue
+	// #201: see that table's entry for why nothing here fires it anymore.
 	// Wave-3 audit of #72: a child module's live configuration was decoded
 	// and silently ignored; now refused.
 	"child-live-config": RuleChildLiveConfig,
@@ -99,6 +94,33 @@ var enforcedLimits = map[string]Rule{
 // address against MARKERS.md's 256-character cap.
 var notYetEnforcedLimits = []string{
 	"duplicate-identity", // enforced at resolve time (internal/live/identity), not lint
+	// module-provider-block is a poor fit for this bucket's own doc comment
+	// ("banned or bounded by the roadmap") - it is neither, after GitHub
+	// issue #201's parity fix - but it is the closer of the two available
+	// buckets: CheckContext() reports nothing for it, same as every other
+	// entry here. This fixture's module call names no count, for_each,
+	// enabled or depends_on, so internal/configs/provider_validation.go
+	// (the upstream code this fork forked verbatim) admits it at
+	// config-build time same as stock OpenTofu, and
+	// [checkModuleProviderBlocks] admits it too. The refusal this rule DOES
+	// still express - a call chain that does use one of those four
+	// reaching a content-bearing local block - can never reach a built
+	// *configs.Config at all: internal/configs.BuildConfig's own
+	// validateProviderConfigs (config_build.go:45) hard-errors on that
+	// combination before internal/live/lint ever runs, in every entry point
+	// this fork has (internal/live/check.Load, internal/configs/configload,
+	// and this package's own loadConfigDir) - see
+	// internal/configs/testdata/config-diagnostics/nested-provider for
+	// upstream's own fixture proving it. No buildable HCL can trigger
+	// RuleModuleProviderBlock's refusal branch through the ordinary live
+	// path any longer; it is left in the rule as defense in depth for any
+	// future caller that constructs a *configs.Config without going through
+	// BuildConfig. live/e2e/limits/module-provider-block and its
+	// live/LIMITATIONS.md heading are now stale in the same way -
+	// documenting a limit that parity has closed - and are left as found;
+	// retiring that limits-wing entry (directory, heading, and this
+	// bucket's own doc comment) is follow-up work, not this fix.
+	"module-provider-block",
 }
 
 // TestLimitsEnforced checks that every directory in enforcedLimits fails lint

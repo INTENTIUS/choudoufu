@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/hashicorp/hcl/v2"
+
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -96,7 +98,7 @@ func CheckWith(ctx context.Context, cfg *configs.Config, lctx Context) []Issue {
 	recordStoreConfigured := recordStoreConfiguredIn(cfg)
 
 	var issues []Issue
-	checkConfig(ctx, cfg, addrs.RootModuleInstance, lctx.Schemas, signal, recordStoreConfigured, &issues)
+	checkConfig(ctx, cfg, addrs.RootModuleInstance, lctx.Schemas, signal, recordStoreConfigured, nil, &issues)
 	sortIssues(issues)
 	return issues
 }
@@ -134,7 +136,18 @@ func recordStoreConfiguredIn(cfg *configs.Config) bool {
 // unchanged through every recursive call, the same way schemas and signal
 // already are: it is a property of the whole run, not of whichever module
 // node the walk happens to be visiting.
-func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleInstance, schemas map[string]providers.Schema, signal *identity.ConfigSignal, recordStoreConfigured bool, issues *[]Issue) {
+//
+// noProviderConfigRange mirrors internal/configs/provider_validation.go's own
+// argument of that name: nil while every module call from root down to this
+// node uses none of count, for_each, enabled or depends_on, and pinned to
+// the source range of whichever of those a call used, the first time one is
+// seen on the way down - inherited unchanged into every descendant from
+// there, exactly as upstream's validateProviderConfigs threads its
+// childNoProviderConfigRange, because the restriction is a property of the
+// whole call chain once triggered, not of any single link in it. See
+// [checkModuleProviderBlocks] (GitHub issue #201), the only rule that reads
+// this argument.
+func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleInstance, schemas map[string]providers.Schema, signal *identity.ConfigSignal, recordStoreConfigured bool, noProviderConfigRange *hcl.Range, issues *[]Issue) {
 	if cfg == nil || cfg.Module == nil {
 		return
 	}
@@ -145,7 +158,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	checkStateBackends(mod, path, issues)
 	checkChildModules(ctx, mod, path, issues)
 	checkModuleProviderMapping(mod, path, issues)
-	checkModuleProviderBlocks(mod, path, issues)
+	checkModuleProviderBlocks(mod, path, noProviderConfigRange, issues)
 	checkUndeclaredProviderAlias(mod, path, issues)
 	checkChildLiveConfig(mod, path, issues)
 	checkMovedBlocks(mod, path, issues)
@@ -163,8 +176,13 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		childInst := modInst.Child(name, worstCaseChildKey(ctx, mod, mod.ModuleCalls[name]))
-		checkConfig(ctx, cfg.Children[name], childInst, schemas, signal, recordStoreConfigured, issues)
+		call := mod.ModuleCalls[name]
+		childNoProviderConfigRange := noProviderConfigRange
+		if r := moduleCallBlocksLocalProviders(call); r != nil {
+			childNoProviderConfigRange = r
+		}
+		childInst := modInst.Child(name, worstCaseChildKey(ctx, mod, call))
+		checkConfig(ctx, cfg.Children[name], childInst, schemas, signal, recordStoreConfigured, childNoProviderConfigRange, issues)
 	}
 }
 
