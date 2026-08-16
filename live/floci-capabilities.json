@@ -1348,6 +1348,13 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
         },
         {
+          "type": "aws_dynamodb_table",
+          "mechanism": "tagging-sweep",
+          "status": "unimplemented",
+          "evidence": "dynamodb create-table tagged tofu-probe-table-0240f4e5 at creation; list-tags-of-resource confirms tofu-estate/tofu-address natively, but an unfiltered resourcegroupstaggingapi GetResources sweep (0 resources total) does not include arn:aws:dynamodb:us-east-1:000000000000:table/tofu-probe-table-0240f4e5",
+          "source": "live probe (tools/floci-capability-gen -mode=tagging)"
+        },
+        {
           "type": "aws_ebs_snapshot_block_public_access",
           "mechanism": "cloudcontrol-list",
           "status": "implemented",
@@ -1360,6 +1367,13 @@
           "status": "implemented",
           "evidence": "ListResources(AWS::EC2::Volume) succeeded",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_ebs_volume",
+          "mechanism": "tagging-sweep",
+          "status": "unimplemented",
+          "evidence": "ec2 create-volume tagged vol-36d7c3995926dc8d3 at creation; describe-volumes confirms tofu-estate/tofu-address natively, but an unfiltered resourcegroupstaggingapi GetResources sweep (0 resources total) does not include arn:aws:ec2:us-east-1:000000000000:volume/vol-36d7c3995926dc8d3",
+          "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
           "type": "aws_ec2_capacity_reservation",
@@ -1976,6 +1990,13 @@
           "status": "implemented",
           "evidence": "ListResources(AWS::IAM::Role) succeeded",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_iam_role",
+          "mechanism": "tagging-sweep",
+          "status": "unimplemented",
+          "evidence": "iam create-role tagged tofu-probe-role-0240f4e5 at creation; list-role-tags confirms tofu-estate/tofu-address natively, but an unfiltered resourcegroupstaggingapi GetResources sweep (0 resources total) does not include arn:aws:iam::000000000000:role/tofu-probe-role-0240f4e5",
+          "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
           "type": "aws_iam_saml_provider",
@@ -3308,6 +3329,13 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
         },
         {
+          "type": "aws_s3_bucket",
+          "mechanism": "tagging-sweep",
+          "status": "unimplemented",
+          "evidence": "s3api create-bucket + put-bucket-tagging on tofu-probe-bucket-0240f4e5; get-bucket-tagging confirms tofu-estate/tofu-address natively, but an unfiltered resourcegroupstaggingapi GetResources sweep (0 resources total) does not include arn:aws:s3:::tofu-probe-bucket-0240f4e5",
+          "source": "live probe (tools/floci-capability-gen -mode=tagging)"
+        },
+        {
           "type": "aws_s3_bucket_policy",
           "mechanism": "cloudcontrol-list",
           "status": "implemented",
@@ -3539,6 +3567,13 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
         },
         {
+          "type": "aws_secretsmanager_secret",
+          "mechanism": "tagging-sweep",
+          "status": "unimplemented",
+          "evidence": "secretsmanager create-secret tagged tofu-probe-secret-0240f4e5 at creation; describe-secret confirms tofu-estate/tofu-address natively, but an unfiltered resourcegroupstaggingapi GetResources sweep (0 resources total) does not include arn:aws:secretsmanager:us-east-1:000000000000:secret:tofu-probe-secret-0240f4e5-9DDZSP",
+          "source": "live probe (tools/floci-capability-gen -mode=tagging)"
+        },
+        {
           "type": "aws_secretsmanager_secret_policy",
           "mechanism": "cloudcontrol-list",
           "status": "implemented",
@@ -3763,6 +3798,13 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
         },
         {
+          "type": "aws_sns_topic",
+          "mechanism": "tagging-sweep",
+          "status": "unimplemented",
+          "evidence": "sns create-topic tagged tofu-probe-topic-0240f4e5 at creation; list-tags-for-resource confirms tofu-estate/tofu-address natively, but an unfiltered resourcegroupstaggingapi GetResources sweep (0 resources total) does not include arn:aws:sns:us-east-1:000000000000:tofu-probe-topic-0240f4e5",
+          "source": "live probe (tools/floci-capability-gen -mode=tagging)"
+        },
+        {
           "type": "aws_sns_topic_subscription",
           "mechanism": "cloudcontrol-list",
           "status": "implemented",
@@ -3782,6 +3824,13 @@
           "status": "implemented",
           "evidence": "ListResources(AWS::SQS::Queue) succeeded",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_sqs_queue",
+          "mechanism": "tagging-sweep",
+          "status": "unimplemented",
+          "evidence": "sqs create-queue tagged tofu-probe-queue-0240f4e5 at creation; list-queue-tags confirms tofu-estate/tofu-address natively, but an unfiltered resourcegroupstaggingapi GetResources sweep (0 resources total) does not include arn:aws:sqs:us-east-1:000000000000:tofu-probe-queue-0240f4e5",
+          "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
           "type": "aws_ssm_association",

@@ -80,6 +80,18 @@ func TestFlociServesTaggingAPI(t *testing.T) {
 // TestFlociServesTaggingAPI for the Content-Type finding that makes this
 // test reach floci's tagging service at all.
 //
+// Issue #229 (2026-08-16) established that the gap is not aws_iam_role- or
+// S3-specific, or even the two-type coincidence this comment used to read
+// as: tools/floci-capability-gen -mode=tagging drives seven curated
+// recipes across seven distinct services (EC2, S3, SQS, SNS, DynamoDB, IAM,
+// Secrets Manager), each confirming its own tags natively before checking
+// an unfiltered GetResources sweep, and all seven came back empty against
+// ghcr.io/lex00/floci@sha256:1362e856... - the estate-wide tagging index
+// itself is what floci does not populate, not any one service's tagging
+// call. See live/floci-capabilities.json's "tagging-sweep" rows for the
+// full evidence and tools/floci-capability-gen/tagging.go's package-level
+// doc comment for the probe's own mechanics.
+//
 //	TF_FLOCI_TEST=1 go test ./internal/live/discovery/ -run TestTaggingSweepAgainstFloci -v
 func TestTaggingSweepAgainstFloci(t *testing.T) {
 	flocitest.Gate(t, "discovery/tagging")
