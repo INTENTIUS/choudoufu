@@ -982,7 +982,7 @@ refused, and each says so in its own entry.
 | Configs | Sites | Layer | Refusal | Raised by | Documented at |
 |---|---|---|---|---|---|
 | 142 | 142 | lint | state-backend | `internal/live/lint` | "backend-block" / "cloud-block" |
-| 113 | 1404 | lint | unadmitted-type | `internal/live/lint` | "unadmitted-type" |
+| 113 | 1398 | lint | unadmitted-type | `internal/live/lint` | "unadmitted-type" |
 | 99 | 1701 | dataread | Resolves at plan time via a data-source read | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
 | 86 | 3532 | identity | Unable to compute static value | `internal/configs` | "Unable to compute static value" |
 | 66 | 482 | lint | logical-resource | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
