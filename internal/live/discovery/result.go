@@ -623,6 +623,26 @@ const (
 	// missing or unparseable tofu-address. Not foreign and not owned.
 	ProblemMalformedMarker ProblemKind = "MALFORMED_MARKER"
 
+	// ProblemDisplacedMarker is a live resource carrying this estate's
+	// marker for an address the configuration still declares, whose own
+	// identity is not the identity that address resolves to - so a second,
+	// different live resource is what the configuration means by it.
+	//
+	// That is GitHub issue #244's half 2, and the population is renumbering:
+	// deleting a middle element of a count list moves every later instance's
+	// identity down one while the live resources keep the markers they were
+	// stamped with. Before this kind existed, such a resource was in no
+	// section of the result at all - not bound, not an orphan, not a
+	// problem, not a removal.
+	//
+	// A warning, not an error, and it proposes nothing. The identity
+	// comparison behind it is inexact by construction (see
+	// internal/live/discovery/displaced.go), so its false positives have to
+	// cost a line of output and nothing more. The resource stays outside
+	// removal coverage, which is the same safe direction
+	// [ProblemUnsweepableOwnedType] and a [SweepGap] fail in.
+	ProblemDisplacedMarker ProblemKind = "DISPLACED_MARKER"
+
 	// ProblemNeedsSlotMarkers is several live resources sharing one count
 	// instance's address, with no slot markers to tell them apart. Guessing
 	// here would attach a plan to an arbitrary member of a fungible set.
@@ -722,7 +742,7 @@ const (
 // operator may be perfectly correct.
 func (k ProblemKind) Severity() Severity {
 	switch k {
-	case ProblemUnresolvedAccount, ProblemUnresolvedTaggedARN, ProblemUnsweepableOwnedType:
+	case ProblemUnresolvedAccount, ProblemUnresolvedTaggedARN, ProblemUnsweepableOwnedType, ProblemDisplacedMarker:
 		return SeverityWarning
 	}
 	return SeverityError

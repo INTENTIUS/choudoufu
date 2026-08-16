@@ -94,6 +94,10 @@ var refusals = []Refusal{
 		What:    "A live resource was listed with no tags at all where markers were expected, so ownership cannot be read from it.",
 	},
 	{
+		Summary: "Live resource displaced from the address it is marked for",
+		What:    "A live resource carries this estate's marker for an address the configuration still declares, but the identity that address resolves to names a different live resource - so two resources answer to one address. Nothing is proposed for it; a human says which is which.",
+	},
+	{
 		Summary: "Malformed ownership marker",
 		What:    "A live resource carries a tofu-address or tofu-estate tag whose value is not in the marker grammar - hand-edited, truncated, or written by something other than this tool.",
 	},

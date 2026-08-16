@@ -560,13 +560,51 @@ type declared struct {
 	// a subnet tagged with an EIP's address matched the set and was dropped
 	// on the floor - neither bound, nor orphan, nor problem, which is a hole
 	// in the owned/malformed/foreign trichotomy the marker spec is built on.
-	all map[string]map[string]bool
+	//
+	// The value is the resolution that declared the address rather than a
+	// bare bool (GitHub issue #244, half 2). Membership alone answers "is
+	// this address declared by SOMETHING", which is not the question a live
+	// object's marker asks: it asks "is this object the instance that address
+	// names". Only the resolution carries the identity the configuration
+	// computes, and only holding it here can [declared.displacedFrom] tell
+	// the two apart. See [declaredAddress].
+	all map[string]map[string]*declaredAddress
+}
+
+// declaredAddress is one escaped marker value the configuration declares, and
+// the resolution that declared it.
+//
+// ambiguous records that more than one resolution of this type escapes to
+// this same marker value, which can happen when a `moved` block's origin for
+// one instance is another instance's own address in a different module. Where
+// it is set nothing here can say which instance a marker naming it means, so
+// every question beyond "is it declared" is answered "do not know" - the
+// answer that leaves today's behaviour exactly as it was.
+type declaredAddress struct {
+	res       identity.Resolution
+	ambiguous bool
 }
 
 // declares reports whether the configuration declares the given escaped
 // instance address for the given resource type.
 func (d *declared) declares(typeName, escaped string) bool {
-	return d.all[typeName][escaped]
+	return d.all[typeName][escaped] != nil
+}
+
+// record files one resolution's escaped address in [declared.all], marking
+// the entry ambiguous if a different instance already claimed the same
+// marker value.
+func (d *declared) record(typeName, escaped string, r identity.Resolution) {
+	if d.all[typeName] == nil {
+		d.all[typeName] = make(map[string]*declaredAddress)
+	}
+	if existing := d.all[typeName][escaped]; existing != nil {
+		if existing.res.Addr.String() != r.Addr.String() {
+			existing.ambiguous = true
+		}
+		return
+	}
+	d.all[typeName][escaped] = &declaredAddress{res: r}
 }
 
 // entryFor returns the declared instance a marker value names: the instance
@@ -624,7 +662,7 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 		countAliases: make(map[string]map[string]*countBlock),
 		order:        make(map[string][]string),
 		unscanned:    make(map[string]bool),
-		all:          make(map[string]map[string]bool, len(req.Resolutions)),
+		all:          make(map[string]map[string]*declaredAddress, len(req.Resolutions)),
 	}
 
 	// The moved blocks this configuration's markers can follow (GitHub issue
@@ -635,12 +673,9 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 
 	for _, r := range req.Resolutions {
 		typeName := r.Type()
-		if d.all[typeName] == nil {
-			d.all[typeName] = make(map[string]bool)
-		}
 		raw := r.Addr.String()
 		escaped := EscapeAddress(raw)
-		d.all[typeName][escaped] = true
+		d.record(typeName, escaped, r)
 		for _, origin := range moved.Aliases(movedStmts, r.Addr) {
 			// A pending move: this instance's live resource may still be
 			// carrying the address it had before the moved block was
@@ -652,7 +687,14 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 			// function internal/live/projection's ownership check reads
 			// through [moved.Accepts], so the two layers cannot come to
 			// disagree about which markers a moved block makes acceptable.
-			d.all[typeName][EscapeAddress(origin.String())] = true
+			//
+			// The resolution filed under the origin is this instance's own,
+			// which is the point: a live object still carrying the old
+			// address IS this instance's object, so the identity the
+			// configuration computes for the NEW address is the identity
+			// that object must have. That is what keeps #244's check from
+			// firing on every pending move.
+			d.record(typeName, EscapeAddress(origin.String()), r)
 		}
 		if legacy := LegacyEscapeAddress(raw); legacy != escaped {
 			// A for_each key containing "@" - the one character both the
@@ -662,7 +704,7 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 			// consumer of d.all) that predates the widened grammar is still
 			// recognized as declared. See markers.AddressMatches's doc
 			// comment.
-			d.all[typeName][legacy] = true
+			d.record(typeName, legacy, r)
 		}
 	}
 
@@ -1335,10 +1377,15 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		if decl.declares(typeName, escaped) {
 			// A declared instance whose identity came out of the
 			// configuration rather than out of a marker: nothing was waiting
-			// to be found here, the projection reads it by the identity the
-			// configuration gives, and the marker only confirms the estate
-			// still owns what it thinks it owns. Seen mostly by the sweep,
-			// which is the only thing that lists such types at all.
+			// to be found here, and the projection reads it by the identity
+			// the configuration gives. What is left for this pass is the
+			// half of the ownership question the projection cannot see -
+			// whether this object is the instance that address names, or a
+			// second object left carrying its marker (GitHub issue #244).
+			// Reported, never acted on: see displaced.go.
+			if want, displaced := decl.displacedFrom(typeName, escaped, c); displaced {
+				diags = diags.Append(problemDiag(res, displacedProblem(req, typeName, escaped, want, c)))
+			}
 			continue
 		}
 		// A marker naming a count block, by its bare address or by an index
@@ -1948,6 +1995,7 @@ func problemDiag(res *Result, p Problem) tfdiags.Diagnostic {
 var problemSummaries = map[ProblemKind]string{
 	ProblemCollision:              "Two live resources claiming one address",
 	ProblemMalformedMarker:        "Malformed ownership marker",
+	ProblemDisplacedMarker:        "Live resource displaced from the address it is marked for",
 	ProblemNeedsSlotMarkers:       "Indistinguishable instances without per-instance markers",
 	ProblemMixedSlots:             "Partial slot markers on a count set",
 	ProblemMalformedSlot:          "Malformed slot marker",

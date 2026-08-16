@@ -1231,6 +1231,7 @@ func TestProblemSummariesCoverKinds(t *testing.T) {
 	kinds := []ProblemKind{
 		ProblemCollision,
 		ProblemMalformedMarker,
+		ProblemDisplacedMarker,
 		ProblemNeedsSlotMarkers,
 		ProblemMixedSlots,
 		ProblemMalformedSlot,
