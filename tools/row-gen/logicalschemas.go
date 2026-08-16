@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/builtin/providers/tf"
@@ -380,6 +381,184 @@ func liveSensitiveAttrs(t logicalTypeSchema) []string {
 		}
 	}
 	return live
+}
+
+// logicalClassRow is one internal/live/lint logicalTypes row, derived whole
+// from this artifact: the same two facts that settle RecordBacked, rendered
+// as the classification lint states to an operator.
+//
+// The two derivations are one rule read at two layers, which is the point.
+// identity's RecordBacked answers "can resolution hold this type's whole
+// value in a record"; lint's RECORD_ADMITTED answers "may a configuration
+// naming this type get past lint under a record_store". They were separately
+// maintained - a hand table in lint, a derivation here - and drifted the
+// moment this derivation admitted four types the hand table predated:
+// random_string, random_uuid, random_uuid4 and random_uuid7 resolved fine and
+// lint refused them outright, so the record_store branch never ran. Deriving
+// both from this one artifact is what makes that drift unrepresentable.
+type logicalClassRow struct {
+	// Type is the resource type name.
+	Type string
+
+	// Class is "RECORD_ADMITTED" or "SECRET_REFUSED", spelled as lint's
+	// LogicalClass constants are. A store-only provider's type is one or the
+	// other and never lint's third class: OTHER_REFUSED is the no-row-found
+	// default, which is what a non-store-only provider's types keep.
+	Class string
+
+	// Prefix is the family prefix, empty for the built-in provider.
+	Prefix string
+
+	// Evidence is the measured, operator-facing reason, built by
+	// [logicalEvidence] from this artifact rather than written by hand.
+	Evidence string
+}
+
+// logicalClassRecordAdmitted and logicalClassSecretRefused are the string
+// values of internal/live/lint's LogicalClass constants. They are spelled
+// here rather than imported because the generator renders source text; the
+// rendered file's own compilation against the real constants is what checks
+// them, and TestGeneratedLogicalClassNamesMatchLint pins the pair directly.
+const (
+	logicalClassRecordAdmitted = "ClassRecordAdmitted"
+	logicalClassSecretRefused  = "ClassSecretRefused"
+)
+
+// logicalFamilyPrefix is the type prefix a provider's resources carry, taken
+// from the last segment of its source address - the same string
+// [logicalProviderSources] declares as Type and passes to
+// addrs.NewDefaultProvider, so the artifact needs no separate field for it.
+//
+// The built-in provider has none, and that is not a missing value: giving
+// terraform_data a "terraform_" prefix would claim a whole family this fork
+// has never surveyed, on the strength of one built-in type. The second
+// return is false for it, and it contributes no family prefix to lint.
+func logicalFamilyPrefix(p logicalProviderSchemas) (string, bool) {
+	if p.Source == builtinProviderSource {
+		return "", false
+	}
+	name := p.Source
+	if i := strings.LastIndex(name, "/"); i >= 0 {
+		name = name[i+1:]
+	}
+	return name + "_", true
+}
+
+// logicalProviderLabel names a provider in operator-facing evidence.
+func logicalProviderLabel(p logicalProviderSchemas) string {
+	if p.Source == builtinProviderSource {
+		return "OpenTofu's built-in terraform provider"
+	}
+	return p.Source + " " + p.Version
+}
+
+// joinAnd renders a list as English prose: "a", "a and b", "a, b and c".
+func joinAnd(names []string) string {
+	switch len(names) {
+	case 0:
+		return ""
+	case 1:
+		return names[0]
+	}
+	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
+}
+
+// logicalEvidence builds one row's Evidence from the measurement, in the
+// three shapes the data can take.
+//
+// The third shape - a type whose only sensitive attributes are deprecated -
+// produces no row today, because the one attribute in the whole measurement
+// that is both is local_file.sensitive_content and hashicorp/local is not
+// store-only. It is built anyway, and tested, because the alternative is an
+// evidence string that says "marks no attribute sensitive" about a type whose
+// schema plainly marks one - a false claim in an operator-facing message,
+// waiting on a provider release to surface it.
+func logicalEvidence(p logicalProviderSchemas, t logicalTypeSchema) string {
+	label := logicalProviderLabel(p)
+	live := liveSensitiveAttrs(t)
+	if len(live) > 0 {
+		return fmt.Sprintf("%s marks %s sensitive", label, joinAnd(live))
+	}
+	if len(t.Sensitive) > 0 {
+		var names, messages []string
+		for _, a := range t.Sensitive {
+			names = append(names, a.Name)
+		}
+		for _, a := range t.Deprecated {
+			if a.DeprecationMessage != "" {
+				messages = append(messages, fmt.Sprintf("%s: %q", a.Name, a.DeprecationMessage))
+			}
+		}
+		return fmt.Sprintf(
+			"%s marks %s sensitive, but deprecates every one of them (%s), so no attribute the provider "+
+				"still tells you to use carries secret material",
+			label, joinAnd(names), joinAnd(messages))
+	}
+	return fmt.Sprintf(
+		"%s marks no attribute of %s sensitive, measured over every attribute of every block of its "+
+			"schema, nested attribute types and nested blocks included",
+		label, t.Type)
+}
+
+// logicalClassRows derives lint's whole logicalTypes table: one row per
+// resource type of a store-only provider, classified by the same live-
+// sensitive-attribute rule [recordBackedTypes] applies, sorted by type.
+//
+// A non-store-only provider contributes no row at all, which is what keeps
+// hashicorp/local's two types on lint's OTHER_REFUSED default. That is not a
+// gap in the derivation: local_file's identity is its filename, so promoting
+// it would also silence lint's count.index walk over that filename, and
+// internal/live/lint's TestLocalFileKeepsItsCountIndexCheck pins the
+// consequence. StoreOnly is the field carrying that distinction, with its
+// evidence, and it gates both derivations identically.
+func logicalClassRows(art logicalSchemas) ([]logicalClassRow, error) {
+	var out []logicalClassRow
+	for _, p := range art.Providers {
+		if !p.StoreOnly {
+			continue
+		}
+		prefix, hasPrefix := logicalFamilyPrefix(p)
+		for _, t := range p.Types {
+			if hasPrefix && !strings.HasPrefix(t.Type, prefix) {
+				return nil, fmt.Errorf(
+					"row-gen -emit: %s serves resource type %s, which does not start with the %q prefix its "+
+						"source address derives - lint classifies unlisted types by prefix, so a provider whose "+
+						"types do not share one cannot be reduced to a family",
+					p.Source, t.Type, prefix)
+			}
+			class := logicalClassRecordAdmitted
+			if len(liveSensitiveAttrs(t)) > 0 {
+				class = logicalClassSecretRefused
+			}
+			out = append(out, logicalClassRow{
+				Type:     t.Type,
+				Class:    class,
+				Prefix:   prefix,
+				Evidence: logicalEvidence(p, t),
+			})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Type < out[j].Type })
+	return out, nil
+}
+
+// logicalFamilyPrefixesOf is lint's logicalFamilyPrefixes: every input
+// provider's family prefix, store-only or not, sorted.
+//
+// Membership here is what makes an unlisted family member classify with the
+// logical-resource explanation instead of the generic unadmitted-type
+// refusal, so hashicorp/local belongs in it even though it derives no row -
+// a local_file gets told its whole family is out, which is the answer, rather
+// than being told it is missing from a table it was never a candidate for.
+func logicalFamilyPrefixesOf(art logicalSchemas) []string {
+	var out []string
+	for _, p := range art.Providers {
+		if prefix, ok := logicalFamilyPrefix(p); ok {
+			out = append(out, prefix)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // recordBackedTypes is the derivation: every resource type of a store-only

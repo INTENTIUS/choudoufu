@@ -13,6 +13,8 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+
+	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
 // TestCountIndexScopeForType pins countIndexScopeForType's answer for a
@@ -305,5 +307,62 @@ func TestAnalyzeCountIndexSafetyUnrecognizedNodeTypeNeverFallsThrough(t *testing
 	}
 	if got.safe {
 		t.Fatalf("%T: safe = true, want false (a for-expression is not one of analyzeCountIndexSafety's enumerated safe shapes, so it must refuse, not fall through)", expr)
+	}
+}
+
+// TestRecordBackedSkipIsRedundantWithTheClassSkip bounds the second, quieter
+// door into countIndexScopeForType's skip.
+//
+// There are two legs that silence the count.index walk on a store-only type,
+// and only one of them was ever guarded. The first keys on lt.Class ==
+// ClassRecordAdmitted; [TestLocalFileKeepsItsCountIndexCheck] pins that local_file
+// stays outside it, because its filename argument names a real file and two
+// instances at distinct addresses still collide on one path. The second keys
+// on the identity row's RecordBacked flag instead, and nothing checked it at
+// all - so an identity row added on its own would silence the walk for a type
+// lint had never classified, with no test to notice.
+//
+// That is what happened: row-gen's derivation marked random_string,
+// random_uuid, random_uuid4 and random_uuid7 RecordBacked while lint's
+// hand-written table still had no row for any of them, and the walk went
+// quiet for four types through a leg nobody was watching. It was harmless -
+// measured against hashicorp/random 3.9.0, random_uuid/uuid4/uuid7 take only
+// keepers, and random_string takes length and character-class knobs plus
+// keepers; not one argument of any of the four names anything outside the
+// record, which is the property the skip rests on - but it was harmless by
+// luck, not by construction.
+//
+// It is now harmless by construction, and this is the assertion that says so:
+// both tables are derived from live/logical-schemas.json by one rule, so the
+// RecordBacked set and the RECORD_ADMITTED set are equal, and the second leg
+// can no longer reach a type the first would not already have skipped. This
+// recomputes that over the whole identity table rather than restating it, so
+// the day the two sets diverge again, the silenced walk is reported here
+// instead of being found by an operator.
+func TestRecordBackedSkipIsRedundantWithTheClassSkip(t *testing.T) {
+	checked := 0
+	for typ, entry := range identity.DefaultTable {
+		if !entry.RecordBacked {
+			continue
+		}
+		checked++
+
+		lt, isLogical := ClassifyLogicalType(typ)
+		if !isLogical || lt.Class != ClassRecordAdmitted {
+			t.Errorf("countIndexScopeForType(%q) skips the count.index walk on the RecordBacked leg, "+
+				"but lint classifies it isLogical=%v/%s - the walk is silenced by a leg no "+
+				"classification guards", typ, isLogical, lt.Class)
+			continue
+		}
+
+		// The class leg alone must already skip it: recomputed by asking for
+		// the scope of a type carrying this class with no identity row behind
+		// it at all.
+		if scope := countIndexScopeForType(typ, lt, isLogical); !scope.skip {
+			t.Errorf("countIndexScopeForType(%q) does not skip, but the type is RecordBacked", typ)
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no RecordBacked row in identity.DefaultTable; this check is not exercising anything")
 	}
 }

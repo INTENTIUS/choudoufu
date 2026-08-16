@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/lint"
 )
 
 // TestLogicalSchemasArtifactCoversEverySource is the drift check on the
@@ -268,5 +269,228 @@ func TestDeprecationClauseBound(t *testing.T) {
 func TestLogicalSchemasPathIsUnderLive(t *testing.T) {
 	if dir := filepath.Dir(logicalSchemasJSONRel); dir != "live" {
 		t.Errorf("logicalSchemasJSONRel = %q, want a path under live/", logicalSchemasJSONRel)
+	}
+}
+
+// TestLogicalClassRowsAgreeWithRecordBackedDerivation is the layer-agreement
+// check at the generator, one level up from internal/live/lint's own.
+//
+// [logicalClassRows] and [recordBackedTypes] are two readings of one rule over
+// one artifact - lint's RECORD_ADMITTED and identity's RecordBacked - and the
+// whole reason both are derived here is that they were separately maintained
+// and drifted. This recomputes both from the committed artifact and asserts
+// the two sets are equal, so a change to either rule that does not move the
+// other stops the build rather than shipping a lint that refuses what
+// resolution admits.
+func TestLogicalClassRowsAgreeWithRecordBackedDerivation(t *testing.T) {
+	art := loadLogicalSchemasForTest(t)
+
+	rows, err := logicalClassRows(art)
+	if err != nil {
+		t.Fatalf("logicalClassRows: %v", err)
+	}
+	admitted := map[string]bool{}
+	for _, r := range rows {
+		if r.Class == logicalClassRecordAdmitted {
+			admitted[r.Type] = true
+		}
+	}
+	backed := map[string]bool{}
+	for _, typeName := range recordBackedTypes(art) {
+		backed[typeName] = true
+	}
+
+	if len(admitted) == 0 {
+		t.Fatal("no RECORD_ADMITTED row derived at all; the rule is not being exercised")
+	}
+	for typeName := range admitted {
+		if !backed[typeName] {
+			t.Errorf("%s derives RECORD_ADMITTED for lint but no RecordBacked row for identity: "+
+				"lint would admit under a record_store what resolution then refuses", typeName)
+		}
+	}
+	for typeName := range backed {
+		if !admitted[typeName] {
+			t.Errorf("%s derives a RecordBacked identity row but not lint's RECORD_ADMITTED: "+
+				"resolution would hold a record for a type lint refuses first", typeName)
+		}
+	}
+}
+
+// TestGeneratedLogicalClassNamesMatchLint checks the two class names this
+// generator renders as source text against internal/live/lint's own
+// constants. The rendered file compiles against them, so a rename breaks the
+// build - but it breaks it in generated output, at whatever moment someone
+// next runs -emit, with no clue where the string came from. This names the
+// pairing directly.
+func TestGeneratedLogicalClassNamesMatchLint(t *testing.T) {
+	if got, want := string(lint.ClassRecordAdmitted), "RECORD_ADMITTED"; got != want {
+		t.Errorf("lint.ClassRecordAdmitted = %q, want %q", got, want)
+	}
+	if got, want := string(lint.ClassSecretRefused), "SECRET_REFUSED"; got != want {
+		t.Errorf("lint.ClassSecretRefused = %q, want %q", got, want)
+	}
+	for _, name := range []string{logicalClassRecordAdmitted, logicalClassSecretRefused} {
+		if !strings.HasPrefix(name, "Class") {
+			t.Errorf("rendered class identifier %q is not one of lint's exported Class* constants", name)
+		}
+	}
+}
+
+// TestLogicalClassRowsCoverEveryStoreOnlyType pins that the derivation is
+// total over the store-only providers and empty over the rest, recomputed
+// from the artifact. A row per store-only type and none from hashicorp/local
+// is what keeps local_file on lint's OTHER_REFUSED default, which
+// internal/live/lint's TestLocalFileKeepsItsCountIndexCheck depends on.
+func TestLogicalClassRowsCoverEveryStoreOnlyType(t *testing.T) {
+	art := loadLogicalSchemasForTest(t)
+
+	rows, err := logicalClassRows(art)
+	if err != nil {
+		t.Fatalf("logicalClassRows: %v", err)
+	}
+	got := map[string]bool{}
+	for _, r := range rows {
+		got[r.Type] = true
+		if r.Evidence == "" {
+			t.Errorf("%s derives an empty Evidence string", r.Type)
+		}
+	}
+
+	wantCount, excluded := 0, 0
+	for _, p := range art.Providers {
+		for _, ty := range p.Types {
+			if p.StoreOnly {
+				wantCount++
+				if !got[ty.Type] {
+					t.Errorf("%s is served by store-only %s but derives no logicalTypes row", ty.Type, p.Source)
+				}
+				continue
+			}
+			excluded++
+			if got[ty.Type] {
+				t.Errorf("%s is served by %s, which is not store-only, but derives a logicalTypes row anyway",
+					ty.Type, p.Source)
+			}
+		}
+	}
+	if len(rows) != wantCount {
+		t.Errorf("derived %d rows, want %d (every store-only type, and only those)", len(rows), wantCount)
+	}
+	if excluded == 0 {
+		t.Error("no non-store-only type in the artifact; the StoreOnly exclusion is not being exercised")
+	}
+}
+
+// TestLogicalFamilyPrefixDropsTheBuiltin pins the one asymmetry in the prefix
+// derivation. Every registry provider contributes its family prefix; the
+// built-in contributes none, because "terraform_" would claim a whole family
+// on the strength of one built-in type, and terraform_data is admitted by
+// exact name instead.
+func TestLogicalFamilyPrefixDropsTheBuiltin(t *testing.T) {
+	art := loadLogicalSchemasForTest(t)
+
+	prefixes := logicalFamilyPrefixesOf(art)
+	for _, p := range prefixes {
+		if p == "terraform_" {
+			t.Error("logicalFamilyPrefixesOf yielded \"terraform_\"; the built-in provider must contribute no family prefix")
+		}
+		if !strings.HasSuffix(p, "_") {
+			t.Errorf("family prefix %q does not end in an underscore", p)
+		}
+	}
+	if got, want := len(prefixes), len(art.Providers)-1; got != want {
+		t.Errorf("derived %d family prefixes from %d providers, want %d (all but the built-in)",
+			got, len(art.Providers), want)
+	}
+
+	// terraform_data must still get a row, with no prefix - the gap the
+	// original hand table existed to close.
+	rows, err := logicalClassRows(art)
+	if err != nil {
+		t.Fatalf("logicalClassRows: %v", err)
+	}
+	var found bool
+	for _, r := range rows {
+		if r.Type != "terraform_data" {
+			continue
+		}
+		found = true
+		if r.Prefix != "" {
+			t.Errorf("terraform_data derives Prefix %q, want empty", r.Prefix)
+		}
+	}
+	if !found {
+		t.Error("terraform_data derives no logicalTypes row")
+	}
+}
+
+// TestLogicalClassRowsRefuseAMismatchedPrefix defeats the prefix derivation
+// rather than confirming it: a store-only provider serving a type that does
+// not start with its own source-derived prefix must stop the run. lint
+// classifies unlisted family members by prefix, so a provider whose types do
+// not share one would have its unlisted types classified by nobody.
+func TestLogicalClassRowsRefuseAMismatchedPrefix(t *testing.T) {
+	art := loadLogicalSchemasForTest(t)
+
+	for i, p := range art.Providers {
+		if !p.StoreOnly || p.Source == builtinProviderSource {
+			continue
+		}
+		art.Providers[i].Types = append(art.Providers[i].Types, logicalTypeSchema{Type: "wrongprefix_thing"})
+		break
+	}
+	if _, err := logicalClassRows(art); err == nil {
+		t.Error("a store-only provider serving a type outside its own prefix derived rows without complaint")
+	}
+}
+
+// TestLogicalEvidenceRendersTheDeprecatedOnlyShape exercises the one branch
+// of [logicalEvidence] the committed artifact cannot reach: a store-only
+// type whose only sensitive attributes are deprecated. It derives
+// RECORD_ADMITTED, and the evidence must say so honestly rather than claiming
+// the schema marks nothing sensitive - which is what the plain branch would
+// have said about a schema that plainly does.
+//
+// Nothing in the artifact hits it today: the one attribute in the whole
+// measurement that is both sensitive and deprecated is
+// local_file.sensitive_content, and hashicorp/local is not store-only. A
+// provider release could change that at any time.
+func TestLogicalEvidenceRendersTheDeprecatedOnlyShape(t *testing.T) {
+	p := logicalProviderSchemas{Source: "hashicorp/random", Version: "9.9.9", StoreOnly: true}
+	ty := logicalTypeSchema{
+		Type:       "random_thing",
+		Sensitive:  []logicalAttr{{Name: "old_secret"}},
+		Deprecated: []logicalAttr{{Name: "old_secret", DeprecationMessage: "Use random_password instead"}},
+	}
+	if got := len(liveSensitiveAttrs(ty)); got != 0 {
+		t.Fatalf("liveSensitiveAttrs = %d, want 0; the fixture does not reach the branch", got)
+	}
+
+	got := logicalEvidence(p, ty)
+	for _, want := range []string{"old_secret", "deprecates", "Use random_password instead"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("evidence %q does not mention %q", got, want)
+		}
+	}
+	if strings.Contains(got, "marks no attribute") {
+		t.Errorf("evidence %q claims the schema marks no attribute sensitive, but it marks old_secret", got)
+	}
+}
+
+// TestJoinAnd covers the prose joiner the evidence strings are built with.
+func TestJoinAnd(t *testing.T) {
+	for _, test := range []struct {
+		in   []string
+		want string
+	}{
+		{nil, ""},
+		{[]string{"a"}, "a"},
+		{[]string{"a", "b"}, "a and b"},
+		{[]string{"a", "b", "c"}, "a, b and c"},
+	} {
+		if got := joinAnd(test.in); got != test.want {
+			t.Errorf("joinAnd(%v) = %q, want %q", test.in, got, test.want)
+		}
 	}
 }

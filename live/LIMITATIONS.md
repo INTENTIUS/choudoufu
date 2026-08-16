@@ -73,16 +73,29 @@ and once for the connection block). Fixture at
 
 #### Logical resources: a three-way classification (GitHub issue #73)
 
-`internal/live/lint`'s per-type table (`logical_type.go`,
-`ClassifyLogicalType`) replaces the old family-prefix-only refusal with a
-policy-grade classification, one of three:
+`internal/live/lint`'s per-type table (`ClassifyLogicalType`, over the
+generated `logical_type_generated.go`) replaces the old family-prefix-only
+refusal with a policy-grade classification, one of three.
+
+The table is derived, not written. `tools/row-gen -logical-schemas` reads
+every managed resource type of the five logical providers plus the built-in
+one straight from their `GetProviderSchema` responses into
+`live/logical-schemas.json`, and `-emit` classifies from it: a live
+(non-deprecated) sensitive attribute anywhere in a store-only provider's type
+means SECRET_REFUSED, none means RECORD_ADMITTED. The same rule over the same
+artifact derives `internal/live/identity`'s `RecordBacked` rows, so lint's
+RECORD_ADMITTED set and identity's `RecordBacked` set are the same set by
+construction. They were once maintained separately and diverged - identity
+held records for four `random_*` types lint refused outright, so a
+configuration with a `record_store` was told its type could never work.
 
 - **RECORD_ADMITTED** - `null_resource`, `terraform_data`, `time_static`,
   `time_offset`, `time_rotating`, `time_sleep`, `random_id`, `random_pet`,
-  `random_shuffle`, `random_integer`. None of these generates or holds
-  secret material in any output, verified against each provider's own
-  documentation (see `logical_type.go`'s `logicalTypes` table for the
-  per-type citation). **Conditionally admitted as of #73's projection
+  `random_shuffle`, `random_integer`, `random_string`, `random_uuid`,
+  `random_uuid4` and `random_uuid7`. No attribute of any of them is marked
+  sensitive by its provider, measured over every attribute of every block
+  including nested ones (see `logical_type_generated.go` for the per-type
+  evidence). **Conditionally admitted as of #73's projection
   work:** refused exactly as before when the `live` block configures no
   `record_store`, and admitted the moment one is. The record store's key
   namespace is the "no persisted micro-state" limit closing, not a
@@ -102,12 +115,17 @@ policy-grade classification, one of three:
   already governs snapshots and receipts forbids a record from carrying it
   too. Refused permanently, with or without a `record_store` configured -
   the store never weakens this class.
-- **OTHER_REFUSED** - `local_*` and any other logical-family member this
-  table has no more specific opinion about. Refused for the original
-  reason, in the original wording: nobody has done the per-type
-  verification work for this group that the other two classes required, so
-  the honest default is "still refused, nothing more to say yet" rather
-  than a guess in either direction.
+- **OTHER_REFUSED** - `local_file` and `local_sensitive_file`, plus any
+  logical-family member released since the last `-logical-schemas` run.
+  `hashicorp/local` is the one measured provider that is not store-only, and
+  it is excluded deliberately rather than left unreviewed: a `local_file`'s
+  identity is its `filename`, not a record, so two instances at distinct
+  addresses still collide on one path - measured under stock OpenTofu,
+  `count = 4` with a filename built from `count.index % 2` never converges.
+  Promoting it would also silence lint's `count.index` walk over that
+  filename, which `TestLocalFileKeepsItsCountIndexCheck` pins. For a type
+  released after the last measurement, this class is the safe default rather
+  than a verdict, and re-running `-logical-schemas` is what resolves it.
 
 ### null-resource
 
