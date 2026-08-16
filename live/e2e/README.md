@@ -6,6 +6,11 @@ markers and the feature's live demo
 covers running it in one command, reading its output as a human or a
 machine, and what the branch's claim means as a single exit code.
 
+There is a second, much smaller harness beside it: `live/e2e/record-store/`,
+issue #73's record-backed lifecycle. It is the only end-to-end exercise the
+record-backed class has and it needs neither Docker nor AWS. See "The
+record-store harness" at the bottom.
+
 ## Quickstart
 
 You need four things.
@@ -188,3 +193,37 @@ verdict.
 there in user-facing terms rather than test-harness terms. If you're
 changing what a step proves, check that page's claims still match this
 README's table above.
+
+## The record-store harness
+
+`live/e2e/record-store/run.sh` is the other end of the fork: issue #73's
+record-backed class, the types whose identity is not in the cloud at all but
+in the estate's own `record_store`. Everything above is about live markers on
+cloud objects; nothing above declares a `record_store` at all, so without this
+harness that whole class has no end-to-end exercise.
+
+```
+just demo-records
+```
+
+Under a minute, and it needs neither Docker nor the AWS CLI: `null_resource`,
+`terraform_data`, `time_static` and `random_pet` come from cloud-free
+providers, so the whole thing runs against a local directory. It builds a real
+`choudoufu` from the checkout unless `TOFU_BIN` names one.
+
+| Step | Proves |
+|---|---|
+| `init` / `apply` | A `record_store "local"` block in `terraform { live { ... } }` admits all four RECORD_ADMITTED types, which are a hard refusal without one, and a stock `apply` creates them through the ordinary provider lifecycle. This is the admission gate, end to end. |
+| record layout | Exactly four records land under `tofu-records/<estate>/<type>/<hash>`, and guided discovery's hint under `tofu-hints/<estate>/guided` is *not* one of them. The two namespaces are deliberately disjoint (`RecordKeyPrefix` and `HintKey`, `internal/live/projection`) so that orphan discovery listing the record namespace can never mistake a hint for a resource. |
+| clean re-plan | With no state file anywhere, prior state rebuilt from the records alone gives `No changes`. A hydration bug looks like a proposal to re-create everything. |
+| replace | Changing a `triggers` input forces a replacement of exactly that resource; the two untouched records stay byte-identical and the replaced one changes. |
+| destroy | Emptying the resource blocks and applying destroys all four and removes all four records. `choudoufu destroy` itself is refused under live markers, so removal-by-deletion is the tested path, the same as `live/e2e/run.sh`'s own removal steps. |
+
+What it does **not** cover, and the next thing worth adding: a cloud-backed
+resource whose identity is derived from a record-backed parent's attribute
+(`resolver.parentPart`'s record-backed branch, and the ordering in
+`builder.run` that makes it work). That crosses from the record store to a
+real cloud object, so it needs the floci harness above rather than this one.
+The unit-level proof of both halves is
+`internal/live/identity/recordbackedattr_test.go` and
+`internal/live/projection/recordparent_test.go`.

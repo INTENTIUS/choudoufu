@@ -1506,9 +1506,38 @@ func (r *resolver) parentPart(parent addrs.AbsResourceInstance, attrName string,
 			return r.resolveExpr(expr, scope, ident)
 		}
 
+		// A record-backed parent ([ClassRecordBacked]) has no cloud
+		// identity for hasIdentityAttr to recognise and no IdentityAttrs
+		// on its row, but it is not unknowable: its whole object is
+		// hydrated from the record store before any formula renders
+		// (internal/live/projection's builder.run materializes every
+		// record-backed resolution ahead of both the concrete and the
+		// derived phase, and builder.renderFormula's parent lookup is
+		// class-agnostic). So a promise to read the attribute later is
+		// exactly as good here as it is for a parent-derived parent, and
+		// the tail of this function already knows how to make one.
+		//
+		// The rule is keyed on the class and settled by the provider's own
+		// schema rather than by type name, so it covers every row row-gen
+		// marks RecordBacked and nothing else. Without schemas we cannot
+		// tell a real attribute from a typo, and the refusal below stands.
+		if parentRes.Class == ClassRecordBacked && r.stringAttrInSchema(parent.Resource.Resource.Type, attrName) {
+			return []Part{{Parent: &ParentRef{Instance: parent, Attr: attrName}}}, true
+		}
+
 		detail := fmt.Sprintf(
 			"%s reads %s.%s, but %q is not an identity attribute of %s. ",
 			ident.Subject, parent.String(), attrName, attrName, parent.Resource.Resource.Type)
+		switch {
+		case parentRes.Class == ClassRecordBacked && r.schemas == nil:
+			detail += fmt.Sprintf("%s keeps its whole object in this estate's record store, so any attribute of it can be read - but no provider schemas were available to this run to confirm that %q is one of them.", parent.Resource.Resource.Type, attrName)
+			r.errorf(rng, "Not an identity attribute", "%s", detail)
+			return nil, false
+		case parentRes.Class == ClassRecordBacked:
+			detail += fmt.Sprintf("%s keeps its whole object in this estate's record store, so any attribute its schema declares can be read - but its schema declares no string-valued %q.", parent.Resource.Resource.Type, attrName)
+			r.errorf(rng, "Not an identity attribute", "%s", detail)
+			return nil, false
+		}
 		if len(entry.IdentityAttrs) == 0 {
 			detail += fmt.Sprintf("No attribute of %s carries its import identity, so nothing about it can be recovered without reading the cloud.", parent.Resource.Resource.Type)
 		} else {
@@ -1524,6 +1553,51 @@ func (r *resolver) parentPart(parent addrs.AbsResourceInstance, attrName string,
 		return []Part{{Literal: parentRes.ImportID}}, true
 	}
 	return []Part{{Parent: &ParentRef{Instance: parent, Attr: attrName}}}, true
+}
+
+// stringAttrInSchema reports whether the provider's schema for typeName
+// declares a top-level attribute called attrName whose value can be used as
+// a string. It is the whole of the guard on reading a record-backed
+// parent's attribute (see [resolver.parentPart]): the record store hydrates
+// the parent's entire object, so the only question left is whether the
+// attribute exists at all and whether a marker could be built out of it.
+//
+// Computed is deliberately not consulted here, unlike in
+// [resolver.siblingLiteralExpr]. That function reads the CONFIGURATION's
+// expression for the attribute and needs the provider to have no path to a
+// different value; this one reads the persisted OBJECT, which is whatever
+// the provider actually returned, so a Computed attribute is precisely the
+// interesting case - random_pet's id and terraform_data's output are both
+// Computed and both perfectly readable from a record.
+//
+// False whenever the run has no schemas, the type has none, the name is not
+// a top-level attribute (a nested block is not one), or its type has no
+// conversion to string. The caller falls back to its own refusal in every
+// such case.
+func (r *resolver) stringAttrInSchema(typeName, attrName string) bool {
+	if r.schemas == nil {
+		return false
+	}
+	typeSchema, ok := r.schemas[typeName]
+	if !ok || typeSchema.Block == nil {
+		return false
+	}
+	attrSchema, ok := typeSchema.Block.Attributes[attrName]
+	if !ok {
+		return false
+	}
+	if attrSchema.Type == cty.NilType {
+		return false
+	}
+	if attrSchema.Type.Equals(cty.String) {
+		return true
+	}
+	// GetConversionUnsafe returns nil for identical types, which the check
+	// above has already taken, so reaching here means a genuine conversion
+	// is needed. Unsafe is the right strictness: number-to-string and
+	// bool-to-string are both real, both lossless in this direction, and
+	// both already how markers render a non-string identity component.
+	return convert.GetConversionUnsafe(attrSchema.Type, cty.String) != nil
 }
 
 // siblingLiteralExpr returns the expression parent's own resource block
