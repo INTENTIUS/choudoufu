@@ -76,15 +76,59 @@ Get them from the artifact:
 
     python3 -c "import json;d=json.load(open('live/corpus-refusals.json'));[print(f\"{r['configs']:>4} cfg {r['sites']:>6} sites  {r['id']}\") for r in sorted(d['refusals'],key=lambda x:-x['configs'])[:12]]"
 
-Open wall classes at the time of writing, unranked: #184, #187, #193, #196,
-#197, #204, #209, #224. #189 closed — 94% of its sites are genuine value
-circularity matching upstream byte-for-byte, with the two actionable slices
-filed separately.
+## Ranking — assign from #178, not from config counts
 
-**Read #184's own latest comment before spending on it.** The retired table's
-"rides on others, no machinery of its own" was backwards — it is the sole
-blocker for 10 estates, and the fix is in `check/analyze.go`, not
-`internal/live/identity`.
+**The assignment order is the greedy marginal-cover table on #178.** It was
+recomputed against the committed artifact by independently re-implementing
+`ClassifyOnboarding` in Python (0 mismatches against the Go classifier), over
+the **56 winnable estates** — the 65 language-blocked minus 9 that stock
+OpenTofu refuses identically for missing tfvars, which is parity, not a
+defect. Do not rank by corpus-wide config count: that counts the 105 fixtures
+that are not rate-capable published deployments, and it counts a class as
+valuable even when everything it touches is blocked by four other things.
+
+**Sole-blocker count is also the wrong order, and this is the subtle one.**
+`Module output not supported in static context` frees 1 estate alone and
+**+10** at greedy step 10 — ranked by sole blockers it looks worthless. That
+is the same failure mode as the retired greedy-cover table this replaces.
+Use the marginal ordering.
+
+Two facts that reframe the campaign, both on #178:
+
+- **The open tracker frees zero estates.** Every wall issue that was open when
+  this was computed is sole blocker on 0. Every class that *is* someone's sole
+  blocker was untracked; #233 and #234 now exist for them.
+- **#233 is step 1, +9** — `Unmarked apply of a marker-only resource`, the
+  largest sole-blocker count in the campaign. It entered the ladder only when
+  stamp became a checked layer (#224, `2ffa5f33b2`), so it predates no triage.
+  `ServerAssigned` types carrying no `tags` argument, where `mustStamp` is
+  fatal because the marker is the only handle. Two escapes already sit in the
+  generated rows' own `Reason` text.
+
+**#236 is the process defect**: eight wall issues closed COMPLETED with no
+measured improvement, holding 6 sole blockers between them. A closure needs a
+measured before/after, not an argument.
+
+**#204 and #209 are open against refusals that fire nowhere** — 0 configs, 0
+sites across all 250 fixtures.
+
+## The instrument overstates, and by how much
+
+Agents measure with an offline `check.Load`/`check.Analyze` probe because
+`just corpus` stalls them. That probe runs **without provider schemas**: it
+sees the sites a fix clears and cannot see the ones that surface underneath.
+It is a systematic upper bound, not an error, and every agent number carries
+it.
+
+The conditional fix (#196) is the worked example. Its branch measured 11
+sites / 5 configs cleared. Schema-backed regeneration:
+
+    Identity not resolvable from configuration  22 cfg/118 sites -> 17/104
+    Unresolvable identity                       44 cfg/169 sites -> 45/183
+    total refusal sites 10046 -> 10046, ladder unchanged
+
+Fourteen sites relabelled, one config *gained* a refusal, no estate moved.
+Only the schema-backed regeneration counts. Run it at merge, never before.
 
 **#230 is the highest-priority open bug**: the stamp gate checks
 `len(Schemas) > 0` across all providers, so a partial schema acquisition
