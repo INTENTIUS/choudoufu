@@ -5,15 +5,18 @@
 # module prefixes are spelled differently (":" vs ".") and the second is
 # redundant. This fixture pins that the address recovered from NeededBy
 # still matches the cascade diagnostic's own parent text exactly.
+#
+# aws_s3_bucket_policy, single-real-component - see
+# ../../cascade-eligible/main.tf's comment on why this fixture no longer
+# uses aws_cloudwatch_log_stream.
 data "aws_route53_zone" "primary" {
   name = "example.com."
 }
 
-resource "aws_cloudwatch_log_group" "per_zone" {
-  name = "/zones/${data.aws_route53_zone.primary.zone_id}"
+resource "aws_s3_bucket" "per_zone" {
+  bucket = "zone-${data.aws_route53_zone.primary.zone_id}"
 }
 
-resource "aws_cloudwatch_log_stream" "per_zone" {
-  log_group_name = aws_cloudwatch_log_group.per_zone.name
-  name            = "stream"
+resource "aws_s3_bucket_policy" "per_zone" {
+  bucket = aws_s3_bucket.per_zone.bucket
 }

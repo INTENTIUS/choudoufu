@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -139,6 +140,19 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	// finding order never matters.
 	var cascades []cascadeSite
 
+	// signal is collected once, over the whole configuration, the same way
+	// lint.go collects it before calling admitted(): a schema-fallback
+	// verdict for a type depends on what the whole configuration sets for
+	// it, not on how much of this loop has run by the time a given cascade
+	// asks. Left nil when there are no schemas to fall back to -
+	// [identity.SynthesizeTypeIdentity] refuses immediately in that case
+	// and never consults it - so a signal computed for nothing is never a
+	// static-evaluator walk this run does not need.
+	var signal *identity.ConfigSignal
+	if len(actx.Schemas) > 0 {
+		signal, _ = identity.ScanConfig(ctx, cfg)
+	}
+
 	for _, diag := range diags {
 		desc := diag.Description()
 		site := Site{
@@ -186,7 +200,12 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 			// so it cannot be classified here; it is held for the
 			// fixpoint pass below instead of being resolved now.
 			if child, parent, ok := parseCascadeDetail(desc.Summary, desc.Detail); ok {
-				cascades = append(cascades, cascadeSite{site: site, child: child, parent: parent})
+				cascades = append(cascades, cascadeSite{
+					site:   site,
+					child:  child,
+					parent: parent,
+					safe:   dependentSafeToReclassify(stripAttrSuffix(child), actx.Schemas, signal),
+				})
 				continue
 			}
 			f := findings.get(LayerIdentity, desc.Summary)
@@ -212,6 +231,22 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 		changed := false
 		for i, c := range cascades {
 			if resolved[i] || !eligibleAddrs[c.parent] {
+				continue
+			}
+			if !c.safe {
+				// GitHub issue #221: resolveInstance
+				// (internal/live/identity/resolve.go) returns at the FIRST
+				// failing component of entry.Components, so when the
+				// dependent's own type has a second real component this
+				// diagnostic's parent trace proves nothing about it - it
+				// was never reached, let alone checked. Reclassifying here
+				// would tell the operator "no configuration edit is
+				// needed" while a second, wholly unrelated required
+				// argument might have no value at all. Leaving resolved[i]
+				// false keeps it on the default hard-refusal path below,
+				// and also withholds eligibility from anything that in
+				// turn depends on THIS instance's identity, so the
+				// conservatism propagates rather than stopping at one hop.
 				continue
 			}
 			resolved[i] = true
@@ -270,6 +305,11 @@ type cascadeSite struct {
 	site   Site
 	child  string
 	parent string
+
+	// safe is [dependentSafeToReclassify]'s verdict on the child, computed
+	// once at construction (the child string, and therefore its type,
+	// never changes across the fixpoint's rounds). See #221.
+	safe bool
 }
 
 // cascadeMiddle and cascadeSuffix bracket the one place
@@ -347,6 +387,98 @@ func stripAttrSuffix(subject string) string {
 		return ""
 	}
 	return subject[:idx]
+}
+
+// childType recovers a cascade dependent's resource type from its bare
+// resource-instance address (child with the ".<attribute>" suffix already
+// stripped by [stripAttrSuffix]) - exactly the string
+// [addrs.AbsResourceInstance.String] produces, since
+// internal/live/identity/resolve.go's resolver.identifier builds
+// [configs.StaticIdentifier.Subject] as addr.String()+"."+attrName. ok is
+// false when the address does not parse as one, which the caller must treat
+// as "type unknown" rather than guess at.
+func childType(addr string) (string, bool) {
+	parsed, diags := addrs.ParseAbsResourceInstanceStr(addr)
+	if diags.HasErrors() {
+		return "", false
+	}
+	return parsed.Resource.Resource.Type, true
+}
+
+// dependentSafeToReclassify is GitHub issue #221's conservative interim
+// fix: whether a cascade's dependent instance (addr, already stripped of
+// its trailing attribute) is provably safe to reclassify as
+// data-read-eligible.
+//
+// resolveInstance (internal/live/identity/resolve.go:648-714) walks
+// entry.Components in order and returns at the FIRST failing one - a
+// short-circuit that predates this fix. When the failing component traces
+// back to an eligible data read, that says nothing about any OTHER real
+// component of the same type: it was never reached, let alone evaluated,
+// so a second, independently broken required argument produces no
+// diagnostic anywhere. Reclassifying such a cascade as "no configuration
+// edit is needed" would be exactly that false assurance.
+//
+// entry is looked up the same two-step way
+// internal/live/identity/resolve.go's resolver.lookupType does - the hand
+// table first, [identity.SynthesizeTypeIdentity]'s schema fallback second -
+// because a type this instrument only knows about through the fallback
+// (e.g. an aws_s3_bucket_acl-shaped type whose identity is one required
+// attribute the schema names directly) is exactly as real a dependent as
+// one the hand table covers, and synthesis is not always single-component:
+// an [identity.TypeIdentity.IdentityObjectOnly] entry can carry two or more
+// attribute-bearing components joined by no separator at all
+// (synthesize.go's names loop). Skipping the fallback here would call such
+// a type "unknown" and refuse to reclassify it unconditionally - safe, but
+// a needless loss for the single-component majority the fallback actually
+// produces.
+//
+// A "real component" is derived from [identity.TypeIdentity.Components],
+// never from a resource type name: a [identity.Component] whose Attrs is
+// non-empty is the one shape resolveInstance actually reads out of the
+// resource body inside the per-component loop and can fail on
+// independently (identity/resolve.go:663-713). A Literal-only component
+// (Attrs empty, Cloud unset) is a fixed separator between two real ones and
+// can never fail. A Cloud-sourced component (aws_*'s account ID, region) is
+// checked once for the whole entry by missingCloudValue before the
+// per-component loop even starts (identity/resolve.go:616-622) - never
+// hidden by a short-circuit inside a loop it precedes.
+//
+// This is safe with at most one real component: either it is the one
+// already diagnosed by the cascade (nothing else to hide), or the type
+// carries no configuration-driven component at all (nothing the resolver
+// could have failed on independently, e.g. its whole identity comes from a
+// literal, from the cloud context, or the type resolves at a shallower
+// check before the components loop runs at all - ServerAssigned or
+// RecordBacked). Two or more real components are unsafe, because the
+// second one was never reached.
+//
+// Anything this cannot prove single-real-component - the address failing
+// to parse, or the type settled by neither the hand table nor the schema
+// fallback (no schemas offered, the provider does not serve the type, or
+// its identity schema does not clear [identity.DerivableWith]'s bar) -
+// refuses to reclassify. An unproven case must default to false: "no
+// configuration edit is needed" is the one claim this whole mechanism
+// cannot afford to make on a guess.
+func dependentSafeToReclassify(addr string, schemas map[string]providers.Schema, signal *identity.ConfigSignal) bool {
+	typeName, ok := childType(addr)
+	if !ok {
+		return false
+	}
+	entry, ok := identity.LookupType(typeName)
+	if !ok {
+		entry, ok = identity.SynthesizeTypeIdentity(typeName, schemas, signal)
+	}
+	if !ok {
+		return false
+	}
+	real := 0
+	for _, comp := range entry.Components {
+		if len(comp.Attrs) > 0 {
+			real++
+		}
+	}
+	return real <= 1
 }
 
 // classifyDataSite maps one identity-layer refusal to the data-read pass's

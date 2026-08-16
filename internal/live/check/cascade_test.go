@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/dataread"
 )
 
@@ -140,6 +141,51 @@ func TestAnalyzeDoesNotCascadeAnUnrelatedFailure(t *testing.T) {
 	}
 }
 
+// TestAnalyzeDoesNotReclassifyMultiComponentCascade is GitHub issue #221's
+// regression guard: it is the audit's own repro, reproduced with a built
+// binary before this fix existed. aws_cloudwatch_log_stream's identity has
+// TWO real components (log_group_name, name); log_group_name cascades from
+// the log group's eligible data-source read, but "name" has no value at
+// all - a second, wholly independent failure resolveInstance's
+// first-failing-component short-circuit never reaches, so it raises no
+// diagnostic of its own anywhere in this configuration.
+//
+// Before #221, the cascade fixpoint saw only that the first component
+// traced to an eligible read and reclassified the whole instance as "no
+// configuration edit is needed" - which is false; plain "tofu validate"
+// refuses this configuration. dependentSafeToReclassify must refuse to
+// reclassify here, leaving the log stream's cascade a hard "Unresolvable
+// identity" refusal so the estate is not told it is fine when it is not.
+func TestAnalyzeDoesNotReclassifyMultiComponentCascade(t *testing.T) {
+	report := analyzeFixtureDir(t, "cascade-multicomponent-blocked")
+
+	var identityCount, datareadCount int
+	for _, f := range report.Findings {
+		switch f.Layer {
+		case LayerIdentity:
+			identityCount += len(f.Sites)
+			if f.ID != "Unresolvable identity" {
+				t.Errorf("unexpected identity finding %s", f.ID)
+			}
+		case LayerDataread:
+			datareadCount += len(f.Sites)
+		}
+	}
+	// The log group's OWN data-source read is still eligible on its own
+	// terms - #221 does not touch the direct case, only the cascade. Only
+	// the log stream's cascade onto it must stay held back.
+	if datareadCount != 1 {
+		t.Errorf("want one data-read-eligible site (the log group's own read), got %d: %+v", datareadCount, report.Findings)
+	}
+	if identityCount != 1 {
+		t.Fatalf("want one identity-layer site (the log stream's cascade, held hard-refused), got %d: %+v", identityCount, report.Findings)
+	}
+
+	if got := ClassifyOnboarding(true, refusalIDs(report.Findings)); got != OnboardingLanguageBlocked {
+		t.Errorf("classified %q, want %q", got, OnboardingLanguageBlocked)
+	}
+}
+
 // TestParseCascadeDetail pins the fixed format
 // internal/live/identity/resolve.go's parentPart raises "Unresolvable
 // identity" with, and that a summary or detail that does not match it -
@@ -180,6 +226,26 @@ func TestParseCascadeDetail(t *testing.T) {
 			detail:  "",
 			wantOK:  false,
 		},
+		{
+			// A for_each key that legitimately contains the parser's own
+			// separator text. strings.Index finds the FIRST occurrence of
+			// cascadeMiddle, which is the one inside the key's quoted
+			// string, not the real one further right - so this
+			// mis-splits. The fail-safe direction matters more than the
+			// exact wrong values: ok must still be true (parseCascadeDetail
+			// itself never panics or rejects on this shape, since the
+			// detail still contains the middle and ends with the fixed
+			// suffix), but the recovered child and parent must NOT be the
+			// real addresses, so [Analyze]'s cascade fixpoint can never
+			// match them against a real eligibleAddrs entry and this stays
+			// a hard "Unresolvable identity" refusal - safe, not silent.
+			name:       "address contains the parser's own separator text",
+			summary:    "Unresolvable identity",
+			detail:     `aws_instance.x[" depends on the identity of x"].id depends on the identity of aws_instance.y, which could not be resolved (see the other error).`,
+			wantOK:     true,
+			wantChild:  `aws_instance.x["`,
+			wantParent: `x"].id depends on the identity of aws_instance.y`,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -195,6 +261,18 @@ func TestParseCascadeDetail(t *testing.T) {
 			}
 			if parent != tc.wantParent {
 				t.Errorf("parent = %q, want %q", parent, tc.wantParent)
+			}
+			// The fail-safe assertion this case exists for: a mis-split
+			// address must never coincide with a real
+			// addrs.AbsResourceInstance.String() shape that the fixpoint
+			// could accidentally match against eligibleAddrs. Both halves
+			// here carry a stray '"' or a run-on sentence fragment, which
+			// [addrs.ParseAbsResourceInstanceStr] refuses - proving the
+			// mismatch cannot silently resolve to a real instance.
+			if tc.name == "address contains the parser's own separator text" {
+				if _, diags := addrs.ParseAbsResourceInstanceStr(child); !diags.HasErrors() {
+					t.Errorf("mis-split child %q parsed as a real resource-instance address; the safe-direction guarantee depends on it NOT doing so", child)
+				}
 			}
 		})
 	}
@@ -240,15 +318,23 @@ func TestNeededByResourceAddr(t *testing.T) {
 	}
 }
 
-// TestAnalyzeCascadeAgainstRealResolver cross-checks
-// TestNeededByResourceAddr's pinned shapes against what
-// identity.ResolveWith actually emits today, so a future wording change in
-// resolve.go or static_scope.go fails this test rather than silently
-// stopping the propagation from firing (parseCascadeDetail and
-// neededByResourceAddr both degrade to "not recognised" on a mismatch,
-// which is safe but invisible without a test tying them to the real
-// diagnostics).
-func TestAnalyzeCascadeAgainstRealResolver(t *testing.T) {
+// TestAnalyzeCascadeSweepsEveryEligibleFixture is a coarse sweep over every
+// "eligible" cascade fixture: no [LayerIdentity] finding may survive
+// [Analyze] on any of them.
+//
+// Correction (#221's audit): an earlier version of this comment claimed the
+// test "cross-checks against what identity.ResolveWith actually emits
+// today" - implying an oracle independent of the rest of this file. It does
+// not. It calls analyzeFixtureDir, the exact same [Analyze] entry point
+// TestAnalyzeCascadesEligibleReadThroughDependents and its two siblings
+// above already call on these same three fixtures, and those three already
+// assert the identical fact with exact finding and site counts - this test
+// is fully redundant with them. It is not, however, a self-agreement
+// ratchet in the sense that matters (a test that checks a derivation
+// against a rule the code itself computed): Analyze calls
+// identity.ResolveWith for real, so this does exercise the true resolver
+// transitively. It simply adds no coverage the three tests above lack.
+func TestAnalyzeCascadeSweepsEveryEligibleFixture(t *testing.T) {
 	for _, dir := range []string{"cascade-eligible", "cascade-eligible-module", "cascade-eligible-foreach"} {
 		t.Run(dir, func(t *testing.T) {
 			report := analyzeFixtureDir(t, dir)
