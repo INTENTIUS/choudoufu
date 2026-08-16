@@ -19,22 +19,17 @@ var typeOverridesStreaming = map[string]typeOverride{
 	// (no Components at all), so the generic pass's identityArgName never
 	// fires for their own "name" argument, which is itself a plain Required
 	// string in the real provider schema even though the type's *identity*
-	// is server-assigned. Left to the generic pass's same-name parent
-	// search, all five instead point their "name" at whichever other
-	// resource in this run happens to render first with its own "name"
-	// Required too (aws_appflow_connector_profile, alphabetically first) -
-	// the identical failure shape aws_ecs_daemon's own override above
-	// already names for the same root cause. Every one of the five gets its
-	// own literal name back here.
-	"aws_appsync_graphql_api": {
-		Reasons: []string{
-			`"name" mis-wired to aws_appflow_connector_profile.app.name by the generic pass's same-name parent search (this type is server-assigned, so identityArgName never supplies its own name); corrected to a literal. authentication_type is Required and the provider validates it against a fixed enum (validate: "expected authentication_type to be one of [...]"), and the generic placeholder string is not a member`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-appsync-graphql-api"`, g.cohort)))
-			body.SetAttributeRaw("authentication_type", exprTokens(`"API_KEY"`))
-		},
-	},
+	// is server-assigned. Before #136's cohort/type-fix rule, the generic
+	// pass's same-name parent search left all five pointing their "name" at
+	// whichever other resource in this run happened to render first with
+	// its own "name" Required too (aws_appflow_connector_profile,
+	// alphabetically first) - the identical failure shape aws_ecs_daemon's
+	// own override above already names for the same root cause. That
+	// collision no longer happens (gen.go's parentRef never treats a bare
+	// "name" argument as a same-named sibling's parent, self-owned or not);
+	// each entry below now keeps its own literal name for an independent
+	// reason - a length or charset limit, or consistency with its
+	// siblings - stated per entry.
 	// #175 ratification batch, 2026-08-15: two of the four types this
 	// batch added to the cohort carry arguments the provider validates as
 	// well-formed ARNs at plan time, a constraint the wire schema does not
@@ -63,7 +58,7 @@ var typeOverridesStreaming = map[string]typeOverride{
 	},
 	"aws_msk_configuration": {
 		Reasons: []string{
-			`"name" mis-wired to aws_appflow_connector_profile.app.name, the same cause and fix as aws_appsync_graphql_api above. server_properties is Required but the generic placeholder string is not a real Kafka broker properties file, which the provider does not validate at plan time but does need at apply time (confirmed by hand against floci during this batch's verification)`,
+			`"name" no longer needs a fix for the accidental cross-type collision this Reasons string used to describe (#136's cohort/type-fix rule); kept set to its own literal, matching its siblings. server_properties is Required but the generic placeholder string is not a real Kafka broker properties file, which the provider does not validate at plan time but does need at apply time (confirmed by hand against floci during this batch's verification)`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-msk-configuration"`, g.cohort)))
@@ -72,7 +67,7 @@ var typeOverridesStreaming = map[string]typeOverride{
 	},
 	"aws_mskconnect_connector": {
 		Reasons: []string{
-			`"name" mis-wired the same way as aws_appsync_graphql_api above. capacity is a required block whose two nested block_types (autoscaling, provisioned_capacity) are both themselves Optional in the schema, but the provider requires exactly one (validate: "Missing required argument" once floci is asked to create it); kafka_cluster.apache_kafka_cluster.bootstrap_servers is Required but the generic placeholder string is not the bootstrap-broker-list format the provider expects, so it is wired to this cohort's own aws_msk_cluster's bootstrap_brokers output; kafka_cluster_client_authentication.authentication_type and kafka_cluster_encryption_in_transit.encryption_type are both Optional in the schema but their empty blocks leave the provider to guess, set here to their documented defaults for clarity; plugin.custom_plugin.arn/revision are Required but the generic placeholder string and zero are neither a real plugin ARN nor a real revision, wired to this cohort's own aws_mskconnect_custom_plugin instead; kafkaconnect_version is Required and the provider validates it against the versions MSK Connect actually supports, not an arbitrary string`,
+			`"name" no longer needs a fix for the accidental cross-type collision aws_appsync_graphql_api used to describe (#136's cohort/type-fix rule); kept set to its own literal, matching its siblings. capacity is a required block whose two nested block_types (autoscaling, provisioned_capacity) are both themselves Optional in the schema, but the provider requires exactly one (validate: "Missing required argument" once floci is asked to create it); kafka_cluster.apache_kafka_cluster.bootstrap_servers is Required but the generic placeholder string is not the bootstrap-broker-list format the provider expects, so it is wired to this cohort's own aws_msk_cluster's bootstrap_brokers output; kafka_cluster_client_authentication.authentication_type and kafka_cluster_encryption_in_transit.encryption_type are both Optional in the schema but their empty blocks leave the provider to guess, set here to their documented defaults for clarity; plugin.custom_plugin.arn/revision are Required but the generic placeholder string and zero are neither a real plugin ARN nor a real revision, wired to this cohort's own aws_mskconnect_custom_plugin instead; kafkaconnect_version is Required and the provider validates it against the versions MSK Connect actually supports, not an arbitrary string`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-mskconnect-connector"`, g.cohort)))
@@ -120,7 +115,7 @@ var typeOverridesStreaming = map[string]typeOverride{
 	},
 	"aws_mskconnect_custom_plugin": {
 		Reasons: []string{
-			`"name" mis-wired the same way as aws_appsync_graphql_api above. content_type is Required and the provider validates it against a fixed enum (validate: "expected content_type to be one of [JAR ZIP]"), and the generic placeholder string is not a member; location.s3.bucket_arn is Required and validated as a well-formed ARN (validate: "is an invalid ARN")`,
+			`"name" no longer needs a fix for the accidental cross-type collision aws_appsync_graphql_api used to describe (#136's cohort/type-fix rule); kept set to its own literal, matching its siblings. content_type is Required and the provider validates it against a fixed enum (validate: "expected content_type to be one of [JAR ZIP]"), and the generic placeholder string is not a member; location.s3.bucket_arn is Required and validated as a well-formed ARN (validate: "is an invalid ARN")`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-mskconnect-custom-plugin"`, g.cohort)))
@@ -135,15 +130,6 @@ var typeOverridesStreaming = map[string]typeOverride{
 					}
 				}
 			}
-		},
-	},
-	"aws_mskconnect_worker_configuration": {
-		Reasons: []string{
-			`"name" mis-wired the same way as aws_appsync_graphql_api above. properties_file_content is Required but the generic placeholder string is not a real Kafka Connect worker properties file, which the provider does not validate at plan time but does need at apply time (confirmed by hand against floci during this batch's verification)`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-mskconnect-worker-configuration"`, g.cohort)))
-			body.SetAttributeRaw("properties_file_content", exprTokens(`"key.converter=org.apache.kafka.connect.storage.StringConverter\nvalue.converter=org.apache.kafka.connect.storage.StringConverter\n"`))
 		},
 	},
 	"aws_mq_broker": {
@@ -161,7 +147,7 @@ var typeOverridesStreaming = map[string]typeOverride{
 	},
 	"aws_mq_configuration": {
 		Reasons: []string{
-			`"name" mis-wired the same way as aws_appsync_graphql_api above (this type is client-named in the identity table, but via a "name" argument the generic pass's own parent search also treats as a same-name candidate before Components resolves it, so the override is needed regardless of admission path). engine_type and engine_version are Required strings validated against real ActiveMQ/RabbitMQ values, the same shape as aws_mq_broker above; data is Required and must be a well-formed broker configuration document (XML for ActiveMQ), not an arbitrary placeholder string - not caught by validate, found by exercising a create against floci during this batch's verification`,
+			`"name" no longer needs a fix for the accidental cross-type collision aws_appsync_graphql_api used to describe (#136's cohort/type-fix rule: this type is client-named in the identity table by a composite, not a single "name" argument, so parentRef's old fallback used to treat any same-named sibling as fair game regardless of admission path); kept set to its own literal, matching its siblings. engine_type and engine_version are Required strings validated against real ActiveMQ/RabbitMQ values, the same shape as aws_mq_broker above; data is Required and must be a well-formed broker configuration document (XML for ActiveMQ), not an arbitrary placeholder string - not caught by validate, found by exercising a create against floci during this batch's verification`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-mq-configuration"`, g.cohort)))

@@ -85,18 +85,6 @@ var typeOverridesRemainder = map[string]typeOverride{
 			}
 		},
 	},
-	"aws_datazone_domain": {
-		Reasons: []string{
-			`domain_execution_role is Required and validated as a well-formed ARN (validate: "cannot be parsed as an ARN"); the generic placeholder string is not one`,
-		},
-		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			ref, ok := g.iamRoleRefExpr()
-			if !ok {
-				ref = `"arn:aws:iam::000000000000:role/placeholder"`
-			}
-			body.SetAttributeRaw("domain_execution_role", exprTokens(ref))
-		},
-	},
 	"aws_dx_connection": {
 		Reasons: []string{
 			`bandwidth is Required and validated against a closed enum of real Direct Connect port speeds (validate: "expected bandwidth to be one of [...], got placeholder"); the generic placeholder string satisfies none of them`,

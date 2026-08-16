@@ -14,19 +14,21 @@ import (
 // typeOverridesDatabases is the databases cohort's slice of [typeOverrides].
 // Registered by init below; see contributing/LIVE-TABLES.md.
 var typeOverridesDatabases = map[string]typeOverride{
-	// Databases batch (issue #65). Several entries below fix the same
-	// parentRef mis-wiring shape aws_ecs_daemon and aws_eks_access_entry
-	// document above: a type whose own "name" argument is not its
-	// identity.LookupType-visible identity (either because it is
-	// server-assigned, per identityArgName's rule at gen.go:114-124, or
-	// because its identity is a multi-component composite, e.g. the three
-	// OpenSearchServerless policy types' name+type pair) has no competing
-	// claim on "name", so parentRef's same-name search silently wires it to
-	// the alphabetically-first sibling that does own "name" as a
-	// single-component identity - aws_docdb_event_subscription in this
-	// cohort. Every one of those types is corrected back to its own literal
-	// name below; none of them has any real relationship to a DocDB event
-	// subscription. The rest of the entries below fix real
+	// Databases batch (issue #65). Before #136's cohort/type-fix rule,
+	// several entries below fixed the same parentRef mis-wiring shape
+	// aws_ecs_daemon and aws_eks_access_entry document above: a type whose
+	// own "name" argument is not its identity.LookupType-visible identity
+	// (either because it is server-assigned, per identityArgName's rule at
+	// gen.go:114-124, or because its identity is a multi-component
+	// composite, e.g. the three OpenSearchServerless policy types' name+type
+	// pair) had no competing claim on "name", so parentRef's same-name
+	// search silently wired it to the alphabetically-first sibling that did
+	// own "name" as a single-component identity - aws_docdb_event_subscription
+	// in this cohort, with no real relationship to any of them. That never
+	// happens now (gen.go's parentRef never treats a bare "name" argument as
+	// a same-named sibling's parent), and the entries below that used to fix
+	// it keep their own literal names anyway, for consistency with their
+	// siblings; each says so. The rest of the entries below fix real
 	// `terraform validate` failures: a placeholder string that is not a
 	// well-formed ARN, exceeds a length limit, or is not a member of a
 	// closed enum the schema itself does not carry; one
@@ -60,7 +62,7 @@ var typeOverridesDatabases = map[string]typeOverride{
 	},
 	"aws_docdbelastic_cluster": {
 		Reasons: []string{
-			`"name" was mis-wired to aws_docdb_event_subscription.app.name (this type is server-assigned per internal/live/identity/table.go, so identityArgName never claims "name" as its own, and parentRef's same-name search picks the alphabetically-first sibling that does); corrected to a literal name. "auth_type" is a required argument the provider validates against a closed enum (PLAIN_TEXT, SECRET_ARN per the provider's own Argument Reference), and the generic placeholder string is neither. "shard_capacity" and "shard_count" are both required integers the generic pass leaves at their zero value, which the provider's own documented Argument Reference says is below the minimum in practice (not caught by validate, found by reading the provider's example usage) - set to the documented example's own values`,
+			`"name" no longer needs a fix for the accidental cross-type collision this Reasons string used to describe (#136's cohort/type-fix rule: a bare "name" argument is never treated as a same-named sibling's parent); kept set to its own literal for consistency with its siblings. "auth_type" is a required argument the provider validates against a closed enum (PLAIN_TEXT, SECRET_ARN per the provider's own Argument Reference), and the generic placeholder string is neither. "shard_capacity" and "shard_count" are both required integers the generic pass leaves at their zero value, which the provider's own documented Argument Reference says is below the minimum in practice (not caught by validate, found by reading the provider's example usage) - set to the documented example's own values`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-docdbelastic-cluster"`, g.cohort)))
@@ -135,7 +137,7 @@ var typeOverridesDatabases = map[string]typeOverride{
 	},
 	"aws_opensearchserverless_access_policy": {
 		Reasons: []string{
-			`"name" was mis-wired to aws_docdb_event_subscription.app.name (this type's identity is the composite name+type pair, more than one Component, so identityArgName never claims "name" as its own single-component identity - the same shape gen.go:116's "len(entry.Components) != 1" comment describes); corrected to a literal name. "type" is required and the provider validates it against a one-member closed enum (must be "data", per the provider's own Argument Reference); the generic placeholder is not. "policy" is a required string the provider validates as well-formed JSON matching its own access-policy shape (Rules/Principal), confirmed against the provider's documented example`,
+			`"name" no longer needs a fix for the accidental cross-type collision this Reasons string used to describe (#136's cohort/type-fix rule: this type's identity is the composite name+type pair, more than one Component, so identityArgName never claimed "name" as its own single-component identity - the same shape gen.go:116's "len(entry.Components) != 1" comment describes - but a bare "name" argument is now never treated as a same-named sibling's parent regardless); kept set to its own literal for consistency with its siblings. "type" is required and the provider validates it against a one-member closed enum (must be "data", per the provider's own Argument Reference); the generic placeholder is not. "policy" is a required string the provider validates as well-formed JSON matching its own access-policy shape (Rules/Principal), confirmed against the provider's documented example`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(`"tofu-db-access-policy"`))

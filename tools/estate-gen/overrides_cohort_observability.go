@@ -33,7 +33,7 @@ var typeOverridesObservability = map[string]typeOverride{
 	// proof the vocabulary needs.
 	"aws_cloudwatch_event_rule": {
 		Reasons: []string{
-			`"name" mis-wired to aws_cloudwatch_alarm_mute_rule.app.name by the generic pass's same-name search; corrected to a literal so the target below can pair with it by matching seed literal. event_pattern carries the doc example's own value by hand because a type override displaces the doc-example seeding, and the provider requires one of event_pattern/schedule_expression (validate: "one of event_pattern,schedule_expression must be specified"), a constraint the wire schema does not express`,
+			`"name" no longer needs a fix for the accidental cross-type collision this Reasons string used to describe (#136's cohort/type-fix rule: a bare "name" argument is never treated as a same-named sibling's parent); kept set to its own literal so the target below can pair with it by matching seed literal. event_pattern carries the doc example's own value by hand because a type override displaces the doc-example seeding, and the provider requires one of event_pattern/schedule_expression (validate: "one of event_pattern,schedule_expression must be specified"), a constraint the wire schema does not express`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(`"tofu-observability-cohort-event-rule"`))

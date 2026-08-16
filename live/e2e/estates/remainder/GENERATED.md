@@ -28,7 +28,7 @@ go run ./tools/estate-gen -cohort remainder -types aws_appconfig_application,aws
 | `aws_cloudfront_cache_policy.app` | coverage | the parameters_in_cache_key_and_forwarded_to_origin block's cookies_config.cookie_behavior and query_strings_config.query_string_behavior are each Required and validated against a closed enum (validate: "expected ... to be one of [...], got placeholder"); the generic placeholder string satisfies neither |
 | `aws_cloudtrail.app` | coverage | none |
 | `aws_codegurureviewer_repository_association.app` | coverage | none |
-| `aws_datazone_domain.app` | coverage | domain_execution_role is Required and validated as a well-formed ARN (validate: "cannot be parsed as an ARN"); the generic placeholder string is not one |
+| `aws_datazone_domain.app` | coverage | none |
 | `aws_datazone_environment_blueprint_configuration.app` | coverage | none |
 | `aws_datazone_form_type.app` | coverage | domain_identifier is validated against the DataZone domain-ID pattern (validate: "Attribute domain_identifier ^dzd[-_][a-zA-Z0-9_-]{1,36}$, got: placeholder"); wired to this cohort's own aws_datazone_domain - this type is server-assigned in the identity table, so the argument is not identity-bound and the reference is plain apply-correctness; model is a required nested block the generic required-only pass does not emit (validate: "Block model must have a configuration value as the provider has marked it as required"); its one member is a Smithy model document, supplied here as the minimal structure the service accepts |
 | `aws_detective_graph.app` | coverage | none |
@@ -47,8 +47,8 @@ go run ./tools/estate-gen -cohort remainder -types aws_appconfig_application,aws
 | `aws_securityhub_account.app` | coverage | none |
 | `aws_sesv2_contact_list.app` | coverage | none |
 | `aws_sesv2_email_identity.app` | coverage | none |
-| `aws_athena_workgroup.remainder` | supporting, not coverage | none |
 | `aws_cloudwatch_metric_alarm.remainder` | supporting, not coverage | comparison_operator/evaluation_periods are the schema's only Required arguments, but the provider additionally requires one of evaluation_criteria, metric_name or metric_query (validate: "one of evaluation_criteria,metric_name,metric_query must be specified"), and metric_name is exactly the argument the doc-example seed must skip (looksLikeName treats "*_name" as generator-owned naming, but this one names the metric watched, not the resource) - so the seed alone leaves the block invalid and the whole documented example lives here instead, the same CPUUtilization shape live/e2e/estate/monitoring.tf already carries by hand |
+| `aws_codecommit_repository.remainder` | supporting, not coverage | none |
 | `aws_efs_file_system.remainder` | supporting, not coverage | none |
 | `aws_iam_role.remainder` | supporting, not coverage | schema requires "assume_role_policy" as a plain string, but the provider validates it is well-formed JSON (validate: "\"assume_role_policy\" contains an invalid JSON"); the generic string placeholder is not JSON |
 | `aws_kms_key.remainder` | supporting, not coverage | none |

@@ -7,6 +7,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
 )
@@ -55,6 +56,14 @@ var typeOverridesStorage = map[string]typeOverride{
 			sel.Body().SetAttributeRaw("algorithm", exprTokens(`"LATEST_WITHIN_WINDOW"`))
 			sel.Body().SetAttributeRaw("include_vaults", exprTokens(`["*"]`))
 			sel.Body().SetAttributeRaw("recovery_point_types", exprTokens(`["CONTINUOUS"]`))
+		},
+	},
+	"aws_fsx_ontap_storage_virtual_machine": {
+		Reasons: []string{
+			`"name" allows "a maximum of 47 alphanumeric characters, plus the underscore (_) special character" (fsx_ontap_storage_virtual_machine.html.markdown's Argument Reference) - no hyphens, and the generic tofu-<cohort>-cohort-<type> placeholder is both longer than 47 and hyphenated once the cohort/type-fix rule (issue #136) gives this type its own name instead of borrowing a shorter unrelated sibling's (validate: "expected length of name to be in the range (1 - 47)")`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu_%s_svm"`, strings.ReplaceAll(g.cohort, "-", "_"))))
 		},
 	},
 	"aws_fsx_data_repository_association": {

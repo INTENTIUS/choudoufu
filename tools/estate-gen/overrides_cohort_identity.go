@@ -21,7 +21,7 @@ var typeOverridesIdentity = map[string]typeOverride{
 	// not carry - the same shape as the batches above.
 	"aws_cognito_resource_server": {
 		Reasons: []string{
-			`"user_pool_id" is a required string the schema does not constrain, but the provider validates it against the documented region_id shape (validate: "must be the region name followed by an underscore and then alphanumeric pattern"); the generic placeholder string is not one - resolved by hand to the sibling aws_cognito_user_pool's own real id rather than a synthesized literal, so this type actually exercises against a live pool during a floci apply instead of failing "User pool not found". "name" is a required string the schema does not constrain (distinct from the identity-bearing "identifier" argument this cohort's identity table already reads), but the generic pass pointed it at aws_iam_server_certificate's own placeholder name purely because both types happen to take a "name" argument - an accidental cross-type reference this override breaks with an independent literal`,
+			`"user_pool_id" is a required string the schema does not constrain, but the provider validates it against the documented region_id shape (validate: "must be the region name followed by an underscore and then alphanumeric pattern"); the generic placeholder string is not one - resolved by hand to the sibling aws_cognito_user_pool's own real id rather than a synthesized literal, so this type actually exercises against a live pool during a floci apply instead of failing "User pool not found". "name" no longer needs a fix for the accidental cross-type collision this Reasons string used to describe (gen.go's parentRef, #136: a bare "name" argument is never treated as a same-named sibling's parent) - kept set to its own short literal rather than the generic pass's own longer tofu-<cohort>-cohort-<type> placeholder, purely for readability`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("user_pool_id", exprTokens(cognitoUserPoolIDRef(g)))
@@ -38,7 +38,7 @@ var typeOverridesIdentity = map[string]typeOverride{
 	},
 	"aws_cognito_user_group": {
 		Reasons: []string{
-			`"user_pool_id" is a required string the schema does not constrain, but the provider validates it against the documented region_id shape (validate: "must be the region name followed by an underscore and then alphanumeric pattern"); the generic placeholder string is not one - resolved to the sibling aws_cognito_user_pool's own real id, same fix as aws_cognito_resource_server above. "name" (the group's own name, distinct from user_pool_id) is a required string the generic pass pointed at aws_iam_server_certificate's own placeholder name for the same accidental cross-type reason as aws_cognito_resource_server's "name" above - broken the same way`,
+			`"user_pool_id" is a required string the schema does not constrain, but the provider validates it against the documented region_id shape (validate: "must be the region name followed by an underscore and then alphanumeric pattern"); the generic placeholder string is not one - resolved to the sibling aws_cognito_user_pool's own real id, same fix as aws_cognito_resource_server above. "name" (the group's own name, distinct from user_pool_id) no longer needs a fix for the accidental cross-type collision this Reasons string used to describe (gen.go's parentRef, #136), and is kept set to its own short literal rather than the generic pass's own longer placeholder, purely for readability`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("user_pool_id", exprTokens(cognitoUserPoolIDRef(g)))
@@ -57,7 +57,7 @@ var typeOverridesIdentity = map[string]typeOverride{
 	},
 	"aws_cognito_user_pool": {
 		Reasons: []string{
-			`"name" is a required string the schema does not constrain, but the generic pass pointed it at the unrelated aws_iam_server_certificate's own placeholder name purely because both types happen to take a "name" argument - the same accidental cross-type reference aws_cognito_resource_server's own "name" override above breaks, given its own independent literal here instead so a floci apply exercises this type on its own rather than skipping it whenever the certificate resource fails`,
+			`"name" is a required string the schema does not constrain. The accidental cross-type collision this Reasons string used to describe (the generic pass pointing this type's own "name" at an unrelated sibling's, purely because both happened to take an argument spelled "name") no longer happens - gen.go's parentRef (#136) never treats a bare "name" argument as a same-named sibling's parent, since the word carries no hint of which sibling it would mean. Kept set to its own short literal rather than the generic pass's own longer tofu-<cohort>-cohort-<type> placeholder, purely for readability`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-user-pool"`, g.cohort)))
@@ -162,7 +162,7 @@ var typeOverridesIdentity = map[string]typeOverride{
 	},
 	"aws_ssoadmin_permission_set": {
 		Reasons: []string{
-			`"name" is Required and the schema pins its own length range, but the value the generic pass supplied (a reference to the sibling aws_iam_server_certificate's own long placeholder name, matched purely because both types happen to take a "name" argument) exceeds the provider's own 1-32 character limit (validate: "expected length of name to be in the range (1 - 32)") - the same accidental cross-type name collision aws_cognito_user_pool's own "name" argument also inherits from the same certificate resource, but that type's schema tolerates the longer string; this one does not.`,
+			`"name" is Required and the schema pins its own length range, but the generic pass's own tofu-<cohort>-cohort-<type> placeholder exceeds the provider's own 1-32 character limit (validate: "expected length of name to be in the range (1 - 32)") - the same class of gap #136's cohort/type-fix rule left in place for every type whose limit is tighter than the placeholder's own length, since the placeholder's length depends on the cohort name rather than on any per-type signal the schema carries`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-permset"`, g.cohort)))
@@ -192,7 +192,7 @@ var typeOverridesIdentity = map[string]typeOverride{
 	},
 	"aws_ssoadmin_application": {
 		Reasons: []string{
-			`"application_provider_arn" is a required string the schema does not constrain, but the provider validates it is a well-formed ARN (validate: "Invalid ARN Value"); the generic placeholder string is not one - set to AWS's own built-in custom SAML application provider, a real, documented value (not account-specific) rather than a synthesized placeholder ARN. "name" is a required string the generic pass pointed at the unrelated aws_iam_server_certificate's own placeholder name purely because both types happen to take a "name" argument - the same accidental cross-type reference aws_cognito_user_pool's own "name" override above breaks, given its own independent literal here`,
+			`"application_provider_arn" is a required string the schema does not constrain, but the provider validates it is a well-formed ARN (validate: "Invalid ARN Value"); the generic placeholder string is not one - set to AWS's own built-in custom SAML application provider, a real, documented value (not account-specific) rather than a synthesized placeholder ARN. "name" no longer needs a fix for the accidental cross-type collision this Reasons string used to describe (gen.go's parentRef, #136), and is kept set to its own short literal rather than the generic pass's own longer placeholder, purely for readability`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("application_provider_arn", exprTokens(`"arn:aws:sso::aws:applicationProvider/custom-saml"`))

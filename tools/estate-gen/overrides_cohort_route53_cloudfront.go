@@ -130,6 +130,30 @@ var typeOverridesRoute53Cloudfront = map[string]typeOverride{
 			ssl.Body().SetAttributeRaw("quantity", exprTokens(`1`))
 		},
 	},
+	"aws_route53_resolver_firewall_domain_list": {
+		Reasons: []string{
+			`"name" cannot be greater than 64 characters (validate: "\"name\" cannot be greater than 64 characters"); the generic tofu-<cohort>-cohort-<type> placeholder exceeds it once the cohort/type-fix rule (issue #136) gives this type its own name instead of borrowing a shorter unrelated sibling's`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-firewall-domains"`, g.cohort)))
+		},
+	},
+	"aws_route53_resolver_firewall_rule_group": {
+		Reasons: []string{
+			`"name" cannot be greater than 64 characters (validate: "\"name\" cannot be greater than 64 characters"); the generic tofu-<cohort>-cohort-<type> placeholder exceeds it once the cohort/type-fix rule (issue #136) gives this type its own name instead of borrowing a shorter unrelated sibling's`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-firewall-rule-group"`, g.cohort)))
+		},
+	},
+	"aws_route53_resolver_firewall_rule_group_association": {
+		Reasons: []string{
+			`"name" cannot be greater than 64 characters (validate: "\"name\" cannot be greater than 64 characters"); the generic tofu-<cohort>-cohort-<type> placeholder exceeds it once the cohort/type-fix rule (issue #136) gives this type its own name instead of borrowing a shorter unrelated sibling's`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-firewall-assoc"`, g.cohort)))
+		},
+	},
 	"aws_route53_health_check": {
 		Reasons: []string{
 			`"type" is a required string the schema does not constrain to an enum, but the provider validates it against a fixed set (validate: "expected type to be one of [...]"); the generic placeholder string matches neither`,
